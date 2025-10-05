@@ -1,6 +1,37 @@
 const mongoose = require('mongoose');
 const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
 const userProfile = require('../../models/userProfile');
+const jwt = require('jsonwebtoken');
+const moment = require('moment');
+const config = require('../../config');
+const Role = require('../../models/role');
+const Village = require('../../models/lbdashboard/villages');
+
+const verifyToken = async (req) => {
+  const token = req.headers['authorization'];
+  if (!token) throw new Error('No token provided');
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
+      throw new Error('Token is invalid or expired');
+    }
+    const role = await Role.findOne({ roleName: decoded.role });
+    const rolePermissions = role ? role.permissions : [];
+    const personalPermissions = [
+      ...(decoded.permissions?.frontPermissions || []),
+      ...(decoded.permissions?.backPermissions || [])
+    ];
+    const combinedPermissions = Array.from(new Set([...rolePermissions, ...personalPermissions]));
+    req.user = {
+      userid: decoded.userid,
+      role: decoded.role,
+      permissions: combinedPermissions,
+    };
+    return req.user;
+  } catch (error) {
+    throw new Error('Invalid or expired token');
+  }
+};
 
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
@@ -109,6 +140,55 @@ const listingsController = (ListingHome) => {
     }
   };
 
+  const getListingById = async (req, res) => {
+    try {
+      await verifyToken(req);
+      const { id } = req.body;
+      if (!id) return res.status(400).json({ error: 'Missing listing id in body' });
+
+      const listing = await ListingHome.findById(id)
+        .populate([
+          { path: 'createdBy', select: '_id firstName lastName' },
+          { path: 'updatedBy', select: '_id firstName lastName' }
+        ])
+        .lean();
+
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+
+      // Fetch village amenities and name using the village field as ID
+      let villageAmenities = [];
+      let villageName = '';
+      if (listing.village) {
+        try {
+          const villageDoc = await Village.findById(listing.village).lean();
+          if (villageDoc) {
+            villageAmenities = villageDoc.amenities || [];
+            villageName = villageDoc.name || '';
+          }
+        } catch (err) {
+          // If not a valid ObjectId or not found, fallback to empty
+          villageAmenities = [];
+          villageName = '';
+        }
+      }
+
+      res.json({
+        status: 200,
+        data: {
+          ...listing,
+          unitAmenities: listing.amenities || [],
+          villageAmenities,
+          villageName,
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+  };
+
+
   const createListing = async (req, res) => {
     try {
       const {
@@ -134,7 +214,7 @@ const listingsController = (ListingHome) => {
       }
 
       if (isComplete) {
-        if (!title || !description || !price || !perUnit || !createdBy || !availableFrom || !availableTo || !village || !amenities || !updatedBy) {
+        if (!title || !description || !price || !perUnit || !createdBy || !village || !amenities || !updatedBy) {
           return res.status(400).json({
             error: 'Missing required fields for complete listing',
             details: {
@@ -143,8 +223,6 @@ const listingsController = (ListingHome) => {
               price: !price ? 'Required' : null,
               perUnit: !perUnit ? 'Required' : null,
               createdBy: !createdBy ? 'Required' : null,
-              availableFrom: !availableFrom ? 'Required' : null,
-              availableTo: !availableTo ? 'Required' : null,
               village: !village ? 'Required' : null,
               amenities: !amenities ? 'Required' : null,
               updatedBy: !updatedBy ? 'Required' : null
@@ -202,7 +280,7 @@ const listingsController = (ListingHome) => {
         updatedBy,
         status
       };
-
+      console.log(listingData);
       // Handle image uploads with error handling
       if (images && images.length) {
         try {
@@ -268,8 +346,6 @@ const listingsController = (ListingHome) => {
           createdBy: savedListing.createdBy,
           status: savedListing.status,
           images: savedListing.images,
-          availableFrom: savedListing.availableFrom,
-          availableTo: savedListing.availableTo,
           village: savedListing.village,
           coordinates: savedListing.coordinates,
           amenities: savedListing.amenities
@@ -281,25 +357,6 @@ const listingsController = (ListingHome) => {
         error: 'Internal server error',
         details: error.message
       });
-    }
-  };
-
-  const getListingById = async (req, res) => {
-    try {
-      const id = req.headers['id'];
-      if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
-      const listing = await ListingHome.findById(id)
-        .populate([
-          { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
-        ])
-        .lean();
-      if (!listing) {
-        return res.status(404).json({ error: 'Listing not found' });
-      }
-      res.json({ status: 200, data: listing });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   };
 

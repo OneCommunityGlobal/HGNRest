@@ -18,6 +18,9 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const availability = require('../models/lbdashboard/availability');
+
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
@@ -343,6 +346,8 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api', registrationRouter);
+
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
@@ -415,6 +420,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
   app.use('/api/lb', bidsRouter);
