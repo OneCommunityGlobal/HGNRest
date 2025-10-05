@@ -13,15 +13,15 @@ const routes = function (ListingHome) {
   const listingRouter = express.Router();
   const controller = require('../../controllers/lbdashboard/listingsController')(ListingHome);
 
-  listingRouter.route('/listing')
+  listingRouter.route('/listings')
     .get(controller.getListings)
     .post(upload.array('images', 10), controller.createListing);
 
-  listingRouter.post('/listing/getById', controller.getListingById);
+  listingRouter.route('/listings/id')
+    .get(controller.getListingById)
+    .put(upload.array('images', 10), controller.updateListing)
+    .delete(controller.deleteListing);
 
-  // Additional endpoints
-  listingRouter.route('/biddings').get(controller.getBiddings);
-  listingRouter.route('/villages').get(controller.getVillages);
 
   return listingRouter;
 };
