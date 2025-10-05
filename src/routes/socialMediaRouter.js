@@ -8,7 +8,9 @@ const {
 
 const socialMediaRouter = express.Router();
 
-//social media routes
+// social media routes
+console.log('Social Media Router is being loaded');
+
 socialMediaRouter.route('/pinterest/createPin').post(createPin);
 socialMediaRouter.route('/pinterest/schedule').post(schedulePin);
 socialMediaRouter.route('/pinterest/schedule').get(fetchScheduledPin);
