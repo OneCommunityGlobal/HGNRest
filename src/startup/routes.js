@@ -31,6 +31,8 @@ const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 
+const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+
 // Title
 const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
@@ -38,6 +40,7 @@ const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
+const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
@@ -224,6 +227,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   blueSquareEmailAssignment,
   userProfile,
 );
+// PR Analytics
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
 
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
@@ -330,6 +335,7 @@ module.exports = function (app) {
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
+  app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
 
   app.use('/api', templateRouter);
@@ -400,6 +406,9 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  // PR Analytics
+  app.use('/api', prInsightsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
