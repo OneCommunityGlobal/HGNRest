@@ -260,10 +260,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         return res.status(500).send('Failed to apply purchase status update to material.');
       }
 
-      res.status(200).send({
-        message: `Purchase ${status.toLowerCase()} successfully`,
-        updatedMaterial,
-      });
+      res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
       res.status(500).send(error);
     }
