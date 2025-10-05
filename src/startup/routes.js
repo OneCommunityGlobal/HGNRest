@@ -187,7 +187,6 @@ const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRout
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
-
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
