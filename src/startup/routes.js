@@ -84,6 +84,7 @@ const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
@@ -337,7 +338,7 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-
+  app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
