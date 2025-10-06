@@ -34,6 +34,7 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
+const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
@@ -346,6 +347,7 @@ module.exports = function (app) {
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
 
 
