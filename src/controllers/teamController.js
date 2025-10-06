@@ -22,17 +22,16 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true },
-      },
-      {
-        $match: {
-          isActive: true,
+        $unwind: {
+          path: '$userProfile',
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
         $group: {
           _id: {
             teamId: '$_id',
+            // Keep the raw value that worked in Compass
             teamCode: '$userProfile.teamCode',
           },
           count: { $sum: 1 },
@@ -52,12 +51,12 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { count: -1 }, // Sort by the most frequent teamCode
+        $sort: { count: -1 },
       },
       {
         $group: {
           _id: '$_id.teamId',
-          teamCode: { $first: '$_id.teamCode' }, // Get the most frequent teamCode
+          teamCode: { $first: '$_id.teamCode' },
           teamName: { $first: '$teamName' },
           members: { $first: '$members' },
           createdDatetime: { $first: '$createdDatetime' },
@@ -66,16 +65,19 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { teamName: 1 }, // Sort teams by name
+        $sort: { teamName: 1 },
       },
     ])
-      .then((results) => res.status(200).send(results))
+      .then((results) => {
+        // The API now sends an ARRAY, which is what the frontend expects.
+        res.status(200).send(results);
+      })
       .catch((error) => {
+        console.error('Aggregation failed unexpectedly:', error);
         Logger.logException(error);
-        res.status(404).send(error);
+        res.status(500).send(error);
       });
   };
-
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -334,6 +336,7 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
+
               .catch((catchError) => {
                 res.status(500).send({ error: catchError });
               });
