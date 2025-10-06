@@ -793,20 +793,52 @@ const overviewReportHelper = function () {
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
    */
-  async function getRoleDistributionStats() {
-    const roleStats = UserProfile.aggregate([
-      {
-        $match: { isActive: true },
-      },
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 },
+  async function getRoleDistributionStats(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    // Helper to build match stage depending on whether start/end are provided
+    const buildMatch = (s, e) => {
+      const match = { isActive: true };
+      if (s && e) {
+        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
+      }
+      return match;
+    };
+
+    // If comparison dates provided, return both current and comparison facets
+    if (comparisonStartDate && comparisonEndDate) {
+      const roleStats = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              { $match: buildMatch(startDate, endDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+            comparison: [
+              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+          },
         },
-      },
+      ]);
+
+      return {
+        current: roleStats[0]?.current || [],
+        comparison: roleStats[0]?.comparison || [],
+      };
+    }
+
+    // No comparison: return same shape as before (array of {_id: role, count})
+    const matchStage = buildMatch(startDate, endDate);
+    const result = await UserProfile.aggregate([
+      { $match: matchStage },
+      { $group: { _id: '$role', count: { $sum: 1 } } },
     ]);
 
-    return roleStats;
+    return result;
   }
 
   /**
