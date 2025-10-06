@@ -1229,6 +1229,7 @@ const overviewReportHelper = function () {
                     $gte: isoStartDate,
                     $lte: isoEndDate,
                   },
+                  isActive: true,
                 },
               },
               { $count: 'count' },
@@ -1236,11 +1237,8 @@ const overviewReportHelper = function () {
             deactivatedVolunteers: [
               {
                 $match: {
-                  $and: [
-                    { lastModifiedDate: { $gte: isoStartDate } },
-                    { lastModifiedDate: { $lte: isoEndDate } },
-                    { isActive: false },
-                  ],
+                  isActive: false,
+                  createdDate: { $lte: isoEndDate }, // All inactive volunteers, not just recently deactivated
                 },
               },
               { $count: 'count' },
