@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
 
     const match = {};
 
-    // Role filtering
+    // ----- ROLE FILTER -----
     if (roles) {
       let parsedRoles;
       try {
@@ -25,15 +25,18 @@ router.get('/', async (req, res) => {
       match.role = { $in: parsedRoles };
     }
 
-    // Date range filtering
+    // ----- DATE RANGE FILTER -----
     if (start && end) {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      endDate.setMonth(endDate.getMonth() + 1); // Include entire end month
+      const [startYear, startMonth] = start.split('-').map(Number);
+      const [endYear, endMonth] = end.split('-').map(Number);
+
+      // ✅ Construct explicit first and last day of months
+      const startDate = new Date(startYear, startMonth - 1, 1, 0, 0, 0, 0); // 1st of start month
+      const endDate = new Date(endYear, endMonth, 0, 23, 59, 59, 999); // last day of end month
 
       match.timestamp = {
         $gte: startDate,
-        $lt: endDate,
+        $lte: endDate,
       };
     } else if (range) {
       const months = parseInt(range, 10) || 12;
@@ -42,6 +45,7 @@ router.get('/', async (req, res) => {
       match.timestamp = { $gte: startDate };
     }
 
+    // ----- AGGREGATION -----
     const data = await Popularity.aggregate([
       { $match: match },
       {
@@ -49,7 +53,7 @@ router.get('/', async (req, res) => {
           _id: '$month',
           hitsCount: { $sum: '$hitsCount' },
           applicationsCount: { $sum: '$applicationsCount' },
-          timestamp: { $first: '$timestamp' }, // Keep for sorting
+          timestamp: { $first: '$timestamp' },
         },
       },
       {
