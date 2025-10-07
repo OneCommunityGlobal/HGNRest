@@ -53,7 +53,7 @@ const logUserPermissionChangeByAccount = async (req) => {
       permissionsAdded = [
         ...Permissions.filter((item) => !prevAddedPermissions.includes(item)), // saves new added permissions
         ...prevRemovedPermissions.filter(
-          (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
+          (item) => removedPermissions.includes(item) && rolePermissions.includes(item),
         ), // removed role permissions added back
       ];
     } else {
