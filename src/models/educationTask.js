@@ -9,7 +9,7 @@ const educationTaskSchema = new mongoose.Schema(
     },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'userProfile',
       required: true,
     },
     atomIds: [

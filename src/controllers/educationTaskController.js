@@ -296,11 +296,19 @@ const educationTaskController = function () {
   // Mark task as complete
   const markTaskAsComplete = async (req, res) => {
     try {
-      const { taskId } = req.body;
-      const studentId = req.user._id; // Assuming user is authenticated and available in req.user
+      const { taskId, studentId } = req.body;
+      const requestorId = req.body.requestor?.requestorId;
 
       if (!taskId) {
         return res.status(400).json({ error: 'Task ID is required' });
+      }
+
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID is required' });
+      }
+
+      if (!requestorId) {
+        return res.status(401).json({ error: 'Authentication required' });
       }
 
       // Find the task and verify it belongs to the student

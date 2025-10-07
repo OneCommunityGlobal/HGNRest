@@ -330,7 +330,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'userProfile',
         },
       ],
     },
@@ -355,7 +355,7 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'userProfile',
         },
       ],
     },
