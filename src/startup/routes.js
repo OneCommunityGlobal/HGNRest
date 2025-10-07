@@ -18,11 +18,15 @@ const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
+const availability = require('../models/lbdashboard/availability');
+
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
 
 const listings = require('../models/lbdashboard/listings');
+const biddingHome = require('../models/lbdashboard/biddings');
 const village = require('../models/lbdashboard/villages');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
@@ -30,6 +34,7 @@ const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
+const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
@@ -83,6 +88,7 @@ const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
@@ -187,12 +193,11 @@ const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRout
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
-
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
-
+const biddingRouter = require('../routes/lbdashboard/biddingRouter')(biddingHome);
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
@@ -337,11 +342,14 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
-
+  app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
+  app.use('/api/analytics', pledgeAnalyticsRoutes);
+  app.use('/api', registrationRouter);
+
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
@@ -382,6 +390,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm', bmIssueRouter);
 
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
 
@@ -400,6 +409,7 @@ module.exports = function (app) {
 
   app.use('/api/financials', bmFinancialRouter);
 
+  app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
@@ -412,6 +422,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
   app.use('/api/lb', bidsRouter);
