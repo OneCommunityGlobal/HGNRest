@@ -288,6 +288,15 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+  infringementCCList: [
+    {
+      email: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String },
+      role: { type: String },
+      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+    },
+  ],
   // Education-specific profiles
   educationProfiles: {
     student: {
@@ -330,7 +339,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'userProfile',
+          ref: 'User',
         },
       ],
     },
@@ -355,20 +364,11 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'userProfile',
+          ref: 'User',
         },
       ],
     },
   },
-  infringementCCList: [
-    {
-      email: { type: String, required: true },
-      firstName: { type: String, required: true },
-      lastName: { type: String },
-      role: { type: String },
-      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
-    },
-  ],
 });
 
 userProfileSchema.pre('save', function (next) {
