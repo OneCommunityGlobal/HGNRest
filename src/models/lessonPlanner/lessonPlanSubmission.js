@@ -6,6 +6,10 @@ const lessonPlanSubmissionSchema = new mongoose.Schema({
   submissionLink: { type: String, required: true },
   status: { type: String, enum: ['Submitted'], default: 'Submitted' },
   submissionTime: { type: Date, default: Date.now },
+  fileName: { type: String },
+  fileType: { type: String },
+  fileSize: { type: Number },
+  version: { type: Number, default: 1 },
 });
 
 module.exports = mongoose.model('LessonPlanSubmission', lessonPlanSubmissionSchema);
