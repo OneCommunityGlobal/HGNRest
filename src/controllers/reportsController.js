@@ -73,16 +73,35 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
 
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+
+    // Validate that dates are valid
+    if (Number.isNaN(isoStartDate.getTime()) || Number.isNaN(isoEndDate.getTime())) {
+      return res
+        .status(400)
+        .send({ msg: 'Invalid date format. Please provide valid dates in YYYY-MM-DD format' });
+    }
+
     let isoComparisonStartDate;
     let isoComparisonEndDate;
 
     if (comparisonStartDate && comparisonEndDate) {
       isoComparisonStartDate = new Date(comparisonStartDate);
       isoComparisonEndDate = new Date(comparisonEndDate);
-    }
 
-    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
-    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+      // Validate comparison dates if provided
+      if (
+        Number.isNaN(isoComparisonStartDate.getTime()) ||
+        Number.isNaN(isoComparisonEndDate.getTime())
+      ) {
+        return res
+          .status(400)
+          .send({
+            msg: 'Invalid comparison date format. Please provide valid dates in YYYY-MM-DD format',
+          });
+      }
+    }
 
     try {
       const [
