@@ -15,4 +15,16 @@ const jobSchema = new Schema({
   displayOrder: { type: Number, default: 0 }, // Order for displaying jobs on the landing page
 });
 
+jobSchema.pre('validate', function (next) {
+  if (!this.jobDetailsLink) {
+    const baseFrontendUrl =
+      `${process.env.BASE_FRONTEND_URL}/jobDetailsLink` || 'http://localhost:5173/jobDetailsLink';
+    console.log(`baseFrontendUrl: ${baseFrontendUrl}`);
+    this.jobDetailsLink = `${baseFrontendUrl}/${this._id}`;
+    console.log(`this.jobDetailsLink: ${this.jobDetailsLink}`);
+    console.log(`baseFrontendUrl: ${baseFrontendUrl}`);
+    console.log(`this.jobDetailsLink: ${this.jobDetailsLink}`);
+  }
+  next();
+});
 module.exports = mongoose.model('Job', jobSchema);
