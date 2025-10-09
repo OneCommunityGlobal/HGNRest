@@ -267,6 +267,8 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const templateRouter = require('../routes/templateRouter');
 
+const socialMediaRouter = require('../routes/socialMediaRouter')();
+
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
@@ -284,6 +286,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+
+const fbSocialMediaRouter = require('../routes/fbSocialmediaRouter')();
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -431,4 +435,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api', fbSocialMediaRouter);
+  app.use('/api', socialMediaRouter);
 };
