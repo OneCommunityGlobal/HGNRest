@@ -113,39 +113,91 @@ async function validateFolderExists(path) {
 }
 
 /**
- * Polls an async share-folder job until complete, using the correct endpoint.
+ * Polls an async share-folder job until complete with exponential backoff.
+ * Uses smart polling: starts fast, slows down over time to reduce API calls.
  */
-async function waitForShareCompletion(asyncJobId, maxAttempts = 10) {
+async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
   // Input validation
   if (!asyncJobId || typeof asyncJobId !== 'string' || asyncJobId.trim().length === 0) {
-    throw new Error('Async job ID is required and must be a non-empty string');
+    const validationError = new Error('Async job ID is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
-  if (maxAttempts && (typeof maxAttempts !== 'number' || maxAttempts <= 0)) {
-    throw new Error('Max attempts must be a positive number');
+  if (maxWaitTimeMs && (typeof maxWaitTimeMs !== 'number' || maxWaitTimeMs <= 0)) {
+    const validationError = new Error('Max wait time must be a positive number');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
-  let attempts = 0;
-  // eslint-disable-next-line no-await-in-loop
-  while (attempts < maxAttempts) {
-    // eslint-disable-next-line no-await-in-loop
-    const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId.trim() });
-    const tag = status.result['.tag'];
+  const startTime = Date.now();
+  let attempt = 0;
+  let delay = 200; // Start with 200ms
+  const maxDelay = 5000; // Cap at 5 seconds
 
-    if (tag === 'complete') {
-      return status.result;
-    }
-    if (tag === 'failed') {
-      throw new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
-    }
-    // in_progress
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((res) => {
-      setTimeout(res, 1000);
+  // Helper function to avoid unsafe references in Promise
+  const sleep = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
     });
-    attempts += 1;
+
+  while (Date.now() - startTime < maxWaitTimeMs) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId.trim() });
+      const tag = status.result['.tag'];
+
+      if (tag === 'complete') {
+        return status.result;
+      }
+      if (tag === 'failed') {
+        const failedError = new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
+        failedError.name = 'ProcessError';
+        failedError.statusCode = 500;
+        throw failedError;
+      }
+
+      // Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms, 5000ms (capped)
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(delay);
+      delay = Math.min(delay * 2, maxDelay);
+      attempt += 1;
+    } catch (error) {
+      // If it's our custom error, re-throw it
+      if (error.name && error.statusCode) {
+        throw error;
+      }
+
+      // Handle Dropbox API errors
+      if (error.status === 400) {
+        const validationError = new Error(`Invalid job ID: ${error.message}`);
+        validationError.name = 'ValidationError';
+        validationError.statusCode = 400;
+        throw validationError;
+      }
+      if (error.status === 404) {
+        const notFoundError = new Error('Share job not found - it may have expired');
+        notFoundError.name = 'NotFoundError';
+        notFoundError.statusCode = 404;
+        throw notFoundError;
+      }
+
+      // Re-throw other errors
+      const apiError = new Error(`Dropbox API error: ${error.message}`);
+      apiError.name = 'APIError';
+      apiError.statusCode = error.status || 500;
+      throw apiError;
+    }
   }
-  throw new Error('Timeout waiting for share to complete');
+
+  const timeoutError = new Error(
+    `Timeout waiting for share to complete after ${maxWaitTimeMs}ms (${attempt} attempts)`,
+  );
+  timeoutError.name = 'TimeoutError';
+  timeoutError.statusCode = 408;
+  throw timeoutError;
 }
 
 /**

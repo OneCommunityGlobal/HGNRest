@@ -150,10 +150,7 @@ async function deleteFolder(req, res) {
 async function getTeamFolders(req, res) {
   try {
     const teamFolders = dropboxService.getAvailableTeamFolders();
-    return res.status(200).json({
-      message: 'Team folders retrieved successfully',
-      data: teamFolders,
-    });
+    res.status(200).json(teamFolders);
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ message: error.message });
