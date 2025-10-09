@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const StudentTask = require('../models/studentTask');
+const EducationTask = require('../models/educationTask');
 
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
@@ -56,7 +56,7 @@ const studentTaskController = function () {
       const { status } = task;
       statusCounts[status] = (statusCounts[status] || 0) + 1;
 
-      if (status === 'completed' || status === 'submitted' || status === 'reviewed') {
+      if (status === 'completed' || status === 'graded') {
         completedTasks += 1;
       }
     });
@@ -77,109 +77,79 @@ const studentTaskController = function () {
         return res.status(400).json({ error: 'Student ID is required' });
       }
 
-
-      const studentTasks = await StudentTask.aggregate([
+      // Using EducationTask model with aggregation adapted for educationTask schema
+      const studentTasks = await EducationTask.aggregate([
         {
           $match: {
-            student_id: mongoose.Types.ObjectId(studentId)
+            studentId: mongoose.Types.ObjectId(studentId)
           }
         },
         {
           $lookup: {
-            from: 'tasks',
-            localField: 'task_id',
+            from: 'lessonplans',
+            localField: 'lessonPlanId',
             foreignField: '_id',
-            as: 'task'
+            as: 'lessonPlan'
           }
         },
         {
-          $unwind: '$task'
+          $unwind: '$lessonPlan'
+        },
+        {
+          $lookup: {
+            from: 'atoms',
+            localField: 'atomIds',
+            foreignField: '_id',
+            as: 'atoms'
+          }
+        },
+        {
+          $unwind: {
+            path: '$atoms',
+            preserveNullAndEmptyArrays: true
+          }
         },
         {
           $lookup: {
             from: 'subjects',
-            localField: 'subject_id',
+            localField: 'atoms.subjectId',
             foreignField: '_id',
             as: 'subject'
           }
         },
         {
-          $unwind: '$subject'
-        },
-        {
-          $lookup: {
-            from: 'atoms',
-            localField: 'atom_id',
-            foreignField: '_id',
-            as: 'atom'
-          }
-        },
-        {
-          $unwind: '$atom'
-        },
-        {
-          $lookup: {
-            from: 'strategies',
-            localField: 'activity_group_id',
-            foreignField: '_id',
-            as: 'activityGroup'
-          }
-        },
-        {
-          $lookup: {
-            from: 'strategies',
-            localField: 'teaching_strategy_id',
-            foreignField: '_id',
-            as: 'teachingStrategy'
-          }
-        },
-        {
-          $lookup: {
-            from: 'strategies',
-            localField: 'life_strategy_id',
-            foreignField: '_id',
-            as: 'lifeStrategy'
-          }
-        },
-        {
-          $lookup: {
-            from: 'taskRubrics',
-            localField: 'task_id',
-            foreignField: 'task_id',
-            as: 'rubric'
+          $unwind: {
+            path: '$subject',
+            preserveNullAndEmptyArrays: true
           }
         },
         {
           $addFields: {
-            activityGroup: { $arrayElemAt: ['$activityGroup', 0] },
-            teachingStrategy: { $arrayElemAt: ['$teachingStrategy', 0] },
-            lifeStrategy: { $arrayElemAt: ['$lifeStrategy', 0] },
-            rubric: { $arrayElemAt: ['$rubric', 0] }
+            color_level: '$atoms.difficulty', // Using difficulty as color_level since color_level doesn't exist
+            difficulty_level: '$atoms.difficulty',
+            activity_group: '$lessonPlan.activityGroup' || 'Unassigned'
           }
         },
         {
           $project: {
             _id: 1,
-            student_id: 1,
-            task_id: 1,
+            studentId: 1,
+            lessonPlanId: 1,
+            atomIds: 1,
+            type: 1,
             status: 1,
-            due_date: 1,
-            progress_percent: 1,
-            assigned_at: 1,
-            started_at: 1,
-            completed_at: 1,
-            submitted_at: 1,
-            reviewed_at: 1,
+            assignedAt: 1,
+            dueAt: 1,
+            completedAt: 1,
+            uploadUrls: 1,
             grade: 1,
             feedback: 1,
-            task: {
-              _id: '$task._id',
-              taskName: '$task.taskName',
-              priority: '$task.priority',
-              estimatedHours: '$task.estimatedHours',
-              whyInfo: '$task.whyInfo',
-              intentInfo: '$task.intentInfo',
-              endStateInfo: '$task.endstateInfo'
+            suggestedTotalHours: 1,
+            loggedHours: 1,
+            lessonPlan: {
+              _id: '$lessonPlan._id',
+              title: '$lessonPlan.title',
+              theme: '$lessonPlan.theme'
             },
             subject: {
               _id: '$subject._id',
@@ -187,25 +157,21 @@ const studentTaskController = function () {
               description: '$subject.description',
               color: '$subject.color'
             },
-            color_level: '$atom.color_level',
-            difficulty_level: '$atom.difficulty_level',
+            color_level: 1,
+            difficulty_level: 1,
             atom: {
-              _id: '$atom._id',
-              name: '$atom.name',
-              color_level: '$atom.color_level',
-              difficulty_level: '$atom.difficulty_level'
+              _id: '$atoms._id',
+              name: '$atoms.name',
+              difficulty: '$atoms.difficulty'
             },
-            activity_group: '$activityGroup.name',
-            teaching_strategy: '$teachingStrategy.name',
-            life_strategy: '$lifeStrategy.name',
-            grading_rubric: '$rubric.rubric_json'
+            activity_group: 1
           }
         },
         {
           $sort: {
-            due_date: 1,
+            dueAt: 1,
             'subject.name': 1,
-            'atom.color_level': 1
+            'atom.difficulty': 1
           }
         }
       ]);
@@ -231,29 +197,35 @@ const studentTaskController = function () {
   const updateTaskProgress = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const { progressPercent, status } = req.body;
+      const { progressPercent, status, loggedHours } = req.body;
       const studentId = req.body.requestor.requestorId;
 
-      if (!taskId || (!progressPercent && !status)) {
+      if (!taskId || (!progressPercent && !status && loggedHours === undefined)) {
         return res.status(400).json({ error: 'Task ID and progress data are required' });
       }
 
       const updateData = {};
       if (progressPercent !== undefined) {
-        updateData.progress_percent = Math.min(100, Math.max(0, progressPercent));
+        updateData.progressPercent = Math.min(100, Math.max(0, progressPercent));
       }
       if (status) {
         updateData.status = status;
       }
+      if (loggedHours !== undefined) {
+        updateData.loggedHours = Math.max(0, loggedHours);
+      }
 
-      const updatedTask = await StudentTask.findOneAndUpdate(
+      const updatedTask = await EducationTask.findOneAndUpdate(
         {
-          task_id: mongoose.Types.ObjectId(taskId),
-          student_id: mongoose.Types.ObjectId(studentId)
+          _id: mongoose.Types.ObjectId(taskId),
+          studentId: mongoose.Types.ObjectId(studentId)
         },
         updateData,
         { new: true }
-      );
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
 
       if (!updatedTask) {
         return res.status(404).json({ error: 'Student task not found' });
