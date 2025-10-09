@@ -5,38 +5,65 @@ const { checkAppAccess } = require('./utils');
 
 // Controller function to invite a user
 async function inviteUser(req, res) {
-  const { targetUser } = req.body;
+  const { targetUser, requestor } = req.body;
 
-  if (!targetUser.email) {
+  if (!targetUser?.email) {
     return res.status(400).json({ message: 'Email is required' });
   }
 
-  const { requestor } = req.body;
+  if (!targetUser?.targetUserId) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+
+  if (!requestor?.role) {
+    return res.status(400).json({ message: 'Requestor role is required' });
+  }
+
   if (!checkAppAccess(requestor.role)) {
-    res.status(403).send({ message: 'Unauthorized request' });
-    return;
+    return res.status(403).json({ message: 'Unauthorized request' });
   }
 
   try {
-    // Step 1: Send invitation to Sentry
+    // First, send the Sentry invitation
     const invitation = await sentryService.inviteUser(targetUser.email);
 
-    // Step 2: Only update internal records if Sentry operation succeeded
-    await appAccessService.upsertAppAccess(
-      targetUser.targetUserId,
-      'sentry',
-      'invited',
-      targetUser.email,
-    );
+    // Only update database if Sentry invitation was successful
+    try {
+      await appAccessService.upsertAppAccess(
+        targetUser.targetUserId,
+        'sentry',
+        'invited',
+        targetUser.email,
+      );
 
-    res.status(201).json({
-      message: 'Invitation sent with access to all teams',
-      data: invitation,
-    });
+      return res.status(201).json({
+        message: 'Invitation sent with access to all teams',
+        data: {
+          email: targetUser.email,
+          userId: targetUser.targetUserId,
+          invitationId: invitation.invitationId,
+          teamsAssigned: invitation.teamsAssigned,
+        },
+      });
+    } catch (dbError) {
+      // Rollback: attempt to remove the Sentry invitation if DB update fails
+      try {
+        await sentryService.removeUser(targetUser.email);
+      } catch (rollbackError) {
+        // Log rollback failure but don't throw - we want to report the original DB error
+        console.error('Failed to rollback Sentry invitation:', rollbackError.message);
+      }
+      const dbUpdateError = new Error(
+        `Database update failed after successful Sentry invitation: ${dbError.message}`,
+      );
+      dbUpdateError.name = 'DatabaseError';
+      dbUpdateError.statusCode = 500;
+      throw dbUpdateError;
+    }
   } catch (error) {
-    // Simple error handling based on HTTP status codes
-    const statusCode = error.response?.status || 500;
-    res.status(statusCode).json({ message: error.message });
+    // Use the error's statusCode if available, otherwise default to 500
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ message: error.message });
   }
 }
 
@@ -72,23 +99,27 @@ async function removeUser(req, res) {
     try {
       await appAccessService.revokeAppAccess(targetUser.targetUserId, 'sentry');
     } catch (dbError) {
-      throw new Error(`Database update failed: ${dbError.message}`);
+      const dbUpdateError = new Error(`Database update failed: ${dbError.message}`);
+      dbUpdateError.name = 'DatabaseError';
+      dbUpdateError.statusCode = 500;
+      throw dbUpdateError;
     }
 
     const responseMessage = `Complete revocation (undid invite): ${result.message}`;
-    res.status(200).json({
+    return res.status(200).json({
       message: responseMessage,
       data: {
         userEmail: result.userEmail,
         memberId: result.memberId,
         teamsRemoved: result.teamsRemoved,
         totalTeams: result.totalTeams,
+        userId: targetUser.targetUserId,
       },
     });
   } catch (error) {
-    // Simple error handling based on HTTP status codes
-    const statusCode = error.response?.status || 500;
-    res.status(statusCode).json({ message: error.message });
+    // Use the error's statusCode if available, otherwise default to 500
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ message: error.message });
   }
 }
 

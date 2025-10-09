@@ -21,12 +21,43 @@ async function getTeams() {
     });
     return response.data; // Return the teams list
   } catch (error) {
-    throw new Error(`Error fetching teams: ${error.message}`);
+    // Handle Sentry API specific errors
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error('Sentry API access forbidden - check token permissions');
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error('Sentry API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (error.response?.status === 404) {
+      const notFoundError = new Error('Organization not found - check organization slug');
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+
+    const apiError = new Error(`Sentry API error fetching teams: ${error.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = error.response?.status || 500;
+    throw apiError;
   }
 }
 
 // Function to find member by email (direct search)
 async function findMemberByEmail(email) {
+  // Input validation
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    const validationError = new Error('Email is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
+  }
+
   // Use Sentry's search functionality to find specific user
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/?query=${encodeURIComponent(email)}`;
 
@@ -39,7 +70,24 @@ async function findMemberByEmail(email) {
 
     return member;
   } catch (error) {
-    throw new Error(`Error searching for member: ${error.message}`);
+    // Handle Sentry API specific errors
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error('Sentry API access forbidden - check token permissions');
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error('Sentry API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+
+    const apiError = new Error(`Sentry API error searching for member: ${error.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = error.response?.status || 500;
+    throw apiError;
   }
 }
 
@@ -105,27 +153,43 @@ async function verifyRemoval(email) {
 async function inviteUser(email, role = 'member') {
   // Input validation
   if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    throw new Error('Email is required and must be a non-empty string');
+    const validationError = new Error('Email is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   if (!role || typeof role !== 'string' || role.trim().length === 0) {
-    throw new Error('Role is required and must be a non-empty string');
+    const validationError = new Error('Role is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email.trim())) {
-    throw new Error(`Invalid email format: ${email}`);
+    const validationError = new Error(`Invalid email format: ${email}`);
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Check if user already exists
   const userCheck = await checkUserExists(email);
   if (userCheck.exists) {
     if (userCheck.status === 'pending') {
-      throw new Error(`User ${email} already has a pending invitation`);
-    } else {
-      throw new Error(`User ${email} is already an active member of the organization`);
+      const conflictError = new Error(`User ${email} already has a pending invitation`);
+      conflictError.name = 'ConflictError';
+      conflictError.statusCode = 409;
+      throw conflictError;
     }
+    const conflictError = new Error(
+      `User ${email} is already an active member of the organization`,
+    );
+    conflictError.name = 'ConflictError';
+    conflictError.statusCode = 409;
+    throw conflictError;
   }
 
   const url = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
@@ -146,26 +210,69 @@ async function inviteUser(email, role = 'member') {
     sendInvite: true,
   };
 
-  const response = await axios({
-    url,
-    method: 'POST',
-    headers,
-    data,
-  });
+  try {
+    const response = await axios({
+      url,
+      method: 'POST',
+      headers,
+      data,
+    });
 
-  // Verify the invitation was created successfully
-  if (!response.data || !response.data.id) {
-    throw new Error('Failed to create invitation - no response data received');
+    // Verify the invitation was created successfully
+    if (!response.data || !response.data.id) {
+      const processError = new Error('Failed to create invitation - no response data received');
+      processError.name = 'ProcessError';
+      processError.statusCode = 500;
+      throw processError;
+    }
+
+    // Verify the invitation was actually created
+    await verifyInvitation(email, response.data.id);
+
+    return {
+      ...response.data,
+      teamsAssigned: teams.length,
+      invitationId: response.data.id,
+    };
+  } catch (error) {
+    // If it's already our custom error with proper properties, re-throw it
+    if (error.name && error.statusCode) {
+      throw error;
+    }
+
+    // Handle Sentry API specific errors
+    if (error.response?.status === 400) {
+      const validationError = new Error(`Invalid invitation data: ${error.message}`);
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error(
+        'Sentry API access forbidden - check token permissions for invitations',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error('Sentry API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (error.response?.status === 409) {
+      const conflictError = new Error(`User ${email} already exists or has a pending invitation`);
+      conflictError.name = 'ConflictError';
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+
+    const apiError = new Error(`Sentry API error sending invitation: ${error.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = error.response?.status || 500;
+    throw apiError;
   }
-
-  // Verify the invitation was actually created
-  await verifyInvitation(email, response.data.id);
-
-  return {
-    ...response.data,
-    teamsAssigned: teams.length,
-    invitationId: response.data.id,
-  };
 }
 
 // Function to remove a user from all teams (undo invite process)
@@ -234,13 +341,19 @@ async function removeUser(email) {
   const cleanEmail = email ? email.trim() : '';
 
   if (!cleanEmail) {
-    throw new Error('Email is required and cannot be empty');
+    const validationError = new Error('Email is required and cannot be empty');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(cleanEmail)) {
-    throw new Error(`Invalid email format: ${cleanEmail}`);
+    const validationError = new Error(`Invalid email format: ${cleanEmail}`);
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   const urlBase = `https://sentry.io/api/0/organizations/${organizationSlug}/members/`;
@@ -249,17 +362,34 @@ async function removeUser(email) {
   const existingMember = await findMemberByEmail(cleanEmail);
 
   if (!existingMember) {
-    throw new Error(`User with email ${cleanEmail} is not a member of this Sentry organization`);
+    const notFoundError = new Error(
+      `User with email ${cleanEmail} is not a member of this Sentry organization`,
+    );
+    notFoundError.name = 'NotFoundError';
+    notFoundError.statusCode = 404;
+    throw notFoundError;
   }
 
   // Verify user exists before attempting removal (idempotency check)
   try {
     const verificationCheck = await findMemberByEmail(cleanEmail);
     if (!verificationCheck || verificationCheck.id !== existingMember.id) {
-      throw new Error(`User verification failed: ${cleanEmail} may have been removed already`);
+      const processError = new Error(
+        `User verification failed: ${cleanEmail} may have been removed already`,
+      );
+      processError.name = 'ProcessError';
+      processError.statusCode = 409;
+      throw processError;
     }
   } catch (verificationError) {
-    throw new Error(`User verification failed: ${verificationError.message}`);
+    // If it's already our custom error, re-throw it
+    if (verificationError.name && verificationError.statusCode) {
+      throw verificationError;
+    }
+    const processError = new Error(`User verification failed: ${verificationError.message}`);
+    processError.name = 'ProcessError';
+    processError.statusCode = 500;
+    throw processError;
   }
 
   // Step 1: Remove user from all teams first (undo the 'contributor' role assignments from invite)
@@ -287,8 +417,39 @@ async function removeUser(email) {
       totalTeams: teamRemovalResult.totalTeams,
     };
   } catch (orgError) {
-    // Organization removal failed
-    throw new Error(`Organization removal failed: ${orgError.message}`);
+    // If it's already our custom error, re-throw it
+    if (orgError.name && orgError.statusCode) {
+      throw orgError;
+    }
+
+    // Handle Sentry API specific errors
+    if (orgError.response?.status === 404) {
+      const notFoundError = new Error(`User ${cleanEmail} not found in organization`);
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+    if (orgError.response?.status === 403) {
+      const forbiddenError = new Error(
+        'Sentry API access forbidden - check token permissions for member removal',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (orgError.response?.status === 401) {
+      const authError = new Error('Sentry API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+
+    const apiError = new Error(
+      `Sentry API error removing user from organization: ${orgError.message}`,
+    );
+    apiError.name = 'APIError';
+    apiError.statusCode = orgError.response?.status || 500;
+    throw apiError;
   }
 }
 
