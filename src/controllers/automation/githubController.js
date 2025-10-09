@@ -15,11 +15,37 @@ async function inviteUser(req, res) {
   }
 
   try {
+    // First, send the GitHub invitation
     const message = await githubService.sendInvitation(username);
-    await appAccessService.upsertAppAccess(targetUser.targetUserId, 'github', 'invited', username);
-    res.status(201).json({ message });
+
+    // Only update database if GitHub invitation was successful
+    try {
+      await appAccessService.upsertAppAccess(
+        targetUser.targetUserId,
+        'github',
+        'invited',
+        username,
+      );
+      res.status(201).json({ message });
+    } catch (dbError) {
+      // Rollback: attempt to remove the GitHub invitation if DB update fails
+      try {
+        await githubService.removeUser(username);
+      } catch (rollbackError) {
+        // Log rollback failure but don't throw - we want to report the original DB error
+        console.error('Failed to rollback GitHub invitation:', rollbackError.message);
+      }
+      const dbUpdateError = new Error(
+        `Database update failed after successful GitHub invitation: ${dbError.message}`,
+      );
+      dbUpdateError.name = 'DatabaseError';
+      dbUpdateError.statusCode = 500;
+      throw dbUpdateError;
+    }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    // Use the error's statusCode if available, otherwise default to 500
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ message: error.message });
   }
 }
 
@@ -54,12 +80,16 @@ async function removeUser(req, res) {
     try {
       await appAccessService.revokeAppAccess(targetUser.targetUserId, 'github');
     } catch (dbError) {
-      throw new Error(`Database update failed: ${dbError.message}`);
+      const dbUpdateError = new Error(`Database update failed: ${dbError.message}`);
+      dbUpdateError.name = 'DatabaseError';
+      dbUpdateError.statusCode = 500;
+      throw dbUpdateError;
     }
 
     res.status(200).json({ message });
   } catch (error) {
-    const statusCode = error.response?.status || 500;
+    // Use the error's statusCode if available, otherwise default to 500
+    const statusCode = error.statusCode || 500;
     res.status(statusCode).json({ message: error.message });
   }
 }
