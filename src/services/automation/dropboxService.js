@@ -24,12 +24,18 @@ const DEFAULT_TEAM_FOLDER = 'HGN';
 function getTeamFolderPath(teamFolderKey = DEFAULT_TEAM_FOLDER) {
   // Input validation
   if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
-    throw new Error('Team folder key is required and must be a non-empty string');
+    const validationError = new Error('Team folder key is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   const folderName = TEAM_FOLDERS[teamFolderKey];
   if (!folderName) {
-    throw new Error(`Invalid Dropbox team folder key: ${teamFolderKey}`);
+    const notFoundError = new Error(`Invalid Dropbox team folder key: ${teamFolderKey}`);
+    notFoundError.name = 'NotFoundError';
+    notFoundError.statusCode = 404;
+    throw notFoundError;
   }
   return `/${folderName}`;
 }
@@ -46,26 +52,62 @@ function getAvailableTeamFolders() {
 }
 
 /**
- * Ensure a folder exists at the given path. Creates if missing.
+ * Validate that a folder exists at the given path. Throws error if missing.
+ * Admin must pre-create team folders - this function only validates they exist.
  */
-async function ensureFolderExists(path) {
+async function validateFolderExists(path) {
   // Input validation
   if (!path || typeof path !== 'string' || path.trim().length === 0) {
-    throw new Error('Path is required and must be a non-empty string');
+    const validationError = new Error('Path is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Validate path format (must start with /)
   if (!path.startsWith('/')) {
-    throw new Error('Path must start with /');
+    const validationError = new Error('Path must start with /');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   try {
-    await dbx.filesGetMetadata({ path });
+    const metadata = await dbx.filesGetMetadata({ path });
+
+    // Verify it's actually a folder, not a file
+    if (metadata.result['.tag'] !== 'folder') {
+      const validationError = new Error(`Path '${path}' exists but is not a folder`);
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+
+    return metadata.result;
   } catch (err) {
     if (err.status === 409 && err.error?.error?.['.tag'] === 'path') {
-      await dbx.filesCreateFolderV2({ path });
+      // Folder doesn't exist - this is now an error, not auto-creation
+      const notFoundError = new Error(
+        `Team folder '${path}' does not exist. Please contact an administrator to create the required team folder structure.`,
+      );
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    } else if (err.status === 403) {
+      const forbiddenError = new Error('Dropbox API access forbidden - check token permissions');
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    } else if (err.status === 401) {
+      const authError = new Error('Dropbox API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
     } else {
-      throw err;
+      const apiError = new Error(`Dropbox API error: ${err.message}`);
+      apiError.name = 'APIError';
+      apiError.statusCode = err.status || 500;
+      throw apiError;
     }
   }
 }
@@ -131,8 +173,8 @@ async function createFolderWithSubfolder(userFolderName, teamFolderKey = DEFAULT
   const teamFolderPath = getTeamFolderPath(teamFolderKey);
   const userFolderPath = `${teamFolderPath}/${sanitizedUserFolderName}`;
 
-  // Ensure team folder exists
-  await ensureFolderExists(teamFolderPath);
+  // Validate that team folder exists
+  await validateFolderExists(teamFolderPath);
 
   // Check if user folder already exists
   try {
@@ -156,26 +198,43 @@ async function createFolderWithSubfolder(userFolderName, teamFolderKey = DEFAULT
 async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
   // Input validation
   if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    throw new Error('Email is required and must be a non-empty string');
+    const validationError = new Error('Email is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Basic email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email.trim())) {
-    throw new Error('Invalid email format');
+    const validationError = new Error('Invalid email format');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   if (!userFolderName || typeof userFolderName !== 'string' || userFolderName.trim().length === 0) {
-    throw new Error('User folder name is required and must be a non-empty string');
+    const validationError = new Error(
+      'User folder name is required and must be a non-empty string',
+    );
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
-    throw new Error('Team folder key is required and must be a non-empty string');
+    const validationError = new Error('Team folder key is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   // Validate team folder key
   if (!TEAM_FOLDERS[teamFolderKey]) {
-    throw new Error(`Invalid team folder key: ${teamFolderKey}`);
+    const notFoundError = new Error(`Invalid team folder key: ${teamFolderKey}`);
+    notFoundError.name = 'NotFoundError';
+    notFoundError.statusCode = 404;
+    throw notFoundError;
   }
 
   let userFolderPath;
@@ -220,6 +279,11 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
       folderName: userFolderName,
     };
   } catch (err) {
+    // If it's already our custom error with proper properties, re-throw it
+    if (err.name && err.statusCode) {
+      throw err;
+    }
+
     if (userFolderPath) {
       // Try to clean up the created user folder
       try {
@@ -228,11 +292,45 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
         // Log cleanup error but don't throw it
         console.error('Failed to cleanup user folder after error:', cleanupErr.message);
       }
-      throw new Error(
+
+      const processError = new Error(
         `User folder created at '${userFolderPath}', but process failed: ${err.message}`,
       );
+      processError.name = 'ProcessError';
+      processError.statusCode = 500;
+      throw processError;
     }
-    throw err;
+
+    // Handle Dropbox API specific errors
+    if (err.status === 400) {
+      const validationError = new Error(`Dropbox API validation error: ${err.message}`);
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+    if (err.status === 401) {
+      const authError = new Error('Dropbox API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (err.status === 403) {
+      const forbiddenError = new Error('Dropbox API access forbidden - check token permissions');
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (err.status === 409) {
+      const conflictError = new Error(`Dropbox conflict error: ${err.message}`);
+      conflictError.name = 'ConflictError';
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+
+    const apiError = new Error(`Dropbox API error: ${err.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = err.status || 500;
+    throw apiError;
   }
 }
 
@@ -243,7 +341,10 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
 async function deleteFolder(folderId) {
   // Input validation
   if (!folderId || typeof folderId !== 'string' || folderId.trim().length === 0) {
-    throw new Error('User folder ID is required and must be a non-empty string');
+    const validationError = new Error('User folder ID is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
   }
 
   try {
@@ -260,27 +361,56 @@ async function deleteFolder(folderId) {
     if (err.status === 409) {
       const errorTag = err.error?.error?.['.tag'];
       if (errorTag === 'path_lookup') {
-        throw new Error(`User folder not found`);
+        const notFoundError = new Error('User folder not found');
+        notFoundError.name = 'NotFoundError';
+        notFoundError.statusCode = 404;
+        throw notFoundError;
       } else if (errorTag === 'path_write') {
         const reason = err.error?.error?.reason?.['.tag'];
-        throw new Error(`Cannot delete user folder: ${reason || 'write permission denied'}`);
+        const conflictError = new Error(
+          `Cannot delete user folder: ${reason || 'write permission denied'}`,
+        );
+        conflictError.name = 'ConflictError';
+        conflictError.statusCode = 409;
+        throw conflictError;
       }
     }
 
     if (err.status === 400) {
       const errorSummary = err.error?.error_summary || err.message;
-      throw new Error(`Bad request when deleting user folder: ${errorSummary}`);
+      const validationError = new Error(`Bad request when deleting user folder: ${errorSummary}`);
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
     }
 
     if (err.status === 403) {
-      throw new Error(`Permission denied: You may not have permission to delete this user folder`);
+      const forbiddenError = new Error(
+        'Permission denied: You may not have permission to delete this user folder',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
     }
 
     if (err.status === 404) {
-      throw new Error(`User folder not found`);
+      const notFoundError = new Error('User folder not found');
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
     }
 
-    throw new Error(`Failed to delete user folder: ${err.message || 'Unknown error'}`);
+    if (err.status === 401) {
+      const authError = new Error('Dropbox API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+
+    const apiError = new Error(`Failed to delete user folder: ${err.message || 'Unknown error'}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = err.status || 500;
+    throw apiError;
   }
 }
 
