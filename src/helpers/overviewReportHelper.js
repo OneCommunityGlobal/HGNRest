@@ -693,7 +693,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares[0].totalBlueSquares,
+      count: currTotalBlueSquares?.[0]?.totalBlueSquares || 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -703,8 +703,8 @@ const overviewReportHelper = function () {
       );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalBlueSquares[0].totalBlueSquares,
-        comparisonTotalBlueSquares[0].totalBlueSquares,
+        currTotalBlueSquares?.[0]?.totalBlueSquares || 0,
+        comparisonTotalBlueSquares?.[0]?.totalBlueSquares || 0,
       );
     }
 
@@ -1309,6 +1309,9 @@ const overviewReportHelper = function () {
       totalVolunteers: currentTotalVolunteers,
     } = await getVolunteerData(startDate, endDate);
 
+    // Calculate existing active volunteers (active - new)
+    const currentExistingActive = currentActiveVolunteers - currentNewVolunteers;
+
     const res = {
       activeVolunteers: {
         count: currentActiveVolunteers,
@@ -1326,6 +1329,23 @@ const overviewReportHelper = function () {
           Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
       },
       totalVolunteers: { count: currentTotalVolunteers },
+      donutChartData: {
+        existingActive: {
+          count: currentExistingActive,
+          percentageOutOfTotal:
+            Math.round((currentExistingActive / currentTotalVolunteers) * 100) / 100,
+        },
+        newActive: {
+          count: currentNewVolunteers,
+          percentageOutOfTotal:
+            Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+        },
+        deactivated: {
+          count: currentDeactivatedVolunteers,
+          percentageOutOfTotal:
+            Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+        },
+      },
     };
 
     // Add comparison percentage if comparison dates are provided
@@ -1336,6 +1356,9 @@ const overviewReportHelper = function () {
         deactivatedVolunteers: comparisonDeactivatedVolunteers,
         totalVolunteers: comparisonTotalVolunteers,
       } = await getVolunteerData(comparisonStartDate, comparisonEndDate);
+
+      // Calculate comparison existing active volunteers
+      const comparisonExistingActive = comparisonActiveVolunteers - comparisonNewVolunteers;
 
       // Add comparison percentage using calculateGrowthPercentage function
       res.activeVolunteers.comparisonPercentage = calculateGrowthPercentage(
@@ -1353,6 +1376,20 @@ const overviewReportHelper = function () {
       res.totalVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentTotalVolunteers,
         comparisonTotalVolunteers,
+      );
+
+      // Add comparison percentages for donutChartData
+      res.donutChartData.existingActive.comparisonPercentage = calculateGrowthPercentage(
+        currentExistingActive,
+        comparisonExistingActive,
+      );
+      res.donutChartData.newActive.comparisonPercentage = calculateGrowthPercentage(
+        currentNewVolunteers,
+        comparisonNewVolunteers,
+      );
+      res.donutChartData.deactivated.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedVolunteers,
+        comparisonDeactivatedVolunteers,
       );
     }
 
