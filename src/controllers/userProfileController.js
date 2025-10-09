@@ -1255,6 +1255,11 @@ const userProfileController = function (UserProfile, Project) {
   // };
 
   const putUserProfile = async function (req, res) {
+    console.log('➡️ PUT /userprofile triggered');
+    console.log('UserID:', req.params.userId);
+    console.log('Incoming body keys:', Object.keys(req.body));
+    console.log('🟩 PUT /userProfile called with:', req.params.userId);
+    console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
     const userid = req.params.userId;
     // ⚡️ If request is only updating filterColor, bypass all role/permission checks
     // if (req.body.filterColor !== undefined && Object.keys(req.body).length === 2 && req.body.requestor) {
@@ -1303,6 +1308,9 @@ const userProfileController = function (UserProfile, Project) {
         // ✅ Always overwrite filterColor, even for Owner
         record.filterColor = req.body.filterColor;
         record.lastModifiedDate = Date.now();
+        console.log('Record found:', record ? record._id : null);
+        console.log('Setting filterColor:', req.body.filterColor);
+        console.log('🟩 PUT /userProfile success for:', req.params.userId);
         await record.save();
 
         // clear caches as usual
@@ -1325,6 +1333,7 @@ const userProfileController = function (UserProfile, Project) {
           filterColor: record.filterColor,
         });
       } catch (err) {
+        console.error('❌ Failed filterColor update (catch):', err.stack || err);
         console.error('❌ Failed filterColor update:', err);
         return res.status(500).json({ error: 'Failed to update filterColor' });
       }
