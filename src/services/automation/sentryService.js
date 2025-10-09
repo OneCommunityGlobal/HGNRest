@@ -453,6 +453,161 @@ async function removeUser(email) {
   }
 }
 
+// Get detailed user information from Sentry
+async function getUserDetails(email) {
+  // Input validation
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    const validationError = new Error('Email is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
+  }
+
+  try {
+    // Use the existing efficient findMemberByEmail function
+    const user = await findMemberByEmail(email);
+
+    if (!user) {
+      const notFoundError = new Error(
+        `User with email '${email}' not found in Sentry organization`,
+      );
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+
+    // Get detailed member information including teams using the member-specific endpoint
+    let userTeams = [];
+    try {
+      const memberDetailsUrl = `https://sentry.io/api/0/organizations/${organizationSlug}/members/${user.id}/`;
+      const memberDetailsResponse = await axios({
+        url: memberDetailsUrl,
+        method: 'GET',
+        headers,
+      });
+
+      const memberData = memberDetailsResponse.data;
+
+      // Extract team information from member details
+      // teams is an array of slugs, teamRoles is an array of {teamSlug, role} objects
+      if (memberData.teams && memberData.teams.length > 0) {
+        // Use team slugs with hash prefix to match Sentry UI format
+        userTeams = memberData.teams.map((teamSlug) => ({
+          name: `#${teamSlug}`,
+        }));
+      } else {
+        userTeams = [];
+      }
+    } catch (memberDetailsError) {
+      // Fallback: keep empty teams array
+      userTeams = [];
+    }
+
+    const userDetails = {
+      email: user.email,
+      name: user.name || 'Not set',
+      organizationRole: user.orgRole || 'member',
+      status: user.pending ? 'pending' : 'active',
+      memberSince: user.dateCreated,
+      lastActive: user.user?.lastActive || user.dateCreated,
+      teams: userTeams,
+    };
+
+    return userDetails;
+  } catch (error) {
+    // If it's already our custom error with proper properties, re-throw it
+    if (error.name && error.statusCode) {
+      throw error;
+    }
+
+    // Handle network/connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      const networkError = new Error(
+        'Unable to connect to Sentry API - please check your internet connection',
+      );
+      networkError.name = 'NetworkError';
+      networkError.statusCode = 503;
+      throw networkError;
+    }
+
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      const timeoutError = new Error('Sentry API request timed out - please try again');
+      timeoutError.name = 'TimeoutError';
+      timeoutError.statusCode = 408;
+      throw timeoutError;
+    }
+
+    // Handle Sentry API specific errors
+    if (error.response?.status === 404) {
+      // Check if it's organization not found vs user not found
+      if (error.config?.url?.includes('/members/')) {
+        const notFoundError = new Error(
+          `User with email '${email}' not found in Sentry organization`,
+        );
+        notFoundError.name = 'NotFoundError';
+        notFoundError.statusCode = 404;
+        throw notFoundError;
+      } else {
+        const notFoundError = new Error(
+          `Sentry organization '${organizationSlug}' not found or you don't have access`,
+        );
+        notFoundError.name = 'NotFoundError';
+        notFoundError.statusCode = 404;
+        throw notFoundError;
+      }
+    }
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error(
+        'Sentry API access forbidden - your token may lack necessary permissions for organization or member access',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error(
+        'Sentry API authentication failed - your token may be invalid or expired. Please check your Sentry API token.',
+      );
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (error.response?.status === 400) {
+      const badRequestError = new Error(
+        `Invalid request to Sentry API - please check the email format '${email}'`,
+      );
+      badRequestError.name = 'ValidationError';
+      badRequestError.statusCode = 400;
+      throw badRequestError;
+    }
+    if (error.response?.status === 429) {
+      const rateLimitError = new Error(
+        'Sentry API rate limit exceeded - please wait a moment before trying again',
+      );
+      rateLimitError.name = 'RateLimitError';
+      rateLimitError.statusCode = 429;
+      throw rateLimitError;
+    }
+    if (error.response?.status >= 500) {
+      const serverError = new Error(
+        'Sentry API is currently experiencing issues - please try again later',
+      );
+      serverError.name = 'ServerError';
+      serverError.statusCode = error.response.status;
+      throw serverError;
+    }
+
+    // Generic API error with more context
+    const apiError = new Error(
+      `Sentry API error while fetching user details for '${email}': ${error.message}`,
+    );
+    apiError.name = 'APIError';
+    apiError.statusCode = error.response?.status || 500;
+    throw apiError;
+  }
+}
+
 module.exports = {
   getTeams,
   inviteUser,
@@ -462,4 +617,5 @@ module.exports = {
   checkUserExists,
   verifyInvitation,
   verifyRemoval,
+  getUserDetails,
 };

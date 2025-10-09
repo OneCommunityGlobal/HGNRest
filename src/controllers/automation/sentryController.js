@@ -123,7 +123,74 @@ async function removeUser(req, res) {
   }
 }
 
+// Get detailed user information from Sentry
+async function getUserDetails(req, res) {
+  const { targetUser, requestor } = req.body;
+
+  // 1. Authorization check
+  if (!requestor?.role) {
+    return res.status(400).json({ message: 'Requestor role is required' });
+  }
+
+  if (!checkAppAccess(requestor.role)) {
+    return res.status(403).json({ message: 'Unauthorized request' });
+  }
+
+  if (!targetUser?.targetUserId) {
+    return res.status(400).json({ message: 'Target user ID is required' });
+  }
+
+  try {
+    // 2. Database validation - get actual credentials and verify access
+    let appAccess;
+    try {
+      appAccess = await appAccessService.getAppAccess(targetUser.targetUserId, 'sentry');
+    } catch (error) {
+      return res.status(404).json({
+        message: 'No Sentry access found for this user. They may not have been invited.',
+      });
+    }
+
+    // 3. Status validation - only allow invited apps
+    if (appAccess.status !== 'invited') {
+      return res.status(403).json({
+        message: `Cannot view details for ${appAccess.status} Sentry access. Only invited access can be viewed.`,
+      });
+    }
+
+    // 4. Use verified credentials from database
+    const verifiedEmail = appAccess.credentials;
+    const userDetails = await sentryService.getUserDetails(verifiedEmail);
+
+    // Return essential details only: name, status, org, org role, teams with roles
+    const essentialDetails = {
+      Email: verifiedEmail,
+      Name: userDetails.name,
+      'User Status': userDetails.status,
+      'Organization Role': userDetails.organizationRole,
+      Teams:
+        userDetails.teams && userDetails.teams.length > 0
+          ? userDetails.teams.map((team) => team.name).join(', ')
+          : 'No teams assigned',
+    };
+
+    // Only add organization if it comes from API
+    if (userDetails.organizationName) {
+      essentialDetails.Organization = userDetails.organizationName;
+    }
+
+    return res.status(200).json({
+      message: 'Sentry user details retrieved successfully',
+      data: essentialDetails,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ message: error.message });
+  }
+}
+
 module.exports = {
   inviteUser,
   removeUser,
+  getUserDetails,
 };

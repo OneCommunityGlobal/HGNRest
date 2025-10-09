@@ -221,8 +221,116 @@ async function removeUser(username) {
   }
 }
 
+// Get detailed user information including organization membership
+async function getUserDetails(username) {
+  try {
+    // Input validation
+    if (!username || typeof username !== 'string' || username.trim().length === 0) {
+      const validationError = new Error('Username is required and must be a non-empty string');
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+
+    // Get basic user info
+    const userId = await getUserId(username);
+    const userResponse = await axios({
+      method: 'GET',
+      url: `https://api.github.com/user/${userId}`,
+      headers,
+    });
+
+    // Get organization membership info
+    const membership = await checkUserMembership(username);
+
+    const userDetails = {
+      name: userResponse.data.name || 'Not set',
+      organizationRole: membership.exists ? membership.role : 'Not a member',
+      status: membership.exists ? membership.state : 'Not invited',
+    };
+
+    return userDetails;
+  } catch (error) {
+    // If it's already our custom error with proper properties, re-throw it
+    if (error.name && error.statusCode) {
+      throw error;
+    }
+
+    // Handle network/connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      const networkError = new Error(
+        'Unable to connect to GitHub API - please check your internet connection',
+      );
+      networkError.name = 'NetworkError';
+      networkError.statusCode = 503;
+      throw networkError;
+    }
+
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      const timeoutError = new Error('GitHub API request timed out - please try again');
+      timeoutError.name = 'TimeoutError';
+      timeoutError.statusCode = 408;
+      throw timeoutError;
+    }
+
+    // Handle GitHub API specific errors
+    if (error.response?.status === 404) {
+      const notFoundError = new Error(`GitHub user '${username}' not found or does not exist`);
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+    if (error.response?.status === 403) {
+      const rateLimitReset = error.response.headers['x-ratelimit-reset'];
+      const resetTime = rateLimitReset
+        ? new Date(rateLimitReset * 1000).toLocaleTimeString()
+        : 'unknown';
+      const forbiddenError = new Error(
+        `GitHub API access forbidden. This could be due to: rate limiting (resets at ${resetTime}), insufficient token permissions, or private user profile. Please check your GitHub token permissions.`,
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error(
+        'GitHub API authentication failed - your token may be invalid or expired. Please check your GitHub token.',
+      );
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (error.response?.status === 422) {
+      const validationError = new Error(
+        `GitHub API validation error - the username '${username}' may contain invalid characters`,
+      );
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 422;
+      throw validationError;
+    }
+    if (error.response?.status >= 500) {
+      const serverError = new Error(
+        'GitHub API is currently experiencing issues - please try again later',
+      );
+      serverError.name = 'ServerError';
+      serverError.statusCode = error.response.status;
+      throw serverError;
+    }
+
+    // Generic API error with more context
+    const apiError = new Error(
+      `GitHub API error while fetching user details for '${username}': ${error.message}`,
+    );
+    apiError.name = 'APIError';
+    apiError.statusCode = error.response?.status || 500;
+    throw apiError;
+  }
+}
+
 module.exports = {
   sendInvitation,
   removeUser,
   checkUserMembership,
+  getUserDetails,
 };

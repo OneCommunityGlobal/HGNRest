@@ -9,4 +9,7 @@ router.post('/invite', githubController.inviteUser);
 // Route to remove a user from GitHub organization
 router.delete('/remove', githubController.removeUser);
 
+// Route to get detailed user information
+router.post('/user-details', githubController.getUserDetails);
+
 module.exports = router;

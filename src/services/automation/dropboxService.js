@@ -466,10 +466,223 @@ async function deleteFolder(folderId) {
   }
 }
 
+// Get detailed folder information
+async function getFolderDetails(folderId) {
+  // Input validation
+  if (!folderId || typeof folderId !== 'string' || folderId.trim().length === 0) {
+    const validationError = new Error('Folder ID is required and must be a non-empty string');
+    validationError.name = 'ValidationError';
+    validationError.statusCode = 400;
+    throw validationError;
+  }
+
+  try {
+    // Get folder metadata
+    const folderMetadata = await dbx.filesGetMetadata({ path: folderId });
+
+    if (folderMetadata.result['.tag'] !== 'folder') {
+      const validationError = new Error('Provided ID is not a folder');
+      validationError.name = 'ValidationError';
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+
+    // Get folder contents to count files and extract subfolders
+    const folderContents = await dbx.filesListFolder({ path: folderId });
+    const fileCount = folderContents.result.entries.length;
+
+    // Extract subfolder names (only folders, not files)
+    const subfolders = folderContents.result.entries
+      .filter((entry) => entry['.tag'] === 'folder')
+      .map((folder) => folder.name);
+
+    // Get sharing information and member details
+    let sharingInfo = null;
+    let sharedMembers = [];
+
+    // Determine sharing info based on folder metadata
+    if (folderMetadata.result.sharing_info) {
+      // Folder has sharing info, extract details
+      sharingInfo = folderMetadata.result.sharing_info;
+
+      if (sharingInfo.shared_folder_id) {
+        // Try to get detailed member info using the correct shared_folder_id
+        try {
+          const membersResponse = await dbx.sharingListFolderMembers({
+            shared_folder_id: sharingInfo.shared_folder_id,
+          });
+
+          if (membersResponse.result.users) {
+            sharedMembers = membersResponse.result.users.map((user) => ({
+              email: user.user.email,
+              role: user.access_type['.tag'] || 'viewer',
+            }));
+          }
+
+          if (membersResponse.result.groups) {
+            const groupMembers = membersResponse.result.groups.map((group) => ({
+              email: `${group.group.group_name} (Group)`,
+              role: group.access_type['.tag'] || 'viewer',
+            }));
+            sharedMembers = [...sharedMembers, ...groupMembers];
+          }
+        } catch (membersError) {
+          // Fallback: Show sharing status based on sharing_info
+          const accessLevel = sharingInfo.read_only ? 'viewer' : 'editor';
+          sharedMembers = [
+            {
+              email: 'Team members',
+              role: accessLevel,
+            },
+          ];
+        }
+      } else {
+        // Has sharing info but no shared_folder_id
+        const accessLevel = sharingInfo.read_only ? 'viewer' : 'editor';
+        sharedMembers = [
+          {
+            email: 'Team members',
+            role: accessLevel,
+          },
+        ];
+      }
+    } else {
+      // No sharing info in metadata
+      sharedMembers = [];
+    }
+
+    // Determine team folder
+    let teamFolder = 'Unknown';
+    const pathParts = folderMetadata.result.path_display.split('/');
+    if (pathParts.length > 1) {
+      [, teamFolder] = pathParts; // Usually the team folder name
+    }
+
+    const folderDetails = {
+      folderId,
+      folderName: folderMetadata.result.name,
+      folderPath: folderMetadata.result.path_display,
+      created: folderMetadata.result.server_modified || null,
+      size: folderMetadata.result.size || 'Unknown',
+      fileCount,
+      teamFolder,
+      subfolders,
+      isShared: sharedMembers.length > 0,
+      sharingPermissions: sharingInfo ? sharingInfo.policy : null,
+      sharedMembers,
+      // Additional info from the response
+      sharedFolderId: folderMetadata.result.shared_folder_id,
+      parentSharedFolderId: folderMetadata.result.parent_shared_folder_id,
+      sharingInfo: folderMetadata.result.sharing_info,
+    };
+
+    return folderDetails;
+  } catch (error) {
+    // If it's already our custom error, re-throw it
+    if (error.name && error.statusCode) {
+      throw error;
+    }
+
+    // Handle network/connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      const networkError = new Error(
+        'Unable to connect to Dropbox API - please check your internet connection',
+      );
+      networkError.name = 'NetworkError';
+      networkError.statusCode = 503;
+      throw networkError;
+    }
+
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      const timeoutError = new Error('Dropbox API request timed out - please try again');
+      timeoutError.name = 'TimeoutError';
+      timeoutError.statusCode = 408;
+      throw timeoutError;
+    }
+
+    // Handle Dropbox API specific errors
+    if (error.status === 409) {
+      if (error.error?.error?.['.tag'] === 'path') {
+        const notFoundError = new Error(
+          `Dropbox folder with ID '${folderId}' not found or path is invalid`,
+        );
+        notFoundError.name = 'NotFoundError';
+        notFoundError.statusCode = 404;
+        throw notFoundError;
+      }
+      if (error.error?.error?.['.tag'] === 'shared_folder_no_permission') {
+        const permissionError = new Error(
+          `Access denied to folder '${folderId}' - you may not have permission to view this shared folder`,
+        );
+        permissionError.name = 'ForbiddenError';
+        permissionError.statusCode = 403;
+        throw permissionError;
+      }
+      // Generic conflict error
+      const conflictError = new Error(
+        `Dropbox folder operation conflict for '${folderId}' - ${error.error?.error_summary || 'unknown conflict'}`,
+      );
+      conflictError.name = 'ConflictError';
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+    if (error.status === 403) {
+      const forbiddenError = new Error(
+        'Dropbox API access forbidden - your token may lack necessary permissions for folder access',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.status === 401) {
+      const authError = new Error(
+        'Dropbox API authentication failed - your token may be invalid or expired. Please re-authenticate.',
+      );
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    if (error.status === 400) {
+      const badRequestError = new Error(
+        `Invalid folder ID format '${folderId}' - please provide a valid Dropbox folder ID`,
+      );
+      badRequestError.name = 'ValidationError';
+      badRequestError.statusCode = 400;
+      throw badRequestError;
+    }
+    if (error.status === 429) {
+      const rateLimitError = new Error(
+        'Dropbox API rate limit exceeded - please wait a moment before trying again',
+      );
+      rateLimitError.name = 'RateLimitError';
+      rateLimitError.statusCode = 429;
+      throw rateLimitError;
+    }
+    if (error.status >= 500) {
+      const serverError = new Error(
+        'Dropbox API is currently experiencing issues - please try again later',
+      );
+      serverError.name = 'ServerError';
+      serverError.statusCode = error.status;
+      throw serverError;
+    }
+
+    // Generic API error with more context
+    const apiError = new Error(
+      `Dropbox API error while fetching folder details for '${folderId}': ${error.message || 'Unknown error'}`,
+    );
+    apiError.name = 'APIError';
+    apiError.statusCode = error.status || 500;
+    throw apiError;
+  }
+}
+
 module.exports = {
   createFolderWithSubfolder,
   createFolderAndInvite,
   deleteFolder,
   getAvailableTeamFolders,
   getTeamFolderPath,
+  getFolderDetails,
 };

@@ -94,7 +94,65 @@ async function removeUser(req, res) {
   }
 }
 
+// Get detailed user information from GitHub
+async function getUserDetails(req, res) {
+  const { targetUser, requestor } = req.body;
+
+  // 1. Authorization check
+  if (!requestor?.role) {
+    return res.status(400).json({ message: 'Requestor role is required' });
+  }
+
+  if (!checkAppAccess(requestor.role)) {
+    return res.status(403).json({ message: 'Unauthorized request' });
+  }
+
+  if (!targetUser?.targetUserId) {
+    return res.status(400).json({ message: 'Target user ID is required' });
+  }
+
+  try {
+    // 2. Database validation - get actual credentials and verify access
+    let appAccess;
+    try {
+      appAccess = await appAccessService.getAppAccess(targetUser.targetUserId, 'github');
+    } catch (error) {
+      return res.status(404).json({
+        message: 'No GitHub access found for this user. They may not have been invited.',
+      });
+    }
+
+    // 3. Status validation - only allow invited apps
+    if (appAccess.status !== 'invited') {
+      return res.status(403).json({
+        message: `Cannot view details for ${appAccess.status} GitHub access. Only invited access can be viewed.`,
+      });
+    }
+
+    // 4. Use verified credentials from database
+    const verifiedUsername = appAccess.credentials;
+    const userDetails = await githubService.getUserDetails(verifiedUsername);
+
+    // Return minimal essential details only - focus on One Community org
+    const essentialDetails = {
+      'GitHub Username': verifiedUsername,
+      'Display Name': userDetails.name,
+      'Organization Role': userDetails.organizationRole,
+      'Member Status': userDetails.status,
+    };
+
+    return res.status(200).json({
+      message: 'GitHub user details retrieved successfully',
+      data: essentialDetails,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ message: error.message });
+  }
+}
+
 module.exports = {
   inviteUser,
   removeUser,
+  getUserDetails,
 };
