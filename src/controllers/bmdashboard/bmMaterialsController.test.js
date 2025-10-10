@@ -292,6 +292,7 @@ describe('bmMaterialsController', () => {
       };
 
       BuildingMaterialMock.findOne.mockResolvedValue(mockMaterial);
+      BuildingMaterialMock.findOneAndUpdate.mockResolvedValue(mockMaterial);
 
       await controller.bmupdatePurchaseStatus(req, res);
 

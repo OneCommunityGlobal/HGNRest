@@ -285,6 +285,10 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const PromotionEligibility = require('../models/promotionEligibility');
+
+const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -416,6 +420,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
