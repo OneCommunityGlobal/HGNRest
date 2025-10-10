@@ -70,13 +70,37 @@ module.exports = function (app) {
       next();
       return;
     }
-    
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
-       req.originalUrl === '/api/applicant-analytics/track-application') &&
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
       req.method === 'POST'
     ) {
+      next();
+      return;
+    }
+
+    // Public map analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/map-analytics') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public country analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/analytics/country-applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public roles endpoint (no auth required for GET requests)
+    if (req.originalUrl === '/api/analytics/roles' && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public applications analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/applications') && req.method === 'GET') {
       next();
       return;
     }

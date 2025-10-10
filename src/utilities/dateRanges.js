@@ -10,7 +10,7 @@ const {
   subYears,
 } = require('date-fns');
 
-const ALLOWED = new Set(['weekly', 'monthly', 'yearly']);
+const ALLOWED = new Set(['weekly', 'monthly', 'yearly', 'all']);
 
 function isISOLike(v) {
   return typeof v === 'string' && !Number.isNaN(Date.parse(v));
@@ -36,13 +36,13 @@ function getRangeFromQuery(q = {}) {
 
   if (!filter) {
     const err = new Error(
-      'Missing required query: filter=weekly|monthly|yearly (or provide startDate & endDate).',
+      'Missing required query: filter=weekly|monthly|yearly|all (or provide startDate & endDate).',
     );
     err.status = 422;
     throw err;
   }
   if (!ALLOWED.has(filter)) {
-    const err = new Error('Invalid filter. Allowed: weekly, monthly, yearly.');
+    const err = new Error('Invalid filter. Allowed: weekly, monthly, yearly, all.');
     err.status = 422;
     throw err;
   }
@@ -53,6 +53,9 @@ function getRangeFromQuery(q = {}) {
       return { start: startOfWeek(now), end: endOfWeek(now), type: 'weekly' };
     case 'yearly':
       return { start: startOfYear(now), end: endOfYear(now), type: 'yearly' };
+    case 'all':
+      // Return a very wide range for "all time" - from 2020 to now
+      return { start: new Date('2020-01-01'), end: now, type: 'all' };
     case 'monthly':
     default:
       return { start: startOfMonth(now), end: endOfMonth(now), type: 'monthly' };
@@ -71,6 +74,8 @@ function getPreviousRange(current) {
       };
     case 'yearly':
       return { start: subYears(current.start, 1), end: subYears(current.end, 1), type: 'yearly' };
+    case 'all':
+      return null; // 'all' time has no previous period to compare
     default:
       return null; // 'custom' not comparable
   }
