@@ -8,7 +8,8 @@ function isValidUrl(url) {
     return false;
   }
 }
-const submitLessonPlan = async (req, res) => {
+
+async function submitLessonPlan(req, res) {
   const { taskId, link } = req.body;
   const studentId = req.user?.id || req.body.studentId;
 
@@ -44,13 +45,15 @@ const submitLessonPlan = async (req, res) => {
       submissionTime: new Date(),
       ...fileMeta,
     });
-    res.json({ message: 'Submission successful.', submissionLink });
+    res.json({ message: 'Submission successful.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save submission.', details: err.message });
   }
 }
 
-module.exports = {
+const controller = {
   submitLessonPlan,
   isValidUrl,
 };
+
+module.exports = controller;

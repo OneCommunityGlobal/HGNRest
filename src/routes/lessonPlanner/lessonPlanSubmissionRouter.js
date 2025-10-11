@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { submitLessonPlan } = require('../../controllers/lessonPlaner/lessonPlanSubmissionController');
+const controller = require('../../controllers/lessonPlaner/lessonPlanSubmissionController');
 
 const router = express.Router();
 
@@ -22,7 +22,7 @@ const upload = multer({
 
 router.post('/submit', upload.single('file'), async (req, res) => {
   try {
-    await submitLessonPlan(req, res);
+    await controller.submitLessonPlan(req, res);
   } catch (err) {
     res.status(400).json({
       error: err.message || 'Unknown error during submission.',
