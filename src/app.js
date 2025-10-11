@@ -26,5 +26,6 @@ require('./startup/routes')(app);
 
 app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
+app.use('/api', require('./routes/plurkRouter'));
 
 module.exports = { app, logger };
