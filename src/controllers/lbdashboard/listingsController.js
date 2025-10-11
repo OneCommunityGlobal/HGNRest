@@ -1,18 +1,47 @@
 const mongoose = require('mongoose');
-const {fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage} = require('../../utilities/AzureBlobImages');
+const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
 const userProfile = require('../../models/userProfile');
+const jwt = require('jsonwebtoken');
+const moment = require('moment');
+const config = require('../../config');
+const Role = require('../../models/role');
+const Village = require('../../models/lbdashboard/villages');
+
+const verifyToken = async (req) => {
+  const token = req.headers['authorization'];
+  if (!token) throw new Error('No token provided');
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
+      throw new Error('Token is invalid or expired');
+    }
+    const role = await Role.findOne({ roleName: decoded.role });
+    const rolePermissions = role ? role.permissions : [];
+    const personalPermissions = [
+      ...(decoded.permissions?.frontPermissions || []),
+      ...(decoded.permissions?.backPermissions || [])
+    ];
+    const combinedPermissions = Array.from(new Set([...rolePermissions, ...personalPermissions]));
+    req.user = {
+      userid: decoded.userid,
+      role: decoded.role,
+      permissions: combinedPermissions,
+    };
+    return req.user;
+  } catch (error) {
+    throw new Error('Invalid or expired token');
+  }
+};
 
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      const { 
-        page = 1, 
-        size = 10, 
-        village, 
-        availableFrom, 
-        availableTo 
-      } = req.query;
-      
+      const page = req.headers['page'] || 1;
+      const size = req.headers['size'] || 10;
+      const village = req.headers['village'];
+      const availableFrom = req.headers['availablefrom'];
+      const availableTo = req.headers['availableto'];
+
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
 
@@ -22,24 +51,20 @@ const listingsController = (ListingHome) => {
       }
 
       const skip = (pageNum - 1) * sizeNum;
-      
-      // Build query based on filters
+
       const query = {};
       if (village) query.village = village;
-      
-      // Handle date range filtering
+
       if (availableFrom || availableTo) {
         query.$and = [];
-        
         if (availableFrom) {
           query.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
         }
-        
         if (availableTo) {
           query.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
         }
       }
-      
+
       const total = await ListingHome.countDocuments(query);
       const totalPages = Math.ceil(total / sizeNum);
 
@@ -49,22 +74,17 @@ const listingsController = (ListingHome) => {
 
       const listings = await ListingHome.find(query)
         .populate([
-          {
-            path: 'createdBy', select: '_id firstName lastName'
-          },
-          {
-            path: 'updatedBy', select: '_id firstName lastName'
-          }
-        ]) 
+          { path: 'createdBy', select: '_id firstName lastName' },
+          { path: 'updatedBy', select: '_id firstName lastName' }
+        ])
         .sort({ updatedOn: -1 })
         .skip(skip)
         .limit(sizeNum)
         .lean()
         .exec();
 
-      // Return empty array if no listings found - don't treat as an error
       if (!listings.length) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           status: 200,
           message: 'No listings found',
           data: {
@@ -79,22 +99,16 @@ const listingsController = (ListingHome) => {
         });
       }
 
-      // Process listings with error handling for image fetching
       const processedListings = await Promise.all(listings.map(async listing => {
         let images = [];
-        
-        // Try to fetch images from Azure with error handling
         try {
           if (listing.images && listing.images.length > 0) {
             images = await fetchImagesFromAzureBlobStorage(listing.images);
           }
         } catch (error) {
-          console.error('Error fetching images from Azure:', error.message);
-          // Fallback to placeholder images
           images = ['https://via.placeholder.com/300x200?text=Unit'];
         }
-        
-        const processed = { 
+        return {
           ...listing,
           images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
           createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
@@ -102,10 +116,9 @@ const listingsController = (ListingHome) => {
           availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
           availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
         };
-        return processed;
       }));
 
-      const response = {
+      res.json({
         status: 200,
         message: 'Listings retrieved successfully',
         data: {
@@ -117,45 +130,91 @@ const listingsController = (ListingHome) => {
             pageSize: sizeNum
           }
         }
-      };
-
-      res.json(response);
+      });
 
     } catch (error) {
-      console.error('Error fetching listings:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Internal server error',
-        details: error.message 
+        details: error.message
       });
     }
   };
-  
+
+  const getListingById = async (req, res) => {
+    try {
+      await verifyToken(req);
+      const { id } = req.body;
+      if (!id) return res.status(400).json({ error: 'Missing listing id in body' });
+
+      const listing = await ListingHome.findById(id)
+        .populate([
+          { path: 'createdBy', select: '_id firstName lastName' },
+          { path: 'updatedBy', select: '_id firstName lastName' }
+        ])
+        .lean();
+
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+
+      // Fetch village amenities and name using the village field as ID
+      let villageAmenities = [];
+      let villageName = '';
+      if (listing.village) {
+        try {
+          const villageDoc = await Village.findById(listing.village).lean();
+          if (villageDoc) {
+            villageAmenities = villageDoc.amenities || [];
+            villageName = villageDoc.name || '';
+          }
+        } catch (err) {
+          // If not a valid ObjectId or not found, fallback to empty
+          villageAmenities = [];
+          villageName = '';
+        }
+      }
+
+      res.json({
+        status: 200,
+        data: {
+          ...listing,
+          unitAmenities: listing.amenities || [],
+          villageAmenities,
+          villageName,
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+  };
+
+
   const createListing = async (req, res) => {
     try {
-      const { 
-        title, 
-        description, 
-        price, 
-        perUnit, 
+      const {
+        title,
+        description,
+        price,
+        perUnit,
         createdBy,
-        updatedBy, 
+        updatedBy,
         availableFrom,
         availableTo,
         village,
         coordinates,
-        amenities, 
-        status 
+        amenities,
+        status
       } = req.body;
       const images = req.files;
 
       const isComplete = status === 'complete';
-      
+
       if (!(status === 'complete' || status === 'draft')) {
-        return res.status(400).json({error: 'Invalid status'});
+        return res.status(400).json({ error: 'Invalid status' });
       }
 
       if (isComplete) {
-        if (!title || !description || !price || !perUnit || !createdBy || !availableFrom || !availableTo || !village || !amenities || !updatedBy) {
+        if (!title || !description || !price || !perUnit || !createdBy || !village || !amenities || !updatedBy) {
           return res.status(400).json({
             error: 'Missing required fields for complete listing',
             details: {
@@ -164,8 +223,6 @@ const listingsController = (ListingHome) => {
               price: !price ? 'Required' : null,
               perUnit: !perUnit ? 'Required' : null,
               createdBy: !createdBy ? 'Required' : null,
-              availableFrom: !availableFrom ? 'Required' : null,
-              availableTo: !availableTo ? 'Required' : null,
               village: !village ? 'Required' : null,
               amenities: !amenities ? 'Required' : null,
               updatedBy: !updatedBy ? 'Required' : null
@@ -186,8 +243,8 @@ const listingsController = (ListingHome) => {
             }
           })
         }
-      } 
-  
+      }
+
       if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(updatedBy)) {
         return res.status(400).json({ error: 'Invalid user ID' });
       }
@@ -206,7 +263,7 @@ const listingsController = (ListingHome) => {
           parsedCoordinates = JSON.parse(coordinates);
           // Validate coordinates
           if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2 ||
-              typeof parsedCoordinates[0] !== 'number' || typeof parsedCoordinates[1] !== 'number') {
+            typeof parsedCoordinates[0] !== 'number' || typeof parsedCoordinates[1] !== 'number') {
             return res.status(400).json({ error: 'Coordinates must be an array of two numbers [longitude, latitude]' });
           }
         } catch (e) {
@@ -223,7 +280,7 @@ const listingsController = (ListingHome) => {
         updatedBy,
         status
       };
-
+      console.log(listingData);
       // Handle image uploads with error handling
       if (images && images.length) {
         try {
@@ -234,7 +291,7 @@ const listingsController = (ListingHome) => {
           listingData.images = images.map((image, idx) => `image-${idx}-${Date.now()}`);
         }
       }
-      
+
       if (availableFrom) listingData.availableFrom = new Date(availableFrom);
       if (availableTo) listingData.availableTo = new Date(availableTo);
       if (village) listingData.village = village;
@@ -242,26 +299,26 @@ const listingsController = (ListingHome) => {
       if (amenities) {
         // Handle amenities as an array if it comes as a string
         // eslint-disable-next-line no-nested-ternary
-        listingData.amenities = Array.isArray(amenities) ? amenities : 
-                              typeof amenities === 'string' ? [amenities] : [];
+        listingData.amenities = Array.isArray(amenities) ? amenities :
+          typeof amenities === 'string' ? [amenities] : [];
       }
 
       let savedListing;
-      const {draftId} = req.body;
+      const { draftId } = req.body;
 
       let existingDraft;
       if (draftId && mongoose.Types.ObjectId.isValid(draftId)) {
 
-        if (await userProfile.findOne({ _id: updatedBy, role: { $in: ['Owner', 'Administrator', 'Manager'] }})) {
-          existingDraft = await ListingHome.findOne({ 
-            _id: draftId 
+        if (await userProfile.findOne({ _id: updatedBy, role: { $in: ['Owner', 'Administrator', 'Manager'] } })) {
+          existingDraft = await ListingHome.findOne({
+            _id: draftId
           });
         } else {
-        existingDraft = await ListingHome.findOne({ 
-          _id: draftId, 
-          updatedBy
-        });
-      }
+          existingDraft = await ListingHome.findOne({
+            _id: draftId,
+            updatedBy
+          });
+        }
         if (!existingDraft) {
           return res.status(403).json({ error: 'Unauthorized: Draft not found or does not belong to user' });
         }
@@ -276,7 +333,7 @@ const listingsController = (ListingHome) => {
         const newListing = new ListingHome(listingData);
         savedListing = await newListing.save();
       }
-  
+
       res.status(201).json({
         status: 201,
         message: `Listing ${status === 'draft' ? 'draft' : ''} created successfully`,
@@ -289,14 +346,12 @@ const listingsController = (ListingHome) => {
           createdBy: savedListing.createdBy,
           status: savedListing.status,
           images: savedListing.images,
-          availableFrom: savedListing.availableFrom,
-          availableTo: savedListing.availableTo,
           village: savedListing.village,
           coordinates: savedListing.coordinates,
           amenities: savedListing.amenities
         }
       });
-  
+
     } catch (error) {
       res.status(500).json({
         error: 'Internal server error',
@@ -304,193 +359,46 @@ const listingsController = (ListingHome) => {
       });
     }
   };
-  
-  // GET endpoint for retrieving biddings
-  const getBiddings = async (req, res) => {
+
+  const updateListing = async (req, res) => {
     try {
-      const { 
-        page = 1, 
-        size = 10, 
-        village, 
-        availableFrom, 
-        availableTo 
-      } = req.query;
-      
-      const pageNum = parseInt(page, 10);
-      const sizeNum = parseInt(size, 10);
-
-      if (Number.isNaN(pageNum)) return res.status(400).json({ error: 'Invalid page number' });
-      if (Number.isNaN(sizeNum) || sizeNum < 1 || sizeNum > 100) {
-        return res.status(400).json({ error: 'Invalid page size (1-100)' });
+      const id = req.headers['id'];
+      if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
+      const updateData = req.body;
+      if (req.files && req.files.length) {
+        // Save images to Azure or your storage and update updateData.images
+        // Example: updateData.images = await saveImagestoAzureBlobStorage(req.files);
       }
-
-      const skip = (pageNum - 1) * sizeNum;
-      
-      // Build query based on filters
-      const query = {};
-      if (village) query.village = village;
-      
-      // Handle date range filtering
-      if (availableFrom || availableTo) {
-        query.$and = [];
-        
-        if (availableFrom) {
-          query.$and.push({ availableTo: { $gte: new Date(availableFrom) } });
-        }
-        
-        if (availableTo) {
-          query.$and.push({ availableFrom: { $lte: new Date(availableTo) } });
-        }
+      const updated = await ListingHome.findByIdAndUpdate(id, updateData, { new: true });
+      if (!updated) {
+        return res.status(404).json({ error: 'Listing not found' });
       }
-      
-      const total = await ListingHome.countDocuments(query);
-      const totalPages = Math.ceil(total / sizeNum);
-
-      if (pageNum > totalPages && totalPages > 0) {
-        return res.status(404).json({ error: 'Page not found' });
-      }
-
-      const listings = await ListingHome.find(query)
-        .populate([
-          {
-            path: 'createdBy', select: '_id firstName lastName'
-          },
-          {
-            path: 'updatedBy', select: '_id firstName lastName'
-          }
-        ]) 
-        .sort({ updatedOn: -1 })
-        .skip(skip)
-        .limit(sizeNum)
-        .lean()
-        .exec();
-
-      if (!listings.length) {
-        return res.status(200).json({ 
-          status: 200,
-          message: 'No biddings found',
-          data: {
-            items: [],
-            pagination: {
-              total: 0,
-              totalPages: 0,
-              currentPage: pageNum,
-              pageSize: sizeNum
-            }
-          }
-        });
-      }
-
-      // Process listings with error handling for image fetching
-      const processedBiddings = await Promise.all(listings.map(async listing => {
-        let images = [];
-        
-        // Try to fetch images from Azure with error handling
-        try {
-          if (listing.images && listing.images.length > 0) {
-            images = await fetchImagesFromAzureBlobStorage(listing.images);
-          }
-        } catch (error) {
-          console.error('Error fetching images from Azure:', error.message);
-          // Fallback to placeholder images
-          images = ['https://via.placeholder.com/300x200?text=Unit'];
-        }
-        
-        // Convert listings to biddings (with 80% price)
-        const processed = { 
-          ...listing,
-          price: Math.round(listing.price * 0.8 * 100) / 100, // 80% of original price, rounded to 2 decimals
-          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
-          createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
-          updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
-          availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
-          availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
-        };
-        return processed;
-      }));
-
-      const response = {
-        status: 200,
-        message: 'Biddings retrieved successfully',
-        data: {
-          items: processedBiddings,
-          pagination: {
-            total,
-            totalPages,
-            currentPage: pageNum,
-            pageSize: sizeNum
-          }
-        }
-      };
-
-      res.json(response);
-
+      res.json({ status: 200, message: 'Listing updated', data: updated });
     } catch (error) {
-      console.error('Error fetching biddings:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
-      });
-    }
-  };
-  
-  /**
-   * Get all unique villages from the database
-   * @param {Object} req - The request object
-   * @param {Object} res - The response object
-   */
-  const getVillages = async (req, res) => {
-    try {
-      // Default fixed villages that should always be included
-      const fixedVillages = [
-        "Earthbag", "Straw Bale", "Recycle Materials", "Cob", 
-        "Tree House", "Strawberry", "Sustainable Living", "City Center"
-      ];
-      
-      // Fetch distinct villages from database
-      let dbVillages = [];
-      try {
-        dbVillages = await ListingHome.distinct('village');
-      } catch (error) {
-        console.error('Error fetching villages from database:', error);
-        // If database query fails, continue with just fixed villages
-      }
-      
-      // Filter out null or empty values
-      const validDbVillages = dbVillages.filter(village => 
-        village && typeof village === 'string' && village.trim() !== ''
-      );
-      
-      // Combine fixed and database villages, removing duplicates
-      const allVillages = [...new Set([...fixedVillages, ...validDbVillages])];
-      
-      // Sort alphabetically
-      allVillages.sort();
-      
-      res.json({
-        status: 200,
-        message: 'Villages retrieved successfully',
-        data: allVillages
-      });
-    } catch (error) {
-      console.error('Error fetching villages:', error);
-      // Even if there's an error, return at least the fixed villages
-      res.status(200).json({ 
-        status: 200,
-        message: 'Returning default villages due to error',
-        data: [
-          "Earthbag", "Straw Bale", "Recycle Materials", "Cob", 
-          "Tree House", "Strawberry", "Sustainable Living", "City Center"
-        ]
-      });
+      res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   };
 
-  return { 
-    getListings, 
-    createListing, 
-    getBiddings,
-    getVillages
+  const deleteListing = async (req, res) => {
+    try {
+      const id = req.headers['id'];
+      if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
+      const deleted = await ListingHome.findByIdAndDelete(id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      res.json({ status: 200, message: 'Listing deleted' });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+  };
+
+  return {
+    getListings,
+    createListing,
+    deleteListing,
+    updateListing,
+    getListingById
   };
 };
 
