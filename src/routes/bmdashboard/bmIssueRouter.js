@@ -3,7 +3,8 @@ const express = require('express');
 const routes = function (metIssue) {
   const IssueRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmIssueController')(metIssue);
-  const issueAnalyticsController = require('../../controllers/bmdashboard/issueAnalyticsController');
+  const issueAnalyticsController =
+    require('../../controllers/bmdashboard/issueAnalyticsController')();
 
   IssueRouter.route('/issues').get(controller.bmGetIssue);
   IssueRouter.route('/issue/add').post(controller.bmPostIssue);
