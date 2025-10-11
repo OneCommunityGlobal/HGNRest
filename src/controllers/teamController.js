@@ -194,58 +194,83 @@ const teamcontroller = function (Team) {
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
-      res.status(403).send({ error: 'You are not authorized to perform this operation' });
-      return;
-    }
-
-    const { teamId } = req.params;
-
-    if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
-      res.status(400).send({ error: 'Invalid teamId' });
-      return;
-    }
-
-    // verify team exists
-    const targetTeam = await Team.findById(teamId);
-
-    if (!targetTeam || targetTeam.length === 0) {
-      res.status(400).send({ error: 'Invalid team' });
-      return;
-    }
-
     try {
-      const { userId, operation } = req.body;
+      if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
+        res.status(403).send({ error: 'You are not authorized to perform this operation' });
+        return;
+      }
 
+      const { teamId } = req.params;
+      if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
+        res.status(400).send({ error: 'Invalid teamId' });
+        return;
+      }
+
+      // verify team exists
+      const targetTeam = await Team.findById(teamId);
+      if (!targetTeam || targetTeam.length === 0) {
+        res.status(400).send({ error: 'Invalid team' });
+        return;
+      }
+
+      const { userId, operation } = req.body;
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        res.status(400).send({ error: 'Invalid userId' });
+        return;
+      }
       // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
       if (operation === 'Assign') {
-        await Team.findOneAndUpdate(
-          { _id: teamId },
-          { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
-          { new: true },
+        const alreadyMember = targetTeam.members?.some(
+          (m) => m.userId.toString() === userId.toString(),
         );
-        const newMember = await userProfile.findOneAndUpdate(
-          { _id: userId },
+
+        if (!alreadyMember) {
+          await Team.findByIdAndUpdate(
+            teamId,
+            {
+              $push: {
+                members: {
+                  userId,
+                  visible: true,
+                  addDateTime: new Date(),
+                },
+              },
+              $set: { modifiedDatetime: Date.now() },
+            },
+            { new: true },
+          );
+        } else {
+          console.log('User is already a member of the team, skipping addition to members array.');
+        }
+
+        await userProfile.findByIdAndUpdate(
+          userId,
           { $addToSet: { teams: teamId } },
           { new: true },
         );
-        res.status(200).send({ newMember });
-      } else {
-        await Team.findOneAndUpdate(
-          { _id: teamId },
-          { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
-        );
-        await userProfile.findOneAndUpdate(
-          { _id: userId },
-          { $pull: { teams: teamId } },
-          { new: true },
-        );
-        res.status(200).send({ result: 'Delete Success' });
+
+        const updatedMember = await userProfile.findById(userId);
+        return res.status(200).send({ newMember: updatedMember });
       }
+      if (operation === 'UnAssign') {
+        await Team.findByIdAndUpdate(teamId, {
+          $pull: { members: { userId } },
+          $set: { modifiedDatetime: Date.now() },
+        });
+
+        await userProfile.findByIdAndUpdate(userId, { $pull: { teams: teamId } }, { new: true });
+
+        return res.status(200).send({ result: 'Delete Success' });
+      }
+      return res.status(400).send({ error: 'Invalid operation. Must be "Assign" or "UnAssign".' });
     } catch (error) {
-      Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
+      Logger.logException(
+        error,
+        null,
+        `TeamId: ${req.params?.teamId} Request:${JSON.stringify(req.body)}`,
+      );
       res.status(500).send({ error });
     }
   };
