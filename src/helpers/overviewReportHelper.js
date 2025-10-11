@@ -693,7 +693,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares[0].totalBlueSquares,
+      count: currTotalBlueSquares.length > 0 ? currTotalBlueSquares[0].totalBlueSquares : 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -1440,23 +1440,82 @@ const overviewReportHelper = function () {
       return data;
     }
     const res = await UserProfile.aggregate([
+      { $unwind: '$badgeCollection' },
+      { $unwind: '$badgeCollection.earnedDate' },
       {
-        $unwind: '$badgeCollection',
-      },
-      {
-        $match: {
-          'badgeCollection.earnedDate': {
-            $gte: startDate,
-            $lte: endDate,
+        $addFields: {
+          fixedDateString: {
+            $cond: {
+              if: {
+                $regexMatch: {
+                  input: '$badgeCollection.earnedDate',
+                  regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                },
+              },
+              then: {
+                $concat: [
+                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  '-20',
+                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                ],
+              },
+              else: '$badgeCollection.earnedDate',
+            },
           },
         },
       },
       {
-        $count: 'badgeCollection',
+        $addFields: {
+          earnedDateParsed: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /T\d{2}:/,
+                    },
+                  },
+                  then: { $toDate: '$fixedDateString' },
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                    },
+                  },
+                  then: {
+                    $dateFromString: {
+                      dateString: '$fixedDateString',
+                      format: '%b-%d-%Y',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                },
+              ],
+              default: null,
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          earnedDateParsed: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          badgeId: '$badgeCollection.badge',
+          earnedDate: '$badgeCollection.earnedDate',
+          earnedDateParsed: 1,
+        },
       },
     ]);
 
-    return { current: res[0].badgeCollection };
+    return { count: res.length, badges: res };
   }
 
   /**
