@@ -4,7 +4,7 @@ const issueAnalytics = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Issue',
-    required: true,
+    required: false,
   },
   issueType: {
     type: String,
@@ -13,7 +13,7 @@ const issueAnalytics = new mongoose.Schema({
   },
   status: {
     type: String,
-    enaum: ['Open', 'Closed', 'In Progress', 'Resolved', 'Reopened'],
+    enum: ['Open', 'Closed', 'In Progress', 'Resolved', 'Reopened'],
     required: true,
   },
   dateReported: {
