@@ -3,7 +3,7 @@ const express = require('express');
 const routes = function (task, userProfile) {
   const controller = require('../controllers/taskController')(task, userProfile);
   const taskRouter = express.Router();
- 
+
   taskRouter
     .route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
@@ -36,6 +36,8 @@ const routes = function (task, userProfile) {
   taskRouter.route('/user/:userId/teams/tasks').get(controller.getTasksForTeamsByUser);
 
   taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
+
+  taskRouter.route('/tasks/fix-overrides/:wbsId').post(controller.fixTaskOverrides);
 
   return taskRouter;
 };
