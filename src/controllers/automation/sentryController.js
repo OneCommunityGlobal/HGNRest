@@ -12,7 +12,7 @@ async function inviteUser(req, res) {
   }
 
   const { requestor } = req.body;
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     res.status(403).send({ message: 'Unauthorized request' });
     return;
   }
@@ -48,11 +48,11 @@ async function removeUser(req, res) {
     return res.status(400).json({ message: 'User ID is required' });
   }
 
-  if (!requestor?.role) {
-    return res.status(400).json({ message: 'Requestor role is required' });
+  if (!requestor) {
+    return res.status(400).json({ message: 'Requestor is required' });
   }
 
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     return res.status(403).json({ message: 'Unauthorized request' });
   }
 

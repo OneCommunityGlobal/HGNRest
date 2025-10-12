@@ -13,7 +13,7 @@ async function createFolderAndInvite(req, res) {
   try {
     const { requestor, folderPath, targetUser, teamFolderKey } = req.body;
 
-    if (!checkAppAccess(requestor.role)) {
+    if (!(await checkAppAccess(requestor))) {
       return res.status(403).json({ message: 'Unauthorized request' });
     }
 
@@ -71,7 +71,7 @@ async function deleteFolder(req, res) {
   try {
     const { requestor, targetUser } = req.body;
 
-    if (!checkAppAccess(requestor.role)) {
+    if (!(await checkAppAccess(requestor))) {
       return res.status(403).json({ message: 'Unauthorized request' });
     }
 
