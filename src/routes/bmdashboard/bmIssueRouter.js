@@ -1,19 +1,16 @@
 const express = require('express');
+const controller = require('../../controllers/bmdashboard/bmIssueController');
+const issueAnalyticsController =
+  require('../../controllers/bmdashboard/issueAnalyticsController')();
 
-const routes = function (metIssue) {
-  const IssueRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/bmIssueController')(metIssue);
-  const issueAnalyticsController =
-    require('../../controllers/bmdashboard/issueAnalyticsController')();
+const router = express.Router();
 
-  IssueRouter.route('/issues').get(controller.bmGetIssue);
-  IssueRouter.route('/issue/add').post(controller.bmPostIssue);
-  IssueRouter.route('/issue/issue-chart').get(controller.bmGetIssueChart);
-  IssueRouter.route('/issues/longest-open').get(controller.getLongestOpenIssues);
+router.get('/issues', controller.bmGetIssue);
+router.post('/issue/add', controller.bmPostIssue);
+router.get('/issue/issue-chart', controller.bmGetIssueChart);
+router.get('/issues/longest-open', controller.getLongestOpenIssues);
 
-  // New routes for issue analytics
-  IssueRouter.route('/trends').get(issueAnalyticsController.getIssueTrends);
-  IssueRouter.route('/summary').get(issueAnalyticsController.getIssueSummary);
-  return IssueRouter;
-};
-module.exports = routes;
+router.get('/trends', issueAnalyticsController.getIssueTrends);
+router.get('/summary', issueAnalyticsController.getIssueSummary);
+
+module.exports = router;
