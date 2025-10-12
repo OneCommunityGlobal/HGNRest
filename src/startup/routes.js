@@ -251,6 +251,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
+const emailTemplateRouter = require('../routes/emailTemplateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
@@ -328,6 +329,7 @@ module.exports = function (app) {
   app.use('/api/job-notification-list/', jobNotificationListRouter);
 
   app.use('/api', templateRouter);
+  app.use('/api', emailTemplateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
