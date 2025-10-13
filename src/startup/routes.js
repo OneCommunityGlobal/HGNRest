@@ -83,6 +83,7 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+const costs = require('../models/costs');
 const tag = require('../models/tag');
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
@@ -155,6 +156,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
+const costsRouter = require('../routes/costsRouter')(costs);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
@@ -344,6 +346,7 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/costs', costsRouter);
   app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
 
