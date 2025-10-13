@@ -326,7 +326,7 @@ const educationTaskController = function () {
           ? `${task.studentId.firstName} ${task.studentId.lastName}`
           : 'Unknown',
         studentEmail: task.studentId?.email,
-        taskName: task.lessonPlanId?.title || 'Unknown Task',
+        taskName: task.name || 'Unnamed Task',
         taskType: task.type,
         submissionLinks: task.uploadUrls,
         status: (() => {
@@ -344,6 +344,7 @@ const educationTaskController = function () {
         grade: task.grade,
         feedback: task.feedback,
         lessonPlanId: task.lessonPlanId?._id,
+        lessonPlanTitle: task.lessonPlanId?.title || 'Unknown Lesson Plan',
       }));
 
       res.status(200).json(formattedSubmissions);
