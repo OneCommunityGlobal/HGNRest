@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const educationTaskSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     lessonPlanId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LessonPlan',

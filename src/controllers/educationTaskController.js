@@ -295,14 +295,11 @@ const educationTaskController = function () {
     }
   };
 
-  // Get task submissions for educators
   const getTaskSubmissions = async (req, res) => {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      const filter = {
-        status: { $in: ['completed', 'graded'] },
-      };
+      const filter = {};
 
       if (status) {
         filter.status = status;
@@ -316,36 +313,37 @@ const educationTaskController = function () {
 
       const submissions = await EducationTask.find(filter)
         .populate('studentId', 'firstName lastName email')
-        .populate('lessonPlanId', 'title theme')
-        .populate('atomIds', 'name description difficulty')
+        .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
 
-      const formattedSubmissions = submissions.map((task) => ({
-        _id: task._id,
-        studentName: task.studentId
-          ? `${task.studentId.firstName} ${task.studentId.lastName}`
-          : 'Unknown',
-        studentEmail: task.studentId?.email,
-        taskName: task.name || 'Unnamed Task',
-        taskType: task.type,
-        submissionLinks: task.uploadUrls,
-        status: (() => {
-          if (task.status === 'completed') {
-            return 'Pending Review';
+      const formattedSubmissions = submissions
+        .map((task) => {
+          if (!task.studentId || !task.lessonPlanId) {
+            return null;
           }
-          if (task.status === 'graded') {
-            return 'Graded';
-          }
-          return task.status;
-        })(),
-        submittedAt: task.completedAt,
-        assignedAt: task.assignedAt,
-        dueAt: task.dueAt,
-        grade: task.grade,
-        feedback: task.feedback,
-        lessonPlanId: task.lessonPlanId?._id,
-        lessonPlanTitle: task.lessonPlanId?.title || 'Unknown Lesson Plan',
-      }));
+
+          return {
+            _id: task._id,
+            studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+            studentEmail: task.studentId.email,
+            taskName: task.name || 'Unnamed Task',
+            taskType: task.type,
+            submissionLinks: task.uploadUrls,
+            status: (() => {
+              if (task.status === 'completed') return 'Pending Review';
+              if (task.status === 'graded') return 'Graded';
+              return task.status;
+            })(),
+            submittedAt: task.completedAt,
+            assignedAt: task.assignedAt,
+            dueAt: task.dueAt,
+            grade: task.grade,
+            feedback: task.feedback,
+            lessonPlanId: task.lessonPlanId._id,
+            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          };
+        })
+        .filter(Boolean);
 
       res.status(200).json(formattedSubmissions);
     } catch (error) {
