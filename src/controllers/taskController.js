@@ -429,6 +429,179 @@ const taskController = function (Task) {
     res.status(201).send('done');
   };
 
+  const replicateTask = async (req, res) => {
+    try {
+      if (!(await hasPermission(req.body.requestor, 'postTask'))) {
+        return res.status(403).send({ error: 'You are not authorized to replicate Task.' });
+      }
+
+      const { taskId } = req.params;
+      const { resourceUserIds = [], includeAttachments = true } = req.body || {};
+
+      if (!Array.isArray(resourceUserIds) || resourceUserIds.length === 0) {
+        return res.status(400).send({ error: 'resourceUserIds must be a non-empty array' });
+      }
+
+      const sourceTask = await Task.findById(taskId).lean();
+      if (!sourceTask) return res.status(404).send({ error: 'Task not found' });
+
+      const uniqTargets = [...new Set(resourceUserIds.map(String))];
+      const users = await UserProfile.find(
+        { _id: { $in: uniqTargets } },
+        { _id: 1, firstName: 1, lastName: 1, profilePic: 1, isActive: 1 },
+      ).lean();
+
+      const validUsersById = new Map(users.map((u) => [String(u._id), u]));
+      const targets = uniqTargets.filter((id) => validUsersById.has(id));
+      if (targets.length === 0) {
+        return res.status(400).send({ error: 'No valid users in resourceUserIds' });
+      }
+
+      const OMIT = new Set([
+        '_id',
+        'id',
+        '__v',
+        'createdDatetime',
+        'modifiedDatetime',
+        'createdAt',
+        'updatedAt',
+        'hoursLogged',
+        'statusHistory',
+        'childrenQty',
+        'hasChild',
+      ]);
+
+      const baseCloneFrom = (src) => {
+        const draft = {};
+        Object.entries(src).forEach(([k, v]) => {
+          if (OMIT.has(k)) return;
+          if (!includeAttachments && (k === 'attachments' || k === 'files')) return;
+          draft[k] = v;
+        });
+
+        draft.hoursLogged = 0;
+        if (typeof src.status === 'string' && src.status.toLowerCase().includes('done')) {
+          draft.status = 'Open';
+        }
+        draft.replicatedFrom = String(src._id);
+        return draft;
+      };
+      const computeLevelAndNum = async (draft) => {
+        const { wbsId, mother: parentId = null } = sourceTask;
+
+        if (parentId) {
+          const parentTask = await Task.findById(parentId).lean();
+          if (!parentTask) throw new Error('Invalid parent task (mother) on source task.');
+          draft.level = parentTask.level + 1;
+
+          const siblings = await Task.find({ mother: parentId }, { num: 1 }).lean();
+          const nextIndex = siblings.length
+            ? Math.max(
+                ...siblings.map((s) =>
+                  parseInt((s.num || '0').split('.')[draft.level - 1] || 0, 10),
+                ),
+              ) + 1
+            : 1;
+
+          const baseNum = parentTask.num
+            ? parentTask.num
+                .split('.')
+                .slice(0, draft.level - 1)
+                .join('.')
+            : '';
+          draft.num = baseNum ? `${baseNum}.${nextIndex}` : `${nextIndex}`;
+          draft.mother = parentId;
+        } else {
+          draft.level = 1;
+          const topTasks = await Task.find({ wbsId, level: 1 }, { num: 1 }).lean();
+          const nextTop = topTasks.length
+            ? Math.max(...topTasks.map((t) => parseInt((t.num || '0').split('.')[0] || 0, 10))) + 1
+            : 1;
+          draft.num = `${nextTop}`;
+          draft.mother = null;
+        }
+
+        draft.wbsId = wbsId;
+      };
+
+      const alreadyHasIdentical = async (userId) =>
+        Task.findOne({
+          wbsId: sourceTask.wbsId,
+          taskName: sourceTask.taskName,
+          'resources.userID': mongoose.Types.ObjectId(userId),
+          isActive: { $ne: false },
+        }).lean();
+
+      const makeResourceObj = (u) => {
+        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+        return {
+          name: fullName || ' ',
+          userID: mongoose.Types.ObjectId(u._id),
+          profilePic: u.profilePic || '',
+        };
+      };
+
+      const created = [];
+      const skipped = [];
+
+      const results = await Promise.all(
+        targets.map(async (uid) => {
+          const user = validUsersById.get(uid);
+          if (!user || user.isActive === false) {
+            return { skip: true, userId: uid, reason: 'invalid_or_inactive_user' };
+          }
+
+          const dup = await alreadyHasIdentical(uid);
+          if (dup) {
+            return { skip: true, userId: uid, reason: 'already_has_identical_task' };
+          }
+
+          const draft = baseCloneFrom(sourceTask);
+          draft.resources = [makeResourceObj(user)];
+          draft.isAssigned = true;
+          draft.createdDatetime = Date.now();
+          draft.modifiedDatetime = Date.now();
+
+          await computeLevelAndNum(draft);
+
+          const newTask = new Task(draft);
+          const saved = await newTask.save();
+
+          const currentwbs = await WBS.findById(saved.wbsId);
+          if (currentwbs) {
+            currentwbs.modifiedDatetime = Date.now();
+            await currentwbs.save();
+
+            const currentProject = await Project.findById(currentwbs.projectId);
+            if (currentProject) {
+              currentProject.modifiedDatetime = Date.now();
+              await currentProject.save();
+            }
+          }
+
+          return { skip: false, taskId: saved._id, userId: uid };
+        }),
+      );
+
+      results.forEach((result) => {
+        if (result.skip) {
+          skipped.push({ userId: result.userId, reason: result.reason });
+        } else {
+          created.push({ taskId: result.taskId, userId: result.userId });
+        }
+      });
+
+      return res.status(200).send({
+        sourceTaskId: String(sourceTask._id),
+        created,
+        skipped,
+      });
+    } catch (err) {
+      console.error('replicateTask error', err);
+      return res.status(500).send({ error: 'Replication failed', details: err.message });
+    }
+  };
+
   const postTask = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'postTask'))) {
       return res.status(403).send({ error: 'You are not authorized to create new Task.' });
@@ -1030,6 +1203,7 @@ const taskController = function (Task) {
     updateTask,
     importTask,
     fixTasks,
+    replicateTask,
     updateAllParents,
     deleteTaskByWBS,
     moveTask,

@@ -3,7 +3,7 @@ const express = require('express');
 const routes = function (task, userProfile) {
   const controller = require('../controllers/taskController')(task, userProfile);
   const taskRouter = express.Router();
- 
+
   taskRouter
     .route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
@@ -18,6 +18,8 @@ const routes = function (task, userProfile) {
   taskRouter.route('/task/wbs/:wbsId').get(controller.getWBSId);
 
   taskRouter.route('/task/wbs/del/:wbsId').post(controller.deleteTaskByWBS);
+
+  taskRouter.route('/task/replicate/:taskId').post(controller.replicateTask);
 
   taskRouter.route('/task/update/:taskId').put(controller.updateTask);
 
