@@ -85,6 +85,8 @@ const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const costs = require('../models/costs');
 const tag = require('../models/tag');
+const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
+
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -206,6 +208,8 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
+
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
@@ -398,6 +402,11 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
 
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
+
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmInjuryRouter);
+
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
