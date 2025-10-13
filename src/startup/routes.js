@@ -20,7 +20,9 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
 
-const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
+  availability,
+);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
@@ -285,6 +287,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const permissionRouter = require('../routes/permissionRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -295,6 +299,7 @@ module.exports = function (app) {
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
+  app.use('/api/permission-management', permissionRouter(userProfile));
 
   app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
@@ -349,7 +354,6 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
-
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
