@@ -1,6 +1,7 @@
 const Websockets = require('ws');
 const jwt = require('jsonwebtoken');
-// const mongoose = require('mongoose');
+// eslint-disable-next-line no-unused-vars
+const mongoose = require('mongoose');
 const config = require('../../config');
 // eslint-disable-next-line no-unused-vars
 const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
