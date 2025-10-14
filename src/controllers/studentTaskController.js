@@ -6,8 +6,9 @@ const studentTaskController = function () {
     const grouped = {};
 
     tasks.forEach(task => {
-      const subjectKey = task.subject.name;
-      const colorKey = task.color_level;
+      // Add null checks to prevent undefined grouping
+      const subjectKey = task.subject?.name || 'Unknown Subject';
+      const colorKey = task.color_level || 'unknown';
       const activityKey = task.activity_group || 'Unassigned';
 
       if (!grouped[subjectKey]) {
@@ -104,15 +105,23 @@ const studentTaskController = function () {
           }
         },
         {
-          $unwind: {
-            path: '$atoms',
-            preserveNullAndEmptyArrays: true
+          $addFields: {
+            // Get the first atom for grouping purposes (to avoid task duplication)
+            firstAtom: { $arrayElemAt: ['$atoms', 0] },
+            // Get all subjects from all atoms
+            allSubjects: {
+              $map: {
+                input: '$atoms',
+                as: 'atom',
+                in: '$$atom.subjectId'
+              }
+            }
           }
         },
         {
           $lookup: {
             from: 'subjects',
-            localField: 'atoms.subjectId',
+            localField: 'firstAtom.subjectId',
             foreignField: '_id',
             as: 'subject'
           }
@@ -125,9 +134,22 @@ const studentTaskController = function () {
         },
         {
           $addFields: {
-            color_level: '$atoms.difficulty', // Using difficulty as color_level since color_level doesn't exist
-            difficulty_level: '$atoms.difficulty',
-            activity_group: '$lessonPlan.activityGroup' || 'Unassigned'
+            // Use first atom for difficulty grouping to avoid duplication
+            color_level: {
+              $cond: {
+                if: { $ne: ['$firstAtom.difficulty', null] },
+                then: '$firstAtom.difficulty',
+                else: '$firstAtom.color_level'
+              }
+            },
+            difficulty_level: {
+              $cond: {
+                if: { $ne: ['$firstAtom.difficulty', null] },
+                then: '$firstAtom.difficulty',
+                else: '$firstAtom.color_level'
+              }
+            },
+            activity_group: { $ifNull: ['$lessonPlan.activityGroup', 'Unassigned'] }
           }
         },
         {
@@ -160,9 +182,15 @@ const studentTaskController = function () {
             color_level: 1,
             difficulty_level: 1,
             atom: {
-              _id: '$atoms._id',
-              name: '$atoms.name',
-              difficulty: '$atoms.difficulty'
+              _id: { $ifNull: ['$firstAtom._id', null] },
+              name: { $ifNull: ['$firstAtom.name', 'Unknown Atom'] },
+              difficulty: {
+                $cond: {
+                  if: { $ne: ['$firstAtom.difficulty', null] },
+                  then: '$firstAtom.difficulty',
+                  else: '$firstAtom.color_level'
+                }
+              }
             },
             activity_group: 1
           }

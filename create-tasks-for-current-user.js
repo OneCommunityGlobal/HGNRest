@@ -18,7 +18,7 @@ async function createTasksForCurrentUser() {
 
     console.log('✅ Connected to MongoDB');
 
-    const currentUserId = '6866df6dcd4512004ec6cbb6';
+    const currentUserId = '68645a7c48658d005501e2f9';
 
     // Get existing data
     const subjects = await Subject.find({});
@@ -36,12 +36,21 @@ async function createTasksForCurrentUser() {
     // Delete existing education tasks for current user
     await EducationTask.deleteMany({ studentId: currentUserId });
 
-    // Create new education tasks for current user
+    // Filter atoms to only use those with proper fields (subjectId and difficulty)
+    const validAtoms = atoms.filter(atom => atom.subjectId && atom.difficulty);
+    console.log(`Found ${validAtoms.length} atoms with proper fields (subjectId and difficulty)`);
+
+    if (validAtoms.length === 0) {
+      console.log('❌ No atoms found with proper fields (subjectId and difficulty)!');
+      return;
+    }
+
+    // Create new education tasks for current user using only valid atoms
     const educationTasks = await EducationTask.create([
       {
         lessonPlanId: lessonPlans[0]._id,
         studentId: currentUserId,
-        atomIds: [atoms[0]._id, atoms[1]._id],
+        atomIds: [validAtoms[0]._id, validAtoms[1] ? validAtoms[1]._id : validAtoms[0]._id],
         type: 'read',
         status: 'in_progress',
         assignedAt: new Date(),
@@ -55,7 +64,7 @@ async function createTasksForCurrentUser() {
       {
         lessonPlanId: lessonPlans[1] ? lessonPlans[1]._id : lessonPlans[0]._id,
         studentId: currentUserId,
-        atomIds: [atoms[2] ? atoms[2]._id : atoms[0]._id],
+        atomIds: [validAtoms[1] ? validAtoms[1]._id : validAtoms[0]._id],
         type: 'write',
         status: 'completed',
         assignedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
@@ -70,21 +79,21 @@ async function createTasksForCurrentUser() {
       {
         lessonPlanId: lessonPlans[2] ? lessonPlans[2]._id : lessonPlans[0]._id,
         studentId: currentUserId,
-        atomIds: [atoms[3] ? atoms[3]._id : atoms[0]._id, atoms[4] ? atoms[4]._id : atoms[1]._id],
-        type: 'practice',
-        status: 'assigned',
+        atomIds: [validAtoms[0]._id, validAtoms[1] ? validAtoms[1]._id : validAtoms[0]._id],
+        type: 'read',
+        status: 'in_progress',
         assignedAt: new Date(),
         dueAt: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000), // 21 days from now
         uploadUrls: [],
         grade: 'pending',
         feedback: null,
         suggestedTotalHours: 4,
-        loggedHours: 0
+        loggedHours: 4
       },
       {
         lessonPlanId: lessonPlans[0]._id,
         studentId: currentUserId,
-        atomIds: [atoms[5] ? atoms[5]._id : atoms[0]._id],
+        atomIds: [validAtoms[1] ? validAtoms[1]._id : validAtoms[0]._id],
         type: 'quiz',
         status: 'graded',
         assignedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
@@ -99,10 +108,7 @@ async function createTasksForCurrentUser() {
       {
         lessonPlanId: lessonPlans[1] ? lessonPlans[1]._id : lessonPlans[0]._id,
         studentId: currentUserId,
-        atomIds: [
-          atoms[6] ? atoms[6]._id : atoms[1]._id, 
-          atoms[7] ? atoms[7]._id : (atoms[2] || atoms[0])._id
-        ],
+        atomIds: [validAtoms[0]._id, validAtoms[1] ? validAtoms[1]._id : validAtoms[0]._id],
         type: 'project',
         status: 'assigned',
         assignedAt: new Date(),
