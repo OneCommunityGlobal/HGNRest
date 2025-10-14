@@ -28,6 +28,10 @@ const router = function (team) {
 
   teamRouter.route('/teamCode').get(controller.getAllTeamCode);
 
+  teamRouter
+    .route('/team-skills/:skill')
+    .get(controller.getTeamMembersSkillsAndContact);
+
   return teamRouter;
 };
 

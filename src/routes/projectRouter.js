@@ -8,6 +8,7 @@ const routes = function (project) {
 
   projectRouter.route('/archivedProjects').get(controller.getArchivedProjects);
   projectRouter
+    
     .route('/project/:projectId')
     .get(controller.getProjectById)
     .post(controller.putProject)
@@ -16,7 +17,8 @@ const routes = function (project) {
 
   projectRouter.route('/projects/user/:userId').get(controller.getUserProjects);
 
-  projectRouter.route('/projects/with-active-users')
+  projectRouter
+    .route('/projects/with-active-users')
     .get(controller.getProjectsWithActiveUserCounts);
 
   projectRouter
@@ -24,7 +26,12 @@ const routes = function (project) {
     .post(controller.assignProjectToUsers)
     .get(controller.getprojectMembership);
 
-  projectRouter.route('/projects/:projectId/users/search/:query')
+  projectRouter
+    .route('/project/:projectId/users/summary')
+    .get(controller.getprojectMembershipSummary);
+
+  projectRouter
+    .route('/projects/:projectId/users/search/:query')
     .get(controller.searchProjectMembers);
   return projectRouter;
 };
