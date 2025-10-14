@@ -4,7 +4,7 @@
   "description": "This module is the REST module built on NodeJS to support MongoDB activities, Since EmberData has no direct adapters for MongoDB. This module will later be intergrated with EmberJS HGN project to maintain singularity.",
   "main": "restapp",
   "engines": {
-    "node": ">=14.0.0 <15"
+    "node": ">=20.0.0 <21"
   },
   "scripts": {
     "test": "jest --passWithNoTests --silent --noStackTrace --runInBand --forceExit  --detectOpenHandles",
