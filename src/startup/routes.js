@@ -20,7 +20,9 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
 
-const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
+  availability,
+);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
@@ -86,7 +88,6 @@ const followUp = require('../models/followUp');
 const costs = require('../models/costs');
 const tag = require('../models/tag');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
-
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -213,7 +214,7 @@ const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySe
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
-
+const lbBookingRouter = require('../routes/lbdashboard/bookingsRouter');
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
@@ -359,7 +360,6 @@ module.exports = function (app) {
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
 
-
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/applications', applicationRoutes);
@@ -407,7 +407,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
 
-
+  app.use('/api/lbdashboard/bookings', lbBookingRouter);
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
