@@ -874,6 +874,7 @@ const userHelper = function () {
                     cc: DEFAULT_CC_EMAILS,
                     replyTo: status.email,
                     bcc: [...new Set([...emailsBCCs])],
+                    startDate: person.startDate,
                   });
                 } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
                   usersRequiringBlueSqNotification.push(personId);
@@ -934,6 +935,9 @@ const userHelper = function () {
 
         skip += batchSize;
       }
+
+      // Sort emailQueue by startDate descending (latest first) to ensure consistent email order
+      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
       for (const email of emailQueue) {
         await emailSender(
