@@ -1922,48 +1922,55 @@ const overviewReportHelper = function () {
           },
         },
         {
-          $unwind: {
-            path: '$timeEntries',
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $match: {
-            $or: [
-              { timeEntries: { $exists: false } },
-              {
-                'timeEntries.createdDateTime': {
-                  $gte: start,
-                  $lte: end,
+          $project: {
+            firstName: 1,
+            lastName: 1,
+            weeklycommittedHours: 1,
+            timeEntries: {
+              $filter: {
+                input: '$timeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    {
+                      $gte: ['$$entry.dateOfWork', moment(start).format('YYYY-MM-DD')],
+                    },
+                    {
+                      $lte: ['$$entry.dateOfWork', moment(end).format('YYYY-MM-DD')],
+                    },
+                  ],
                 },
               },
-            ],
+            },
           },
         },
         {
-          $group: {
-            _id: '$_id',
+          $addFields: {
             totalSeconds: { $sum: '$timeEntries.totalSeconds' },
-            weeklycommittedHours: { $first: '$weeklycommittedHours' },
           },
         },
         {
           $project: {
+            name: { $concat: ['$firstName', ' ', '$lastName'] },
             totalHours: { $divide: ['$totalSeconds', 3600] },
             weeklycommittedHours: 1,
+            metCommitment: {
+              $cond: [
+                { $gte: [{ $divide: ['$totalSeconds', 3600] }, '$weeklycommittedHours'] },
+                true,
+                false,
+              ],
+            },
           },
         },
         {
-          $match: {
-            $expr: { $gte: ['$totalHours', '$weeklycommittedHours'] },
-          },
-        },
-        {
-          $count: 'metCommitment',
+          $match: { weeklycommittedHours: { $gte: 1 } },
         },
       ]);
 
-      return hoursStats[0]?.metCommitment || 0;
+      const metCommitment = hoursStats.filter((user) => user.metCommitment);
+      const metCommitmentCount = metCommitment.length;
+      return metCommitmentCount;
     };
 
     const currentCount = await getCompletedHoursData(isoStartDate, isoEndDate);
