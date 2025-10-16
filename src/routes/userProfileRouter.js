@@ -23,11 +23,11 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
-    userProfileRouter
-      .route('/users/search')
-      .get(param('name').exists(), controller.searchUsersByName);
+  userProfileRouter
+    .route('/users/search')
+    .get(param('name').exists(), controller.searchUsersByName);
 
-  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);  
+  userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
   // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
   userProfileRouter
@@ -123,19 +123,23 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
 
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
-    
+
   userProfileRouter.route('/userProfile/profileImage/remove').put(controller.removeProfileImage);
-  userProfileRouter.route('/userProfile/profileImage/imagefromwebsite').put(controller.updateProfileImageFromWebsite);
+  userProfileRouter
+    .route('/userProfile/profileImage/imagefromwebsite')
+    .put(controller.updateProfileImageFromWebsite);
 
   userProfileRouter
     .route('/userProfile/autocomplete/:searchText')
     .get(controller.getUserByAutocomplete);
 
-  userProfileRouter.route('/userProfile/:userId/toggleBio').patch( controller.toggleUserBioPosted);
-  
+  userProfileRouter.route('/userProfile/:userId/toggleBio').patch(controller.toggleUserBioPosted);
+
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
 
-  userProfileRouter.route('/userProfile/skills/:skill').get(controller.getAllMembersSkillsAndContact)
+  userProfileRouter
+    .route('/userProfile/skills/:skill')
+    .get(controller.getAllMembersSkillsAndContact);
 
   return userProfileRouter;
 };
