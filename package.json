@@ -48,6 +48,9 @@
     "mongodb-memory-server": "^7.6.3",
     "nodemon": "^3.0.1",
     "prettier": "3.2.5",
+    "stylelint": "^16.25.0",
+    "stylelint-config-prettier": "^9.0.5",
+    "stylelint-config-standard": "^39.0.1",
     "supertest": "^6.3.4"
   },
   "dependencies": {
