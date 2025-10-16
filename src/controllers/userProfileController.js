@@ -2749,6 +2749,16 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
+      req.body.blueSquare.ccdUsers =
+        record?.infringementCCList?.map((cc) => {
+          const matchedUser = allUserData?.find((u) => u.email === cc.email);
+          return {
+            firstName: matchedUser?.firstName || '',
+            lastName: matchedUser?.lastName || '',
+            email: cc.email,
+          };
+        }) || [];
+      const ccList = (record?.infringementCCList ?? []).map((cc) => cc.email);
       record.infringements = originalinfringements.concat(req.body.blueSquare);
 
       record
@@ -2764,9 +2774,11 @@ const userProfileController = function (UserProfile, Project) {
             results.startDate,
             results.jobTitle[0],
             results.weeklycommittedHours,
+            ccList,
           );
           res.status(200).json({
             _id: record._id,
+            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache
@@ -2785,7 +2797,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -2799,6 +2811,10 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          blueSquare.ccdUsers = Array.isArray(req.body.ccdUsers) ? req.body.ccdUsers : [];
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });

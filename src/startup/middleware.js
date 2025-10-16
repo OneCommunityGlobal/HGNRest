@@ -70,6 +70,16 @@ module.exports = function (app) {
       next();
       return;
     }
+    
+    // Public analytics tracking endpoints (no auth required)
+    if (
+      (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
+       req.originalUrl === '/api/applicant-analytics/track-application') &&
+      req.method === 'POST'
+    ) {
+      next();
+      return;
+    }
 
     // Skip auth check for PayPal webhook route
 
