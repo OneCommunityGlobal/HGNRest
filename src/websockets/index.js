@@ -95,8 +95,15 @@ export default () => {
         ws.send(JSON.stringify({ heartbeat: 'pong' }));
         return;
       }
-      const resp = await handleMessage(msg, clients, msg.userId ?? userId);
-      broadcastToSameUser(connections, userId, resp);
+      const result = await handleMessage(msg, clients, msg.userId ?? userId);
+      broadcastToSameUser(connections, userId, result.timerResponse);
+      if (result.timelogEvent) {
+        const timelogEventMessage = JSON.stringify({
+          type: 'TIMELOG_EVENT',
+          data: result.timelogEvent,
+        });
+        broadcastToSameUser(connections, userId, timelogEventMessage);
+      }
     });
 
     /**
