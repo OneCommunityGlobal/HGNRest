@@ -296,6 +296,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const permissionRouter = require('../routes/permissionRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -306,6 +308,7 @@ module.exports = function (app) {
   app.use('/api', timeEntryRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
+  app.use('/api/permission-management', permissionRouter(userProfile));
 
   app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
