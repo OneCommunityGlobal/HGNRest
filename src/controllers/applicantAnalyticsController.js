@@ -414,6 +414,170 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
     }
   };
 
+  // Get applicant sources breakdown with comparison logic
+  const getApplicantSources = async (req, res) => {
+    try {
+      // Check admin/owner permissions
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      const { startDate, endDate, roles, comparisonType } = req.query;
+      
+      // Build base query
+      const baseQuery = {};
+      
+      // Filter by roles if provided
+      if (roles) {
+        const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
+        baseQuery.roles = { $in: rolesArray };
+      }
+
+      // Helper function to get date range for comparison
+      const getDateRange = (start, end, comparisonType) => {
+        if (!start || !end || !comparisonType) {
+          return { start, end };
+        }
+
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const duration = endDate.getTime() - startDate.getTime();
+
+        let previousStart, previousEnd;
+
+        switch (comparisonType.toLowerCase()) {
+          case 'week':
+            previousStart = new Date(startDate.getTime() - duration);
+            previousEnd = new Date(endDate.getTime() - duration);
+            break;
+          case 'month':
+            previousStart = new Date(startDate);
+            previousStart.setMonth(startDate.getMonth() - 1);
+            previousEnd = new Date(endDate);
+            previousEnd.setMonth(endDate.getMonth() - 1);
+            break;
+          case 'year':
+            previousStart = new Date(startDate);
+            previousStart.setFullYear(startDate.getFullYear() - 1);
+            previousEnd = new Date(endDate);
+            previousEnd.setFullYear(endDate.getFullYear() - 1);
+            break;
+          default:
+            return { start, end };
+        }
+
+        return { 
+          current: { start, end }, 
+          previous: { start: previousStart, end: previousEnd } 
+        };
+      };
+
+      // Get current period data
+      const currentQuery = { ...baseQuery };
+      if (startDate && endDate) {
+        currentQuery.startDate = { $gte: startDate, $lte: endDate };
+      }
+
+      const currentData = await Applicant.aggregate([
+        { $match: currentQuery },
+        {
+          $group: {
+            _id: '$source',
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            source: '$_id',
+            count: 1
+          }
+        }
+      ]);
+
+      // Calculate totals and percentages for current period
+      const currentTotal = currentData.reduce((sum, item) => sum + item.count, 0);
+      const currentDataWithPercentages = currentData.map(item => ({
+        ...item,
+        percentage: currentTotal > 0 ? ((item.count / currentTotal) * 100).toFixed(2) : 0
+      }));
+
+      let comparisonData = null;
+
+      // Get comparison data if comparisonType is provided
+      if (comparisonType && startDate && endDate) {
+        const dateRanges = getDateRange(startDate, endDate, comparisonType);
+        
+        if (dateRanges.previous) {
+          const previousQuery = { ...baseQuery };
+          previousQuery.startDate = { 
+            $gte: dateRanges.previous.start.toISOString(), 
+            $lte: dateRanges.previous.end.toISOString() 
+          };
+
+          const previousData = await Applicant.aggregate([
+            { $match: previousQuery },
+            {
+              $group: {
+                _id: '$source',
+                count: { $sum: 1 }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                source: '$_id',
+                count: 1
+              }
+            }
+          ]);
+
+          const previousTotal = previousData.reduce((sum, item) => sum + item.count, 0);
+          
+          // Calculate percentage differences
+          comparisonData = currentDataWithPercentages.map(currentItem => {
+            const previousItem = previousData.find(p => p.source === currentItem.source);
+            const previousCount = previousItem ? previousItem.count : 0;
+            const previousPercentage = previousTotal > 0 ? ((previousCount / previousTotal) * 100) : 0;
+            
+            const percentageChange = previousPercentage > 0 
+              ? (((parseFloat(currentItem.percentage) - previousPercentage) / previousPercentage) * 100).toFixed(2)
+              : currentItem.count > 0 ? 100 : 0;
+
+            return {
+              ...currentItem,
+              previousCount,
+              previousPercentage: previousPercentage.toFixed(2),
+              percentageChange: parseFloat(percentageChange)
+            };
+          });
+        }
+      }
+
+      const response = {
+        currentPeriod: {
+          total: currentTotal,
+          data: currentDataWithPercentages,
+          dateRange: startDate && endDate ? { startDate, endDate } : null
+        }
+      };
+
+      if (comparisonData) {
+        response.comparison = {
+          type: comparisonType,
+          data: comparisonData,
+          previousPeriodTotal: previousTotal
+        };
+      }
+
+      return res.status(200).json(response);
+
+    } catch (error) {
+      console.error('Error fetching applicant sources:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   const getAllRoles = async (req, res) => {
     try {
       const roles = await Applicant.distinct('roles');
@@ -426,6 +590,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
   return {
     getExperienceBreakdown,
+    getApplicantSources,
     getAllRoles,
     trackInteraction,
     trackApplication,
