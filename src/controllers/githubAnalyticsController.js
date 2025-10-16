@@ -1,4 +1,4 @@
-const HgnFormResponses = require('../models/hgnFormResponses');
+const HgnFormResponses = require('../models/hgnFormResponse');
 const UserProfile = require('../models/userProfile');
 const fetchGitHubReviews = require('../services/analytics/fetchGithubReviews')(HgnFormResponses, UserProfile);
 
