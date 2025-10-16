@@ -42,9 +42,34 @@ const routes = function (userProfile, project) {
         if (!value) throw new ValidationError('Last Name is required');
         return value.trim();
       }),
-      body('personalLinks').customSanitizer((value) =>
+      // body('personalLinks').customSanitizer((value) =>
+      //   value.map((link) => {
+      //     if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+      //       return {
+      //         ...link,
+      //         Name: link.Name.trim(),
+      //         Link: link.Link.replace(/\s/g, ''),
+      //       };
+      //     }
+      //     throw new ValidationError('personalLinks not valid');
+      //   }),
+      // ),
+      // body('adminLinks').customSanitizer((value) =>
+      //   value.map((link) => {
+      //     if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+      //       return {
+      //         ...link,
+      //         Name: link.Name.trim(),
+      //         Link: link.Link.replace(/\s/g, ''),
+      //       };
+      //     }
+      //     throw new ValidationError('adminLinks not valid');
+      //   }),
+      // ),
+
+      body('personalLinks').optional().customSanitizer((value) =>
         value.map((link) => {
-          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+          if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
             return {
               ...link,
               Name: link.Name.trim(),
@@ -54,9 +79,9 @@ const routes = function (userProfile, project) {
           throw new ValidationError('personalLinks not valid');
         }),
       ),
-      body('adminLinks').customSanitizer((value) =>
+      body('adminLinks').optional().customSanitizer((value) =>
         value.map((link) => {
-          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+          if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
             return {
               ...link,
               Name: link.Name.trim(),

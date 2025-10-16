@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 const { BlobServiceClient } = require("@azure/storage-blob");
 const AbortController = require("abort-controller");
 const sharp = require('sharp');
