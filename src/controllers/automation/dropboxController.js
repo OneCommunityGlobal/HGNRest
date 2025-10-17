@@ -9,14 +9,14 @@ async function createFolder(req, res) {
 }
 
 async function createFolderAndInvite(req, res) {
-  const { requestor, folderPath, targetUser, teamFolderKey } = req.body;
+  const { requestor, folderName, targetUser, teamFolderKey } = req.body;
 
   if (!checkAppAccess(requestor.role)) {
     return res.status(403).json({ message: 'Unauthorized request' });
   }
 
   // Validate required fields
-  if (!folderPath || !targetUser?.targetUserId) {
+  if (!folderName || !targetUser?.targetUserId) {
     return res.status(400).json({
       message: 'User folder name and target user information are required',
     });
@@ -44,7 +44,7 @@ async function createFolderAndInvite(req, res) {
     // First, create Dropbox folder and invite user
     const result = await dropboxService.createFolderAndInvite(
       targetUser.email,
-      folderPath,
+      folderName,
       teamFolderKey,
     );
 

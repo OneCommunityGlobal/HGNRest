@@ -34,7 +34,9 @@ async function getUserId(username) {
       throw notFoundError;
     }
     if (error.response?.status === 403) {
-      const forbiddenError = new Error('GitHub API access forbidden - check token permissions');
+      const forbiddenError = new Error(
+        'GitHub API access forbidden - check token permissions or rate limits',
+      );
       forbiddenError.name = 'ForbiddenError';
       forbiddenError.statusCode = 403;
       throw forbiddenError;
@@ -124,6 +126,8 @@ async function sendInvitation(username) {
       data: payload,
     });
 
+    console.log('response', response);
+
     if (response.status === 201) {
       return `Invitation sent to ${username} with ID: ${userId}`;
     }
@@ -140,7 +144,7 @@ async function sendInvitation(username) {
     // Handle GitHub API specific errors
     if (error.response?.status === 422) {
       const validationError = new Error(
-        `User '${username}' cannot be invited - they may already be a member or have a pending invitation`,
+        `User '${username}' cannot be invited - they may not be found, or your account lacks permission to invite them.`,
       );
       validationError.name = 'ValidationError';
       validationError.statusCode = 422;
@@ -148,7 +152,7 @@ async function sendInvitation(username) {
     }
     if (error.response?.status === 403) {
       const forbiddenError = new Error(
-        'GitHub API access forbidden - check token permissions for organization invitations',
+        'GitHub API access forbidden - check token permissions for organization invitations or rate limits',
       );
       forbiddenError.name = 'ForbiddenError';
       forbiddenError.statusCode = 403;
@@ -161,7 +165,9 @@ async function sendInvitation(username) {
       throw authError;
     }
 
-    const apiError = new Error(`GitHub API error sending invitation: ${error.message}`);
+    const apiError = new Error(
+      `GitHub API error sending invitation: ${error.message || 'Unknown error occurred'}`,
+    );
     apiError.name = 'APIError';
     apiError.statusCode = 500;
     throw apiError;
@@ -201,7 +207,7 @@ async function removeUser(username) {
     }
     if (error.response?.status === 403) {
       const forbiddenError = new Error(
-        'GitHub API access forbidden - check token permissions for organization management',
+        'GitHub API access forbidden - check token permissions for organization management or rate limits',
       );
       forbiddenError.name = 'ForbiddenError';
       forbiddenError.statusCode = 403;
@@ -214,7 +220,9 @@ async function removeUser(username) {
       throw authError;
     }
 
-    const apiError = new Error(`GitHub API error removing user: ${error.message}`);
+    const apiError = new Error(
+      `GitHub API error removing user: ${error.message || 'Unknown error occurred'}`,
+    );
     apiError.name = 'APIError';
     apiError.statusCode = 500;
     throw apiError;
@@ -320,7 +328,7 @@ async function getUserDetails(username) {
 
     // Generic API error with more context
     const apiError = new Error(
-      `GitHub API error while fetching user details for '${username}': ${error.message}`,
+      `GitHub API error while fetching user details for '${username}': ${error.message || 'Unknown error occurred'}`,
     );
     apiError.name = 'APIError';
     apiError.statusCode = error.response?.status || 500;
