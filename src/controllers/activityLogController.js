@@ -2,7 +2,8 @@ const ActivityLog = require('../models/activityLog');
 
 async function fetchStudentDailyLog(req, res) {
   try {
-    const studentId = req.user._id;
+    const { requestor } = req.body.requestor;
+    const studentId = requestor.requestorId;
 
     const requestedStudentId = req.query.studentId;
     if (requestedStudentId && requestedStudentId !== String(studentId)) {
@@ -21,8 +22,13 @@ async function fetchStudentDailyLog(req, res) {
 
 async function fetchEducatorDailyLog(req, res) {
   try {
-    const { studentId } = req.params;
+    const { requestor } = req.body.requestor;
 
+    if (requestor.role !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden: Only educators can access student logs' });
+    }
+
+    const { studentId } = req.params;
     if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
 
     const logs = await ActivityLog.find({ actor_id: studentId })
