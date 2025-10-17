@@ -20,7 +20,9 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
 
-const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
+  availability,
+);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
@@ -285,8 +287,6 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
-const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
-
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -351,7 +351,6 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
-
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
@@ -433,6 +432,4 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
-
-  app.use('/api/applicants', applicantAnalyticsRouter);
 };
