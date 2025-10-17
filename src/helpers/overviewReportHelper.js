@@ -267,7 +267,15 @@ const overviewReportHelper = function () {
               $project: { createdDate: 1 },
             },
           ]);
-          startDate = oldestVolunteer.createdDate;
+
+          if (oldestVolunteer) {
+            startDate = oldestVolunteer.createdDate;
+          } else {
+            // fallback: no users found, use earliest reasonable date
+            startDate = new Date(0); // Unix epoch
+          }
+          // fallback: no createdDate found, use earliest reasonable date
+          startDate = oldestVolunteer?.createdDate ?? new Date(0);
           break;
         }
         case '1':
@@ -504,6 +512,7 @@ const overviewReportHelper = function () {
             firstName: 1,
             lastName: 1,
             email: 1,
+            createdDate: 1,
             profilePic: { $ifNull: ['$profilePic', null] },
           },
         },
@@ -793,20 +802,52 @@ const overviewReportHelper = function () {
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
    */
-  async function getRoleDistributionStats() {
-    const roleStats = UserProfile.aggregate([
-      {
-        $match: { isActive: true },
-      },
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 },
+  async function getRoleDistributionStats(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    // Helper to build match stage depending on whether start/end are provided
+    const buildMatch = (s, e) => {
+      const match = { isActive: true };
+      if (s && e) {
+        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
+      }
+      return match;
+    };
+
+    // If comparison dates provided, return both current and comparison facets
+    if (comparisonStartDate && comparisonEndDate) {
+      const roleStats = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              { $match: buildMatch(startDate, endDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+            comparison: [
+              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+          },
         },
-      },
+      ]);
+
+      return {
+        current: roleStats[0]?.current || [],
+        comparison: roleStats[0]?.comparison || [],
+      };
+    }
+
+    // No comparison: return same shape as before (array of {_id: role, count})
+    const matchStage = buildMatch(startDate, endDate);
+    const result = await UserProfile.aggregate([
+      { $match: matchStage },
+      { $group: { _id: '$role', count: { $sum: 1 } } },
     ]);
 
-    return roleStats;
+    return result;
   }
 
   /**
@@ -861,7 +902,6 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   modifiedDatetime: { $gte: startDate, $lte: endDate },
-                  status: { $in: ['Complete', 'Active'] },
                 },
               },
               {
@@ -875,7 +915,6 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate },
-                  status: { $in: ['Complete', 'Active'] },
                 },
               },
               {
@@ -889,31 +928,43 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      const data = { current: {}, comparison: {} };
-      for (const key in taskStats[0]) {
-        const active = taskStats[0][key].find((x) => x._id === 'Active');
-        data[key].active = active ? active.count : 0;
-
-        const complete = taskStats[0][key].find((x) => x._id === 'Complete');
-        data[key].complete = complete ? complete.count : 0;
+      if (!taskStats.length) {
+        return {
+          active: { current: 0, percentage: 0 },
+          complete: { current: 0, percentage: 0 },
+          raw: { current: [], comparison: [] },
+        };
       }
+
+      const currentStats = taskStats[0].current || [];
+      const comparisonStats = taskStats[0].comparison || [];
+
+      const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
+      const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
+      const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
+      const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
 
       return {
         active: {
-          current: data.current.active,
-          percentage: calculateGrowthPercentage(data.current.active, data.comparison.active),
+          current: currentActive,
+          percentage: calculateGrowthPercentage(currentActive, comparisonActive),
         },
         complete: {
-          current: data.current.complete,
-          percentage: calculateGrowthPercentage(data.current.complete, data.comparison.complete),
+          current: currentComplete,
+          percentage: calculateGrowthPercentage(currentComplete, comparisonComplete),
+        },
+        raw: {
+          current: currentStats, // full status breakdown in current range
+          comparison: comparisonStats, // full status breakdown in comparison range
         },
       };
     }
+
+    // non-comparison branch
     const taskStats = await Task.aggregate([
       {
         $match: {
           modifiedDatetime: { $gte: startDate, $lte: endDate },
-          status: { $in: ['Complete', 'Active'] },
         },
       },
       {
@@ -924,13 +975,16 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    const data = {};
-    const active = taskStats.find((x) => x._id === 'Active');
-    const complete = taskStats.find((x) => x._id === 'Complete');
-    data.active = { current: active?.count || 0 };
-    data.complete = { current: complete?.count || 0 };
-    return data;
+    const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
+    const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
+
+    return {
+      active: { current: active },
+      complete: { current: complete },
+      raw: { current: taskStats }, // full status breakdown
+    };
   }
+
   /**
    * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
    * @param {*} startDate
@@ -1229,6 +1283,7 @@ const overviewReportHelper = function () {
                     $gte: isoStartDate,
                     $lte: isoEndDate,
                   },
+                  isActive: true,
                 },
               },
               { $count: 'count' },
@@ -1236,11 +1291,8 @@ const overviewReportHelper = function () {
             deactivatedVolunteers: [
               {
                 $match: {
-                  $and: [
-                    { lastModifiedDate: { $gte: isoStartDate } },
-                    { lastModifiedDate: { $lte: isoEndDate } },
-                    { isActive: false },
-                  ],
+                  isActive: false,
+                  createdDate: { $lte: isoEndDate }, // All inactive volunteers, not just recently deactivated
                 },
               },
               { $count: 'count' },
@@ -1252,7 +1304,7 @@ const overviewReportHelper = function () {
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
-      const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
+      const totalVolunteers = activeVolunteers + deactivatedVolunteers;
 
       return {
         activeVolunteers,

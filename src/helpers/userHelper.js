@@ -865,15 +865,17 @@ const userHelper = function () {
                     emailsBCCs = null;
                   }
 
-                  emailSender(
-                    status.email,
-                    'New Infringement Assigned',
-                    emailBody,
-                    null,
-                    DEFAULT_CC_EMAILS,
-                    status.email,
-                    [...new Set([...emailsBCCs])],
-                  );
+                  // Queue the email instead of sending immediately to prevent race conditions
+                  emailQueue.push({
+                    to: status.email,
+                    subject: 'New Infringement Assigned',
+                    body: emailBody,
+                    attachments: null,
+                    cc: DEFAULT_CC_EMAILS,
+                    replyTo: status.email,
+                    bcc: [...new Set([...emailsBCCs])],
+                    startDate: person.startDate,
+                  });
                 } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
                   usersRequiringBlueSqNotification.push(personId);
                 }
@@ -934,15 +936,18 @@ const userHelper = function () {
         skip += batchSize;
       }
 
+      // Sort emailQueue by startDate descending (latest first) to ensure consistent email order
+      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
       for (const email of emailQueue) {
         await emailSender(
           email.to,
           email.subject,
           email.body,
-          email.bcc,
-          email.from,
-          email.replyTo,
-          email.attachments,
+          email.attachments, // 4th param: attachments
+          email.cc, // 5th param: cc
+          email.replyTo, // 6th param: replyTo
+          email.bcc, // 7th param: emailBccs
         );
       }
 
