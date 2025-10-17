@@ -102,14 +102,14 @@ const teamcontroller = function (Team) {
       return;
     }
 
-    const team = new Team();
-    team.teamName = req.body.teamName;
-    team.isActive = req.body.isActive;
-    team.createdDatetime = Date.now();
-    team.modifiedDatetime = Date.now();
+    const newTeam = new Team();
+    newTeam.teamName = req.body.teamName;
+    newTeam.isActive = req.body.isActive;
+    newTeam.createdDatetime = Date.now();
+    newTeam.modifiedDatetime = Date.now();
 
     try {
-      const result = await team.save();
+      const result = await newTeam.save();
       res.status(200).send(result);
     } catch (error) {
       Logger.logException(error, null, `teamName: ${req.body.teamName}`);
@@ -317,28 +317,28 @@ const teamcontroller = function (Team) {
     const { visibility, teamId, userId } = req.body;
 
     try {
-      Team.findById(teamId, (error, team) => {
-        if (error || team === null) {
+      Team.findById(teamId, (error, teamRecord) => {
+        if (error || teamRecord === null) {
           res.status(400).send('No valid records found');
           return;
         }
 
-        const memberIndex = team.members.findIndex((member) => member.userId.toString() === userId);
+        const memberIndex = teamRecord.members.findIndex((member) => member.userId.toString() === userId);
         if (memberIndex === -1) {
           res.status(400).send('Member not found in the team.');
           return;
         }
 
-        team.members[memberIndex].visible = visibility;
-        team.modifiedDatetime = Date.now();
+        teamRecord.members[memberIndex].visible = visibility;
+        teamRecord.modifiedDatetime = Date.now();
 
-        team
+        teamRecord
           .save()
           .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach((member) => {
+            teamRecord.members.forEach((member) => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
@@ -404,7 +404,7 @@ const teamcontroller = function (Team) {
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
-        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team._id))
+        !teamIds.every((teamId) => mongoose.Types.ObjectId.isValid(teamId._id))
       ) {
         return res.status(400).send({
           error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
@@ -412,7 +412,7 @@ const teamcontroller = function (Team) {
       }
       const data = await Team.aggregate([
         {
-          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team._id)) } },
+          $match: { _id: { $in: teamIds.map((teamId) => mongoose.Types.ObjectId(teamId._id)) } },
         },
         { $unwind: '$members' },
         {
