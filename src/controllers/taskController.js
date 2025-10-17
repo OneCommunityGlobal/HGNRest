@@ -796,6 +796,34 @@ const taskController = function (Task) {
 
     const { taskId } = req.params;
 
+    // Get current task state before update for change logging (with error handling)
+    let oldTask = null;
+    try {
+      oldTask = await Task.findById(taskId);
+    } catch (findError) {
+      console.error('Error finding task:', findError);
+      return res.status(404).send({ error: 'No valid records found' });
+    }
+
+    // Get user information for change logging - with timeout protection
+    let user = null;
+    try {
+      if (req.body.requestor && req.body.requestor.requestorId) {
+        user = await UserProfile.findById(req.body.requestor.requestorId).maxTimeMS(5000);
+      }
+    } catch (userError) {
+      console.warn('Warning: Could not fetch user for change tracking:', userError.message);
+      // Continue without user tracking in case of timeout
+    }
+
+    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+    Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        currentwbs.modifiedDatetime = Date.now();
+        return currentwbs.save();
+      });
+    });
+
     try {
       // IF CATEGORY IS BEING UPDATED, UPDATE BOTH FLAGS
       if (req.body.category !== undefined) {
@@ -843,26 +871,6 @@ const taskController = function (Task) {
         } else {
           logger.warn(`[Category Update] Task ${taskId} not found`);
         }
-      }
-
-      // Get current task state before update for change logging (with error handling)
-      let oldTask = null;
-      try {
-        oldTask = await Task.findById(taskId);
-      } catch (findError) {
-        console.error('Error finding task:', findError);
-        return res.status(404).send({ error: 'No valid records found' });
-      }
-
-      // Get user information for change logging - with timeout protection
-      let user = null;
-      try {
-        if (req.body.requestor && req.body.requestor.requestorId) {
-          user = await UserProfile.findById(req.body.requestor.requestorId).maxTimeMS(5000);
-        }
-      } catch (userError) {
-        console.warn('Warning: Could not fetch user for change tracking:', userError.message);
-        // Continue without user tracking in case of timeout
       }
 
       // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
@@ -1128,10 +1136,7 @@ const taskController = function (Task) {
         });
       });
     });
-    Task.findOneAndUpdate(
-      { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() },
-    )
+    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
       .then(() => res.status(201).send())
       .catch((error) => res.status(404).send(error));
   };
@@ -1266,7 +1271,6 @@ const taskController = function (Task) {
       res.status(500).send({ error: 'Failed to fix task category flags', details: err.message });
     }
   };
-
   // New endpoint to get change logs for a specific task
   const getTaskChangeLogs = async (req, res) => {
     try {

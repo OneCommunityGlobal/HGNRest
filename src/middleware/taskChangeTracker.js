@@ -1,163 +1,203 @@
 const TaskChangeLog = require('../models/taskChangeLog');
 
-/**
- * TaskChangeTracker middleware for logging task changes
- */
 class TaskChangeTracker {
-  /**
-   * Log changes to a task
-   * @param {string} taskId - The task ID
-   * @param {Object} oldTask - The task state before changes
-   * @param {Object} newTask - The task state after changes
-   * @param {Object} user - The user making the changes
-   * @param {Object} req - The request object
-   */
   static async logChanges(taskId, oldTask, newTask, user, req) {
-    // Suppress unused parameter warning for req (may be used in future)
-    // eslint-disable-next-line no-unused-vars
-    const _req = req;
     try {
-      // Find the differences between old and new task
-      const changes = this.findDifferences(oldTask, newTask);
+      const changes = this.detectChanges(oldTask, newTask);
 
-      if (Object.keys(changes).length === 0) {
-        // No changes to log
-        return;
-      }
-
-      // Determine the action type
-      const action = this.determineAction(oldTask, newTask, changes);
-
-      // Create description
-      const description = this.createDescription(changes, action);
-
-      // Create the change log entry
-      const changeLog = new TaskChangeLog({
-        taskId,
-        userId: user._id,
-        changes,
-        action,
-        description,
-        timestamp: new Date(),
+      const changePromises = changes.map(async (change) => {
+        const entry = await TaskChangeLog.create({
+          taskId,
+          userId: user._id,
+          userName: `${user.firstName} ${user.lastName}`,
+          userEmail: user.email,
+          changeType: change.type,
+          field: change.field,
+          oldValue: change.oldValue,
+          newValue: change.newValue,
+          oldValueFormatted: change.oldValueFormatted,
+          newValueFormatted: change.newValueFormatted,
+          changeDescription: change.description,
+          metadata: {
+            source: 'web_ui',
+            reason: req.body.changeReason, // Optional field from frontend
+          },
+        });
+        return entry;
       });
 
-      await changeLog.save();
+      const changeEntries = await Promise.all(changePromises);
 
-      console.log(`[TaskChangeTracker] Logged changes for task ${taskId} by user ${user._id}`);
+      // Link related changes
+      if (changeEntries.length > 1) {
+        const entryIds = changeEntries.map((e) => e._id);
+        await TaskChangeLog.updateMany(
+          { _id: { $in: entryIds } },
+          { $set: { 'metadata.relatedChanges': entryIds } },
+        );
+      }
+
+      return changeEntries;
     } catch (error) {
-      console.error('[TaskChangeTracker] Error logging changes:', error);
-      // Don't throw the error to avoid breaking the main operation
+      console.error('Error logging task changes:', error);
+      return [];
     }
   }
 
-  /**
-   * Find differences between old and new task objects
-   * @param {Object} oldTask - Old task state
-   * @param {Object} newTask - New task state
-   * @returns {Object} Object containing the differences
-   */
-  static findDifferences(oldTask, newTask) {
-    const changes = {};
+  static detectChanges(oldTask, newTask) {
+    const changes = [];
+
+    // Define fields to track
     const fieldsToTrack = [
-      'taskName',
-      'description',
-      'category',
-      'priority',
-      'status',
-      'hoursBest',
-      'hoursWorst',
-      'hoursMost',
-      'hoursLogged',
-      'estimatedHours',
-      'startedDatetime',
-      'dueDatetime',
-      'isAssigned',
-      'isActive',
-      'categoryOverride',
-      'categoryLocked',
+      {
+        field: 'taskName',
+        type: 'field_change',
+        formatter: (val) => val || 'Not set',
+      },
+      {
+        field: 'priority',
+        type: 'priority_change',
+        formatter: (val) => val || 'Not set',
+      },
+      {
+        field: 'status',
+        type: 'status_change',
+        formatter: (val) => val || 'Not started',
+      },
+      {
+        field: 'dueDatetime',
+        type: 'deadline_change',
+        formatter: (val) => (val ? new Date(val).toLocaleDateString() : 'No due date'),
+      },
+      {
+        field: 'estimatedHours',
+        type: 'hours_change',
+        formatter: (val) => (val ? `${val} hours` : '0 hours'),
+      },
+      {
+        field: 'hoursBest',
+        type: 'hours_change',
+        formatter: (val) => (val ? `${val} hours` : '0 hours'),
+      },
+      {
+        field: 'hoursWorst',
+        type: 'hours_change',
+        formatter: (val) => (val ? `${val} hours` : '0 hours'),
+      },
+      {
+        field: 'hoursMost',
+        type: 'hours_change',
+        formatter: (val) => (val ? `${val} hours` : '0 hours'),
+      },
+      {
+        field: 'hoursLogged',
+        type: 'hours_change',
+        formatter: (val) => (val ? `${val} hours` : '0 hours'),
+      },
+      {
+        field: 'resources',
+        type: 'assignment_change',
+        formatter: (resources) => {
+          if (!resources || resources.length === 0) return 'None assigned';
+          return resources.map((r) => r.name || 'Unknown').join(', ');
+        },
+      },
+      {
+        field: 'startedDatetime',
+        type: 'deadline_change',
+        formatter: (val) => (val ? new Date(val).toLocaleDateString() : 'No start date'),
+      },
+      {
+        field: 'whyInfo',
+        type: 'field_change',
+        formatter: (val) => val || 'Not set',
+      },
+      {
+        field: 'intentInfo',
+        type: 'field_change',
+        formatter: (val) => val || 'Not set',
+      },
+      {
+        field: 'endstateInfo',
+        type: 'field_change',
+        formatter: (val) => val || 'Not set',
+      },
+      {
+        field: 'classification',
+        type: 'field_change',
+        formatter: (val) => val || 'Not set',
+      },
     ];
 
-    fieldsToTrack.forEach((field) => {
-      if (oldTask[field] !== newTask[field]) {
-        changes[field] = {
-          from: oldTask[field],
-          to: newTask[field],
-        };
+    fieldsToTrack.forEach((fieldConfig) => {
+      const oldValue = oldTask[fieldConfig.field];
+      const newValue = newTask[fieldConfig.field];
+
+      // Special handling for arrays (resources)
+      if (fieldConfig.field === 'resources' && !this.arraysEqual(oldValue, newValue)) {
+        changes.push({
+          type: fieldConfig.type,
+          field: fieldConfig.field,
+          oldValue,
+          newValue,
+          oldValueFormatted: fieldConfig.formatter(oldValue),
+          newValueFormatted: fieldConfig.formatter(newValue),
+          description: `Changed ${fieldConfig.field} from "${fieldConfig.formatter(oldValue)}" to "${fieldConfig.formatter(newValue)}"`,
+        });
+      } else if (fieldConfig.field !== 'resources' && oldValue !== newValue) {
+        // Regular field comparison
+        changes.push({
+          type: fieldConfig.type,
+          field: fieldConfig.field,
+          oldValue,
+          newValue,
+          oldValueFormatted: fieldConfig.formatter(oldValue),
+          newValueFormatted: fieldConfig.formatter(newValue),
+          description: `Changed ${fieldConfig.field} from "${fieldConfig.formatter(oldValue)}" to "${fieldConfig.formatter(newValue)}"`,
+        });
       }
     });
-
-    // Check for resource changes
-    if (JSON.stringify(oldTask.resources) !== JSON.stringify(newTask.resources)) {
-      changes.resources = {
-        from: oldTask.resources,
-        to: newTask.resources,
-      };
-    }
 
     return changes;
   }
 
-  /**
-   * Determine the type of action based on changes
-   * @param {Object} oldTask - Old task state
-   * @param {Object} newTask - New task state
-   * @param {Object} changes - The changes made
-   * @returns {string} The action type
-   */
-  static determineAction(oldTask, newTask, changes) {
-    // Check for assignment changes
-    if (changes.isAssigned) {
-      return newTask.isAssigned ? 'assign' : 'unassign';
+  static arraysEqual(arr1, arr2) {
+    // Handle null/undefined cases
+    if (!arr1 && !arr2) return true;
+    if (!arr1 || !arr2) return false;
+    if (arr1.length !== arr2.length) return false;
+
+    // For resources, compare by userID with better error handling
+    try {
+      const ids1 = arr1
+        .map((r) => {
+          if (!r) return null;
+          // Convert ObjectId to string for comparison
+          const id = r.userID || r._id;
+          return id ? id.toString() : null;
+        })
+        .filter((id) => id !== null)
+        .sort();
+
+      const ids2 = arr2
+        .map((r) => {
+          if (!r) return null;
+          // Convert ObjectId to string for comparison
+          const id = r.userID || r._id;
+          return id ? id.toString() : null;
+        })
+        .filter((id) => id !== null)
+        .sort();
+
+      // If different number of valid IDs, arrays are different
+      if (ids1.length !== ids2.length) return false;
+
+      return ids1.every((id, index) => id === ids2[index]);
+    } catch (error) {
+      console.error('Error comparing resource arrays:', error);
+      // Fallback to JSON comparison if ID comparison fails
+      return JSON.stringify(arr1) === JSON.stringify(arr2);
     }
-
-    // Check for status changes
-    if (changes.status) {
-      return 'status_change';
-    }
-
-    // Default to update for other changes
-    return 'update';
-  }
-
-  /**
-   * Create a human-readable description of the changes
-   * @param {Object} changes - The changes made
-   * @param {string} action - The action type
-   * @returns {string} Description of the changes
-   */
-  static createDescription(changes, action) {
-    // Suppress unused parameter warning for action (may be used in future)
-    // eslint-disable-next-line no-unused-vars
-    const _action = action;
-    const changeDescriptions = [];
-
-    Object.keys(changes).forEach((field) => {
-      const change = changes[field];
-      switch (field) {
-        case 'taskName':
-          changeDescriptions.push(`Task name changed from "${change.from}" to "${change.to}"`);
-          break;
-        case 'category':
-          changeDescriptions.push(`Category changed from "${change.from}" to "${change.to}"`);
-          break;
-        case 'priority':
-          changeDescriptions.push(`Priority changed from "${change.from}" to "${change.to}"`);
-          break;
-        case 'status':
-          changeDescriptions.push(`Status changed from "${change.from}" to "${change.to}"`);
-          break;
-        case 'isAssigned':
-          changeDescriptions.push(`Assignment changed from ${change.from} to ${change.to}`);
-          break;
-        case 'resources':
-          changeDescriptions.push(`Resources updated`);
-          break;
-        default:
-          changeDescriptions.push(`${field} updated`);
-      }
-    });
-
-    return changeDescriptions.join(', ');
   }
 }
 
