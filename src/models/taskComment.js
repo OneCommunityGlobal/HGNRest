@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const TaskCommentSchema = new mongoose.Schema({
   task_id: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     ref: 'StudentTasks',
     required: true,
   },

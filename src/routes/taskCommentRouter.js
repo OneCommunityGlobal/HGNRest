@@ -1,7 +1,7 @@
 const express = require('express');
 const taskCommentController = require('../controllers/taskCommentController');
 
-const router = function () {
+const routes = function () {
   const taskCommentRouter = express.Router();
 
   taskCommentRouter.post(
@@ -18,4 +18,4 @@ const router = function () {
   );
 };
 
-module.exports = router;
+module.exports = routes;
