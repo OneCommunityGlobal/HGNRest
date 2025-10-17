@@ -20,7 +20,9 @@ const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
 
-const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(availability);
+const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
+  availability,
+);
 const savedFilter = require('../models/savedFilter');
 
 const hgnFormResponses = require('../models/hgnFormResponse');
@@ -285,6 +287,10 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+//education portal
+
+const studentTaskRouter = require('../routes/studentTasksRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -350,10 +356,11 @@ module.exports = function (app) {
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
 
-
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/applications', applicationRoutes);
+
+  app.use('/api/studentTasks', studentTaskRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
