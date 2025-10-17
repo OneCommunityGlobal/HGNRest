@@ -1,4 +1,5 @@
 const express = require('express');
+
 const router = express.Router();
 const githubController = require('../../controllers/automation/githubController');
 
@@ -7,5 +8,8 @@ router.post('/invite', githubController.inviteUser);
 
 // Route to remove a user from GitHub organization
 router.delete('/remove', githubController.removeUser);
+
+// Route to get detailed user information
+router.post('/user-details', githubController.getUserDetails);
 
 module.exports = router;

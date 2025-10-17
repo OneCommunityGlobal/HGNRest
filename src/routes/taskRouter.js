@@ -3,7 +3,7 @@ const express = require('express');
 const routes = function (task, userProfile) {
   const controller = require('../controllers/taskController')(task, userProfile);
   const taskRouter = express.Router();
- 
+
   taskRouter
     .route('/tasks/:wbsId/:level/:mother')
     .get(controller.getTasks)
@@ -36,6 +36,11 @@ const routes = function (task, userProfile) {
   taskRouter.route('/user/:userId/teams/tasks').get(controller.getTasksForTeamsByUser);
 
   taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
+
+  // New routes for task change logs
+  taskRouter.route('/task/:taskId/changeLogs').get(controller.getTaskChangeLogs);
+
+  taskRouter.route('/user/:userId/taskChanges').get(controller.getUserTaskChangeLogs);
 
   return taskRouter;
 };
