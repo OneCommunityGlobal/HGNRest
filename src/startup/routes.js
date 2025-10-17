@@ -169,7 +169,7 @@ const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
-const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
+const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 const costBreakdown = require('../models/bmdashboard/costBreakdown');
 const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
