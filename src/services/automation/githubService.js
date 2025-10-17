@@ -126,8 +126,6 @@ async function sendInvitation(username) {
       data: payload,
     });
 
-    console.log('response', response);
-
     if (response.status === 201) {
       return `Invitation sent to ${username} with ID: ${userId}`;
     }
