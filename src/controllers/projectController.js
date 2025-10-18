@@ -133,13 +133,124 @@ const projectController = function (Project) {
       const targetProject = await Project.findById(projectId);
       if (!targetProject) {
         res.status(400).send('No valid records found');
+        await session.abortTransaction();
         return;
       }
+
+      // STORE ORIGINAL CATEGORY BEFORE UPDATE
+      const originalCategory = targetProject.category;
+      logger.logInfo(
+        `[Category Cascade] Project ${projectId} update started. Original category: ${originalCategory}, New category: ${category}`,
+      );
+
       targetProject.projectName = projectName;
       targetProject.category = category;
       targetProject.isActive = isActive;
       targetProject.modifiedDatetime = Date.now();
+
+      // IF CATEGORY CHANGED, CASCADE TO NON-OVERRIDDEN TASKS
+      if (category && originalCategory !== category) {
+        logger.logInfo(
+          `[Category Cascade] Category changed from "${originalCategory}" to "${category}". Starting cascade...`,
+        );
+
+        // Get all WBS for this project
+        const projectWBSIds = await wbs.find({ projectId }, '_id', { session });
+        const wbsIds = projectWBSIds.map((w) => w._id);
+
+        logger.logInfo(`[Category Cascade] Found ${wbsIds.length} WBS for project ${projectId}`);
+        logger.logInfo(`[Category Cascade] WBS IDs: ${JSON.stringify(wbsIds)}`);
+
+        if (wbsIds.length > 0) {
+          // First, let's see ALL tasks for these WBS
+          const allTasks = await task.find(
+            { wbsId: { $in: wbsIds } },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+              wbsId: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] Total tasks found in WBS: ${allTasks.length}`);
+          allTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}, WBS: ${t.wbsId}`,
+            );
+          });
+
+          // Count tasks by lock status (this is what determines cascade behavior)
+          const lockedTrue = allTasks.filter((t) => t.categoryLocked === true).length;
+          const lockedFalse = allTasks.filter((t) => t.categoryLocked === false).length;
+          const lockedUndefined = allTasks.filter((t) => t.categoryLocked === undefined).length;
+
+          logger.logInfo(
+            `[Category Cascade] Lock stats - Locked: ${lockedTrue}, Unlocked: ${lockedFalse}, Undefined: ${lockedUndefined}`,
+          );
+
+          // Update all tasks that are NOT locked (categoryLocked = false or undefined)
+          // Also update categoryOverride to false since they now match project category
+          const updateResult = await task.updateMany(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [
+                { categoryLocked: { $exists: false } }, // Old tasks without the field
+                { categoryLocked: false }, // Tasks explicitly unlocked
+              ],
+            },
+            {
+              category,
+              categoryOverride: false, // These tasks now match project category
+              modifiedDatetime: Date.now(),
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] updateMany result: ${JSON.stringify(updateResult)}`);
+          logger.logInfo(
+            `[Category Cascade] Updated ${updateResult.modifiedCount} tasks with new category "${category}"`,
+          );
+          logger.logInfo(
+            `[Category Cascade] Matched ${updateResult.matchedCount} tasks (unlocked), Modified ${updateResult.modifiedCount} tasks`,
+          );
+
+          // Verify the update by checking tasks again
+          const updatedTasks = await task.find(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [{ categoryLocked: { $exists: false } }, { categoryLocked: false }],
+            },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(
+            `[Category Cascade] After update verification - ${updatedTasks.length} unlocked tasks:`,
+          );
+          updatedTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category NOW: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}`,
+            );
+          });
+        } else {
+          logger.logInfo(`[Category Cascade] No WBS found, skipping task updates`);
+        }
+      } else {
+        logger.logInfo(
+          `[Category Cascade] Category unchanged or empty, skipping cascade. Category: "${category}", Original: "${originalCategory}"`,
+        );
+      }
+
       if (isArchived) {
+        logger.logInfo(`[Category Cascade] Project ${projectId} is being archived`);
         targetProject.isArchived = isArchived;
         // deactivate wbs within target project
         await wbs.updateMany({ projectId }, { isActive: false }, { session });
@@ -159,8 +270,10 @@ const projectController = function (Project) {
         // deactivate timeentry for affected tasks
         await timeentry.updateMany({ projectId }, { isActive: false }, { session });
       }
+
       await targetProject.save({ session });
       await session.commitTransaction();
+      logger.logInfo(`[Category Cascade] Project ${projectId} update completed successfully`);
       res.status(200).send(targetProject);
     } catch (error) {
       await session.abortTransaction();
