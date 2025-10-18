@@ -231,14 +231,18 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
   const updateTimeOffRequestById = async (req, res) => {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
+      const requestId = req.params.id;
+      const document = await TimeOffRequest.findById(requestId);
+      const updateOwnRequest = document?.requestFor.toString() === req.body.requestor.requestorId;
+
       if (
         !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
-        !hasRolePermission
+        !hasRolePermission &&
+        !updateOwnRequest
       ) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
       }
-      const requestId = req.params.id;
       const { duration, startingDate, reason } = req.body;
       if (!duration || !startingDate || !reason || !requestId) {
         res.status(400).send('bad request');
@@ -266,6 +270,15 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       }
 
       res.status(200).send(updatedRequest);
+      if (updateOwnRequest) {
+        await notifyUser(updatedRequest.requestFor, 'update');
+        await notifyAdmins(
+          updatedRequest.startingDate,
+          updatedRequest.endingDate,
+          updatedRequest.requestFor,
+          'update',
+        );
+      }
     } catch (error) {
       res.status(500).send(error);
     }
