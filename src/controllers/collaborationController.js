@@ -1,3 +1,4 @@
+const { ObjectId } = require('mongoose').Types;
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 
@@ -86,6 +87,35 @@ exports.getFormResponses = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error fetching form responses.', error });
+  }
+};
+// post all responses of a form
+exports.postFormResponses = async (req, res) => {
+  try {
+    const { answers } = req.body;
+    const formId = new ObjectId(req.body.formId);
+    console.log(formId);
+    console.log(answers);
+    // Check if form exists
+    const form = await Form.findById(formId);
+
+    if (!form) {
+      return res.status(404).json({ message: 'Form not found.' });
+    }
+
+    // Create and save the form
+    const response = new Response({
+      formId,
+      answers,
+    });
+
+    // Fetch all responses for the form
+
+    await response.save();
+    res.status(201).json({ message: 'Form created successfully.', response });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error Saving form responses.', error });
   }
 };
 
