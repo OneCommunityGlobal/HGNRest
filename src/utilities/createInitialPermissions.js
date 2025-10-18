@@ -64,7 +64,6 @@ const permissionsRoles = [
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
       'updateSummaryRequirements',
-      'manageHGNAccessSetup',
       // Tracking Management
       'viewTrackingOverview',
       'issueTrackingWarnings',
