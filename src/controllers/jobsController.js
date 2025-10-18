@@ -225,7 +225,20 @@ const getJobById = async (req, res) => {
 
 // Controller to create a new job
 const createJob = async (req, res) => {
-  const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
+  const {
+    title,
+    category,
+    description,
+    imageUrl,
+    location,
+    applyLink,
+    jobDetailsLink,
+    requirements,
+    skills,
+    projects,
+    whoareyou,
+    whoweare,
+  } = req.body;
 
   try {
     // Find the highest displayOrder value currently in use
@@ -242,6 +255,11 @@ const createJob = async (req, res) => {
       applyLink,
       jobDetailsLink,
       displayOrder: newDisplayOrder,
+      requirements,
+      skills,
+      projects,
+      whoareyou,
+      whoweare,
     });
 
     const savedJob = await newJob.save();
