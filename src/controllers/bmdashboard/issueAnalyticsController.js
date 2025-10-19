@@ -175,9 +175,14 @@ const IssueAnalyticsController = function () {
 
       let startDate;
       let endDate;
-
-      if (!start && !end && weeks) {
-        const numWeeks = parseInt(weeks, 10);
+      let numWeeks;
+      if (!start && !end && !weeks) {
+        numWeeks = DEFAULT_WEEKS;
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setDate(endDate.getDate() - numWeeks * 7);
+      } else if (!start && !end && weeks) {
+        numWeeks = parseInt(weeks, 10);
         endDate = new Date();
         startDate = new Date();
         startDate.setDate(
