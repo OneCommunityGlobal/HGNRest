@@ -36,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
