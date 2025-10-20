@@ -1,10 +1,16 @@
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
-const LessonPlan = require('../models/lessonPlan');
-const UserProfile = require('../models/userProfile');
 
 const educationTaskReviewController = function () {
   const calculateGrade = (marksGiven, totalMarks) => {
+    if (typeof totalMarks !== 'number' || Number.isNaN(totalMarks) || totalMarks <= 0) {
+      throw new Error('totalMarks must be a positive number');
+    }
+
+    if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
+      throw new Error('marksGiven must be a number');
+    }
+
     const percentage = (marksGiven / totalMarks) * 100;
     if (percentage >= 90) return 'A';
     if (percentage >= 80) return 'B';
@@ -133,6 +139,20 @@ const educationTaskReviewController = function () {
         updates.privateNotes = privateNotes;
       }
       if (marksGiven !== undefined) {
+        if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
+          return res.status(400).json({
+            message: 'Marks given must be a valid number',
+          });
+        }
+
+        const totalMarks = submission.totalMarks > 0 ? submission.totalMarks : 100;
+
+        if (marksGiven < 0 || marksGiven > totalMarks) {
+          return res.status(400).json({
+            message: `Marks given must be between 0 and ${totalMarks}`,
+          });
+        }
+
         updates.marksGiven = marksGiven;
       }
 
@@ -177,11 +197,17 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Submission not found' });
       }
 
+      if (!req.user?._id) {
+        return res.status(401).json({
+          message: 'Authentication required to add comments',
+        });
+      }
+
       const newComment = {
         pageNumber: parseInt(pageNumber, 10),
         comment,
         isPrivate: isPrivate || false,
-        createdBy: req.user?._id || new mongoose.Types.ObjectId('5bc4f438476a8e009034264d'),
+        createdBy: req.user._id,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -237,6 +263,17 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Comment not found' });
       }
 
+      if (!req.user?._id) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (
+        !commentToUpdate.createdBy ||
+        commentToUpdate.createdBy.toString() !== req.user._id.toString()
+      ) {
+        return res.status(403).json({ message: 'Unauthorized to update this comment' });
+      }
+
       if (comment !== undefined) commentToUpdate.comment = comment;
       if (isPrivate !== undefined) commentToUpdate.isPrivate = isPrivate;
       commentToUpdate.updatedAt = new Date();
@@ -275,6 +312,22 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Submission not found' });
       }
 
+      const commentToDelete = submission.pageComments.id(commentId);
+      if (!commentToDelete) {
+        return res.status(404).json({ message: 'Comment not found' });
+      }
+
+      if (!req.user?._id) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (
+        !commentToDelete.createdBy ||
+        commentToDelete.createdBy.toString() !== req.user._id.toString()
+      ) {
+        return res.status(403).json({ message: 'Unauthorized to delete this comment' });
+      }
+
       submission.pageComments.pull(commentId);
       submission.lastSavedAt = new Date();
 
@@ -296,6 +349,16 @@ const educationTaskReviewController = function () {
     try {
       const { submissionId } = req.params;
       const { action, collaborativeFeedback, privateNotes, marksGiven, grade } = req.body;
+
+      if (!req.user?._id) {
+        return res.status(401).json({
+          message: 'Authentication required to submit reviews',
+        });
+      }
+
+      const reviewerId = mongoose.Types.ObjectId.isValid(req.user._id)
+        ? req.user._id
+        : new mongoose.Types.ObjectId(req.user._id);
 
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
         return res.status(400).json({ message: 'Invalid submission ID' });
@@ -322,9 +385,24 @@ const educationTaskReviewController = function () {
           });
         }
 
+        const totalMarks = submission.totalMarks > 0 ? submission.totalMarks : 100;
+
+        if (marksGiven !== undefined) {
+          if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
+            return res.status(400).json({
+              message: 'Marks given must be a valid number',
+            });
+          }
+          if (marksGiven < 0 || marksGiven > totalMarks) {
+            return res.status(400).json({
+              message: `Marks given must be between 0 and ${totalMarks}`,
+            });
+          }
+        }
+
         let finalGrade = grade;
         if (marksGiven !== undefined && !grade) {
-          finalGrade = calculateGrade(marksGiven, submission.totalMarks || 100);
+          finalGrade = calculateGrade(marksGiven, totalMarks);
         }
 
         submission.status = 'graded';
@@ -332,8 +410,7 @@ const educationTaskReviewController = function () {
         submission.marksGiven = marksGiven;
         submission.grade = finalGrade;
         submission.reviewedAt = now;
-        submission.reviewedBy =
-          req.user?._id || new mongoose.Types.ObjectId('5bc4f438476a8e009034264d');
+        submission.reviewedBy = reviewerId;
         submission.completedAt = now;
         submission.draftSaved = false;
       } else if (action === 'request_changes') {
@@ -349,7 +426,7 @@ const educationTaskReviewController = function () {
         submission.changeRequests.push({
           requestedAt: now,
           reason: collaborativeFeedback,
-          requestedBy: req.user?._id || new mongoose.Types.ObjectId('5bc4f438476a8e009034264d'),
+          requestedBy: reviewerId,
           resolved: false,
         });
       }
@@ -385,8 +462,6 @@ const educationTaskReviewController = function () {
       });
     }
   };
-
-  console.log(LessonPlan, UserProfile);
 
   return {
     getSubmissionForReview,
