@@ -93,6 +93,66 @@ const educationTaskSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    pageComments: [
+      {
+        pageNumber: {
+          type: Number,
+          required: true,
+        },
+        comment: {
+          type: String,
+          required: true,
+        },
+        isPrivate: {
+          type: Boolean,
+          default: false,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        createdBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'userProfile',
+        },
+      },
+    ],
+    changeRequests: [
+      {
+        requestedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        requestedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'userProfile',
+          required: true,
+        },
+        resolved: {
+          type: Boolean,
+          default: false,
+        },
+        resolvedAt: {
+          type: Date,
+        },
+      },
+    ],
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+    draftSaved: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
