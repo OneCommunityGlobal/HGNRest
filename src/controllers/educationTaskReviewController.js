@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
+const LessonPlan = require('../models/lessonPlan'); // eslint-disable-line no-unused-vars
+const UserProfile = require('../models/userProfile'); // eslint-disable-line no-unused-vars
 
 const educationTaskReviewController = function () {
   const calculateGrade = (marksGiven, totalMarks) => {
