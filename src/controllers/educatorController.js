@@ -11,17 +11,9 @@ const educatorController = function () {
    */
   const assignAtoms = async (req, res) => {
     try {
-      console.log('=== Assign Atoms API Called ===');
-      console.log('Request body:', JSON.stringify(req.body, null, 2));
       
       const { requestor } = req.body;
       const { studentId, atomType, note } = req.body;
-      
-      console.log('Extracted values:');
-      console.log('- studentId:', studentId);
-      console.log('- atomType:', atomType);
-      console.log('- note:', note);
-      console.log('- requestor:', requestor);
 
       // Validate requestor exists and has proper permissions
       if (!requestor || !requestor.requestorId) {
@@ -31,8 +23,6 @@ const educatorController = function () {
       // Check if user has educator/admin/owner role
       const validRoles = ['admin', 'educator', 'teacher', 'owner', 'Owner', 'Administrator'];
       if (!validRoles.includes(requestor.role)) {
-        console.log('Received role:', requestor.role);
-        console.log('Valid roles:', validRoles);
         return res.status(403).json({ 
           error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
           receivedRole: requestor.role,
@@ -50,9 +40,7 @@ const educatorController = function () {
       }
 
       // Validate student exists
-      console.log('Looking for student with ID:', studentId);
       const student = await UserProfile.findById(studentId);
-      console.log('Student found:', student ? 'Yes' : 'No');
       if (!student) {
         return res.status(404).json({ 
           error: 'Student not found',
@@ -62,9 +50,7 @@ const educatorController = function () {
       }
 
       // Validate atom exists
-      console.log('Looking for atom with ID:', atomType);
       const atom = await Atom.findById(atomType);
-      console.log('Atom found:', atom ? 'Yes' : 'No');
       if (!atom) {
         return res.status(404).json({ 
           error: 'Atom not found',
