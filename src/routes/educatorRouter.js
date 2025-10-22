@@ -7,6 +7,6 @@ const educatorController = require('../controllers/educatorController');
 const controller = educatorController();
 
 // Routes
-router.post('/educator/assign-atoms', controller.assignAtoms);
+router.post('/assign-atoms', controller.assignAtoms);
 
 module.exports = router;

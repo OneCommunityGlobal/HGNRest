@@ -11,18 +11,33 @@ const educatorController = function () {
    */
   const assignAtoms = async (req, res) => {
     try {
+      console.log('=== Assign Atoms API Called ===');
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
+      
       const { requestor } = req.body;
       const { studentId, atomType, note } = req.body;
+      
+      console.log('Extracted values:');
+      console.log('- studentId:', studentId);
+      console.log('- atomType:', atomType);
+      console.log('- note:', note);
+      console.log('- requestor:', requestor);
 
       // Validate requestor exists and has proper permissions
       if (!requestor || !requestor.requestorId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Check if user has educator/admin role
-      const validRoles = ['admin', 'educator', 'teacher'];
+      // Check if user has educator/admin/owner role
+      const validRoles = ['admin', 'educator', 'teacher', 'owner', 'Owner', 'Administrator'];
       if (!validRoles.includes(requestor.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions. Educator role required.' });
+        console.log('Received role:', requestor.role);
+        console.log('Valid roles:', validRoles);
+        return res.status(403).json({ 
+          error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
+          receivedRole: requestor.role,
+          validRoles: validRoles
+        });
       }
 
       // Validate required fields
@@ -35,15 +50,27 @@ const educatorController = function () {
       }
 
       // Validate student exists
+      console.log('Looking for student with ID:', studentId);
       const student = await UserProfile.findById(studentId);
+      console.log('Student found:', student ? 'Yes' : 'No');
       if (!student) {
-        return res.status(404).json({ error: 'Student not found' });
+        return res.status(404).json({ 
+          error: 'Student not found',
+          studentId: studentId,
+          message: 'Please check if the student ID exists in the database'
+        });
       }
 
       // Validate atom exists
+      console.log('Looking for atom with ID:', atomType);
       const atom = await Atom.findById(atomType);
+      console.log('Atom found:', atom ? 'Yes' : 'No');
       if (!atom) {
-        return res.status(404).json({ error: 'Atom not found' });
+        return res.status(404).json({ 
+          error: 'Atom not found',
+          atomType: atomType,
+          message: 'Please check if the atom ID exists in the database'
+        });
       }
 
       // Check for duplicate assignment
