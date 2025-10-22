@@ -6,6 +6,7 @@ const userProfile = require('../models/userProfile');
 const currentWarnings = require('../models/currentWarnings');
 const emailSender = require('../utilities/emailSender');
 const userHelper = require('../helpers/userHelper')();
+const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 
 let currentWarningDescriptions = null;
 async function getWarningDescriptions() {
@@ -25,9 +26,7 @@ const convertObjectToArray = (obj) => {
 
 // helper to get the team members admin emails
 async function getUserRoleByEmail(user) {
-  // replacement for jae's email
-  const testRecipients = ['test@test.com'];
-  const recipients = ['test@test.com'];
+  const recipients = ['jae@onecommunityglobal.org'];
   for (const teamId of user.teams) {
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
     if (Array.isArray(managementEmails) && managementEmails.length > 0) {
@@ -37,8 +36,7 @@ async function getUserRoleByEmail(user) {
     }
   }
 
-  // return [...new Set(recipients)];
-  return [...new Set(testRecipients)]; // used for testing PR, will remove testRecipients and use recipients
+  return [...new Set(recipients)];
 }
 
 // helper function to get the ordinal
@@ -47,7 +45,7 @@ function getOrdinal(n) {
   const value = n % 100;
   return n + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
 }
-const sendEmailToUser = (
+const sendEmailToUser = async (
   sendEmail,
   warningDescription,
   userAssignedWarning,
@@ -73,9 +71,16 @@ const sendEmailToUser = (
   const currentUserName = `${userAssignedWarning.firstName} ${userAssignedWarning.lastName}`;
   let emailTemplate = null;
   let subject = null;
+  let bccList;
+
+  const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+  if (Array.isArray(blueSquareBCCs) && blueSquareBCCs.length > 0) {
+    bccList = blueSquareBCCs.filter((bcc) => bcc.assignedTo?.isActive).map((bcc) => bcc.email);
+  }
 
   if (sendEmail === 'issue warning') {
     subject = "IMPORTANT: Please read this email and take note so you don't get a blue square";
+    bccList = null;
     emailTemplate = `<p>Hello ${currentUserName},</p>
          <p>This is the <strong>${ordinal}</strong> time the Admin team has requested the same thing and/or had to make the same change for you; <strong>${warningDescription}</strong>. Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions—the Admin team is here to assist.</p>
          <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
@@ -102,6 +107,7 @@ const sendEmailToUser = (
     <p>One Community</p>`;
   } else if (sendEmail === 'issue two warnings') {
     subject = `IMPORTANT: Please read this email and take note so you don’t get a blue square`;
+    bccList = null;
     emailTemplate = `<p>Hello ${currentUserName},</p>
     <p>This is the <strong>${ordinal}</strong> time the Admin team has taken the same actions due to you not following our company’s protocols. Specifically, we have <strong>Removed Blue Square for No Summary</strong> (${size['Removed Blue Square for No Summary']} times) AND <strong>Removed Blue Square for Hours Close Enough</strong> (${size['Removed Blue Square for Hours Close Enough']} times).</p>
     <p>Please carefully review the previous communications you’ve received about this to fully understand what is being requested. If anything is unclear, don’t hesitate to ask questions, the Admin team is here to assist.</p>
@@ -136,8 +142,8 @@ const sendEmailToUser = (
     emailTemplate,
     null,
     adminEmails.toString(),
-    null,
-    null,
+    `${userAssignedWarning.email}`, // make individual the reply-to, for CC'd/BCC'd replies
+    Array.isArray(bccList) ? [...new Set([...bccList])] : null,
   );
 };
 
