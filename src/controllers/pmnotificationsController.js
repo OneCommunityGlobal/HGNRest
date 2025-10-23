@@ -1,58 +1,90 @@
 const { randomUUID } = require("crypto");
-const KNOWN_EDUCATOR_IDS = new Set(["t-001", "t-002", "t-003"]);
+const { __getKnownEducatorIds } = require("./pmeducatorsController");
 
-function sanitizeMessage(msg) {
-  return String(msg || "").replace(/\s+/g, " ").trim();
-}
+const modify = (msg) => String(msg || "").replace(/\s+/g, " ").trim();
 
-exports.sendNotification = (req, res) => {
+const normalizeRecipients = ({ educatorIds, all }) => {
+  const known = new Set(__getKnownEducatorIds());
+  let raw = Array.isArray(educatorIds) ? educatorIds : [];
+  if (all === true) raw = Array.from(known);
+
+  const cleaned = Array.from(
+    new Set(raw.map((id) => String(id || "").trim()).filter((id) => id.length > 0))
+  );
+
+  const unknownIds = cleaned.filter((id) => !known.has(id));
+  const validIds = cleaned.filter((id) => known.has(id));
+
+  return { validIds, unknownIds, attempted: cleaned.length };
+};
+
+const previewNotification = (req, res) => {
   try {
-    let { educatorIds, message } = req.body || {};
-
-    if (!Array.isArray(educatorIds)) {
-      return res.status(400).json({ error: "educatorIds must be an array" });
-    }
-    const cleanedIds = Array.from(
-      new Set(
-        educatorIds
-          .map((id) => String(id || "").trim())
-          .filter((id) => id.length > 0)
-      )
-    );
-
-    if (cleanedIds.length === 0) {
-      return res.status(400).json({ error: "Provide at least one educatorId" });
-    }
-    const unknownIds = cleanedIds.filter((id) => !KNOWN_EDUCATOR_IDS.has(id));
-    const validIds = cleanedIds.filter((id) => KNOWN_EDUCATOR_IDS.has(id));
-
-    message = sanitizeMessage(message);
-    if (!message) {
-      return res.status(400).json({ error: "message is required" });
-    }
-    if (message.length > 1000) {
+    const { educatorIds, all, message } = req.body || {};
+    const msg = modify(message);
+    if (!msg) return res.status(400).json({ error: "message is required" });
+    if (msg.length > 1000)
       return res.status(400).json({ error: "message must be ≤ 1000 characters" });
-    }
 
-    if (validIds.length === 0) {
+    const { validIds, unknownIds, attempted } = normalizeRecipients({ educatorIds, all });
+    if (attempted === 0 && all !== true)
       return res
         .status(400)
-        .json({ error: "No valid educatorIds provided", unknownIds });
-    }
+        .json({ error: "Provide at least one educatorId or set all=true" });
+
+    res.json({
+      ok: true,
+      summary: {
+        attempted,
+        willSendTo: validIds.length,
+        unknownIds,
+        validIds,
+      },
+      message: msg,
+    });
+  } catch (err) {
+    console.error("previewNotification error:", err);
+    res.status(500).json({ error: "Failed to preview notification" });
+  }
+};
+
+const sendNotification = (req, res) => {
+  try {
+    const { educatorIds, all, message } = req.body || {};
+    const msg = modify(message);
+    if (!msg) return res.status(400).json({ error: "message is required" });
+    if (msg.length > 1000)
+      return res.status(400).json({ error: "message must be ≤ 1000 characters" });
+
+    const { validIds, unknownIds, attempted } = normalizeRecipients({ educatorIds, all });
+    if (attempted === 0 && all !== true)
+      return res
+        .status(400)
+        .json({ error: "Provide at least one educatorId or set all=true" });
+    if (validIds.length === 0)
+      return res.status(400).json({ error: "No valid educatorIds provided", unknownIds });
+
     const id = randomUUID ? randomUUID() : `notif_${Date.now()}`;
     const createdAt = new Date().toISOString();
-    const payload = { id, educatorIds: validIds, message, createdAt };
+    const payload = { id, educatorIds: validIds, message: msg, createdAt };
+
     res.status(201).json({
       ok: true,
       notification: payload,
       summary: {
-        attempted: cleanedIds.length,
+        attempted,
         sentTo: validIds.length,
         unknownIds,
+        all: all === true,
       },
     });
   } catch (err) {
     console.error("sendNotification error:", err);
     res.status(500).json({ error: "Failed to send notification" });
   }
+};
+
+module.exports = {
+  previewNotification,
+  sendNotification,
 };

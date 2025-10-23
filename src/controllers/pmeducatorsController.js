@@ -26,12 +26,13 @@ const mockEducators = [
   },
 ];
 
-function toInt(v, def, min = 1, max = 1000) {
+const toInt = (v, def, min = 1, max = 1000) => {
   const n = Number.parseInt(v, 10);
   if (Number.isNaN(n)) return def;
   return Math.min(Math.max(n, min), max);
-}
-function sortByKey(arr, key, dir = "asc") {
+};
+
+const sortByKey = (arr, key, dir = "asc") => {
   const mul = dir === "desc" ? -1 : 1;
   return arr.sort((a, b) => {
     const av = a[key];
@@ -43,25 +44,29 @@ function sortByKey(arr, key, dir = "asc") {
     if (av < bv) return -1 * mul;
     return 0;
   });
-}
-function paginate(arr, page, limit) {
+};
+
+const paginate = (arr, page, limit) => {
   const total = arr.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const currentPage = Math.min(Math.max(1, page), totalPages);
   const start = (currentPage - 1) * limit;
-  const data = arr.slice(start, start + limit);
-  return { data, page: currentPage, totalPages, total };
-}
-function shapeEducatorList(e) {
   return {
-    id: e.id,
-    name: e.name,
-    subject: e.subject,
-    studentCount: e.students.length,
+    data: arr.slice(start, start + limit),
+    page: currentPage,
+    totalPages,
+    total,
   };
-}
+};
 
-exports.getEducators = (req, res) => {
+const shapeEducatorList = (e) => ({
+  id: e.id,
+  name: e.name,
+  subject: e.subject,
+  studentCount: e.students.length,
+});
+
+const getEducators = (req, res) => {
   try {
     const q = String(req.query.q || "").trim().toLowerCase();
     const subject = String(req.query.subject || "").trim();
@@ -72,15 +77,17 @@ exports.getEducators = (req, res) => {
       : "name";
     const sortDir = req.query.sortDir === "desc" ? "desc" : "asc";
 
-    let list = mockEducators.filter((e) => {
-      const matchesQ =
-        !q ||
-        e.name.toLowerCase().includes(q) ||
-        e.subject.toLowerCase().includes(q);
-      const matchesSubject = !subject || e.subject === subject;
-      return matchesQ && matchesSubject;
-    });
-    list = list.map(shapeEducatorList);
+    let list = mockEducators
+      .filter((e) => {
+        const matchQ =
+          !q ||
+          e.name.toLowerCase().includes(q) ||
+          e.subject.toLowerCase().includes(q);
+        const matchSubject = !subject || e.subject === subject;
+        return matchQ && matchSubject;
+      })
+      .map(shapeEducatorList);
+
     list = sortByKey(list, sortBy, sortDir);
     const result = paginate(list, page, limit);
     const subjects = Array.from(new Set(mockEducators.map((e) => e.subject))).sort();
@@ -98,7 +105,19 @@ exports.getEducators = (req, res) => {
   }
 };
 
-exports.getStudentsByEducator = (req, res) => {
+const getEducatorById = (req, res) => {
+  try {
+    const { educatorId } = req.params;
+    const edu = mockEducators.find((e) => e.id === educatorId);
+    if (!edu) return res.status(404).json({ error: "Educator not found" });
+    res.json({ data: shapeEducatorList(edu) });
+  } catch (err) {
+    console.error("getEducatorById error:", err);
+    res.status(500).json({ error: "Failed to fetch educator" });
+  }
+};
+
+const getStudentsByEducator = (req, res) => {
   try {
     const { educatorId } = req.params;
     const q = String(req.query.q || "").trim().toLowerCase();
@@ -111,18 +130,21 @@ exports.getStudentsByEducator = (req, res) => {
 
     const educator = mockEducators.find((e) => e.id === educatorId);
     if (!educator) return res.status(404).json({ error: "Educator not found" });
-    let students = educator.students.filter((s) => !q || s.name.toLowerCase().includes(q));
+
+    let students = educator.students.filter(
+      (s) => !q || s.name.toLowerCase().includes(q)
+    );
+
     if (sortBy === "grade") {
-      students = students.map((s) => ({ ...s, _gradeNum: Number(s.grade) || 0 }));
-      students = sortByKey(students, "_gradeNum", sortDir).map((s) => {
-        delete s._gradeNum;
-        return s;
-      });
+      students = students
+        .map((s) => ({ ...s, _g: Number(s.grade) || 0 }))
+        .sort((a, b) => (a._g - b._g) * (sortDir === "desc" ? -1 : 1))
+        .map(({ _g, ...rest }) => rest);
     } else {
       students = sortByKey(students, sortBy, sortDir);
     }
-    const result = paginate(students, page, limit);
 
+    const result = paginate(students, page, limit);
     res.json({
       ...result,
       educator: { id: educator.id, name: educator.name, subject: educator.subject },
@@ -134,4 +156,52 @@ exports.getStudentsByEducator = (req, res) => {
     console.error("getStudentsByEducator error:", err);
     res.status(500).json({ error: "Failed to fetch students" });
   }
+};
+
+const getSubjects = (_req, res) => {
+  try {
+    const subjects = Array.from(new Set(mockEducators.map((e) => e.subject))).sort();
+    res.json({ data: subjects, total: subjects.length });
+  } catch (err) {
+    console.error("getSubjects error:", err);
+    res.status(500).json({ error: "Failed to fetch subjects" });
+  }
+};
+
+const searchStudentsAcrossEducators = (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    const page = toInt(req.query.page, 1, 1, 9999);
+    const limit = toInt(req.query.limit, 10, 1, 100);
+
+    const all = [];
+    mockEducators.forEach((e) => {
+      e.students.forEach((s) => {
+        if (!q || s.name.toLowerCase().includes(q)) {
+          all.push({
+            ...s,
+            educatorId: e.id,
+            educatorName: e.name,
+            subject: e.subject,
+          });
+        }
+      });
+    });
+
+    const result = paginate(sortByKey(all, "name", "asc"), page, limit);
+    res.json({ ...result, filters: { q } });
+  } catch (err) {
+    console.error("searchStudentsAcrossEducators error:", err);
+    res.status(500).json({ error: "Failed to search students" });
+  }
+};
+
+module.exports = {
+  getEducators,
+  getEducatorById,
+  getStudentsByEducator,
+  getSubjects,
+  searchStudentsAcrossEducators,
+  __getKnownEducatorIds: () => mockEducators.map((e) => e.id),
+  __getMockEducators: () => mockEducators.slice(),
 };
