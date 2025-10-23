@@ -95,7 +95,7 @@ const studentTaskController = function () {
       if (status === 'completed') {
         await StudentAtom.findOneAndUpdate(
           { studentId: task.studentId, atomId: task.taskId },
-          { status: 'completed', updated_at: new Date() },
+          { status: 'completed', updated_at: new Date(), completedAt: new Date() },
           { upsert: true, new: true },
         );
       }
