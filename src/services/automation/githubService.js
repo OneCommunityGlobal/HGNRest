@@ -11,8 +11,10 @@ const headers = {
   'User-Agent': 'HGN-App/1.0',
 };
 
-// Default team slug
-const DEFAULT_TEAM_SLUG = 'highest-good-network-team';
+// Allowed team slugs (for security filtering)
+const ALLOWED_TEAM_SLUGS = ['highest-good-network-team'];
+// Default team slugs (teams that should be pre-selected)
+const DEFAULT_TEAM_SLUGS = ['highest-good-network-team'];
 
 const getUserIdUrl = (username) => `https://api.github.com/users/${username}`;
 const sendInvitationUrl = (org) => `https://api.github.com/orgs/${org}/invitations`;
@@ -99,7 +101,8 @@ async function checkUserMembership(username) {
   }
 }
 
-// Service to get all teams in the organization
+// Service to get teams in the organization (filtered for security - only shows allowed teams)
+// Configure ALLOWED_TEAM_SLUGS and DEFAULT_TEAM_SLUGS arrays above to control which teams are shown/selected
 async function getTeams() {
   try {
     const response = await axios({
@@ -108,13 +111,16 @@ async function getTeams() {
       headers,
     });
 
-    return response.data.map((team) => ({
+    // Filter to only show allowed teams for security
+    const filteredTeams = response.data.filter((team) => ALLOWED_TEAM_SLUGS.includes(team.slug));
+
+    return filteredTeams.map((team) => ({
       id: team.id,
       name: team.name,
       slug: team.slug,
       description: team.description,
       privacy: team.privacy,
-      isDefault: team.slug === DEFAULT_TEAM_SLUG, // Mark as default if slug matches
+      isDefault: DEFAULT_TEAM_SLUGS.includes(team.slug), // Mark as default if in default list
     }));
   } catch (error) {
     if (error.response?.status === 403) {
