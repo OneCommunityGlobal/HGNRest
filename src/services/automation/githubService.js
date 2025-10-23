@@ -105,12 +105,16 @@ async function getTeams() {
       headers,
     });
 
+    // Define the default team name (you can change this to your preferred default team)
+    const DEFAULT_TEAM_NAME = 'developers'; // Change this to your default team name
+
     return response.data.map((team) => ({
       id: team.id,
       name: team.name,
       slug: team.slug,
       description: team.description,
       privacy: team.privacy,
+      isDefault: team.name === DEFAULT_TEAM_NAME, // Mark as default if it matches
     }));
   } catch (error) {
     if (error.response?.status === 403) {
