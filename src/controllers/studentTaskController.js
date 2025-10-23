@@ -86,7 +86,7 @@ const studentTaskController = function () {
 
       const task = await StudentTask.findByIdAndUpdate(
         id,
-        { status, updated_at: new Date() },
+        { status, updated_at: new Date(), completedAt: new Date() },
         { new: true },
       );
 
