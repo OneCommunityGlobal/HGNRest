@@ -6,11 +6,11 @@ const hoursPledgedController = function () {
       const { startDate, endDate, roles } = req.query;
 
       const query = {};
-      if (startDate) query.pledge_date = { $gte: new Date(startDate) };
-      if (endDate) query.pledge_date = { ...query.pledge_date, $lte: new Date(endDate) };
+      if (startDate) query.pledgeDate = { $gte: new Date(startDate) };
+      if (endDate) query.pledgeDate = { ...query.pledgeDate, $lte: new Date(endDate) };
       if (roles) query.role = { $in: roles.split(',') };
 
-      const hoursPledgedData = await HoursPledged.find(query).sort({ pledge_date: 1 });
+      const hoursPledgedData = await HoursPledged.find(query).sort({ pledgeDate: 1 });
 
       return res.status(200).json(hoursPledgedData);
     } catch (error) {
@@ -21,15 +21,15 @@ const hoursPledgedController = function () {
 
   const addHoursPledged = async (req, res) => {
     try {
-      const { role, pledge_date, hrsPerRole } = req.body;
+      const { role, pledgeDate, hrsPerRole } = req.body;
 
-      if (!role || !pledge_date || hrsPerRole === undefined) {
+      if (!role || !pledgeDate || hrsPerRole === undefined) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
       const newHoursPledged = new HoursPledged({
         role,
-        pledge_date: new Date(pledge_date),
+        pledgeDate: new Date(pledgeDate),
         hrsPerRole,
       });
 

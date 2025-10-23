@@ -1,7 +1,7 @@
 
 const mongoose = require('mongoose');
-const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
-const userProfile = require('../../models/userProfile');
+// const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
+// const userProfile = require('../../models/userProfile');
 
 const biddingController = (Bidding) => {
   const getBidListings = async (req, res) => {

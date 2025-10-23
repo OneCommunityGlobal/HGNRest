@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
 const Subject = require('../models/subject');
@@ -261,7 +261,7 @@ const activityController = function () {
         return res.status(404).json({ error: 'Activity not found' });
       }
 
-      const index = parseInt(templateIndex);
+      const index = parseInt(templateIndex, 10);
       if (index < 0 || index >= activity.atomTaskTemplates.length) {
         return res.status(404).json({ error: 'Template index not found' });
       }
