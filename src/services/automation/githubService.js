@@ -11,6 +11,9 @@ const headers = {
   'User-Agent': 'HGN-App/1.0',
 };
 
+// Default team slug
+const DEFAULT_TEAM_SLUG = 'highest-good-network-team';
+
 const getUserIdUrl = (username) => `https://api.github.com/users/${username}`;
 const sendInvitationUrl = (org) => `https://api.github.com/orgs/${org}/invitations`;
 const removeUserUrl = (org, username) =>
@@ -105,16 +108,13 @@ async function getTeams() {
       headers,
     });
 
-    // Define the default team name (you can change this to your preferred default team)
-    const DEFAULT_TEAM_NAME = 'developers'; // Change this to your default team name
-
     return response.data.map((team) => ({
       id: team.id,
       name: team.name,
       slug: team.slug,
       description: team.description,
       privacy: team.privacy,
-      isDefault: team.name === DEFAULT_TEAM_NAME, // Mark as default if it matches
+      isDefault: team.slug === DEFAULT_TEAM_SLUG, // Mark as default if slug matches
     }));
   } catch (error) {
     if (error.response?.status === 403) {
