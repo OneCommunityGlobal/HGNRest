@@ -296,6 +296,10 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+//education portal
+
+const studentTaskRouter = require('../routes/studentTasksRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -366,6 +370,8 @@ module.exports = function (app) {
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+
+  app.use('/api/studentTasks', studentTaskRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
