@@ -17,7 +17,6 @@ const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 
 // controller to test
-const taskController = require('./taskController');
 
 // MongoDB Model imports
 const Task = require('../models/task');
@@ -25,6 +24,7 @@ const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const WBS = require('../models/wbs');
 const FollowUp = require('../models/followUp');
+const taskController = require('./taskController');
 
 const makeSut = () => {
   const {

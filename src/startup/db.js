@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
-const logger = require('./logger');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
+const logger = require('./logger');
 require('dotenv').config();
 
 mongoose.Promise = Promise;
