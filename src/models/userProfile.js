@@ -128,16 +128,6 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
-      ccdUsers: {
-        type: [
-          {
-            firstName: { type: String },
-            lastName: { type: String },
-            email: { type: String, required: true },
-          },
-        ],
-        default: [],
-      },
     },
   ],
   warnings: [
