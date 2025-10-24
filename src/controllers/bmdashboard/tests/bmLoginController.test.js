@@ -14,8 +14,7 @@ jest.mock('../../../config', () => ({
 describe('bmLoginController', () => {
   const { bmLogin } = bmLoginController();
 
-  let req;
-  let res;
+  let req, res;
 
   beforeEach(() => {
     req = {

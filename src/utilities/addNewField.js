@@ -3,7 +3,7 @@
  * It will create a new field called "weeklycommittedHoursHistory"
  * and it will populate it with its created Date
  */
-require('dotenv').config();
+require('dotenv').load();
 
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
@@ -14,7 +14,7 @@ mongoose.Promise = Promise;
 /**
  * This function is to delete "weeklycommittedHoursHistory" to each user
  */
-/* const deleteUserField = async () => {
+const deleteUserField = async () => {
   try {
     // remove 'weeklycommittedHoursHistory' field from all user
     await userProfile.updateMany({}, { $unset: { weeklycommittedHoursHistory: '' } });
@@ -23,7 +23,7 @@ mongoose.Promise = Promise;
     logger.logException('Error removing field:', error);
   }
 };
-*/
+
 /**
  * This function is to add "weeklycommittedHoursHistory" to each user
  * and fill it in using the created date. Only run this once in production
@@ -81,7 +81,9 @@ const checkNewField = async () => {
 
 const run = function () {
   //   console.log('connect db');
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${
+    process.env.cluster
+  }/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
 
   mongoose
     .connect(uri, {
@@ -92,7 +94,7 @@ const run = function () {
     // .then(deleteUserField)
     .then(addNewField)
     .then(checkNewField)
-    .catch((err) => logger.logException(err)); // handles errors from the connect function
+    .catch(err => logger.logException(err)); // handles errors from the connect function
 };
 
 run();

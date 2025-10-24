@@ -25,11 +25,6 @@ const routes = function (BlueSquareEmailAssignment, userProfile) {
     controller.runManualBlueSquareEmailResend,
   );
 
-  BlueSquareEmailAssignmentRouter.route('/assignCCEmail/:userId').post(controller.assignCCEmail);
-  BlueSquareEmailAssignmentRouter.route('/removeCCEmail/:userId/:email').delete(
-    controller.removeCCEmail,
-  );
-
   return BlueSquareEmailAssignmentRouter;
 };
 

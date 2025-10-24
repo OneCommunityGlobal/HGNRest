@@ -13,7 +13,11 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: {
+    type: Map,
+    of: Date,
+    default: {},
+  },
   defaultPassword: {
     type: String,
     required: false, // Not required since it's optional

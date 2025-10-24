@@ -1,6 +1,6 @@
 const userprofile = require('../models/userProfile');
 
-const formController = function (Form, FormResponse) {
+const formController = function (Form, formResponse) {
   // creating a new form
   const createForm = async function (req, res) {
     try {
@@ -12,8 +12,8 @@ const formController = function (Form, FormResponse) {
       }
 
       // check if form already exists or not
-      const formTemp = await Form.find({ formName });
-      if (formTemp.length > 0) {
+      let form_temp = await Form.find({ formName: formName });
+      if (form_temp.length > 0) {
         return res.status(400).json({ message: 'Form already exists with that name' });
       }
       // Create a new form with the provided structure
@@ -33,7 +33,7 @@ const formController = function (Form, FormResponse) {
         message: 'Form created successfully',
         formID: savedForm.formID,
         id: savedForm._id,
-        formLink: `hostname${formLink}`,
+        formLink: 'hostname' + formLink,
       });
     } catch (error) {
       console.error('Error creating form:', error);
@@ -52,12 +52,12 @@ const formController = function (Form, FormResponse) {
       }
 
       // Check if user exists and is active
-      const userTemp = await userprofile.findById(userId);
-      if (!userTemp || userTemp.isActive === false) {
+      const user_temp = await userprofile.findById(userId);
+      if (!user_temp || user_temp.isActive === false) {
         return res.status(400).json({ message: 'Invalid or inactive user ID' });
       }
 
-      const updateData = {};
+      let updateData = {};
 
       // Check if the form name is actually changing
       if (formName && formName !== existingForm.formName) {
@@ -71,9 +71,9 @@ const formController = function (Form, FormResponse) {
         }
 
         let isDifferent = false;
-        const newQuestions = [];
+        let newQuestions = [];
 
-        formQuestions.forEach((question) => {
+        for (let question of formQuestions) {
           if (!question.label || typeof question.label !== 'string') {
             return res
               .status(400)
@@ -88,22 +88,24 @@ const formController = function (Form, FormResponse) {
 
           if (['radio', 'checkbox'].includes(question.type)) {
             if (!Array.isArray(question.options) || question.options.length === 0) {
-              return res.status(400).json({
-                message: `Question of type '${question.type}' must have a non-empty options array`,
-              });
+              return res
+                .status(400)
+                .json({
+                  message: `Question of type '${question.type}' must have a non-empty options array`,
+                });
             }
 
-            question.options.forEach((option) => {
+            for (let option of question.options) {
               if (typeof option !== 'string' || option.trim() === '') {
                 return res
                   .status(400)
                   .json({ message: 'Each option must be a valid non-empty string' });
               }
-            });
+            }
           }
 
           // Check if this question already exists in the database
-          const existingQuestion = existingForm.questions.find((q) => q.label === question.label);
+          let existingQuestion = existingForm.questions.find((q) => q.label === question.label);
 
           if (
             !existingQuestion ||
@@ -113,7 +115,7 @@ const formController = function (Form, FormResponse) {
           }
 
           newQuestions.push(question);
-        });
+        }
 
         // Only update if something actually changed
         if (isDifferent) {
@@ -140,7 +142,7 @@ const formController = function (Form, FormResponse) {
     try {
       // here id is the record Id of the form.
       const { id } = req.body;
-      const result = await Form.deleteOne({ _id: id });
+      let result = await Form.deleteOne({ _id: id });
       // Check if the form was actually deleted
       if (result.deletedCount === 0) {
         return res.status(400).json({ message: 'Error removing Form.' });
@@ -155,8 +157,8 @@ const formController = function (Form, FormResponse) {
   const checkForResponse = async function (req, res) {
     try {
       const { formID, userID } = req.query;
-      const result = await FormResponse.find({ formID, submittedBy: userID });
-      if (result.length === 0) {
+      let result = await formResponse.find({ formID: formID, submittedBy: userID });
+      if (result.length == 0) {
         return res.status(400).json({ message: 'No records Found' });
       }
       return res.status(200).json({ message: result });
@@ -167,7 +169,7 @@ const formController = function (Form, FormResponse) {
 
   const getFormData = async function (req, res) {
     try {
-      const { formID } = req.query;
+      const formID = req.query.formID;
       // Check if formID is provided
       if (!formID) {
         return res.status(400).json({ message: 'Form ID is required.' });
@@ -180,7 +182,7 @@ const formController = function (Form, FormResponse) {
       }
 
       // Fetch all responses associated with the formID
-      const responses = await FormResponse.find({ formID });
+      const responses = await formResponse.find({ formID });
 
       // If no responses found, return a message
       if (responses.length === 0) {
@@ -189,9 +191,9 @@ const formController = function (Form, FormResponse) {
 
       return res.status(200).json({
         message: 'Responses retrieved successfully',
-        formID,
+        formID: formID,
         formName: form.formName,
-        responses,
+        responses: responses,
       });
     } catch (error) {
       console.error('Error fetching form responses:', error);
@@ -237,7 +239,7 @@ const formController = function (Form, FormResponse) {
 
       const validatedResponses = [];
 
-      for (let i = 0; i < responses.length; i += 1) {
+      for (let i = 0; i < responses.length; i++) {
         const question = formQuestions[i];
         const response = responses[i];
 
@@ -250,9 +252,11 @@ const formController = function (Form, FormResponse) {
 
         // Ensure response label matches the expected question label
         if (response.questionLabel !== question.label) {
-          return res.status(400).json({
-            message: `Invalid question label: Expected "${question.label}", got "${response.questionLabel}".`,
-          });
+          return res
+            .status(400)
+            .json({
+              message: `Invalid question label: Expected "${question.label}", got "${response.questionLabel}".`,
+            });
         }
 
         // Validate response based on question type
@@ -263,15 +267,19 @@ const formController = function (Form, FormResponse) {
               .json({ message: `Response for "${question.label}" must be a single string value.` });
           }
           if (!question.options.includes(response.answer)) {
-            return res.status(400).json({
-              message: `Invalid response for "${question.label}". Expected one of: ${question.options.join(', ')}`,
-            });
+            return res
+              .status(400)
+              .json({
+                message: `Invalid response for "${question.label}". Expected one of: ${question.options.join(', ')}`,
+              });
           }
         } else if (question.type === 'checkbox') {
           if (!Array.isArray(response.answer)) {
-            return res.status(400).json({
-              message: `Response for "${question.label}" must be an array of selected options.`,
-            });
+            return res
+              .status(400)
+              .json({
+                message: `Response for "${question.label}" must be an array of selected options.`,
+              });
           }
           if (response.answer.length === 0) {
             return res
@@ -282,15 +290,19 @@ const formController = function (Form, FormResponse) {
             (option) => !question.options.includes(option),
           );
           if (invalidOptions.length > 0) {
-            return res.status(400).json({
-              message: `Invalid options selected for "${question.label}": ${invalidOptions.join(', ')}`,
-            });
+            return res
+              .status(400)
+              .json({
+                message: `Invalid options selected for "${question.label}": ${invalidOptions.join(', ')}`,
+              });
           }
         } else if (question.type === 'text') {
           if (typeof response.answer !== 'string' || response.answer.trim() === '') {
-            return res.status(400).json({
-              message: `Response for "${question.label}" must be a non-empty text string.`,
-            });
+            return res
+              .status(400)
+              .json({
+                message: `Response for "${question.label}" must be a non-empty text string.`,
+              });
           }
         } else {
           return res.status(400).json({ message: `Invalid question type: "${question.type}"` });
@@ -304,7 +316,7 @@ const formController = function (Form, FormResponse) {
       }
 
       // Create and save the valid response
-      const formResp = new FormResponse({
+      const formResp = new formResponse({
         formID,
         responses: validatedResponses,
         submittedBy,
@@ -343,7 +355,7 @@ const formController = function (Form, FormResponse) {
         return res.status(404).json({ message: 'Form not found.' });
       }
 
-      const user = await userprofile.find({ _id: userId });
+      let user = await userprofile.find({ _id: userId });
       if (user[0].isActive === false || user === undefined || user === null || user.length === 0) {
         return res.status(400).json({ message: 'Invalid User' });
       }

@@ -35,10 +35,6 @@ const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 
-// added to all user profiles manually, replaced with infringementCCList now!
-const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
-const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
-
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -514,7 +510,6 @@ const userHelper = function () {
       while (true) {
         const users = await userProfile
           .find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours')
-          .sort({ createdDate: 1 }) // Ensure oldest-to-newest order
           .skip(skip)
           .limit(batchSize);
 
@@ -865,17 +860,15 @@ const userHelper = function () {
                     emailsBCCs = null;
                   }
 
-                  // Queue the email instead of sending immediately to prevent race conditions
-                  emailQueue.push({
-                    to: status.email,
-                    subject: 'New Infringement Assigned',
-                    body: emailBody,
-                    attachments: null,
-                    cc: DEFAULT_CC_EMAILS,
-                    replyTo: status.email,
-                    bcc: [...new Set([...emailsBCCs])],
-                    startDate: person.startDate,
-                  });
+                  emailSender(
+                    status.email,
+                    'New Infringement Assigned',
+                    emailBody,
+                    null,
+                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    status.email,
+                    [...new Set([...emailsBCCs])],
+                  );
                 } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
                   usersRequiringBlueSqNotification.push(personId);
                 }
@@ -936,18 +929,15 @@ const userHelper = function () {
         skip += batchSize;
       }
 
-      // Sort emailQueue by startDate descending (latest first) to ensure consistent email order
-      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
       for (const email of emailQueue) {
         await emailSender(
           email.to,
           email.subject,
           email.body,
-          email.attachments, // 4th param: attachments
-          email.cc, // 5th param: cc
-          email.replyTo, // 6th param: replyTo
-          email.bcc, // 7th param: emailBccs
+          email.bcc,
+          email.from,
+          email.replyTo,
+          email.attachments,
         );
       }
 
@@ -1199,8 +1189,6 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-    weeklycommittedHours,
-    infringementCCList,
   ) => {
     if (!current) return;
     const newOriginal = original.toObject();
@@ -1281,10 +1269,6 @@ const userHelper = function () {
 
     const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
     const bccEmails = assignments.map((a) => a.email);
-
-    const combinedCCList = [...new Set([...(infringementCCList || []), ...DEFAULT_CC_EMAILS])];
-    const combinedBCCList = [...new Set([...(bccEmails || []), ...DEFAULT_BCC_EMAILS])];
-
     newInfringements.forEach(async (element) => {
       emailSender(
         emailAddress,
@@ -1300,11 +1284,15 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        combinedCCList,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
-        // Don't change this is to BCC!
-        combinedBCCList,
-        { type: 'blue_square_assignment' },
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
+        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
       );
     });
   };
@@ -2216,38 +2204,6 @@ const userHelper = function () {
       });
   };
 
-  const getTangibleHoursReportedLastWeekByUserId = function (personId) {
-    const userId = mongoose.Types.ObjectId(personId);
-
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
-
-    return timeEntries
-      .find(
-        {
-          personId: userId,
-          dateOfWork: { $gte: pdtstart, $lte: pdtend },
-          isTangible: true,
-        },
-        'totalSeconds',
-      )
-      .then((results) => {
-        const totalTangibleWeeklySeconds = results.reduce(
-          (acc, { totalSeconds }) => acc + totalSeconds,
-          0,
-        );
-        return (totalTangibleWeeklySeconds / 3600).toFixed(2);
-      });
-  };
-
   const sendDeactivateEmailBody = function (
     firstName,
     lastName,
@@ -2684,9 +2640,14 @@ const userHelper = function () {
         );
         if (!infringement) continue;
 
-        // Get tangible hours logged for last week using timeEntries collection
-        const hoursLogged = parseFloat(await getTangibleHoursReportedLastWeekByUserId(user._id));
-        console.log('hoursLogged', hoursLogged);
+        // Fetch weekly logs for this user
+        const timeLogs = await TimeLog.find({
+          userId: user._id,
+          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
+        });
+
+        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
+        const hoursLogged = totalSeconds / 3600;
         const weeklycommittedHours = user.weeklyComittedHours || 0;
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
@@ -2731,7 +2692,7 @@ const userHelper = function () {
           '[RESEND] Blue Square Notification',
           emailBody,
           null,
-          DEFAULT_CC_EMAILS,
+          ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
           user.email,
           [...new Set(emailsBCCs)],
         );
@@ -2762,7 +2723,6 @@ const userHelper = function () {
     awardNewBadges,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
-    getTangibleHoursReportedLastWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,

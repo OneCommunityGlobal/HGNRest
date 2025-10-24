@@ -58,7 +58,7 @@ const bmIssueController = function (BuildingIssue) {
         const issueTypeKey = item._id;
         acc[issueTypeKey] = {};
         item.years.forEach((yearData) => {
-          acc[issueTypeKey][yearData.year] = yearData.count;
+          acc[issueType][yearData.year] = yearData.count;
         });
         return acc;
       }, {});

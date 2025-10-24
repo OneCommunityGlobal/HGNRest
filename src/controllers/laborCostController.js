@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Labour = require('../models/laborCost');
 
 const createLabourCost = async (req, res) => {
@@ -54,15 +55,15 @@ const getLabourCostByDate = async (req, res) => {
 };
 
 const getLabourCostByProject = async (req, res) => {
-  const { projectName } = req.query;
+  const { project_name } = req.query;
 
-  if (!projectName) {
+  if (!project_name) {
     res.status(500).json({ success: false, message: 'Project Name not provided' });
   }
 
   try {
     const filteredDatabyProject = await Labour.find({
-      project_name: { $regex: projectName, $options: 'i' },
+      project_name: { $regex: project_name, $options: 'i' },
     });
     res.status(200).json({ success: true, data: filteredDatabyProject });
   } catch (error) {

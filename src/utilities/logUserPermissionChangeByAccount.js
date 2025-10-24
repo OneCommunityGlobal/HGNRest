@@ -2,19 +2,6 @@ const moment = require('moment-timezone');
 const UserPermissionChangeLog = require('../models/userPermissionChangeLog');
 const UserProfile = require('../models/userProfile');
 
-const findLatestRelatedLog = (userId) =>
-  new Promise((resolve, reject) => {
-    UserPermissionChangeLog.findOne({ userId })
-      .sort({ logDateTime: -1 })
-      .exec((err, document) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(document);
-      });
-  });
-
 const logUserPermissionChangeByAccount = async (req) => {
   const { permissions, firstName, lastName, requestor } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
@@ -62,5 +49,18 @@ const logUserPermissionChangeByAccount = async (req) => {
     console.error('Error logging permission change:', error);
   }
 };
+
+const findLatestRelatedLog = (userId) =>
+  new Promise((resolve, reject) => {
+    UserPermissionChangeLog.findOne({ userId })
+      .sort({ logDateTime: -1 })
+      .exec((err, document) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(document);
+      });
+  });
 
 module.exports = logUserPermissionChangeByAccount;

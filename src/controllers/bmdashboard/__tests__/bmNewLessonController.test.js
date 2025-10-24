@@ -17,7 +17,6 @@ const mockBuildingProject = {
   findById: jest.fn(),
 };
 
-// eslint-disable-next-line no-unused-vars
 const mockLike = {
   findOne: jest.fn(),
   findByIdAndDelete: jest.fn(),
