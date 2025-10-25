@@ -42,7 +42,26 @@ async function revokeAppAccess(userId, appName) {
     return appAccess;
 }
 
+async function getAppAccess(userId, appName) {
+  const appAccess = await ApplicationAccess.findOne({ userId });
+  const app = appAccess && appAccess.apps.find((a) => a.app === appName);
+
+  if (!app) {
+    throw new Error(`${appName} access not found for this user.`);
+  }
+
+  return {
+    status: app.status,
+    credentials: app.credentials,
+    invitedOn: app.invitedOn,
+    revokedOn: app.revokedOn,
+    failedReason: app.failedReason,
+  };
+}
+
 module.exports = {
-    upsertAppAccess,
-    revokeAppAccess,
+  upsertAppAccess,
+  revokeAppAccess,
+  getAppCredentials,
+  getAppAccess,
 };

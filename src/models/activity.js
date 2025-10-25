@@ -1,44 +1,48 @@
 const mongoose = require('mongoose');
 
 const activitySchema = new mongoose.Schema({
+  lessonPlanId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LessonPlan',
+    required: true
+  },
   title: {
     type: String,
     required: true,
-    trim: true,
+    trim: true
   },
   description: {
     type: String,
-    trim: true,
+    trim: true
   },
-  date: {
-    type: Date,
-    required: true,
-  },
-  organizer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Assuming you have a User model
-    required: true,
-  },
-  participants: [
-    {
+  atomTaskTemplates: [{
+    subjectId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Subject',
+      required: true
     },
-  ],
-  status: {
-    type: String,
-    enum: ['Scheduled', 'Rescheduled', 'Cancelled'],
-    default: 'Scheduled',
-  },
-  rescheduleHistory: [
-    {
-      oldDate: Date,
-      newDate: Date,
-      rescheduledAt: { type: Date, default: Date.now },
+    atomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Atom',
+      required: true
     },
-  ],
-  votes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vote' }],
+    taskType: {
+      type: String,
+      required: true,
+      enum: ['read', 'write', 'practice', 'quiz', 'project']
+    },
+    instructions: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    resources: [{
+      type: String,
+      trim: true
+    }]
+  }]
+}, {
+  timestamps: true
 });
 
-const Activity = mongoose.model('Activity', activitySchema);
-module.exports = Activity;
+module.exports = mongoose.model('Activity', activitySchema); 

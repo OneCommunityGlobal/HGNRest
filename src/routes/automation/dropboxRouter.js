@@ -8,5 +8,7 @@ router.post('/create-folder', dropboxController.createFolder);
 router.post('/invite', dropboxController.inviteUserToFolder);
 router.post('/create-folder-and-invite', dropboxController.createFolderAndInvite);
 router.delete('/delete-folder', dropboxController.deleteFolder);
+router.get('/team-folders', dropboxController.getTeamFolders);
+router.post('/folder-details', dropboxController.getFolderDetails);
 
 module.exports = router;

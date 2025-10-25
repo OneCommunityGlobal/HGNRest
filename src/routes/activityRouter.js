@@ -5,7 +5,7 @@ const {
   rescheduleNotify,
   getReschedulePoll,
   submitRescheduleVote,
-} = require('../controllers/activityController');
+} = require('../controllers/rescheduleEventContoller');
 
 router.post('/:activityId/reschedule/notify', rescheduleNotify);
 router.get('/:activityId/reschedule/poll', getReschedulePoll);
