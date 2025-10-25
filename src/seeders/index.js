@@ -1,16 +1,20 @@
 const path = require('path');
 const { spawn } = require('child_process');
-
-// Load environment variables from .env before doing anything
 require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
-const seedDir = __dirname; // this file lives in src/seeders
+const seedDir = __dirname; // assuming this file lives in src/seeders
+
 const scripts = [
-  'seedUserProfile.js',
-  'seedLessonPlan.js',
-  'seedAtom.js',
+  'seedBadge.js',
+  'seedProject.js',
   'seedSubject.js',
+  'seedAtom.js',
+  'seedUserProfile.js',
+  'seedApplicationAccess.js',
+  'seedTeams.js',
+  'seedWbs.js',
   'seedTask.js',
+  'seedLessonPlan.js',
   'seedProgress.js',
 ];
 
@@ -20,9 +24,7 @@ function runScript(file) {
     console.log(`\n--- Running ${file} ---`);
     const child = spawn(process.execPath, [scriptPath], { stdio: 'inherit' });
 
-    child.on('error', (err) => {
-      reject(new Error(`${file} failed to start: ${err.message}`));
-    });
+    child.on('error', (err) => reject(new Error(`${file} failed to start: ${err.message}`)));
 
     child.on('close', (code) => {
       if (code === 0) {
@@ -37,11 +39,13 @@ function runScript(file) {
 
 (async () => {
   try {
-    await Promise.all(scripts.map((s) => runScript(s)));
+    // Run each script one by one
+    await Promise.all(scripts.map((script) => runScript(script)));
+
     console.log('\n🎉 All seed scripts completed successfully');
     process.exit(0);
   } catch (err) {
-    console.error('\n❌ Seeding failed:', err);
+    console.error('\n❌ Seeding failed:', err.message);
     process.exit(1);
   }
 })();
