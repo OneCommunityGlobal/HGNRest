@@ -56,6 +56,7 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
+  atomId: { type: mongoose.SchemaTypes.ObjectId, ref: 'Atom' },
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
