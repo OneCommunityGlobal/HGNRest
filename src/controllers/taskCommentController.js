@@ -1,4 +1,3 @@
-// controllers/commentsController.js
 const TaskComment = require('../models/taskComment');
 const StudentTask = require('../models/studentTask');
 const User = require('../models/userTask');
@@ -60,12 +59,12 @@ exports.getStudentCommentsbyStudent = async (req, res) => {
       {
         taskId,
         userId: user._id,
-        is_deleted: false,
+        isDeleted: false,
       },
-      { is_deleted: 0, __v: 0 }, // exclude these fields
+      { isDeleted: 0, __v: 0 },
     )
       .sort({ created_at: 1 })
-      .lean(); // return plain JS objects
+      .lean();
 
     const cleanedComments = comments.map((c) => ({
       commentId: c._id.toString(),
@@ -82,7 +81,6 @@ exports.getStudentCommentsbyStudent = async (req, res) => {
   }
 };
 
-// check if all comments are returned
 exports.getStudentCommentsbyEducator = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -99,21 +97,12 @@ exports.getStudentCommentsbyEducator = async (req, res) => {
     const comments = await TaskComment.find(
       {
         taskId,
-        is_deleted: false,
+        isDeleted: false,
       },
-      { is_deleted: 0, __v: 0 }, // exclude these fields
+      { isDeleted: 0, __v: 0 },
     )
       .sort({ created_at: 1 })
-      .lean(); // return plain JS objects
-
-    console.log(
-      'Fetched comments for task:',
-      taskId,
-      'by educator:',
-      userId,
-      'Comments count:',
-      comments.length,
-    );
+      .lean();
 
     const cleanedComments = comments.map((c) => ({
       commentId: c._id.toString(),
