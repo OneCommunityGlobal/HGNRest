@@ -234,10 +234,11 @@ const createJob = async (req, res) => {
     applyLink,
     jobDetailsLink,
     requirements,
-    skills,
+    // skills,
     projects,
-    whoareyou,
-    whoweare,
+    // whoareyou,
+    ourCommunity,
+    // whoweare,
   } = req.body;
 
   try {
@@ -256,10 +257,11 @@ const createJob = async (req, res) => {
       jobDetailsLink,
       displayOrder: newDisplayOrder,
       requirements,
-      skills,
+      // skills,
       projects,
-      whoareyou,
-      whoweare,
+      // whoareyou,
+      // whoweare,
+      ourCommunity,
     });
 
     const savedJob = await newJob.save();

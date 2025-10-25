@@ -8,10 +8,11 @@ const jobSchema = new Schema({
   description: { type: String, required: true }, // Detailed job description
   //  about: { type: String, required: true }, // Detailed about section
   requirements: { type: String, required: true }, // Detailed requirements section
-  skills: { type: String, required: true }, // Detailed skills section
+  // skills: { type: String, required: true }, // Detailed skills section
   projects: { type: String, required: true }, // list of projects seperated by comma
-  whoareyou: { type: String, required: true }, // Detailed who are you section
-  whoweare: { type: String, required: true }, // Detailed who we are section
+  // whoareyou: { type: String, required: true }, // Detailed who are you section
+  ourCommunity: { type: String, required: true }, // Detailed who we are section
+  // whoweare: { type: String, required: true }, // Detailed who we are section
   imageUrl: { type: String, required: true }, // URL of the job-related image
   location: { type: String, required: true }, // Job location (optional for remote jobs)
   applyLink: { type: String, required: true }, // URL for the application form
