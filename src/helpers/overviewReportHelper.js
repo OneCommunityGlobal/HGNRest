@@ -757,14 +757,34 @@ const overviewReportHelper = function () {
   async function getTeamMembersCount(isoEndDate, isoComparisonEndDate) {
     // Gets counts for total members and members in team within a given time range
     const getData = async (endDate) => {
-      const [data] = await UserProfile.aggregate([
-        {
-          $match: {
-            isActive: true,
+      const baseFilters = {
+        isActive: true,
+        weeklycommittedHours: {
+          $gte: 1,
+        },
+        role: {
+          $ne: 'Mentor',
+        },
+      };
+
+      if (endDate) {
+        baseFilters.$or = [
+          {
+            createdDate: {
+              $exists: false,
+            },
+          },
+          {
             createdDate: {
               $lte: endDate,
             },
           },
+        ];
+      }
+
+      const [data] = await UserProfile.aggregate([
+        {
+          $match: baseFilters,
         },
         {
           $facet: {
@@ -778,7 +798,16 @@ const overviewReportHelper = function () {
                 $match: {
                   teams: {
                     $exists: true,
-                    $ne: [],
+                  },
+                  $expr: {
+                    $gt: [
+                      {
+                        $size: {
+                          $ifNull: ['$teams', []],
+                        },
+                      },
+                      0,
+                    ],
                   },
                 },
               },
