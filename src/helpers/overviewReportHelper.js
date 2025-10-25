@@ -615,30 +615,70 @@ const overviewReportHelper = function () {
           },
         },
         {
+          $addFields: {
+            'infringements.reason': {
+              $switch: {
+                branches: [
+                  {
+                    // Matches when user is on vacation
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /request for time off/i,
+                      },
+                    },
+                    then: 'vacationTime',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
+                    case: {
+                      $and: [
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not meeting weekly volunteer time commitment/i,
+                          },
+                        },
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not submitting a weekly summary/i,
+                          },
+                        },
+                      ],
+                    },
+                    then: 'missingHoursAndSummary',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not meeting weekly volunteer time commitment/i,
+                      },
+                    },
+                    then: 'missingHours',
+                  },
+                  {
+                    // Matches "not submitting a weekly summary" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not submitting a weekly summary/i,
+                      },
+                    },
+                    then: 'missingSummary',
+                  },
+                ],
+                default: 'other',
+              },
+            },
+          },
+        },
+        {
           $group: {
             _id: '$infringements.reason',
             count: { $sum: 1 },
-          },
-        },
-        // regroup reasons of 'other' and 'null' together
-        {
-          $project: {
-            _id: {
-              $cond: {
-                if: {
-                  $or: [{ $eq: ['$_id', 'other'] }, { $eq: ['$_id', null] }],
-                },
-                then: 'other',
-                else: '$_id',
-              },
-            },
-            count: 1,
-          },
-        },
-        {
-          $group: {
-            _id: '$_id',
-            count: { $sum: '$count' },
           },
         },
       ]);
