@@ -1,9 +1,20 @@
+/**
+ * Seeder: userProfiles collection
+ * - Generates 100 fake users with realistic relationships:
+ *   • Pulls badge IDs from badge collection
+ *   • Pulls subject IDs from subject collection (for teachers)
+ *   • Leaves teams, projects, and applicationAccess blank
+ */
+
+const { faker } = require('@faker-js/faker');
 const User = require('../models/userProfile');
+const Badge = require('../models/badge');
+const Subject = require('../models/subject');
 const { dbConnect } = require('../test/db/mongo-helper');
 
 async function seedUsersIfEmpty() {
   try {
-    await dbConnect(); // Use the shared connection helper
+    await dbConnect();
     console.log('✅ Connected to MongoDB');
 
     const userCount = await User.countDocuments();
@@ -12,9 +23,31 @@ async function seedUsersIfEmpty() {
       process.exit(0);
     }
 
+    // Fetch only necessary collections
+    const [badges, subjects] = await Promise.all([Badge.find({}, '_id'), Subject.find({}, '_id')]);
+
+    console.log(`📦 Data fetched: ${badges.length} badges, ${subjects.length} subjects.`);
+
     const roles = ['Owner', 'Admin', 'Volunteer'];
     const usersToInsert = [];
-    for (let i = 1; i <= 50; i += 1) {
+
+    for (let i = 1; i <= 100; i += 1) {
+      const firstName = faker.person.firstName();
+      const lastName = faker.person.lastName();
+      const email = faker.internet.email({ firstName, lastName });
+      const phone = faker.phone.number('###-###-####');
+      const jobTitle = faker.person.jobTitle();
+      const bio = faker.person.bio();
+      const role = roles[(i - 1) % roles.length];
+
+      // Random linked data
+      const randomBadges = faker.helpers
+        .arrayElements(badges, faker.number.int({ min: 1, max: 3 }))
+        .map((b) => b._id);
+      const randomSubjects = faker.helpers
+        .arrayElements(subjects, faker.number.int({ min: 1, max: 3 }))
+        .map((s) => s._id);
+
       usersToInsert.push({
         summarySubmissionDates: [],
         defaultPassword: 'Password123!',
@@ -23,24 +56,25 @@ async function seedUsersIfEmpty() {
         isRehireable: true,
         isSet: false,
         finalEmailThreeWeeksSent: false,
-        role: roles[(i - 1) % roles.length], // Assign role in round-robin fashion
+        role,
         permissions: {
           isAcknowledged: true,
           frontPermissions: [],
           backPermissions: [],
           removedDefaultPermissions: [],
         },
-        firstName: `User${i}`,
-        lastName: `Test${i}`,
-        phoneNumber: [`123-456-78${i.toString().padStart(2, '0')}`],
-        jobTitle: [`Tester${i}`],
-        bio: `This is a test user ${i}.`,
-        email: `user${i}@example.com`,
+        firstName,
+        lastName,
+        phoneNumber: [phone],
+        jobTitle: [jobTitle],
+        bio,
+        email,
+        actualEmail: email.toLowerCase(),
         copiedAiPrompt: new Date(),
-        emailSubscriptions: false,
-        weeklycommittedHours: 10,
+        emailSubscriptions: faker.datatype.boolean(),
+        weeklycommittedHours: faker.number.int({ min: 5, max: 40 }),
         weeklycommittedHoursHistory: [],
-        missedHours: 0,
+        missedHours: faker.number.int({ min: 0, max: 10 }),
         createdDate: new Date(),
         startDate: new Date(),
         isStartDateManuallyModified: false,
@@ -48,24 +82,24 @@ async function seedUsersIfEmpty() {
         reactivationDate: undefined,
         personalLinks: [],
         adminLinks: [],
-        teams: [],
-        projects: [],
-        badgeCollection: [],
-        profilePic: '',
+        teams: [], // Leave empty
+        projects: [], // Leave empty
+        badgeCollection: randomBadges,
+        profilePic: faker.image.avatar(),
         suggestedProfilePics: [],
         infringements: [],
         warnings: [],
         location: {
-          userProvided: '',
-          coords: { lat: '', lng: '' },
-          country: '',
-          city: '',
+          userProvided: faker.location.streetAddress(),
+          coords: { lat: faker.location.latitude(), lng: faker.location.longitude() },
+          country: faker.location.country(),
+          city: faker.location.city(),
         },
         homeCountry: {
-          userProvided: '',
-          coords: { lat: '', lng: '' },
-          country: '',
-          city: '',
+          userProvided: faker.location.streetAddress(),
+          coords: { lat: faker.location.latitude(), lng: faker.location.longitude() },
+          country: faker.location.country(),
+          city: faker.location.city(),
         },
         oldInfringements: [],
         privacySettings: {
@@ -75,71 +109,67 @@ async function seedUsersIfEmpty() {
         },
         weeklySummaries: [],
         weeklySummariesCount: 0,
-        mediaUrl: '',
+        mediaUrl: faker.image.url(),
         endDate: undefined,
         resetPwd: '',
-        collaborationPreference: '',
-        personalBestMaxHrs: 0,
-        totalTangibleHrs: 0,
-        totalIntangibleHrs: 0,
+        collaborationPreference: faker.helpers.arrayElement(['Remote', 'Hybrid', 'In-Person']),
+        personalBestMaxHrs: faker.number.int({ min: 0, max: 50 }),
+        totalTangibleHrs: faker.number.int({ min: 0, max: 500 }),
+        totalIntangibleHrs: faker.number.int({ min: 0, max: 500 }),
         hoursByCategory: {
-          housing: 0,
-          food: 0,
-          education: 0,
-          society: 0,
-          energy: 0,
-          economics: 0,
-          stewardship: 0,
-          unassigned: 0,
+          housing: faker.number.int({ min: 0, max: 100 }),
+          food: faker.number.int({ min: 0, max: 100 }),
+          education: faker.number.int({ min: 0, max: 100 }),
+          society: faker.number.int({ min: 0, max: 100 }),
+          energy: faker.number.int({ min: 0, max: 100 }),
+          economics: faker.number.int({ min: 0, max: 100 }),
+          stewardship: faker.number.int({ min: 0, max: 100 }),
+          unassigned: faker.number.int({ min: 0, max: 100 }),
         },
-        lastWeekTangibleHrs: 0,
+        lastWeekTangibleHrs: faker.number.int({ min: 0, max: 40 }),
         categoryTangibleHrs: [],
         savedTangibleHrs: [],
         timeEntryEditHistory: [],
-        weeklySummaryNotReq: false,
+        weeklySummaryNotReq: faker.datatype.boolean(),
         timeZone: 'America/Los_Angeles',
         isVisible: true,
-        weeklySummaryOption: '',
+        weeklySummaryOption: faker.helpers.arrayElement(['Auto', 'Manual', 'None']),
         bioPosted: 'default',
-        trophyFollowedUp: false,
+        trophyFollowedUp: faker.datatype.boolean(),
         isFirstTimelog: true,
-        badgeCount: 0,
+        badgeCount: randomBadges.length,
         teamCodeWarning: false,
-        teamCode: '',
+        teamCode: faker.string.alphanumeric({ length: 6 }).toUpperCase(),
         infoCollections: [],
-        actualEmail: '',
-        timeOffFrom: undefined,
-        timeOffTill: undefined,
-        getWeeklyReport: false,
+        getWeeklyReport: faker.datatype.boolean(),
         permissionGrantedToGetWeeklySummaryReport: undefined,
-        applicationAccess: undefined,
         questionaireFeedback: {
-          haveYouRecievedHelpLastWeek: 'No',
+          haveYouRecievedHelpLastWeek: faker.helpers.arrayElement(['Yes', 'No']),
           peopleYouContacted: [],
-          additionalComments: '',
+          additionalComments: faker.lorem.sentence(),
           daterequestedFeedback: new Date(),
-          foundHelpSomeWhereClosePermanently: false,
+          foundHelpSomeWhereClosePermanently: faker.datatype.boolean(),
         },
         infringementCCList: [],
         educationProfiles: {
           student: {
             cohortId: undefined,
             enrollmentDate: undefined,
-            learningLevel: 'beginner',
-            strengths: [],
-            challengingAreas: [],
+            learningLevel: faker.helpers.arrayElement(['beginner', 'intermediate', 'advanced']),
+            strengths: [faker.lorem.word(), faker.lorem.word()],
+            challengingAreas: [faker.lorem.word()],
           },
           teacher: {
-            subjects: [],
-            officeHours: '',
+            subjects: randomSubjects,
+            officeHours: `${faker.number.int({ min: 9, max: 17 })}:00 - ${faker.number.int({ min: 18, max: 21 })}:00`,
             assignedStudents: [],
           },
           programManager: {
             managedPrograms: [],
-            region: '',
+            region: faker.location.state(),
           },
           learningSupport: {
-            level: 'junior',
+            level: faker.helpers.arrayElement(['junior', 'senior', 'lead']),
             assignedTeachers: [],
           },
         },
@@ -147,10 +177,10 @@ async function seedUsersIfEmpty() {
     }
 
     await User.insertMany(usersToInsert);
-    console.log('🎉 Seeded 50 users with roles Owner, Admin, Volunteer!');
+    console.log('🎉 Successfully seeded 100 fake users with badges and subjects only!');
     process.exit(0);
   } catch (err) {
-    console.error('❌ Error while seeding:', err);
+    console.error('❌ Error while seeding user profiles:', err);
     process.exit(1);
   }
 }
