@@ -1,8 +1,5 @@
-const checkAppAccess = (role) => {
-    if (role !== 'Administrator' && role !== 'Owner') {
-        return false;
-    }
-    return true;
-}
+const { hasPermission } = require('../../utilities/permissions');
+
+const checkAppAccess = async (requestor) => hasPermission(requestor, 'manageHGNAccessSetup');
 
 module.exports = { checkAppAccess };
