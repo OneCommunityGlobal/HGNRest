@@ -1965,7 +1965,10 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+        .catch((error) => {
+          console.log('error', error);
+          res.status(400).send(error);
+        });
     });
   };
 
