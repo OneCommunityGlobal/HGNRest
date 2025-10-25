@@ -1939,6 +1939,20 @@ const overviewReportHelper = function () {
     return { count: totalTeams };
   }
 
+  async function getCurrentTeamCodes(minActiveMembers = 1) {
+    const results = await UserProfile.aggregate([
+      { $match: { isActive: true, teamCode: { $nin: [null, ''] } } },
+      { $group: { _id: '$teamCode', activeCount: { $sum: 1 } } },
+      { $match: { activeCount: { $gte: minActiveMembers } } },
+      { $project: { _id: 0, code: '$_id', activeCount: 1 } },
+      { $sort: { code: 1 } },
+    ]).allowDiskUse(true);
+
+    // return results.map(r => r.code);
+
+    return results; // [{ code: 'Zn2CODE', activeCount: 5 }, ...]
+  }
+
   async function getVolunteersOverAssignedTime(isoStartDate, isoEndDate) {
     const volunteersOverAssignedTime = await UserProfile.aggregate([
       {
@@ -2177,6 +2191,7 @@ const overviewReportHelper = function () {
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
+    getCurrentTeamCodes,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
     getTotalSummariesSubmitted,
