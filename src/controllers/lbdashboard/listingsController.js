@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
-const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
-const userProfile = require('../../models/userProfile');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
+const userProfile = require('../../models/userProfile');
 const config = require('../../config');
 const Role = require('../../models/role');
 const Village = require('../../models/lbdashboard/villages');
 
 const verifyToken = async (req) => {
-  const token = req.headers['authorization'];
+  const token = req.headers.authorization;
   if (!token) throw new Error('No token provided');
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
@@ -36,11 +36,11 @@ const verifyToken = async (req) => {
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      const page = req.headers['page'] || 1;
-      const size = req.headers['size'] || 10;
-      const village = req.headers['village'];
-      const availableFrom = req.headers['availablefrom'];
-      const availableTo = req.headers['availableto'];
+      const page = req.headers.page || 1;
+      const size = req.headers.size || 10;
+      const {village} = req.headers;
+      const availableFrom = req.headers.availablefrom;
+      const availableTo = req.headers.availableto;
 
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
@@ -362,7 +362,7 @@ const listingsController = (ListingHome) => {
 
   const updateListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const {id} = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const updateData = req.body;
       if (req.files && req.files.length) {
@@ -381,7 +381,7 @@ const listingsController = (ListingHome) => {
 
   const deleteListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const {id} = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const deleted = await ListingHome.findByIdAndDelete(id);
       if (!deleted) {

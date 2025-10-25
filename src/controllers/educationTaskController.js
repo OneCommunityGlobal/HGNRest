@@ -179,7 +179,7 @@ const educationTaskController = function () {
       }
 
       // Update completedAt if status is being changed to completed
-      let completedAt = task.completedAt;
+      let {completedAt} = task;
       if (status === 'completed' && task.status !== 'completed') {
         completedAt = new Date();
       }
@@ -241,7 +241,7 @@ const educationTaskController = function () {
         });
       }
 
-      let completedAt = task.completedAt;
+      let {completedAt} = task;
       if (status === 'completed' && task.status !== 'completed') {
         completedAt = new Date();
       }
