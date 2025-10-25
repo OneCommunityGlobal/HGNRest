@@ -90,6 +90,11 @@ const costs = require('../models/costs');
 const tag = require('../models/tag');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
+const browsableLessonPlanModel = require('../models/educationPortal/browsableLessonPlanModel');
+const browsableLessonPlanRouter = require('../routes/educationPortal/browsableLessonPlanRouter')(
+  browsableLessonPlanModel,
+  userProfile,
+);
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -450,4 +455,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  app.use('/api/education', browsableLessonPlanRouter);
 };
