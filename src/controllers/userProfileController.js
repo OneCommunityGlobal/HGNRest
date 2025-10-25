@@ -1687,6 +1687,10 @@ const userProfileController = function (UserProfile, Project) {
       console.log('Modified paths:', record.modifiedPaths());
       console.log('FilterColor being saved:', record.filterColor);
 
+      console.log('Backend: Preparing to save record for user:', userid);
+      console.log('Backend: filterColor value before save:', record.filterColor); // Log the value being saved
+      console.log('Backend: Modified paths:', record.modifiedPaths()); // See what Mongoose thinks changed
+
       record
         .save()
         .then(async (results) => {
@@ -1763,6 +1767,7 @@ const userProfileController = function (UserProfile, Project) {
             'update',
           );
 
+          console.log('Backend: Save successful for user:', userid);
           // ✅ Send back the updated record with filterColor
           res.status(200).json({
             _id: results._id,
@@ -1779,10 +1784,23 @@ const userProfileController = function (UserProfile, Project) {
           // }
           // console.error('Failed to save record:', error);
           // return res.status(400).json({ error: 'Failed to save record.' });
-          console.error('❌ Failed to save record:', error);
-          return res.status(400).json({
-            message: 'Validation Error',
-            error: error.message || error,
+          // *** Log the EXACT error from Mongoose ***
+          console.error('❌ Backend: record.save() FAILED:', error);
+          // *******************************************
+
+          // Keep existing error handling
+          if (error.name === 'ValidationError') {
+            // More specific check
+            const errors = Object.values(error.errors).map((er) => er.message);
+            return res.status(400).json({
+              message: 'Validation Error during save', // More specific message
+              error: errors,
+            });
+          }
+          console.error('❌ Failed to save record(generic catch)::', error);
+          return res.status(500).json({
+            message: 'Internal server error during save.',
+            error: error.message || 'Unknown save error',
           });
         });
     });
