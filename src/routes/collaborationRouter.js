@@ -17,7 +17,7 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 // Get all responses of a form
 router.get('/jobforms/responses/formId', formController.getFormResponses);
 
-// Get all responses of a form
+// post the responses of a form
 router.post('/jobforms/responses', formController.postFormResponses);
 
 // Question management routes

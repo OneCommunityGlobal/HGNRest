@@ -91,14 +91,24 @@ exports.getFormResponses = async (req, res) => {
 };
 // post all responses of a form
 exports.postFormResponses = async (req, res) => {
+  console.log('inside postFormResponses');
   try {
     const { answers } = req.body;
     const formId = new ObjectId(req.body.formId);
+    console.log('formId');
     console.log(formId);
+    console.log('req.body.formId');
+    console.log(req.body.formId);
     console.log(answers);
-    // Check if form exists
-    const form = await Form.findById(formId);
 
+    const respondent = answers[1].answer;
+    console.log('respondent');
+    console.log(respondent);
+
+    // Check if form exists
+    // const form = await Form.findById(formId);
+    const form = await Form.findById(formId);
+    console.log(form);
     if (!form) {
       return res.status(404).json({ message: 'Form not found.' });
     }
@@ -107,14 +117,15 @@ exports.postFormResponses = async (req, res) => {
     const response = new Response({
       formId,
       answers,
+      respondent,
     });
-
+    console.log(response);
     // Fetch all responses for the form
 
     await response.save();
-    res.status(201).json({ message: 'Form created successfully.', response });
+    res.status(201).json({ message: 'Responses submitted successfully.', response });
   } catch (error) {
-    console.error(error);
+    console.log(error);
     res.status(500).json({ message: 'Error Saving form responses.', error });
   }
 };
