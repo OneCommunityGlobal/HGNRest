@@ -21,7 +21,8 @@
     "dev": "nodemon --exec \"babel-node --ignore 'node_modules/(?!@typespec)' src/server.js\"",
     "serve": "babel-node src/server.js",
     "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "postinstall": "npm rebuild sharp --platform=linux --arch=x64"
   },
   "author": "AK",
   "license": "ISC",
