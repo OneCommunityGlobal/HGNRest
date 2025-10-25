@@ -1,33 +1,56 @@
-const mongoose = require('mongoose');
-const { dbConnect } = require('../test/db/mongo-helper');
+/**
+ * Seeder: subjects collection
+ * Creates sample Subject documents without atom references.
+ */
+
+const { faker } = require('@faker-js/faker');
 const Subject = require('../models/subject');
+const { dbConnect } = require('../test/db/mongo-helper');
 
 async function seedSubjects() {
   try {
     await dbConnect();
+    console.log('✅ Connected to MongoDB');
 
-    const count = await Subject.countDocuments();
-    if (count > 0) {
-      console.log(`ℹ️ Subject collection already has ${count} documents. No seeding needed.`);
+    const existing = await Subject.countDocuments();
+    if (existing > 0) {
+      console.log(`ℹ️ Subjects collection already has ${existing} entries. No seeding needed.`);
       process.exit(0);
     }
 
-    // Create some dummy atom ObjectIds
-    const dummyAtomIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const subjectNames = [
+      'Mathematics',
+      'Physics',
+      'Chemistry',
+      'Biology',
+      'History',
+      'Geography',
+      'Economics',
+      'Sociology',
+      'Philosophy',
+      'Computer Science',
+      'Political Science',
+      'Psychology',
+      'Statistics',
+      'Environmental Science',
+      'Art & Design',
+      'Music',
+      'Literature',
+      'Business Studies',
+      'Engineering',
+      'Health Science',
+    ];
 
-    const subjects = [];
-    for (let i = 1; i <= 10; i += 1) {
-      subjects.push({
-        name: `Subject ${i}`,
-        iconUrl: `https://example.com/icon${i}.png`,
-        sequence: i,
-        description: `Description for subject ${i}`,
-        atomIds: dummyAtomIds,
-      });
-    }
+    const subjects = subjectNames.map((name, i) => ({
+      name,
+      iconUrl: faker.image.url(),
+      sequence: i + 1,
+      description: faker.lorem.sentence(),
+      atomIds: [], // empty array, no atoms linked
+    }));
 
     await Subject.insertMany(subjects);
-    console.log('🎉 Seeded 10 subjects successfully!');
+    console.log(`📚 Successfully seeded ${subjects.length} subjects!`);
     process.exit(0);
   } catch (err) {
     console.error('❌ Error while seeding subjects:', err);
