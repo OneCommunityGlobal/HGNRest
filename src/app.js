@@ -24,8 +24,10 @@ require('./startup/middleware')(app);
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
 
+// Mount Plurk route with other /api routes before error handlers so errors are captured
+app.use('/api', require('./routes/plurkRouter'));
+
 app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
-app.use('/api', require('./routes/plurkRouter'));
 
 module.exports = { app, logger };

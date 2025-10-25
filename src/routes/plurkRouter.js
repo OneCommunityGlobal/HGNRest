@@ -43,12 +43,14 @@ router.post('/postToPlurk', (req, res) => {
     const url = 'https://www.plurk.com/APP/Timeline/plurkAdd';
     // Default qualifier ":" = “says”
     const params = { content, qualifier: ':' };
+    // OAuth library expects a url-encoded string body for 'application/x-www-form-urlencoded'
+    const body = new URLSearchParams(params).toString();
 
     oauth.post(
       url,
       PLURK_TOKEN,
       PLURK_TOKEN_SECRET,
-      params,
+      body,
       'application/x-www-form-urlencoded',
       (err, data) => {
         if (err) {
