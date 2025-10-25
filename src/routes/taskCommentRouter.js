@@ -8,14 +8,18 @@ const routes = function () {
     '/student/tasks/:taskId/comments',
     taskCommentController.postStudentComments,
   );
-  taskCommentRouter.get(
-    '/educator/tasks/:taskId/comments',
-    taskCommentController.getStudentCommentsbyEducator,
-  );
+
   taskCommentRouter.get(
     '/student/tasks/:taskId/comments',
     taskCommentController.getStudentCommentsbyStudent,
   );
+
+  taskCommentRouter.get(
+    '/educator/tasks/:taskId/comments',
+    taskCommentController.getStudentCommentsbyEducator,
+  );
+
+  return taskCommentRouter;
 };
 
 module.exports = routes;

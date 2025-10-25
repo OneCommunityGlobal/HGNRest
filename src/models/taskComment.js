@@ -1,19 +1,19 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const TaskCommentSchema = new mongoose.Schema({
-  task_id: {
+  taskId: {
     type: String,
-    ref: 'StudentTasks',
+    ref: 'StudentTask',
     required: true,
   },
-  user_id: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Users',
+    ref: 'UserTask',
     required: true,
   },
-  comment_text: {
+  commentText: {
     type: String,
-    required: [true, 'Comment text is required'],
+    required: true,
     trim: true,
   },
   created_at: {
@@ -21,7 +21,7 @@ const TaskCommentSchema = new mongoose.Schema({
     default: Date.now,
   },
 
-  is_deleted: {
+  isDeleted: {
     type: Boolean,
     default: false,
   },
@@ -29,9 +29,9 @@ const TaskCommentSchema = new mongoose.Schema({
 
 TaskCommentSchema.pre(/^find/, function (next) {
   if (!this.getQuery().includeDeleted) {
-    this.where({ is_deleted: false });
+    this.where({ isDeleted: false });
   }
   next();
 });
 
-export default mongoose.model('TaskComment', TaskCommentSchema);
+module.exports = mongoose.model('TaskComment', TaskCommentSchema, 'taskcomment');
