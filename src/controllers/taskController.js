@@ -753,7 +753,7 @@ const taskController = function (Task) {
       return res.status(404).send({ error: 'No valid records found' });
     }
 
-    // Get user information for change logging - with timeout protection  
+    // Get user information for change logging - with timeout protection
     let user = null;
     try {
       if (req.body.requestor && req.body.requestor.requestorId) {
@@ -790,7 +790,12 @@ const taskController = function (Task) {
       .then(async (updatedTask) => {
         // Log the changes - only if we have user and TaskChangeTracker is available
         try {
-          if (oldTask && user && typeof TaskChangeTracker !== 'undefined' && TaskChangeTracker.logChanges) {
+          if (
+            oldTask &&
+            user &&
+            typeof TaskChangeTracker !== 'undefined' &&
+            TaskChangeTracker.logChanges
+          ) {
             await TaskChangeTracker.logChanges(
               taskId,
               oldTask.toObject(),
@@ -1124,6 +1129,18 @@ const taskController = function (Task) {
     }
   };
 
+  const replicateTasks = async (req, res) => {
+    try {
+      // Stub to keep the route valid; frontend currently performs replication via addNewTask.
+      // Return 501 so callers know it’s intentionally not wired server-side yet.
+      return res.status(501).send({
+        error: 'Replicate Task is currently handled client-side via addNewTask (one per resource).',
+      });
+    } catch (err) {
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1144,6 +1161,7 @@ const taskController = function (Task) {
     sendReviewReq,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    replicateTasks,
   };
 };
 

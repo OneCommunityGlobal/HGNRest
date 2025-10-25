@@ -37,6 +37,8 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
 
+  taskRouter.route('/tasks/replicate/:id').post(controller.replicateTasks);
+
   // New routes for task change logs
   taskRouter.route('/task/:taskId/changeLogs').get(controller.getTaskChangeLogs);
 
