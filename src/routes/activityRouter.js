@@ -3,10 +3,12 @@ const router = express.Router();
 
 const {
   rescheduleNotify,
-  voteReschedule,
+  getReschedulePoll,
+  submitRescheduleVote,
 } = require('../controllers/activityController');
 
 router.post('/:activityId/reschedule/notify', rescheduleNotify);
-router.get('/:activityId/reschedule/vote', voteReschedule);
+router.get('/:activityId/reschedule/poll', getReschedulePoll);
+router.post('/:activityId/reschedule/vote', submitRescheduleVote);
 
 module.exports = router;

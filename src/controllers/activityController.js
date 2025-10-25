@@ -2,6 +2,9 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
+const mongoose = require('mongoose');
+const Activity = require('../models/activity');
+const UserProfile = require('../models/userProfile');
 
 const config = {
   email: process.env.TEST_EMAIL_ID,
@@ -9,29 +12,9 @@ const config = {
   clientSecret: process.env.TEST_CLIENT_SECRET,
   redirectUri: process.env.TEST_REDIRECT_URI,
   refreshToken: process.env.TEST_REFRESH_TOKEN,
-};
+}; //config needs to be modified according to one community email id
 
-const PUBLIC_API_ORIGIN = process.env.PUBLIC_API_ORIGIN || 'http://localhost:4500';
 const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN || 'http://localhost:5173';
-
-const activities = [
-  {
-    _id: '1',
-    title: 'Test Event',
-    description: 'test event for rescheduling',
-    date: '2025-02-23T12:00:00Z',
-    organizerId: 'org1',
-    location: 'San Francisco, CA 94108',
-    participants: [
-      { userId: '1', name: 'Alice', email: 'yelimanvitha@gmail.com' },
-      { userId: '2', name: 'Bob', email: 'yelimanvitha@gmail.com' },
-      { userId: '3', name: 'Jane', email: 'yelimanvitha@gmail.com' },
-    ],
-  },
-];
-function getActivity(activityId) {
-  return activities.find((a) => a._id === activityId);
-}
 
 const OAuth2Client = new google.auth.OAuth2(
   config.clientId,
@@ -52,12 +35,8 @@ const transporter = nodemailer.createTransport({
 
 async function sendEmail({ to, subject, html }) {
   const accessTokenResp = await OAuth2Client.getAccessToken();
-  const token = typeof accessTokenResp === 'object'
-    ? accessTokenResp?.token
-    : accessTokenResp;
-
+  const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
   if (!token) throw new Error('NO_OAUTH_ACCESS_TOKEN');
-
   return transporter.sendMail({
     from: config.email,
     to,
@@ -94,37 +73,62 @@ function formatOptionHuman({ dateISO, start, end }, tz) {
   return `${dateStr} • ${to12h(start)} – ${to12h(end)} (${tz})`;
 }
 
+const RESCHEDULE_POLLS = new Map();
 const RSVP_TOKENS = new Map();
 const RSVP_VOTES = new Map();
 
-function buildOptionsListHtml(activityId, token, options, tz) {
-  return options.map((o, idx) => {
-    const label = `${formatOptionHuman(o, tz)}`;
-    const voteUrl =
-      `${PUBLIC_API_ORIGIN}/api/communityportal/activities/${activityId}/reschedule/vote` +
-      `?token=${encodeURIComponent(token)}&opt=${idx}`;
-    return `
-      <li style="margin:10px 0; list-style:none;">
-        <a href="${voteUrl}"
-           style="text-decoration:none; color:#1a1a1a; display:inline-flex; align-items:center;">
-          <span style="
-            width:16px;height:16px;border:2px solid #666;border-radius:50%;
-            display:inline-block;margin-right:10px; box-sizing:border-box;"></span>
-          <span>${label}</span>
-        </a>
-      </li>
-    `;
-  }).join('');
+const MOCK_ACTIVITY = {
+  _id: '1',
+  title: 'Test Event',
+  description: 'test event for rescheduling',
+  date: '2025-02-23T12:00:00Z',
+  organizerId: 'org1',
+  location: 'San Francisco, CA 94108',
+  participants: [
+    { userId: '1', name: 'Alice', email: 'alice@gmail.com' }, 
+    { userId: '2', name: 'Bob', email: 'bob@gmail.com' },
+    { userId: '3', name: 'Jane', email: 'jane@gmail.com' },
+  ], //email address should bemodified to test this
+};
+
+async function loadActivity(activityId) {
+  if (activityId === '1') return MOCK_ACTIVITY;
+  if (!mongoose.isValidObjectId(activityId)) return null;
+  const act = await Activity.findById(activityId).lean();
+  return act || null;
+}
+
+async function getParticipantEmails(activity) {
+  if (!activity?.participants?.length) return [];
+  if (activity._id === '1') {
+    return activity.participants
+      .map((p) => (p && typeof p === 'object' ? p.email : null))
+      .filter(Boolean);
+  }
+  const idsOnly = activity.participants.filter((p) => mongoose.isValidObjectId(p));
+  if (!idsOnly.length) {
+    return activity.participants
+      .map((p) => (p && typeof p === 'object' ? p.email : null))
+      .filter(Boolean);
+  }
+  const users = await UserProfile.find({ _id: { $in: idsOnly } }, { email: 1 }).lean();
+  const emails = (users || []).map((u) => u?.email).filter(Boolean);
+  if (emails.length) return emails;
+  return activity.participants
+    .map((p) => (p && typeof p === 'object' ? p.email : null))
+    .filter(Boolean);
 }
 
 async function rescheduleNotify(req, res) {
   try {
     const { activityId } = req.params;
-    const activity = getActivity(activityId);
+    if (activityId !== '1' && !mongoose.isValidObjectId(activityId)) {
+      return res.status(400).json({ message: 'Invalid activity id' });
+    }
+    const activity = await loadActivity(activityId);
     if (!activity) return res.status(404).json({ message: 'Activity not found' });
 
     const { options, reason = '', timezone = 'UTC' } = req.body || {};
-
     if (!Array.isArray(options) || options.length === 0) {
       return res.status(400).json({ message: 'options[] is required and must be non-empty' });
     }
@@ -143,51 +147,53 @@ async function rescheduleNotify(req, res) {
       }
     }
 
-    const toList = (activity.participants || []).map(p => p.email).filter(Boolean);
+    const toList = await getParticipantEmails(activity);
     if (toList.length === 0) {
       return res.json({ message: 'No valid participant emails', notified: 0 });
     }
 
+    const dispatchId = uuidv4();
+    RESCHEDULE_POLLS.set(activityId, {
+      options,
+      timezone,
+      reason,
+      dispatchId,
+      createdAt: Date.now(),
+    });
+
     const prevWhen = moment(activity.date).tz(timezone);
     const prevDateLine = `${prevWhen.format('ddd, MMM D, YYYY')} • ${prevWhen.format('h:mm A')} (${timezone})`;
+    const activityTitle = activity.title || activity.name || 'Event';
 
     for (const email of toList) {
       const token = uuidv4();
       RSVP_TOKENS.set(token, { activityId, email });
 
-      const optionsListHtml = buildOptionsListHtml(activityId, token, options, timezone);
+      const optionsListHtml = options
+        .map((o) => formatOptionHuman(o, timezone))
+        .map((str) => `<li style="margin:8px 0;">${str}</li>`)
+        .join('');
 
-      const rsvpAppUrl =
-        `${PUBLIC_APP_ORIGIN}/rsvp?token=${encodeURIComponent(token)}&a=${encodeURIComponent(activityId)}`;
+      const rsvpAppUrl = `${PUBLIC_APP_ORIGIN}/communityportal/ReschedulePoll?a=${encodeURIComponent(
+        activityId
+      )}`;
 
       const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
-      <h2 style="margin:0 0 8px;">Reschedule Notice: ${activity.title}</h2>
-      <p style="margin:0 0 4px;"><strong>Location:</strong> ${activity.location || 'TBA'}</p>
-      <p style="margin:0 0 12px;"><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
-      ${reason ? `<p style="margin:8px 0 0"><strong>Reason:</strong> ${reason}</p>` : ''}
+        <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
+          <h2 style="margin:0 0 8px;">Reschedule Notice: ${activityTitle}</h2>
+          <p><strong>Location:</strong> ${activity.location || 'TBA'}</p>
+          <p><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
+          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+          <p>Please review the new times and submit your choice:</p>
+          <ul>${optionsListHtml}</ul>
+          <div style="margin:20px 0;">
+            <a href="${rsvpAppUrl}" style="background:#1a73e8;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;">Open poll and submit your choice</a>
+          </div>
+        </div>
+      `;
 
-      <p style="margin:16px 0 6px;">Choose any of the new time(s) below (you can click multiple):</p>
-      <ol style="margin:0 0 16px 20px; padding:0;">${optionsListHtml}</ol>
-
-      <div style="margin:20px 0;">
-        <!-- Primary CTA: opens your app where you can show REAL radio buttons + Submit -->
-        <a href="${rsvpAppUrl}"
-           style="display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
-                  padding:10px 16px;border-radius:6px;font-weight:600;">
-          Open poll to review & submit
-        </a>
-      </div>
-
-      <p style="color:#555;margin-top:12px;">
-        Tip: If the “Select this option” links don’t work in your email app, use the button above.
-      </p>
-    </div>
-  `;
-
-      await sendEmail({ to: email, subject: `Reschedule notice for “${activity.title}”`, html });
+      await sendEmail({ to: email, subject: `Reschedule notice for “${activityTitle}”`, html });
     }
-
 
     return res.json({
       message: 'Reschedule notification sent',
@@ -196,51 +202,84 @@ async function rescheduleNotify(req, res) {
       options,
       reason,
       timezone,
-      dispatchId: uuidv4(),
+      dispatchId,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('Error in rescheduleNotify:', err);
     return res.status(500).json({ message: 'Server error', error: err?.message || err });
   }
 }
 
-function voteReschedule(req, res) {
-  const { activityId } = req.params;
-  const { token, opt } = req.query;
+async function getReschedulePoll(req, res) {
+  try {
+    const { activityId } = req.params;
 
-  if (!token || typeof opt === 'undefined') {
-    return res.status(400).send('Missing token or opt');
+    // Accept '1' (mock) or a real ObjectId
+    if (activityId !== '1' && !mongoose.isValidObjectId(activityId)) {
+      return res.status(400).json({ message: 'Invalid activity id' });
+    }
+
+    const poll = RESCHEDULE_POLLS.get(activityId);
+    if (!poll) return res.status(404).json({ message: 'No active poll for this activity' });
+
+    const activity = await loadActivity(activityId);
+    if (!activity) return res.status(404).json({ message: 'Activity not found' });
+
+    // No identification anymore – public read
+    return res.json({
+      activity: {
+        id: activityId,
+        title: activity.title || activity.name || 'Event',
+        location: activity.location,
+        description: activity.description,
+      },
+      timezone: poll.timezone,
+      reason: poll.reason,
+      options: poll.options,
+    });
+  } catch (err) {
+    console.error('Error in getReschedulePoll:', err);
+    return res.status(500).json({ message: 'Server error', error: err?.message || err });
   }
+}
 
-  const payload = RSVP_TOKENS.get(token);
-  if (!payload || payload.activityId !== activityId) {
-    return res.status(400).send('Invalid or expired token');
+
+function submitRescheduleVote(req, res) {
+  try {
+    const { activityId } = req.params;
+    const { optionIdx } = req.body || {};
+
+    if (activityId !== '1' && !mongoose.isValidObjectId(activityId)) {
+      return res.status(400).json({ message: 'Invalid activity id' });
+    }
+
+    const poll = RESCHEDULE_POLLS.get(activityId);
+    if (!poll) return res.status(404).json({ message: 'No active poll for this activity' });
+
+    const idx = Number(optionIdx);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= poll.options.length) {
+      return res.status(400).json({ message: 'Invalid option index' });
+    }
+
+    // Lightweight duplicate guard: 1 vote per IP per activity
+    const ip =
+      (req.headers['x-forwarded-for']?.toString().split(',')[0] || '').trim() ||
+      req.socket?.remoteAddress ||
+      'unknown';
+
+    const key = `${activityId}:${ip}`;
+    RSVP_VOTES.set(key, idx);
+
+    return res.json({ message: 'Vote recorded', activityId, optionIdx: idx });
+  } catch (err) {
+    console.error('Error in submitRescheduleVote:', err);
+    return res.status(500).json({ message: 'Server error', error: err?.message || err });
   }
-
-  const optionIdx = Number(opt);
-  if (Number.isNaN(optionIdx) || optionIdx < 0) {
-    return res.status(400).send('Invalid option index');
-  }
-
-  const key = `${activityId}:${payload.email}`;
-  if (!RSVP_VOTES.has(key)) RSVP_VOTES.set(key, new Set());
-  RSVP_VOTES.get(key).add(optionIdx);
-
-  res.set('Content-Type', 'text/html').send(`
-    <!doctype html>
-    <html>
-      <head><meta charset="utf-8"><title>Thanks!</title></head>
-      <body style="font-family:Arial;max-width:600px;margin:40px auto;line-height:1.5;">
-        <h2>Thanks! Your selection was recorded.</h2>
-        <p>You can click more than one option in the email if multiple times work for you.</p>
-      </body>
-    </html>
-  `);
 }
 
 
 module.exports = {
   rescheduleNotify,
-  voteReschedule,
+  getReschedulePoll,
+  submitRescheduleVote,
 };

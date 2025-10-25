@@ -407,6 +407,8 @@ module.exports = function (app) {
   app.use('api', bmIssueRouter);
   // community portal
   app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
+
 
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
