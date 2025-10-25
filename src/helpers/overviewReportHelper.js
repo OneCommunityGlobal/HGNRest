@@ -615,30 +615,70 @@ const overviewReportHelper = function () {
           },
         },
         {
+          $addFields: {
+            'infringements.reason': {
+              $switch: {
+                branches: [
+                  {
+                    // Matches when user is on vacation
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /request for time off/i,
+                      },
+                    },
+                    then: 'vacationTime',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
+                    case: {
+                      $and: [
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not meeting weekly volunteer time commitment/i,
+                          },
+                        },
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not submitting a weekly summary/i,
+                          },
+                        },
+                      ],
+                    },
+                    then: 'missingHoursAndSummary',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not meeting weekly volunteer time commitment/i,
+                      },
+                    },
+                    then: 'missingHours',
+                  },
+                  {
+                    // Matches "not submitting a weekly summary" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not submitting a weekly summary/i,
+                      },
+                    },
+                    then: 'missingSummary',
+                  },
+                ],
+                default: 'other',
+              },
+            },
+          },
+        },
+        {
           $group: {
             _id: '$infringements.reason',
             count: { $sum: 1 },
-          },
-        },
-        // regroup reasons of 'other' and 'null' together
-        {
-          $project: {
-            _id: {
-              $cond: {
-                if: {
-                  $or: [{ $eq: ['$_id', 'other'] }, { $eq: ['$_id', null] }],
-                },
-                then: 'other',
-                else: '$_id',
-              },
-            },
-            count: 1,
-          },
-        },
-        {
-          $group: {
-            _id: '$_id',
-            count: { $sum: '$count' },
           },
         },
       ]);
@@ -693,7 +733,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares[0].totalBlueSquares,
+      count: currTotalBlueSquares.length > 0 ? currTotalBlueSquares[0].totalBlueSquares : 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -1440,23 +1480,82 @@ const overviewReportHelper = function () {
       return data;
     }
     const res = await UserProfile.aggregate([
+      { $unwind: '$badgeCollection' },
+      { $unwind: '$badgeCollection.earnedDate' },
       {
-        $unwind: '$badgeCollection',
-      },
-      {
-        $match: {
-          'badgeCollection.earnedDate': {
-            $gte: startDate,
-            $lte: endDate,
+        $addFields: {
+          fixedDateString: {
+            $cond: {
+              if: {
+                $regexMatch: {
+                  input: '$badgeCollection.earnedDate',
+                  regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                },
+              },
+              then: {
+                $concat: [
+                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  '-20',
+                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                ],
+              },
+              else: '$badgeCollection.earnedDate',
+            },
           },
         },
       },
       {
-        $count: 'badgeCollection',
+        $addFields: {
+          earnedDateParsed: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /T\d{2}:/,
+                    },
+                  },
+                  then: { $toDate: '$fixedDateString' },
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                    },
+                  },
+                  then: {
+                    $dateFromString: {
+                      dateString: '$fixedDateString',
+                      format: '%b-%d-%Y',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                },
+              ],
+              default: null,
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          earnedDateParsed: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          badgeId: '$badgeCollection.badge',
+          earnedDate: '$badgeCollection.earnedDate',
+          earnedDateParsed: 1,
+        },
       },
     ]);
 
-    return { current: res[0].badgeCollection };
+    return { count: res.length, badges: res };
   }
 
   /**
@@ -1840,6 +1939,20 @@ const overviewReportHelper = function () {
     return { count: totalTeams };
   }
 
+  async function getCurrentTeamCodes(minActiveMembers = 1) {
+    const results = await UserProfile.aggregate([
+      { $match: { isActive: true, teamCode: { $nin: [null, ''] } } },
+      { $group: { _id: '$teamCode', activeCount: { $sum: 1 } } },
+      { $match: { activeCount: { $gte: minActiveMembers } } },
+      { $project: { _id: 0, code: '$_id', activeCount: 1 } },
+      { $sort: { code: 1 } },
+    ]).allowDiskUse(true);
+
+    // return results.map(r => r.code);
+
+    return results; // [{ code: 'Zn2CODE', activeCount: 5 }, ...]
+  }
+
   async function getVolunteersOverAssignedTime(isoStartDate, isoEndDate) {
     const volunteersOverAssignedTime = await UserProfile.aggregate([
       {
@@ -1922,48 +2035,55 @@ const overviewReportHelper = function () {
           },
         },
         {
-          $unwind: {
-            path: '$timeEntries',
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $match: {
-            $or: [
-              { timeEntries: { $exists: false } },
-              {
-                'timeEntries.createdDateTime': {
-                  $gte: start,
-                  $lte: end,
+          $project: {
+            firstName: 1,
+            lastName: 1,
+            weeklycommittedHours: 1,
+            timeEntries: {
+              $filter: {
+                input: '$timeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    {
+                      $gte: ['$$entry.dateOfWork', moment(start).format('YYYY-MM-DD')],
+                    },
+                    {
+                      $lte: ['$$entry.dateOfWork', moment(end).format('YYYY-MM-DD')],
+                    },
+                  ],
                 },
               },
-            ],
+            },
           },
         },
         {
-          $group: {
-            _id: '$_id',
+          $addFields: {
             totalSeconds: { $sum: '$timeEntries.totalSeconds' },
-            weeklycommittedHours: { $first: '$weeklycommittedHours' },
           },
         },
         {
           $project: {
+            name: { $concat: ['$firstName', ' ', '$lastName'] },
             totalHours: { $divide: ['$totalSeconds', 3600] },
             weeklycommittedHours: 1,
+            metCommitment: {
+              $cond: [
+                { $gte: [{ $divide: ['$totalSeconds', 3600] }, '$weeklycommittedHours'] },
+                true,
+                false,
+              ],
+            },
           },
         },
         {
-          $match: {
-            $expr: { $gte: ['$totalHours', '$weeklycommittedHours'] },
-          },
-        },
-        {
-          $count: 'metCommitment',
+          $match: { weeklycommittedHours: { $gte: 1 } },
         },
       ]);
 
-      return hoursStats[0]?.metCommitment || 0;
+      const metCommitment = hoursStats.filter((user) => user.metCommitment);
+      const metCommitmentCount = metCommitment.length;
+      return metCommitmentCount;
     };
 
     const currentCount = await getCompletedHoursData(isoStartDate, isoEndDate);
@@ -2071,6 +2191,7 @@ const overviewReportHelper = function () {
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
+    getCurrentTeamCodes,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
     getTotalSummariesSubmitted,
