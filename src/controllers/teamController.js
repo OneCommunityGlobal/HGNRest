@@ -1,14 +1,19 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
+const HGNFormResponses = require('../models/hgnFormResponse');
+const team = require('../models/team');
 const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
+const helper = require('../utilities/permissions');
+
+const INTERNAL_SERVER_ERROR = 'Internal server error';
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
-        $unwind: '$members',
+        $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
         $lookup: {
@@ -19,17 +24,16 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $unwind: '$userProfile',
-      },
-      {
-        $match: {
-          isActive: true,  
-        }
+        $unwind: {
+          path: '$userProfile',
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $group: {
           _id: {
             teamId: '$_id',
+            // Keep the raw value that worked in Compass
             teamCode: '$userProfile.teamCode',
           },
           count: { $sum: 1 },
@@ -49,12 +53,12 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { count: -1 }, // Sort by the most frequent teamCode
+        $sort: { count: -1 },
       },
       {
         $group: {
           _id: '$_id.teamId',
-          teamCode: { $first: '$_id.teamCode' }, // Get the most frequent teamCode
+          teamCode: { $first: '$_id.teamCode' },
           teamName: { $first: '$teamName' },
           members: { $first: '$members' },
           createdDatetime: { $first: '$createdDatetime' },
@@ -63,16 +67,19 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $sort: { teamName: 1 }, // Sort teams by name
+        $sort: { teamName: 1 },
       },
     ])
-      .then((results) => res.status(200).send(results))
+      .then((results) => {
+        // The API now sends an ARRAY, which is what the frontend expects.
+        res.status(200).send(results);
+      })
       .catch((error) => {
+        console.error('Aggregation failed unexpectedly:', error);
         Logger.logException(error);
-        res.status(404).send(error);
+        res.status(500).send(error);
       });
   };
-
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -85,7 +92,7 @@ const teamcontroller = function (Team) {
   };
 
   const postTeam = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'postTeam'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'postTeam'))) {
       res.status(403).send({ error: 'You are not authorized to create teams.' });
       return;
     }
@@ -101,27 +108,13 @@ const teamcontroller = function (Team) {
     team.createdDatetime = Date.now();
     team.modifiedDatetime = Date.now();
 
-    // Check if a team with the same name already exists
-    Team.findOne({ teamName: team.teamName })
-      .then((existingTeam) => {
-        if (existingTeam) {
-          // If a team with the same name exists, return an error
-          res.status(400).send({ error: 'A team with this name already exists' });
-        } else {
-          // If no team with the same name exists, save the new team
-          team
-            .save()
-            .then((results) => res.send(results).status(200))
-            .catch((error) => {
-              Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-              res.send(error).status(404);
-            });
-        }
-      })
-      .catch((error) => {
-        Logger.logException(error, null, `teamName: ${req.body.teamName}`);
-        res.send(error).status(404);
-      });
+    try {
+      const result = await team.save();
+      res.status(200).send(result);
+    } catch (error) {
+      Logger.logException(error, null, `teamName: ${req.body.teamName}`);
+      res.status(500).send({ error: INTERNAL_SERVER_ERROR });
+    }
   };
 
   const deleteTeam = async function (req, res) {
@@ -144,13 +137,10 @@ const teamcontroller = function (Team) {
         .then(
           res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
         )
-        .catch((errors) => {
+        .catch((catchError) => {
           Logger.logException(error, null, `teamId: ${teamId}`);
-          res.status(400).send(errors);
+          res.status(400).send({ error: catchError });
         });
-    }).catch((error) => {
-      Logger.logException(error, null, `teamId: ${teamId}`);
-      res.status(400).send(error);
     });
   };
 
@@ -162,21 +152,15 @@ const teamcontroller = function (Team) {
 
     const { teamId } = req.params;
 
-    Team.findById(teamId, (error, record) => {
+    Team.findById(teamId, async (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
         return;
       }
 
-      // Removed the permission check as the permission check if done in earlier
-      // const canEditTeamCode =
-      //   req.body.requestor.role === 'Owner' ||
-      //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      // if (!canEditTeamCode) {
-      //   res.status(403).send('You are not authorized to edit team code.');
-      //   return;
-      // }
+      // Store the old team code before updating
+      const oldTeamCode = record.teamCode;
+      const newTeamCode = req.body.teamCode;
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
@@ -184,71 +168,111 @@ const teamcontroller = function (Team) {
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
-      record
-        .save()
-        .then((results) => res.status(200).send(results._id))
-        .catch((errors) => {
-          Logger.logException(errors, null, `TeamId: ${teamId} Request:${req.body}`);
-          res.status(400).send(errors);
-        });
+      try {
+        const savedTeam = await record.save();
+
+        // If team code changed, update all user profiles that have the old team code
+        if (oldTeamCode && newTeamCode && oldTeamCode !== newTeamCode) {
+          // Update all user profiles that have the old team code
+          await userProfile.updateMany(
+            { teamCode: oldTeamCode },
+            { $set: { teamCode: newTeamCode } },
+          );
+
+          // Clear cache to ensure fresh data is loaded
+          if (cache.hasCache('teamCodes')) {
+            cache.removeCache('teamCodes');
+          }
+        }
+
+        res.status(200).send(savedTeam);
+      } catch (catchError) {
+        Logger.logException(catchError, null, `TeamId: ${teamId} Request:${req.body}`);
+        res.status(400).send({ error: catchError });
+      }
     });
   };
 
   const assignTeamToUsers = async function (req, res) {
     // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
 
-    if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
-      res.status(403).send({ error: 'You are not authorized to perform this operation' });
-      return;
-    }
-
-    const { teamId } = req.params;
-
-    if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
-      res.status(400).send({ error: 'Invalid teamId' });
-      return;
-    }
-
-    // verify team exists
-    const targetTeam = await Team.findById(teamId);
-
-    if (!targetTeam || targetTeam.length === 0) {
-      res.status(400).send({ error: 'Invalid team' });
-      return;
-    }
-
     try {
-      const { userId, operation } = req.body;
+      if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
+        res.status(403).send({ error: 'You are not authorized to perform this operation' });
+        return;
+      }
 
+      const { teamId } = req.params;
+      if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
+        res.status(400).send({ error: 'Invalid teamId' });
+        return;
+      }
+
+      // verify team exists
+      const targetTeam = await Team.findById(teamId);
+      if (!targetTeam || targetTeam.length === 0) {
+        res.status(400).send({ error: 'Invalid team' });
+        return;
+      }
+
+      const { userId, operation } = req.body;
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        res.status(400).send({ error: 'Invalid userId' });
+        return;
+      }
       // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
       if (operation === 'Assign') {
-        await Team.findOneAndUpdate(
-          { _id: teamId },
-          { $addToSet: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
-          { new: true },
+        const alreadyMember = targetTeam.members?.some(
+          (m) => m.userId.toString() === userId.toString(),
         );
-        const newMember = await userProfile.findOneAndUpdate(
-          { _id: userId },
+
+        if (!alreadyMember) {
+          await Team.findByIdAndUpdate(
+            teamId,
+            {
+              $push: {
+                members: {
+                  userId,
+                  visible: true,
+                  addDateTime: new Date(),
+                },
+              },
+              $set: { modifiedDatetime: Date.now() },
+            },
+            { new: true },
+          );
+        } else {
+          console.log('User is already a member of the team, skipping addition to members array.');
+        }
+
+        await userProfile.findByIdAndUpdate(
+          userId,
           { $addToSet: { teams: teamId } },
           { new: true },
         );
-        res.status(200).send({ newMember });
-      } else {
-        await Team.findOneAndUpdate(
-          { _id: teamId },
-          { $pull: { members: { userId } }, $set: { modifiedDatetime: Date.now() } },
-        );
-        await userProfile.findOneAndUpdate(
-          { _id: userId },
-          { $pull: { teams: teamId } },
-          { new: true },
-        );
-        res.status(200).send({ result: 'Delete Success' });
+
+        const updatedMember = await userProfile.findById(userId);
+        return res.status(200).send({ newMember: updatedMember });
       }
+      if (operation === 'UnAssign') {
+        await Team.findByIdAndUpdate(teamId, {
+          $pull: { members: { userId } },
+          $set: { modifiedDatetime: Date.now() },
+        });
+
+        await userProfile.findByIdAndUpdate(userId, { $pull: { teams: teamId } }, { new: true });
+
+        return res.status(200).send({ result: 'Delete Success' });
+      }
+      return res.status(400).send({ error: 'Invalid operation. Must be "Assign" or "UnAssign".' });
     } catch (error) {
-      Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
+      Logger.logException(
+        error,
+        null,
+        `TeamId: ${req.params?.teamId} Request:${JSON.stringify(req.body)}`,
+      );
       res.status(500).send({ error });
     }
   };
@@ -282,7 +306,7 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((result) => {
-        res.status(200).send(result)
+        res.status(200).send(result);
       })
       .catch((error) => {
         Logger.logException(error, null, `TeamId: ${teamId} Request:${req.body}`);
@@ -310,7 +334,7 @@ const teamcontroller = function (Team) {
 
         team
           .save()
-          .then((updatedTeam) => {
+          .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
@@ -339,13 +363,14 @@ const teamcontroller = function (Team) {
               .then(() => {
                 res.status(200).send({ result: 'Done' });
               })
-              .catch((error) => {
-                res.status(500).send({ error });
+
+              .catch((catchError) => {
+                res.status(500).send({ error: catchError });
               });
           })
-          .catch((errors) => {
-            console.error('Error saving team:', errors);
-            res.status(400).send(errors);
+          .catch((catchError) => {
+            console.error('Error saving team:', catchError);
+            res.status(400).send(catchError);
           });
       });
     } catch (error) {
@@ -362,26 +387,33 @@ const teamcontroller = function (Team) {
       .then((results) => {
         res.status(200).send(results);
       })
-      .catch((error) => {
+      .catch(() => {
         // logger.logException(`Fetch team code failed: ${error}`);
         res.status(500).send('Fetch team code failed.');
       });
   };
 
-  const getAllTeamMembers = async function (req,res) {
-    try{
+  const getAllTeamMembers = async function (req, res) {
+    try {
       const teamIds = req.body;
-      const cacheKey='teamMembersCache'
-      if(cache.hasCache(cacheKey)){
-        let data=cache.getCache('teamMembersCache')
+      const cacheKey = 'teamMembersCache';
+      if (cache.hasCache(cacheKey)) {
+        const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
-      if (!Array.isArray(teamIds) || teamIds.length === 0 || !teamIds.every(team => mongoose.Types.ObjectId.isValid(team._id))) {
-        return res.status(400).send({ error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.' });
+      // from the frontend in totalReports comp they are sending only array of teamids not any obj so changed team._id to team
+      if (
+        !Array.isArray(teamIds) ||
+        teamIds.length === 0 ||
+        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team))
+      ) {
+        return res.status(400).send({
+          error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
+        });
       }
-      let data = await Team.aggregate([
-        { 
-          $match: { _id: { $in: teamIds.map(team => mongoose.Types.ObjectId(team._id)) } } 
+      const data = await Team.aggregate([
+        {
+          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team)) } },
         },
         { $unwind: '$members' },
         {
@@ -395,20 +427,132 @@ const teamcontroller = function (Team) {
         { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: '$_id',  // Group by team ID
+            _id: '$_id', // Group by team ID
             teamName: { $first: '$teamName' }, // Use $first to keep the team name
-            createdDatetime: { $first: '$createdDatetime' }, 
-            members: { $push: '$members' },  // Rebuild the members array
+            createdDatetime: { $first: '$createdDatetime' },
+            members: { $push: '$members' }, // Rebuild the members array
           },
         },
-      ])
-      cache.setCache(cacheKey,data)
+      ]);
+      cache.setCache(cacheKey, data);
       res.status(200).send(data);
-    }catch(error){
-      console.log(error)
-      res.status(500).send({'message':"Fetching team members failed"});
+    } catch {
+      console.log('Error in getAllTeamMembers');
+      res.status(500).send({ message: 'Fetching team members failed' });
     }
-  }
+  };
+
+  const getTeamMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+      
+      const userId = req.body.requestor.requestorId;
+      
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+      
+      // Find the user's team
+      const userDoc = await userProfile.findById(userId);
+      if (!userDoc) {
+        return res.status(404).send({ message: 'User not found' });
+      }
+      
+      // Check if user has any teams
+      if (!userDoc.teams || userDoc.teams.length === 0) {
+        return res.status(404).send({ message: 'User has no teams' });
+      }
+      
+      const teamId = userDoc.teams[0]; // Use the first team
+      
+      // Get team details
+      const teamDoc = await team.findById(teamId);
+      if (!teamDoc || !teamDoc.members || teamDoc.members.length === 0) {
+        return res.status(200).send([]);
+      }
+      
+      // Get all member IDs except the current user
+      const memberUserIds = teamDoc.members
+        .filter(member => member.visible !== false && member.userId.toString() !== userId)
+        .map(member => member.userId);
+      
+      // Get user profiles to get privacy settings
+      const memberProfiles = await userProfile.find({
+        _id: { $in: memberUserIds }
+      }).select('_id email phoneNumber privacySettings').lean();
+      
+      // Get form responses for all team members
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $in: memberUserIds.map(id => id.toString()) }
+      }).lean();
+      
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = memberProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+      
+      // Map data with privacy considerations
+      const teamMembersData = formResponses.map(response => {
+        const profile = profileMap[response.user_id];
+        
+        if (!profile) {
+          return null;
+        }
+        
+        let score = 0;
+        
+        // Check for skill score in frontend or backend
+        if (response.frontend && response.frontend[skillName] !== undefined) {
+          score = parseInt(response.frontend[skillName], 10) || 0;
+        } else if (response.backend && response.backend[skillName] !== undefined) {
+          score = parseInt(response.backend[skillName], 10) || 0;
+        }
+        
+        // Apply privacy settings
+        const email = profile.privacySettings?.email === false ? null : profile.email;
+        
+        // Get phone number with privacy consideration
+        let phoneNumber = null;
+        if (profile.privacySettings?.phoneNumber !== false) {
+          if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+            const [firstPhoneNumber] = profile.phoneNumber;
+            phoneNumber = firstPhoneNumber;
+          }
+        }
+        
+        return {
+          name: response.userInfo.name,
+          email,
+          phoneNumber,
+          slack: response.userInfo.slack,
+          rating: `${score} / 10`
+        };
+      }).filter(item => item !== null);
+      
+      // Sort by skill score
+      const sortedData = [...teamMembersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+      
+      return res.status(200).send(sortedData);
+      
+    } catch (error) {
+      console.error('Error in getTeamMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve team members',
+        error: error.message
+      });
+    }
+  };
+
   return {
     getAllTeams,
     getAllTeamCode,
@@ -419,7 +563,8 @@ const teamcontroller = function (Team) {
     assignTeamToUsers,
     getTeamMembership,
     updateTeamVisibility,
-    getAllTeamMembers
+    getAllTeamMembers,
+    getTeamMembersSkillsAndContact,
   };
 };
 
