@@ -76,6 +76,10 @@ module.exports = function (app) {
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
     }
+    // Skip auth for Plurk API route
+    if (req.originalUrl === '/api/postToPlurk') {
+      return next();
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;

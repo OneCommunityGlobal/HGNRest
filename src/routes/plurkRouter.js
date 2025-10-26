@@ -23,13 +23,21 @@ const oauth = new OAuth(
   'https://www.plurk.com/OAuth/access_token',
   PLURK_CONSUMER_KEY,
   PLURK_CONSUMER_SECRET,
-  '1.0',
+  '1.0a',
   null,
   'HMAC-SHA1',
+  32,
+  {
+    Accept: '*/*',
+    Connection: 'close',
+    'User-Agent': 'Node authentication',
+    'Content-Type': 'application/x-www-form-urlencoded',
+  },
 );
 
-// POST /api/postToPlurk
 router.post('/postToPlurk', (req, res) => {
+  console.log('Received request to /postToPlurk', req.body);
+
   try {
     const content = (req.body?.content || '').trim();
 
@@ -41,33 +49,41 @@ router.post('/postToPlurk', (req, res) => {
     }
 
     const url = 'https://www.plurk.com/APP/Timeline/plurkAdd';
-    // Default qualifier ":" = “says”
-    const params = { content, qualifier: ':' };
-    // OAuth library expects a url-encoded string body for 'application/x-www-form-urlencoded'
-    const body = new URLSearchParams(params).toString();
+    const params = {
+      content,
+      qualifier: ':',
+      lang: 'en',
+    };
 
     oauth.post(
       url,
       PLURK_TOKEN,
       PLURK_TOKEN_SECRET,
-      body,
+      params,
       'application/x-www-form-urlencoded',
       (err, data) => {
         if (err) {
-          // `err` can be object or string; try to surface useful info
-          const status = err.statusCode || 500;
-          const msg = err.data || err.message || 'Plurk API failed';
-          console.error('Plurk API Error:', msg);
-          return res.status(status).json({ error: 'Plurk API failed', details: msg });
+          console.error('Plurk API Error Details:', {
+            statusCode: err.statusCode,
+            data: err.data,
+            message: err.message,
+            requestUrl: url,
+            hasToken: !!PLURK_TOKEN,
+            hasTokenSecret: !!PLURK_TOKEN_SECRET,
+            requestBody: params,
+            headers: err.headers,
+          });
+          return res
+            .status(err.statusCode || 500)
+            .json({ error: err.data || err.message || 'Plurk API failed' });
         }
 
         try {
           const parsed = JSON.parse(data);
-          // Plurk returns a full plurk object; expose minimal fields
+          console.log('Plurk posted successfully:', parsed);
           return res.json({
             plurk_id: parsed.plurk_id,
             posted: parsed.posted,
-            lang: parsed.lang,
             qualifier: parsed.qualifier,
           });
         } catch (parseErr) {
