@@ -181,11 +181,11 @@ describe('Building Tool Controller Tests', () => {
       // Setup for no existing document
       mockBuildingTool.findOne = jest.fn().mockResolvedValue(null);
       mockBuildingTool.create = jest.fn().mockImplementation(() => ({
-          then: jest.fn().mockImplementation((callback) => {
-            callback();
-            return { catch: jest.fn() };
-          }),
-        }));
+        then: jest.fn().mockImplementation((callback) => {
+          callback();
+          return { catch: jest.fn() };
+        }),
+      }));
 
       // Call the controller method
       await controller.bmPurchaseTools(mockRequest, mockResponse);
