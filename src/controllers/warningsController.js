@@ -28,6 +28,7 @@ const convertObjectToArray = (obj) => {
 async function getUserRoleByEmail(user) {
   const recipients = ['jae@onecommunityglobal.org'];
   for (const teamId of user.teams) {
+    // eslint-disable-next-line no-await-in-loop
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
     if (Array.isArray(managementEmails) && managementEmails.length > 0) {
       managementEmails.forEach((management) => {

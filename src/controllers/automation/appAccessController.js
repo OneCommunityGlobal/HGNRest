@@ -1,3 +1,4 @@
+
 const ApplicationAccess = require('../../models/applicationAccess');
 
 async function getAppAccess(req, res) {

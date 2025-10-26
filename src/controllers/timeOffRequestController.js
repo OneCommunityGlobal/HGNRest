@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');

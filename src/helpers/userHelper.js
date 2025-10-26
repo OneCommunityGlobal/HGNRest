@@ -13,6 +13,10 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const axios=require('axios');
+const cheerio = require('cheerio');
+const sharp = require("sharp");
+const fs = require('fs');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
@@ -28,13 +32,10 @@ const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
-const fs = require('fs');
-const cheerio = require('cheerio');
-const axios=require('axios');
-const sharp = require("sharp");
 const Team=require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 
+// eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const userHelper = function () {
@@ -2012,8 +2013,6 @@ const userHelper = function () {
     }
   };
  
-  
-
   // const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
   //   const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
   //   const approvedRoles = ['Mentor', 'Manager','Administrator'];
@@ -2110,7 +2109,6 @@ const userHelper = function () {
   //     });
   // };
   
-
   const checkTotalHrsInCat = async function (personId, user, badgeCollection) {
     const hoursByCategory = user.hoursByCategory || {};
     const categories = ['food', 'energy', 'housing', 'education', 'society', 'economics', 'stewardship'];
@@ -2183,11 +2181,10 @@ const userHelper = function () {
     }
   };
   
-  
-
   const getAllTeamMembers = async (userId) => {
     try {
         // Add match stage to filter teams containing the specified user
+        // eslint-disable-next-line prefer-const
         let results = await Team.aggregate([
             {
                 $match: {
@@ -2284,10 +2281,10 @@ const userHelper = function () {
         await checkTotalHrsInCat(personId, user, badgeCollection);
         // await checkLeadTeamOfXplus(personId, user, badgeCollection);
         // await checkXHrsForXWeeks(personId, user, badgeCollection);
-        //await checkNoInfringementStreak(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
 
         
-        //remove cache after badge asssignment.
+        // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
@@ -2517,7 +2514,9 @@ const userHelper = function () {
     const lowerCaseTerm1 = term1.toLowerCase();
     const lowerCaseTerm2 = term2.toLowerCase();
 
+    // eslint-disable-next-line prefer-const
     let bothTermsMatches = [];
+    // eslint-disable-next-line prefer-const
     let term2Matches = [];
 
     // Check if the current data is an array
@@ -2541,6 +2540,7 @@ const userHelper = function () {
       //  else if (term2Matches.length > 0) {
       //     return term2Matches;
       // }
+      // eslint-disable-next-line no-else-return
       else {
         return []; // No match found, return empty array
       }
@@ -2597,6 +2597,7 @@ const userHelper = function () {
         throw new Error(`Failed to fetch the image: ${response.statusText}`);
       }
   
+      // eslint-disable-next-line prefer-const
       let imageBuffer = Buffer.from(response.data);
   
       let quality = 100; // Start with max quality
@@ -2635,6 +2636,7 @@ const userHelper = function () {
         const response = await axios.get(url);
         return response.data; // Return data if the request succeeds
       } catch (error) {
+        // eslint-disable-next-line no-plusplus
         attempts++;
         // console.error(`Attempt ${attempts} failed: ${error.message}`);
         if (attempts >= maxRetries) throw new Error(`Failed after ${maxRetries} attempts`);
@@ -2668,6 +2670,7 @@ const userHelper = function () {
       await Promise.all(
         users.map(async (u) => {
           if (!u.profilePic) {
+            // eslint-disable-next-line vars-on-top, no-var
             var result = searchForTermsInFields(imgData, u.firstName, u.lastName);
             try {
               if (result.length === 1) {
