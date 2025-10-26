@@ -2115,14 +2115,12 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID from requestor object added by middleware
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
 
       const userId = req.body.requestor.requestorId;
 
-      // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
@@ -2310,6 +2308,53 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const getUserSkillRadarData = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const section = (req.query.section || 'all').toLowerCase(); // 'frontend' | 'backend' | 'all'
+      if (!userId) return res.status(400).send({ error: 'Missing userId parameter' });
+
+      const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
+      let response = await HGNFormResponses.findOne(
+        { 'followUp.user_id': userId },
+        projection,
+      ).lean();
+      if (!response)
+        response = await HGNFormResponses.findOne({ user_id: userId }, projection).lean();
+      if (!response) response = await HGNFormResponses.findOne({ _id: userId }, projection).lean();
+
+      if (!response) return res.status(404).send({ error: 'No skill data found for this user' });
+
+      const toNum = (v) => {
+        const n = Number(v);
+        return Number.isNaN(n) ? 0 : n;
+      };
+
+      const toItems = (obj) =>
+        Object.entries(obj || {})
+          .filter(([k]) => !/^overall$/i.test(k)) // drop 'overall'
+          .map(([name, score]) => ({ name, score: toNum(score) }));
+
+      const fe = toItems(response.frontend);
+      const be = toItems(response.backend);
+
+      let skills;
+      if (section === 'frontend') skills = fe;
+      else if (section === 'backend') skills = be;
+      else skills = [...fe, ...be];
+
+      return res.status(200).json({
+        userId,
+        section,
+        maxScore: 10,
+        skills,
+      });
+    } catch (error) {
+      console.error('Error fetching skill data:', error);
+      return res.status(500).send({ error: error.message });
+    }
+  };
+
   return {
     searchUsersByName,
     postUserProfile,
@@ -2348,6 +2393,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    getUserSkillRadarData,
   };
 };
 
