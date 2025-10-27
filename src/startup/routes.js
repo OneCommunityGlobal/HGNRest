@@ -51,6 +51,8 @@ const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
 const metIssue = require('../models/bmdashboard/metIssue');
+const projectStatus = require('../models/bmdashboard/project');
+
 const {
   invTypeBase,
   materialType,
@@ -88,6 +90,7 @@ const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentW
 const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
+const projectStatusRouter = require('../routes/projectStatusRouter')(projectStatus);
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
@@ -327,6 +330,8 @@ module.exports = function (app) {
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+
+  app.use('/api/projects', projectStatusRouter);
 
   app.use('/api', templateRouter);
 

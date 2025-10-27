@@ -1,5 +1,5 @@
 const NodeCache = require('node-cache');
-const Project = require('../../models/bmdashboard/project');
+const Project = require('../models/bmdashboard/project');
 
 const cache = new NodeCache({ stdTTL: 300 });
 
