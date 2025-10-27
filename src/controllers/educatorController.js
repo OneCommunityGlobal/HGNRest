@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const StudentAtom = require('../models/studentAtom');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
@@ -11,9 +10,8 @@ const educatorController = function () {
    */
   const assignAtoms = async (req, res) => {
     try {
-      
       const { requestor } = req.body;
-      const { studentId, atomType, note } = req.body;
+      const { studentId, atomType, atomTypes, note } = req.body;
 
       // Validate requestor exists and has proper permissions
       if (!requestor || !requestor.requestorId) {
@@ -23,10 +21,10 @@ const educatorController = function () {
       // Check if user has educator/admin/owner role
       const validRoles = ['admin', 'educator', 'teacher', 'owner', 'Owner', 'Administrator'];
       if (!validRoles.includes(requestor.role)) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
           receivedRole: requestor.role,
-          validRoles: validRoles
+          validRoles,
         });
       }
 
@@ -35,67 +33,98 @@ const educatorController = function () {
         return res.status(400).json({ error: 'student_id is required' });
       }
 
-      if (!atomType) {
-        return res.status(400).json({ error: 'atom_type is required' });
+      // Support both single atomType and multiple atomTypes
+      let atomIds = [];
+      if (atomTypes && Array.isArray(atomTypes)) {
+        atomIds = atomTypes;
+      } else if (atomType) {
+        atomIds = [atomType];
+      } else {
+        return res.status(400).json({ error: 'atom_type or atom_types array is required' });
       }
 
       // Validate student exists
       const student = await UserProfile.findById(studentId);
       if (!student) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           error: 'Student not found',
-          studentId: studentId,
-          message: 'Please check if the student ID exists in the database'
+          studentId,
+          message: 'Please check if the student ID exists in the database',
         });
       }
 
-      // Validate atom exists
-      const atom = await Atom.findById(atomType);
-      if (!atom) {
-        return res.status(404).json({ 
-          error: 'Atom not found',
-          atomType: atomType,
-          message: 'Please check if the atom ID exists in the database'
+      // Validate all atoms exist
+      const atoms = await Atom.find({ _id: { $in: atomIds } });
+      const foundAtomIds = atoms.map((atom) => atom._id.toString());
+      const missingAtomIds = atomIds.filter((id) => !foundAtomIds.includes(id.toString()));
+
+      if (missingAtomIds.length > 0) {
+        return res.status(404).json({
+          error: 'One or more atoms not found',
+          missingAtomIds,
+          message: 'Please check if all atom IDs exist in the database',
         });
       }
 
-      // Check for duplicate assignment
-      const existingAssignment = await StudentAtom.findOne({
-        studentId: studentId,
-        atomId: atomType
+      // Check for existing assignments
+      const existingAssignments = await StudentAtom.find({
+        studentId,
+        atomId: { $in: atomIds },
       });
 
-      if (existingAssignment) {
-        return res.status(400).json({ error: 'Atom already assigned to this student' });
+      const alreadyAssignedAtomIds = existingAssignments.map((assignment) =>
+        assignment.atomId.toString(),
+      );
+      const newAtomIds = atomIds.filter((id) => !alreadyAssignedAtomIds.includes(id.toString()));
+
+      if (newAtomIds.length === 0) {
+        return res.status(400).json({
+          error: 'All atoms are already assigned to this student',
+          alreadyAssignedAtomIds,
+        });
       }
 
-      // Create new atom assignment
-      const studentAtom = new StudentAtom({
-        studentId: studentId,
-        atomId: atomType,
+      // Create new atom assignments for atoms that aren't already assigned
+      const assignmentsToCreate = newAtomIds.map((atomId) => ({
+        studentId,
+        atomId,
         assignedBy: requestor.requestorId,
-        note: note || undefined
-      });
+        note: note || undefined,
+      }));
 
-      const savedAssignment = await studentAtom.save();
+      const savedAssignments = await StudentAtom.insertMany(assignmentsToCreate);
 
       // Populate the response with referenced data
-      const populatedAssignment = await StudentAtom.findById(savedAssignment._id)
+      const populatedAssignments = await StudentAtom.find({
+        _id: { $in: savedAssignments.map((a) => a._id) },
+      })
         .populate('studentId', 'firstName lastName email')
         .populate('atomId', 'name description difficulty')
         .populate('assignedBy', 'firstName lastName email');
 
-      res.status(201).json({
-        message: 'Atom assigned successfully',
-        assignment: populatedAssignment
-      });
+      const response = {
+        message: 'Atom assignments processed',
+        successfulAssignments: populatedAssignments,
+        totalRequested: atomIds.length,
+        successfullyAssigned: newAtomIds.length,
+        alreadyAssigned: alreadyAssignedAtomIds.length,
+      };
 
+      // Include information about already assigned atoms if any
+      if (alreadyAssignedAtomIds.length > 0) {
+        response.alreadyAssignedAtomIds = alreadyAssignedAtomIds;
+        response.message += ` (${alreadyAssignedAtomIds.length} were already assigned)`;
+      }
+
+      res.status(201).json(response);
     } catch (error) {
-      console.error('Error assigning atom:', error);
-      
+      console.error('Error assigning atoms:', error);
+
       // Handle duplicate key error
       if (error.code === 11000) {
-        return res.status(400).json({ error: 'Atom already assigned to this student' });
+        return res
+          .status(400)
+          .json({ error: 'One or more atoms already assigned to this student' });
       }
 
       // Handle validation errors
@@ -108,7 +137,7 @@ const educatorController = function () {
   };
 
   return {
-    assignAtoms
+    assignAtoms,
   };
 };
 
