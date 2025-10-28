@@ -19,10 +19,20 @@ const educationTaskSchema = new mongoose.Schema(
         required: true,
       },
     ],
+    name: {
+      type: String,
+      trim: true,
+    },
     type: {
       type: String,
       required: true,
       enum: ['read', 'write', 'practice', 'quiz', 'project'],
+    },
+    weightage: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
     },
     status: {
       type: String,
@@ -45,6 +55,9 @@ const educationTaskSchema = new mongoose.Schema(
     dueAt: {
       type: Date,
       required: true,
+    },
+    submittedAt: {
+      type: Date,
     },
     completedAt: {
       type: Date,

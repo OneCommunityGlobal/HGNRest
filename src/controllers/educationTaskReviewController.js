@@ -65,6 +65,7 @@ const educationTaskReviewController = function () {
         assignment: {
           name: submission.name || 'Untitled Assignment',
           type: submission.type,
+          weightage: submission.weightage || 0,
           course: submission.lessonPlanId.title,
           description: submission.lessonPlanId.description,
         },
