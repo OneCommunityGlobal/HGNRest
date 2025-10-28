@@ -26,7 +26,10 @@
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
+    "@babel/cli": "^7.28.3",
+    "@babel/core": "^7.28.5",
     "@babel/eslint-parser": "^7.15.0",
+    "@babel/preset-env": "^7.28.5",
     "@types/bson": "^4.2.4",
     "@types/compression": "^1.7.5",
     "@types/express": "^4.17.6",
@@ -52,11 +55,8 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
-    "@babel/cli": "^7.15.4",
-    "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
     "@babel/plugin-transform-runtime": "^7.10.1",
-    "@babel/preset-env": "^7.10.2",
     "@babel/runtime": "^7.10.2",
     "@paypal/paypal-server-sdk": "^0.6.0",
     "@sentry/integrations": "^7.110.0",

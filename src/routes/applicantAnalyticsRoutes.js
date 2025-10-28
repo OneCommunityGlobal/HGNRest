@@ -6,6 +6,7 @@ const AnonymousInteraction = require('../models/anonymousInteraction');
 const AnonymousApplication = require('../models/anonymousApplication');
 const AnalyticsSummary = require('../models/analyticsSummary');
 const analyticsController = require('../controllers/applicantAnalyticsController');
+const applicationTimeController = require('../controllers/applicationTimeController');
 
 const {
   getExperienceBreakdown,
@@ -30,5 +31,11 @@ router.get('/conversions', getConversionMetrics);
 
 // Manual aggregation trigger (admin only - backup for cron job)
 router.post('/trigger-aggregation', triggerAggregation);
+
+// Application time analytics routes
+router.get('/application-time', applicationTimeController.getApplicationTimeAnalytics);
+router.post('/application-time', applicationTimeController.trackApplicationTime);
+router.get('/application-time/roles', applicationTimeController.getAvailableRoles);
+router.post('/application-time/detect-outliers', applicationTimeController.detectOutliersManually);
 
 module.exports = router;

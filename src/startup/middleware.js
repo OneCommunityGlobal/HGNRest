@@ -80,6 +80,15 @@ module.exports = function (app) {
       next();
       return;
     }
+    
+    // Public application time analytics endpoints (no auth required)
+    if (
+      (req.originalUrl.startsWith('/api/applicants/application-time') ||
+       req.originalUrl.startsWith('/api/analytics/application-time'))
+    ) {
+      next();
+      return;
+    }
 
     // Skip auth check for PayPal webhook route
 

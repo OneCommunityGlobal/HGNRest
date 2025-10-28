@@ -50,6 +50,7 @@ const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
+const applicationTimeRouter = require('../routes/applicationTimeRoutes');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
@@ -360,6 +361,7 @@ module.exports = function (app) {
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
+  app.use('/api/analytics', applicationTimeRouter);
   app.use('/api', registrationRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
