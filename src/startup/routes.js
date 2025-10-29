@@ -91,7 +91,6 @@ const tag = require('../models/tag');
 const educationTask = require('../models/educationTask');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
-
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -298,6 +297,7 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -415,7 +415,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
 
-
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
@@ -455,4 +454,5 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api', mastodonRouter);
 };
