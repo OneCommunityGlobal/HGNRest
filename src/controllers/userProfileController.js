@@ -1745,11 +1745,8 @@ const userProfileController = function (UserProfile, Project) {
           ? req.body.blueSquare.reason
           : 'missingHours',
         // Maintain backward compatibility
-        reasons: req.body.blueSquare.reasons || ['other'],
       };
       console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
-
-      // req.body.blueSquare.reasons = ['other'];
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
