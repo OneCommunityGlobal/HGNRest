@@ -153,7 +153,6 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage)
 
 const emailRouter = require('../routes/emailRouter')();
 const emailBatchRouter = require('../routes/emailBatchRoutes');
-const emailBatchDashboardRouter = require('../routes/emailBatchDashboardRoutes');
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
@@ -336,7 +335,6 @@ module.exports = function (app) {
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
   app.use('/api/email-batches', emailBatchRouter);
-  app.use('/api/email-batches', emailBatchDashboardRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);

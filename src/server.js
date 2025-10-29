@@ -2,6 +2,7 @@
 require('dotenv').config();
 const http = require('http');
 require('./jobs/dailyMessageEmailNotification');
+require('./jobs/emailAnnouncementJobProcessor').start(); // Start email announcement job processor
 const { app, logger } = require('./app');
 const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;

@@ -1,17 +1,19 @@
 /**
- * Simplified Email Batch Processor - Production Ready
- * Focus: Efficient processing with email body from batch record
+ * Enhanced Email Batch Processor - Production Ready with Audit Integration
+ * Focus: Efficient processing with email body from batch record and comprehensive auditing
  */
 
+const Email = require('../models/email');
 const EmailBatch = require('../models/emailBatch');
-const EmailBatchItem = require('../models/emailBatchItem');
-const emailSender = require('../utilities/emailSender');
+const emailAnnouncementService = require('./emailAnnouncementService');
+const EmailBatchAuditService = require('./emailBatchAuditService');
+const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 const logger = require('../startup/logger');
 
 class EmailBatchProcessor {
   constructor() {
     this.processingBatches = new Set();
-    this.maxRetries = 3;
+    this.maxRetries = EMAIL_JOB_CONFIG.DEFAULT_MAX_RETRIES;
     this.retryDelay = 2000; // 2 seconds
   }
 
@@ -27,19 +29,22 @@ class EmailBatchProcessor {
 
     try {
       console.log('🔍 Looking for batch with batchId:', batchId);
-      const batch = await EmailBatch.findOne({ batchId });
+      const batch = await Email.findOne({ batchId });
       if (!batch) {
         console.error('❌ Batch not found with batchId:', batchId);
         throw new Error('Batch not found');
       }
       console.log('✅ Found batch:', batch.batchId, 'Status:', batch.status);
 
-      if (batch.status === 'COMPLETED' || batch.status === 'FAILED') {
+      if (
+        batch.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENT ||
+        batch.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED
+      ) {
         return;
       }
 
       // Update batch status
-      batch.status = 'PROCESSING';
+      batch.status = EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENDING;
       batch.startedAt = new Date();
       await batch.save();
 
@@ -54,9 +59,9 @@ class EmailBatchProcessor {
 
       // Mark batch as failed
       try {
-        const batch = await EmailBatch.findOne({ batchId });
+        const batch = await Email.findOne({ batchId });
         if (batch) {
-          batch.status = 'FAILED';
+          batch.status = EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED;
           batch.completedAt = new Date();
           await batch.save();
         }
@@ -72,9 +77,9 @@ class EmailBatchProcessor {
    * Process all items in a batch
    */
   async processBatchItems(batch) {
-    const items = await EmailBatchItem.find({
+    const items = await EmailBatch.find({
       batchId: batch._id,
-      status: 'PENDING',
+      status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.QUEUED,
     });
 
     // Process items in parallel with concurrency limit
@@ -89,13 +94,13 @@ class EmailBatchProcessor {
     const processWithRetry = async (attempt = 1) => {
       try {
         // Update to SENDING status (this increments attempts)
-        await item.updateStatus('SENDING');
+        await item.updateStatus(EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENDING);
 
         // Extract recipient emails from the batch item
         const recipientEmails = item.recipients.map((recipient) => recipient.email);
 
-        // Use the existing emailSender with batched recipients and email body from batch
-        await emailSender(
+        // Use the new emailAnnouncementService with enhanced announcement features
+        const gmailResponse = await emailAnnouncementService.sendAnnouncement(
           recipientEmails, // Array of emails for batching
           batch.subject,
           batch.htmlContent, // Use email body from batch record
@@ -104,16 +109,30 @@ class EmailBatchProcessor {
           null, // replyTo
           null, // bcc
           {
-            type: 'batch_send',
+            announcementType: 'batch_send',
             batchId: batch.batchId,
             itemId: item._id,
             emailType: item.emailType,
             recipientCount: recipientEmails.length,
+            priority: 'NORMAL',
           },
         );
 
         // Mark as sent
-        await item.updateStatus('SENT');
+        await item.updateStatus(EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENT);
+
+        // Log successful send to audit
+        await EmailBatchAuditService.logEmailBatchSent(
+          batch._id,
+          item._id,
+          {
+            recipientCount: recipientEmails.length,
+            emailType: item.emailType,
+            attempt: item.attempts,
+          },
+          gmailResponse,
+        );
+
         logger.logInfo(
           `Email batch sent successfully to ${recipientEmails.length} recipients (attempt ${item.attempts})`,
         );
@@ -125,7 +144,19 @@ class EmailBatchProcessor {
         );
 
         if (attempt >= this.maxRetries) {
-          await item.updateStatus('FAILED', error.message);
+          await item.updateStatus(
+            EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.FAILED,
+            error.message,
+            error.code,
+          );
+
+          // Log failed send to audit
+          await EmailBatchAuditService.logEmailBatchFailed(batch._id, item._id, error, {
+            recipientCount: item.recipients.length,
+            emailType: item.emailType,
+            finalAttempt: attempt,
+          });
+
           logger.logError(
             `Permanently failed to send email batch to ${item.recipients.length} recipients after ${this.maxRetries} attempts`,
           );
@@ -155,12 +186,12 @@ class EmailBatchProcessor {
    */
   async retryBatchItem(itemId) {
     try {
-      const item = await EmailBatchItem.findById(itemId);
+      const item = await EmailBatch.findById(itemId);
       if (!item) {
         throw new Error('Batch item not found');
       }
 
-      const batch = await EmailBatch.findById(item.batchId);
+      const batch = await Email.findById(item.batchId);
       if (!batch) {
         throw new Error('Parent batch not found');
       }

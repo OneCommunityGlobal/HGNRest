@@ -1,12 +1,11 @@
 // emailController.js
 const jwt = require('jsonwebtoken');
 const cheerio = require('cheerio');
-const emailSender = require('../utilities/emailSender');
+const emailAnnouncementService = require('../services/emailAnnouncementService');
 const { hasPermission } = require('../utilities/permissions');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 const EmailBatchService = require('../services/emailBatchService');
-const emailBatchProcessor = require('../services/emailBatchProcessor');
 
 const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'EmailSecret';
@@ -105,11 +104,10 @@ const sendEmail = async (req, res) => {
 
         console.log('✅ Batch created with recipients:', batch.batchId);
 
-        // Start processing the batch
-        console.log('🚀 Starting batch processing...');
-        emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
-          console.error('❌ Error processing batch:', error);
-        });
+        // REMOVED: Immediate processing - batch will be processed by cron job
+        // emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
+        //   console.error('❌ Error processing batch:', error);
+        // });
 
         // Get dynamic counts for response
         const counts = await batch.getEmailCounts();
@@ -127,15 +125,27 @@ const sendEmail = async (req, res) => {
           },
         });
       } else {
-        // Legacy direct sending (fallback)
+        // Legacy direct sending (fallback) - using new announcement service
         if (recipientsArray.length === 1) {
           // Single recipient - use TO field
-          await emailSender(to, subject, processedHtml, attachments);
+          await emailAnnouncementService.sendAnnouncement(
+            to,
+            subject,
+            processedHtml,
+            attachments,
+            null,
+            null,
+            null,
+            {
+              announcementType: 'direct_send',
+              priority: 'NORMAL',
+            },
+          );
         } else {
           // Multiple recipients - use BCC to hide recipient list
           // Send to self (sender) as primary recipient, then BCC all actual recipients
           const senderEmail = req.body.fromEmail || 'updates@onecommunityglobal.org';
-          await emailSender(
+          await emailAnnouncementService.sendAnnouncement(
             senderEmail,
             subject,
             processedHtml,
@@ -143,6 +153,10 @@ const sendEmail = async (req, res) => {
             null,
             null,
             recipientsArray,
+            {
+              announcementType: 'direct_send',
+              priority: 'NORMAL',
+            },
           );
         }
 
@@ -239,10 +253,10 @@ const sendEmailToAll = async (req, res) => {
         await EmailBatchService.addRecipients(batch.batchId, subscriberRecipients);
       }
 
-      // Start processing the batch
-      emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
-        console.error('Error processing broadcast batch:', error);
-      });
+      // REMOVED: Immediate processing - batch will be processed by cron job
+      // emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
+      //   console.error('Error processing broadcast batch:', error);
+      // });
 
       // Get dynamic counts for response
       const counts = await batch.getEmailCounts();
@@ -266,7 +280,7 @@ const sendEmailToAll = async (req, res) => {
         },
       });
     }
-    // Legacy direct sending (fallback)
+    // Legacy direct sending (fallback) - using new announcement service
     // HGN Users logic
     const users = await userProfile.find({
       firstName: { $ne: '' },
@@ -281,7 +295,19 @@ const sendEmailToAll = async (req, res) => {
       const emailContentToOCmembers = handleContentToOC(processedHtml);
       await Promise.all(
         recipientEmails.map((email) =>
-          emailSender(email, subject, emailContentToOCmembers, attachments),
+          emailAnnouncementService.sendAnnouncement(
+            email,
+            subject,
+            emailContentToOCmembers,
+            attachments,
+            null,
+            null,
+            null,
+            {
+              announcementType: 'broadcast_hgn',
+              priority: 'NORMAL',
+            },
+          ),
         ),
       );
     } else {
@@ -298,7 +324,19 @@ const sendEmailToAll = async (req, res) => {
       await Promise.all(
         emailSubscribers.map(({ email }) => {
           const emailContentToNonOCmembers = handleContentToNonOC(processedHtml, email);
-          return emailSender(email, subject, emailContentToNonOCmembers, attachments);
+          return emailAnnouncementService.sendAnnouncement(
+            email,
+            subject,
+            emailContentToNonOCmembers,
+            attachments,
+            null,
+            null,
+            null,
+            {
+              announcementType: 'broadcast_subscriber',
+              priority: 'NORMAL',
+            },
+          );
         }),
       );
     } else {
@@ -362,7 +400,19 @@ const addNonHgnEmailSubscription = async (req, res) => {
     `;
 
     try {
-      await emailSender(email, 'HGN Email Subscription', emailContent);
+      await emailAnnouncementService.sendAnnouncement(
+        email,
+        'HGN Email Subscription',
+        emailContent,
+        null,
+        null,
+        null,
+        null,
+        {
+          announcementType: 'subscription_confirmation',
+          priority: 'NORMAL',
+        },
+      );
       return res.status(200).send('Email subscribed successfully');
     } catch (emailError) {
       console.error('Error sending confirmation email:', emailError);

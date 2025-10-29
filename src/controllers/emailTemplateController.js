@@ -431,7 +431,6 @@ exports.sendEmailWithTemplate = async (req, res) => {
       // Send to specific recipients using batch system
       try {
         const EmailBatchService = require('../services/emailBatchService');
-        const emailBatchProcessor = require('../services/emailBatchProcessor');
         const userProfile = require('../models/userProfile');
 
         // Get user information
@@ -463,11 +462,10 @@ exports.sendEmailWithTemplate = async (req, res) => {
           createdBy: batch.createdBy,
         });
 
-        // Start processing the batch
-        console.log('🚀 Starting template batch processing...');
-        emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
-          console.error('❌ Error processing template batch:', error);
-        });
+        // REMOVED: Immediate processing - batch will be processed by cron job
+        // emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
+        //   console.error('❌ Error processing template batch:', error);
+        // });
 
         // Get dynamic counts for response
         const counts = await batch.getEmailCounts();

@@ -17,4 +17,9 @@ router.get('/status', emailBatchController.getProcessorStatus);
 // Retry operations
 router.post('/retry-item/:itemId', emailBatchController.retryBatchItem);
 
+// Audit operations
+router.get('/audit/email/:emailId', emailBatchController.getEmailAuditTrail);
+router.get('/audit/email-batch/:emailBatchId', emailBatchController.getEmailBatchAuditTrail);
+router.get('/audit/stats', emailBatchController.getAuditStats);
+
 module.exports = router;

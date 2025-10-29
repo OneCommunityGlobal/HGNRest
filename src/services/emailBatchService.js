@@ -1,11 +1,13 @@
 /**
- * Simplified Email Batch Service - Production Ready
- * Focus: Efficient batching with email body storage
+ * Enhanced Email Batch Service - Production Ready with Job Queue Support
+ * Focus: Efficient batching with email body storage and job queue management
  */
 
 const { v4: uuidv4 } = require('uuid');
+const Email = require('../models/email');
 const EmailBatch = require('../models/emailBatch');
-const EmailBatchItem = require('../models/emailBatchItem');
+const EmailBatchAuditService = require('./emailBatchAuditService');
+const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 const logger = require('../startup/logger');
 
 class EmailBatchService {
@@ -14,11 +16,11 @@ class EmailBatchService {
   }
 
   /**
-   * Create a new email batch with email body
+   * Create a new email batch with email body and job queue support
    */
   static async createBatch(batchData) {
     try {
-      const batch = new EmailBatch({
+      const batch = new Email({
         batchId: batchData.batchId || uuidv4(),
         subject: batchData.subject,
         htmlContent: batchData.htmlContent, // Store email body
@@ -26,6 +28,13 @@ class EmailBatchService {
       });
 
       await batch.save();
+
+      // Log batch creation to audit trail
+      await EmailBatchAuditService.logEmailCreated(batch._id, batchData.createdBy, {
+        batchId: batch.batchId,
+        subject: batch.subject,
+      });
+
       console.log('💾 Batch saved successfully:', {
         id: batch._id,
         batchId: batch.batchId,
@@ -39,17 +48,17 @@ class EmailBatchService {
   }
 
   /**
-   * Add recipients to a batch with efficient batching
+   * Add recipients to a batch with efficient batching (uses config enums)
    */
   static async addRecipients(batchId, recipients, batchConfig = {}) {
     try {
-      const batch = await EmailBatch.findOne({ batchId });
+      const batch = await Email.findOne({ batchId });
       if (!batch) {
         throw new Error('Batch not found');
       }
 
       const batchSize = batchConfig.batchSize || 50;
-      const emailType = batchConfig.emailType || 'BCC';
+      const emailType = batchConfig.emailType || EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC;
 
       // Create batch items with multiple recipients per item
       const batchItems = [];
@@ -63,13 +72,13 @@ class EmailBatchService {
             email: recipient.email, // Only email, no name
           })),
           emailType,
-          status: 'PENDING',
+          status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.QUEUED,
         };
 
         batchItems.push(batchItem);
       }
 
-      await EmailBatchItem.insertMany(batchItems);
+      await EmailBatch.insertMany(batchItems);
 
       return batch;
     } catch (error) {
@@ -104,7 +113,10 @@ class EmailBatchService {
       // Add recipients with efficient batching
       const batchConfig = {
         batchSize: 50, // Use standard batch size
-        emailType: recipients.length === 1 ? 'TO' : 'BCC', // Single recipient uses TO, multiple use BCC
+        emailType:
+          recipients.length === 1
+            ? EMAIL_JOB_CONFIG.EMAIL_TYPES.TO
+            : EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC, // Single recipient uses TO, multiple use BCC
       };
 
       // Convert recipients to proper format
@@ -124,7 +136,7 @@ class EmailBatchService {
    */
   static async getBatchWithItems(batchId) {
     try {
-      const batch = await EmailBatch.findOne({ batchId }).populate(
+      const batch = await Email.findOne({ batchId }).populate(
         'createdBy',
         'firstName lastName email',
       );
@@ -133,7 +145,7 @@ class EmailBatchService {
         return null;
       }
 
-      const items = await EmailBatchItem.find({ batchId: batch._id }).sort({ createdAt: 1 });
+      const items = await EmailBatch.find({ batchId: batch._id }).sort({ createdAt: 1 });
 
       // Get dynamic counts
       const counts = await batch.getEmailCounts();
@@ -181,12 +193,12 @@ class EmailBatchService {
       const skip = (page - 1) * limit;
 
       const [batches, total] = await Promise.all([
-        EmailBatch.find(query)
+        Email.find(query)
           .sort({ createdAt: -1 })
           .limit(limit)
           .skip(skip)
           .populate('createdBy', 'firstName lastName email'),
-        EmailBatch.countDocuments(query),
+        Email.countDocuments(query),
       ]);
 
       // Add dynamic counts to each batch
@@ -222,15 +234,15 @@ class EmailBatchService {
     try {
       const [totalBatches, pendingBatches, processingBatches, completedBatches, failedBatches] =
         await Promise.all([
-          EmailBatch.countDocuments(),
-          EmailBatch.countDocuments({ status: 'PENDING' }),
-          EmailBatch.countDocuments({ status: 'PROCESSING' }),
-          EmailBatch.countDocuments({ status: 'COMPLETED' }),
-          EmailBatch.countDocuments({ status: 'FAILED' }),
+          Email.countDocuments(),
+          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.QUEUED }),
+          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENDING }),
+          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENT }),
+          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED }),
         ]);
 
       // Calculate email stats dynamically from batch items
-      const emailStats = await EmailBatchItem.aggregate([
+      const emailStats = await EmailBatch.aggregate([
         {
           $group: {
             _id: null,
@@ -240,7 +252,12 @@ class EmailBatchService {
             sentEmails: {
               $sum: {
                 $cond: [
-                  { $and: [{ $eq: ['$status', 'SENT'] }, { $isArray: '$recipients' }] },
+                  {
+                    $and: [
+                      { $eq: ['$status', EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENT] },
+                      { $isArray: '$recipients' },
+                    ],
+                  },
                   { $size: '$recipients' },
                   0,
                 ],

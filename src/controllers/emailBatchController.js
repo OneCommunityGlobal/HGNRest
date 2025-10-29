@@ -5,6 +5,7 @@
 
 const EmailBatchService = require('../services/emailBatchService');
 const emailBatchProcessor = require('../services/emailBatchProcessor');
+const EmailBatchAuditService = require('../services/emailBatchAuditService');
 const logger = require('../startup/logger');
 
 /**
@@ -112,8 +113,8 @@ const retryBatchItem = async (req, res) => {
     const { itemId } = req.params;
 
     // Find the batch item
-    const EmailBatchItem = require('../models/emailBatchItem');
-    const item = await EmailBatchItem.findById(itemId);
+    const EmailBatch = require('../models/emailBatch');
+    const item = await EmailBatch.findById(itemId);
 
     if (!item) {
       return res.status(404).json({
@@ -130,16 +131,16 @@ const retryBatchItem = async (req, res) => {
       });
     }
 
-    // Only allow retry for FAILED or PENDING items
-    if (item.status !== 'FAILED' && item.status !== 'PENDING') {
+    // Only allow retry for FAILED or QUEUED items
+    if (item.status !== 'FAILED' && item.status !== 'QUEUED') {
       return res.status(400).json({
         success: false,
         message: 'Only failed or pending items can be retried',
       });
     }
 
-    // Reset the item status to PENDING for retry
-    item.status = 'PENDING';
+    // Reset the item status to QUEUED for retry
+    item.status = 'QUEUED';
     item.attempts = 0;
     item.error = null;
     item.failedAt = null;
@@ -169,10 +170,95 @@ const retryBatchItem = async (req, res) => {
   }
 };
 
+/**
+ * Get audit trail for a specific batch
+ */
+const getEmailAuditTrail = async (req, res) => {
+  try {
+    const { emailId } = req.params;
+    const { page = 1, limit = 50, action } = req.query;
+
+    const auditTrail = await EmailBatchAuditService.getEmailAuditTrail(
+      emailId,
+      parseInt(page, 10),
+      parseInt(limit, 10),
+      action,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: auditTrail,
+    });
+  } catch (error) {
+    logger.logException(error, 'Error getting email audit trail');
+    res.status(500).json({
+      success: false,
+      message: 'Error getting email audit trail',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get audit trail for a specific batch item
+ */
+const getEmailBatchAuditTrail = async (req, res) => {
+  try {
+    const { emailBatchId } = req.params;
+    const { page = 1, limit = 50, action } = req.query;
+
+    const auditTrail = await EmailBatchAuditService.getEmailBatchAuditTrail(
+      emailBatchId,
+      parseInt(page, 10),
+      parseInt(limit, 10),
+      action,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: auditTrail,
+    });
+  } catch (error) {
+    logger.logException(error, 'Error getting email batch audit trail');
+    res.status(500).json({
+      success: false,
+      message: 'Error getting email batch audit trail',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get audit statistics
+ */
+const getAuditStats = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, action } = req.query;
+
+    const filters = { dateFrom, dateTo, action };
+    const stats = await EmailBatchAuditService.getAuditStats(filters);
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    logger.logException(error, 'Error getting audit stats');
+    res.status(500).json({
+      success: false,
+      message: 'Error getting audit stats',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getBatches,
   getBatchDetails,
   getDashboardStats,
   getProcessorStatus,
   retryBatchItem,
+  getEmailAuditTrail,
+  getEmailBatchAuditTrail,
+  getAuditStats,
 };
