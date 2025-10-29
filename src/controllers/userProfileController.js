@@ -1,5 +1,4 @@
 const moment = require('moment-timezone');
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -1745,8 +1744,11 @@ const userProfileController = function (UserProfile, Project) {
           ? req.body.blueSquare.reason
           : 'missingHours',
         // Maintain backward compatibility
+        
       };
       console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
+
+     
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -1856,7 +1858,6 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
-
       const originalinfringements = record?.infringements ?? [];
 
       record.infringements = originalinfringements.filter(
