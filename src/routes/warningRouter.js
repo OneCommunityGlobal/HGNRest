@@ -11,8 +11,6 @@ const routes = function (userProfile) {
     .post(controller.postWarningsToUserProfile)
     .delete(controller.deleteUsersWarnings);
 
-  warningRouter.route('/warnings/:userId/special').get(controller.getSpecialWarnings);
-
   return warningRouter;
 };
 module.exports = routes;

@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
-// const { MongoMemoryServer } = require('mongodb-memory-server'); Commenting this because it's never used
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmMaterialsController = require('../bmMaterialsController');
 
 // Mock mongoose models
 const mockExec = jest.fn();
-const mockThen = jest.fn().mockImplementation((callback) => {
+const mockThen = jest.fn().mockImplementation(function (callback) {
   callback();
   return { catch: jest.fn() };
 });
@@ -43,17 +43,19 @@ describe('bmMaterialsController', () => {
     it('should fetch and return materials list', async () => {
       const mockResults = [{ name: 'Cement', quantity: 100 }];
       // Fix the chaining of populate calls
-      mockPopulate.mockImplementation(() => ({
-        populate: mockPopulate,
-        exec() {
-          return {
-            then(callback) {
-              callback(mockResults);
-              return { catch: mockCatch };
-            },
-          };
-        },
-      }));
+      mockPopulate.mockImplementation(function () {
+        return {
+          populate: mockPopulate,
+          exec: function () {
+            return {
+              then: function (callback) {
+                callback(mockResults);
+                return { catch: mockCatch };
+              },
+            };
+          },
+        };
+      });
 
       const req = {};
       const res = {
@@ -72,11 +74,13 @@ describe('bmMaterialsController', () => {
 
     it('should handle errors during fetch', async () => {
       const mockError = new Error('Database error');
-      mockThen.mockImplementation(() => ({
-        catch(callback) {
-          callback(mockError);
-        },
-      }));
+      mockThen.mockImplementation(function () {
+        return {
+          catch: function (callback) {
+            callback(mockError);
+          },
+        };
+      });
 
       const req = {};
       const res = {
@@ -95,12 +99,14 @@ describe('bmMaterialsController', () => {
   describe('bmPurchaseMaterials', () => {
     it('should create a new material if not found', async () => {
       mockFindOne.mockResolvedValue(null);
-      mockCreate.mockImplementation(() => ({
-        then(callback) {
-          callback();
-          return { catch: jest.fn() };
-        },
-      }));
+      mockCreate.mockImplementation(() => {
+        return {
+          then: function (callback) {
+            callback();
+            return { catch: jest.fn() };
+          },
+        };
+      });
 
       const req = {
         body: {
@@ -136,7 +142,7 @@ describe('bmMaterialsController', () => {
 
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
-          then: jest.fn().mockImplementation((callback) => {
+          then: jest.fn().mockImplementation(function (callback) {
             callback();
             return { catch: jest.fn() };
           }),
@@ -197,7 +203,7 @@ describe('bmMaterialsController', () => {
   describe('bmPostMaterialUpdateRecord', () => {
     it('should update material stock and add update record', async () => {
       mockUpdateOne.mockReturnValue({
-        then(callback) {
+        then: function (callback) {
           callback({ nModified: 1 });
           return { catch: jest.fn() };
         },
@@ -265,41 +271,40 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmupdatePurchaseStatus', () => {
-    // Skipping this test because the update logic in bmupdatePurchaseStatus is commented out in main
-    // it('should update purchase status to Approved and increase stock', async () => {
-    //   const mockMaterial = {
-    //     purchaseRecord: [{ _id: 'purchase123', status: 'Pending' }],
-    //   };
+    it('should update purchase status to Approved and increase stock', async () => {
+      const mockMaterial = {
+        purchaseRecord: [{ _id: 'purchase123', status: 'Pending' }],
+      };
 
-    //   mockFindOne.mockResolvedValue(mockMaterial);
-    //   mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
 
-    //   const req = {
-    //     body: {
-    //       purchaseId: 'purchase123',
-    //       status: 'Approved',
-    //       quantity: 30,
-    //     },
-    //   };
-    //   const res = {
-    //     status: jest.fn().mockReturnThis(),
-    //     send: jest.fn(),
-    //   };
+      const req = {
+        body: {
+          purchaseId: 'purchase123',
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
 
-    //   await controller.bmupdatePurchaseStatus(req, res);
+      await controller.bmupdatePurchaseStatus(req, res);
 
-    //   expect(mockFindOne).toHaveBeenCalledWith({ 'purchaseRecord._id': 'purchase123' });
-    //   expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-    //     { 'purchaseRecord._id': 'purchase123' },
-    //     {
-    //       $set: { 'purchaseRecord.$.status': 'Approved' },
-    //       $inc: { stockBought: 30 },
-    //     },
-    //     { new: true },
-    //   );
-    //   expect(res.status).toHaveBeenCalledWith(200);
-    //   expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
-    // });
+      expect(mockFindOne).toHaveBeenCalledWith({ 'purchaseRecord._id': 'purchase123' });
+      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': 'purchase123' },
+        {
+          $set: { 'purchaseRecord.$.status': 'Approved' },
+          $inc: { stockBought: 30 },
+        },
+        { new: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
+    });
 
     it('should return 404 if purchase not found', async () => {
       mockFindOne.mockResolvedValue(null);

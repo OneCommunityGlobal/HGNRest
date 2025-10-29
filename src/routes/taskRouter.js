@@ -37,11 +37,6 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
 
-  // New routes for task change logs
-  taskRouter.route('/task/:taskId/changeLogs').get(controller.getTaskChangeLogs);
-
-  taskRouter.route('/user/:userId/taskChanges').get(controller.getUserTaskChangeLogs);
-
   return taskRouter;
 };
 

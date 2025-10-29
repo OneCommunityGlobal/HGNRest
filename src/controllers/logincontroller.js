@@ -51,8 +51,6 @@ const logincontroller = function () {
           const jwtPayload = {
             userid: user._id,
             role: user.role,
-            firstName: user.firstName,
-            lastName: user.lastName,
             permissions: user.permissions,
             access: {
               canAccessBMPortal: false,

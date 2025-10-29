@@ -49,26 +49,11 @@ const villageSchema = new mongoose.Schema({
       select: true
     }
   },
-  properties: [
-    {
-      unit: { type: Number, default: 101 },
-      currentBid: { type: Number, default: 0 },
-      link: String,
-      description: String
-    }
-  ],
-  // links to individual village map image
-  villageMapLink: {
-    type: String,
-    default: "",  
-    required: false,
-    select: true
-  },
-  // new: list of amenities available in this village
-  amenities: {
-    type: [String],
-    default: [],
-  },
+  properties: [{
+    name: String,
+    description: String,
+    link: String
+  }]
 });
 
 const Village = mongoose.model('Village', villageSchema);

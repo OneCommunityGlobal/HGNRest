@@ -1,9 +1,8 @@
 const moment = require('moment-timezone');
 const { mockReq, mockRes, mockUser } = require('../test');
 const UserModel = require('../models/userProfile');
-const ReasonModel = require('../models/reason');
 
-jest.mock('../utilities/emailSender', () => jest.fn());
+jest.mock('../utilities/emailSender');
 const emailSender = require('../utilities/emailSender');
 
 const {
@@ -15,6 +14,7 @@ const {
 } = require('./reasonSchedulingController');
 
 //  assertResMock
+const ReasonModel = require('../models/reason');
 
 const flushPromises = () => new Promise(setImmediate);
 
@@ -26,18 +26,10 @@ function mockDay(dayIdx, past = false) {
   return date;
 }
 
-const mockReason = () => ({
-  _id: 'mockReasonId',
-  reason: 'Mock Reason',
-  date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
-  userId: 'mockUserId',
-});
-
 describe('reasonScheduling Controller', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRes.json = jest.fn();
-    mockRes.status = jest.fn().mockReturnValue(mockRes);
     mockReq.body = {
       ...mockReq.body,
       ...mockUser(),
@@ -51,21 +43,11 @@ describe('reasonScheduling Controller', () => {
       ...mockReq.params,
       ...mockUser(),
     };
-    emailSender.mockResolvedValueOnce();
   });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
-
   describe('postReason method', () => {
-    beforeEach(() => {
-      jest.clearAllMocks();
-      jest.spyOn(UserModel, 'findById').mockResolvedValue(mockUser());
-      jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(null);
-      jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValue(mockReason());
-      jest.spyOn(emailSender, 'mockResolvedValueOnce').mockResolvedValue();
-    });
     test('Ensure postReason returns 400 for warning to choose Sunday', async () => {
       mockReq.body.reasonData.date = mockDay(1, true);
       await postReason(mockReq, mockRes);
@@ -80,9 +62,8 @@ describe('reasonScheduling Controller', () => {
         }),
       );
     });
-
-    test.skip('Ensure postReason returns 400 for warning to choose a future date', async () => {
-      mockReq.body.reasonData.date = mockDay(0, true); // Past date
+    test('Ensure postReason returns 400 for warning to choose a future date', async () => {
+      mockReq.body.reasonData.date = mockDay(0, true);
       await postReason(mockReq, mockRes);
       await flushPromises();
 
@@ -94,7 +75,6 @@ describe('reasonScheduling Controller', () => {
         }),
       );
     });
-
     test('Ensure postReason returns 400 for not providing reason', async () => {
       mockReq.body.reasonData.message = null;
       await postReason(mockReq, mockRes);
@@ -108,7 +88,6 @@ describe('reasonScheduling Controller', () => {
         }),
       );
     });
-
     test('Ensure postReason returns 404 when error in finding user Id', async () => {
       const mockFindUser = jest
         .spyOn(UserModel, 'findById')
@@ -126,7 +105,6 @@ describe('reasonScheduling Controller', () => {
         }),
       );
     });
-
     test('Ensure postReason returns 403 when duplicate reason to the date', async () => {
       const mockFindUser = jest
         .spyOn(UserModel, 'findById')
@@ -136,14 +114,12 @@ describe('reasonScheduling Controller', () => {
         timeOffFrom: mockReq.body.currentDate,
         timeOffTill: mockReq.body.reasonData.date,
       });
-      const mockFoundReasonData = {
+      const mockReason = {
         reason: 'Some Reason',
         userId: mockReq.body.userId,
         date: moment.tz('America/Los_Angeles').startOf('day').toISOString(),
       };
-      const mockFoundReason = jest
-        .spyOn(ReasonModel, 'findOne')
-        .mockResolvedValue(mockFoundReasonData);
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue(mockReason);
 
       await postReason(mockReq, mockRes);
       await flushPromises();
@@ -164,46 +140,84 @@ describe('reasonScheduling Controller', () => {
         }),
       );
     });
-
-    test.skip('Ensure postReason returns 400 when any error in saving.', async () => {
-      jest.spyOn(UserModel, 'findById').mockResolvedValueOnce(mockUser());
-      jest.spyOn(ReasonModel.prototype, 'save').mockRejectedValueOnce(new Error('Save failed'));
-
-      await postReason(mockReq, mockRes);
-      await flushPromises();
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          errMessage: 'Save failed',
-        }),
-      );
-    });
-
-    test.skip('Ensure postReason returns 200 if schedule reason and send blue square email successfully', async () => {
-      jest.spyOn(UserModel, 'findById').mockResolvedValueOnce(mockUser());
-      jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValueOnce({
+    test('Ensure postReason returns 400 when any error in saving.', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      jest.spyOn(UserModel, 'findOneAndUpdate').mockResolvedValueOnce({
+        _id: mockReq.body.userId,
+        timeOffFrom: mockReq.body.currentDate,
+        timeOffTill: mockReq.body.reasonData.date,
+      });
+      mockRes.sendStatus = jest.fn().mockReturnThis();
+      const newReason = {
         reason: mockReq.body.reasonData.message,
         date: moment
           .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
           .startOf('day')
           .toISOString(),
         userId: mockReq.body.userId,
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
+      const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockRejectedValue(newReason);
+      emailSender.mockImplementation(() => {
+        throw new Error('Failed to send email');
       });
-      mockRes.sendStatus = jest.fn();
-      emailSender.mockResolvedValueOnce();
 
       await postReason(mockReq, mockRes);
       await flushPromises();
-
-      expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
-      expect(emailSender).toHaveBeenCalledWith(
-        expect.stringContaining(mockUser().email),
-        expect.stringContaining('Blue Square Reason'),
-        expect.stringContaining('has set their Blue Square Reason'),
-        null,
-        null,
+      emailSender.mockRejectedValue(new Error('Failed'));
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      });
+      expect(mockSave).toHaveBeenCalledWith();
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errMessage: 'Something went wrong',
+        }),
       );
+    });
+    test('Ensure postReason returns 200 if schedule reason and send blue sqaure email successfully', async () => {
+      const mockFindUser = jest
+        .spyOn(UserModel, 'findById')
+        .mockImplementationOnce(() => mockUser());
+      jest.spyOn(UserModel, 'findOneAndUpdate').mockResolvedValueOnce({
+        _id: mockReq.body.userId,
+        timeOffFrom: mockReq.body.currentDate,
+        timeOffTill: mockReq.body.reasonData.date,
+      });
+      mockRes.sendStatus = jest.fn().mockReturnThis();
+      const newReason = {
+        reason: mockReq.body.reasonData.message,
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      };
+      const mockFoundReason = jest.spyOn(ReasonModel, 'findOne').mockResolvedValue();
+      const mockSave = jest.spyOn(ReasonModel.prototype, 'save').mockResolvedValue(newReason);
+      emailSender.mockImplementation(() => {
+        Promise.resolve();
+      });
+      await postReason(mockReq, mockRes);
+      await flushPromises();
+      expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
+      expect(mockFindUser).toHaveBeenCalledWith(mockReq.body.userId);
+      expect(mockFoundReason).toHaveBeenCalledWith({
+        date: moment
+          .tz(mockReq.body.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
+        userId: mockReq.body.userId,
+      });
+      expect(mockSave).toHaveBeenCalledWith();
     });
   });
   describe('getAllReason method', () => {

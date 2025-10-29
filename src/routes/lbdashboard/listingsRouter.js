@@ -10,20 +10,20 @@ const upload = multer({
 });
 
 const routes = function (ListingHome) {
-  const listingRouter = express.Router();
+  const listingHomeRouter = express.Router();
   const controller = require('../../controllers/lbdashboard/listingsController')(ListingHome);
 
-  listingRouter.route('/listings')
-    .get(controller.getListings)
-    .post(upload.array('images', 10), controller.createListing);
+  listingHomeRouter.route('/listings').get(controller.getListings);
+  listingHomeRouter.route('/listings').post(upload.array('images', 10), controller.createListing);
+  
+  listingHomeRouter.route('/biddings').get(controller.getBiddings);
+  
+  listingHomeRouter.route('/villages').get(controller.getVillages);
+  
+  listingHomeRouter.route('/getListings').get(controller.getListings);
+  listingHomeRouter.route('/createListing').post(upload.array('images', 10), controller.createListing);
 
-  listingRouter.route('/listings/id')
-    .get(controller.getListingById)
-    .put(upload.array('images', 10), controller.updateListing)
-    .delete(controller.deleteListing);
-
-
-  return listingRouter;
+  return listingHomeRouter;
 };
 
 module.exports = routes;

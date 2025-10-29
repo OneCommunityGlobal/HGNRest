@@ -39,7 +39,6 @@ const action = {
   ADD_GOAL: 'ADD_TO_GOAL',
   REMOVE_GOAL: 'REMOVE_FROM_GOAL',
   FORCED_PAUSE: 'FORCED_PAUSE',
-  WEEK_CLOSE_PAUSE: 'WEEK_CLOSE_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
   HEARTBEAT: 'ping',
@@ -202,9 +201,6 @@ const handleMessage = async (msg, clients, userId) => {
       break;
     case action.FORCED_PAUSE:
       pauseTimer(client, true);
-      break;
-    case action.WEEK_CLOSE_PAUSE:
-      pauseTimer(client);
       break;
     case action.ACK_FORCED:
       ackForcedPause(client);
