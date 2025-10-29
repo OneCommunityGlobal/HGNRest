@@ -118,7 +118,7 @@ const educationTaskReviewController = function () {
   const saveReviewProgress = async (req, res) => {
     try {
       const { submissionId } = req.params;
-      const { collaborativeFeedback, privateNotes, marksGiven } = req.body;
+      const { collaborativeFeedback, privateNotes, marksGiven, pageComments } = req.body;
 
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
         return res.status(400).json({ message: 'Invalid submission ID' });
@@ -141,6 +141,17 @@ const educationTaskReviewController = function () {
       if (privateNotes !== undefined) {
         updates.privateNotes = privateNotes;
       }
+
+      if (pageComments !== undefined && Array.isArray(pageComments)) {
+        const updatedComments = pageComments.map((pc) => ({
+          ...pc,
+          createdBy: pc.createdBy || req.user?._id,
+          createdAt: pc.createdAt || new Date(),
+          updatedAt: new Date(),
+        }));
+        updates.pageComments = updatedComments;
+      }
+
       if (marksGiven !== undefined) {
         if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
           return res.status(400).json({
