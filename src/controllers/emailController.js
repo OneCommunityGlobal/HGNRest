@@ -14,22 +14,24 @@ const userProfile = require('../models/userProfile');
 const EmailBatchService = require('../services/emailBatchService');
 const EmailService = require('../services/emailService');
 const EmailBatchAuditService = require('../services/emailBatchAuditService');
+const { hasPermission } = require('../utilities/permissions');
 const config = require('../config');
 const logger = require('../startup/logger');
 
 const jwtSecret = process.env.JWT_SECRET;
 
 const sendEmail = async (req, res) => {
-  // TODO: Re-enable permission check in future
-  // Permission check - commented out for now
-  // const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
-  // if (!canSendEmail) {
-  //   return res.status(403).json({ success: false, message: 'You are not authorized to send emails.' });
-  // }
-
-  // Requestor is still required for getting user ID for audit trail
+  // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
+  }
+
+  // Permission check
+  const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!canSendEmail) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'You are not authorized to send emails.' });
   }
 
   try {
@@ -40,12 +42,10 @@ const sendEmail = async (req, res) => {
     if (!html) missingFields.push('HTML content');
     if (!to) missingFields.push('Recipient email');
     if (missingFields.length) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`,
+      });
     }
 
     // Validate HTML content size
@@ -58,12 +58,10 @@ const sendEmail = async (req, res) => {
 
     // Validate subject length against config
     if (subject && subject.length > EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Subject cannot exceed ${EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Subject cannot exceed ${EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
+      });
     }
 
     // Validate HTML does not contain base64-encoded media
@@ -117,22 +115,18 @@ const sendEmail = async (req, res) => {
           .json({ success: false, message: 'At least one recipient email is required' });
       }
       if (recipientsArray.length > EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `A maximum of ${EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `A maximum of ${EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
+        });
       }
       const invalidRecipients = recipientsArray.filter((e) => !isValidEmailAddress(e));
       if (invalidRecipients.length) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'One or more recipient emails are invalid',
-            invalidRecipients,
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'One or more recipient emails are invalid',
+          invalidRecipients,
+        });
       }
 
       // Always use batch system for tracking and progress
@@ -223,17 +217,18 @@ const sendEmail = async (req, res) => {
   }
 };
 
-const sendEmailToAll = async (req, res) => {
-  // TODO: Re-enable permission check in future
-  // Permission check - commented out for now
-  // const canSendEmailToAll = await hasPermission(req.body.requestor, 'sendEmailToAll');
-  // if (!canSendEmailToAll) {
-  //   return res.status(403).json({ success: false, message: 'You are not authorized to send emails to all.' });
-  // }
-
-  // Requestor is still required for getting user ID for audit trail
+const sendEmailToSubscribers = async (req, res) => {
+  // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
+  }
+
+  // Permission check - sendEmailToSubscribers requires sendEmails
+  const cansendEmailToSubscribers = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!cansendEmailToSubscribers) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'You are not authorized to send emails to subscribers.' });
   }
 
   try {
@@ -245,12 +240,10 @@ const sendEmailToAll = async (req, res) => {
     }
 
     if (!ensureHtmlWithinLimit(html)) {
-      return res
-        .status(413)
-        .json({
-          success: false,
-          message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
-        });
+      return res.status(413).json({
+        success: false,
+        message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
+      });
     }
 
     // Validate HTML does not contain base64-encoded media
@@ -405,9 +398,17 @@ const sendEmailToAll = async (req, res) => {
 };
 
 const resendEmail = async (req, res) => {
-  // Requestor is required for getting user ID for audit trail
+  // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
+  }
+
+  // Permission check - resending requires sendEmails permission
+  const canSendEmail = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!canSendEmail) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'You are not authorized to resend emails.' });
   }
 
   try {
@@ -472,25 +473,21 @@ const resendEmail = async (req, res) => {
         !Array.isArray(specificRecipients) ||
         specificRecipients.length === 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'specificRecipients array is required for specific option',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'specificRecipients array is required for specific option',
+        });
       }
 
       // Normalize and validate recipients
       const recipientsArray = normalizeRecipientsToArray(specificRecipients);
       const invalidRecipients = recipientsArray.filter((e) => !isValidEmailAddress(e));
       if (invalidRecipients.length) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'One or more recipient emails are invalid',
-            invalidRecipients,
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'One or more recipient emails are invalid',
+          invalidRecipients,
+        });
       }
 
       allRecipients = recipientsArray.map((email) => ({ email }));
@@ -666,6 +663,18 @@ const addNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already subscribed' });
     }
 
+    // check if this email is already in the HGN user list
+    const hgnUser = await userProfile.findOne({ email: normalizedEmail });
+    if (hgnUser) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            'You are already a member of the HGN community. Please use the HGN account profile page to subscribe to email updates.',
+        });
+    }
+
     // Save to DB immediately with confirmation pending
     const newEmailList = new EmailSubcriptionList({
       email: normalizedEmail,
@@ -701,12 +710,10 @@ const addNonHgnEmailSubscription = async (req, res) => {
         null,
         { type: 'subscription_confirmation' },
       );
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message: 'Email subscribed successfully. Please check your inbox to confirm.',
-        });
+      return res.status(200).json({
+        success: true,
+        message: 'Email subscribed successfully. Please check your inbox to confirm.',
+      });
     } catch (emailError) {
       logger.logException(emailError, 'Error sending confirmation email');
       // Still return success since the subscription was saved to DB
@@ -822,7 +829,7 @@ const removeNonHgnEmailSubscription = async (req, res) => {
 
 module.exports = {
   sendEmail,
-  sendEmailToAll,
+  sendEmailToSubscribers,
   resendEmail,
   updateEmailSubscriptions,
   addNonHgnEmailSubscription,

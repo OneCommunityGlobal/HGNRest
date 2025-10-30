@@ -5,6 +5,7 @@ const EmailBatchAuditService = require('../services/emailBatchAuditService');
 const emailAnnouncementJobProcessor = require('../jobs/emailAnnouncementJobProcessor');
 const EmailBatch = require('../models/emailBatch');
 const Email = require('../models/email');
+const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
@@ -13,6 +14,19 @@ const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
  */
 const getEmails = async (req, res) => {
   try {
+    // Permission check - viewing emails requires sendEmails permission
+    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
+    const requestor = req.body.requestor || req.user;
+    const canViewEmails = await hasPermission(requestor, 'sendEmails');
+    if (!canViewEmails) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You are not authorized to view emails.' });
+    }
+
     const emails = await EmailBatchService.getAllEmails();
 
     res.status(200).json({
@@ -34,6 +48,19 @@ const getEmails = async (req, res) => {
  */
 const getEmailDetails = async (req, res) => {
   try {
+    // Permission check - viewing email details requires sendEmails permission
+    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
+    const requestor = req.body.requestor || req.user;
+    const canViewEmails = await hasPermission(requestor, 'sendEmails');
+    if (!canViewEmails) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You are not authorized to view email details.' });
+    }
+
     const { emailId } = req.params; // emailId is now the ObjectId of parent Email
 
     if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
@@ -103,8 +130,21 @@ const retryEmail = async (req, res) => {
       });
     }
 
+    // Permission check - retrying emails requires sendEmails permission
+    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
+    const requestor = req.body.requestor || req.user;
+    const canRetryEmail = await hasPermission(requestor, 'sendEmails');
+    if (!canRetryEmail) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You are not authorized to retry emails.' });
+    }
+
     // Get requestor for audit trail
-    const requestorId = req?.body?.requestor?.requestorId || null;
+    const requestorId = requestor.requestorId || requestor.userid;
 
     // Find the Email
     const email = await Email.findById(emailId);
@@ -219,16 +259,15 @@ const getEmailAuditTrail = async (req, res) => {
       });
     }
 
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // const requestor = req.body.requestor || req.user;
-    // const canViewAudits = await hasPermission(requestor, 'viewEmailAudits');
-    // if (!canViewAudits) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to view email audits',
-    //   });
-    // }
+    // Permission check - use sendEmails permission to view audits
+    const requestor = req.body.requestor || req.user;
+    const canViewAudits = await hasPermission(requestor, 'sendEmails');
+    if (!canViewAudits) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view email audits',
+      });
+    }
 
     const { emailId } = req.params;
 
@@ -279,16 +318,15 @@ const getEmailBatchAuditTrail = async (req, res) => {
       });
     }
 
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // const requestor = req.body.requestor || req.user;
-    // const canViewAudits = await hasPermission(requestor, 'viewEmailAudits');
-    // if (!canViewAudits) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to view email audits',
-    //   });
-    // }
+    // Permission check - use sendEmails permission to view audits
+    const requestor = req.body.requestor || req.user;
+    const canViewAudits = await hasPermission(requestor, 'sendEmails');
+    if (!canViewAudits) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view email audits',
+      });
+    }
 
     const { emailBatchId } = req.params;
 

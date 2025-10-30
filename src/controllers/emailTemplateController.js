@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const EmailTemplate = require('../models/emailTemplate');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ensureHtmlWithinLimit, validateHtmlMedia } = require('../utilities/emailValidators');
 
@@ -112,23 +113,22 @@ function validateTemplateVariableUsage(templateVariables, htmlContent, subject) 
  */
 const getAllEmailTemplates = async (req, res) => {
   try {
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // if (!req?.body?.requestor && !req?.user) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: 'Missing requestor',
-    //   });
-    // }
+    // Permission check - use sendEmails permission to view templates
+    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Missing requestor',
+      });
+    }
 
-    // const requestor = req.body.requestor || req.user;
-    // const canViewTemplates = await hasPermission(requestor, 'viewEmailTemplates');
-    // if (!canViewTemplates) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to view email templates.',
-    //   });
-    // }
+    const requestor = req.body.requestor || req.user;
+    const canViewTemplates = await hasPermission(requestor, 'sendEmails');
+    if (!canViewTemplates) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view email templates.',
+      });
+    }
 
     const { search, sortBy, includeEmailContent } = req.query;
 
@@ -179,23 +179,22 @@ const getAllEmailTemplates = async (req, res) => {
  */
 const getEmailTemplateById = async (req, res) => {
   try {
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // if (!req?.body?.requestor && !req?.user) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: 'Missing requestor',
-    //   });
-    // }
+    // Permission check - use sendEmails permission to view templates
+    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Missing requestor',
+      });
+    }
 
-    // const requestor = req.body.requestor || req.user;
-    // const canViewTemplates = await hasPermission(requestor, 'viewEmailTemplates');
-    // if (!canViewTemplates) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to view email templates.',
-    //   });
-    // }
+    const requestor = req.body.requestor || req.user;
+    const canViewTemplates = await hasPermission(requestor, 'sendEmails');
+    if (!canViewTemplates) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view email templates.',
+      });
+    }
 
     const { id } = req.params;
 
@@ -237,20 +236,20 @@ const getEmailTemplateById = async (req, res) => {
  */
 const createEmailTemplate = async (req, res) => {
   try {
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // const canCreateTemplate = await hasPermission(req.body.requestor, 'createEmailTemplates');
-    // if (!canCreateTemplate) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to create email templates.',
-    //   });
-    // }
-
+    // Requestor is required for permission check
     if (!req?.body?.requestor?.requestorId) {
       return res.status(401).json({
         success: false,
         message: 'Missing requestor',
+      });
+    }
+
+    // Permission check - use sendEmails permission to create templates
+    const canCreateTemplate = await hasPermission(req.body.requestor, 'sendEmails');
+    if (!canCreateTemplate) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to create email templates.',
       });
     }
 
@@ -390,20 +389,20 @@ const createEmailTemplate = async (req, res) => {
  */
 const updateEmailTemplate = async (req, res) => {
   try {
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // const canUpdateTemplate = await hasPermission(req.body.requestor, 'updateEmailTemplates');
-    // if (!canUpdateTemplate) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to update email templates.',
-    //   });
-    // }
-
+    // Requestor is required for permission check
     if (!req?.body?.requestor?.requestorId) {
       return res.status(401).json({
         success: false,
         message: 'Missing requestor',
+      });
+    }
+
+    // Permission check - use sendEmails permission to update templates
+    const canUpdateTemplate = await hasPermission(req.body.requestor, 'sendEmails');
+    if (!canUpdateTemplate) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update email templates.',
       });
     }
 
@@ -571,21 +570,20 @@ const updateEmailTemplate = async (req, res) => {
  */
 const deleteEmailTemplate = async (req, res) => {
   try {
-    // TODO: Re-enable permission check in future
-    // Permission check - commented out for now
-    // const canDeleteTemplate = await hasPermission(req.body.requestor, 'deleteEmailTemplates');
-    // if (!canDeleteTemplate) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to delete email templates.',
-    //   });
-    // }
-
-    // Requestor is still required for audit logging
+    // Requestor is required for permission check and audit logging
     if (!req?.body?.requestor?.requestorId) {
       return res.status(401).json({
         success: false,
         message: 'Missing requestor',
+      });
+    }
+
+    // Permission check - use sendEmails permission to delete templates
+    const canDeleteTemplate = await hasPermission(req.body.requestor, 'sendEmails');
+    if (!canDeleteTemplate) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to delete email templates.',
       });
     }
 

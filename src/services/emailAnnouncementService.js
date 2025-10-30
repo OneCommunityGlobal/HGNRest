@@ -11,11 +11,11 @@ const logger = require('../startup/logger');
 class EmailAnnouncementService {
   constructor() {
     this.config = {
-      email: process.env.REACT_APP_EMAIL,
-      clientId: process.env.REACT_APP_EMAIL_CLIENT_ID,
-      clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
-      redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
-      refreshToken: process.env.REACT_APP_EMAIL_REFRESH_TOKEN,
+      email: process.env.ANNOUNCEMENT_EMAIL,
+      clientId: process.env.ANNOUNCEMENT_EMAIL_CLIENT_ID,
+      clientSecret: process.env.ANNOUNCEMENT_EMAIL_CLIENT_SECRET,
+      redirectUri: process.env.ANNOUNCEMENT_EMAIL_CLIENT_REDIRECT_URI,
+      refreshToken: process.env.ANNOUNCEMENT_EMAIL_REFRESH_TOKEN,
     };
 
     // Validate configuration
