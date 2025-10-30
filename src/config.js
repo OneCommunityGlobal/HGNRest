@@ -11,5 +11,6 @@ config.JWT_HEADER = {
   alg: 'RS256',
   typ: 'JWT',
 };
+config.FRONT_END_URL = process.env.FRONT_END_URL;
 
 module.exports = config;

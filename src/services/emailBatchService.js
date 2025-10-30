@@ -1,302 +1,213 @@
 /**
- * Enhanced Email Batch Service - Production Ready with Job Queue Support
- * Focus: Efficient batching with email body storage and job queue management
+ * Email Batch Service - Manages EmailBatch items (child records)
+ * Focus: Creating and managing EmailBatch items that reference parent Email records
  */
 
-const { v4: uuidv4 } = require('uuid');
+const mongoose = require('mongoose');
 const Email = require('../models/email');
 const EmailBatch = require('../models/emailBatch');
-const EmailBatchAuditService = require('./emailBatchAuditService');
+const EmailService = require('./emailService');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const { normalizeRecipientsToObjects } = require('../utilities/emailValidators');
 const logger = require('../startup/logger');
 
 class EmailBatchService {
-  constructor() {
-    this.batchSize = 50; // Match emailSender batch size for efficiency
-  }
-
   /**
-   * Create a new email batch with email body and job queue support
+   * Create EmailBatch items for an Email
+   * Takes all recipients, chunks them into EmailBatch items with configurable batch size
+   * @param {string|ObjectId} emailId - The _id (ObjectId) of the parent Email
+   * @param {Array} recipients - Array of recipient objects with email property
+   * @param {Object} config - Configuration { batchSize?, emailType? }
+   * @param {Object} session - MongoDB session for transaction support
+   * @returns {Promise<Array>} Created EmailBatch items
    */
-  static async createBatch(batchData) {
+  static async createEmailBatches(emailId, recipients, config = {}, session = null) {
     try {
-      const batch = new Email({
-        batchId: batchData.batchId || uuidv4(),
-        subject: batchData.subject,
-        htmlContent: batchData.htmlContent, // Store email body
-        createdBy: batchData.createdBy,
-      });
-
-      await batch.save();
-
-      // Log batch creation to audit trail
-      await EmailBatchAuditService.logEmailCreated(batch._id, batchData.createdBy, {
-        batchId: batch.batchId,
-        subject: batch.subject,
-      });
-
-      console.log('💾 Batch saved successfully:', {
-        id: batch._id,
-        batchId: batch.batchId,
-        status: batch.status,
-      });
-      return batch;
-    } catch (error) {
-      logger.logException(error, 'Error creating batch');
-      throw error;
-    }
-  }
-
-  /**
-   * Add recipients to a batch with efficient batching (uses config enums)
-   */
-  static async addRecipients(batchId, recipients, batchConfig = {}) {
-    try {
-      const batch = await Email.findOne({ batchId });
-      if (!batch) {
-        throw new Error('Batch not found');
+      // emailId is now the ObjectId directly - validate it
+      if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+        throw new Error(`Email not found with id: ${emailId}`);
       }
 
-      const batchSize = batchConfig.batchSize || 50;
-      const emailType = batchConfig.emailType || EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC;
+      const batchSize = config.batchSize || EMAIL_JOB_CONFIG.ANNOUNCEMENTS.BATCH_SIZE;
+      const emailType = config.emailType || EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC;
 
-      // Create batch items with multiple recipients per item
-      const batchItems = [];
+      // Normalize recipients to { email }
+      const normalizedRecipients = normalizeRecipientsToObjects(recipients);
+      if (normalizedRecipients.length === 0) {
+        throw new Error('At least one recipient is required');
+      }
 
-      for (let i = 0; i < recipients.length; i += batchSize) {
-        const recipientChunk = recipients.slice(i, i + batchSize);
+      // Chunk recipients into EmailBatch items
+      const emailBatchItems = [];
 
-        const batchItem = {
-          batchId: batch._id,
-          recipients: recipientChunk.map((recipient) => ({
-            email: recipient.email, // Only email, no name
-          })),
+      for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
+        const recipientChunk = normalizedRecipients.slice(i, i + batchSize);
+
+        const emailBatchItem = {
+          emailId, // emailId is now the ObjectId directly
+          recipients: recipientChunk.map((recipient) => ({ email: recipient.email })),
           emailType,
           status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.QUEUED,
         };
 
-        batchItems.push(batchItem);
+        emailBatchItems.push(emailBatchItem);
       }
 
-      await EmailBatch.insertMany(batchItems);
+      // Insert with session if provided for transaction support
+      const inserted = await EmailBatch.insertMany(emailBatchItems, { session });
 
-      return batch;
-    } catch (error) {
-      logger.logException(error, 'Error adding recipients to batch');
-      throw error;
-    }
-  }
-
-  /**
-   * Create a single send batch (most common use case)
-   */
-  static async createSingleSendBatch(emailData, user) {
-    try {
-      // Handle both 'to' field and direct recipients array
-      let recipients;
-      if (emailData.to) {
-        recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
-      } else if (Array.isArray(emailData.recipients)) {
-        recipients = emailData.recipients;
-      } else {
-        throw new Error('No recipients provided');
-      }
-
-      // Create batch with email body
-      const batch = await this.createBatch({
-        batchId: uuidv4(),
-        subject: emailData.subject,
-        htmlContent: emailData.html, // Store email body in batch
-        createdBy: user._id || user.requestorId,
-      });
-
-      // Add recipients with efficient batching
-      const batchConfig = {
-        batchSize: 50, // Use standard batch size
-        emailType:
-          recipients.length === 1
-            ? EMAIL_JOB_CONFIG.EMAIL_TYPES.TO
-            : EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC, // Single recipient uses TO, multiple use BCC
-      };
-
-      // Convert recipients to proper format
-      const recipientObjects = recipients.map((email) => ({ email }));
-      console.log('📧 Adding recipients to batch:', recipientObjects.length, 'recipients');
-      await this.addRecipients(batch.batchId, recipientObjects, batchConfig);
-
-      return batch;
-    } catch (error) {
-      logger.logException(error, 'Error creating single send batch');
-      throw error;
-    }
-  }
-
-  /**
-   * Get batch with items and dynamic counts
-   */
-  static async getBatchWithItems(batchId) {
-    try {
-      const batch = await Email.findOne({ batchId }).populate(
-        'createdBy',
-        'firstName lastName email',
+      logger.logInfo(
+        `Created ${emailBatchItems.length} EmailBatch items for Email ${emailId} with ${normalizedRecipients.length} total recipients`,
       );
 
-      if (!batch) {
+      return inserted;
+    } catch (error) {
+      logger.logException(error, 'Error creating EmailBatch items');
+      throw error;
+    }
+  }
+
+  /**
+   * Get Email with its EmailBatch items and dynamic counts
+   */
+  static async getEmailWithBatches(emailId) {
+    try {
+      const email = await EmailService.getEmailById(emailId);
+      if (!email) {
         return null;
       }
 
-      const items = await EmailBatch.find({ batchId: batch._id }).sort({ createdAt: 1 });
+      // Populate createdBy if email exists
+      await email.populate('createdBy', 'firstName lastName email');
 
-      // Get dynamic counts
-      const counts = await batch.getEmailCounts();
+      const emailBatches = await this.getBatchesForEmail(emailId);
 
-      // Return batch items as-is (each item contains multiple recipients)
-      const transformedItems = items.map((item) => ({
-        _id: item._id,
-        recipients: item.recipients || [],
-        status: item.status,
-        attempts: item.attempts || 0,
-        lastAttemptedAt: item.lastAttemptedAt,
-        sentAt: item.sentAt,
-        failedAt: item.failedAt,
-        error: item.error,
-        errorCode: item.errorCode,
-        emailType: item.emailType,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
+      // Transform EmailBatch items
+      const transformedBatches = emailBatches.map((batch) => ({
+        _id: batch._id,
+        emailId: batch.emailId,
+        recipients: batch.recipients || [],
+        status: batch.status,
+        attempts: batch.attempts || 0,
+        lastAttemptedAt: batch.lastAttemptedAt,
+        sentAt: batch.sentAt,
+        failedAt: batch.failedAt,
+        lastError: batch.lastError,
+        lastErrorAt: batch.lastErrorAt,
+        errorCode: batch.errorCode,
+        emailType: batch.emailType,
+        createdAt: batch.createdAt,
+        updatedAt: batch.updatedAt,
       }));
 
       return {
-        batch: {
-          ...batch.toObject(),
-          ...counts,
-        },
-        items: transformedItems,
+        email: email.toObject(),
+        batches: transformedBatches,
       };
     } catch (error) {
-      logger.logException(error, 'Error getting batch with items');
+      logger.logException(error, 'Error getting Email with batches');
       throw error;
     }
   }
 
   /**
-   * Get all batches with pagination and dynamic counts
+   * Get all Emails
    */
-  static async getBatches(filters = {}, page = 1, limit = 20) {
+  static async getAllEmails() {
     try {
-      const query = {};
+      const emails = await Email.find()
+        .sort({ createdAt: -1 })
+        .populate('createdBy', 'firstName lastName email')
+        .lean();
 
-      if (filters.status) query.status = filters.status;
-      if (filters.dateFrom) query.createdAt = { $gte: new Date(filters.dateFrom) };
-      if (filters.dateTo) query.createdAt = { ...query.createdAt, $lte: new Date(filters.dateTo) };
-
-      const skip = (page - 1) * limit;
-
-      const [batches, total] = await Promise.all([
-        Email.find(query)
-          .sort({ createdAt: -1 })
-          .limit(limit)
-          .skip(skip)
-          .populate('createdBy', 'firstName lastName email'),
-        Email.countDocuments(query),
-      ]);
-
-      // Add dynamic counts to each batch
-      const batchesWithCounts = await Promise.all(
-        batches.map(async (batch) => {
-          const counts = await batch.getEmailCounts();
-          return {
-            ...batch.toObject(),
-            ...counts,
-          };
-        }),
-      );
-
-      return {
-        batches: batchesWithCounts,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      };
+      return emails;
     } catch (error) {
-      logger.logException(error, 'Error getting batches');
+      logger.logException(error, 'Error getting Emails');
       throw error;
     }
   }
 
   /**
-   * Get dashboard statistics with dynamic calculations
+   * Fetch EmailBatch items for a parent emailId (ObjectId)
    */
-  static async getDashboardStats() {
-    try {
-      const [totalBatches, pendingBatches, processingBatches, completedBatches, failedBatches] =
-        await Promise.all([
-          Email.countDocuments(),
-          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.QUEUED }),
-          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENDING }),
-          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENT }),
-          Email.countDocuments({ status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED }),
-        ]);
+  static async getBatchesForEmail(emailId) {
+    return EmailBatch.find({ emailId }).sort({ createdAt: 1 });
+  }
 
-      // Calculate email stats dynamically from batch items
-      const emailStats = await EmailBatch.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalEmails: {
-              $sum: { $cond: [{ $isArray: '$recipients' }, { $size: '$recipients' }, 0] },
-            },
-            sentEmails: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ['$status', EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENT] },
-                      { $isArray: '$recipients' },
-                    ],
-                  },
-                  { $size: '$recipients' },
-                  0,
-                ],
-              },
-            },
-            failedEmails: {
-              $sum: {
-                $cond: [
-                  { $and: [{ $eq: ['$status', 'FAILED'] }, { $isArray: '$recipients' }] },
-                  { $size: '$recipients' },
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      ]);
+  /**
+   * Get EmailBatch items by emailId (alias for consistency)
+   */
+  static async getEmailBatchesByEmailId(emailId) {
+    return this.getBatchesForEmail(emailId);
+  }
 
-      const stats = emailStats[0] || { totalEmails: 0, sentEmails: 0, failedEmails: 0 };
-      const successRate =
-        stats.totalEmails > 0 ? Math.round((stats.sentEmails / stats.totalEmails) * 100) : 0;
+  /**
+   * Reset an EmailBatch item for retry
+   */
+  static async resetEmailBatchForRetry(emailBatchId) {
+    const item = await EmailBatch.findById(emailBatchId);
+    if (!item) return null;
+    item.status = EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.QUEUED;
+    item.attempts = 0;
+    item.lastError = null;
+    item.lastErrorAt = null;
+    item.errorCode = null;
+    item.failedAt = null;
+    item.lastAttemptedAt = null;
+    await item.save();
+    return item;
+  }
 
-      return {
-        overview: {
-          totalBatches,
-          pendingBatches,
-          processingBatches,
-          completedBatches,
-          failedBatches,
-        },
-        emailStats: {
-          ...stats,
-          successRate,
-        },
-      };
-    } catch (error) {
-      logger.logException(error, 'Error getting dashboard stats');
-      throw error;
-    }
+  /**
+   * Mark a batch item as SENDING (and bump attempts/lastAttemptedAt)
+   */
+  static async markEmailBatchSending(emailBatchId) {
+    const now = new Date();
+    const updated = await EmailBatch.findByIdAndUpdate(
+      emailBatchId,
+      {
+        status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENDING,
+        $inc: { attempts: 1 },
+        lastAttemptedAt: now,
+      },
+      { new: true },
+    );
+    return updated;
+  }
+
+  /**
+   * Mark a batch item as SENT
+   */
+  static async markEmailBatchSent(emailBatchId) {
+    const now = new Date();
+    const updated = await EmailBatch.findByIdAndUpdate(
+      emailBatchId,
+      {
+        status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENT,
+        sentAt: now,
+      },
+      { new: true },
+    );
+    return updated;
+  }
+
+  /**
+   * Mark a batch item as FAILED and record error info
+   */
+  static async markEmailBatchFailed(emailBatchId, { errorCode, errorMessage }) {
+    const now = new Date();
+    const updated = await EmailBatch.findByIdAndUpdate(
+      emailBatchId,
+      {
+        status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.FAILED,
+        failedAt: now,
+        lastError: errorMessage?.slice(0, 500) || null,
+        lastErrorAt: now,
+        errorCode: errorCode?.toString().slice(0, 1000) || null,
+      },
+      { new: true },
+    );
+    return updated;
   }
 }
 

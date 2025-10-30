@@ -9,6 +9,5 @@ router.get('/email-templates/:id', emailTemplateController.getEmailTemplateById)
 router.post('/email-templates', emailTemplateController.createEmailTemplate);
 router.put('/email-templates/:id', emailTemplateController.updateEmailTemplate);
 router.delete('/email-templates/:id', emailTemplateController.deleteEmailTemplate);
-router.post('/email-templates/:id/send', emailTemplateController.sendEmailWithTemplate);
 
 module.exports = router;

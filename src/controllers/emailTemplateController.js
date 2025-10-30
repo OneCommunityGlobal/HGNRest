@@ -1,154 +1,220 @@
-const EmailTemplate = require('../models/EmailTemplateModel');
+const mongoose = require('mongoose');
+const EmailTemplate = require('../models/emailTemplate');
+const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const logger = require('../startup/logger');
+const { ensureHtmlWithinLimit, validateHtmlMedia } = require('../utilities/emailValidators');
 
-// Get all email templates with pagination and optimization
-exports.getAllEmailTemplates = async (req, res) => {
+/**
+ * Validate template variables
+ */
+function validateTemplateVariables(variables) {
+  if (!variables || !Array.isArray(variables)) {
+    return { isValid: true };
+  }
+
+  const errors = [];
+  const variableNames = new Set();
+
+  variables.forEach((variable, index) => {
+    if (!variable.name || typeof variable.name !== 'string' || !variable.name.trim()) {
+      errors.push(`Variable ${index + 1}: name is required and must be a non-empty string`);
+    } else {
+      const varName = variable.name.trim();
+      // Validate variable name format (alphanumeric and underscore only)
+      if (!/^[a-zA-Z0-9_]+$/.test(varName)) {
+        errors.push(
+          `Variable ${index + 1}: name must contain only alphanumeric characters and underscores`,
+        );
+      }
+      // Check for duplicates
+      if (variableNames.has(varName.toLowerCase())) {
+        errors.push(`Variable ${index + 1}: duplicate variable name '${varName}'`);
+      }
+      variableNames.add(varName.toLowerCase());
+    }
+
+    if (variable.type && !['text', 'url', 'number', 'textarea', 'image'].includes(variable.type)) {
+      errors.push(`Variable ${index + 1}: type must be one of: text, url, number, textarea, image`);
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate template content (HTML and subject) against defined variables
+ */
+function validateTemplateVariableUsage(templateVariables, htmlContent, subject) {
+  const errors = [];
+
+  if (!templateVariables || templateVariables.length === 0) {
+    return { isValid: true, errors: [] };
+  }
+
+  // Extract variable placeholders from content (format: {{variableName}})
+  const variablePlaceholderRegex = /\{\{(\w+)\}\}/g;
+  const usedVariables = new Set();
+  const foundPlaceholders = [];
+
+  // Check HTML content
+  if (htmlContent) {
+    let match = variablePlaceholderRegex.exec(htmlContent);
+    while (match !== null) {
+      const varName = match[1];
+      foundPlaceholders.push(varName);
+      usedVariables.add(varName);
+      match = variablePlaceholderRegex.exec(htmlContent);
+    }
+  }
+
+  // Reset regex for subject
+  variablePlaceholderRegex.lastIndex = 0;
+
+  // Check subject
+  if (subject) {
+    let match = variablePlaceholderRegex.exec(subject);
+    while (match !== null) {
+      const varName = match[1];
+      foundPlaceholders.push(varName);
+      usedVariables.add(varName);
+      match = variablePlaceholderRegex.exec(subject);
+    }
+  }
+
+  // Check for undefined variable placeholders in content
+  const definedVariableNames = templateVariables.map((v) => v.name);
+  foundPlaceholders.forEach((placeholder) => {
+    if (!definedVariableNames.includes(placeholder)) {
+      errors.push(
+        `Variable placeholder '{{${placeholder}}}' is used in content but not defined in template variables`,
+      );
+    }
+  });
+
+  // Check for defined variables that are not used in content (treated as errors)
+  templateVariables.forEach((variable) => {
+    if (!usedVariables.has(variable.name)) {
+      errors.push(`Variable '{{${variable.name}}}}' is defined but not used in template content`);
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Get all email templates with pagination and optimization
+ */
+const getAllEmailTemplates = async (req, res) => {
   try {
-    const { search, page, limit, sortBy, sortOrder, fields, includeVariables } = req.query;
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // if (!req?.body?.requestor && !req?.user) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     message: 'Missing requestor',
+    //   });
+    // }
+
+    // const requestor = req.body.requestor || req.user;
+    // const canViewTemplates = await hasPermission(requestor, 'viewEmailTemplates');
+    // if (!canViewTemplates) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to view email templates.',
+    //   });
+    // }
+
+    const { search, sortBy, includeEmailContent } = req.query;
 
     const query = {};
     const sort = {};
 
-    // Parse pagination parameters - let frontend decide defaults
-    const pageNum = page ? Math.max(1, parseInt(page, 10)) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : null; // No restrictions, let frontend decide
-    const skip = limitNum && pageNum ? (pageNum - 1) * limitNum : 0;
-
     // Add search functionality with text index
     if (search && search.trim()) {
-      query.$or = [
-        { name: { $regex: search.trim(), $options: 'i' } },
-        { subject: { $regex: search.trim(), $options: 'i' } },
-      ];
+      query.$or = [{ name: { $regex: search.trim(), $options: 'i' } }];
     }
-
-    // No filtering - removed variable filtering as requested
 
     // Build sort object - let frontend decide sort field and order
     if (sortBy) {
-      const sortDirection = sortOrder === 'desc' ? -1 : 1;
-      sort[sortBy] = sortDirection;
+      sort[sortBy] = 1; // default ascending when sortBy provided
     } else {
       // Default sort only if frontend doesn't specify
       sort.created_at = -1;
     }
 
-    // Execute optimized query with pagination
-    let queryBuilder = EmailTemplate.find(query);
+    // Build projection based on include flags; always include audit fields
+    let projection = '_id name created_by updated_by created_at updated_at';
+    if (includeEmailContent === 'true') projection += ' subject html_content variables';
 
-    // Let components decide which fields to include
-    if (fields) {
-      // Parse comma-separated fields and always include _id
-      const fieldList = fields.split(',').map((field) => field.trim());
-      if (!fieldList.includes('_id')) {
-        fieldList.unshift('_id');
-      }
-      queryBuilder = queryBuilder.select(fieldList.join(' '));
-    } else if (includeVariables === 'true') {
-      // Include all fields including variables if requested
-      // Don't use select('') as it excludes all fields, use no select() to include all
-    } else {
-      // Default minimal fields for list view
-      queryBuilder = queryBuilder.select('_id name created_at updated_at created_by updated_by');
-    }
+    let queryBuilder = EmailTemplate.find(query).select(projection).sort(sort);
 
-    // Populate user fields if they're in the selection
-    if (includeVariables === 'true' || !fields || fields.includes('created_by')) {
-      queryBuilder = queryBuilder.populate('created_by', 'firstName lastName');
-    }
-    if (includeVariables === 'true' || !fields || fields.includes('updated_by')) {
-      queryBuilder = queryBuilder.populate('updated_by', 'firstName lastName');
-    }
+    // Always include created_by and updated_by populations
+    queryBuilder = queryBuilder.populate('created_by', 'firstName lastName');
+    queryBuilder = queryBuilder.populate('updated_by', 'firstName lastName');
 
-    queryBuilder = queryBuilder.sort(sort).skip(skip);
-
-    // Only apply limit if specified
-    if (limitNum) {
-      queryBuilder = queryBuilder.limit(limitNum);
-    }
-
-    const [templates, totalCount] = await Promise.all([
-      queryBuilder.lean(), // Use lean() for better performance
-      EmailTemplate.countDocuments(query),
-    ]);
-
-    // Transform templates based on what components requested
-    let processedTemplates;
-    if (includeVariables === 'true') {
-      // Return full template data including variables
-      processedTemplates = templates.map((template) => ({
-        _id: template._id,
-        name: template.name,
-        subject: template.subject,
-        content: template.content,
-        variables: template.variables || [],
-        created_by: template.created_by,
-        updated_by: template.updated_by,
-        created_at: template.created_at,
-        updated_at: template.updated_at,
-      }));
-    } else if (fields) {
-      // Return only requested fields
-      processedTemplates = templates.map((template) => {
-        const fieldList = fields.split(',').map((field) => field.trim());
-        const result = { _id: template._id };
-        fieldList.forEach((field) => {
-          if (template[field] !== undefined) {
-            result[field] = template[field];
-          }
-        });
-        return result;
-      });
-    } else {
-      // Default minimal fields for list view
-      processedTemplates = templates.map((template) => ({
-        _id: template._id,
-        name: template.name,
-        created_by: template.created_by,
-        updated_by: template.updated_by,
-        created_at: template.created_at,
-        updated_at: template.updated_at,
-      }));
-    }
-
-    // Calculate pagination info
-    const totalPages = limitNum ? Math.ceil(totalCount / limitNum) : 1;
-    const hasNextPage = limitNum ? pageNum < totalPages : false;
-    const hasPrevPage = pageNum > 1;
+    const templates = await queryBuilder.lean();
 
     res.status(200).json({
       success: true,
-      templates: processedTemplates,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalCount,
-        limit: limitNum,
-        hasNextPage,
-        hasPrevPage,
-      },
+      templates,
     });
   } catch (error) {
-    console.error('Error fetching email templates:', error);
+    logger.logException(error, 'Error fetching email templates');
     res.status(500).json({
       success: false,
-      message: 'Error fetching email templates.',
+      message: 'Error fetching email templates',
       error: error.message,
     });
   }
 };
 
-// Get a single email template by ID
-exports.getEmailTemplateById = async (req, res) => {
+/**
+ * Get a single email template by ID
+ */
+const getEmailTemplateById = async (req, res) => {
   try {
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // if (!req?.body?.requestor && !req?.user) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     message: 'Missing requestor',
+    //   });
+    // }
+
+    // const requestor = req.body.requestor || req.user;
+    // const canViewTemplates = await hasPermission(requestor, 'viewEmailTemplates');
+    // if (!canViewTemplates) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to view email templates.',
+    //   });
+    // }
+
     const { id } = req.params;
+
+    // Validate ObjectId
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid template ID',
+      });
+    }
+
     const template = await EmailTemplate.findById(id)
-      .populate('created_by', 'firstName lastName')
-      .populate('updated_by', 'firstName lastName');
+      .populate('created_by', 'firstName lastName email')
+      .populate('updated_by', 'firstName lastName email');
 
     if (!template) {
       return res.status(404).json({
         success: false,
-        message: 'Email template not found.',
+        message: 'Email template not found',
       });
     }
 
@@ -157,353 +223,415 @@ exports.getEmailTemplateById = async (req, res) => {
       template,
     });
   } catch (error) {
-    console.error('Error fetching email template:', error);
+    logger.logException(error, 'Error fetching email template');
     res.status(500).json({
       success: false,
-      message: 'Error fetching email template.',
+      message: 'Error fetching email template',
       error: error.message,
     });
   }
 };
 
-// Create a new email template
-exports.createEmailTemplate = async (req, res) => {
+/**
+ * Create a new email template
+ */
+const createEmailTemplate = async (req, res) => {
   try {
-    const { name, subject, html_content: htmlContent, variables } = req.body;
-    const userId = req.body.requestor?.requestorId;
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // const canCreateTemplate = await hasPermission(req.body.requestor, 'createEmailTemplates');
+    // if (!canCreateTemplate) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to create email templates.',
+    //   });
+    // }
 
-    // Validate required fields
-    if (!name || !subject || !htmlContent) {
-      return res.status(400).json({
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({
         success: false,
-        message: 'Name, subject, and HTML content are required.',
+        message: 'Missing requestor',
       });
     }
 
-    // Check if template with the same name already exists
-    const existingTemplate = await EmailTemplate.findOne({ name });
+    const { name, subject, html_content: htmlContent, variables } = req.body;
+    const userId = req.body.requestor.requestorId;
+
+    // Validate HTML content size
+    if (!ensureHtmlWithinLimit(htmlContent)) {
+      return res.status(413).json({
+        success: false,
+        message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
+      });
+    }
+
+    // Validate HTML does not contain base64-encoded media
+    const mediaValidation = validateHtmlMedia(htmlContent);
+    if (!mediaValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+        errors: mediaValidation.errors,
+      });
+    }
+
+    // Validate name length
+    const trimmedName = name.trim();
+    if (trimmedName.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name cannot exceed 50 characters',
+      });
+    }
+
+    // Validate subject length
+    const trimmedSubject = subject.trim();
+    if (trimmedSubject.length > EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Subject cannot exceed ${EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
+      });
+    }
+
+    // Check if template with the same name already exists (case-insensitive)
+    const existingTemplate = await EmailTemplate.findOne({
+      name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+    });
     if (existingTemplate) {
       return res.status(400).json({
         success: false,
-        message: 'Email template with this name already exists.',
+        message: 'Email template with this name already exists',
       });
     }
 
-    // Validate variables if provided
+    // Validate variables
     if (variables && variables.length > 0) {
-      const invalidVariable = variables.find((variable) => !variable.name || !variable.label);
-      if (invalidVariable) {
+      const variableValidation = validateTemplateVariables(variables);
+      if (!variableValidation.isValid) {
         return res.status(400).json({
           success: false,
-          message: 'Variable name and label are required for all variables.',
+          message: 'Invalid template variables',
+          errors: variableValidation.errors,
+        });
+      }
+
+      // Validate variable usage in content (HTML and subject)
+      const variableUsageValidation = validateTemplateVariableUsage(
+        variables,
+        htmlContent,
+        trimmedSubject,
+      );
+      if (!variableUsageValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid variable usage in template content',
+          errors: variableUsageValidation.errors,
+        });
+      }
+    } else {
+      // If no variables are defined, check for any variable placeholders in content
+      const variablePlaceholderRegex = /\{\{(\w+)\}\}/g;
+      const foundInHtml = variablePlaceholderRegex.test(htmlContent);
+      variablePlaceholderRegex.lastIndex = 0;
+      const foundInSubject = variablePlaceholderRegex.test(trimmedSubject);
+
+      if (foundInHtml || foundInSubject) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Template content contains variable placeholders ({{variableName}}) but no variables are defined. Please define variables or remove placeholders from content.',
         });
       }
     }
 
+    // Validate userId is valid ObjectId
+    if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID',
+      });
+    }
+
     // Create new email template
     const template = new EmailTemplate({
-      name,
-      subject,
-      html_content: htmlContent,
+      name: trimmedName,
+      subject: trimmedSubject,
+      html_content: htmlContent.trim(),
       variables: variables || [],
       created_by: userId,
-      updated_by: userId, // Set updated_by to same as created_by for new templates
+      updated_by: userId,
     });
 
     await template.save();
 
     // Populate created_by and updated_by fields for response
-    await template.populate('created_by', 'firstName lastName');
-    await template.populate('updated_by', 'firstName lastName');
+    await template.populate('created_by', 'firstName lastName email');
+    await template.populate('updated_by', 'firstName lastName email');
+
+    logger.logInfo(`Email template created: ${template.name} by user ${userId}`);
 
     res.status(201).json({
       success: true,
-      message: 'Email template created successfully.',
+      message: 'Email template created successfully',
       template,
     });
   } catch (error) {
-    console.error('Error creating email template:', error);
+    logger.logException(error, 'Error creating email template');
     res.status(500).json({
       success: false,
-      message: 'Error creating email template.',
+      message: 'Error creating email template',
       error: error.message,
     });
   }
 };
 
-// Update an email template
-exports.updateEmailTemplate = async (req, res) => {
+/**
+ * Update an email template
+ */
+const updateEmailTemplate = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, subject, html_content: htmlContent, variables } = req.body;
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // const canUpdateTemplate = await hasPermission(req.body.requestor, 'updateEmailTemplates');
+    // if (!canUpdateTemplate) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to update email templates.',
+    //   });
+    // }
 
-    // Validate required fields
-    if (!name || !subject || !htmlContent) {
-      return res.status(400).json({
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({
         success: false,
-        message: 'Name, subject, and HTML content are required.',
+        message: 'Missing requestor',
       });
     }
 
-    // Get current template to check if name is actually changing
+    const { id } = req.params;
+    const { name, subject, html_content: htmlContent, variables } = req.body;
+
+    // Validate ObjectId
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid template ID',
+      });
+    }
+
+    // Validate HTML content size
+    if (!ensureHtmlWithinLimit(htmlContent)) {
+      return res.status(413).json({
+        success: false,
+        message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
+      });
+    }
+
+    // Validate HTML does not contain base64-encoded media
+    const mediaValidation = validateHtmlMedia(htmlContent);
+    if (!mediaValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+        errors: mediaValidation.errors,
+      });
+    }
+
+    // Validate name and subject length
+    const trimmedName = name.trim();
+    const trimmedSubject = subject.trim();
+
+    if (trimmedName.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name cannot exceed 50 characters',
+      });
+    }
+
+    if (trimmedSubject.length > EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Subject cannot exceed ${EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
+      });
+    }
+
+    // Get current template
     const currentTemplate = await EmailTemplate.findById(id);
     if (!currentTemplate) {
       return res.status(404).json({
         success: false,
-        message: 'Email template not found.',
+        message: 'Email template not found',
       });
     }
 
-    // Only check for duplicate names if the name is actually changing
-    if (currentTemplate.name !== name) {
+    // Only check for duplicate names if the name is actually changing (case-insensitive)
+    if (currentTemplate.name.toLowerCase() !== trimmedName.toLowerCase()) {
       const existingTemplate = await EmailTemplate.findOne({
-        name,
+        name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
         _id: { $ne: id },
       });
       if (existingTemplate) {
         return res.status(400).json({
           success: false,
-          message: 'Another email template with this name already exists.',
+          message: 'Another email template with this name already exists',
         });
       }
     }
 
-    // Validate variables if provided
+    // Validate variables
     if (variables && variables.length > 0) {
-      const invalidVariable = variables.find((variable) => !variable.name || !variable.label);
-      if (invalidVariable) {
+      const variableValidation = validateTemplateVariables(variables);
+      if (!variableValidation.isValid) {
         return res.status(400).json({
           success: false,
-          message: 'Variable name and label are required for all variables.',
+          message: 'Invalid template variables',
+          errors: variableValidation.errors,
         });
       }
+
+      // Validate variable usage in content (HTML and subject)
+      const variableUsageValidation = validateTemplateVariableUsage(
+        variables,
+        htmlContent,
+        trimmedSubject,
+      );
+      if (!variableUsageValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid variable usage in template content',
+          errors: variableUsageValidation.errors,
+        });
+      }
+    } else {
+      // If no variables are defined, check for any variable placeholders in content
+      const variablePlaceholderRegex = /\{\{(\w+)\}\}/g;
+      const foundInHtml = variablePlaceholderRegex.test(htmlContent);
+      variablePlaceholderRegex.lastIndex = 0;
+      const foundInSubject = variablePlaceholderRegex.test(trimmedSubject);
+
+      if (foundInHtml || foundInSubject) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Template content contains variable placeholders ({{variableName}}) but no variables are defined. Please define variables or remove placeholders from content.',
+        });
+      }
+    }
+
+    // Validate userId is valid ObjectId
+    const userId = req.body.requestor?.requestorId;
+    if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID',
+      });
     }
 
     // Update template
     const updateData = {
-      name,
-      subject,
-      html_content: htmlContent,
+      name: trimmedName,
+      subject: trimmedSubject,
+      html_content: htmlContent.trim(),
       variables: variables || [],
-      updated_by: req.body.requestor?.requestorId, // Set who updated the template
+      updated_by: userId,
     };
 
     const template = await EmailTemplate.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     })
-      .populate('created_by', 'firstName lastName')
-      .populate('updated_by', 'firstName lastName');
+      .populate('created_by', 'firstName lastName email')
+      .populate('updated_by', 'firstName lastName email');
 
     if (!template) {
       return res.status(404).json({
         success: false,
-        message: 'Email template not found.',
+        message: 'Email template not found',
       });
     }
 
+    logger.logInfo(`Email template updated: ${template.name} by user ${userId}`);
+
     res.status(200).json({
       success: true,
-      message: 'Email template updated successfully.',
+      message: 'Email template updated successfully',
       template,
     });
   } catch (error) {
-    console.error('Error updating email template:', error);
+    logger.logException(error, 'Error updating email template');
     res.status(500).json({
       success: false,
-      message: 'Error updating email template.',
+      message: 'Error updating email template',
       error: error.message,
     });
   }
 };
 
-// Delete an email template
-exports.deleteEmailTemplate = async (req, res) => {
+/**
+ * Delete an email template
+ */
+const deleteEmailTemplate = async (req, res) => {
   try {
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // const canDeleteTemplate = await hasPermission(req.body.requestor, 'deleteEmailTemplates');
+    // if (!canDeleteTemplate) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to delete email templates.',
+    //   });
+    // }
+
+    // Requestor is still required for audit logging
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Missing requestor',
+      });
+    }
+
     const { id } = req.params;
-    const template = await EmailTemplate.findByIdAndDelete(id);
+
+    // Validate ObjectId
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid template ID',
+      });
+    }
+
+    const template = await EmailTemplate.findById(id);
 
     if (!template) {
       return res.status(404).json({
         success: false,
-        message: 'Email template not found.',
+        message: 'Email template not found',
       });
     }
+
+    await EmailTemplate.findByIdAndDelete(id);
+
+    logger.logInfo(
+      `Email template deleted: ${template.name} by user ${req.body.requestor?.requestorId}`,
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Email template deleted successfully.',
+      message: 'Email template deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting email template:', error);
+    logger.logException(error, 'Error deleting email template');
     res.status(500).json({
       success: false,
-      message: 'Error deleting email template.',
+      message: 'Error deleting email template',
       error: error.message,
     });
   }
 };
 
-// Send email using template
-exports.sendEmailWithTemplate = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { recipients, variableValues, broadcastToAll } = req.body;
-
-    // Validate required fields
-    if (!broadcastToAll && (!recipients || !Array.isArray(recipients) || recipients.length === 0)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Recipients array is required when not broadcasting to all.',
-      });
-    }
-
-    // Get template
-    const template = await EmailTemplate.findById(id);
-    if (!template) {
-      return res.status(404).json({
-        success: false,
-        message: 'Email template not found.',
-      });
-    }
-
-    // Validate all variables (since all are required by default)
-    const missingVariable = template.variables.find(
-      (variable) => !variableValues || !variableValues[variable.name],
-    );
-    if (missingVariable) {
-      return res.status(400).json({
-        success: false,
-        message: `Variable '${missingVariable.label}' is missing.`,
-      });
-    }
-
-    // Replace variables in subject and content
-    let processedSubject = template.subject;
-    let processedContent = template.html_content;
-
-    if (variableValues) {
-      Object.entries(variableValues).forEach(([varName, varValue]) => {
-        const regex = new RegExp(`{{${varName}}}`, 'g');
-        processedSubject = processedSubject.replace(regex, varValue);
-        processedContent = processedContent.replace(regex, varValue);
-      });
-    }
-
-    if (broadcastToAll) {
-      // Use existing broadcast functionality
-      const { sendEmailToAll } = require('./emailController');
-
-      // Create a mock request object for sendEmailToAll
-      const mockReq = {
-        body: {
-          requestor: req.body.requestor || req.user, // Pass the user making the request
-          subject: processedSubject,
-          html: processedContent,
-        },
-      };
-
-      // Create a mock response object to capture the result
-      let broadcastResult = null;
-      const mockRes = {
-        status: (code) => ({
-          send: (message) => {
-            broadcastResult = { code, message };
-          },
-        }),
-      };
-
-      await sendEmailToAll(mockReq, mockRes);
-
-      if (broadcastResult && broadcastResult.code === 200) {
-        res.status(200).json({
-          success: true,
-          message: 'Email template broadcasted successfully to all users.',
-          broadcasted: true,
-        });
-      } else {
-        res.status(broadcastResult?.code || 500).json({
-          success: false,
-          message: broadcastResult?.message || 'Error broadcasting email template.',
-        });
-      }
-    } else {
-      // Send to specific recipients using batch system
-      try {
-        const EmailBatchService = require('../services/emailBatchService');
-        const userProfile = require('../models/userProfile');
-
-        // Get user information
-        const user = await userProfile.findById(req.body.requestor.requestorId);
-        if (!user) {
-          return res.status(400).json({
-            success: false,
-            message: 'User not found',
-          });
-        }
-
-        // Create batch for template email (this already adds recipients internally)
-        console.log('📧 Creating batch for template email...');
-        const batch = await EmailBatchService.createSingleSendBatch(
-          {
-            to: recipients,
-            subject: processedSubject,
-            html: processedContent,
-            attachments: null,
-          },
-          user,
-        );
-
-        console.log('✅ Template batch created with recipients:', batch.batchId);
-        console.log('📊 Batch details:', {
-          id: batch._id,
-          batchId: batch.batchId,
-          status: batch.status,
-          createdBy: batch.createdBy,
-        });
-
-        // REMOVED: Immediate processing - batch will be processed by cron job
-        // emailBatchProcessor.processBatch(batch.batchId).catch((error) => {
-        //   console.error('❌ Error processing template batch:', error);
-        // });
-
-        // Get dynamic counts for response
-        const counts = await batch.getEmailCounts();
-
-        res.status(200).json({
-          success: true,
-          message: `Email template batch created successfully for ${recipients.length} recipient(s).`,
-          data: {
-            batchId: batch.batchId,
-            status: batch.status,
-            subject: batch.subject,
-            recipients,
-            ...counts,
-            template: {
-              id: template._id,
-              name: template.name,
-              subject: template.subject,
-            },
-            createdBy: batch.createdBy,
-            createdAt: batch.createdAt,
-            estimatedCompletion: new Date(Date.now() + recipients.length * 2000), // 2 seconds per email estimate
-          },
-        });
-      } catch (emailError) {
-        console.error('Error creating template batch:', emailError);
-        res.status(500).json({
-          success: false,
-          message: 'Error creating template batch.',
-          error: emailError.message,
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Error in sendEmailWithTemplate:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error processing email template.',
-      error: error.message,
-    });
-  }
+module.exports = {
+  getAllEmailTemplates,
+  getEmailTemplateById,
+  createEmailTemplate,
+  updateEmailTemplate,
+  deleteEmailTemplate,
 };

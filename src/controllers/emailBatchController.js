@@ -1,53 +1,54 @@
-/**
- * Simplified Email Batch Controller - Production Ready
- * Focus: Essential batch management endpoints
- */
-
+const mongoose = require('mongoose');
 const EmailBatchService = require('../services/emailBatchService');
-const emailBatchProcessor = require('../services/emailBatchProcessor');
+const EmailService = require('../services/emailService');
 const EmailBatchAuditService = require('../services/emailBatchAuditService');
+const emailAnnouncementJobProcessor = require('../jobs/emailAnnouncementJobProcessor');
+const EmailBatch = require('../models/emailBatch');
+const Email = require('../models/email');
 const logger = require('../startup/logger');
+const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
 /**
- * Get all batches with pagination and filtering
+ * Get all Email records (parent)
  */
-const getBatches = async (req, res) => {
+const getEmails = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, dateFrom, dateTo } = req.query;
-
-    const filters = { status, dateFrom, dateTo };
-    const result = await EmailBatchService.getBatches(
-      filters,
-      parseInt(page, 10),
-      parseInt(limit, 10),
-    );
+    const emails = await EmailBatchService.getAllEmails();
 
     res.status(200).json({
       success: true,
-      data: result,
+      data: emails,
     });
   } catch (error) {
-    logger.logException(error, 'Error getting batches');
+    logger.logException(error, 'Error getting emails');
     res.status(500).json({
       success: false,
-      message: 'Error getting batches',
+      message: 'Error getting emails',
       error: error.message,
     });
   }
 };
 
 /**
- * Get batch details with items
+ * Get Email details with EmailBatch items
  */
-const getBatchDetails = async (req, res) => {
+const getEmailDetails = async (req, res) => {
   try {
-    const { batchId } = req.params;
-    const result = await EmailBatchService.getBatchWithItems(batchId);
+    const { emailId } = req.params; // emailId is now the ObjectId of parent Email
+
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid Email ID is required',
+      });
+    }
+
+    const result = await EmailBatchService.getEmailWithBatches(emailId);
 
     if (!result) {
       return res.status(404).json({
         success: false,
-        message: 'Batch not found',
+        message: 'Email not found',
       });
     }
 
@@ -56,134 +57,201 @@ const getBatchDetails = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    logger.logException(error, 'Error getting batch details');
+    logger.logException(error, 'Error getting Email details with EmailBatch items');
     res.status(500).json({
       success: false,
-      message: 'Error getting batch details',
+      message: 'Error getting email details',
       error: error.message,
     });
   }
 };
 
 /**
- * Get dashboard statistics
+ * Get worker status (minimal info for frontend)
  */
-const getDashboardStats = async (req, res) => {
+const getWorkerStatus = async (req, res) => {
   try {
-    const stats = await EmailBatchService.getDashboardStats();
+    const workerStatus = emailAnnouncementJobProcessor.getWorkerStatus();
 
     res.status(200).json({
       success: true,
-      data: stats,
+      data: workerStatus,
     });
   } catch (error) {
-    logger.logException(error, 'Error getting dashboard stats');
+    logger.logException(error, 'Error getting worker status');
     res.status(500).json({
       success: false,
-      message: 'Error getting dashboard stats',
+      message: 'Error getting worker status',
       error: error.message,
     });
   }
 };
 
 /**
- * Get processor status
+ * Retry an Email by queuing all its failed EmailBatch items
+ * Resets failed items to QUEUED status for the cron job to process
  */
-const getProcessorStatus = async (req, res) => {
+const retryEmail = async (req, res) => {
   try {
-    const status = emailBatchProcessor.getStatus();
+    const { emailId } = req.params;
 
-    res.status(200).json({
-      success: true,
-      data: status,
-    });
-  } catch (error) {
-    logger.logException(error, 'Error getting processor status');
-    res.status(500).json({
-      success: false,
-      message: 'Error getting processor status',
-      error: error.message,
-    });
-  }
-};
+    // Validate emailId is a valid ObjectId
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Email ID',
+      });
+    }
 
-// Retry a failed batch item
-const retryBatchItem = async (req, res) => {
-  try {
-    const { itemId } = req.params;
+    // Get requestor for audit trail
+    const requestorId = req?.body?.requestor?.requestorId || null;
 
-    // Find the batch item
-    const EmailBatch = require('../models/emailBatch');
-    const item = await EmailBatch.findById(itemId);
+    // Find the Email
+    const email = await Email.findById(emailId);
 
-    if (!item) {
+    if (!email) {
       return res.status(404).json({
         success: false,
-        message: 'Batch item not found',
+        message: 'Email not found',
       });
     }
 
-    // Check if item is already being processed
-    if (item.status === 'SENDING') {
+    // Only allow retry for emails in final states (FAILED or PROCESSED)
+    const allowedRetryStatuses = [
+      EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED,
+      EMAIL_JOB_CONFIG.EMAIL_STATUSES.PROCESSED,
+    ];
+
+    if (!allowedRetryStatuses.includes(email.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Batch item is currently being processed',
+        message: `Email must be in FAILED or PROCESSED status to retry. Current status: ${email.status}`,
       });
     }
 
-    // Only allow retry for FAILED or QUEUED items
-    if (item.status !== 'FAILED' && item.status !== 'QUEUED') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only failed or pending items can be retried',
+    // Find all FAILED EmailBatch items
+    const failedItems = await EmailBatch.find({
+      emailId: email._id,
+      status: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.FAILED,
+    });
+
+    if (failedItems.length === 0) {
+      logger.logInfo(`Email ${emailId} has no failed EmailBatch items to retry`);
+      return res.status(200).json({
+        success: true,
+        message: 'No failed EmailBatch items to retry',
+        data: {
+          emailId: email._id,
+          failedItemsRetried: 0,
+        },
       });
     }
 
-    // Reset the item status to QUEUED for retry
-    item.status = 'QUEUED';
-    item.attempts = 0;
-    item.error = null;
-    item.failedAt = null;
-    item.lastAttemptedAt = null;
-    await item.save();
+    logger.logInfo(`Queuing ${failedItems.length} failed EmailBatch items for retry: ${emailId}`);
 
-    // Use the processor's retry method
-    const emailBatchProcessorService = require('../services/emailBatchProcessor');
-    await emailBatchProcessorService.retryBatchItem(itemId);
+    // First, queue the parent Email so cron picks it up
+    await EmailService.markEmailQueued(emailId);
 
-    res.json({
+    // Audit Email queued for retry (with requestor)
+    try {
+      await EmailBatchAuditService.logEmailQueued(
+        email._id,
+        { reason: 'Manual retry' },
+        requestorId,
+      );
+    } catch (auditErr) {
+      logger.logException(auditErr, 'Audit failure: EMAIL_QUEUED (retry)');
+    }
+
+    // Reset each failed item to QUEUED
+    await Promise.all(
+      failedItems.map(async (item) => {
+        await EmailBatchService.resetEmailBatchForRetry(item._id);
+
+        // Audit retry queueing
+        try {
+          await EmailBatchAuditService.logAction(
+            email._id,
+            EMAIL_JOB_CONFIG.EMAIL_BATCH_AUDIT_ACTIONS.EMAIL_BATCH_QUEUED,
+            'EmailBatch item queued for retry',
+            { reason: 'Manual retry' },
+            null,
+            requestorId,
+            item._id,
+          );
+        } catch (auditErr) {
+          logger.logException(auditErr, 'Audit failure: EMAIL_BATCH_QUEUED (retry)');
+        }
+      }),
+    );
+
+    logger.logInfo(
+      `Successfully queued Email ${emailId} and ${failedItems.length} failed EmailBatch items for retry`,
+    );
+
+    res.status(200).json({
       success: true,
-      message: 'Batch item retry initiated',
+      message: `Successfully queued ${failedItems.length} failed EmailBatch items for retry`,
       data: {
-        itemId: item._id,
-        status: item.status,
-        attempts: item.attempts,
+        emailId: email._id,
+        failedItemsRetried: failedItems.length,
       },
     });
   } catch (error) {
-    logger.logException(error, 'Error retrying batch item');
+    logger.logException(error, 'Error retrying Email');
     res.status(500).json({
       success: false,
-      message: 'Error retrying batch item',
+      message: 'Error retrying Email',
       error: error.message,
     });
   }
 };
 
 /**
- * Get audit trail for a specific batch
+ * Get audit trail for a specific Email
  */
 const getEmailAuditTrail = async (req, res) => {
   try {
-    const { emailId } = req.params;
-    const { page = 1, limit = 50, action } = req.query;
+    if (!req?.body?.requestor && !req?.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Missing requestor',
+      });
+    }
 
-    const auditTrail = await EmailBatchAuditService.getEmailAuditTrail(
-      emailId,
-      parseInt(page, 10),
-      parseInt(limit, 10),
-      action,
-    );
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // const requestor = req.body.requestor || req.user;
+    // const canViewAudits = await hasPermission(requestor, 'viewEmailAudits');
+    // if (!canViewAudits) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to view email audits',
+    //   });
+    // }
+
+    const { emailId } = req.params;
+
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid Email ID is required',
+      });
+    }
+
+    let auditTrail;
+    try {
+      auditTrail = await EmailBatchAuditService.getEmailAuditTrail(emailId);
+    } catch (serviceError) {
+      // Handle validation errors from service
+      if (serviceError.message.includes('required') || serviceError.message.includes('Invalid')) {
+        return res.status(400).json({
+          success: false,
+          message: serviceError.message,
+        });
+      }
+      throw serviceError;
+    }
 
     res.status(200).json({
       success: true,
@@ -200,19 +268,51 @@ const getEmailAuditTrail = async (req, res) => {
 };
 
 /**
- * Get audit trail for a specific batch item
+ * Get audit trail for a specific EmailBatch item
  */
 const getEmailBatchAuditTrail = async (req, res) => {
   try {
-    const { emailBatchId } = req.params;
-    const { page = 1, limit = 50, action } = req.query;
+    if (!req?.body?.requestor && !req?.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Missing requestor',
+      });
+    }
 
-    const auditTrail = await EmailBatchAuditService.getEmailBatchAuditTrail(
-      emailBatchId,
-      parseInt(page, 10),
-      parseInt(limit, 10),
-      action,
-    );
+    // TODO: Re-enable permission check in future
+    // Permission check - commented out for now
+    // const requestor = req.body.requestor || req.user;
+    // const canViewAudits = await hasPermission(requestor, 'viewEmailAudits');
+    // if (!canViewAudits) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to view email audits',
+    //   });
+    // }
+
+    const { emailBatchId } = req.params;
+
+    // Validate emailBatchId is a valid ObjectId
+    if (!emailBatchId || !mongoose.Types.ObjectId.isValid(emailBatchId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid EmailBatch ID',
+      });
+    }
+
+    let auditTrail;
+    try {
+      auditTrail = await EmailBatchAuditService.getEmailBatchAuditTrail(emailBatchId);
+    } catch (serviceError) {
+      // Handle validation errors from service
+      if (serviceError.message.includes('required') || serviceError.message.includes('Invalid')) {
+        return res.status(400).json({
+          success: false,
+          message: serviceError.message,
+        });
+      }
+      throw serviceError;
+    }
 
     res.status(200).json({
       success: true,
@@ -228,37 +328,11 @@ const getEmailBatchAuditTrail = async (req, res) => {
   }
 };
 
-/**
- * Get audit statistics
- */
-const getAuditStats = async (req, res) => {
-  try {
-    const { dateFrom, dateTo, action } = req.query;
-
-    const filters = { dateFrom, dateTo, action };
-    const stats = await EmailBatchAuditService.getAuditStats(filters);
-
-    res.status(200).json({
-      success: true,
-      data: stats,
-    });
-  } catch (error) {
-    logger.logException(error, 'Error getting audit stats');
-    res.status(500).json({
-      success: false,
-      message: 'Error getting audit stats',
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
-  getBatches,
-  getBatchDetails,
-  getDashboardStats,
-  getProcessorStatus,
-  retryBatchItem,
+  getEmails,
+  getEmailDetails,
+  getWorkerStatus,
+  retryEmail,
   getEmailAuditTrail,
   getEmailBatchAuditTrail,
-  getAuditStats,
 };

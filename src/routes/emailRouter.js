@@ -2,6 +2,7 @@ const express = require('express');
 const {
   sendEmail,
   sendEmailToAll,
+  resendEmail,
   updateEmailSubscriptions,
   addNonHgnEmailSubscription,
   removeNonHgnEmailSubscription,
@@ -13,6 +14,7 @@ const routes = function () {
 
   emailRouter.route('/send-emails').post(sendEmail);
   emailRouter.route('/broadcast-emails').post(sendEmailToAll);
+  emailRouter.route('/resend-email').post(resendEmail);
 
   emailRouter.route('/update-email-subscriptions').post(updateEmailSubscriptions);
   emailRouter.route('/add-non-hgn-email-subscription').post(addNonHgnEmailSubscription);

@@ -87,11 +87,9 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       await sendEmail(batch);
 
       if (isBsAssignment) {
-        // eslint-disable-next-line no-await-in-loop
         await EmailHistory.findOneAndUpdate(
           { uniqueKey: key },
           {
@@ -115,7 +113,6 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
       logger.logException(err, `Batch to ${batch.to || '(empty)'} attempt ${attempt}`);
 
       if (attempt === retries && isBsAssignment) {
-        // eslint-disable-next-line no-await-in-loop
         await EmailHistory.findOneAndUpdate(
           { uniqueKey: key },
           {
@@ -136,46 +133,34 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
       }
     }
 
-    if (attempt < retries) {
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(baseDelay * attempt); // backoff
-    }
+    if (attempt < retries) await sleep(baseDelay * attempt); // backoff
   }
   return false;
 };
 
 const worker = async () => {
-  let allSuccessful = true;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     // atomically pull next batch
     const batch = queue.shift();
     if (!batch) break; // queue drained for this worker
 
-    // eslint-disable-next-line no-await-in-loop
-    const result = await sendWithRetry(batch);
-    if (result === false) {
-      allSuccessful = false;
+    const success = await sendWithRetry(batch);
+    if (!success) {
+      throw new Error(`Failed to send email to ${batch.to} after all retry attempts`);
     }
-    if (config.rateLimitDelay) {
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(config.rateLimitDelay); // pacing
-    }
+    if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
   }
-  return allSuccessful;
 };
 
 const processQueue = async () => {
-  if (isProcessing || queue.length === 0) return true;
+  if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
 
   try {
     const n = Math.max(1, Number(config.concurrency) || 1);
     const workers = Array.from({ length: n }, () => worker());
-    const results = await Promise.all(workers); // drain-until-empty with N workers
-    // Return true if all workers succeeded, false if any failed
-    return results.every((result) => result !== false);
+    await Promise.all(workers); // drain-until-empty with N workers
   } finally {
     isProcessing = false;
   }
@@ -251,12 +236,8 @@ const emailSender = (
 
     setImmediate(async () => {
       try {
-        const result = await processQueue();
-        if (result === false) {
-          reject(new Error('Email sending failed after all retries'));
-        } else {
-          resolve('Emails processed successfully');
-        }
+        await processQueue();
+        resolve('Emails processed successfully');
       } catch (error) {
         reject(error);
       }

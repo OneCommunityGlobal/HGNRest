@@ -24,11 +24,6 @@ const emailTemplateSchema = new mongoose.Schema(
           required: true,
           trim: true,
         },
-        label: {
-          type: String,
-          required: true,
-          trim: true,
-        },
         type: {
           type: String,
           enum: ['text', 'url', 'number', 'textarea', 'image'],
