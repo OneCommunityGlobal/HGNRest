@@ -4,13 +4,24 @@ const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 // ---------- Helper Functions ----------
+
+/**
+ * Parse comma-separated values, trim whitespace, and filter empty values
+ * @param {string} s - Comma-separated string
+ * @returns {string[]} Array of trimmed, non-empty values
+ */
 const parseCSV = (s = '') =>
   String(s)
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean);
 
-const parseYmdUtc = (s) => {
+/**
+ * Validate YYYY-MM-DD format and convert to UTC Date
+ * @param {string} s - Date string in YYYY-MM-DD format
+ * @returns {Date|null} UTC Date object or null if invalid
+ */
+const parseDateYYYYMMDD = (s) => {
   if (!s) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
   if (!m) return null;
@@ -18,6 +29,11 @@ const parseYmdUtc = (s) => {
   return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
 };
 
+/**
+ * Parse comma-separated MongoDB ObjectIds, validate, and return arrays
+ * @param {string} s - Comma-separated string of ObjectIds
+ * @returns {{objectIds: mongoose.Types.ObjectId[], invalidIds: string[]}} Object with valid ObjectIds and invalid ID strings
+ */
 const parseObjectIdsCSV = (s = '') => {
   const ids = parseCSV(s);
   const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
@@ -27,39 +43,72 @@ const parseObjectIdsCSV = (s = '') => {
   };
 };
 
-const buildMatchQuery = (queryParams) => {
-  const match = {};
+/**
+ * Validate all query parameters and return validation errors
+ * @param {object} queryParams - Request query parameters
+ * @returns {string[]} Array of validation error messages
+ */
+const validateQueryParams = (queryParams) => {
   const errors = [];
 
-  // Parse and validate projects parameter
+  // Validate projects parameter
   if (queryParams.projects) {
-    const { objectIds, invalidIds } = parseObjectIdsCSV(queryParams.projects);
+    const { invalidIds } = parseObjectIdsCSV(queryParams.projects);
     if (invalidIds.length > 0) {
       errors.push(`Invalid project IDs: ${invalidIds.join(', ')}`);
     }
+  }
+
+  // Validate startDate parameter
+  if (queryParams.startDate) {
+    const startDate = parseDateYYYYMMDD(queryParams.startDate);
+    if (!startDate) {
+      errors.push(
+        `Invalid startDate format: ${queryParams.startDate}. Expected YYYY-MM-DD format.`,
+      );
+    }
+  }
+
+  // Validate endDate parameter
+  if (queryParams.endDate) {
+    const endDate = parseDateYYYYMMDD(queryParams.endDate);
+    if (!endDate) {
+      errors.push(`Invalid endDate format: ${queryParams.endDate}. Expected YYYY-MM-DD format.`);
+    }
+  }
+
+  return errors;
+};
+
+/**
+ * Build MongoDB match query object based on provided filters
+ * @param {object} queryParams - Request query parameters
+ * @returns {{match: object, errors: string[]}} Object with MongoDB match query and validation errors
+ */
+const buildMatchQuery = (queryParams) => {
+  const match = {};
+  const errors = validateQueryParams(queryParams);
+
+  // Parse and add projects filter
+  if (queryParams.projects) {
+    const { objectIds } = parseObjectIdsCSV(queryParams.projects);
     if (objectIds.length > 0) {
       match.projectId = { $in: objectIds };
     }
   }
 
-  // Parse and validate startDate parameter
+  // Parse and add startDate filter
   if (queryParams.startDate) {
-    const startDate = parseYmdUtc(queryParams.startDate);
-    if (!startDate) {
-      errors.push(
-        `Invalid startDate format: ${queryParams.startDate}. Expected YYYY-MM-DD format.`,
-      );
-    } else {
+    const startDate = parseDateYYYYMMDD(queryParams.startDate);
+    if (startDate) {
       match.issueDate = { ...match.issueDate, $gte: startDate };
     }
   }
 
-  // Parse and validate endDate parameter
+  // Parse and add endDate filter
   if (queryParams.endDate) {
-    const endDate = parseYmdUtc(queryParams.endDate);
-    if (!endDate) {
-      errors.push(`Invalid endDate format: ${queryParams.endDate}. Expected YYYY-MM-DD format.`);
-    } else {
+    const endDate = parseDateYYYYMMDD(queryParams.endDate);
+    if (endDate) {
       // Make endDate inclusive of the entire day
       const endDateInclusive = new Date(endDate);
       endDateInclusive.setUTCDate(endDateInclusive.getUTCDate() + 1);
@@ -78,6 +127,8 @@ const buildMatchQuery = (queryParams) => {
 
   return { match, errors };
 };
+
+// ---------- Controller Methods ----------
 
 // Get all issues for a specific project
 exports.getIssuesByProject = async (req, res) => {
@@ -146,7 +197,13 @@ exports.deleteIssue = async (req, res) => {
   }
 };
 
-// Get issue statistics for all projects with filtering support
+/**
+ * Get issue statistics for all projects with filtering support
+ * Supports filtering by projects, date range, and issue types
+ * Returns aggregated issue counts grouped by project with dynamic issue type properties
+ * @param {object} req - Express request object with optional query params: projects, startDate, endDate, issueTypes
+ * @param {object} res - Express response object
+ */
 exports.getIssueStatistics = async (req, res) => {
   try {
     // Build match query and validate parameters
@@ -283,7 +340,12 @@ exports.getIssueStatistics = async (req, res) => {
   }
 };
 
-// Get all available issue types
+/**
+ * Get all available issue types from the database
+ * Returns distinct issue types sorted alphabetically
+ * @param {object} _req - Express request object (unused)
+ * @param {object} res - Express response object
+ */
 exports.getIssueTypes = async (_req, res) => {
   try {
     const issueTypes = await BuildingIssue.distinct('issueType');
