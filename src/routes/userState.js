@@ -1,131 +1,194 @@
 const express = require('express');
-const router = express.Router();
 const mongoose = require('mongoose');
 
-const UserStateSelection = require('../models/userStateSelection'); 
-let catalog = [
-  // { key: 'closing-out',    label: '❌ Closing',         color: 'red',    order: 0, isActive: true },
-  // { key: 'new-dev',        label: '🖥️ New Developer',   color: 'blue',   order: 1, isActive: true },
-  // { key: 'pr-review-team', label: '👾 PR Review Team',   color: 'purple', order: 2, isActive: true },
-  // { key: 'developer',      label: '🖥️✅ Developer',      color: 'green',  order: 3, isActive: true },
-];
+const UserStateCatalog = require('../models/userStateCatalog');
+const UserStateSelection = require('../models/userStateSelection');
 
-const byKey = () => Object.fromEntries(catalog.map(o => [o.key, o]));
-const sortByOrder = arr => arr.slice().sort((a, b) => a.order - b.order);
-const slugify = (s) =>
-  s.toLowerCase().replace(/[^a-z0-9\s]+/g, '').trim().replace(/\s+/g, '-');
+const router = express.Router();
+const slugify = s =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+
+const toHex = nameOrHex => {
+  const v = String(nameOrHex || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v;
+  if (/^[0-9a-fA-F]{6}$/.test(v)) return `#${v}`;
+  const map = {
+    red: '#e74c3c',
+    blue: '#2980b9',
+    purple: '#8e44ad',
+    green: '#27ae60',
+    orange: '#e67e22',
+    gray: '#7f8c8d',
+  };
+  return map[v.toLowerCase()] || '#2980b9'; 
+};
+
+const loadActiveCatalog = async () =>
+  UserStateCatalog.find({ isActive: true }).sort({ order: 1 }).lean();
 
 function requireManageUserState(req, res, next) {
-  // const user = req.user || {};
-  // const has =
-  //   user.role === 'Owner' ||
-  //   (Array.isArray(user.permissions) && user.permissions.includes('manage_user_state_indicator'));
-  // if (!has) return res.status(403).json({ error: 'Forbidden' });
-  // next();
   return next();
 }
 
-router.get('/catalog', (req, res) => {
-  const active = sortByOrder(catalog.filter(c => c.isActive));
-  res.json({ items: active });
+router.get('/catalog', async (req, res) => {
+  try {
+    const items = await loadActiveCatalog();
+    return res.json({ items });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
+  }
 });
 
-router.post('/catalog', requireManageUserState, (req, res) => {
-  const { label, color } = req.body || {};
-  if (!label || typeof label !== 'string') {
-    return res.status(400).json({ error: 'label is required' });
-  }
-  if (label.length > 30) {
-    return res.status(400).json({ error: 'label must be ≤ 30 chars' });
-  }
+router.post('/catalog', requireManageUserState, async (req, res) => {
+  try {
+    const { label, color } = req.body || {};
+    if (!label || typeof label !== 'string') {
+      return res.status(400).json({ error: 'label is required' });
+    }
+    if (label.trim().length === 0) {
+      return res.status(400).json({ error: 'label cannot be empty' });
+    }
+    if (label.length > 30) {
+      return res.status(400).json({ error: 'label must be ≤ 30 chars' });
+    }
 
-  const key = slugify(label);
-  if (!key) {
-    return res.status(400).json({ error: 'label produced empty key' });
-  }
-  if (catalog.some(c => c.key === key || c.label.toLowerCase() === label.toLowerCase())) {
-    return res.status(409).json({ error: 'label/key already exists' });
-  }
+    const key = slugify(label);
+    if (!key) {
+      return res.status(400).json({ error: 'label produced empty key' });
+    }
 
-  const nextOrder = catalog.length ? Math.max(...catalog.map(c => c.order)) + 1 : 0;
-  const newItem = {
-    key,
-    label,
-    color: color || ['red', 'blue', 'purple', 'green', 'orange'][nextOrder % 5],
-    order: nextOrder,
-    isActive: true,
-  };
+    const exists = await UserStateCatalog.findOne({
+      $or: [{ key }, { label: new RegExp(`^${label}$`, 'i') }],
+    }).lean();
 
-  catalog.push(newItem);
-  res.status(201).json({ item: newItem });
+    if (exists) {
+      return res.status(409).json({ error: 'label/key already exists' });
+    }
+
+    const max = await UserStateCatalog.findOne().sort({ order: -1 }).lean();
+    const nextOrder = max ? max.order + 1 : 0;
+
+    const item = await UserStateCatalog.create({
+      key,
+      label,
+      color: toHex(color),
+      order: nextOrder,
+      isActive: true,
+    });
+
+    return res.status(201).json({ item });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
+  }
 });
 
-router.patch('/catalog/reorder', requireManageUserState, (req, res) => {
+router.patch('/catalog/reorder', requireManageUserState, async (req, res) => {
   const { orderedKeys } = req.body || {};
   if (!Array.isArray(orderedKeys)) {
     return res.status(400).json({ error: 'orderedKeys must be array' });
   }
-  const keysSet = new Set(catalog.map(c => c.key));
-  if (orderedKeys.length !== catalog.length || !orderedKeys.every(k => keysSet.has(k))) {
-    return res.status(400).json({ error: 'orderedKeys must match catalog keys' });
+
+  try {
+    const docs = await UserStateCatalog.find({}, 'key').lean();
+    const existing = new Set(docs.map(d => d.key));
+
+    if (orderedKeys.length !== docs.length || !orderedKeys.every(k => existing.has(k))) {
+      return res.status(400).json({ error: 'orderedKeys must match catalog keys' });
+    }
+
+    await UserStateCatalog.bulkWrite(
+      orderedKeys.map((k, i) => ({
+        updateOne: { filter: { key: k }, update: { $set: { order: i } } },
+      }))
+    );
+
+    const items = await UserStateCatalog.find().sort({ order: 1 }).lean();
+    return res.json({ items });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
   }
-  const orderMap = new Map(orderedKeys.map((k, i) => [k, i]));
-  catalog = catalog.map(c => ({ ...c, order: orderMap.get(c.key) }));
-  res.json({ items: sortByOrder(catalog) });
 });
 
-router.patch('/catalog/:key', requireManageUserState, (req, res) => {
+router.patch('/catalog/:key', requireManageUserState, async (req, res) => {
   const { key } = req.params;
-  const { label, isActive } = req.body || {};
-  const item = catalog.find(c => c.key === key);
-  if (!item) return res.status(404).json({ error: 'not found' });
+  const { label, isActive, color } = req.body || {};
 
-  if (typeof label === 'string') {
-    if (!label.trim()) return res.status(400).json({ error: 'label cannot be empty' });
-    if (label.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
-    const clash = catalog.find(c => c.key !== key && c.label.toLowerCase() === label.toLowerCase());
-    if (clash) return res.status(409).json({ error: 'label already exists' });
-    item.label = label;
+  try {
+    const item = await UserStateCatalog.findOne({ key });
+    if (!item) return res.status(404).json({ error: 'not found' });
+
+    if (typeof label === 'string') {
+      const trimmed = label.trim();
+      if (!trimmed) return res.status(400).json({ error: 'label cannot be empty' });
+      if (trimmed.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
+
+      const clash = await UserStateCatalog.findOne({
+        _id: { $ne: item._id },
+        label: new RegExp(`^${trimmed}$`, 'i'),
+      }).lean();
+
+      if (clash) return res.status(409).json({ error: 'label already exists' });
+      item.label = trimmed;
+    }
+
+    if (typeof isActive === 'boolean') {
+      item.isActive = isActive;
+    }
+
+    if (typeof color === 'string') {
+      item.color = toHex(color);
+    }
+
+    await item.save();
+    return res.json({ item });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
   }
-
-  if (typeof isActive === 'boolean') {
-    item.isActive = isActive;
-  }
-
-  res.json({ item });
 });
 
 router.get('/users/:userId/state-indicators', async (req, res) => {
   const { userId } = req.params;
+
   if (!mongoose.isValidObjectId(userId)) {
     return res.status(400).json({ error: 'invalid userId' });
   }
 
-  const doc = await UserStateSelection.findOne({ userId }).lean();
+  try {
+    const [doc, activeCatalog] = await Promise.all([
+      UserStateSelection.findOne({ userId }).lean(),
+      loadActiveCatalog(),
+    ]);
 
-  if (!doc) {
-    return res.json({ userId, selections: [] });
+    if (!doc) {
+      return res.json({ userId, selections: [] });
+    }
+
+    if (!doc.selections?.length && Array.isArray(doc.stateIndicators) && doc.stateIndicators.length) {
+      const inferredDate = doc.updatedAt || doc.createdAt || new Date();
+      const selections = doc.stateIndicators.map(k => ({ key: k, assignedAt: inferredDate }));
+      return res.json({ userId, selections });
+    }
+
+    const order = activeCatalog.map(c => c.key);
+    const orderPos = new Map(order.map((k, i) => [k, i]));
+
+    const selectionsSorted = (doc.selections || [])
+      .slice()
+      .sort((a, b) => (orderPos.get(a.key) ?? 9999) - (orderPos.get(b.key) ?? 9999));
+
+    return res.json({ userId, selections: selectionsSorted });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
   }
-
-  if (!doc.selections?.length && Array.isArray(doc.stateIndicators) && doc.stateIndicators.length) {
-    const inferredDate = doc.updatedAt || doc.createdAt || new Date();
-    const selections = doc.stateIndicators.map(k => ({ key: k, assignedAt: inferredDate }));
-    return res.json({ userId, selections });
-  }
-
-  const order = sortByOrder(catalog).map(c => c.key);
-  const orderMap = new Map(order.map((k, i) => [k, i]));
-  const selectionsSorted = (doc.selections || []).slice().sort(
-    (a, b) => (orderMap.get(a.key) ?? 9999) - (orderMap.get(b.key) ?? 9999)
-  );
-
-  res.json({ userId, selections: selectionsSorted });
 });
 
 router.patch('/users/:userId/state-indicators', requireManageUserState, async (req, res) => {
   const { userId } = req.params;
   const { selectedKeys } = req.body || {};
-  // console.log(req);
 
   if (!mongoose.isValidObjectId(userId)) {
     return res.status(400).json({ error: 'invalid userId' });
@@ -134,44 +197,49 @@ router.patch('/users/:userId/state-indicators', requireManageUserState, async (r
     return res.status(400).json({ error: 'selectedKeys must be array' });
   }
 
-  const activeMap = byKey();
-  const set = new Set();
-  for (const k of selectedKeys) {
-    if (!activeMap[k] || activeMap[k].isActive === false) {
-      return res.status(400).json({ error: `invalid or inactive key: ${k}` });
+  try {
+    const active = await loadActiveCatalog();
+    const activeMap = Object.fromEntries(active.map(c => [c.key, c]));
+
+    const set = new Set();
+    for (const k of selectedKeys) {
+      if (!activeMap[k] || activeMap[k].isActive === false) {
+        return res.status(400).json({ error: `invalid or inactive key: ${k}` });
+      }
+      set.add(k);
     }
-    set.add(k);
+
+    const normalizedKeys = active.map(c => c.key).filter(k => set.has(k));
+    if (normalizedKeys.length > 10) {
+      return res.status(400).json({ error: 'too many selections (max 10)' });
+    }
+
+    const existing = await UserStateSelection.findOne({ userId });
+    const existingDates = new Map();
+
+    if (existing?.selections?.length) {
+      for (const s of existing.selections) existingDates.set(s.key, s.assignedAt);
+    } else if (Array.isArray(existing?.stateIndicators)) {
+      const inferred = existing.updatedAt || existing.createdAt || new Date();
+      for (const k of existing.stateIndicators) existingDates.set(k, inferred);
+    }
+
+    const now = new Date();
+    const nextSelections = normalizedKeys.map(k => ({
+      key: k,
+      assignedAt: existingDates.get(k) || now,
+    }));
+
+    const saved = await UserStateSelection.findOneAndUpdate(
+      { userId },
+      { $set: { selections: nextSelections } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return res.json({ userId, selections: saved.selections || [] });
+  } catch (e) {
+    return res.status(500).json({ error: 'db error' });
   }
-
-  const normalizedKeys = sortByOrder(catalog).map(c => c.key).filter(k => set.has(k));
-
-  if (normalizedKeys.length > 10) {
-    return res.status(400).json({ error: 'too many selections (max 10)' });
-  }
-
-  const existing = await UserStateSelection.findOne({ userId });
-
-  let existingDates = new Map();
-  if (existing?.selections?.length) {
-    for (const s of existing.selections) existingDates.set(s.key, s.assignedAt);
-  } else if (Array.isArray(existing?.stateIndicators)) {
-    const inferred = existing.updatedAt || existing.createdAt || new Date();
-    for (const k of existing.stateIndicators) existingDates.set(k, inferred);
-  }
-
-  const now = new Date();
-  const nextSelections = normalizedKeys.map(k => ({
-    key: k,
-    assignedAt: existingDates.get(k) || now,
-  }));
-
-  const saved = await UserStateSelection.findOneAndUpdate(
-    { userId },
-    { $set: { selections: nextSelections } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  ).lean();
-
-  res.json({ userId, selections: saved.selections || [] });
 });
 
 module.exports = router;
