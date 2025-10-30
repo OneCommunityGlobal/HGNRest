@@ -225,7 +225,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingMaterialModel,
   buildingToolModel,
 );
-
+const bookingRouter = require('../routes/lbdashboard/bookingsRouter');
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
@@ -424,6 +424,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbUserPrefRouter);
 
   app.use('/api/financials', bmFinancialRouter);
+  app.use('/api/lbdashboard/bookings', bookingRouter);
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
