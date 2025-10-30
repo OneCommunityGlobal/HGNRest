@@ -5,6 +5,9 @@ const issuesController = require('../../controllers/bmdashboard/IssuesController
 
 // Routes for Issues
 
+// Get available issue types - must come before parameterized routes
+router.get('/types', issuesController.getIssueTypes);
+
 // Get issue statistics - must come before parameterized routes
 router.get('/breakdown', issuesController.getIssueStatistics);
 

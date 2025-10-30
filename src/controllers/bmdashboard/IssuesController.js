@@ -282,3 +282,15 @@ exports.getIssueStatistics = async (req, res) => {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 };
+
+// Get all available issue types
+exports.getIssueTypes = async (_req, res) => {
+  try {
+    const issueTypes = await BuildingIssue.distinct('issueType');
+    const filteredIssueTypes = issueTypes.filter(Boolean).sort();
+    res.status(200).json({ issueTypes: filteredIssueTypes });
+  } catch (error) {
+    console.error('[getIssueTypes] Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
