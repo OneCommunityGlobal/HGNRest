@@ -29,6 +29,10 @@ function socketMiddleware(socket, next) {
 */
 module.exports = function (app) {
   app.all('*', (req, res, next) => {
+    // 🔹 Allow unauthenticated access for Mastodon test APIs
+    if (req.originalUrl.startsWith('/api/mastodon')) {
+      return next();
+    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
@@ -70,11 +74,11 @@ module.exports = function (app) {
       next();
       return;
     }
-    
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
-       req.originalUrl === '/api/applicant-analytics/track-application') &&
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
       req.method === 'POST'
     ) {
       next();
