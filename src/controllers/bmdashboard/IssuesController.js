@@ -3,6 +3,11 @@ const Issue = require('../../models/bmdashboard/Issues');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
+// ---------- Constants ----------
+// Required issue types for the Issues Breakdown Chart
+// Chart displays only these three types as per requirements
+const REQUIRED_ISSUE_TYPES = ['Equipment Issues', 'Labor Issues', 'Materials Issues'];
+
 // ---------- Helper Functions ----------
 
 /**
@@ -122,15 +127,24 @@ const buildMatchQuery = (queryParams) => {
     }
   }
 
-  // Parse issueTypes parameter (forgiving - filter invalid ones out)
-  // Edge Case: Invalid Issue Types in Filter
-  // Using forgiving approach: Filter out invalid types silently for better UX
-  // Alternative (stricter): Could return 400 error with list of invalid types
+  // Parse issueTypes parameter and restrict to REQUIRED_ISSUE_TYPES
+  // Chart requirement: Only display "Equipment Issues", "Labor Issues", "Materials Issues"
+  // If issueTypes filter is provided, intersect with REQUIRED_ISSUE_TYPES
+  // If not provided, use all REQUIRED_ISSUE_TYPES
   if (queryParams.issueTypes) {
-    const issueTypes = parseCSV(queryParams.issueTypes);
-    if (issueTypes.length > 0) {
-      match.issueType = { $in: issueTypes };
+    const requestedTypes = parseCSV(queryParams.issueTypes);
+    // Filter to only include types that are in REQUIRED_ISSUE_TYPES
+    const filteredTypes = requestedTypes.filter((type) => REQUIRED_ISSUE_TYPES.includes(type));
+    if (filteredTypes.length > 0) {
+      match.issueType = { $in: filteredTypes };
+    } else {
+      // If none of the requested types are in REQUIRED_ISSUE_TYPES, return empty result
+      // Set a flag that will result in no matches
+      match.issueType = { $in: [] };
     }
+  } else {
+    // No issueTypes filter provided - use all REQUIRED_ISSUE_TYPES
+    match.issueType = { $in: REQUIRED_ISSUE_TYPES };
   }
 
   return { match, errors };
@@ -208,7 +222,11 @@ exports.deleteIssue = async (req, res) => {
 /**
  * Get issue statistics for all projects with filtering support
  * Supports filtering by projects, date range, and issue types
- * Returns aggregated issue counts grouped by project with dynamic issue type properties
+ * Returns aggregated issue counts grouped by project with three specific issue type properties:
+ * - "Equipment Issues"
+ * - "Labor Issues"
+ * - "Materials Issues"
+ * Chart requirement: Only these three issue types are displayed
  * @param {object} req - Express request object with optional query params: projects, startDate, endDate, issueTypes
  * @param {object} res - Express response object
  */
@@ -280,18 +298,16 @@ exports.getIssueStatistics = async (req, res) => {
     // Frontend handles empty arrays gracefully
 
     // Get issue types to include in response
-    // Edge Case: Issue Type Filter
-    // If issueTypes filter was provided, only use those types (forgiving UX - invalid types filtered out)
-    // Otherwise, get all distinct issue types from filtered dataset
+    // Chart requirement: Always use the three required issue types
+    // If issueTypes filter was provided and matched, use those filtered types
+    // Otherwise, use all REQUIRED_ISSUE_TYPES
     let sortedIssueTypes = [];
-    if (match.issueType?.$in) {
-      // Use filtered issue types (invalid ones already filtered out in buildMatchQuery)
+    if (match.issueType?.$in && match.issueType.$in.length > 0) {
+      // Use filtered issue types (already restricted to REQUIRED_ISSUE_TYPES in buildMatchQuery)
       sortedIssueTypes = match.issueType.$in.sort();
     } else {
-      // Edge Case: No Filters Provided
-      // Get all distinct issue types from filtered dataset (or all types if no filters)
-      const distinctIssueTypes = await BuildingIssue.distinct('issueType', match).catch(() => []);
-      sortedIssueTypes = distinctIssueTypes.filter(Boolean).sort();
+      // Use all REQUIRED_ISSUE_TYPES (sorted)
+      sortedIssueTypes = [...REQUIRED_ISSUE_TYPES].sort();
     }
 
     // Stage 4 & 5: Reshape data - group by project and create objects with dynamic issue type properties
