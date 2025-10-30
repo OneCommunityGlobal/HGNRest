@@ -91,7 +91,6 @@ const tag = require('../models/tag');
 const educationTask = require('../models/educationTask');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
-
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -218,7 +217,7 @@ const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySe
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
-
+const lbBookingRouter = require('../routes/lbdashboard/bookingsRouter');
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
   userPreferences,
@@ -229,7 +228,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingMaterialModel,
   buildingToolModel,
 );
-
+const bookingRouter = require('../routes/lbdashboard/bookingsRouter');
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
@@ -415,7 +414,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
 
-
+  app.use('/api/lbdashboard/bookings', lbBookingRouter);
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
@@ -432,6 +431,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbUserPrefRouter);
 
   app.use('/api/financials', bmFinancialRouter);
+  app.use('/api/lbdashboard/bookings', bookingRouter);
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
