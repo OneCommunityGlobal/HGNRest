@@ -82,6 +82,11 @@ const validateQueryParams = (queryParams) => {
 
 /**
  * Build MongoDB match query object based on provided filters
+ * Handles edge cases:
+ * - Date Range: Uses UTC for all date comparisons
+ * - startDate: Set to beginning of day (00:00:00 UTC)
+ * - endDate: Set to end of day (23:59:59.999 UTC) for inclusive filtering
+ * - Invalid Issue Types: Silently filtered out (forgiving UX)
  * @param {object} queryParams - Request query parameters
  * @returns {{match: object, errors: string[]}} Object with MongoDB match query and validation errors
  */
@@ -101,6 +106,7 @@ const buildMatchQuery = (queryParams) => {
   if (queryParams.startDate) {
     const startDate = parseDateYYYYMMDD(queryParams.startDate);
     if (startDate) {
+      // startDate is already at beginning of day (00:00:00 UTC) from parseDateYYYYMMDD
       match.issueDate = { ...match.issueDate, $gte: startDate };
     }
   }
@@ -109,15 +115,17 @@ const buildMatchQuery = (queryParams) => {
   if (queryParams.endDate) {
     const endDate = parseDateYYYYMMDD(queryParams.endDate);
     if (endDate) {
-      // Make endDate inclusive of the entire day
+      // Make endDate inclusive of the entire day (23:59:59.999 UTC)
       const endDateInclusive = new Date(endDate);
-      endDateInclusive.setUTCDate(endDateInclusive.getUTCDate() + 1);
-      endDateInclusive.setUTCMilliseconds(endDateInclusive.getUTCMilliseconds() - 1);
+      endDateInclusive.setUTCHours(23, 59, 59, 999);
       match.issueDate = { ...match.issueDate, $lte: endDateInclusive };
     }
   }
 
   // Parse issueTypes parameter (forgiving - filter invalid ones out)
+  // Edge Case: Invalid Issue Types in Filter
+  // Using forgiving approach: Filter out invalid types silently for better UX
+  // Alternative (stricter): Could return 400 error with list of invalid types
   if (queryParams.issueTypes) {
     const issueTypes = parseCSV(queryParams.issueTypes);
     if (issueTypes.length > 0) {
@@ -215,9 +223,11 @@ exports.getIssueStatistics = async (req, res) => {
     }
 
     // Get filtered project IDs if projects filter was provided
+    // This is used later to handle edge case: projects with no issues
     const filteredProjectIds = match.projectId?.$in || null;
 
     // Stage 1: Match filtered issues
+    // If no filters provided, match will be empty object {} which matches all documents
     // Stage 2: Group by projectId and issueType to count issues
     const aggregationPipeline = [
       { $match: match },
@@ -230,7 +240,8 @@ exports.getIssueStatistics = async (req, res) => {
           count: { $sum: 1 },
         },
       },
-      // Stage 3: Lookup project names
+      // Lookup project names
+      // Limit fields returned to only what's needed for performance
       {
         $lookup: {
           from: 'buildingProjects',
@@ -259,19 +270,26 @@ exports.getIssueStatistics = async (req, res) => {
       },
     ];
 
+    // Execute aggregation with allowDiskUse for memory-intensive operations
     const aggregatedResults = await BuildingIssue.aggregate(aggregationPipeline).option({
       allowDiskUse: true,
     });
 
+    // Edge Case: Filters Return No Results
+    // If aggregation returns no results, we'll return empty array [] with 200 status
+    // Frontend handles empty arrays gracefully
+
     // Get issue types to include in response
-    // If issueTypes filter was provided, only use those types
+    // Edge Case: Issue Type Filter
+    // If issueTypes filter was provided, only use those types (forgiving UX - invalid types filtered out)
     // Otherwise, get all distinct issue types from filtered dataset
     let sortedIssueTypes = [];
     if (match.issueType?.$in) {
-      // Use filtered issue types
+      // Use filtered issue types (invalid ones already filtered out in buildMatchQuery)
       sortedIssueTypes = match.issueType.$in.sort();
     } else {
-      // Get all distinct issue types from filtered dataset
+      // Edge Case: No Filters Provided
+      // Get all distinct issue types from filtered dataset (or all types if no filters)
       const distinctIssueTypes = await BuildingIssue.distinct('issueType', match).catch(() => []);
       sortedIssueTypes = distinctIssueTypes.filter(Boolean).sort();
     }
@@ -297,8 +315,9 @@ exports.getIssueStatistics = async (req, res) => {
       projectObj[issueType] = count;
     });
 
-    // Stage 6: Handle filtered projects edge case
+    // Stage 6: Edge Case - Projects Filter with No Matching Issues
     // If projects filter was provided, include projects with no issues
+    // Set all issue type counts to 0 for these projects
     if (filteredProjectIds && filteredProjectIds.length > 0) {
       const projectIdsInResults = new Set(Array.from(projectMap.keys()).map((id) => id.toString()));
       const filteredProjectIdsStr = filteredProjectIds.map((id) => id.toString());
@@ -308,6 +327,7 @@ exports.getIssueStatistics = async (req, res) => {
 
       if (missingProjectIds.length > 0) {
         // Query buildingProject collection for project names
+        // Limit fields returned to only _id and name for performance
         const missingProjects = await BuildingProject.find({
           _id: { $in: missingProjectIds.map((id) => new mongoose.Types.ObjectId(id)) },
         })
@@ -333,6 +353,8 @@ exports.getIssueStatistics = async (req, res) => {
       a.projectName.localeCompare(b.projectName),
     );
 
+    // Edge Case: Filters Return No Results
+    // If result is empty array, return [] with 200 status (frontend handles this gracefully)
     res.status(200).json(result);
   } catch (error) {
     console.error('[getIssueStatistics] Error:', error);
