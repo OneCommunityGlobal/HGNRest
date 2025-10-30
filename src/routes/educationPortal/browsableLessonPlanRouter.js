@@ -7,12 +7,11 @@ module.exports = function (BrowsableLessonPlanModel, UserProfileModel) {
     UserProfileModel,
   );
 
-  // List all lesson plans with filters/pagination
   router.get('/lesson-plans', controller.getLessonPlans);
 
-  // Student saved interests
   router.post('/student/saved-interests', controller.saveStudentInterest);
   router.get('/student/saved-interests', controller.getStudentSavedInterests);
+  router.delete('/student/saved-interests/:lessonPlanId', controller.removeStudentInterest);
 
   return router;
 };
