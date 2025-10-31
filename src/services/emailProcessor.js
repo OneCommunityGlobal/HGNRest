@@ -39,7 +39,8 @@ class EmailProcessor {
       // Skip if already in final state
       if (
         email.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENT ||
-        email.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED
+        email.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.FAILED ||
+        email.status === EMAIL_JOB_CONFIG.EMAIL_STATUSES.PROCESSED
       ) {
         logger.logInfo(`Email ${emailId} is already in final state: ${email.status}`);
         return email.status;

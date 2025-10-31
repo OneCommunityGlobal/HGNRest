@@ -27,19 +27,6 @@ class EmailAnnouncementJobProcessor {
         await this.processPendingBatches();
       },
       null,
-      false, // Don't start immediately
-      'America/Los_Angeles',
-    );
-
-    this.cronJob.start();
-    logger.logInfo('Email announcement job processor started - runs on configured interval');
-
-    this.cronJob = new CronJob(
-      EMAIL_JOB_CONFIG.CRON_INTERVAL,
-      async () => {
-        await this.processPendingBatches();
-      },
-      null,
       false,
       'UTC',
     );
