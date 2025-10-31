@@ -6,9 +6,9 @@ const userProfile = require('../../models/userProfile');
 const biddingController = (Bidding) => {
   const getBidListings = async (req, res) => {
     try {
-      const page = req.headers['page'] || 1;
-      const size = req.headers['size'] || 10;
-      const village = req.headers['village'];
+      const page = req.headers.page || 1;
+      const size = req.headers.size || 10;
+      const {village} = req.headers;
 
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
@@ -92,7 +92,7 @@ const biddingController = (Bidding) => {
 
   const getBidListingById = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const {id} = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const listing = await Bidding.findById(id)
         .populate([
@@ -138,7 +138,7 @@ const biddingController = (Bidding) => {
         return res.status(400).json({ error: 'Invalid user or village ID' });
       }
 
-      let listingData = {
+      const listingData = {
         title,
         description,
         initialPrice: parseFloat(initialPrice),
@@ -172,7 +172,7 @@ const biddingController = (Bidding) => {
 
   const updateBidListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const {id} = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const updateData = req.body;
 
@@ -193,7 +193,7 @@ const biddingController = (Bidding) => {
 
   const deleteBidListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const {id} = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const deleted = await Bidding.findByIdAndDelete(id);
       if (!deleted) {

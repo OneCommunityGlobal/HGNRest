@@ -249,6 +249,8 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
 // PR Analytics
 const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
 
+
+const githubAnalyticsRouter = require('../routes/githubAnalyticsRouter');
 const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
@@ -449,6 +451,8 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
