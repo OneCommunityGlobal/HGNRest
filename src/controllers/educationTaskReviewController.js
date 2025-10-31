@@ -145,7 +145,7 @@ const educationTaskReviewController = function () {
       if (pageComments !== undefined && Array.isArray(pageComments)) {
         const updatedComments = pageComments.map((pc) => ({
           ...pc,
-          createdBy: pc.createdBy || req.user?._id,
+          createdBy: pc.createdBy || req.body.requestor?.requestorId,
           createdAt: pc.createdAt || new Date(),
           updatedAt: new Date(),
         }));
@@ -211,7 +211,7 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Submission not found' });
       }
 
-      if (!req.user?._id) {
+      if (!req.body.requestor?.requestorId) {
         return res.status(401).json({
           message: 'Authentication required to add comments',
         });
@@ -221,7 +221,7 @@ const educationTaskReviewController = function () {
         pageNumber: parseInt(pageNumber, 10),
         comment,
         isPrivate: isPrivate || false,
-        createdBy: req.user._id,
+        createdBy: req.body.requestor.requestorId,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -277,13 +277,13 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Comment not found' });
       }
 
-      if (!req.user?._id) {
+      if (!req.body.requestor?.requestorId) {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
       if (
         !commentToUpdate.createdBy ||
-        commentToUpdate.createdBy.toString() !== req.user._id.toString()
+        commentToUpdate.createdBy.toString() !== req.body.requestor.requestorId.toString()
       ) {
         return res.status(403).json({ message: 'Unauthorized to update this comment' });
       }
@@ -331,13 +331,13 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Comment not found' });
       }
 
-      if (!req.user?._id) {
+      if (!req.body.requestor?.requestorId) {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
       if (
         !commentToDelete.createdBy ||
-        commentToDelete.createdBy.toString() !== req.user._id.toString()
+        commentToDelete.createdBy.toString() !== req.body.requestor.requestorId.toString()
       ) {
         return res.status(403).json({ message: 'Unauthorized to delete this comment' });
       }
@@ -364,15 +364,15 @@ const educationTaskReviewController = function () {
       const { submissionId } = req.params;
       const { action, collaborativeFeedback, privateNotes, marksGiven, grade } = req.body;
 
-      if (!req.user?._id) {
+      if (!req.body.requestor?.requestorId) {
         return res.status(401).json({
           message: 'Authentication required to submit reviews',
         });
       }
 
-      const reviewerId = mongoose.Types.ObjectId.isValid(req.user._id)
-        ? req.user._id
-        : new mongoose.Types.ObjectId(req.user._id);
+      const reviewerId = mongoose.Types.ObjectId.isValid(req.body.requestor.requestorId)
+        ? req.body.requestor.requestorId
+        : new mongoose.Types.ObjectId(req.body.requestor.requestorId);
 
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
         return res.status(400).json({ message: 'Invalid submission ID' });
