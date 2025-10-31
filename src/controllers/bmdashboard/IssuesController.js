@@ -8,6 +8,34 @@ const BuildingProject = require('../../models/bmdashboard/buildingProject');
 // Chart displays only these three types as per requirements
 const REQUIRED_ISSUE_TYPES = ['Equipment Issues', 'Labor Issues', 'Materials Issues'];
 
+// Issue type mapping: Maps database issue types to the three required categories
+// All issue types in the database will be categorized into one of these three categories
+const ISSUE_TYPE_MAPPING = {
+  // Equipment Issues - mechanical, electrical, maintenance related
+  Electrical: 'Equipment Issues',
+  Mechanical: 'Equipment Issues',
+  Maintenance: 'Equipment Issues',
+
+  // Labor Issues - labor/worker related
+  Labor: 'Labor Issues',
+
+  // Materials Issues - everything else (safety, technical, weather, etc.)
+  Safety: 'Materials Issues',
+  Technical: 'Materials Issues',
+  Technical1: 'Materials Issues',
+  Technical2: 'Materials Issues',
+  Weather: 'Materials Issues',
+  'METs quality / functionality': 'Materials Issues',
+};
+
+/**
+ * Get all database issue types that map to a specific category
+ * @param {string} category - One of the three required categories
+ * @returns {string[]} Array of database issue types that map to this category
+ */
+const getIssueTypesForCategory = (category) =>
+  Object.keys(ISSUE_TYPE_MAPPING).filter((type) => ISSUE_TYPE_MAPPING[type] === category);
+
 // ---------- Helper Functions ----------
 
 /**
@@ -23,6 +51,7 @@ const parseCSV = (s = '') =>
 
 /**
  * Validate YYYY-MM-DD format and convert to UTC Date
+ * Validates that the date is actually valid (not just format-matching)
  * @param {string} s - Date string in YYYY-MM-DD format
  * @returns {Date|null} UTC Date object or null if invalid
  */
@@ -31,7 +60,30 @@ const parseDateYYYYMMDD = (s) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
   if (!m) return null;
   const [, y, mo, d] = m;
-  return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
+  const year = +y;
+  const month = +mo;
+  const day = +d;
+
+  // Validate month range (1-12)
+  if (month < 1 || month > 12) return null;
+
+  // Validate day range (1-31 is basic check, but we'll verify with date creation)
+  if (day < 1 || day > 31) return null;
+
+  // Create date in UTC
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+  // Verify the date didn't wrap around (e.g., 2024-13-45 becomes 2025-02-14)
+  // If the parsed components don't match input, the date was invalid
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
 };
 
 /**
@@ -129,23 +181,31 @@ const buildMatchQuery = (queryParams) => {
 
   // Parse issueTypes parameter and restrict to REQUIRED_ISSUE_TYPES
   // Chart requirement: Only display "Equipment Issues", "Labor Issues", "Materials Issues"
-  // If issueTypes filter is provided, intersect with REQUIRED_ISSUE_TYPES
-  // If not provided, use all REQUIRED_ISSUE_TYPES
+  // If issueTypes filter is provided, we need to find all database issue types that map to those categories
+  // If not provided, we include all database issue types (they will be mapped in aggregation)
   if (queryParams.issueTypes) {
-    const requestedTypes = parseCSV(queryParams.issueTypes);
-    // Filter to only include types that are in REQUIRED_ISSUE_TYPES
-    const filteredTypes = requestedTypes.filter((type) => REQUIRED_ISSUE_TYPES.includes(type));
-    if (filteredTypes.length > 0) {
-      match.issueType = { $in: filteredTypes };
+    const requestedCategories = parseCSV(queryParams.issueTypes);
+    // Filter to only include categories that are in REQUIRED_ISSUE_TYPES
+    const validCategories = requestedCategories.filter((category) =>
+      REQUIRED_ISSUE_TYPES.includes(category),
+    );
+    if (validCategories.length > 0) {
+      // Get all database issue types that map to the requested categories
+      const databaseIssueTypes = validCategories.flatMap((category) =>
+        getIssueTypesForCategory(category),
+      );
+      if (databaseIssueTypes.length > 0) {
+        match.issueType = { $in: databaseIssueTypes };
+      } else {
+        // If no database types map to requested categories, return empty result
+        match.issueType = { $in: [] };
+      }
     } else {
       // If none of the requested types are in REQUIRED_ISSUE_TYPES, return empty result
-      // Set a flag that will result in no matches
       match.issueType = { $in: [] };
     }
-  } else {
-    // No issueTypes filter provided - use all REQUIRED_ISSUE_TYPES
-    match.issueType = { $in: REQUIRED_ISSUE_TYPES };
   }
+  // If no issueTypes filter provided, don't filter by issueType - we'll map all types in aggregation
 
   return { match, errors };
 };
@@ -244,16 +304,35 @@ exports.getIssueStatistics = async (req, res) => {
     // This is used later to handle edge case: projects with no issues
     const filteredProjectIds = match.projectId?.$in || null;
 
+    // Build switch branches for MongoDB $switch operator
+    // This maps database issue types to the three required categories
+    const switchBranches = Object.keys(ISSUE_TYPE_MAPPING).map((dbType) => ({
+      case: { $eq: ['$issueType', dbType] },
+      then: ISSUE_TYPE_MAPPING[dbType],
+    }));
+
     // Stage 1: Match filtered issues
     // If no filters provided, match will be empty object {} which matches all documents
-    // Stage 2: Group by projectId and issueType to count issues
+    // Stage 2: Map issue types to categories and group by projectId and mapped category
     const aggregationPipeline = [
       { $match: match },
+      // Add a field to map the database issue type to one of the three required categories
+      {
+        $addFields: {
+          mappedIssueType: {
+            $switch: {
+              branches: switchBranches,
+              default: 'Materials Issues', // Default for unmapped types
+            },
+          },
+        },
+      },
+      // Stage 3: Group by projectId and mapped category to count issues
       {
         $group: {
           _id: {
             projectId: '$projectId',
-            issueType: '$issueType',
+            issueType: '$mappedIssueType', // Use mapped category instead of original type
           },
           count: { $sum: 1 },
         },
@@ -271,15 +350,20 @@ exports.getIssueStatistics = async (req, res) => {
       {
         $unwind: {
           path: '$project',
-          preserveNullAndEmptyArrays: false,
+          preserveNullAndEmptyArrays: true, // Changed to true to handle missing projects gracefully
         },
       },
       {
         $project: {
           _id: 0,
           projectId: { $toString: '$_id.projectId' },
-          projectName: { $ifNull: ['$project.name', 'Unknown'] },
-          issueType: '$_id.issueType',
+          projectName: {
+            $ifNull: [
+              '$project.name',
+              { $concat: ['Unknown Project (', { $toString: '$_id.projectId' }, ')'] },
+            ],
+          },
+          issueType: '$_id.issueType', // This is now the mapped category
           count: 1,
         },
       },
@@ -297,17 +381,33 @@ exports.getIssueStatistics = async (req, res) => {
     // If aggregation returns no results, we'll return empty array [] with 200 status
     // Frontend handles empty arrays gracefully
 
-    // Get issue types to include in response
-    // Chart requirement: Always use the three required issue types
-    // If issueTypes filter was provided and matched, use those filtered types
+    // Get issue types (categories) to include in response
+    // Chart requirement: Always use the three required categories (Equipment Issues, Labor Issues, Materials Issues)
+    // If issueTypes filter was provided, use only those requested categories (filtered to REQUIRED_ISSUE_TYPES)
     // Otherwise, use all REQUIRED_ISSUE_TYPES
     let sortedIssueTypes = [];
-    if (match.issueType?.$in && match.issueType.$in.length > 0) {
-      // Use filtered issue types (already restricted to REQUIRED_ISSUE_TYPES in buildMatchQuery)
-      sortedIssueTypes = match.issueType.$in.sort();
+    if (req.query.issueTypes) {
+      // Extract requested categories from query parameters
+      const requestedCategories = parseCSV(req.query.issueTypes);
+      // Filter to only include categories that are in REQUIRED_ISSUE_TYPES
+      const validCategories = requestedCategories.filter((category) =>
+        REQUIRED_ISSUE_TYPES.includes(category),
+      );
+      if (validCategories.length > 0) {
+        // Use only the requested valid categories
+        sortedIssueTypes = validCategories.sort();
+      } else {
+        // If no valid categories requested, return empty result (no categories to display)
+        sortedIssueTypes = [];
+      }
     } else {
-      // Use all REQUIRED_ISSUE_TYPES (sorted)
+      // No issueTypes filter provided - use all REQUIRED_ISSUE_TYPES (sorted)
       sortedIssueTypes = [...REQUIRED_ISSUE_TYPES].sort();
+    }
+
+    // If no valid categories to display, return empty array
+    if (sortedIssueTypes.length === 0) {
+      return res.status(200).json([]);
     }
 
     // Stage 4 & 5: Reshape data - group by project and create objects with dynamic issue type properties
@@ -316,12 +416,18 @@ exports.getIssueStatistics = async (req, res) => {
     // Process aggregated results
     aggregatedResults.forEach((item) => {
       const { projectId, projectName, issueType, count } = item;
+      // issueType here is the mapped category (e.g., "Labor Issues", "Equipment Issues")
+      // Only process if it's one of the categories we want in the response
+      if (!sortedIssueTypes.includes(issueType)) {
+        return; // Skip categories that aren't in the response set
+      }
+
       if (!projectMap.has(projectId)) {
         const projectObj = {
           projectId,
           projectName,
         };
-        // Initialize all issue types with 0
+        // Initialize all issue types (categories) with 0
         sortedIssueTypes.forEach((type) => {
           projectObj[type] = 0;
         });
