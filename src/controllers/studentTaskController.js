@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
+const { uploadToS3 } = require('../services/s3Service');
 
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
@@ -273,7 +274,29 @@ const studentTaskController = function () {
 
   const uploadFile = async (req, res) => {
     console.log('Uploading file');
-    return res.status(200).json('File upload successfully');
+    const { taskId } = req.params;
+    try {
+      const { file } = req;
+      if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+      const uploadParams = {
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: `uploads/${file.originalname}`,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      };
+
+      const response = await uploadToS3(file, taskId);
+
+      return res.json({
+        message: 'File uploaded successfully!',
+        etag: response.ETag,
+        url: `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${uploadParams.Key}`,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Upload failed' });
+    }
   };
   const getFile = async (req, res) => {
     console.log('Get file');

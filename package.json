@@ -51,6 +51,7 @@
     "supertest": "^6.3.4"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.920.0",
     "@azure/storage-blob": "^12.26.0",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
@@ -64,6 +65,7 @@
     "@types/node-fetch": "^2.6.12",
     "abort-controller": "^3.0.0",
     "async-exit-hook": "^2.0.1",
+    "aws-sdk": "^2.1692.0",
     "axios": "^1.7.7",
     "babel-plugin-module-resolver": "^5.0.0",
     "bcryptjs": "^2.4.3",
