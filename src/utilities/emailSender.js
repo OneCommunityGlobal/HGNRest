@@ -144,10 +144,7 @@ const worker = async () => {
     const batch = queue.shift();
     if (!batch) break; // queue drained for this worker
 
-    const success = await sendWithRetry(batch);
-    if (!success) {
-      throw new Error(`Failed to send email to ${batch.to} after all retry attempts`);
-    }
+    await sendWithRetry(batch);
     if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
   }
 };
