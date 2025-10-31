@@ -11,7 +11,8 @@ const taskschema = new Schema({
   resources: [
     {
       name: { type: String, required: true },
-      userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+
+      userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       profilePic: { type: String },
       completedTask: { type: Boolean, default: false },
       reviewStatus: { type: String, default: 'Unsubmitted' },
@@ -30,21 +31,9 @@ const taskschema = new Schema({
   relatedWorkLinks: [String],
   category: { type: String },
   deadlineCount: { type: Number, default: 0.0 },
-  parentId1: {
-    type: mongoose.SchemaTypes.ObjectId,
-    ref: 'task',
-    default: null,
-  },
-  parentId2: {
-    type: mongoose.SchemaTypes.ObjectId,
-    ref: 'task',
-    default: null,
-  },
-  parentId3: {
-    type: mongoose.SchemaTypes.ObjectId,
-    ref: 'task',
-    default: null,
-  },
+  parentId1: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
+  parentId2: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
+  parentId3: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
   mother: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', default: null },
   position: { type: Number, required: true },
   isActive: { type: Boolean, default: true },
@@ -52,6 +41,7 @@ const taskschema = new Schema({
   childrenQty: { type: Number, default: 0, required: true },
   createdDatetime: { type: Date },
   modifiedDatetime: { type: Date, default: Date.now() },
+  createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }, // <-- add this
   whyInfo: { type: String },
   intentInfo: { type: String },
   endstateInfo: { type: String },
