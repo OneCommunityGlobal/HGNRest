@@ -144,6 +144,8 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
+const taskCommentRouter = require('../routes/taskCommentRouter')();
+
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
@@ -376,6 +378,7 @@ module.exports = function (app) {
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+  app.use('/api', taskCommentRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
