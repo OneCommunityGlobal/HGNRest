@@ -13,13 +13,14 @@ const logger = require('../../../startup/logger');
 
 class EmailBatchService {
   /**
-   * Create EmailBatch items for an Email
-   * Takes all recipients, chunks them into EmailBatch items with configurable batch size
-   * @param {string|ObjectId} emailId - The _id (ObjectId) of the parent Email
-   * @param {Array} recipients - Array of recipient objects with email property
-   * @param {Object} config - Configuration { batchSize?, emailType? }
-   * @param {Object} session - MongoDB session for transaction support
-   * @returns {Promise<Array>} Created EmailBatch items
+   * Create EmailBatch items for a parent Email.
+   * - Validates parent Email ID, normalizes recipients and chunks by configured size.
+   * - Returns inserted EmailBatch documents.
+   * @param {string|ObjectId} emailId - Parent Email ObjectId.
+   * @param {Array<{email: string}|string>} recipients - Recipients (auto-normalized).
+   * @param {{batchSize?: number, emailType?: 'TO'|'CC'|'BCC'}} config - Optional overrides.
+   * @param {import('mongoose').ClientSession|null} session - Optional transaction session.
+   * @returns {Promise<Array>} Created EmailBatch items.
    */
   static async createEmailBatches(emailId, recipients, config = {}, session = null) {
     try {
@@ -68,7 +69,9 @@ class EmailBatchService {
   }
 
   /**
-   * Get Email with its EmailBatch items and dynamic counts
+   * Get Email with its EmailBatch items and essential metadata for UI.
+   * @param {string|ObjectId} emailId - Parent Email ObjectId.
+   * @returns {Promise<{email: Object, batches: Array}>}
    */
   static async getEmailWithBatches(emailId) {
     try {
@@ -111,7 +114,8 @@ class EmailBatchService {
   }
 
   /**
-   * Get all Emails
+   * Get all Emails ordered by creation date descending.
+   * @returns {Promise<Array>} Array of Email objects (lean, with createdBy populated).
    */
   static async getAllEmails() {
     try {
@@ -128,21 +132,25 @@ class EmailBatchService {
   }
 
   /**
-   * Fetch EmailBatch items for a parent emailId (ObjectId)
+   * Fetch EmailBatch items for a parent Email.
+   * @param {string|ObjectId} emailId - Parent Email ObjectId.
+   * @returns {Promise<Array>} Sorted ascending by createdAt.
    */
   static async getBatchesForEmail(emailId) {
     return EmailBatch.find({ emailId }).sort({ createdAt: 1 });
   }
 
   /**
-   * Get EmailBatch items by emailId (alias for consistency)
+   * Alias of getBatchesForEmail for naming consistency.
    */
   static async getEmailBatchesByEmailId(emailId) {
     return this.getBatchesForEmail(emailId);
   }
 
   /**
-   * Reset an EmailBatch item for retry
+   * Reset an EmailBatch item for retry, clearing attempts and error fields.
+   * @param {string|ObjectId} emailBatchId - Batch ObjectId.
+   * @returns {Promise<Object|null>} Updated document or null if not found.
    */
   static async resetEmailBatchForRetry(emailBatchId) {
     const item = await EmailBatch.findById(emailBatchId);
@@ -159,7 +167,9 @@ class EmailBatchService {
   }
 
   /**
-   * Mark a batch item as SENDING (and bump attempts/lastAttemptedAt)
+   * Mark a batch item as SENDING, increment attempts, and set lastAttemptedAt.
+   * @param {string|ObjectId} emailBatchId - Batch ObjectId.
+   * @returns {Promise<Object>} Updated batch document.
    */
   static async markEmailBatchSending(emailBatchId) {
     const now = new Date();
@@ -176,7 +186,9 @@ class EmailBatchService {
   }
 
   /**
-   * Mark a batch item as SENT
+   * Mark a batch item as SENT and set sentAt timestamp.
+   * @param {string|ObjectId} emailBatchId - Batch ObjectId.
+   * @returns {Promise<Object>} Updated batch document.
    */
   static async markEmailBatchSent(emailBatchId) {
     const now = new Date();
@@ -192,7 +204,10 @@ class EmailBatchService {
   }
 
   /**
-   * Mark a batch item as FAILED and record error info
+   * Mark a batch item as FAILED and snapshot the error info.
+   * @param {string|ObjectId} emailBatchId - Batch ObjectId.
+   * @param {{errorCode?: string, errorMessage?: string}} param1 - Error details.
+   * @returns {Promise<Object>} Updated batch document.
    */
   static async markEmailBatchFailed(emailBatchId, { errorCode, errorMessage }) {
     const now = new Date();

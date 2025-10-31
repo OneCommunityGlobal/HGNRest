@@ -1,3 +1,9 @@
+/**
+ * EmailTemplate model for reusable announcement email content.
+ * - Stores template name, subject, HTML content, and declared variables
+ * - Tracks creator/updater and timestamps for auditing and sorting
+ * - Includes helpful indexes and text search for fast lookup
+ */
 const mongoose = require('mongoose');
 
 const emailTemplateSchema = new mongoose.Schema(

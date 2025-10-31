@@ -20,6 +20,13 @@ const logger = require('../startup/logger');
 
 const jwtSecret = process.env.JWT_SECRET;
 
+/**
+ * Create an announcement Email for provided recipients.
+ * - Validates permissions, subject/html, recipients, and template variables.
+ * - Creates parent Email and chunked EmailBatch items in a transaction.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const sendEmail = async (req, res) => {
   // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
@@ -217,6 +224,12 @@ const sendEmail = async (req, res) => {
   }
 };
 
+/**
+ * Broadcast an announcement Email to all active HGN users and confirmed subscribers.
+ * - Validates permissions and content; creates Email and batches in a transaction.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const sendEmailToSubscribers = async (req, res) => {
   // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
@@ -397,6 +410,12 @@ const sendEmailToSubscribers = async (req, res) => {
   }
 };
 
+/**
+ * Resend a previously created Email to a selected audience.
+ * - Options: 'all' (users+subscribers), 'specific' (list), 'same' (original recipients).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const resendEmail = async (req, res) => {
   // Requestor is required for permission check and audit trail
   if (!req?.body?.requestor?.requestorId) {
@@ -604,6 +623,11 @@ const resendEmail = async (req, res) => {
   }
 };
 
+/**
+ * Update the current user's emailSubscriptions preference.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const updateEmailSubscriptions = async (req, res) => {
   try {
     if (!req?.body?.requestor?.email) {
@@ -641,6 +665,12 @@ const updateEmailSubscriptions = async (req, res) => {
   }
 };
 
+/**
+ * Add a non-HGN user's email to the subscription list and send confirmation.
+ * - Rejects if already an HGN user or already subscribed.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const addNonHgnEmailSubscription = async (req, res) => {
   try {
     const { email } = req.body;
@@ -730,6 +760,12 @@ const addNonHgnEmailSubscription = async (req, res) => {
   }
 };
 
+/**
+ * Confirm a non-HGN email subscription using a signed token.
+ * - Creates or updates the subscriber record as confirmed.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const confirmNonHgnEmailSubscription = async (req, res) => {
   try {
     const { token } = req.body;
@@ -791,6 +827,11 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
   }
 };
 
+/**
+ * Remove a non-HGN email from the subscription list (unsubscribe).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 const removeNonHgnEmailSubscription = async (req, res) => {
   try {
     const { email } = req.body;

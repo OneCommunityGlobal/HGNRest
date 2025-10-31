@@ -8,6 +8,11 @@ const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
 const logger = require('../../../startup/logger');
 
 class EmailProcessor {
+  /**
+   * Initialize processor runtime configuration.
+   * - Tracks currently processing parent Email IDs to avoid duplicate work.
+   * - Loads retry settings from EMAIL_JOB_CONFIG to coordinate with sending service.
+   */
   constructor() {
     this.processingBatches = new Set();
     this.maxRetries = EMAIL_JOB_CONFIG.DEFAULT_MAX_RETRIES;
@@ -15,8 +20,13 @@ class EmailProcessor {
   }
 
   /**
-   * Process an Email (processes all its EmailBatch items)
-   * @param {string|ObjectId} emailId - The _id (ObjectId) of the parent Email
+   * Process a single parent Email by sending all of its queued EmailBatch items.
+   * - Idempotent with respect to concurrent calls (skips if already processing).
+   * - Recovers stuck batches from previous crashes by resetting SENDING to QUEUED.
+   * - Audits lifecycle events (sending, sent, failed, processed).
+   * @param {string|ObjectId} emailId - The ObjectId of the parent Email.
+   * @returns {Promise<string>} Final email status: SENT | FAILED | PROCESSED | SENDING
+   * @throws {Error} When emailId is invalid or the Email is not found.
    */
   async processEmail(emailId) {
     if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
@@ -107,9 +117,11 @@ class EmailProcessor {
   }
 
   /**
-   * Process all EmailBatch items for an Email
-   * Processes ALL QUEUED items regardless of individual failures - ensures maximum delivery
-   * @param {Object} email - The Email document
+   * Process all EmailBatch child records for a given parent Email.
+   * - Sends batches with limited concurrency and Promise.allSettled to ensure all are attempted.
+   * - Resets orphaned SENDING batches to QUEUED before processing.
+   * @param {Object} email - The parent Email mongoose document.
+   * @returns {Promise<void>}
    */
   async processEmailBatches(email) {
     // Get ALL batches for this email first
@@ -193,9 +205,13 @@ class EmailProcessor {
   }
 
   /**
-   * Process a single EmailBatch item with multiple recipients
-   * @param {Object} item - The EmailBatch item
-   * @param {Object} email - The parent Email document
+   * Send one EmailBatch item (one SMTP send for a group of recipients).
+   * - Marks the batch SENDING, audits, and delegates retries to the announcement service.
+   * - On success, marks SENT and audits delivery details; on failure after retries, marks FAILED and audits.
+   * @param {Object} item - The EmailBatch mongoose document.
+   * @param {Object} email - The parent Email mongoose document.
+   * @returns {Promise<void>}
+   * @throws {Error} Bubbles final failure so callers can classify in allSettled results.
    */
   async processEmailBatch(item, email) {
     if (!item || !item._id) {
@@ -329,7 +345,9 @@ class EmailProcessor {
   }
 
   /**
-   * Sleep utility
+   * Sleep utility to await a given duration.
+   * @param {number} ms - Milliseconds to wait.
+   * @returns {Promise<void>}
    */
   static sleep(ms) {
     return new Promise((resolve) => {
@@ -338,7 +356,14 @@ class EmailProcessor {
   }
 
   /**
-   * Determine final status for an Email based on its EmailBatch items
+   * Determine the final parent Email status from child EmailBatch aggregation.
+   * Rules:
+   * - All SENT => SENT
+   * - All FAILED => FAILED
+   * - Mixed (any SENT or FAILED) => PROCESSED
+   * - Otherwise => SENDING (still in progress)
+   * @param {ObjectId} emailObjectId - Parent Email ObjectId.
+   * @returns {Promise<string>} Derived status constant from EMAIL_JOB_CONFIG.EMAIL_STATUSES.
    */
   static async determineEmailStatus(emailObjectId) {
     const counts = await EmailBatch.aggregate([
@@ -381,7 +406,8 @@ class EmailProcessor {
   }
 
   /**
-   * Get processor status
+   * Get lightweight processor status for diagnostics/telemetry.
+   * @returns {{isRunning: boolean, processingBatches: string[], maxRetries: number}}
    */
   getStatus() {
     return {

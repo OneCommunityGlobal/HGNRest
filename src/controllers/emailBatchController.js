@@ -10,7 +10,9 @@ const logger = require('../startup/logger');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
 /**
- * Get all Email records (parent)
+ * Get all announcement Email records (parent documents).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getEmails = async (req, res) => {
   try {
@@ -44,7 +46,9 @@ const getEmails = async (req, res) => {
 };
 
 /**
- * Get Email details with EmailBatch items
+ * Get a parent Email and its associated EmailBatch items.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getEmailDetails = async (req, res) => {
   try {
@@ -94,7 +98,9 @@ const getEmailDetails = async (req, res) => {
 };
 
 /**
- * Get worker status (minimal info for frontend)
+ * Get worker/cron status for the announcement email processor.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getWorkerStatus = async (req, res) => {
   try {
@@ -115,8 +121,10 @@ const getWorkerStatus = async (req, res) => {
 };
 
 /**
- * Retry an Email by queuing all its failed EmailBatch items
- * Resets failed items to QUEUED status for the cron job to process
+ * Retry a parent Email by resetting all FAILED EmailBatch items to QUEUED.
+ * - Queues the parent email; cron picks it up in the next cycle.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const retryEmail = async (req, res) => {
   try {
@@ -248,7 +256,9 @@ const retryEmail = async (req, res) => {
 };
 
 /**
- * Get audit trail for a specific Email
+ * Get the audit trail for a specific parent Email.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getEmailAuditTrail = async (req, res) => {
   try {
@@ -307,7 +317,9 @@ const getEmailAuditTrail = async (req, res) => {
 };
 
 /**
- * Get audit trail for a specific EmailBatch item
+ * Get the audit trail for a specific EmailBatch item.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getEmailBatchAuditTrail = async (req, res) => {
   try {

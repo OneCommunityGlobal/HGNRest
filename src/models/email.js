@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
+/**
+ * Email (parent) model for announcement sending lifecycle.
+ * - Stores subject/html and status transitions (QUEUED → SENDING → SENT/PROCESSED/FAILED).
+ * - References creator and tracks timing fields for auditing.
+ */
 const { Schema } = mongoose;
 
 const EmailSchema = new Schema({

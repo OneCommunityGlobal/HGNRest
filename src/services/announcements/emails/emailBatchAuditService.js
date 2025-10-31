@@ -10,7 +10,16 @@ const logger = require('../../../startup/logger');
 
 class EmailBatchAuditService {
   /**
-   * Log an action to the audit trail
+   * Log an action to the email batch audit trail.
+   * - Validates IDs and action enum, normalizes message fields, then persists.
+   * @param {string|ObjectId} emailId
+   * @param {string} action - One of EMAIL_BATCH_AUDIT_ACTIONS.*
+   * @param {string} details - Human-readable details (trimmed/limited).
+   * @param {Object} [metadata]
+   * @param {Error|null} [error]
+   * @param {string|ObjectId|null} [triggeredBy]
+   * @param {string|ObjectId|null} [emailBatchId]
+   * @returns {Promise<Object>} Created audit document.
    */
   static async logAction(
     emailId,
@@ -79,8 +88,9 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Get complete audit trail for an Email (parent) - no pagination, no filtering
-   * @param {string|ObjectId} emailId - The _id (ObjectId) of the parent Email
+   * Get complete audit trail for a parent Email (no pagination).
+   * @param {string|ObjectId} emailId - Parent Email ObjectId.
+   * @returns {Promise<Array>} Sorted newest first, with basic populations.
    */
   static async getEmailAuditTrail(emailId) {
     // Validate emailId is ObjectId
@@ -100,7 +110,9 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Get audit trail for a specific EmailBatch item - no pagination, no filtering
+   * Get audit trail for a specific EmailBatch item (no pagination).
+   * @param {string|ObjectId} emailBatchId - EmailBatch ObjectId.
+   * @returns {Promise<Array>} Sorted newest first, with basic populations.
    */
   static async getEmailBatchAuditTrail(emailBatchId) {
     // Validate emailBatchId is ObjectId
@@ -120,10 +132,10 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log Email queued (for initial creation or retry)
-   * @param {string|ObjectId} emailId - The email ID
-   * @param {Object} metadata - Additional metadata
-   * @param {string|ObjectId} triggeredBy - Optional user ID who triggered this action
+   * Log Email queued (initial creation or retry).
+   * @param {string|ObjectId} emailId
+   * @param {Object} [metadata]
+   * @param {string|ObjectId} [triggeredBy]
    */
   static async logEmailQueued(emailId, metadata = {}, triggeredBy = null) {
     return this.logAction(
@@ -137,7 +149,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log Email sending (processing start)
+   * Log Email sending (processing start).
    */
   static async logEmailSending(emailId, metadata = {}) {
     return this.logAction(
@@ -149,7 +161,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log Email processed (processing completion)
+   * Log Email processed (processing completion).
    */
   static async logEmailProcessed(emailId, metadata = {}) {
     return this.logAction(
@@ -161,7 +173,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log Email processing failure
+   * Log Email processing failure.
    */
   static async logEmailFailed(emailId, error, metadata = {}) {
     return this.logAction(
@@ -174,7 +186,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log Email sent (all batches completed successfully)
+   * Log Email sent (all batches completed successfully).
    */
   static async logEmailSent(emailId, metadata = {}) {
     return this.logAction(
@@ -186,7 +198,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log EmailBatch item sent with essential delivery tracking
+   * Log EmailBatch item sent with essential delivery tracking details.
    */
   static async logEmailBatchSent(emailId, emailBatchId, metadata = {}, gmailResponse = null) {
     const enhancedMetadata = {
@@ -219,7 +231,7 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log EmailBatch item failure with optional Gmail API metadata
+   * Log EmailBatch item failure with optional Gmail API metadata.
    */
   static async logEmailBatchFailed(emailId, emailBatchId, error, metadata = {}) {
     const enhancedMetadata = {
@@ -256,11 +268,11 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log EmailBatch item queued
-   * @param {string|ObjectId} emailId - The email ID
-   * @param {string|ObjectId} emailBatchId - The EmailBatch item ID
-   * @param {Object} metadata - Additional metadata
-   * @param {string|ObjectId} triggeredBy - Optional user ID who triggered this action
+   * Log EmailBatch item queued.
+   * @param {string|ObjectId} emailId
+   * @param {string|ObjectId} emailBatchId
+   * @param {Object} [metadata]
+   * @param {string|ObjectId} [triggeredBy]
    */
   static async logEmailBatchQueued(emailId, emailBatchId, metadata = {}, triggeredBy = null) {
     return this.logAction(
@@ -275,10 +287,10 @@ class EmailBatchAuditService {
   }
 
   /**
-   * Log EmailBatch item sending
-   * @param {string|ObjectId} emailId - The email ID
-   * @param {string|ObjectId} emailBatchId - The EmailBatch item ID
-   * @param {Object} metadata - Additional metadata
+   * Log EmailBatch item sending.
+   * @param {string|ObjectId} emailId
+   * @param {string|ObjectId} emailBatchId
+   * @param {Object} [metadata]
    */
   static async logEmailBatchSending(emailId, emailBatchId, metadata = {}) {
     return this.logAction(

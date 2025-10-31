@@ -6,7 +6,10 @@ const logger = require('../startup/logger');
 const { ensureHtmlWithinLimit, validateHtmlMedia } = require('../utilities/emailValidators');
 
 /**
- * Validate template variables
+ * Validate template variables.
+ * - Ensures non-empty unique names and validates allowed types.
+ * @param {Array<{name: string, type?: 'text'|'url'|'number'|'textarea'|'image'>} | undefined} variables
+ * @returns {{isValid: boolean, errors?: string[]}}
  */
 function validateTemplateVariables(variables) {
   if (!variables || !Array.isArray(variables)) {
@@ -46,7 +49,12 @@ function validateTemplateVariables(variables) {
 }
 
 /**
- * Validate template content (HTML and subject) against defined variables
+ * Validate template content (HTML and subject) against defined variables.
+ * - Flags undefined placeholders and unused defined variables.
+ * @param {Array<{name: string}>} templateVariables
+ * @param {string} htmlContent
+ * @param {string} subject
+ * @returns {{isValid: boolean, errors: string[]}}
  */
 function validateTemplateVariableUsage(templateVariables, htmlContent, subject) {
   const errors = [];
@@ -109,7 +117,9 @@ function validateTemplateVariableUsage(templateVariables, htmlContent, subject) 
 }
 
 /**
- * Get all email templates with pagination and optimization
+ * Get all email templates (with basic search/sort and optional content projection).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getAllEmailTemplates = async (req, res) => {
   try {
@@ -175,7 +185,9 @@ const getAllEmailTemplates = async (req, res) => {
 };
 
 /**
- * Get a single email template by ID
+ * Get a single email template by ID.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const getEmailTemplateById = async (req, res) => {
   try {
@@ -232,7 +244,10 @@ const getEmailTemplateById = async (req, res) => {
 };
 
 /**
- * Create a new email template
+ * Create a new email template.
+ * - Validates content size, media, name/subject length, variables and usage.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const createEmailTemplate = async (req, res) => {
   try {
@@ -385,7 +400,10 @@ const createEmailTemplate = async (req, res) => {
 };
 
 /**
- * Update an email template
+ * Update an existing email template by ID.
+ * - Validates content and ensures unique name when changed.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const updateEmailTemplate = async (req, res) => {
   try {
@@ -566,7 +584,9 @@ const updateEmailTemplate = async (req, res) => {
 };
 
 /**
- * Delete an email template
+ * Delete an email template by ID.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
  */
 const deleteEmailTemplate = async (req, res) => {
   try {

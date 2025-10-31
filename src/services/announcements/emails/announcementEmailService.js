@@ -9,6 +9,10 @@ const { google } = require('googleapis');
 const logger = require('../../../startup/logger');
 
 class EmailAnnouncementService {
+  /**
+   * Initialize Gmail OAuth2 transport configuration and validate required env vars.
+   * Throws during construction if configuration is incomplete to fail fast.
+   */
   constructor() {
     this.config = {
       email: process.env.ANNOUNCEMENT_EMAIL,
@@ -50,9 +54,12 @@ class EmailAnnouncementService {
   }
 
   /**
-   * Send email with enhanced announcement tracking
-   * Validates input and configuration before sending
-   * @returns {Object} { success: boolean, response?: Object, error?: Error }
+   * Send email with enhanced announcement tracking.
+   * - Validates recipients, subject, and service configuration.
+   * - Fetches OAuth2 access token and attaches OAuth credentials to the request.
+   * - Returns a structured result instead of throwing to simplify callers.
+   * @param {Object} mailOptions - Nodemailer-compatible options (to|bcc, subject, html, from?).
+   * @returns {Promise<{success: boolean, response?: Object, error?: Error}>}
    */
   async sendEmail(mailOptions) {
     // Validation
@@ -135,11 +142,13 @@ class EmailAnnouncementService {
   }
 
   /**
-   * Send email with retry logic and announcement-specific handling
-   * @param {Object} mailOptions - Nodemailer-compatible mail options
-   * @param {number} retries - Number of retry attempts
-   * @param {number} initialDelayMs - Initial delay in milliseconds for exponential backoff
-   * @returns {Promise<Object>} { success: boolean, response?: Object, error?: Error, attemptCount: number }
+   * Send email with retry logic and announcement-specific handling.
+   * - Executes exponential backoff between attempts: initialDelayMs * 2^(attempt-1).
+   * - Never throws; returns final success/failure and attemptCount for auditing.
+   * @param {Object} mailOptions - Nodemailer-compatible mail options.
+   * @param {number} retries - Total attempts (>=1).
+   * @param {number} initialDelayMs - Initial backoff delay in ms.
+   * @returns {Promise<{success: boolean, response?: Object, error?: Error, attemptCount: number}>}
    */
   async sendWithRetry(mailOptions, retries = 3, initialDelayMs = 1000) {
     // Validation
@@ -212,7 +221,9 @@ class EmailAnnouncementService {
   }
 
   /**
-   * Sleep utility
+   * Sleep utility for backoff timing.
+   * @param {number} ms - Milliseconds to wait.
+   * @returns {Promise<void>}
    */
   static sleep(ms) {
     return new Promise((resolve) => {

@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
+/**
+ * EmailBatch (child) model representing one SMTP send to a group of recipients.
+ * - Tracks recipients, emailType, status, attempt counters and error snapshots.
+ */
 const { Schema } = mongoose;
 
 const EmailBatchSchema = new Schema({

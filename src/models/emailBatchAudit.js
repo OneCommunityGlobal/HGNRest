@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 
+/**
+ * EmailBatchAudit model for immutable audit trail of email/batch actions.
+ * - Captures action, details, optional error info, metadata, and actor.
+ */
 const { Schema } = mongoose;
 
 const EmailBatchAuditSchema = new Schema({
