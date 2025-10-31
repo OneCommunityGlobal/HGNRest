@@ -340,7 +340,7 @@ const teamcontroller = function (Team) {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach((member) => {
+            teamDoc.members.forEach((member) => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
@@ -403,10 +403,11 @@ const teamcontroller = function (Team) {
         const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
+      // from the frontend in totalReports comp they are sending only array of teamids not any obj so changed team._id to team
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
-        !teamIds.every((teamItem) => mongoose.Types.ObjectId.isValid(teamItem._id))
+        !teamIds.every((teamId) => mongoose.Types.ObjectId.isValid(teamId))
       ) {
         return res.status(400).send({
           error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
@@ -414,9 +415,7 @@ const teamcontroller = function (Team) {
       }
       const data = await Team.aggregate([
         {
-          $match: {
-            _id: { $in: teamIds.map((teamItem) => mongoose.Types.ObjectId(teamItem._id)) },
-          },
+          $match: { _id: { $in: teamIds.map((teamId) => mongoose.Types.ObjectId(teamId)) } },
         },
         { $unwind: '$members' },
         {
