@@ -9,10 +9,10 @@ const s3 = new S3Client({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
 
-async function uploadToS3(file, taskId) {
+async function uploadToS3(file, taskId, studentId, key) {
   const uploadParams = {
     Bucket: process.env.S3_BUCKET_NAME,
-    Key: `tasks/${taskId}/${file.originalname}`,
+    Key: key,
     Body: file.buffer,
     ContentType: file.mimetype,
   };
