@@ -13,8 +13,6 @@ const routes = function () {
     .route('/student/tasks/:taskId/upload')
     .post(upload.single('file'), controller.uploadFile);
 
-  studentTaskRouter.route('/student/tasks/:taskId/download').get(controller.getFiles);
-
   return studentTaskRouter;
 };
 

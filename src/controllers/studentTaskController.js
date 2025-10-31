@@ -274,10 +274,20 @@ const studentTaskController = function () {
     }
   };
 
+  const isValidURL = (url) => {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url); // throws if invalid
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
   const uploadFile = async (req, res) => {
     try {
       const { taskId } = req.params;
-      // const studentId = req.body.requestor?.requestorId;
+
       // Multer override the requestor id in the body, so I have to parse it again from the header
       const authToken = req.header(config.REQUEST_AUTHKEY);
       let payload = '';
@@ -303,35 +313,44 @@ const studentTaskController = function () {
       if (!task) {
         return res.status(404).json({ message: 'Task not found' });
       }
+      let uploadedUrl = null;
+      if (req.file) {
+        const { file } = req;
+        // if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-      const { file } = req;
-      if (!file) return res.status(400).json({ error: 'No file uploaded' });
+        // Validate file size (max 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+          return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
+        }
 
-      // Validate file size (max 10MB)
-      const MAX_SIZE = 10 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
+        // Validate file type
+        const allowedMimeTypes = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+          'text/plain',
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return res
+            .status(400)
+            .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
+        }
+
+        const key = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
+        await uploadToS3(file, taskId, studentId, key);
+        uploadedUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+      } else if (req.body.url) {
+        if (!isValidURL(req.body.url)) {
+          return res.status(400).json({ error: 'Please enter a valid url' });
+        }
+        uploadedUrl = req.body.url;
+      } else {
+        return res.status(400).json({ error: 'A File or a link is required.' });
       }
-
-      // Validate file type
-      const allowedMimeTypes = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-        'text/plain',
-        'image/jpeg',
-        'image/png',
-        'image/gif',
-      ];
-
-      if (!allowedMimeTypes.includes(file.mimetype)) {
-        return res
-          .status(400)
-          .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
-      }
-
-      const key = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
-      const response = await uploadToS3(file, taskId, studentId, key);
-      const uploadedUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 
       task.status = 'completed';
       task.completedAt = Date.now();
@@ -340,7 +359,6 @@ const studentTaskController = function () {
 
       return res.json({
         message: 'File uploaded successfully!',
-        etag: response.ETag,
         url: uploadedUrl,
       });
     } catch (error) {
@@ -348,18 +366,11 @@ const studentTaskController = function () {
       res.status(500).json({ error: 'Internal Server Error. Upload failed' });
     }
   };
-  const getFiles = async (req, res) => {
-    console.log('Get file');
-    const studentId = req.body.requestor?.requestorId;
-    console.log('Student ID', studentId);
-    return res.status(200).json('Get File');
-  };
 
   return {
     getStudentTasks,
     updateTaskProgress,
     uploadFile,
-    getFiles,
   };
 };
 
