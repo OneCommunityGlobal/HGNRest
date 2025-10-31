@@ -90,7 +90,6 @@ const costs = require('../models/costs');
 const tag = require('../models/tag');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
-
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -296,6 +295,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const educationTaskRouter = require('../routes/educationTaskRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -313,6 +314,7 @@ module.exports = function (app) {
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
+  app.use('/api', educationTaskRouter);
   app.use('/api', popupRouter);
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
@@ -409,7 +411,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
-
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
