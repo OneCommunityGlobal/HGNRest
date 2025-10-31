@@ -7,7 +7,6 @@ const {
   isValidEmailAddress,
   normalizeRecipientsToArray,
   ensureHtmlWithinLimit,
-  validateHtmlMedia,
 } = require('../utilities/emailValidators');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
@@ -72,14 +71,14 @@ const sendEmail = async (req, res) => {
     }
 
     // Validate HTML does not contain base64-encoded media
-    const mediaValidation = validateHtmlMedia(html);
-    if (!mediaValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-        errors: mediaValidation.errors,
-      });
-    }
+    // const mediaValidation = validateHtmlMedia(html);
+    // if (!mediaValidation.isValid) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+    //     errors: mediaValidation.errors,
+    //   });
+    // }
 
     // Validate that all template variables have been replaced
     const templateVariableRegex = /\{\{(\w+)\}\}/g;
@@ -260,14 +259,14 @@ const sendEmailToSubscribers = async (req, res) => {
     }
 
     // Validate HTML does not contain base64-encoded media
-    const mediaValidation = validateHtmlMedia(html);
-    if (!mediaValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-        errors: mediaValidation.errors,
-      });
-    }
+    // const mediaValidation = validateHtmlMedia(html);
+    // if (!mediaValidation.isValid) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+    //     errors: mediaValidation.errors,
+    //   });
+    // }
 
     // Validate that all template variables have been replaced
     const templateVariableRegex = /\{\{(\w+)\}\}/g;
@@ -506,6 +505,13 @@ const resendEmail = async (req, res) => {
           success: false,
           message: 'One or more recipient emails are invalid',
           invalidRecipients,
+        });
+      }
+
+      if (recipientsArray.length > EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST) {
+        return res.status(400).json({
+          success: false,
+          message: `A maximum of ${EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
         });
       }
 

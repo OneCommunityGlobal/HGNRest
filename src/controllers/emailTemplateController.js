@@ -3,7 +3,7 @@ const EmailTemplate = require('../models/emailTemplate');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
-const { ensureHtmlWithinLimit, validateHtmlMedia } = require('../utilities/emailValidators');
+const { ensureHtmlWithinLimit } = require('../utilities/emailValidators');
 
 /**
  * Validate template variables.
@@ -280,14 +280,14 @@ const createEmailTemplate = async (req, res) => {
     }
 
     // Validate HTML does not contain base64-encoded media
-    const mediaValidation = validateHtmlMedia(htmlContent);
-    if (!mediaValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-        errors: mediaValidation.errors,
-      });
-    }
+    // const mediaValidation = validateHtmlMedia(htmlContent);
+    // if (!mediaValidation.isValid) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+    //     errors: mediaValidation.errors,
+    //   });
+    // }
 
     // Validate name length
     const trimmedName = name.trim();
@@ -444,14 +444,14 @@ const updateEmailTemplate = async (req, res) => {
     }
 
     // Validate HTML does not contain base64-encoded media
-    const mediaValidation = validateHtmlMedia(htmlContent);
-    if (!mediaValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-        errors: mediaValidation.errors,
-      });
-    }
+    // const mediaValidation = validateHtmlMedia(htmlContent);
+    // if (!mediaValidation.isValid) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
+    //     errors: mediaValidation.errors,
+    //   });
+    // }
 
     // Validate name and subject length
     const trimmedName = name.trim();
