@@ -587,7 +587,6 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
@@ -596,7 +595,9 @@ const userProfileController = function (UserProfile, Project) {
     //   req.body.requestor.role === 'Owner' ||
     //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -711,7 +712,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined) {
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
       }
 

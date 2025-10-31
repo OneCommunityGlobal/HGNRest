@@ -2,70 +2,37 @@
 /* eslint-disable guard-for-in */
 /* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
+// eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
-  try {
-    console.log('=== Starting MongoDB Connection Process ===');
+  await mongoose.disconnect();
 
-    // Disconnect any existing connections
-    if (mongoose.connection.readyState !== 0) {
-      console.log('Disconnecting existing MongoDB connection...');
-      await mongoose.disconnect();
+  mongoServer = await MongoMemoryServer.create();
+
+  const uri = mongoServer.getUri();
+
+  const mongooseOpts = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  };
+
+  await mongoose.connect(uri, mongooseOpts, (err) => {
+    if (err) {
+      console.error(err);
     }
-
-    // Try to use a real MongoDB connection if available, otherwise use a simple in-memory approach
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/test';
-
-    console.log('Using MongoDB URI:', mongoUri);
-
-    // Simple connection options
-    const mongooseOpts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000, // 30 seconds
-      socketTimeoutMS: 30000, // 30 seconds
-      connectTimeoutMS: 30000, // 30 seconds
-      maxPoolSize: 1,
-      minPoolSize: 0,
-    };
-
-    console.log('Connecting to MongoDB...');
-    await mongoose.connect(mongoUri, mongooseOpts);
-
-    console.log('MongoDB connection established successfully');
-    console.log('=== MongoDB Connection Process Complete ===');
-  } catch (error) {
-    console.error('MongoDB connection failed:', error);
-    console.error('Connection state:', mongoose.connection.readyState);
-
-    // If connection fails, try to create a minimal test environment
-    console.log('Attempting to create minimal test environment...');
-
-    // Create a simple in-memory database simulation
-    const collections = {};
-
-    // Mock the database functions
-    mongoose.connection.collections = collections;
-    mongoose.connection.readyState = 1; // Mark as connected
-
-    console.log('Created minimal test environment');
-  }
+  });
 };
 
 module.exports.dbDisconnect = async () => {
-  try {
-    console.log('Disconnecting MongoDB...');
-    await mongoose.disconnect();
-    console.log('MongoDB cleanup completed');
-  } catch (error) {
-    console.error('Error during MongoDB disconnect:', error);
-  }
+  await mongoose.disconnect();
+  await mongoServer.stop();
 };
 
 module.exports.dbClearAll = async () => {
-  try {
-    console.log('Clearing all MongoDB collections...');
+  // eslint-disable-next-line prefer-destructuring
+  // const collections = mongoose.connection.collections;
 
     const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
