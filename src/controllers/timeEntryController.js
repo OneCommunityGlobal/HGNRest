@@ -658,6 +658,7 @@ const timeEntrycontroller = function (TimeEntry) {
       wbsId: newWbsId,
       taskId: newTaskId,
       dateOfWork: newDateOfWork,
+      entryType,
     } = req.body;
 
     const newTotalSeconds = newHours * 3600 + newMinutes * 60;
@@ -898,6 +899,10 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
+      if (entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
+      }
       await session.commitTransaction();
       return res.status(200).send(timeEntry);
     } catch (err) {
@@ -960,6 +965,11 @@ const timeEntrycontroller = function (TimeEntry) {
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
         }
+      }
+
+      if (timeEntry?.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
       }
 
       await timeEntry.remove({ session });
