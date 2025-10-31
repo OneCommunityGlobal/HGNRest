@@ -111,6 +111,7 @@ const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
 const laborCostRouter = require('../routes/laborCostRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
+// const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
 const loginRouter = require('../routes/loginRouter')();
 const forgotPwdRouter = require('../routes/forgotPwdRouter')(userProfile);
@@ -163,6 +164,7 @@ const timeOffRequestRouter = require('../routes/timeOffRequestRouter')(
   userProfile,
 );
 const followUpRouter = require('../routes/followUpRouter')(followUp);
+const communityRouter = require('../routes/communityRouter');
 const costsRouter = require('../routes/costsRouter')(costs);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
@@ -357,6 +359,7 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/hgnHelp', communityRouter());
   app.use('/api/costs', costsRouter);
   app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
