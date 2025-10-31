@@ -869,8 +869,10 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
-              emailsBCCs,
+              DEFAULT_CC_EMAILS,
               DEFAULT_REPLY_TO,
+              emailsBCCs,
+              { type: 'blue_square_assignment' },
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
