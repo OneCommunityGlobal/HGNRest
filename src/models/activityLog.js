@@ -40,6 +40,36 @@ const activityLogSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    is_assisted: {
+      type: Boolean,
+      default: false,
+    },
+    assisted_users: {
+      type: [
+        {
+          user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'UserProfile',
+            required: true,
+          },
+          name: {
+            type: String,
+            required: true,
+          },
+          assisted_at: {
+            type: Date,
+            default: Date.now,
+          },
+          assistance_type: {
+            type: String,
+            enum: ['created', 'edited'],
+            default: 'edited',
+          },
+          _id: false,
+        },
+      ],
+      default: null,
+    },
   },
   {
     collection: 'ActivityLog',
