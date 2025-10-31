@@ -6,7 +6,7 @@
 
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
-const logger = require('../startup/logger');
+const logger = require('../../../startup/logger');
 
 class EmailAnnouncementService {
   constructor() {
@@ -136,15 +136,15 @@ class EmailAnnouncementService {
 
   /**
    * Send email with retry logic and announcement-specific handling
-   * @param {Object} batch - Mail options batch
+   * @param {Object} mailOptions - Nodemailer-compatible mail options
    * @param {number} retries - Number of retry attempts
-   * @param {number} baseDelay - Base delay in milliseconds for exponential backoff
+   * @param {number} initialDelayMs - Initial delay in milliseconds for exponential backoff
    * @returns {Promise<Object>} { success: boolean, response?: Object, error?: Error, attemptCount: number }
    */
-  async sendWithRetry(batch, retries = 3, baseDelay = 1000) {
+  async sendWithRetry(mailOptions, retries = 3, initialDelayMs = 1000) {
     // Validation
-    if (!batch) {
-      const error = new Error('INVALID_BATCH: batch is required');
+    if (!mailOptions) {
+      const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
       logger.logException(error, 'EmailAnnouncementService.sendWithRetry validation failed');
       return { success: false, error, attemptCount: 0 };
     }
@@ -162,13 +162,13 @@ class EmailAnnouncementService {
       attemptCount += 1;
 
       try {
-        const result = await this.sendEmail(batch);
+        const result = await this.sendEmail(mailOptions);
 
         if (result.success) {
           // Store Gmail response for audit logging
-          batch.gmailResponse = result.response;
+          mailOptions.gmailResponse = result.response;
           logger.logInfo(
-            `Email sent successfully on attempt ${attempt} to: ${batch.to || batch.bcc || 'unknown'}`,
+            `Email sent successfully on attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
           );
           return { success: true, response: result.response, attemptCount };
         }
@@ -176,7 +176,7 @@ class EmailAnnouncementService {
         const error = result.error || new Error('Unknown error from sendEmail');
         logger.logException(
           error,
-          `Announcement batch attempt ${attempt} failed to: ${batch.to || batch.bcc || '(empty)'}`,
+          `Announcement send attempt ${attempt} failed to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
         );
 
         // If this is the last attempt, return failure info
@@ -187,7 +187,7 @@ class EmailAnnouncementService {
         // Unexpected error (shouldn't happen since sendEmail now returns {success, error})
         logger.logException(
           err,
-          `Unexpected error in announcement batch attempt ${attempt} to: ${batch.to || batch.bcc || '(empty)'}`,
+          `Unexpected error in announcement send attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
         );
 
         // If this is the last attempt, return failure info
@@ -198,7 +198,7 @@ class EmailAnnouncementService {
 
       // Exponential backoff before retry (2^n: 1x, 2x, 4x, 8x, ...)
       if (attempt < retries) {
-        const delay = baseDelay * 2 ** (attempt - 1);
+        const delay = initialDelayMs * 2 ** (attempt - 1);
         await EmailAnnouncementService.sleep(delay);
       }
     }

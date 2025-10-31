@@ -11,9 +11,9 @@ const {
 } = require('../utilities/emailValidators');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
-const EmailBatchService = require('../services/emailBatchService');
-const EmailService = require('../services/emailService');
-const EmailBatchAuditService = require('../services/emailBatchAuditService');
+const EmailBatchService = require('../services/announcements/emails/emailBatchService');
+const EmailService = require('../services/announcements/emails/emailService');
+const EmailBatchAuditService = require('../services/announcements/emails/emailBatchAuditService');
 const { hasPermission } = require('../utilities/permissions');
 const config = require('../config');
 const logger = require('../startup/logger');
@@ -666,13 +666,11 @@ const addNonHgnEmailSubscription = async (req, res) => {
     // check if this email is already in the HGN user list
     const hgnUser = await userProfile.findOne({ email: normalizedEmail });
     if (hgnUser) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            'You are already a member of the HGN community. Please use the HGN account profile page to subscribe to email updates.',
-        });
+      return res.status(400).json({
+        success: false,
+        message:
+          'You are already a member of the HGN community. Please use the HGN account profile page to subscribe to email updates.',
+      });
     }
 
     // Save to DB immediately with confirmation pending

@@ -1,6 +1,6 @@
 const { CronJob } = require('cron');
 const Email = require('../models/email');
-const emailProcessor = require('../services/emailProcessor');
+const emailProcessor = require('../services/announcements/emails/announcementEmailProcessor');
 const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
 const logger = require('../startup/logger');
 
@@ -27,8 +27,8 @@ class EmailAnnouncementJobProcessor {
         await this.processPendingBatches();
       },
       null,
-      false,
-      'UTC',
+      true,
+      EMAIL_JOB_CONFIG.TIMEZONE || 'UTC',
     );
     logger.logInfo(
       `Email announcement job processor started – cron=${EMAIL_JOB_CONFIG.CRON_INTERVAL}, tz=${EMAIL_JOB_CONFIG.TIMEZONE || 'UTC'}`,

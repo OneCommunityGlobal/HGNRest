@@ -4,12 +4,12 @@
  */
 
 const mongoose = require('mongoose');
-const Email = require('../models/email');
-const EmailBatch = require('../models/emailBatch');
+const Email = require('../../../models/email');
+const EmailBatch = require('../../../models/emailBatch');
 const EmailService = require('./emailService');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
-const { normalizeRecipientsToObjects } = require('../utilities/emailValidators');
-const logger = require('../startup/logger');
+const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
+const { normalizeRecipientsToObjects } = require('../../../utilities/emailValidators');
+const logger = require('../../../startup/logger');
 
 class EmailBatchService {
   /**

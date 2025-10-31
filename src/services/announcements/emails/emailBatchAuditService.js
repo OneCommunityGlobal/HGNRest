@@ -4,9 +4,9 @@
  */
 
 const mongoose = require('mongoose');
-const EmailBatchAudit = require('../models/emailBatchAudit');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
-const logger = require('../startup/logger');
+const EmailBatchAudit = require('../../../models/emailBatchAudit');
+const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
+const logger = require('../../../startup/logger');
 
 class EmailBatchAuditService {
   /**

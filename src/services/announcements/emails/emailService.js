@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const Email = require('../models/email');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const Email = require('../../../models/email');
+const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
 
 class EmailService {
   static async createEmail({ subject, htmlContent, createdBy }, session = null) {

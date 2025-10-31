@@ -6,11 +6,12 @@
 const EMAIL_JOB_CONFIG = {
   // Processing intervals
   CRON_INTERVAL: '0 * * * * *', // Every minute at 0 seconds
+  TIMEZONE: 'UTC', // Cron timezone; adjust as needed (e.g., 'America/Los_Angeles')
   MAX_CONCURRENT_BATCHES: 3,
 
   // Retry configuration
   DEFAULT_MAX_RETRIES: 3,
-  RETRY_DELAYS: [60000, 300000, 900000], // 1min, 5min, 15min
+  INITIAL_RETRY_DELAY_MS: 1000,
 
   // Status enums
   EMAIL_STATUSES: {

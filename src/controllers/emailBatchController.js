@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
-const EmailBatchService = require('../services/emailBatchService');
-const EmailService = require('../services/emailService');
-const EmailBatchAuditService = require('../services/emailBatchAuditService');
-const emailAnnouncementJobProcessor = require('../jobs/emailAnnouncementJobProcessor');
+const EmailBatchService = require('../services/announcements/emails/emailBatchService');
+const EmailService = require('../services/announcements/emails/emailService');
+const EmailBatchAuditService = require('../services/announcements/emails/emailBatchAuditService');
+const emailAnnouncementJobProcessor = require('../jobs/announcementEmailJob');
 const EmailBatch = require('../models/emailBatch');
 const Email = require('../models/email');
 const { hasPermission } = require('../utilities/permissions');

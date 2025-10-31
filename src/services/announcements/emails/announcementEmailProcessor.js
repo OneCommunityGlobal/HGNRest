@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
-const EmailBatch = require('../models/emailBatch');
+const EmailBatch = require('../../../models/emailBatch');
 const EmailService = require('./emailService');
 const EmailBatchService = require('./emailBatchService');
-const emailAnnouncementService = require('./emailAnnouncementService');
+const emailAnnouncementService = require('./announcementEmailService');
 const EmailBatchAuditService = require('./emailBatchAuditService');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
-const logger = require('../startup/logger');
+const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
+const logger = require('../../../startup/logger');
 
 class EmailProcessor {
   constructor() {
     this.processingBatches = new Set();
     this.maxRetries = EMAIL_JOB_CONFIG.DEFAULT_MAX_RETRIES;
-    this.retryDelay = 1000; // 1 second
+    this.retryDelay = EMAIL_JOB_CONFIG.INITIAL_RETRY_DELAY_MS;
   }
 
   /**
@@ -238,126 +238,94 @@ class EmailProcessor {
       return;
     }
 
-    const processWithRetry = async (attempt = 1) => {
-      try {
-        // Mark as SENDING using service method
-        const updatedItem = await EmailBatchService.markEmailBatchSending(item._id);
+    // Mark as SENDING using service method (single state transition before consolidated retries)
+    const updatedItem = await EmailBatchService.markEmailBatchSending(item._id);
 
-        // Audit logging after successful status update
-        try {
-          await EmailBatchAuditService.logEmailBatchSending(item.emailId, item._id, {
-            attempt: updatedItem?.attempts || attempt,
-            recipientCount: updatedItem?.recipients?.length || 0,
-            emailType: updatedItem?.emailType,
-            recipients: updatedItem?.recipients?.map((r) => r.email) || [],
-            emailBatchId: updatedItem?._id.toString(),
-          });
-        } catch (auditError) {
-          logger.logException(auditError, 'Audit failure: EMAIL_BATCH_SENDING');
-        }
+    // Audit logging after successful status update
+    try {
+      await EmailBatchAuditService.logEmailBatchSending(item.emailId, item._id, {
+        attempt: updatedItem?.attempts || 1,
+        recipientCount: updatedItem?.recipients?.length || 0,
+        emailType: updatedItem?.emailType,
+        recipients: updatedItem?.recipients?.map((r) => r.email) || [],
+        emailBatchId: updatedItem?._id.toString(),
+      });
+    } catch (auditError) {
+      logger.logException(auditError, 'Audit failure: EMAIL_BATCH_SENDING');
+    }
 
-        // Send email directly via service (no retries here - handled by processWithRetry)
-        // Use the emailType stored in the EmailBatch item
-        const mailOptions = {
-          from: process.env.REACT_APP_EMAIL,
-          subject: email.subject,
-          html: email.htmlContent,
-        };
-
-        // Set recipients based on emailType
-        if (item.emailType === EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC) {
-          // For BCC, sender goes in 'to' field, all recipients in 'bcc'
-          mailOptions.to = process.env.REACT_APP_EMAIL;
-          mailOptions.bcc = recipientEmails.join(',');
-        } else {
-          // For TO/CC, recipients go in respective fields
-          mailOptions.to = recipientEmails.join(',');
-        }
-
-        const sendResult = await emailAnnouncementService.sendEmail(mailOptions);
-
-        // Handle result: { success, response?, error? }
-        if (sendResult.success) {
-          await EmailBatchService.markEmailBatchSent(item._id);
-          try {
-            await EmailBatchAuditService.logEmailBatchSent(
-              email._id,
-              item._id,
-              {
-                recipientCount: recipientEmails.length,
-                emailType: item.emailType,
-                attempt: updatedItem?.attempts || attempt,
-              },
-              sendResult.response,
-            );
-          } catch (auditError) {
-            logger.logException(auditError, 'Audit failure: EMAIL_BATCH_SENT');
-          }
-          logger.logInfo(
-            `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempt ${updatedItem?.attempts || attempt})`,
-          );
-        } else {
-          // Consider as failure for this attempt
-          throw sendResult.error || new Error('Failed to send email');
-        }
-      } catch (error) {
-        logger.logException(
-          error,
-          `Failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients (attempt ${attempt})`,
-        );
-
-        if (attempt >= this.maxRetries) {
-          // Mark as FAILED using service method
-          const failedItem = await EmailBatchService.markEmailBatchFailed(item._id, {
-            errorCode: error.code || 'SEND_FAILED',
-            errorMessage: error.message || 'Failed to send email',
-          });
-
-          // Audit logging
-          try {
-            await EmailBatchAuditService.logEmailBatchFailed(
-              item.emailId,
-              item._id,
-              { message: failedItem.lastError, code: failedItem.errorCode },
-              {
-                recipientCount: failedItem?.recipients?.length || 0,
-                emailType: failedItem?.emailType,
-                recipients: failedItem?.recipients?.map((r) => r.email) || [],
-                emailBatchId: failedItem?._id.toString(),
-              },
-            );
-          } catch (auditError) {
-            logger.logException(auditError, 'Audit failure: EMAIL_BATCH_FAILED');
-          }
-
-          logger.logInfo(
-            `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${this.maxRetries} attempts`,
-          );
-          // Throw error so Promise.allSettled can distinguish failed from successful items
-          // This ensures accurate reporting in the summary log
-          throw error;
-        }
-
-        // Log transient failure for this attempt (best-effort, not changing DB status)
-        try {
-          await EmailBatchAuditService.logEmailBatchFailed(email._id, item._id, error, {
-            recipientCount: recipientEmails.length,
-            emailType: item.emailType,
-            attempt,
-            transient: true,
-          });
-        } catch (auditError) {
-          logger.logException(auditError, 'Audit failure: EMAIL_BATCH_FAILED (transient)');
-        }
-
-        // Wait before retry with exponential backoff (2^n: 1x, 2x, 4x, 8x, ...)
-        const delay = this.retryDelay * 2 ** (attempt - 1);
-        await EmailProcessor.sleep(delay);
-        return processWithRetry(attempt + 1);
-      }
+    // Build mail options
+    const mailOptions = {
+      from: process.env.REACT_APP_EMAIL,
+      subject: email.subject,
+      html: email.htmlContent,
     };
 
-    return processWithRetry(1);
+    if (item.emailType === EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC) {
+      mailOptions.to = process.env.REACT_APP_EMAIL;
+      mailOptions.bcc = recipientEmails.join(',');
+    } else {
+      mailOptions.to = recipientEmails.join(',');
+    }
+
+    // Delegate retry/backoff to the announcement service
+    const sendResult = await emailAnnouncementService.sendWithRetry(
+      mailOptions,
+      this.maxRetries,
+      this.retryDelay,
+    );
+
+    if (sendResult.success) {
+      await EmailBatchService.markEmailBatchSent(item._id);
+      try {
+        await EmailBatchAuditService.logEmailBatchSent(
+          email._id,
+          item._id,
+          {
+            recipientCount: recipientEmails.length,
+            emailType: item.emailType,
+            attempt: sendResult.attemptCount || updatedItem?.attempts || 1,
+          },
+          sendResult.response,
+        );
+      } catch (auditError) {
+        logger.logException(auditError, 'Audit failure: EMAIL_BATCH_SENT');
+      }
+      logger.logInfo(
+        `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempts ${sendResult.attemptCount || updatedItem?.attempts || 1})`,
+      );
+      return;
+    }
+
+    // Final failure after retries
+    const finalError = sendResult.error || new Error('Failed to send email');
+    const failedItem = await EmailBatchService.markEmailBatchFailed(item._id, {
+      errorCode: finalError.code || 'SEND_FAILED',
+      errorMessage: finalError.message || 'Failed to send email',
+    });
+
+    try {
+      await EmailBatchAuditService.logEmailBatchFailed(
+        item.emailId,
+        item._id,
+        { message: failedItem.lastError, code: failedItem.errorCode },
+        {
+          recipientCount: failedItem?.recipients?.length || 0,
+          emailType: failedItem?.emailType,
+          recipients: failedItem?.recipients?.map((r) => r.email) || [],
+          emailBatchId: failedItem?._id.toString(),
+          attempts: sendResult.attemptCount || this.maxRetries,
+        },
+      );
+    } catch (auditError) {
+      logger.logException(auditError, 'Audit failure: EMAIL_BATCH_FAILED');
+    }
+
+    logger.logInfo(
+      `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${sendResult.attemptCount || this.maxRetries} attempts`,
+    );
+    // Throw to ensure Promise.allSettled records this item as failed
+    throw finalError;
   }
 
   /**
