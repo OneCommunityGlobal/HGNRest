@@ -58,10 +58,18 @@ applicationTimeController.getApplicationTimeAnalytics = async (req, res) => {
       };
     }
 
-    // Filter by roles
+    // Filter by roles - handle both array and comma-separated string formats
     if (roles) {
-      const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-      baseQuery.role = { $in: rolesArray };
+      let rolesArray;
+      if (Array.isArray(roles)) {
+        rolesArray = roles;
+      } else if (typeof roles === 'string') {
+        // Handle format: [role1,role2] or role1,role2
+        rolesArray = roles.replace(/[\[\]]/g, '').split(',').map(r => r.trim()).filter(r => r);
+      }
+      if (rolesArray && rolesArray.length > 0) {
+        baseQuery.role = { $in: rolesArray };
+      }
     }
 
     // ⚠️ MongoDB doesn’t support `$median` in $group, so we handle it manually
@@ -144,19 +152,29 @@ applicationTimeController.getApplicationTimeAnalytics = async (req, res) => {
         normalizedRoles = Array.isArray(roles) ? roles : roles.split(',');
         }
 
+        // Format data for chart (most time-consuming roles first, already sorted)
+        // Data is sorted by averageTimeSeconds descending (most time-consuming first)
+        const chartData = results.map((item) => ({
+          role: item.role,
+          timeToApply: item.averageTimeSeconds, // Time in seconds (frontend can convert to appropriate units)
+          timeToApplyMinutes: item.averageTimeMinutes,
+          timeToApplyFormatted: item.formattedTime,
+          totalApplications: item.totalApplications
+        }));
+
         return res.status(200).json({
-        data: results,
-        summary: {
+          data: chartData,
+          summary: {
             totalRoles: results.length,
             totalApplications,
             overallAverageTime: Math.round(overallAverage * 100) / 100,
             overallAverageFormatted: formatTime(overallAverage),
             dateRange: startDate && endDate ? { startDate, endDate } : null,
             filters: {
-            roles: normalizedRoles,
-            outlierThreshold: '1 hour'
+              roles: normalizedRoles,
+              outlierThreshold: '1 hour'
             }
-        }
+          }
         });
 
   } catch (error) {
@@ -245,8 +263,9 @@ applicationTimeController.getAvailableRoles = async (req, res) => {
 // ----------------------------
 applicationTimeController.detectOutliersManually = async (req, res) => {
   try {
+    // Only check permissions if requestor exists (public endpoints don't have one)
     if (
-      req.body?.requestor &&
+      req.body?.requestor?.role &&
       !['Owner', 'Administrator'].includes(req.body.requestor.role)
     ) {
       return res.status(403).json({ error: 'Insufficient permissions' });
