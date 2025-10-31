@@ -82,7 +82,6 @@ const normalize = (field) => {
 
 const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
   const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
-  console.log('isBsAssignment:', isBsAssignment);
   const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
@@ -144,10 +143,7 @@ const worker = async () => {
     const batch = queue.shift();
     if (!batch) break; // queue drained for this worker
 
-    const success = await sendWithRetry(batch);
-    if (!success) {
-      throw new Error(`Failed to send email to ${batch.to} after all retry attempts`);
-    }
+    await sendWithRetry(batch);
     if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
   }
 };
