@@ -46,16 +46,15 @@ const activityLogController = function () {
         actionType,
         entityId,
         metadata,
-        isAssisted,
+        isAssisted: isAssistedFromClient,
         assistedUsers: assistedUsersFromClient,
       } = req.body;
 
-      // Required fields
       if (!actionType || !entityId) {
         return res.status(400).json({ error: 'actionType and entityId are required' });
       }
 
-      // Get valid enums from schema
+      // Get valid enums
       const validActionTypes = ActivityLog.schema.path('action_type').enumValues;
       const validAssistanceTypes = ActivityLog.schema
         .path('assisted_users')
@@ -68,30 +67,38 @@ const activityLogController = function () {
         });
       }
 
+      let isAssisted = false;
       let assistedUsers = null;
 
-      // Optional assisted users handling
-      if (isAssisted) {
+      if (isAssistedFromClient) {
+        if (!['Educator', 'Administrator'].includes(currentUser.role)) {
+          // Unauthorized user tried to set the flag
+          return res.status(403).json({
+            error: 'Only educators or administrators can set the assisted flag',
+          });
+        }
+
+        // Authorized user
+        isAssisted = true;
+
         if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
           return res.status(400).json({
             error: 'You must provide at least one assisted user if isAssisted is true',
           });
         }
 
-        // Fetch users from DB
+        // Fetch and map assisted users
         const userIds = assistedUsersFromClient.map((u) => u.userId);
         const usersProfile = await usersProfiles
           .find({ _id: { $in: userIds } })
           .select('firstName lastName');
 
-        // Map assisted users with validation
         assistedUsers = usersProfile.map((user) => {
           const clientObj = assistedUsersFromClient.find(
             (u) => String(u.userId) === String(user._id),
           );
 
           const { assistanceType } = clientObj;
-
           if (!validAssistanceTypes.includes(assistanceType)) {
             throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
           }
@@ -112,32 +119,14 @@ const activityLogController = function () {
         entity_id: entityId,
         metadata: metadata || {},
         created_at: new Date(),
-        is_assisted: Boolean(isAssisted),
+        is_assisted: isAssisted,
         assisted_users: assistedUsers,
       };
 
       const newLog = await ActivityLog.create(logData);
 
-      // Format response
-      const responseLog = {
-        logId: newLog._id,
-        actorId: newLog.actor_id,
-        actionType: newLog.action_type,
-        entityId: newLog.entity_id,
-        metadata: newLog.metadata,
-        createdAt: newLog.created_at,
-        isAssisted: newLog.is_assisted,
-        ...(newLog.is_assisted && newLog.assisted_users
-          ? {
-              assistedUsers: newLog.assisted_users.map((au) => ({
-                userId: au.user_id,
-                name: au.name,
-                assistedAt: au.assisted_at,
-                assistanceType: au.assistance_type,
-              })),
-            }
-          : {}),
-      };
+      const formattedLogs = formatLogs([newLog]);
+      const responseLog = formattedLogs[0];
 
       return res.status(201).json({
         message: 'Activity log created successfully',
