@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
-const { v4: uuidv4, validate: isUUID } = require('uuid');
+const { v4: uuidv4 } = require('uuid');
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const activityLogSchema = new mongoose.Schema(
   {
     log_id: {
@@ -25,7 +26,7 @@ const activityLogSchema = new mongoose.Schema(
       },
       validate: {
         validator(v) {
-          return isUUID(v);
+          return uuidRegex.test(v);
         },
         message(props) {
           return `${props.value} is not a valid UUID!`;
