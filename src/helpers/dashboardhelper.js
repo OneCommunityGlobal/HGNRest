@@ -199,6 +199,9 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
+            createdDate: 1,
+            trophyFollowedUp: 1,
+            startDate: 1,
             missedHours: 1,
           },
         );
@@ -216,6 +219,9 @@ const dashboardhelper = function () {
             timeOffFrom: 1,
             timeOffTill: 1,
             endDate: 1,
+            createdDate: 1,
+            trophyFollowedUp: 1,
+            startDate: 1,
             missedHours: 1,
           },
         );
@@ -283,6 +289,9 @@ const dashboardhelper = function () {
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
           endDate: teamMember.endDate || null,
+          createdDate: teamMember.createdDate || null,
+          trophyFollowedUp: teamMember.trophyFollowedUp || false,
+          startDate: teamMember.startDate || null,
         };
         leaderBoardData.push(obj);
       });
@@ -349,6 +358,8 @@ const dashboardhelper = function () {
           personId: userId,
           role: user.role,
           isVisible: user.isVisible,
+          createdDate: user.createdDate,
+          trophyFollowedUp: user.trophyFollowedUp,
           hasSummary: user.weeklySummaries[0].summary !== '',
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
@@ -621,47 +632,45 @@ const dashboardhelper = function () {
         peopleYouContacted,
         additionalComments,
         foundHelpSomeWhereClosePermanently,
-        daterequestedFeedback
+        daterequestedFeedback,
       } = req.body;
-  
+
       if (!userId) {
         return { message: 'userId is required' };
       }
-  
+
       const feedback = {
         haveYouRecievedHelpLastWeek,
         peopleYouContacted,
         additionalComments,
         foundHelpSomeWhereClosePermanently,
-        daterequestedFeedback: daterequestedFeedback || new Date()
+        daterequestedFeedback: daterequestedFeedback || new Date(),
       };
 
       const updatedUser = await userProfile.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(userId) },
         { $set: { questionaireFeedback: feedback } },
-        { new: true }
+        { new: true },
       );
-  
+
       if (!updatedUser) {
         return { message: 'User not found' };
       }
-  
+
       return { message: 'Feedback submitted successfully', data: updatedUser };
     } catch (error) {
       console.error('Error saving feedback:', error);
       return { message: 'Internal server error' };
     }
   };
-  
-  const getNamesFromProfiles = async (req) => {
-    try {
 
+  const getNamesFromProfiles = async (/* req */) => {
+    try {
       const users = await userProfile.find(
-        {},                               // no filter, fetch all
-        { firstName: 1, lastName: 1, isActive: 1, _id: 0 } // projection
+        {}, // no filter, fetch all
+        { firstName: 1, lastName: 1, isActive: 1, _id: 0 }, // projection
       );
 
-  
       return users;
     } catch (error) {
       console.error('Error saving feedback:', error);
@@ -671,11 +680,8 @@ const dashboardhelper = function () {
 
   const checkQuestionaireFeedback = async (req) => {
     try {
-      const {
-        userId,
-        foundHelpSomeWhereClosePermanently,
-      } = req.body;
-  
+      const { userId, foundHelpSomeWhereClosePermanently } = req.body;
+
       if (!userId) {
         return { message: 'userId is required' };
       }
@@ -684,17 +690,18 @@ const dashboardhelper = function () {
         { _id: mongoose.Types.ObjectId(userId) },
         {
           $set: {
-            "questionaireFeedback.foundHelpSomeWhereClosePermanently": foundHelpSomeWhereClosePermanently
-          }
+            'questionaireFeedback.foundHelpSomeWhereClosePermanently':
+              foundHelpSomeWhereClosePermanently,
+          },
         },
-        { new: true }
+        { new: true },
       );
-  
+
       if (!updatedUser) {
         return { message: 'User not found' };
       }
-  
-      return { message: 'request submitted successfully'};
+
+      return { message: 'request submitted successfully' };
     } catch (error) {
       console.error('Error saving feedback:', error);
       return { message: 'Internal server error' };
@@ -711,7 +718,7 @@ const dashboardhelper = function () {
     laborThisWeekByCategory,
     requestFeedback,
     getNamesFromProfiles,
-    checkQuestionaireFeedback
+    checkQuestionaireFeedback,
   };
 };
 

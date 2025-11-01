@@ -15,7 +15,7 @@ const reportsController = function () {
   const invalidateWeeklySummariesCache = (weekIndex) => {
     const cacheKey = `weeklySummaries_${weekIndex}`;
     cacheUtil.removeCache(cacheKey);
-    
+
     // Also invalidate the "all weeks" cache
     cacheUtil.removeCache('weeklySummaries_all');
   };
@@ -81,8 +81,8 @@ const reportsController = function () {
       isoComparisonEndDate = new Date(comparisonEndDate);
     }
 
-    const isoStartDate = new Date(startDate);
-    const isoEndDate = new Date(endDate);
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
 
     try {
       const [
@@ -134,7 +134,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getRoleDistributionStats(),
+        overviewReportHelper.getRoleDistributionStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getTeamMembersCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getBlueSquareStats(
           isoStartDate,
@@ -208,14 +213,13 @@ const reportsController = function () {
   };
 
   const getWeeklySummaries = async function (req, res) {
-  
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-      // Extract forceRefresh parameter
+    // Extract forceRefresh parameter
     const forceRefresh = req.query.forceRefresh === 'true';
-      // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
+    // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
     const week = req.query.week !== undefined ? parseInt(req.query.week, 10) : null;
 
     // Generate cache key based on week
@@ -224,19 +228,14 @@ const reportsController = function () {
 
     // Check if we have cached data and aren't forcing a refresh
     if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
-      // console.log(`Cache hit for ${cacheKey}, serving from cache`);
       return res.status(200).send(cacheUtil.getCache(cacheKey));
     }
-    // if (forceRefresh) {
-    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
-    // } else {
-    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
-    // }
+
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
     }
-    
+
     // Determine cache duration based on week
     let cacheTTL = 3600; // 1 hour default
     if (week === 0) {
@@ -250,7 +249,7 @@ const reportsController = function () {
     try {
       let results;
       let summaries;
-      
+
       if (week !== null) {
         // Get data for only the requested week
         results = await reporthelper.weeklySummaries(week, week);
@@ -260,13 +259,23 @@ const reportsController = function () {
         results = await reporthelper.weeklySummaries(3, 0);
         summaries = reporthelper.formatSummaries(results);
       }
-      
-      // Cache the results
-      cacheUtil.setCache(cacheKey, summaries);
-      cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
-      
-      res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-      res.set('ETag', require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'));
+
+      if (!forceRefresh) {
+        cacheUtil.setCache(cacheKey, summaries);
+        cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      }
+
+      if (forceRefresh) {
+        console.log('Force refresh - skipping cache');
+        // Always fetch fresh — disable caching at all layers
+        res.set('Cache-Control', 'no-store');
+      } else {
+        res.set('Cache-Control', `public, max-age=${cacheTTL}`);
+        res.set(
+          'ETag',
+          require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
+        );
+      }
 
       res.status(200).send(summaries);
     } catch (error) {
@@ -603,6 +612,22 @@ const reportsController = function () {
     }
   };
 
+  const getReportTeamCodes = async (req, res) => {
+    try {
+      // const minActive = Number(req.query.activeMembersMinimum ?? 1);
+      const minActive = Number.isFinite(Number(req.query.activeMembersMinimum))
+        ? Number(req.query.activeMembersMinimum)
+        : 1;
+
+      const codes = await overviewReportHelper.getCurrentTeamCodes(minActive);
+
+      return res.status(200).send({ teamCodes: codes });
+    } catch (err) {
+      console.error('getReportTeamCodes error:', err);
+      return res.status(500).send({ msg: 'Failed to fetch report team codes' });
+    }
+  };
+
   return {
     getVolunteerStats,
     getVolunteerHoursStats,
@@ -616,6 +641,7 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    getReportTeamCodes,
     invalidateWeeklySummariesCache,
   };
 };
