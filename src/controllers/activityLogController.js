@@ -137,6 +137,76 @@ const activityLogController = function () {
       return res.status(500).json({ error: err.message });
     }
   }
+  async function updateStudentDailyLog(req, res) {
+    try {
+      const { logId } = req.params;
+      const currentUser = req.body.requestor;
+      const { isAssisted: isAssistedFromClient, assistedUsers: assistedUsersFromClient } = req.body;
+
+      if (!logId) return res.status(400).json({ error: 'Missing logId' });
+
+      if (!['Educator', 'Administrator'].includes(currentUser.role)) {
+        return res.status(403).json({
+          error: 'Only educators or administrators can update the assisted flag',
+        });
+      }
+
+      const log = await ActivityLog.findById(logId);
+      if (!log) return res.status(404).json({ error: 'Activity log not found' });
+
+      // Prepare assisted users only if isAssisted is true
+      let assistedUsers = [];
+      if (isAssistedFromClient) {
+        if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
+          return res.status(400).json({
+            error: 'You must provide at least one assisted user if isAssisted is true',
+          });
+        }
+
+        const validAssistanceTypes = ActivityLog.schema
+          .path('assisted_users')
+          .schema.path('assistance_type').enumValues;
+
+        const userIds = assistedUsersFromClient.map((u) => u.userId);
+        const usersProfile = await usersProfiles
+          .find({ _id: { $in: userIds } })
+          .select('firstName lastName');
+
+        assistedUsers = usersProfile.map((user) => {
+          const clientObj = assistedUsersFromClient.find(
+            (u) => String(u.userId) === String(user._id),
+          );
+
+          const { assistanceType } = clientObj;
+          if (!validAssistanceTypes.includes(assistanceType)) {
+            throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
+          }
+
+          return {
+            user_id: user._id,
+            name: `${user.firstName} ${user.lastName}`,
+            assisted_at: new Date(),
+            assistance_type: assistanceType,
+          };
+        });
+      }
+
+      // Update log
+      log.is_assisted = Boolean(isAssistedFromClient);
+      log.assisted_users = assistedUsers;
+      await log.save();
+
+      const formattedLog = formatLogs([log])[0];
+
+      return res.status(200).json({
+        message: 'Activity log updated successfully',
+        log: formattedLog,
+      });
+    } catch (err) {
+      console.error('Error updating activity log:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
   async function fetchEducatorDailyLog(req, res) {
     try {
       const { studentId } = req.params;
@@ -161,6 +231,7 @@ const activityLogController = function () {
     fetchStudentDailyLog,
     fetchEducatorDailyLog,
     createStudentDailyLog,
+    updateStudentDailyLog,
   };
 };
 
