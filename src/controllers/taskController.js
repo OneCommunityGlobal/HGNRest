@@ -1113,7 +1113,6 @@ const taskController = function (Task) {
         res.status(200).send(singleUserData);
       }
     } catch (error) {
-      console.log(error);
       res.status(400).send({ error });
     }
   };
@@ -1179,8 +1178,6 @@ const taskController = function (Task) {
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log('Recipients list:', recipients);
-      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {

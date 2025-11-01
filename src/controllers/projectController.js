@@ -453,7 +453,6 @@ const projectController = function (Project) {
       )
 
       .then((results) => {
-        console.log(`Found ${results.length} project members (summary)`);
         res.status(200).json(results);
       })
       .catch((error) => {

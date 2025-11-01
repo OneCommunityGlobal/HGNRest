@@ -243,8 +243,6 @@ const teamcontroller = function (Team) {
             },
             { new: true },
           );
-        } else {
-          console.log('User is already a member of the team, skipping addition to members array.');
         }
 
         await userProfile.findByIdAndUpdate(
@@ -349,7 +347,6 @@ const teamcontroller = function (Team) {
               if (visibility) {
                 assignlist.push(member.userId);
               } else {
-                console.log('Visiblity set to false so removing it');
                 unassignlist.push(member.userId);
               }
             });
@@ -439,7 +436,6 @@ const teamcontroller = function (Team) {
       cache.setCache(cacheKey, data);
       res.status(200).send(data);
     } catch {
-      console.log('Error in getAllTeamMembers');
       res.status(500).send({ message: 'Fetching team members failed' });
     }
   };
