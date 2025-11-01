@@ -9,7 +9,7 @@ const makeSut = () => {
 };
 
 describe('overviewReportHelper tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // describe('overviewReportHelper method tests', () => {
