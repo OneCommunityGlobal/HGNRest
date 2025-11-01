@@ -10,13 +10,13 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
-const mongoose = require('mongoose');
-const moment = require('moment-timezone');
-const _ = require('lodash');
 const fs = require('fs');
 const cheerio = require('cheerio');
 const axios = require('axios');
 const sharp = require('sharp');
+const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
