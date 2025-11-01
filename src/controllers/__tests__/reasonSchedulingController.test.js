@@ -1,6 +1,15 @@
 // Set timeout for all tests in this file
 jest.setTimeout(90_000);
 
+// Stub transitive deps so app boot is fast & quiet
+jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
+jest.mock('../../routes/applicantAnalyticsRoutes', () => {
+  const express = require('express');
+  return express.Router(); // no-op router
+});
+jest.mock('../../websockets/index', () => ({}));
+jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
+
 const request = require('supertest');
 const moment = require('moment-timezone');
 const { jwtPayload } = require('../../test');
@@ -36,7 +45,8 @@ function mockDay(dayIdx, past = false) {
   return date;
 }
 
-const agent = request.agent(app);
+// const agent = request.agent(app);
+let agent;
 
 describe('reasonScheduling Controller Integration Tests', () => {
   let adminUser;
@@ -47,10 +57,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
     try {
       // Ensure clean state
       await dbConnect();
-      await dbClearAll();
+      // await dbClearAll();
       await createTestPermissions();
       adminUser = await createUser();
       adminToken = jwtPayload(adminUser);
+      agent = request.agent(app);
     } catch (error) {
       console.error('Error in beforeAll setup:', error);
       // Try to clean up on failure
@@ -62,7 +73,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       }
       throw error;
     }
-  }, 30000);
+  });
 
   beforeEach(async () => {
     try {
@@ -111,7 +122,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       console.error('Error in beforeEach:', error);
       throw error;
     }
-  }, 30000);
+  });
 
   afterEach(async () => {
     try {
@@ -134,7 +145,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     } catch (error) {
       console.error('Error in afterAll:', error);
     }
-  }, 30000);
+  });
 
   describe('Basic Setup', () => {
     test('Should have valid test setup', () => {
@@ -165,7 +176,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
         console.error('Test failed:', error);
         throw error;
       }
-    }, 10000);
+    });
 
     test('Should return 400 when date is in the past', async () => {
       reqBody.reasonData.date = mockDay(0, true); // Past Sunday
