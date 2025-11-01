@@ -34,7 +34,7 @@ async function inviteUser(req, res) {
   const { requestor } = req.body;
 
   // Validate requestor
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     return res.status(403).json({ message: 'Unauthorized request' });
   }
 
