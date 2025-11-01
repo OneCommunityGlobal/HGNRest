@@ -7,6 +7,7 @@ const routes = function () {
 
   activityLogRouter.route('/educator/daily-log/:studentId').get(controller.fetchEducatorDailyLog);
 
+  activityLogRouter.route('/student/daily-log').post(controller.createStudentDailyLog);
   return activityLogRouter;
 };
 
