@@ -36,9 +36,13 @@ const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const Timer = require('../models/timer');
 
+const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jaesabol@onecommunityglobal.org'];
+const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
+const DEFAULT_REPLY_TO = ['onecommunityglobal@gmail.com'];
+
 const delay = (ms) =>
   new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    setTimeout(() => resolve(), ms);
   });
 
 const userHelper = function () {
@@ -861,8 +865,10 @@ const userHelper = function () {
               'New Infringement Assigned',
               emailBody,
               null,
+              DEFAULT_CC_EMAILS,
+              DEFAULT_REPLY_TO[0],
               emailsBCCs,
-              'onecommunityglobal@gmail.com',
+              { type: 'blue_square_assignment' },
             );
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
@@ -1161,7 +1167,7 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (
+  const notifyInfringements = async (
     original,
     current,
     firstName,
@@ -1170,7 +1176,9 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-  ) {
+    weeklycommittedHours,
+    infringementCCList,
+  ) => {
     if (!current) return;
     const newOriginal = original.toObject();
     const newCurrent = current.toObject();
@@ -1247,6 +1255,13 @@ const userHelper = function () {
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
     );
+
+    const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+    const bccEmails = assignments.map((a) => a.email);
+
+    const combinedCCList = [...new Set([...(infringementCCList || []), ...DEFAULT_CC_EMAILS])];
+    const combinedBCCList = [...new Set([...(bccEmails || []), ...DEFAULT_BCC_EMAILS])];
+
     newInfringements.forEach((element) => {
       emailSender(
         emailAddress,
@@ -1262,8 +1277,10 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        'onecommunityglobal@gmail.com',
-        emailAddress,
+        combinedCCList,
+        DEFAULT_REPLY_TO[0],
+        combinedBCCList,
+        { type: 'blue_square_assignment' },
       );
     });
   };
