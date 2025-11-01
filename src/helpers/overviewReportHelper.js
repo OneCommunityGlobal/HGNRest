@@ -267,7 +267,15 @@ const overviewReportHelper = function () {
               $project: { createdDate: 1 },
             },
           ]);
-          startDate = oldestVolunteer.createdDate;
+
+          if (oldestVolunteer) {
+            startDate = oldestVolunteer.createdDate;
+          } else {
+            // fallback: no users found, use earliest reasonable date
+            startDate = new Date(0); // Unix epoch
+          }
+          // fallback: no createdDate found, use earliest reasonable date
+          startDate = oldestVolunteer?.createdDate ?? new Date(0);
           break;
         }
         case '1':
@@ -430,8 +438,8 @@ const overviewReportHelper = function () {
         },
       ]);
       const data = {};
-      data.current = res[0].current[0].activeTeams;
-      data.comparison = res[0].comparison[0].activeTeams;
+      data.current = res[0]?.current[0]?.activeTeams || 0;
+      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
       data.percentage = calculateGrowthPercentage(data.current, data.comparison);
       return data;
     }
@@ -447,7 +455,7 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    return { current: res[0].activeTeams };
+    return { current: res[0]?.activeTeams || 0 };
   }
 
   /**
@@ -504,6 +512,7 @@ const overviewReportHelper = function () {
             firstName: 1,
             lastName: 1,
             email: 1,
+            createdDate: 1,
             profilePic: { $ifNull: ['$profilePic', null] },
           },
         },
@@ -587,56 +596,125 @@ const overviewReportHelper = function () {
       UserProfile.aggregate([
         {
           $unwind: {
-            path: '$infringementsNew',
+            path: '$infringements',
+          },
+        },
+        {
+          $addFields: {
+            'infringements.parsedDate': {
+              $toDate: '$infringements.date',
+            },
           },
         },
         {
           $match: {
-            'infringementsNew.createdDate': {
+            'infringements.parsedDate': {
               $gte: startDate,
               $lte: endDate,
             },
           },
         },
         {
-          $group: {
-            _id: '$infringementsNew.reason',
-            count: { $sum: 1 },
+          $addFields: {
+            'infringements.reason': {
+              $switch: {
+                branches: [
+                  {
+                    // Matches when user is on vacation
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /request for time off/i,
+                      },
+                    },
+                    then: 'vacationTime',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
+                    case: {
+                      $and: [
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not meeting weekly volunteer time commitment/i,
+                          },
+                        },
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not submitting a weekly summary/i,
+                          },
+                        },
+                      ],
+                    },
+                    then: 'missingHoursAndSummary',
+                  },
+                  {
+                    // Matches "not meeting weekly volunteer time commitment" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not meeting weekly volunteer time commitment/i,
+                      },
+                    },
+                    then: 'missingHours',
+                  },
+                  {
+                    // Matches "not submitting a weekly summary" only
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.description',
+                        regex: /not submitting a weekly summary/i,
+                      },
+                    },
+                    then: 'missingSummary',
+                  },
+                ],
+                default: 'other',
+              },
+            },
           },
         },
         {
           $group: {
-            _id: {
-              $cond: [
-                {
-                  $in: [
-                    '$_id',
-                    ['missingHours', 'missingSummary', 'missingHoursAndSummary', 'vacationTime'],
-                  ],
-                },
-                '$_id',
-                'other',
-              ],
-            },
-            count: {
-              $sum: '$count',
-            },
+            _id: '$infringements.reason',
+            count: { $sum: 1 },
           },
         },
       ]);
 
-    const currData = await getData(isoStartDate, isoEndDate);
+    const getTotalBlueSquares = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        {
+          $unwind: {
+            path: '$infringements',
+          },
+        },
+        {
+          $addFields: {
+            'infringements.parsedDate': {
+              $toDate: '$infringements.date',
+            },
+          },
+        },
+        {
+          $match: {
+            'infringements.parsedDate': {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
+        {
+          $count: 'totalBlueSquares',
+        },
+      ]);
 
-    const currTotalInfringements = currData.reduce((total, item) => {
-      const currTotal = total + item.count;
-      return currTotal;
-    }, 0);
+    const currData = await getData(isoStartDate, isoEndDate);
+    const currTotalBlueSquares = await getTotalBlueSquares(isoStartDate, isoEndDate);
 
     const formattedData = currData.reduce((accum, item) => {
-      accum[item._id] = {
-        count: item.count,
-        percentageOutOfTotal: Math.round((item.count / currTotalInfringements) * 100) / 100,
-      };
+      accum[item._id] = { count: item.count };
       return accum;
     }, {});
 
@@ -650,25 +728,23 @@ const overviewReportHelper = function () {
     ];
     reasons.forEach((reason) => {
       if (!formattedData[reason]) {
-        formattedData[reason] = { count: 0, percentageOutOfTotal: 0 };
+        formattedData[reason] = { count: 0 };
       }
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalInfringements,
+      count: currTotalBlueSquares.length > 0 ? currTotalBlueSquares[0].totalBlueSquares : 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
-      const comparisonData = await getData(isoComparisonStartDate, isoComparisonEndDate);
-
-      const comparisonTotalInfringements = comparisonData.reduce((total, item) => {
-        const currTotal = total + item.count;
-        return currTotal;
-      }, 0);
+      const comparisonTotalBlueSquares = await getTotalBlueSquares(
+        isoComparisonStartDate,
+        isoComparisonEndDate,
+      );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalInfringements,
-        comparisonTotalInfringements,
+        currTotalBlueSquares[0].totalBlueSquares,
+        comparisonTotalBlueSquares[0].totalBlueSquares,
       );
     }
 
@@ -766,20 +842,52 @@ const overviewReportHelper = function () {
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
    */
-  async function getRoleDistributionStats() {
-    const roleStats = UserProfile.aggregate([
-      {
-        $match: { isActive: true },
-      },
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 },
+  async function getRoleDistributionStats(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    // Helper to build match stage depending on whether start/end are provided
+    const buildMatch = (s, e) => {
+      const match = { isActive: true };
+      if (s && e) {
+        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
+      }
+      return match;
+    };
+
+    // If comparison dates provided, return both current and comparison facets
+    if (comparisonStartDate && comparisonEndDate) {
+      const roleStats = await UserProfile.aggregate([
+        {
+          $facet: {
+            current: [
+              { $match: buildMatch(startDate, endDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+            comparison: [
+              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
+              { $group: { _id: '$role', count: { $sum: 1 } } },
+            ],
+          },
         },
-      },
+      ]);
+
+      return {
+        current: roleStats[0]?.current || [],
+        comparison: roleStats[0]?.comparison || [],
+      };
+    }
+
+    // No comparison: return same shape as before (array of {_id: role, count})
+    const matchStage = buildMatch(startDate, endDate);
+    const result = await UserProfile.aggregate([
+      { $match: matchStage },
+      { $group: { _id: '$role', count: { $sum: 1 } } },
     ]);
 
-    return roleStats;
+    return result;
   }
 
   /**
@@ -834,7 +942,6 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   modifiedDatetime: { $gte: startDate, $lte: endDate },
-                  status: { $in: ['Complete', 'Active'] },
                 },
               },
               {
@@ -848,7 +955,6 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate },
-                  status: { $in: ['Complete', 'Active'] },
                 },
               },
               {
@@ -862,31 +968,43 @@ const overviewReportHelper = function () {
         },
       ]);
 
-      const data = { current: {}, comparison: {} };
-      for (const key in taskStats[0]) {
-        const active = taskStats[0][key].find((x) => x._id === 'Active');
-        data[key].active = active ? active.count : 0;
-
-        const complete = taskStats[0][key].find((x) => x._id === 'Complete');
-        data[key].complete = complete ? complete.count : 0;
+      if (!taskStats.length) {
+        return {
+          active: { current: 0, percentage: 0 },
+          complete: { current: 0, percentage: 0 },
+          raw: { current: [], comparison: [] },
+        };
       }
+
+      const currentStats = taskStats[0].current || [];
+      const comparisonStats = taskStats[0].comparison || [];
+
+      const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
+      const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
+      const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
+      const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
 
       return {
         active: {
-          current: data.current.active,
-          percentage: calculateGrowthPercentage(data.current.active, data.comparison.active),
+          current: currentActive,
+          percentage: calculateGrowthPercentage(currentActive, comparisonActive),
         },
         complete: {
-          current: data.current.complete,
-          percentage: calculateGrowthPercentage(data.current.complete, data.comparison.complete),
+          current: currentComplete,
+          percentage: calculateGrowthPercentage(currentComplete, comparisonComplete),
+        },
+        raw: {
+          current: currentStats, // full status breakdown in current range
+          comparison: comparisonStats, // full status breakdown in comparison range
         },
       };
     }
+
+    // non-comparison branch
     const taskStats = await Task.aggregate([
       {
         $match: {
           modifiedDatetime: { $gte: startDate, $lte: endDate },
-          status: { $in: ['Complete', 'Active'] },
         },
       },
       {
@@ -897,13 +1015,16 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    const data = {};
-    const active = taskStats.find((x) => x._id === 'Active');
-    const complete = taskStats.find((x) => x._id === 'Complete');
-    data.active = { current: active?.count || 0 };
-    data.complete = { current: complete?.count || 0 };
-    return data;
+    const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
+    const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
+
+    return {
+      active: { current: active },
+      complete: { current: complete },
+      raw: { current: taskStats }, // full status breakdown
+    };
   }
+
   /**
    * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
    * @param {*} startDate
@@ -1202,6 +1323,7 @@ const overviewReportHelper = function () {
                     $gte: isoStartDate,
                     $lte: isoEndDate,
                   },
+                  isActive: true,
                 },
               },
               { $count: 'count' },
@@ -1209,11 +1331,8 @@ const overviewReportHelper = function () {
             deactivatedVolunteers: [
               {
                 $match: {
-                  $and: [
-                    { lastModifiedDate: { $gte: isoStartDate } },
-                    { lastModifiedDate: { $lte: isoEndDate } },
-                    { isActive: false },
-                  ],
+                  isActive: false,
+                  createdDate: { $lte: isoEndDate }, // All inactive volunteers, not just recently deactivated
                 },
               },
               { $count: 'count' },
@@ -1225,7 +1344,7 @@ const overviewReportHelper = function () {
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
-      const totalVolunteers = activeVolunteers + newVolunteers + deactivatedVolunteers;
+      const totalVolunteers = activeVolunteers + deactivatedVolunteers;
 
       return {
         activeVolunteers,
@@ -1361,23 +1480,82 @@ const overviewReportHelper = function () {
       return data;
     }
     const res = await UserProfile.aggregate([
+      { $unwind: '$badgeCollection' },
+      { $unwind: '$badgeCollection.earnedDate' },
       {
-        $unwind: '$badgeCollection',
-      },
-      {
-        $match: {
-          'badgeCollection.earnedDate': {
-            $gte: startDate,
-            $lte: endDate,
+        $addFields: {
+          fixedDateString: {
+            $cond: {
+              if: {
+                $regexMatch: {
+                  input: '$badgeCollection.earnedDate',
+                  regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                },
+              },
+              then: {
+                $concat: [
+                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  '-20',
+                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                ],
+              },
+              else: '$badgeCollection.earnedDate',
+            },
           },
         },
       },
       {
-        $count: 'badgeCollection',
+        $addFields: {
+          earnedDateParsed: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /T\d{2}:/,
+                    },
+                  },
+                  then: { $toDate: '$fixedDateString' },
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: '$fixedDateString',
+                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                    },
+                  },
+                  then: {
+                    $dateFromString: {
+                      dateString: '$fixedDateString',
+                      format: '%b-%d-%Y',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                },
+              ],
+              default: null,
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          earnedDateParsed: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          badgeId: '$badgeCollection.badge',
+          earnedDate: '$badgeCollection.earnedDate',
+          earnedDateParsed: 1,
+        },
       },
     ]);
 
-    return { current: res[0].badgeCollection };
+    return { count: res.length, badges: res };
   }
 
   /**
@@ -1586,6 +1764,7 @@ const overviewReportHelper = function () {
     // 3. Calculates comparison percentages for task and project hours
     let tasksComparisonPercentage;
     let projectsComparisonPercentage;
+    let hoursSubmittedToTasksComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate) {
       const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
       const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
@@ -1593,6 +1772,9 @@ const overviewReportHelper = function () {
       projectsComparisonPercentage = calculateGrowthPercentage(
         projectHours,
         comparisonProjectHours,
+      );
+      hoursSubmittedToTasksComparisonPercentage = Number(
+        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
       );
     }
 
@@ -1690,6 +1872,8 @@ const overviewReportHelper = function () {
         ),
         comparisonPercentage: projectsComparisonPercentage,
       },
+      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      hoursSubmittedToTasksComparisonPercentage,
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
@@ -1753,6 +1937,20 @@ const overviewReportHelper = function () {
     const totalTeams = result[0]?.totalTeams ? result[0].totalTeams : 0;
 
     return { count: totalTeams };
+  }
+
+  async function getCurrentTeamCodes(minActiveMembers = 1) {
+    const results = await UserProfile.aggregate([
+      { $match: { isActive: true, teamCode: { $nin: [null, ''] } } },
+      { $group: { _id: '$teamCode', activeCount: { $sum: 1 } } },
+      { $match: { activeCount: { $gte: minActiveMembers } } },
+      { $project: { _id: 0, code: '$_id', activeCount: 1 } },
+      { $sort: { code: 1 } },
+    ]).allowDiskUse(true);
+
+    // return results.map(r => r.code);
+
+    return results; // [{ code: 'Zn2CODE', activeCount: 5 }, ...]
   }
 
   async function getVolunteersOverAssignedTime(isoStartDate, isoEndDate) {
@@ -1837,48 +2035,55 @@ const overviewReportHelper = function () {
           },
         },
         {
-          $unwind: {
-            path: '$timeEntries',
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $match: {
-            $or: [
-              { timeEntries: { $exists: false } },
-              {
-                'timeEntries.createdDateTime': {
-                  $gte: start,
-                  $lte: end,
+          $project: {
+            firstName: 1,
+            lastName: 1,
+            weeklycommittedHours: 1,
+            timeEntries: {
+              $filter: {
+                input: '$timeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    {
+                      $gte: ['$$entry.dateOfWork', moment(start).format('YYYY-MM-DD')],
+                    },
+                    {
+                      $lte: ['$$entry.dateOfWork', moment(end).format('YYYY-MM-DD')],
+                    },
+                  ],
                 },
               },
-            ],
+            },
           },
         },
         {
-          $group: {
-            _id: '$_id',
+          $addFields: {
             totalSeconds: { $sum: '$timeEntries.totalSeconds' },
-            weeklycommittedHours: { $first: '$weeklycommittedHours' },
           },
         },
         {
           $project: {
+            name: { $concat: ['$firstName', ' ', '$lastName'] },
             totalHours: { $divide: ['$totalSeconds', 3600] },
             weeklycommittedHours: 1,
+            metCommitment: {
+              $cond: [
+                { $gte: [{ $divide: ['$totalSeconds', 3600] }, '$weeklycommittedHours'] },
+                true,
+                false,
+              ],
+            },
           },
         },
         {
-          $match: {
-            $expr: { $gte: ['$totalHours', '$weeklycommittedHours'] },
-          },
-        },
-        {
-          $count: 'metCommitment',
+          $match: { weeklycommittedHours: { $gte: 1 } },
         },
       ]);
 
-      return hoursStats[0]?.metCommitment || 0;
+      const metCommitment = hoursStats.filter((user) => user.metCommitment);
+      const metCommitmentCount = metCommitment.length;
+      return metCommitmentCount;
     };
 
     const currentCount = await getCompletedHoursData(isoStartDate, isoEndDate);
@@ -1986,6 +2191,7 @@ const overviewReportHelper = function () {
     getTaskAndProjectStats,
     getVolunteersCompletedHours,
     getTeamsWithActiveMembers,
+    getCurrentTeamCodes,
     getVolunteersOverAssignedTime,
     getVolunteersCompletedAssignedHours,
     getTotalSummariesSubmitted,

@@ -1,12 +1,16 @@
-const profileInitialSetupController = require('../profileInitialSetupController');
-const jwt = require('jsonwebtoken');
+// const jwt = require('jsonwebtoken');
 const moment = require('moment-timezone');
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
+const profileInitialSetupController = require('../profileInitialSetupController');
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
 jest.mock('moment-timezone');
-jest.mock('../../utilities/emailSender');
+jest.mock('../../utilities/emailSender', () =>
+  jest.fn((email, subject, message, _, __, ___, callback) => {
+    callback(null, 'Email sent successfully'); // Simulate successful email sending
+  }),
+);
 jest.mock('../../utilities/nodeCache', () => () => ({
   getCache: jest.fn().mockReturnValue('[]'),
   setCache: jest.fn(),
@@ -261,7 +265,8 @@ describe('profileInitialSetupController', () => {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
       };
-
+      console.log(req);
+      console.log(res);
       mockProfileInitialSetupToken.findOneAndUpdate.mockResolvedValue({
         token: 'test-token',
         email: 'test@example.com',
