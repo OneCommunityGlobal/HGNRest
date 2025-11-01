@@ -1,8 +1,9 @@
+const multer = require('multer');
 const express = require('express');
 const formController = require('../controllers/collaborationController');
 
 const router = express.Router();
-
+const upload = multer({ storage: multer.memoryStorage() });
 // Create a new form
 router.post('/jobforms', formController.createForm);
 
@@ -16,6 +17,13 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 
 // Get all responses of a form
 router.get('/jobforms/responses/formId', formController.getFormResponses);
+
+// post the responseUpload of a form
+router.post(
+  '/jobforms/responses/upload',
+  upload.single('file'),
+  formController.postFormResponseUpload,
+);
 
 // post the responses of a form
 router.post('/jobforms/responses', formController.postFormResponses);

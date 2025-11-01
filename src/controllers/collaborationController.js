@@ -1,4 +1,6 @@
 const { ObjectId } = require('mongoose').Types;
+// const express = require('express');
+// const axios = require('axios');
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 
@@ -89,6 +91,98 @@ exports.getFormResponses = async (req, res) => {
     res.status(500).json({ message: 'Error fetching form responses.', error });
   }
 };
+//
+// post all responses of a form
+exports.postFormResponseUpload = async (req, res) => {
+  console.log('inside postFormResponseUpload');
+  console.log(req.file);
+  /* const multer = require('multer');
+    
+     const storage = multer.memoryStorage();
+      const upload = multer({
+      storage,
+      limits: {
+        fileSize: 5 * 1024 * 1024
+      }
+    }); */
+
+  try {
+    // 18 and 19 Software Developers
+    // need to be changed for different jobForms
+    // const resumeFile = req.answers[18];
+    const uploadFile = req.file;
+    // if (!uploadFile) return res.status (400, 'No file uploaded');
+    console.log('resumeFile');
+    console.log(uploadFile.originalname);
+
+    // to upload the files
+    const dropboxAccessToken = process.env.DROPBOX_ACCESS_TOKEN;
+    const dropboxPath = `/resumes-upload/${uploadFile.originalname}`;
+    console.log(dropboxPath);
+
+    const uploadFileResponse = await fetch('https://content.dropboxapi.com/2/files/upload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${dropboxAccessToken}`,
+
+        'Dropbox-API-Arg': JSON.stringify({
+          autorename: true,
+          mode: 'add',
+          path: dropboxPath,
+        }),
+        'Content-Type': 'application/octet-stream',
+      },
+      body: uploadFile.buffer,
+    });
+    // Dropbox returns JSON *if* successful
+    if (!uploadFileResponse.ok) {
+      const text = await uploadFileResponse.text();
+      console.error('Dropbox error:', text);
+      throw new Error(`Dropbox upload failed: ${text}`);
+    }
+    const uploadFileResponseData = await uploadFileResponse.json();
+
+    console.log('Dropbox Response');
+    console.log(uploadFileResponseData);
+
+    const uploadFileSharedLinkRes = await fetch(
+      'https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${dropboxAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        settings: {
+          access: 'viewer',
+          allow_download: true,
+          audience: 'public',
+          requested_visibility: 'public',
+        },
+        body: JSON.stringify({
+          path: dropboxPath,
+        }),
+      },
+    );
+    console.log(uploadFileSharedLinkRes);
+
+    if (!uploadFileSharedLinkRes.ok) {
+      const uploadFileSharedLinkResText = await uploadFileSharedLinkRes.text();
+      console.error(uploadFileSharedLinkResText);
+      console.error('Dropbox Shared File Link error:', uploadFileSharedLinkResText);
+      throw new Error(`Dropbox Shared File Link failed: ${uploadFileSharedLinkResText}`);
+    }
+    const uploadFileSharedLinkResData = await uploadFileSharedLinkRes.json();
+    console.log('uploadFileSharedLinkResData');
+    console.log(uploadFileSharedLinkResData);
+
+    res.status(200).json({ data: uploadFileSharedLinkResData });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: 'Error Uploading', error });
+  }
+};
+
 // post all responses of a form
 exports.postFormResponses = async (req, res) => {
   console.log('inside postFormResponses');
@@ -120,9 +214,55 @@ exports.postFormResponses = async (req, res) => {
       respondent,
     });
     console.log(response);
-    // Fetch all responses for the form
+    // Save the responses for the form
 
     await response.save();
+
+    // Send email to oneCommunity Email Address
+    const emailSender = require('../utilities/emailSender');
+    /* const emailBody = `
+          subject: Application Received from ${respondent}!!!!!!!!!,
+          html: 
+            <h2>Application Received ${respondent}!!!!!!!!!</h2>
+            ${answers.map((answer) => `${answer.questionId}: ${answer.answer}`).join('<br>')}
+            <br>
+            <p>Regards,<br>Software Team HGN</p>`; */
+    const emailBody = `
+          subject: Application Received from ${respondent}!!!!!!!!!,
+          html: 
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+    <h2 style="color: #2c3e50;">Application Received ${respondent}!</h2>
+    <p>We’ve successfully received your application. Below are your responses:</p>
+
+    <div style="margin-top: 10px;">
+      ${answers
+        // Sort by _id ascending
+        .sort((a, b) => (a._id > b._id ? 1 : -1))
+        .map(
+          (answer) => `
+            <div style="margin-bottom: 10px;">
+              <strong style="color: #1a73e8;">${answer.questionId}</strong><br>
+              <span>${answer.answer}</span>
+            </div>
+          `,
+        )
+        .join('')}
+    </div>
+
+    <br>
+    <p>Regards,<br><strong>Software Team HGN</strong></p>
+  </div>
+`;
+    emailSender(
+      process.env.REACT_APP_EMAIL, // recipents ,
+      'Application Received!!!!!!!!!!', // subject
+      emailBody, // message
+      null, // attachments
+      null, //  cc
+      'onecommunityglobal@gmail.com', // reply to
+    );
+    console.log('email sent');
+
     res.status(201).json({ message: 'Responses submitted successfully.', response });
   } catch (error) {
     console.log(error);
