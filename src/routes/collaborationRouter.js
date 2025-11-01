@@ -1,26 +1,37 @@
-const express = require("express");
-const formController = require("../controllers/collaborationController");
+const multer = require('multer');
+const express = require('express');
+const formController = require('../controllers/collaborationController');
 
 const router = express.Router();
-
+const upload = multer({ storage: multer.memoryStorage() });
 // Create a new form
-router.post("/jobforms", formController.createForm);
+router.post('/jobforms', formController.createForm);
 
-router.get('/jobforms/all',formController.getAllFormsFormat);
+router.get('/jobforms/all', formController.getAllFormsFormat);
 
 // Update a form's format
-router.put("/jobforms", formController.updateFormFormat);
+router.put('/jobforms', formController.updateFormFormat);
 
 // Get the format of a specific form
-router.get("/jobforms/:formId", formController.getFormFormat);
+router.get('/jobforms/:formId', formController.getFormFormat);
 
 // Get all responses of a form
-router.get("/jobforms/:formId/responses", formController.getFormResponses);
+router.get('/jobforms/responses/formId', formController.getFormResponses);
+
+// post the responseUpload of a form
+router.post(
+  '/jobforms/responses/upload',
+  upload.single('file'),
+  formController.postFormResponseUpload,
+);
+
+// post the responses of a form
+router.post('/jobforms/responses', formController.postFormResponses);
 
 // Question management routes
-router.post("/jobforms/:formId/questions", formController.addQuestion);
-router.patch("/jobforms/:formId/questions/:questionIndex", formController.updateQuestion);
-router.delete("/jobforms/:formId/questions/:questionIndex", formController.deleteQuestion);
-router.put("/jobforms/:formId/questions/reorder", formController.reorderQuestions);
+router.post('/jobforms/:formId/questions', formController.addQuestion);
+router.patch('/jobforms/:formId/questions/:questionIndex', formController.updateQuestion);
+router.delete('/jobforms/:formId/questions/:questionIndex', formController.deleteQuestion);
+router.put('/jobforms/:formId/questions/reorder', formController.reorderQuestions);
 
 module.exports = router;
