@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars
 const mongoose = require('mongoose');
 const LessonPlan = require('../models/lessonPlan');
 const Activity = require('../models/activity');
@@ -41,14 +42,14 @@ const lessonPlanController = function () {
           path: 'activities',
           populate: {
             path: 'atomTaskTemplates.atomId',
-            select: 'name description difficulty'
-          }
+            select: 'name description difficulty',
+          },
         });
-      
+
       if (!lessonPlan) {
         return res.status(404).json({ error: 'Lesson plan not found' });
       }
-      
+
       res.status(200).json(lessonPlan);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,14 +59,7 @@ const lessonPlanController = function () {
   // Create new lesson plan
   const createLessonPlan = async (req, res) => {
     try {
-      const { 
-        title, 
-        theme, 
-        description, 
-        startDate, 
-        endDate, 
-        createdBy 
-      } = req.body;
+      const { title, theme, description, startDate, endDate, createdBy } = req.body;
 
       // Validate creator exists
       const creator = await UserProfile.findById(createdBy);
@@ -85,12 +79,14 @@ const lessonPlanController = function () {
         startDate,
         endDate,
         createdBy,
-        activities: []
+        activities: [],
       });
 
       const savedLessonPlan = await lessonPlan.save();
-      const populatedLessonPlan = await LessonPlan.findById(savedLessonPlan._id)
-        .populate('createdBy', 'firstName lastName email');
+      const populatedLessonPlan = await LessonPlan.findById(savedLessonPlan._id).populate(
+        'createdBy',
+        'firstName lastName email',
+      );
 
       res.status(201).json(populatedLessonPlan);
     } catch (error) {
@@ -102,13 +98,7 @@ const lessonPlanController = function () {
   const updateLessonPlan = async (req, res) => {
     try {
       const { id } = req.params;
-      const { 
-        title, 
-        theme, 
-        description, 
-        startDate, 
-        endDate 
-      } = req.body;
+      const { title, theme, description, startDate, endDate } = req.body;
 
       const lessonPlan = await LessonPlan.findById(id);
       if (!lessonPlan) {
@@ -123,9 +113,10 @@ const lessonPlanController = function () {
       const updatedLessonPlan = await LessonPlan.findByIdAndUpdate(
         id,
         { title, theme, description, startDate, endDate },
-        { new: true, runValidators: true }
-      ).populate('createdBy', 'firstName lastName email')
-       .populate('activities', 'title description');
+        { new: true, runValidators: true },
+      )
+        .populate('createdBy', 'firstName lastName email')
+        .populate('activities', 'title description');
 
       res.status(200).json(updatedLessonPlan);
     } catch (error) {
@@ -157,7 +148,7 @@ const lessonPlanController = function () {
   const getLessonPlansByDateRange = async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
-      
+
       const query = {};
       if (startDate && endDate) {
         query.startDate = { $gte: new Date(startDate) };
@@ -201,8 +192,8 @@ const lessonPlanController = function () {
     updateLessonPlan,
     deleteLessonPlan,
     getLessonPlansByDateRange,
-    getLessonPlansByTheme
+    getLessonPlansByTheme,
   };
 };
 
-module.exports = lessonPlanController; 
+module.exports = lessonPlanController;

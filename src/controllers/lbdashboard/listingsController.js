@@ -1,14 +1,17 @@
 const mongoose = require('mongoose');
-const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
-const userProfile = require('../../models/userProfile');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const {
+  fetchImagesFromAzureBlobStorage,
+  saveImagestoAzureBlobStorage,
+} = require('../../utilities/AzureBlobImages');
+const userProfile = require('../../models/userProfile');
 const config = require('../../config');
 const Role = require('../../models/role');
 const Village = require('../../models/lbdashboard/villages');
 
 const verifyToken = async (req) => {
-  const token = req.headers['authorization'];
+  const token = req.headers.authorization;
   if (!token) throw new Error('No token provided');
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
@@ -19,7 +22,7 @@ const verifyToken = async (req) => {
     const rolePermissions = role ? role.permissions : [];
     const personalPermissions = [
       ...(decoded.permissions?.frontPermissions || []),
-      ...(decoded.permissions?.backPermissions || [])
+      ...(decoded.permissions?.backPermissions || []),
     ];
     const combinedPermissions = Array.from(new Set([...rolePermissions, ...personalPermissions]));
     req.user = {
@@ -36,11 +39,11 @@ const verifyToken = async (req) => {
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      const page = req.headers['page'] || 1;
-      const size = req.headers['size'] || 10;
-      const village = req.headers['village'];
-      const availableFrom = req.headers['availablefrom'];
-      const availableTo = req.headers['availableto'];
+      const page = req.headers.page || 1;
+      const size = req.headers.size || 10;
+      const { village } = req.headers;
+      const availableFrom = req.headers.availablefrom;
+      const availableTo = req.headers.availableto;
 
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
@@ -75,7 +78,7 @@ const listingsController = (ListingHome) => {
       const listings = await ListingHome.find(query)
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
+          { path: 'updatedBy', select: '_id firstName lastName' },
         ])
         .sort({ updatedOn: -1 })
         .skip(skip)
@@ -93,30 +96,36 @@ const listingsController = (ListingHome) => {
               total: 0,
               totalPages: 0,
               currentPage: pageNum,
-              pageSize: sizeNum
-            }
-          }
+              pageSize: sizeNum,
+            },
+          },
         });
       }
 
-      const processedListings = await Promise.all(listings.map(async listing => {
-        let images = [];
-        try {
-          if (listing.images && listing.images.length > 0) {
-            images = await fetchImagesFromAzureBlobStorage(listing.images);
+      const processedListings = await Promise.all(
+        listings.map(async (listing) => {
+          let images = [];
+          try {
+            if (listing.images && listing.images.length > 0) {
+              images = await fetchImagesFromAzureBlobStorage(listing.images);
+            }
+          } catch (error) {
+            images = ['https://via.placeholder.com/300x200?text=Unit'];
           }
-        } catch (error) {
-          images = ['https://via.placeholder.com/300x200?text=Unit'];
-        }
-        return {
-          ...listing,
-          images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
-          createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
-          updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
-          availableFrom: listing.availableFrom ? listing.availableFrom.toISOString().split('T')[0] : null,
-          availableTo: listing.availableTo ? listing.availableTo.toISOString().split('T')[0] : null,
-        };
-      }));
+          return {
+            ...listing,
+            images: images.length > 0 ? images : ['https://via.placeholder.com/300x200?text=Unit'],
+            createdOn: listing.createdOn ? listing.createdOn.toISOString().split('T')[0] : null,
+            updatedOn: listing.updatedOn ? listing.updatedOn.toISOString().split('T')[0] : null,
+            availableFrom: listing.availableFrom
+              ? listing.availableFrom.toISOString().split('T')[0]
+              : null,
+            availableTo: listing.availableTo
+              ? listing.availableTo.toISOString().split('T')[0]
+              : null,
+          };
+        }),
+      );
 
       res.json({
         status: 200,
@@ -127,15 +136,14 @@ const listingsController = (ListingHome) => {
             total,
             totalPages,
             currentPage: pageNum,
-            pageSize: sizeNum
-          }
-        }
+            pageSize: sizeNum,
+          },
+        },
       });
-
     } catch (error) {
       res.status(500).json({
         error: 'Internal server error',
-        details: error.message
+        details: error.message,
       });
     }
   };
@@ -149,7 +157,7 @@ const listingsController = (ListingHome) => {
       const listing = await ListingHome.findById(id)
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
-          { path: 'updatedBy', select: '_id firstName lastName' }
+          { path: 'updatedBy', select: '_id firstName lastName' },
         ])
         .lean();
 
@@ -181,13 +189,12 @@ const listingsController = (ListingHome) => {
           unitAmenities: listing.amenities || [],
           villageAmenities,
           villageName,
-        }
+        },
       });
     } catch (error) {
       res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   };
-
 
   const createListing = async (req, res) => {
     try {
@@ -203,7 +210,7 @@ const listingsController = (ListingHome) => {
         village,
         coordinates,
         amenities,
-        status
+        status,
       } = req.body;
       const images = req.files;
 
@@ -214,7 +221,16 @@ const listingsController = (ListingHome) => {
       }
 
       if (isComplete) {
-        if (!title || !description || !price || !perUnit || !createdBy || !village || !amenities || !updatedBy) {
+        if (
+          !title ||
+          !description ||
+          !price ||
+          !perUnit ||
+          !createdBy ||
+          !village ||
+          !amenities ||
+          !updatedBy
+        ) {
           return res.status(400).json({
             error: 'Missing required fields for complete listing',
             details: {
@@ -225,27 +241,29 @@ const listingsController = (ListingHome) => {
               createdBy: !createdBy ? 'Required' : null,
               village: !village ? 'Required' : null,
               amenities: !amenities ? 'Required' : null,
-              updatedBy: !updatedBy ? 'Required' : null
-            }
+              updatedBy: !updatedBy ? 'Required' : null,
+            },
           });
         }
-      }
-      else if (!isComplete) {
+      } else if (!isComplete) {
         if (!title || !price || !perUnit || !createdBy || !updatedBy) {
           return res.status(400).json({
-            error: "Missing required fields to create a draft",
+            error: 'Missing required fields to create a draft',
             details: {
               title: !title ? 'Required' : null,
               price: !price ? 'Required' : null,
               perUnit: !perUnit ? 'Required' : null,
               createdBy: !createdBy ? 'Required' : null,
-              updatedBy: !updatedBy ? 'Required' : null
-            }
-          })
+              updatedBy: !updatedBy ? 'Required' : null,
+            },
+          });
         }
       }
 
-      if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(updatedBy)) {
+      if (
+        !mongoose.Types.ObjectId.isValid(createdBy) ||
+        !mongoose.Types.ObjectId.isValid(updatedBy)
+      ) {
         return res.status(400).json({ error: 'Invalid user ID' });
       }
 
@@ -262,9 +280,15 @@ const listingsController = (ListingHome) => {
         try {
           parsedCoordinates = JSON.parse(coordinates);
           // Validate coordinates
-          if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2 ||
-            typeof parsedCoordinates[0] !== 'number' || typeof parsedCoordinates[1] !== 'number') {
-            return res.status(400).json({ error: 'Coordinates must be an array of two numbers [longitude, latitude]' });
+          if (
+            !Array.isArray(parsedCoordinates) ||
+            parsedCoordinates.length !== 2 ||
+            typeof parsedCoordinates[0] !== 'number' ||
+            typeof parsedCoordinates[1] !== 'number'
+          ) {
+            return res
+              .status(400)
+              .json({ error: 'Coordinates must be an array of two numbers [longitude, latitude]' });
           }
         } catch (e) {
           return res.status(400).json({ error: 'Invalid coordinates format' });
@@ -278,7 +302,7 @@ const listingsController = (ListingHome) => {
         perUnit,
         createdBy,
         updatedBy,
-        status
+        status,
       };
       console.log(listingData);
       // Handle image uploads with error handling
@@ -299,8 +323,11 @@ const listingsController = (ListingHome) => {
       if (amenities) {
         // Handle amenities as an array if it comes as a string
         // eslint-disable-next-line no-nested-ternary
-        listingData.amenities = Array.isArray(amenities) ? amenities :
-          typeof amenities === 'string' ? [amenities] : [];
+        listingData.amenities = Array.isArray(amenities)
+          ? amenities
+          : typeof amenities === 'string'
+            ? [amenities]
+            : [];
       }
 
       let savedListing;
@@ -308,26 +335,32 @@ const listingsController = (ListingHome) => {
 
       let existingDraft;
       if (draftId && mongoose.Types.ObjectId.isValid(draftId)) {
-
-        if (await userProfile.findOne({ _id: updatedBy, role: { $in: ['Owner', 'Administrator', 'Manager'] } })) {
+        if (
+          await userProfile.findOne({
+            _id: updatedBy,
+            role: { $in: ['Owner', 'Administrator', 'Manager'] },
+          })
+        ) {
           existingDraft = await ListingHome.findOne({
-            _id: draftId
+            _id: draftId,
           });
         } else {
           existingDraft = await ListingHome.findOne({
             _id: draftId,
-            updatedBy
+            updatedBy,
           });
         }
         if (!existingDraft) {
-          return res.status(403).json({ error: 'Unauthorized: Draft not found or does not belong to user' });
+          return res
+            .status(403)
+            .json({ error: 'Unauthorized: Draft not found or does not belong to user' });
         }
         console.log(listingData);
         // Update the existing draft
         savedListing = await ListingHome.findByIdAndUpdate(
           draftId,
           { $set: listingData },
-          { new: true }
+          { new: true },
         );
       } else {
         const newListing = new ListingHome(listingData);
@@ -348,21 +381,20 @@ const listingsController = (ListingHome) => {
           images: savedListing.images,
           village: savedListing.village,
           coordinates: savedListing.coordinates,
-          amenities: savedListing.amenities
-        }
+          amenities: savedListing.amenities,
+        },
       });
-
     } catch (error) {
       res.status(500).json({
         error: 'Internal server error',
-        details: error.message
+        details: error.message,
       });
     }
   };
 
   const updateListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const { id } = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const updateData = req.body;
       if (req.files && req.files.length) {
@@ -381,7 +413,7 @@ const listingsController = (ListingHome) => {
 
   const deleteListing = async (req, res) => {
     try {
-      const id = req.headers['id'];
+      const { id } = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
       const deleted = await ListingHome.findByIdAndDelete(id);
       if (!deleted) {
@@ -398,7 +430,7 @@ const listingsController = (ListingHome) => {
     createListing,
     deleteListing,
     updateListing,
-    getListingById
+    getListingById,
   };
 };
 
