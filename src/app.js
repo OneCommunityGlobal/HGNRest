@@ -4,6 +4,7 @@ const Sentry = require('@sentry/node');
 const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
+// eslint-disable-next-line no-unused-vars
 const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
 
 logger.init();
