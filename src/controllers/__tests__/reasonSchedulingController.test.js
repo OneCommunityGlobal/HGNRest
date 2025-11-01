@@ -1,3 +1,6 @@
+// Set timeout for all tests in this file
+jest.setTimeout(90_000);
+
 const request = require('supertest');
 const moment = require('moment-timezone');
 const { jwtPayload } = require('../../test');
@@ -14,9 +17,6 @@ const ReasonModel = require('../../models/reason');
 
 // Mock the emailSender utility to prevent crashes
 jest.mock('../../utilities/emailSender', () => jest.fn());
-
-// Set timeout for all tests in this file
-jest.setTimeout(90000);
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
