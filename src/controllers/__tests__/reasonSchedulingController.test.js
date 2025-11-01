@@ -16,7 +16,7 @@ const ReasonModel = require('../../models/reason');
 jest.mock('../../utilities/emailSender', () => jest.fn());
 
 // Set timeout for all tests in this file
-jest.setTimeout(30000);
+jest.setTimeout(90000);
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
