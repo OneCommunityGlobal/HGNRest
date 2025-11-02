@@ -1,8 +1,5 @@
 import mongoose from 'mongoose';
 import studentTask from '../models/mockModels/studentTask';
-// import studentAtom from '../models/mockModels/studentAtom.js';
-// import grade from '../models/mockModels/grade.js';
-// import subject from '../models/subject.js';
 
 const getKnowledgeEvolution = async (req, res) => {
   try {
@@ -16,74 +13,111 @@ const getKnowledgeEvolution = async (req, res) => {
       {
         $match: { studentId: new mongoose.Types.ObjectId(studentId) },
       },
+
       {
         $lookup: {
-          from: 'studentatoms',
-          localField: 'atomId',
+          from: 'tasks',
+          localField: 'taskId',
           foreignField: '_id',
-          as: 'atom',
+          as: 'taskInfo',
         },
       },
-      { $unwind: { path: '$atom', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$taskInfo', preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: 'atoms',
+          localField: 'taskInfo.atomId',
+          foreignField: '_id',
+          as: 'atomInfo',
+        },
+      },
+      { $unwind: { path: '$atomInfo', preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: 'subjects',
-          localField: 'atom.subjectId',
+          localField: 'atomInfo.subjectId',
           foreignField: '_id',
-          as: 'subject',
+          as: 'subjectInfo',
         },
       },
-      { $unwind: { path: '$subject', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$subjectInfo', preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: 'grades',
-          localField: '_id',
-          foreignField: 'taskId',
-          as: 'grades',
+          let: { tId: '$_id', sId: '$studentId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $and: [{ $eq: ['$taskId', '$$tId'] }, { $eq: ['$studentId', '$$sId'] }] },
+              },
+            },
+          ],
+          as: 'gradeInfo',
         },
       },
+
+      {
+        $lookup: {
+          from: 'studentatoms',
+          let: { aId: '$atomInfo._id', sId: '$studentId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $and: [{ $eq: ['$atomId', '$$aId'] }, { $eq: ['$studentId', '$$sId'] }] },
+              },
+            },
+          ],
+          as: 'studentAtomInfo',
+        },
+      },
+
       {
         $addFields: {
-          averageGrade: { $avg: '$grades.score' },
+          averageGrade: { $avg: '$gradeInfo.score' },
+          atomStatus: { $arrayElemAt: ['$studentAtomInfo.status', 0] },
         },
       },
+
       {
         $project: {
           _id: 1,
-          subjectId: '$subject._id',
-          subjectName: '$subject.name',
-          atomId: '$atom._id',
-          atomName: '$atom.name',
-          atomColor: '$atom.colorLevel',
-          status: '$status',
-          grade: '$grades.score',
-          averageGrade: 1,
+          subjectId: '$subjectInfo._id',
+          subjectName: '$subjectInfo.name',
+          atomId: '$atomInfo._id',
+          atomName: '$atomInfo.name',
+          atomColor: '$atomInfo.colorLevel',
+          taskStatus: '$status',
+          atomStatus: 1,
+          grade: '$averageGrade',
         },
       },
+
       {
         $group: {
           _id: '$subjectId',
           subjectName: { $first: '$subjectName' },
-          averageGrade: { $avg: '$averageGrade' },
+          averageGrade: { $avg: '$grade' },
           atoms: {
             $push: {
               atomId: '$atomId',
               atomName: '$atomName',
               color: '$atomColor',
-              status: '$status',
-              grade: '$averageGrade',
+              atomStatus: '$atomStatus',
+              taskStatus: '$taskStatus',
+              grade: '$grade',
             },
           },
         },
       },
-      {
-        $sort: { subjectName: 1 },
-      },
+      { $sort: { subjectName: 1 } },
     ]);
 
     res.status(200).json({
       studentId,
-      message: 'Knowledge evolution data',
+      message: 'Knowledge evolution data fetched successfully',
       totalSubjects: data.length,
       knowledgeEvolution: data,
     });
