@@ -36,6 +36,7 @@ const {
   mockUser,
   createUser,
   createTestPermissions, // <-- this is now the mocked no-op
+  // eslint-disable-next-line no-unused-vars
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
 
@@ -148,34 +149,20 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   beforeEach(async () => {
     try {
-      // Clear collections with retry logic
-      for (let i = 0; i < 3; i += 1) {
-        try {
-          await dbClearCollections('reasons');
-          await dbClearCollections('userprofiles');
-          break;
-        } catch (clearError) {
-          console.warn(`Clear attempt ${i + 1} failed:`, clearError);
-          if (i === 2) throw clearError;
-          // eslint-disable-next-line no-promise-executor-return
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
       await waitForMongoReady(60000);
       await pingAdmin(5000);
 
-      // Create a test user for each test with a unique email address
+      // Replace the retrying dbClearCollections logic with model-level deletes:
+      await ReasonModel.deleteMany({});
+      await UserModel.deleteMany({});
+
       const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
       const testUser = await UserModel.create({
         firstName: 'Test',
         lastName: 'User',
         email: uniqueEmail,
         role: 'Volunteer',
-        permissions: {
-          isAcknowledged: true,
-          frontPermissions: [],
-          backPermissions: [],
-        },
+        permissions: { isAcknowledged: true, frontPermissions: [], backPermissions: [] },
         password: 'TestPassword123@',
         isActive: true,
         isSet: false,
@@ -185,10 +172,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       reqBody = {
         userId: testUser._id.toString(),
         requestor: { role: 'Administrator' },
-        reasonData: {
-          date: mockDay(0), // Sunday
-          message: 'Test reason',
-        },
+        reasonData: { date: mockDay(0), message: 'Test reason' },
         currentDate: moment.tz('America/Los_Angeles').startOf('day'),
       };
     } catch (error) {
