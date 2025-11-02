@@ -44,6 +44,7 @@ const action = {
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
   HEARTBEAT: 'ping',
+  GET_DATE: 'GET_DATE',
 };
 
 const MAX_HOURS = 5;
@@ -245,6 +246,100 @@ const handleMessage = async (msg, clients, userId) => {
       await stopTimer(client);
       timelogEvent = { eventType: 'Time Logged', timestamp: new Date() };
       break;
+    case action.GET_DATE: {
+      // Get REAL current date from external sources (not system date)
+      let realServerDate;
+      let source = 'system-fallback';
+
+      // Helper function to try a single API
+      const tryTimeAPI = async (apiUrl) => {
+        const https = require('https');
+        return new Promise((resolve, reject) => {
+          const req = https.get(
+            apiUrl,
+            {
+              timeout: 1500,
+            },
+            (response) => {
+              let data = '';
+              response.on('data', (chunk) => {
+                data += chunk;
+              });
+              response.on('end', () => {
+                try {
+                  const timeData = JSON.parse(data);
+                  let resultDate;
+                  let sourceType;
+
+                  if (timeData.datetime) {
+                    // WorldTimeAPI format - already in UTC
+                    resultDate = new Date(timeData.datetime);
+                    sourceType = 'worldtime-api';
+                  } else if (timeData.dateTime) {
+                    // TimeAPI.io format - convert to UTC properly
+                    resultDate = new Date(timeData.dateTime);
+                    // Ensure we're working with UTC date
+                    const utcDate = new Date(
+                      resultDate.getTime() + resultDate.getTimezoneOffset() * 60000,
+                    );
+                    resultDate = utcDate;
+                    sourceType = 'timeapi-io';
+                  } else if (timeData.date_time) {
+                    // IPGeolocation API format
+                    resultDate = new Date(timeData.date_time);
+                    sourceType = 'ipgeolocation-api';
+                  } else {
+                    reject(new Error('Invalid response format'));
+                    return;
+                  }
+
+                  resolve({ date: resultDate, source: sourceType });
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            },
+          );
+          req.on('error', reject);
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+          });
+        });
+      };
+
+      // Try primary API first
+      try {
+        const result = await tryTimeAPI('https://worldtimeapi.org/api/timezone/Etc/UTC');
+        realServerDate = result.date;
+        source = result.source;
+      } catch (error1) {
+        // Try backup API
+        try {
+          const result = await tryTimeAPI(
+            'https://api.ipgeolocation.io/timezone?apiKey=free&tz=UTC',
+          );
+          realServerDate = result.date;
+          source = result.source;
+        } catch (error2) {
+          // Final fallback to system date
+          realServerDate = new Date();
+          source = 'system-fallback';
+        }
+      }
+
+      resp = {
+        date: realServerDate.toISOString(),
+        timestamp: realServerDate.getTime(),
+        formattedDate: realServerDate.toISOString().split('T')[0],
+        info: {
+          source,
+          realDate: realServerDate.toISOString().split('T')[0],
+          method: 'multiple-external-apis',
+        },
+      };
+      break;
+    }
     default:
       resp = {
         ...client,

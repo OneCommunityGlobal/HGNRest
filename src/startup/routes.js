@@ -91,7 +91,6 @@ const tag = require('../models/tag');
 const educationTask = require('../models/educationTask');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
-
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -303,6 +302,113 @@ const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatio
 const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
+  // URGENT: Server time endpoint - prevents client date manipulation
+  app.get('/api/server/date', async (req, res) => {
+    try {
+      // Get REAL current date from external sources (not system date)
+      let realServerDate;
+      let source = 'system-fallback';
+
+      // Helper function to try a single API
+      const tryTimeAPI = async (apiUrl) => {
+        const https = require('https');
+        return new Promise((resolve, reject) => {
+          const req = https.get(
+            apiUrl,
+            {
+              timeout: 2000,
+            },
+            (response) => {
+              let data = '';
+              response.on('data', (chunk) => {
+                data += chunk;
+              });
+              response.on('end', () => {
+                try {
+                  const timeData = JSON.parse(data);
+                  let resultDate;
+                  let sourceType;
+
+                  if (timeData.datetime) {
+                    // WorldTimeAPI format - already in UTC
+                    resultDate = new Date(timeData.datetime);
+                    sourceType = 'worldtime-api';
+                  } else if (timeData.dateTime) {
+                    // TimeAPI.io format - convert to UTC properly
+                    resultDate = new Date(timeData.dateTime);
+                    // Ensure we're working with UTC date
+                    const utcDate = new Date(
+                      resultDate.getTime() + resultDate.getTimezoneOffset() * 60000,
+                    );
+                    resultDate = utcDate;
+                    sourceType = 'timeapi-io';
+                  } else if (timeData.date_time) {
+                    // IPGeolocation API format
+                    resultDate = new Date(timeData.date_time);
+                    sourceType = 'ipgeolocation-api';
+                  } else {
+                    reject(new Error('Invalid response format'));
+                    return;
+                  }
+
+                  resolve({ date: resultDate, source: sourceType });
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            },
+          );
+          req.on('error', reject);
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+          });
+        });
+      };
+
+      // Try primary API first
+      try {
+        const result = await tryTimeAPI('https://worldtimeapi.org/api/timezone/Etc/UTC');
+        realServerDate = result.date;
+        source = result.source;
+      } catch (error1) {
+        // Try backup API
+        try {
+          const result = await tryTimeAPI(
+            'https://api.ipgeolocation.io/timezone?apiKey=free&tz=UTC',
+          );
+          realServerDate = result.date;
+          source = result.source;
+        } catch (error2) {
+          // Final fallback to system date
+          realServerDate = new Date();
+          source = 'system-fallback';
+        }
+      }
+
+      const currentServerTime = realServerDate.toISOString();
+      const timestamp = realServerDate.getTime();
+
+      res.json({
+        currentTime: currentServerTime,
+        timestamp: timestamp,
+        timezone: 'UTC',
+        formattedDate: currentServerTime.split('T')[0], // YYYY-MM-DD format for date inputs
+        info: {
+          source,
+          realDate: currentServerTime.split('T')[0],
+          method: 'multiple-external-apis',
+        },
+      });
+    } catch (error) {
+      console.error('Error getting server time:', error);
+      res.status(500).json({
+        error: 'Failed to get server time',
+        message: error.message,
+      });
+    }
+  });
+
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -419,7 +525,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
-
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);

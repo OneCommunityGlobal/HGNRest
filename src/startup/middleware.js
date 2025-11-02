@@ -70,11 +70,17 @@ module.exports = function (app) {
       next();
       return;
     }
-    
+
+    // Server date endpoint (no auth required) - prevents client date manipulation
+    if (req.originalUrl === '/api/server/date' && req.method === 'GET') {
+      next();
+      return;
+    }
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
-       req.originalUrl === '/api/applicant-analytics/track-application') &&
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
       req.method === 'POST'
     ) {
       next();
