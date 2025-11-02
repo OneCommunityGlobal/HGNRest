@@ -11,6 +11,20 @@ jest.mock('../../routes/applicantAnalyticsRoutes', () => {
 });
 jest.mock('../../websockets/index', () => ({}));
 jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
+jest.mock('@sentry/node', () => ({
+  Handlers: {
+    requestHandler: () => (req, res, next) => next(),
+    errorHandler: () => (err, req, res, next) => next(err),
+  },
+  init: jest.fn(),
+  requestDataIntegration: jest.fn(() => ({ name: 'requestDataIntegration' })),
+  setTag: jest.fn(),
+  captureMessage: jest.fn(),
+  captureException: jest.fn(),
+}));
+jest.mock('@sentry/integrations', () => ({
+  extraErrorDataIntegration: jest.fn(() => ({ name: 'extraErrorDataIntegration' })),
+}));
 
 // -------------------- imports --------------------
 const request = require('supertest');
@@ -166,13 +180,10 @@ describe('reasonScheduling Controller Integration Tests', () => {
       }
       throw error;
     }
-  });
+  }, 120_000); // 2 minutes timeout for beforeAll
 
   beforeEach(async () => {
     try {
-      await waitForMongoReady(60_000);
-      await pingAdmin(5_000);
-
       // Model-level clears: faster & more deterministic than collection helpers
       await ReasonModel.deleteMany({});
       await UserModel.deleteMany({});
@@ -201,7 +212,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       console.error('Error in beforeEach:', error);
       throw error;
     }
-  });
+  }, 60_000); // 60 seconds timeout for beforeEach
 
   afterEach(async () => {
     try {
