@@ -82,7 +82,6 @@ const normalize = (field) => {
 
 const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
   const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
-  console.log('isBsAssignment:', isBsAssignment);
   const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {

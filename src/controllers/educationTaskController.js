@@ -1,5 +1,3 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
@@ -166,10 +164,9 @@ const educationTaskController = function () {
       }
 
       // Update completedAt if status is being changed to completed
-      let { completedAt } = task;
-      if (status === 'completed' && task.status !== 'completed') {
-        completedAt = new Date();
-      }
+      const { completedAt: currentCompletedAt } = task;
+      const completedAt =
+        status === 'completed' && task.status !== 'completed' ? new Date() : currentCompletedAt;
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
@@ -229,10 +226,9 @@ const educationTaskController = function () {
         });
       }
 
-      let { completedAt } = task;
-      if (status === 'completed' && task.status !== 'completed') {
-        completedAt = new Date();
-      }
+      const { completedAt: currentCompletedAt } = task;
+      const completedAt =
+        status === 'completed' && task.status !== 'completed' ? new Date() : currentCompletedAt;
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
@@ -297,6 +293,75 @@ const educationTaskController = function () {
     }
   };
 
+  // Mark task as complete
+  const markTaskAsComplete = async (req, res) => {
+    try {
+      const { taskId, studentId } = req.body;
+      const requestorId = req.body.requestor?.requestorId;
+
+      if (!taskId) {
+        return res.status(400).json({ error: 'Task ID is required' });
+      }
+
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID is required' });
+      }
+
+      if (!requestorId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Find the task and verify it belongs to the student
+      const task = await EducationTask.findOne({
+        _id: taskId,
+        studentId,
+      });
+
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found or does not belong to student' });
+      }
+
+      // Check if task is already completed
+      if (task.status === 'completed') {
+        return res.status(400).json({ error: 'Task is already completed' });
+      }
+
+      // Verify task type is read-only (only read-only tasks can be marked done manually)
+      if (task.type !== 'read') {
+        return res.status(400).json({
+          error: 'Only read-only tasks can be marked as complete manually',
+        });
+      }
+
+      // Check if logged hours meet the requirement
+      if (task.loggedHours < task.suggestedTotalHours) {
+        return res.status(400).json({
+          error: `Insufficient hours logged. Required: ${task.suggestedTotalHours}, Logged: ${task.loggedHours}`,
+        });
+      }
+
+      // Update task status to completed
+      const updatedTask = await EducationTask.findByIdAndUpdate(
+        taskId,
+        {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        { new: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
+
+      res.status(200).json({
+        message: 'Task marked as complete successfully',
+        task: updatedTask,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   return {
     getEducationTasks,
     getTasksByStudent,
@@ -308,6 +373,7 @@ const educationTaskController = function () {
     updateTaskStatus,
     gradeTask,
     getTasksByStatus,
+    markTaskAsComplete,
   };
 };
 
