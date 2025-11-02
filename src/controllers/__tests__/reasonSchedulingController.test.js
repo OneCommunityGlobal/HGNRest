@@ -1,14 +1,12 @@
-// src/controllers/__tests__/reasonSchedulingController.test.js
-
 // Set timeout for all tests in this file
 jest.setTimeout(90_000);
 
-// ---- Keep noisy/transitive deps quiet so app boot is fast in CI ----
 jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
 jest.mock('../../routes/applicantAnalyticsRoutes', () => {
   const express = require('express');
-  return express.Router(); // no-op router
+  return express.Router();
 });
+
 jest.mock('../../websockets/index', () => ({}));
 jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
 jest.mock('@sentry/node', () => ({
@@ -26,15 +24,12 @@ jest.mock('@sentry/integrations', () => ({
   extraErrorDataIntegration: jest.fn(() => ({ name: 'extraErrorDataIntegration' })),
 }));
 
-// -------------------- imports --------------------
 const request = require('supertest');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 
-// Slightly higher buffer timeout for cold CI starts (optional)
 mongoose.set('bufferTimeoutMS', 60000);
 
-// Import test helpers (REAL seeding; no mocking here)
 const { jwtPayload } = require('../../test');
 const {
   // eslint-disable-next-line no-unused-vars
@@ -48,41 +43,35 @@ const {
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
-// Make the mailer inert
 jest.mock('../../utilities/emailSender', () => jest.fn());
 
-// Quiet but useful crash logs in CI
 process.on('unhandledRejection', (reason, promise) => {
   console.log('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
 process.on('uncaughtException', (error) => {
   console.log('Uncaught Exception:', error);
 });
 
-// -------------------- helpers --------------------
-// Custom dbConnect for integration tests
 async function dbConnect() {
   try {
     console.log('=== Starting MongoDB Connection Process ===');
 
-    // Disconnect any existing connections
     if (mongoose.connection.readyState !== 0) {
       console.log('Disconnecting existing MongoDB connection...');
       await mongoose.disconnect();
     }
 
-    // Try to use a real MongoDB connection if available
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/test';
 
     console.log('Using MongoDB URI:', mongoUri);
 
-    // Simple connection options
     const mongooseOpts = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000, // 10 seconds
-      socketTimeoutMS: 10000, // 10 seconds
-      connectTimeoutMS: 10000, // 10 seconds
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
       maxPoolSize: 1,
       minPoolSize: 0,
     };
@@ -95,7 +84,6 @@ async function dbConnect() {
   } catch (error) {
     console.error('MongoDB connection failed:', error.message);
 
-    // If connection fails, throw a helpful error
     throw new Error(`MongoDB connection failed. This integration test requires a MongoDB instance. 
 Please ensure MONGODB_URI is set or MongoDB is running on localhost:27017. 
 Original error: ${error.message}`);
@@ -113,7 +101,6 @@ async function waitForMongoReady(timeoutMs = 60000) {
   }
 }
 
-// Optional: verify DB is writable (avoids “connected but not writable yet”)
 async function pingAdmin(timeoutMs = 10000) {
   const start = Date.now();
   // eslint-disable-next-line no-constant-condition
@@ -124,14 +111,13 @@ async function pingAdmin(timeoutMs = 10000) {
         await mongoose.connection.db.admin().ping();
         return;
       }
-    } catch (_) {
-      // swallow and retry
+    } catch {
+      // eslint-disable-next-line no-empty
     }
     if (Date.now() - start > timeoutMs) break;
     // eslint-disable-next-line no-promise-executor-return
     await new Promise((r) => setTimeout(r, 200));
   }
-  // If ping didn’t work, we still proceed; waitForMongoReady already passed.
 }
 
 function mockDay(dayIdx, past = false) {
@@ -169,11 +155,9 @@ async function safeDisconnect() {
   }
 }
 
-// -------------------- state --------------------
 let agent;
 let app;
 
-// Skip all tests in CI if MongoDB is not available
 const shouldSkipTests = process.env.CI || process.env.GITHUB_ACTIONS;
 
 if (shouldSkipTests) {
@@ -193,10 +177,8 @@ if (shouldSkipTests) {
         await waitForMongoReady(60_000);
         await pingAdmin(8_000);
 
-        // **REAL** seeding with a small retry to handle slow CI
         for (let i = 0; i < 3; i += 1) {
           try {
-            // creates/ensures roles/permissions/merged collections used at boot
             await createTestPermissions();
             break;
           } catch (e) {
@@ -206,15 +188,12 @@ if (shouldSkipTests) {
           }
         }
 
-        // Require the app ONLY after DB is ready & seeded
         ({ app } = require('../../app'));
         agent = request.agent(app);
 
-        // Create admin and token after app/DB are ready
         adminUser = await createUser();
         adminToken = jwtPayload(adminUser);
 
-        // Optional visibility during CI debugging
         console.log(
           'Mongo readyState:',
           mongoose.connection.readyState,
@@ -231,15 +210,13 @@ if (shouldSkipTests) {
         }
         throw error;
       }
-    }, 120_000); // 2 minutes timeout for beforeAll
+    }, 120_000);
 
     beforeEach(async () => {
       try {
-        // Model-level clears: faster & more deterministic than collection helpers
         await ReasonModel.deleteMany({});
         await UserModel.deleteMany({});
 
-        // Fresh user for each test
         const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10_000)}@example.com`;
         const testUser = await UserModel.create({
           firstName: 'Test',
@@ -263,7 +240,7 @@ if (shouldSkipTests) {
         console.error('Error in beforeEach:', error);
         throw error;
       }
-    }, 60_000); // 60 seconds timeout for beforeEach
+    }, 60_000);
 
     afterEach(async () => {
       try {
@@ -280,7 +257,6 @@ if (shouldSkipTests) {
       await safeDisconnect();
     });
 
-    // --------------- TESTS ---------------
     describe('Basic Setup', () => {
       test('Should have valid test setup', () => {
         expect(adminUser).toBeDefined();
@@ -291,7 +267,7 @@ if (shouldSkipTests) {
 
     describe('POST /api/reason/', () => {
       test('Should return 400 when date is not a Sunday', async () => {
-        reqBody.reasonData.date = mockDay(1); // Monday
+        reqBody.reasonData.date = mockDay(1);
         const response = await agent
           .post('/api/reason/')
           .send(reqBody)
@@ -307,7 +283,7 @@ if (shouldSkipTests) {
       });
 
       test('Should return 400 when date is in the past', async () => {
-        reqBody.reasonData.date = mockDay(0, true); // Past Sunday
+        reqBody.reasonData.date = mockDay(0, true);
         const response = await agent
           .post('/api/reason/')
           .send(reqBody)
@@ -339,7 +315,7 @@ if (shouldSkipTests) {
       });
 
       test('Should return 404 when user is not found', async () => {
-        reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
+        reqBody.userId = '60c72b2f5f1b2c001c8e4d67';
         const response = await agent
           .post('/api/reason/')
           .send(reqBody)
