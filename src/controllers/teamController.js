@@ -102,15 +102,14 @@ const teamcontroller = function (Team) {
       return;
     }
 
-    // eslint-disable-next-line no-shadow
-    const team = new Team();
-    team.teamName = req.body.teamName;
-    team.isActive = req.body.isActive;
-    team.createdDatetime = Date.now();
-    team.modifiedDatetime = Date.now();
+    const newTeam = new Team();
+    newTeam.teamName = req.body.teamName;
+    newTeam.isActive = req.body.isActive;
+    newTeam.createdDatetime = Date.now();
+    newTeam.modifiedDatetime = Date.now();
 
     try {
-      const result = await team.save();
+      const result = await newTeam.save();
       res.status(200).send(result);
     } catch (error) {
       Logger.logException(error, null, `teamName: ${req.body.teamName}`);
@@ -244,8 +243,6 @@ const teamcontroller = function (Team) {
             },
             { new: true },
           );
-        } else {
-          console.log('User is already a member of the team, skipping addition to members array.');
         }
 
         await userProfile.findByIdAndUpdate(
@@ -318,29 +315,30 @@ const teamcontroller = function (Team) {
     const { visibility, teamId, userId } = req.body;
 
     try {
-      // eslint-disable-next-line no-shadow
-      Team.findById(teamId, (error, team) => {
-        if (error || team === null) {
+      Team.findById(teamId, (error, teamDoc) => {
+        if (error || teamDoc === null) {
           res.status(400).send('No valid records found');
           return;
         }
 
-        const memberIndex = team.members.findIndex((member) => member.userId.toString() === userId);
+        const memberIndex = teamDoc.members.findIndex(
+          (member) => member.userId.toString() === userId,
+        );
         if (memberIndex === -1) {
           res.status(400).send('Member not found in the team.');
           return;
         }
 
-        team.members[memberIndex].visible = visibility;
-        team.modifiedDatetime = Date.now();
+        teamDoc.members[memberIndex].visible = visibility;
+        teamDoc.modifiedDatetime = Date.now();
 
-        team
+        teamDoc
           .save()
           .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach((member) => {
+            teamDoc.members.forEach((member) => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
@@ -349,7 +347,6 @@ const teamcontroller = function (Team) {
               if (visibility) {
                 assignlist.push(member.userId);
               } else {
-                console.log('Visiblity set to false so removing it');
                 unassignlist.push(member.userId);
               }
             });
@@ -407,8 +404,7 @@ const teamcontroller = function (Team) {
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
-        // eslint-disable-next-line no-shadow
-        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team))
+        !teamIds.every((teamId) => mongoose.Types.ObjectId.isValid(teamId))
       ) {
         return res.status(400).send({
           error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
@@ -416,8 +412,7 @@ const teamcontroller = function (Team) {
       }
       const data = await Team.aggregate([
         {
-          // eslint-disable-next-line no-shadow
-          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team)) } },
+          $match: { _id: { $in: teamIds.map((teamId) => mongoose.Types.ObjectId(teamId)) } },
         },
         { $unwind: '$members' },
         {
@@ -441,7 +436,6 @@ const teamcontroller = function (Team) {
       cache.setCache(cacheKey, data);
       res.status(200).send(data);
     } catch {
-      console.log('Error in getAllTeamMembers');
       res.status(500).send({ message: 'Fetching team members failed' });
     }
   };

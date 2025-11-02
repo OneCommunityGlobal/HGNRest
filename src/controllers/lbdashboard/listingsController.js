@@ -304,7 +304,6 @@ const listingsController = (ListingHome) => {
         updatedBy,
         status,
       };
-      console.log(listingData);
       // Handle image uploads with error handling
       if (images && images.length) {
         try {
@@ -355,7 +354,6 @@ const listingsController = (ListingHome) => {
             .status(403)
             .json({ error: 'Unauthorized: Draft not found or does not belong to user' });
         }
-        console.log(listingData);
         // Update the existing draft
         savedListing = await ListingHome.findByIdAndUpdate(
           draftId,

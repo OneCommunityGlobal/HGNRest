@@ -1,10 +1,7 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
 const FormResponse = require('../models/hgnFormResponse');
 
 const communityMemberController = function () {
   const getCommunityMembers = async function (req, res) {
-    console.log('Community members endpoint hit!');
     try {
       const query = {};
       const { search, skills, sortOrder = 'asc' } = req.query;
@@ -23,8 +20,7 @@ const communityMemberController = function () {
         const extractSkills = (section) =>
           Object.entries(section || {}).reduce((acc, [key, val]) => {
             const num = parseFloat(val);
-            // eslint-disable-next-line no-restricted-globals
-            if (key.toLowerCase() !== 'overall' && !isNaN(num)) {
+            if (key.toLowerCase() !== 'overall' && !Number.isNaN(num)) {
               acc[key] = num;
             }
             return acc;
