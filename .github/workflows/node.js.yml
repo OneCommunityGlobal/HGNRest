@@ -18,6 +18,10 @@ jobs:
         cache: 'npm'
 
     - run: npm ci
+
+    - name: Rebuild sharp for linux
+      run: npm rebuild sharp --force
+
     - name: Run email sender check
       run: node src/utilities/debugEmailSender.js
     - run: npm run test
