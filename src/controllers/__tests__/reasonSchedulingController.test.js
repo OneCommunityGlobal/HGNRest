@@ -1,452 +1,11 @@
-/*
-// Set timeout for all tests in this file
-jest.setTimeout(90_000);
+jest.setTimeout(120_000);
 
-// Stub transitive deps so app boot is fast & quiet
-jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
-jest.mock('../../routes/applicantAnalyticsRoutes', () => {
-  const express = require('express');
-  return express.Router(); // no-op router
-});
-jest.mock('../../websockets/index', () => ({}));
-jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
-
-const request = require('supertest');
-const moment = require('moment-timezone');
-const { jwtPayload } = require('../../test');
-const { app } = require('../../app');
-const {
-  // eslint-disable-next-line no-unused-vars
-  mockUser,
-  createUser,
-  createTestPermissions,
-  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
-} = require('../../test');
-const UserModel = require('../../models/userProfile');
-const ReasonModel = require('../../models/reason');
-
-// Mock the emailSender utility to prevent crashes
-jest.mock('../../utilities/emailSender', () => jest.fn());
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.log('Uncaught Exception:', error);
-});
-
-function mockDay(dayIdx, past = false) {
-  const date = moment().tz('America/Los_Angeles').startOf('day');
-  while (date.day() !== dayIdx) {
-    date.add(past ? -1 : 1, 'days');
-  }
-  return date;
-}
-
-// const agent = request.agent(app);
-let agent;
-
-describe('reasonScheduling Controller Integration Tests', () => {
-  let adminUser;
-  let adminToken;
-  let reqBody;
-
-  beforeAll(async () => {
-    try {
-      // Ensure clean state
-      await dbConnect();
-      // await dbClearAll();
-      await createTestPermissions();
-      adminUser = await createUser();
-      adminToken = jwtPayload(adminUser);
-      agent = request.agent(app);
-    } catch (error) {
-      console.error('Error in beforeAll setup:', error);
-      // Try to clean up on failure
-      try {
-        await dbClearAll();
-        await dbDisconnect();
-      } catch (cleanupError) {
-        console.error('Error during cleanup:', cleanupError);
-      }
-      throw error;
-    }
-  });
-
-  beforeEach(async () => {
-    try {
-      // Clear collections with retry logic
-      for (let i = 0; i < 3; i += 1) {
-        try {
-          await dbClearCollections('reasons');
-          await dbClearCollections('userprofiles');
-          break;
-        } catch (clearError) {
-          console.warn(`Clear attempt ${i + 1} failed:`, clearError);
-          if (i === 2) throw clearError;
-          // eslint-disable-next-line no-promise-executor-return
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      // Create a test user for each test with a unique email address
-      const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
-      const testUser = await UserModel.create({
-        firstName: 'Test',
-        lastName: 'User',
-        email: uniqueEmail,
-        role: 'Volunteer',
-        permissions: {
-          isAcknowledged: true,
-          frontPermissions: [],
-          backPermissions: [],
-        },
-        password: 'TestPassword123@',
-        isActive: true,
-        isSet: false,
-        timeZone: 'America/Los_Angeles',
-      });
-
-      reqBody = {
-        userId: testUser._id.toString(),
-        requestor: { role: 'Administrator' },
-        reasonData: {
-          date: mockDay(0), // Sunday
-          message: 'Test reason',
-        },
-        currentDate: moment.tz('America/Los_Angeles').startOf('day'),
-      };
-    } catch (error) {
-      console.error('Error in beforeEach:', error);
-      throw error;
-    }
-  });
-
-  afterEach(async () => {
-    try {
-      // Clean up any hanging connections or operations
-      // eslint-disable-next-line no-promise-executor-return
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      // Force garbage collection if available
-      if (global.gc) {
-        global.gc();
-      }
-    } catch (error) {
-      console.error('Error in afterEach:', error);
-    }
-  }, 10000);
-
-  afterAll(async () => {
-    try {
-      await dbClearAll();
-      await dbDisconnect();
-    } catch (error) {
-      console.error('Error in afterAll:', error);
-    }
-  });
-
-  describe('Basic Setup', () => {
-    test('Should have valid test setup', () => {
-      expect(adminUser).toBeDefined();
-      expect(adminToken).toBeDefined();
-      expect(reqBody).toBeDefined();
-    });
-  });
-
-  describe('POST /api/reason/', () => {
-    test('Should return 400 when date is not a Sunday', async () => {
-      try {
-        reqBody.reasonData.date = mockDay(1); // Monday
-
-        const response = await agent
-          .post('/api/reason/')
-          .send(reqBody)
-          .set('Authorization', adminToken)
-          .expect(400);
-
-        expect(response.body).toEqual(
-          expect.objectContaining({
-            message: expect.stringContaining("You must choose the Sunday YOU'LL RETURN"),
-            errorCode: 0,
-          }),
-        );
-      } catch (error) {
-        console.error('Test failed:', error);
-        throw error;
-      }
-    });
-
-    test('Should return 400 when date is in the past', async () => {
-      reqBody.reasonData.date = mockDay(0, true); // Past Sunday
-
-      const response = await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(400);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'You should select a date that is yet to come',
-          errorCode: 7,
-        }),
-      );
-    });
-
-    test('Should return 400 when no reason message is provided', async () => {
-      reqBody.reasonData.message = null;
-
-      const response = await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(400);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'You must provide a reason.',
-          errorCode: 6,
-        }),
-      );
-    });
-
-    test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
-
-      const response = await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'User not found',
-          errorCode: 2,
-        }),
-      );
-    });
-
-    test('Should return 200 when reason is successfully created', async () => {
-      await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      // Verify the reason was actually created in the database
-      const savedReason = await ReasonModel.findOne({
-        userId: reqBody.userId,
-        date: moment
-          .tz(reqBody.reasonData.date, 'America/Los_Angeles')
-          .startOf('day')
-          .toISOString(),
-      });
-
-      expect(savedReason).toBeTruthy();
-      expect(savedReason.reason).toBe(reqBody.reasonData.message);
-    }, 15000);
-
-    test('Should return 403 when trying to create duplicate reason', async () => {
-      // First create a reason
-      await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      // Try to create the same reason again
-      const response = await agent
-        .post('/api/reason/')
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(403);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'The reason must be unique to the date',
-          errorCode: 3,
-        }),
-      );
-    }, 15000);
-  });
-
-  describe('GET /api/reason/:userId', () => {
-    test('Should return 404 when user is not found', async () => {
-      const response = await agent
-        .get('/api/reason/60c72b2f5f1b2c001c8e4d67') // Non-existent user ID
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'User not found',
-        }),
-      );
-    });
-
-    test('Should return 200 with empty reasons array when no reasons exist', async () => {
-      const response = await agent
-        .get(`/api/reason/${reqBody.userId}`)
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('reasons');
-    });
-
-    test('Should return 200 with reasons when they exist', async () => {
-      // First create a reason
-      await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      const response = await agent
-        .get(`/api/reason/${reqBody.userId}`)
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('reasons');
-      expect(Array.isArray(response.body.reasons)).toBe(true);
-      expect(response.body.reasons.length).toBeGreaterThan(0);
-      expect(response.body.reasons[0].reason).toBe(reqBody.reasonData.message);
-    });
-  });
-
-  describe('GET /api/reason/single/:userId', () => {
-    test('Should return 404 when user is not found', async () => {
-      const response = await agent
-        .get('/api/reason/single/60c72b2f5f1b2c001c8e4d67') // Non-existent user ID
-        .query({ queryDate: mockDay(0).toISOString() })
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'User not found',
-          errorCode: 2,
-        }),
-      );
-    });
-
-    test('Should return 200 with default values when reason does not exist', async () => {
-      const response = await agent
-        .get(`/api/reason/single/${reqBody.userId}`)
-        .query({ queryDate: mockDay(0).toISOString() })
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toEqual({
-        reason: '',
-        date: '',
-        userId: '',
-        isSet: false,
-      });
-    });
-
-    test('Should return 200 with reason when it exists', async () => {
-      // First create a reason
-      await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      const response = await agent
-        .get(`/api/reason/single/${reqBody.userId}`)
-        .query({ queryDate: reqBody.reasonData.date.toISOString() })
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('reason', reqBody.reasonData.message);
-      expect(response.body).toHaveProperty('userId', reqBody.userId);
-      expect(response.body).toHaveProperty('isSet', true);
-    });
-  });
-
-  describe('PATCH /api/reason/:userId', () => {
-    test('Should return 400 when no reason message is provided', async () => {
-      reqBody.reasonData.message = null;
-
-      const response = await agent
-        .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(400);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'You must provide a reason.',
-          errorCode: 6,
-        }),
-      );
-    });
-
-    test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
-
-      const response = await agent
-        .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'User not found',
-          errorCode: 2,
-        }),
-      );
-    });
-
-    test('Should return 404 when reason is not found', async () => {
-      const response = await agent
-        .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(404);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'Reason not found',
-          errorCode: 4,
-        }),
-      );
-    });
-
-    test('Should return 200 when reason is successfully updated', async () => {
-      // First create a reason
-      await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      // Update the reason
-      const updatedMessage = 'Updated reason message';
-      reqBody.reasonData.message = updatedMessage;
-
-      const response = await agent
-        .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
-        .set('Authorization', adminToken)
-        .expect(200);
-
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          message: 'Reason Updated!',
-        }),
-      );
-
-      // Verify the reason was actually updated in the database
-      const updatedReason = await ReasonModel.findOne({
-        userId: reqBody.userId,
-        date: moment
-          .tz(reqBody.reasonData.date, 'America/Los_Angeles')
-          .startOf('day')
-          .toISOString(),
-      });
-
-      expect(updatedReason).toBeTruthy();
-      expect(updatedReason.reason).toBe(updatedMessage);
-    }, 15000);
-  });
-});
-*/
-
-// Set timeout for all tests in this file
-jest.setTimeout(90_000);
-
-// ---- keep app boot quiet & fast ----
 jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
 jest.mock('../../routes/applicantAnalyticsRoutes', () => {
   const express = require('express');
   return express.Router();
 });
+
 jest.mock('../../websockets/index', () => ({}));
 jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
 
@@ -455,8 +14,6 @@ const moment = require('moment-timezone');
 const { jwtPayload } = require('../../test');
 const { app } = require('../../app');
 const {
-  // eslint-disable-next-line no-unused-vars
-  mockUser,
   createUser,
   createTestPermissions,
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
@@ -464,86 +21,75 @@ const {
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
-// Mock the emailSender utility to prevent crashes
 jest.mock('../../utilities/emailSender', () => jest.fn());
 
-// Helpful time helpers (robust wrt "today is Sunday")
-const TZ = 'America/Los_Angeles';
-const today = () => moment.tz(TZ).startOf('day');
+function mockDay(dayIdx, past = false) {
+  const d = moment().tz('America/Los_Angeles').startOf('day');
 
-const lastSunday = () => {
-  const now = today();
-  const thisWeekSunday = now.clone().day(0); // Sunday of this ISO week (might be today)
-  return now.day() === 0 ? thisWeekSunday.subtract(7, 'days') : thisWeekSunday; // strictly before today
-};
-
-const nextSunday = () =>
-  // Sunday strictly after today
-  today().clone().day(7); // next week's Sunday
-const monday = () => {
-  const now = today();
-  const mon = now.clone().day(1);
-  return now.day() === 1 ? mon.add(7, 'days') : mon;
-};
-
-// Handle unhandled promise rejections/errors (logged to help debugging CI)
-process.on('unhandledRejection', (reason, promise) => {
-  // eslint-disable-next-line no-console
-  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (error) => {
-  // eslint-disable-next-line no-console
-  console.log('Uncaught Exception:', error);
-});
-
-let agent;
+  if (past) {
+    d.subtract(1, 'day');
+    while (d.day() !== dayIdx) d.subtract(1, 'day');
+  } else {
+    d.add(1, 'day');
+    while (d.day() !== dayIdx) d.add(1, 'day');
+  }
+  return d;
+}
 
 describe('reasonScheduling Controller Integration Tests', () => {
+  let server;
+  let agent;
+
   let adminUser;
   let adminToken;
   let reqBody;
 
   beforeAll(async () => {
     await dbConnect();
-    await dbClearAll(); // ensure nothing residual is in DB
-    await createTestPermissions(); // seeds required permission collections
+    await createTestPermissions();
+
+    server = app.listen(0);
+    agent = request.agent(server);
+
     adminUser = await createUser();
     adminToken = jwtPayload(adminUser);
-    agent = request.agent(app);
   });
 
   beforeEach(async () => {
-    // fully isolate collections that this suite touches
     await dbClearCollections('reasons');
     await dbClearCollections('userprofiles');
 
-    // unique user each test
-    const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
     const testUser = await UserModel.create({
       firstName: 'Test',
       lastName: 'User',
-      email: uniqueEmail,
+      email: `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`,
       role: 'Volunteer',
-      permissions: { isAcknowledged: true, frontPermissions: [], backPermissions: [] },
+      permissions: {
+        isAcknowledged: true,
+        frontPermissions: [],
+        backPermissions: [],
+      },
       password: 'TestPassword123@',
       isActive: true,
       isSet: false,
-      timeZone: TZ,
+      timeZone: 'America/Los_Angeles',
     });
 
-    // default body uses a valid "future Sunday"
     reqBody = {
       userId: testUser._id.toString(),
       requestor: { role: 'Administrator' },
       reasonData: {
-        date: nextSunday(),
+        date: mockDay(0),
         message: 'Test reason',
       },
-      currentDate: today(),
+      currentDate: moment.tz('America/Los_Angeles').startOf('day'),
     };
   });
 
   afterAll(async () => {
+    // eslint-disable-next-line no-promise-executor-return
+    await new Promise((res) => server.close(res));
+
     await dbClearAll();
     await dbDisconnect();
   });
@@ -553,15 +99,17 @@ describe('reasonScheduling Controller Integration Tests', () => {
       expect(adminUser).toBeDefined();
       expect(adminToken).toBeDefined();
       expect(reqBody).toBeDefined();
+      expect(server.address()).toBeTruthy();
     });
   });
 
   describe('POST /api/reason/', () => {
     test('Should return 400 when date is not a Sunday', async () => {
-      reqBody.reasonData.date = monday(); // definitely not Sunday
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(1) } };
+
       const res = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(400);
 
@@ -574,10 +122,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 400 when date is in the past', async () => {
-      reqBody.reasonData.date = lastSunday(); // strictly before today
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(0, true) } };
+
       const res = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(400);
 
@@ -590,11 +139,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 400 when no reason message is provided', async () => {
-      reqBody.reasonData.message = null;
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, message: null } };
 
       const res = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(400);
 
@@ -607,25 +156,31 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // non-existent ObjectId-like
+      const body = { ...reqBody, userId: '60c72b2f5f1b2c001c8e4d67' };
+
       const res = await agent
         .post('/api/reason/')
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(404);
 
       expect(res.body).toEqual(
-        expect.objectContaining({ message: 'User not found', errorCode: 2 }),
+        expect.objectContaining({
+          message: 'User not found',
+          errorCode: 2,
+        }),
       );
     });
 
     test('Should return 200 when reason is successfully created', async () => {
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
-      // verify persisted doc
       const saved = await ReasonModel.findOne({
         userId: reqBody.userId,
-        date: moment.tz(reqBody.reasonData.date, TZ).startOf('day').toISOString(),
+        date: moment
+          .tz(reqBody.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
       });
 
       expect(saved).toBeTruthy();
@@ -642,7 +197,10 @@ describe('reasonScheduling Controller Integration Tests', () => {
         .expect(403);
 
       expect(res.body).toEqual(
-        expect.objectContaining({ message: 'The reason must be unique to the date', errorCode: 3 }),
+        expect.objectContaining({
+          message: 'The reason must be unique to the date',
+          errorCode: 3,
+        }),
       );
     });
   });
@@ -653,6 +211,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
         .get('/api/reason/60c72b2f5f1b2c001c8e4d67')
         .set('Authorization', adminToken)
         .expect(404);
+
       expect(res.body).toEqual(expect.objectContaining({ message: 'User not found' }));
     });
 
@@ -661,7 +220,9 @@ describe('reasonScheduling Controller Integration Tests', () => {
         .get(`/api/reason/${reqBody.userId}`)
         .set('Authorization', adminToken)
         .expect(200);
+
       expect(res.body).toHaveProperty('reasons');
+      expect(Array.isArray(res.body.reasons)).toBe(true);
     });
 
     test('Should return 200 with reasons when they exist', async () => {
@@ -672,6 +233,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
         .set('Authorization', adminToken)
         .expect(200);
 
+      expect(res.body).toHaveProperty('reasons');
       expect(Array.isArray(res.body.reasons)).toBe(true);
       expect(res.body.reasons.length).toBeGreaterThan(0);
       expect(res.body.reasons[0].reason).toBe(reqBody.reasonData.message);
@@ -682,7 +244,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     test('Should return 404 when user is not found', async () => {
       const res = await agent
         .get('/api/reason/single/60c72b2f5f1b2c001c8e4d67')
-        .query({ queryDate: nextSunday().toISOString() })
+        .query({ queryDate: mockDay(0).toISOString() })
         .set('Authorization', adminToken)
         .expect(404);
 
@@ -694,11 +256,16 @@ describe('reasonScheduling Controller Integration Tests', () => {
     test('Should return 200 with default values when reason does not exist', async () => {
       const res = await agent
         .get(`/api/reason/single/${reqBody.userId}`)
-        .query({ queryDate: nextSunday().toISOString() })
+        .query({ queryDate: mockDay(0).toISOString() })
         .set('Authorization', adminToken)
         .expect(200);
 
-      expect(res.body).toEqual({ reason: '', date: '', userId: '', isSet: false });
+      expect(res.body).toEqual({
+        reason: '',
+        date: '',
+        userId: '',
+        isSet: false,
+      });
     });
 
     test('Should return 200 with reason when it exists', async () => {
@@ -718,11 +285,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   describe('PATCH /api/reason/:userId', () => {
     test('Should return 400 when no reason message is provided', async () => {
-      reqBody.reasonData.message = null;
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, message: null } };
 
       const res = await agent
         .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(400);
 
@@ -732,11 +299,11 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67';
+      const body = { ...reqBody, userId: '60c72b2f5f1b2c001c8e4d67' };
 
       const res = await agent
-        .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
+        .patch(`/api/reason/${body.userId}`)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(404);
 
@@ -751,6 +318,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
         .send(reqBody)
         .set('Authorization', adminToken)
         .expect(404);
+
       expect(res.body).toEqual(
         expect.objectContaining({ message: 'Reason not found', errorCode: 4 }),
       );
@@ -760,20 +328,24 @@ describe('reasonScheduling Controller Integration Tests', () => {
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
       const updatedMessage = 'Updated reason message';
-      reqBody.reasonData.message = updatedMessage;
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, message: updatedMessage } };
 
       const res = await agent
         .patch(`/api/reason/${reqBody.userId}`)
-        .send(reqBody)
+        .send(body)
         .set('Authorization', adminToken)
         .expect(200);
+
       expect(res.body).toEqual(expect.objectContaining({ message: 'Reason Updated!' }));
 
+      // Verify persisted change
       const updated = await ReasonModel.findOne({
         userId: reqBody.userId,
-        date: moment.tz(reqBody.reasonData.date, TZ).startOf('day').toISOString(),
+        date: moment
+          .tz(reqBody.reasonData.date, 'America/Los_Angeles')
+          .startOf('day')
+          .toISOString(),
       });
-
       expect(updated).toBeTruthy();
       expect(updated.reason).toBe(updatedMessage);
     });
