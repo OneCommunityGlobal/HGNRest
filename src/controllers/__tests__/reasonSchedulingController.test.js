@@ -1,18 +1,9 @@
+// src/controllers/__tests__/reasonSchedulingController.test.js
+
 // Set timeout for all tests in this file
 jest.setTimeout(90_000);
 
-// --- CI hardening: make createTestPermissions a no-op in THIS FILE ONLY ---
-// (Must be placed BEFORE requiring '../../test')
-jest.doMock('../../test', () => {
-  const real = jest.requireActual('../../test');
-  return {
-    ...real,
-    // Prevent rolesMergedPermissions.insertOne() in CI
-    createTestPermissions: jest.fn(async () => {}),
-  };
-});
-
-// Stub transitive deps so app boot is fast & quiet
+// ---- Keep noisy/transitive deps quiet so app boot is fast in CI ----
 jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
 jest.mock('../../routes/applicantAnalyticsRoutes', () => {
   const express = require('express');
@@ -29,13 +20,13 @@ const mongoose = require('mongoose');
 // Slightly higher buffer timeout for cold CI starts (optional)
 mongoose.set('bufferTimeoutMS', 60000);
 
-// Now import from ../../test (after the doMock above)
+// Import test helpers (REAL seeding; no mocking here)
 const { jwtPayload } = require('../../test');
 const {
   // eslint-disable-next-line no-unused-vars
   mockUser,
   createUser,
-  createTestPermissions, // <-- this is now the mocked no-op
+  createTestPermissions,
   // eslint-disable-next-line no-unused-vars
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
@@ -46,7 +37,7 @@ const ReasonModel = require('../../models/reason');
 // Make the mailer inert
 jest.mock('../../utilities/emailSender', () => jest.fn());
 
-// Unhandled handlers (quiet logs are okay; they help in CI)
+// Quiet but useful crash logs in CI
 process.on('unhandledRejection', (reason, promise) => {
   console.log('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -69,13 +60,9 @@ async function waitForMongoReady(timeoutMs = 60000) {
 // Optional: verify DB is writable (avoids “connected but not writable yet”)
 async function pingAdmin(timeoutMs = 10000) {
   const start = Date.now();
-  // Some CI envs take a beat to become writable; loop a couple times.
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      // admin().ping() is cheap and verifies a healthy, writable connection
-      // Note: when using in-memory mongo, this still resolves quickly
-      // and exercises the same code path.
       if (mongoose.connection.db?.admin) {
         // eslint-disable-next-line no-await-in-loop
         await mongoose.connection.db.admin().ping();
@@ -110,6 +97,22 @@ function mockDay(dayIdx, past = false) {
   return date;
 }
 
+async function safeClearAll() {
+  try {
+    if (mongoose.connection?.db) await dbClearAll();
+  } catch (e) {
+    console.warn('safeClearAll skipped:', e.message);
+  }
+}
+
+async function safeDisconnect() {
+  try {
+    if (mongoose.connection?.readyState) await dbDisconnect();
+  } catch (e) {
+    console.warn('safeDisconnect skipped:', e.message);
+  }
+}
+
 // -------------------- state --------------------
 let agent;
 let app;
@@ -122,24 +125,42 @@ describe('reasonScheduling Controller Integration Tests', () => {
   beforeAll(async () => {
     try {
       await dbConnect();
-      await waitForMongoReady(60000);
-      await pingAdmin(8000); // optional extra safety
+      await waitForMongoReady(60_000);
+      await pingAdmin(8_000);
 
-      // This is now a no-op (mocked above) so it cannot hang in CI.
-      await createTestPermissions();
+      // **REAL** seeding with a small retry to handle slow CI
+      for (let i = 0; i < 3; i += 1) {
+        try {
+          // creates/ensures roles/permissions/merged collections used at boot
+          await createTestPermissions();
+          break;
+        } catch (e) {
+          if (i === 2) throw e;
+          // eslint-disable-next-line no-promise-executor-return
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
 
-      // Require the app ONLY after DB is ready
+      // Require the app ONLY after DB is ready & seeded
       ({ app } = require('../../app'));
       agent = request.agent(app);
 
       // Create admin and token after app/DB are ready
       adminUser = await createUser();
       adminToken = jwtPayload(adminUser);
+
+      // Optional visibility during CI debugging
+      console.log(
+        'Mongo readyState:',
+        mongoose.connection.readyState,
+        'db?',
+        !!mongoose.connection.db,
+      );
     } catch (error) {
       console.error('Error in beforeAll setup:', error);
       try {
-        await dbClearAll();
-        await dbDisconnect();
+        await safeClearAll();
+        await safeDisconnect();
       } catch (cleanupError) {
         console.error('Error during cleanup:', cleanupError);
       }
@@ -149,14 +170,15 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   beforeEach(async () => {
     try {
-      await waitForMongoReady(60000);
-      await pingAdmin(5000);
+      await waitForMongoReady(60_000);
+      await pingAdmin(5_000);
 
-      // Replace the retrying dbClearCollections logic with model-level deletes:
+      // Model-level clears: faster & more deterministic than collection helpers
       await ReasonModel.deleteMany({});
       await UserModel.deleteMany({});
 
-      const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
+      // Fresh user for each test
+      const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10_000)}@example.com`;
       const testUser = await UserModel.create({
         firstName: 'Test',
         lastName: 'User',
@@ -183,22 +205,17 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   afterEach(async () => {
     try {
-      // small pause for any async cleanups
       // eslint-disable-next-line no-promise-executor-return
       await new Promise((resolve) => setTimeout(resolve, 500));
       if (global.gc) global.gc();
     } catch (error) {
       console.error('Error in afterEach:', error);
     }
-  }, 10000);
+  }, 10_000);
 
   afterAll(async () => {
-    try {
-      await dbClearAll();
-      await dbDisconnect();
-    } catch (error) {
-      console.error('Error in afterAll:', error);
-    }
+    await safeClearAll();
+    await safeDisconnect();
   });
 
   // --------------- TESTS ---------------
@@ -288,7 +305,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
       expect(savedReason).toBeTruthy();
       expect(savedReason.reason).toBe(reqBody.reasonData.message);
-    }, 15000);
+    }, 15_000);
 
     test('Should return 403 when trying to create duplicate reason', async () => {
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
@@ -304,7 +321,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
           errorCode: 3,
         }),
       );
-    }, 15000);
+    }, 15_000);
   });
 
   describe('GET /api/reason/:userId', () => {
@@ -469,6 +486,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
       expect(updatedReason).toBeTruthy();
       expect(updatedReason.reason).toBe(updatedMessage);
-    }, 15000);
+    }, 15_000);
   });
 });
