@@ -30,6 +30,7 @@ jest.mock('@sentry/integrations', () => ({
 const request = require('supertest');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 // Slightly higher buffer timeout for cold CI starts (optional)
 mongoose.set('bufferTimeoutMS', 60000);
@@ -42,11 +43,14 @@ const {
   createUser,
   createTestPermissions,
   // eslint-disable-next-line no-unused-vars
-  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
+  mongoHelper: { dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
 
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
+
+// Global variable to hold the in-memory MongoDB server
+let mongoMemoryServer;
 
 // Make the mailer inert
 jest.mock('../../utilities/emailSender', () => jest.fn());
@@ -60,6 +64,70 @@ process.on('uncaughtException', (error) => {
 });
 
 // -------------------- helpers --------------------
+// Custom dbConnect that uses MongoMemoryServer for CI
+async function dbConnect() {
+  try {
+    console.log('=== Starting MongoDB Connection Process ===');
+
+    // Disconnect any existing connections
+    if (mongoose.connection.readyState !== 0) {
+      console.log('Disconnecting existing MongoDB connection...');
+      await mongoose.disconnect();
+    }
+
+    // Try to use a real MongoDB connection if available
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/test';
+
+    console.log('Using MongoDB URI:', mongoUri);
+
+    // Simple connection options
+    const mongooseOpts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000, // 10 seconds
+      socketTimeoutMS: 10000, // 10 seconds
+      connectTimeoutMS: 10000, // 10 seconds
+      maxPoolSize: 1,
+      minPoolSize: 0,
+    };
+
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(mongoUri, mongooseOpts);
+
+    console.log('MongoDB connection established successfully');
+    console.log('=== MongoDB Connection Process Complete ===');
+  } catch (error) {
+    console.error('MongoDB connection failed:', error.message);
+    console.log('Attempting to use in-memory MongoDB server...');
+
+    // If connection fails, use an in-memory MongoDB server
+    try {
+      mongoMemoryServer = await MongoMemoryServer.create({
+        instance: {
+          dbName: 'test',
+        },
+      });
+      const mongoUriInMem = mongoMemoryServer.getUri();
+      console.log('Using in-memory MongoDB:', mongoUriInMem);
+
+      const mongooseOpts = {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        maxPoolSize: 1,
+        minPoolSize: 0,
+      };
+
+      await mongoose.connect(mongoUriInMem, mongooseOpts);
+      console.log('In-memory MongoDB connection established successfully');
+      console.log('=== MongoDB Connection Process Complete ===');
+    } catch (memoryError) {
+      console.error('Failed to create in-memory MongoDB:', memoryError.message);
+      console.error('Connection state:', mongoose.connection.readyState);
+      throw memoryError;
+    }
+  }
+}
+
 async function waitForMongoReady(timeoutMs = 60000) {
   const start = Date.now();
   while (mongoose.connection.readyState !== 1) {
@@ -122,6 +190,12 @@ async function safeClearAll() {
 async function safeDisconnect() {
   try {
     if (mongoose.connection?.readyState) await dbDisconnect();
+
+    // Stop the in-memory server if it was created
+    if (mongoMemoryServer) {
+      await mongoMemoryServer.stop();
+      mongoMemoryServer = null;
+    }
   } catch (e) {
     console.warn('safeDisconnect skipped:', e.message);
   }
