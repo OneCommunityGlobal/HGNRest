@@ -12,8 +12,9 @@ jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => nex
 
 const request = require('supertest');
 const moment = require('moment-timezone');
+const mongoose = require('mongoose');
 const { jwtPayload } = require('../../test');
-const { app } = require('../../app');
+// const { app } = require('../../app');
 const {
   // eslint-disable-next-line no-unused-vars
   mockUser,
@@ -23,6 +24,18 @@ const {
 } = require('../../test');
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
+
+async function waitForMongoReady(timeoutMs = 60000) {
+  const start = Date.now();
+  // 1 = connected, 2 = connecting (we'll allow this while we wait)
+  while (mongoose.connection.readyState !== 1) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error('Mongo did not connect in time');
+    }
+    // eslint-disable-next-line no-promise-executor-return
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
 
 // Mock the emailSender utility to prevent crashes
 jest.mock('../../utilities/emailSender', () => jest.fn());
@@ -60,13 +73,14 @@ function mockDay(dayIdx, past = false) {
 
 // const agent = request.agent(app);
 let agent;
+let app;
 
 describe('reasonScheduling Controller Integration Tests', () => {
   let adminUser;
   let adminToken;
   let reqBody;
 
-  beforeAll(async () => {
+  /* beforeAll(async () => {
     try {
       // Ensure clean state
       await dbConnect();
@@ -78,6 +92,43 @@ describe('reasonScheduling Controller Integration Tests', () => {
     } catch (error) {
       console.error('Error in beforeAll setup:', error);
       // Try to clean up on failure
+      try {
+        await dbClearAll();
+        await dbDisconnect();
+      } catch (cleanupError) {
+        console.error('Error during cleanup:', cleanupError);
+      }
+      throw error;
+    }
+  }); */
+
+  beforeAll(async () => {
+    try {
+      // Ensure clean state and wait for a real connection
+      await dbConnect();
+      await waitForMongoReady(60000);
+
+      // Seed permissions with a small retry (CI is sometimes slow)
+      for (let i = 0; i < 3; i += 1) {
+        try {
+          await createTestPermissions();
+          break;
+        } catch (e) {
+          if (i === 2) throw e;
+          // eslint-disable-next-line no-promise-executor-return
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
+      // Require the app ONLY after DB is ready & seeded
+      ({ app } = require('../../app'));
+      agent = request.agent(app);
+
+      // Create admin and token after app/DB are ready
+      adminUser = await createUser();
+      adminToken = jwtPayload(adminUser);
+    } catch (error) {
+      console.error('Error in beforeAll setup:', error);
       try {
         await dbClearAll();
         await dbDisconnect();
@@ -103,6 +154,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
+      await waitForMongoReady(60000);
 
       // Create a test user for each test with a unique email address
       const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
