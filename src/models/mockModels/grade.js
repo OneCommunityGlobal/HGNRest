@@ -12,12 +12,12 @@ const gradeSchema = new mongoose.Schema({
     required: true,
   },
   percentage: {
-    type: Number, // e.g. 85.6
+    type: Number,
     min: 0,
     max: 100,
   },
   grade: {
-    type: String, // e.g. "A", "B+", etc.
+    type: String,
   },
   feedback: {
     type: String,
