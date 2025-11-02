@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 // src/utilities/emailSender.js
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
@@ -138,6 +139,7 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 };
 
 const worker = async () => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     // atomically pull next batch
     const batch = queue.shift();

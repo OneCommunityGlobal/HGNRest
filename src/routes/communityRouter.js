@@ -1,4 +1,6 @@
 const express = require('express');
+
+// eslint-disable-next-line no-unused-vars
 const router = express.Router();
 
 const routes = function () {
@@ -7,8 +9,7 @@ const routes = function () {
   const communityRouter = express.Router();
 
   // Route: /hgnhelp/community
-  communityRouter.route('/community')
-    .get(controller.getCommunityMembers);
+  communityRouter.route('/community').get(controller.getCommunityMembers);
 
   return communityRouter;
 };
