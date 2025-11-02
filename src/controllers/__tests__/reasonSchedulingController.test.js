@@ -1,18 +1,22 @@
+// src/controllers/__tests__/reasonSchedulingController.test.js
+
 jest.setTimeout(120_000);
 
+// Stub noisy deps BEFORE app is required
 jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
 jest.mock('../../routes/applicantAnalyticsRoutes', () => {
   const express = require('express');
-  return express.Router();
+  return express.Router(); // no-op router
 });
-
 jest.mock('../../websockets/index', () => ({}));
 jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
+
+// Avoid real email side effects
+jest.mock('../../utilities/emailSender', () => jest.fn());
 
 const request = require('supertest');
 const moment = require('moment-timezone');
 const { jwtPayload } = require('../../test');
-const { app } = require('../../app');
 const {
   createUser,
   createTestPermissions,
@@ -21,11 +25,12 @@ const {
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
-jest.mock('../../utilities/emailSender', () => jest.fn());
-
+/** Return a moment() at start of day in PT for the next/prev given weekday.
+ *  - past=false: strictly in the future (not today)
+ *  - past=true: strictly in the past (not today)
+ */
 function mockDay(dayIdx, past = false) {
   const d = moment().tz('America/Los_Angeles').startOf('day');
-
   if (past) {
     d.subtract(1, 'day');
     while (d.day() !== dayIdx) d.subtract(1, 'day');
@@ -37,25 +42,33 @@ function mockDay(dayIdx, past = false) {
 }
 
 describe('reasonScheduling Controller Integration Tests', () => {
-  let server;
-  let agent;
+  let app; // assigned after DB connect
+  let server; // http.Server
+  let agent; // supertest agent
 
   let adminUser;
   let adminToken;
   let reqBody;
 
   beforeAll(async () => {
+    // 1) Connect DB and seed role/permission data BEFORE requiring the app
     await dbConnect();
     await createTestPermissions();
 
+    // 2) Now it's safe to require the app (prevents model ops buffering)
+    ({ app } = require('../../app'));
+
+    // 3) Start ephemeral server so supertest has a real target
     server = app.listen(0);
     agent = request.agent(server);
 
+    // 4) Create an admin and token we can reuse
     adminUser = await createUser();
     adminToken = jwtPayload(adminUser);
   });
 
   beforeEach(async () => {
+    // Clear only what this suite owns; do not drop seeded role/perm collections
     await dbClearCollections('reasons');
     await dbClearCollections('userprofiles');
 
@@ -64,11 +77,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       lastName: 'User',
       email: `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`,
       role: 'Volunteer',
-      permissions: {
-        isAcknowledged: true,
-        frontPermissions: [],
-        backPermissions: [],
-      },
+      permissions: { isAcknowledged: true, frontPermissions: [], backPermissions: [] },
       password: 'TestPassword123@',
       isActive: true,
       isSet: false,
@@ -79,7 +88,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
       userId: testUser._id.toString(),
       requestor: { role: 'Administrator' },
       reasonData: {
-        date: mockDay(0),
+        date: mockDay(0), // next Sunday (strictly future)
         message: 'Test reason',
       },
       currentDate: moment.tz('America/Los_Angeles').startOf('day'),
@@ -87,9 +96,10 @@ describe('reasonScheduling Controller Integration Tests', () => {
   });
 
   afterAll(async () => {
-    // eslint-disable-next-line no-promise-executor-return
-    await new Promise((res) => server.close(res));
-
+    if (server && typeof server.close === 'function') {
+      // eslint-disable-next-line no-promise-executor-return
+      await new Promise((res) => server.close(res));
+    }
     await dbClearAll();
     await dbDisconnect();
   });
@@ -99,13 +109,13 @@ describe('reasonScheduling Controller Integration Tests', () => {
       expect(adminUser).toBeDefined();
       expect(adminToken).toBeDefined();
       expect(reqBody).toBeDefined();
-      expect(server.address()).toBeTruthy();
+      expect(server && server.address()).toBeTruthy();
     });
   });
 
   describe('POST /api/reason/', () => {
     test('Should return 400 when date is not a Sunday', async () => {
-      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(1) } };
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(1) } }; // Monday
 
       const res = await agent
         .post('/api/reason/')
@@ -122,7 +132,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 400 when date is in the past', async () => {
-      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(0, true) } };
+      const body = { ...reqBody, reasonData: { ...reqBody.reasonData, date: mockDay(0, true) } }; // past Sunday
 
       const res = await agent
         .post('/api/reason/')
@@ -156,7 +166,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 404 when user is not found', async () => {
-      const body = { ...reqBody, userId: '60c72b2f5f1b2c001c8e4d67' };
+      const body = { ...reqBody, userId: '60c72b2f5f1b2c001c8e4d67' }; // nonexistent-ish
 
       const res = await agent
         .post('/api/reason/')
@@ -175,6 +185,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     test('Should return 200 when reason is successfully created', async () => {
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
+      // Verify persisted doc
       const saved = await ReasonModel.findOne({
         userId: reqBody.userId,
         date: moment
