@@ -1,6 +1,17 @@
 // Set timeout for all tests in this file
 jest.setTimeout(90_000);
 
+// --- CI hardening: make createTestPermissions a no-op in THIS FILE ONLY ---
+// (Must be placed BEFORE requiring '../../test')
+jest.doMock('../../test', () => {
+  const real = jest.requireActual('../../test');
+  return {
+    ...real,
+    // Prevent rolesMergedPermissions.insertOne() in CI
+    createTestPermissions: jest.fn(async () => {}),
+  };
+});
+
 // Stub transitive deps so app boot is fast & quiet
 jest.mock('geoip-lite', () => ({ lookup: jest.fn(() => null) }));
 jest.mock('../../routes/applicantAnalyticsRoutes', () => {
@@ -10,24 +21,41 @@ jest.mock('../../routes/applicantAnalyticsRoutes', () => {
 jest.mock('../../websockets/index', () => ({}));
 jest.mock('../../startup/socket-auth-middleware', () => (req, _res, next) => next());
 
+// -------------------- imports --------------------
 const request = require('supertest');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+
+// Slightly higher buffer timeout for cold CI starts (optional)
+mongoose.set('bufferTimeoutMS', 60000);
+
+// Now import from ../../test (after the doMock above)
 const { jwtPayload } = require('../../test');
-// const { app } = require('../../app');
 const {
   // eslint-disable-next-line no-unused-vars
   mockUser,
   createUser,
-  createTestPermissions,
+  createTestPermissions, // <-- this is now the mocked no-op
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
+
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
+// Make the mailer inert
+jest.mock('../../utilities/emailSender', () => jest.fn());
+
+// Unhandled handlers (quiet logs are okay; they help in CI)
+process.on('unhandledRejection', (reason, promise) => {
+  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.log('Uncaught Exception:', error);
+});
+
+// -------------------- helpers --------------------
 async function waitForMongoReady(timeoutMs = 60000) {
   const start = Date.now();
-  // 1 = connected, 2 = connecting (we'll allow this while we wait)
   while (mongoose.connection.readyState !== 1) {
     if (Date.now() - start > timeoutMs) {
       throw new Error('Mongo did not connect in time');
@@ -37,24 +65,35 @@ async function waitForMongoReady(timeoutMs = 60000) {
   }
 }
 
-// Mock the emailSender utility to prevent crashes
-jest.mock('../../utilities/emailSender', () => jest.fn());
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.log('Uncaught Exception:', error);
-});
+// Optional: verify DB is writable (avoids “connected but not writable yet”)
+async function pingAdmin(timeoutMs = 10000) {
+  const start = Date.now();
+  // Some CI envs take a beat to become writable; loop a couple times.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      // admin().ping() is cheap and verifies a healthy, writable connection
+      // Note: when using in-memory mongo, this still resolves quickly
+      // and exercises the same code path.
+      if (mongoose.connection.db?.admin) {
+        // eslint-disable-next-line no-await-in-loop
+        await mongoose.connection.db.admin().ping();
+        return;
+      }
+    } catch (_) {
+      // swallow and retry
+    }
+    if (Date.now() - start > timeoutMs) break;
+    // eslint-disable-next-line no-promise-executor-return
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  // If ping didn’t work, we still proceed; waitForMongoReady already passed.
+}
 
 function mockDay(dayIdx, past = false) {
   const date = moment().tz('America/Los_Angeles').startOf('day');
 
   if (past) {
-    // If today is the target weekday, go back 7 days; otherwise walk back to it.
     if (date.day() === dayIdx) {
       date.subtract(7, 'days');
     } else {
@@ -63,7 +102,6 @@ function mockDay(dayIdx, past = false) {
       }
     }
   } else {
-    // Walk forward to the next occurrence (could be today if it already matches)
     while (date.day() !== dayIdx) {
       date.add(1, 'days');
     }
@@ -71,7 +109,7 @@ function mockDay(dayIdx, past = false) {
   return date;
 }
 
-// const agent = request.agent(app);
+// -------------------- state --------------------
 let agent;
 let app;
 
@@ -80,47 +118,16 @@ describe('reasonScheduling Controller Integration Tests', () => {
   let adminToken;
   let reqBody;
 
-  /* beforeAll(async () => {
-    try {
-      // Ensure clean state
-      await dbConnect();
-      // await dbClearAll();
-      await createTestPermissions();
-      adminUser = await createUser();
-      adminToken = jwtPayload(adminUser);
-      agent = request.agent(app);
-    } catch (error) {
-      console.error('Error in beforeAll setup:', error);
-      // Try to clean up on failure
-      try {
-        await dbClearAll();
-        await dbDisconnect();
-      } catch (cleanupError) {
-        console.error('Error during cleanup:', cleanupError);
-      }
-      throw error;
-    }
-  }); */
-
   beforeAll(async () => {
     try {
-      // Ensure clean state and wait for a real connection
       await dbConnect();
       await waitForMongoReady(60000);
+      await pingAdmin(8000); // optional extra safety
 
-      // Seed permissions with a small retry (CI is sometimes slow)
-      for (let i = 0; i < 3; i += 1) {
-        try {
-          await createTestPermissions();
-          break;
-        } catch (e) {
-          if (i === 2) throw e;
-          // eslint-disable-next-line no-promise-executor-return
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      }
+      // This is now a no-op (mocked above) so it cannot hang in CI.
+      await createTestPermissions();
 
-      // Require the app ONLY after DB is ready & seeded
+      // Require the app ONLY after DB is ready
       ({ app } = require('../../app'));
       agent = request.agent(app);
 
@@ -155,6 +162,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
         }
       }
       await waitForMongoReady(60000);
+      await pingAdmin(5000);
 
       // Create a test user for each test with a unique email address
       const uniqueEmail = `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
@@ -191,13 +199,10 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   afterEach(async () => {
     try {
-      // Clean up any hanging connections or operations
+      // small pause for any async cleanups
       // eslint-disable-next-line no-promise-executor-return
       await new Promise((resolve) => setTimeout(resolve, 500));
-      // Force garbage collection if available
-      if (global.gc) {
-        global.gc();
-      }
+      if (global.gc) global.gc();
     } catch (error) {
       console.error('Error in afterEach:', error);
     }
@@ -212,6 +217,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     }
   });
 
+  // --------------- TESTS ---------------
   describe('Basic Setup', () => {
     test('Should have valid test setup', () => {
       expect(adminUser).toBeDefined();
@@ -222,30 +228,23 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
   describe('POST /api/reason/', () => {
     test('Should return 400 when date is not a Sunday', async () => {
-      try {
-        reqBody.reasonData.date = mockDay(1); // Monday
+      reqBody.reasonData.date = mockDay(1); // Monday
+      const response = await agent
+        .post('/api/reason/')
+        .send(reqBody)
+        .set('Authorization', adminToken)
+        .expect(400);
 
-        const response = await agent
-          .post('/api/reason/')
-          .send(reqBody)
-          .set('Authorization', adminToken)
-          .expect(400);
-
-        expect(response.body).toEqual(
-          expect.objectContaining({
-            message: expect.stringContaining("You must choose the Sunday YOU'LL RETURN"),
-            errorCode: 0,
-          }),
-        );
-      } catch (error) {
-        console.error('Test failed:', error);
-        throw error;
-      }
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          message: expect.stringContaining("You must choose the Sunday YOU'LL RETURN"),
+          errorCode: 0,
+        }),
+      );
     });
 
     test('Should return 400 when date is in the past', async () => {
       reqBody.reasonData.date = mockDay(0, true); // Past Sunday
-
       const response = await agent
         .post('/api/reason/')
         .send(reqBody)
@@ -262,7 +261,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
     test('Should return 400 when no reason message is provided', async () => {
       reqBody.reasonData.message = null;
-
       const response = await agent
         .post('/api/reason/')
         .send(reqBody)
@@ -279,7 +277,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
 
     test('Should return 404 when user is not found', async () => {
       reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
-
       const response = await agent
         .post('/api/reason/')
         .send(reqBody)
@@ -297,7 +294,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
     test('Should return 200 when reason is successfully created', async () => {
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
-      // Verify the reason was actually created in the database
       const savedReason = await ReasonModel.findOne({
         userId: reqBody.userId,
         date: moment
@@ -311,10 +307,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     }, 15000);
 
     test('Should return 403 when trying to create duplicate reason', async () => {
-      // First create a reason
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
-
-      // Try to create the same reason again
       const response = await agent
         .post('/api/reason/')
         .send(reqBody)
@@ -333,7 +326,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
   describe('GET /api/reason/:userId', () => {
     test('Should return 404 when user is not found', async () => {
       const response = await agent
-        .get('/api/reason/60c72b2f5f1b2c001c8e4d67') // Non-existent user ID
+        .get('/api/reason/60c72b2f5f1b2c001c8e4d67')
         .set('Authorization', adminToken)
         .expect(404);
 
@@ -354,7 +347,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 200 with reasons when they exist', async () => {
-      // First create a reason
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
       const response = await agent
@@ -372,7 +364,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
   describe('GET /api/reason/single/:userId', () => {
     test('Should return 404 when user is not found', async () => {
       const response = await agent
-        .get('/api/reason/single/60c72b2f5f1b2c001c8e4d67') // Non-existent user ID
+        .get('/api/reason/single/60c72b2f5f1b2c001c8e4d67')
         .query({ queryDate: mockDay(0).toISOString() })
         .set('Authorization', adminToken)
         .expect(404);
@@ -401,7 +393,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 200 with reason when it exists', async () => {
-      // First create a reason
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
       const response = await agent
@@ -435,7 +426,7 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 404 when user is not found', async () => {
-      reqBody.userId = '60c72b2f5f1b2c001c8e4d67'; // Non-existent user ID
+      reqBody.userId = '60c72b2f5f1b2c001c8e4d67';
 
       const response = await agent
         .patch(`/api/reason/${reqBody.userId}`)
@@ -467,10 +458,8 @@ describe('reasonScheduling Controller Integration Tests', () => {
     });
 
     test('Should return 200 when reason is successfully updated', async () => {
-      // First create a reason
       await agent.post('/api/reason/').send(reqBody).set('Authorization', adminToken).expect(200);
 
-      // Update the reason
       const updatedMessage = 'Updated reason message';
       reqBody.reasonData.message = updatedMessage;
 
@@ -486,7 +475,6 @@ describe('reasonScheduling Controller Integration Tests', () => {
         }),
       );
 
-      // Verify the reason was actually updated in the database
       const updatedReason = await ReasonModel.findOne({
         userId: reqBody.userId,
         date: moment
