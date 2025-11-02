@@ -1,6 +1,8 @@
+// src/utilities/emailSender.js
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
+const EmailHistory = require('../models/emailHistory');
 
 const config = {
   email: process.env.REACT_APP_EMAIL,
@@ -63,30 +65,98 @@ const sendEmail = async (mailOptions) => {
 const queue = [];
 let isProcessing = false;
 
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const normalize = (field) => {
+  if (!field) {
+    return [];
+  }
+  if (Array.isArray(field)) {
+    return field;
+  }
+  return String(field).split(',');
+};
+
+const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
+  const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
+  const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await sendEmail(batch);
+
+      if (isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'SENT',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+        console.log('Blue Square assignment log created in EmailHistory');
+      }
+      return true;
+    } catch (err) {
+      logger.logException(err, `Batch to ${batch.to || '(empty)'} attempt ${attempt}`);
+
+      if (attempt === retries && isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'FAILED',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+        console.log('Failed Blue Square assignment log created in EmailHistory');
+      }
+    }
+
+    if (attempt < retries) await sleep(baseDelay * attempt); // backoff
+  }
+  return false;
+};
+
+const worker = async () => {
+  while (true) {
+    // atomically pull next batch
+    const batch = queue.shift();
+    if (!batch) break; // queue drained for this worker
+
+    await sendWithRetry(batch);
+    if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
+  }
+};
+
 const processQueue = async () => {
   if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
 
-  const processBatch = async () => {
-    if (queue.length === 0) {
-      isProcessing = false;
-      return;
-    }
-
-    const batch = queue.shift();
-    try {
-      await sendEmail(batch);
-    } catch (error) {
-      logger.logException(error, 'Failed to send email batch');
-    }
-    setTimeout(processBatch, config.rateLimitDelay);
-  };
-
-  const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
-
   try {
-    await Promise.all(concurrentProcesses);
+    const n = Math.max(1, Number(config.concurrency) || 1);
+    const workers = Array.from({ length: n }, () => worker());
+    await Promise.all(workers); // drain-until-empty with N workers
   } finally {
     isProcessing = false;
   }
@@ -103,6 +173,7 @@ const processQueue = async () => {
  * @param {string[]|null} [cc=null] - Optional array of CC (carbon copy) email addresses.
  * @param {string|null} [replyTo=null] - Optional reply-to email address.
  * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
+ * @param {Object} [opts={}] - Optional settings object.
  *
  * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
  *
@@ -130,8 +201,15 @@ const emailSender = (
   cc = null,
   replyTo = null,
   emailBccs = null,
+  opts = {},
 ) => {
-  if (!process.env.sendEmail || String(process.env.sendEmail).toLowerCase() === 'false') {
+  const type = opts.type || 'general';
+  const isReset = type === 'password_reset';
+
+  if (
+    !process.env.sendEmail ||
+    (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
+  ) {
     return Promise.resolve('EMAIL_SENDING_DISABLED');
   }
 
@@ -148,6 +226,7 @@ const emailSender = (
         attachments,
         cc,
         replyTo,
+        meta: { type },
       });
     }
 

@@ -46,6 +46,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       // User Profile
+      'accessPRTeamDashboard',
       'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
@@ -191,6 +192,7 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
+      'accessPRTeamDashboard',
       'postRole',
       'deleteRole',
       'putRole',
@@ -293,6 +295,7 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
     ],
   },
 ];
@@ -302,6 +305,17 @@ const createInitialPermissions = async () => {
   const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
+
+  // One-time assignment: Add resendBlueSquareAndSummaryEmails permission to Jae
+  const jaeProfile = await User.findOne({ email: 'jae@onecommunityglobal.org' });
+  if (
+    jaeProfile &&
+    !jaeProfile.permissions.frontPermissions.includes('resendBlueSquareAndSummaryEmails')
+  ) {
+    jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
+    await jaeProfile.save();
+    console.log('Added resendBlueSquareAndSummaryEmails permission to Jae');
+  }
 
   // Get Roles From DB
   const allRoles = await Role.find();

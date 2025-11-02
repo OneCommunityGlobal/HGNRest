@@ -36,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -172,13 +172,8 @@ const reporthelper = function () {
           result.totalSeconds[index] = 0;
         }
 
-        if (entry.isTangible === true) {
+        if (index >= 0 && index < 4) {
           result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
-          }
         }
       });
 
