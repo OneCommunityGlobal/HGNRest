@@ -19,11 +19,21 @@ jobs:
 
     - run: npm ci
 
+    # ✅ Installing required native dependencies for sharp
+    - name: Install libvips (sharp dependency)
+      run: sudo apt-get update && sudo apt-get install -y libvips-dev
+
+    # ✅ Installing dependencies including optional ones
+    - name: Install dependencies
+      run: npm install --include=optional
+
+    # ✅ Rebuilding sharp for Linux
     - name: Rebuild sharp for linux
       run: npm rebuild sharp --force
 
     - name: Run email sender check
       run: node src/utilities/debugEmailSender.js
+
     - run: npm run test
     
   
