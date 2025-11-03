@@ -311,9 +311,9 @@ exports.getIssueStatistics = async (req, res) => {
       then: ISSUE_TYPE_MAPPING[dbType],
     }));
 
-    // Stage 1: Match filtered issues
+    // Match filtered issues
     // If no filters provided, match will be empty object {} which matches all documents
-    // Stage 2: Map issue types to categories and group by projectId and mapped category
+    // Map issue types to categories and group by projectId and mapped category
     const aggregationPipeline = [
       { $match: match },
       // Add a field to map the database issue type to one of the three required categories
@@ -327,7 +327,7 @@ exports.getIssueStatistics = async (req, res) => {
           },
         },
       },
-      // Stage 3: Group by projectId and mapped category to count issues
+      // Group by projectId and mapped category to count issues
       {
         $group: {
           _id: {
@@ -410,7 +410,7 @@ exports.getIssueStatistics = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    // Stage 4 & 5: Reshape data - group by project and create objects with dynamic issue type properties
+    // Reshape data - group by project and create objects with dynamic issue type properties
     const projectMap = new Map();
 
     // Process aggregated results
@@ -437,7 +437,7 @@ exports.getIssueStatistics = async (req, res) => {
       projectObj[issueType] = count;
     });
 
-    // Stage 6: Edge Case - Projects Filter with No Matching Issues
+    // Edge Case - Projects Filter with No Matching Issues
     // If projects filter was provided, include projects with no issues
     // Set all issue type counts to 0 for these projects
     if (filteredProjectIds && filteredProjectIds.length > 0) {
@@ -470,7 +470,7 @@ exports.getIssueStatistics = async (req, res) => {
       }
     }
 
-    // Stage 7: Convert map to array and sort by projectName
+    // Convert map to array and sort by projectName
     const result = Array.from(projectMap.values()).sort((a, b) =>
       a.projectName.localeCompare(b.projectName),
     );
