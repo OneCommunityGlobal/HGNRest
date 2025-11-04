@@ -29,12 +29,12 @@ const intermediateTaskController = function () {
       }
 
       const intermediateTask = new IntermediateTask({
-        parentTaskId,
+        parent_task_id: parentTaskId,
         title,
         description,
         expected_hours: expectedHours || 0,
         status: status || 'pending',
-        dueDate,
+        due_date: dueDate,
       });
 
       const savedTask = await intermediateTask.save();
@@ -133,9 +133,9 @@ const intermediateTaskController = function () {
         {
           title,
           description,
-          expectedHours,
+          expected_hours: expectedHours,
           status,
-          dueDate,
+          due_date: dueDate,
         },
         { new: true, runValidators: true },
       ).populate('parent_task_id', 'type status dueAt studentId lessonPlanId');
