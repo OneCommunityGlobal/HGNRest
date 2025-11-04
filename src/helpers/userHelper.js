@@ -36,7 +36,7 @@ const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const Timer = require('../models/timer');
 
-const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jaesabol@onecommunityglobal.org'];
+const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
 const DEFAULT_REPLY_TO = ['onecommunityglobal@gmail.com'];
 
