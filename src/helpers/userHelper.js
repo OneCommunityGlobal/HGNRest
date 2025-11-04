@@ -38,7 +38,7 @@ const Timer = require('../models/timer');
 
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
-const DEFAULT_REPLY_TO = ['onecommunityglobal@gmail.com'];
+const DEFAULT_REPLY_TO = ['jae@onecommunityglobal.org'];
 
 const delay = (ms) =>
   new Promise((resolve) => {
