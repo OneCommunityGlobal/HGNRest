@@ -102,14 +102,14 @@ const teamcontroller = function (Team) {
       return;
     }
 
-    const team = new Team();
-    team.teamName = req.body.teamName;
-    team.isActive = req.body.isActive;
-    team.createdDatetime = Date.now();
-    team.modifiedDatetime = Date.now();
+    const newTeam = new Team();
+    newTeam.teamName = req.body.teamName;
+    newTeam.isActive = req.body.isActive;
+    newTeam.createdDatetime = Date.now();
+    newTeam.modifiedDatetime = Date.now();
 
     try {
-      const result = await team.save();
+      const result = await newTeam.save();
       res.status(200).send(result);
     } catch (error) {
       Logger.logException(error, null, `teamName: ${req.body.teamName}`);
@@ -243,8 +243,6 @@ const teamcontroller = function (Team) {
             },
             { new: true },
           );
-        } else {
-          console.log('User is already a member of the team, skipping addition to members array.');
         }
 
         await userProfile.findByIdAndUpdate(
@@ -317,28 +315,30 @@ const teamcontroller = function (Team) {
     const { visibility, teamId, userId } = req.body;
 
     try {
-      Team.findById(teamId, (error, team) => {
-        if (error || team === null) {
+      Team.findById(teamId, (error, teamDoc) => {
+        if (error || teamDoc === null) {
           res.status(400).send('No valid records found');
           return;
         }
 
-        const memberIndex = team.members.findIndex((member) => member.userId.toString() === userId);
+        const memberIndex = teamDoc.members.findIndex(
+          (member) => member.userId.toString() === userId,
+        );
         if (memberIndex === -1) {
           res.status(400).send('Member not found in the team.');
           return;
         }
 
-        team.members[memberIndex].visible = visibility;
-        team.modifiedDatetime = Date.now();
+        teamDoc.members[memberIndex].visible = visibility;
+        teamDoc.modifiedDatetime = Date.now();
 
-        team
+        teamDoc
           .save()
           .then(() => {
             // Additional operations after team.save()
             const assignlist = [];
             const unassignlist = [];
-            team.members.forEach((member) => {
+            teamDoc.members.forEach((member) => {
               if (member.userId.toString() === userId) {
                 // Current user, no need to process further
                 return;
@@ -347,7 +347,6 @@ const teamcontroller = function (Team) {
               if (visibility) {
                 assignlist.push(member.userId);
               } else {
-                console.log('Visiblity set to false so removing it');
                 unassignlist.push(member.userId);
               }
             });
@@ -405,7 +404,7 @@ const teamcontroller = function (Team) {
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
-        !teamIds.every((team) => mongoose.Types.ObjectId.isValid(team))
+        !teamIds.every((teamId) => mongoose.Types.ObjectId.isValid(teamId))
       ) {
         return res.status(400).send({
           error: 'Invalid request: teamIds must be a non-empty array of valid ObjectId strings.',
@@ -413,7 +412,7 @@ const teamcontroller = function (Team) {
       }
       const data = await Team.aggregate([
         {
-          $match: { _id: { $in: teamIds.map((team) => mongoose.Types.ObjectId(team)) } },
+          $match: { _id: { $in: teamIds.map((teamId) => mongoose.Types.ObjectId(teamId)) } },
         },
         { $unwind: '$members' },
         {
@@ -437,7 +436,6 @@ const teamcontroller = function (Team) {
       cache.setCache(cacheKey, data);
       res.status(200).send(data);
     } catch {
-      console.log('Error in getAllTeamMembers');
       res.status(500).send({ message: 'Fetching team members failed' });
     }
   };
@@ -448,107 +446,111 @@ const teamcontroller = function (Team) {
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
-      
+
       const userId = req.body.requestor.requestorId;
-      
+
       // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
       }
-      
+
       // Find the user's team
       const userDoc = await userProfile.findById(userId);
       if (!userDoc) {
         return res.status(404).send({ message: 'User not found' });
       }
-      
+
       // Check if user has any teams
       if (!userDoc.teams || userDoc.teams.length === 0) {
         return res.status(404).send({ message: 'User has no teams' });
       }
-      
+
       const teamId = userDoc.teams[0]; // Use the first team
-      
+
       // Get team details
       const teamDoc = await team.findById(teamId);
       if (!teamDoc || !teamDoc.members || teamDoc.members.length === 0) {
         return res.status(200).send([]);
       }
-      
+
       // Get all member IDs except the current user
       const memberUserIds = teamDoc.members
-        .filter(member => member.visible !== false && member.userId.toString() !== userId)
-        .map(member => member.userId);
-      
+        .filter((member) => member.visible !== false && member.userId.toString() !== userId)
+        .map((member) => member.userId);
+
       // Get user profiles to get privacy settings
-      const memberProfiles = await userProfile.find({
-        _id: { $in: memberUserIds }
-      }).select('_id email phoneNumber privacySettings').lean();
-      
+      const memberProfiles = await userProfile
+        .find({
+          _id: { $in: memberUserIds },
+        })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
       // Get form responses for all team members
       const formResponses = await HGNFormResponses.find({
-        user_id: { $in: memberUserIds.map(id => id.toString()) }
+        user_id: { $in: memberUserIds.map((id) => id.toString()) },
       }).lean();
-      
+
       // Create a map of user profiles by ID for faster lookup
       const profileMap = memberProfiles.reduce((map, profile) => {
         map[profile._id.toString()] = profile;
         return map;
       }, {});
-      
+
       // Map data with privacy considerations
-      const teamMembersData = formResponses.map(response => {
-        const profile = profileMap[response.user_id];
-        
-        if (!profile) {
-          return null;
-        }
-        
-        let score = 0;
-        
-        // Check for skill score in frontend or backend
-        if (response.frontend && response.frontend[skillName] !== undefined) {
-          score = parseInt(response.frontend[skillName], 10) || 0;
-        } else if (response.backend && response.backend[skillName] !== undefined) {
-          score = parseInt(response.backend[skillName], 10) || 0;
-        }
-        
-        // Apply privacy settings
-        const email = profile.privacySettings?.email === false ? null : profile.email;
-        
-        // Get phone number with privacy consideration
-        let phoneNumber = null;
-        if (profile.privacySettings?.phoneNumber !== false) {
-          if (profile.phoneNumber && profile.phoneNumber.length > 0) {
-            const [firstPhoneNumber] = profile.phoneNumber;
-            phoneNumber = firstPhoneNumber;
+      const teamMembersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
           }
-        }
-        
-        return {
-          name: response.userInfo.name,
-          email,
-          phoneNumber,
-          slack: response.userInfo.slack,
-          rating: `${score} / 10`
-        };
-      }).filter(item => item !== null);
-      
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
       // Sort by skill score
       const sortedData = [...teamMembersData].sort((a, b) => {
         const scoreA = parseInt(a.rating.split(' / ')[0], 10);
         const scoreB = parseInt(b.rating.split(' / ')[0], 10);
         return scoreB - scoreA;
       });
-      
+
       return res.status(200).send(sortedData);
-      
     } catch (error) {
       console.error('Error in getTeamMembersSkillsAndContact:', error);
       return res.status(500).send({
         message: 'Failed to retrieve team members',
-        error: error.message
+        error: error.message,
       });
     }
   };
