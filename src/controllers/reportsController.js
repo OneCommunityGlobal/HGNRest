@@ -207,7 +207,6 @@ const reportsController = function () {
         totalSummariesSubmitted,
       });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -266,7 +265,6 @@ const reportsController = function () {
       }
 
       if (forceRefresh) {
-        console.log('Force refresh - skipping cache');
         // Always fetch fresh — disable caching at all layers
         res.set('Cache-Control', 'no-store');
       } else {
@@ -504,11 +502,9 @@ const reportsController = function () {
           res.status(200).send(results);
         })
         .catch((error) => {
-          console.log('error:', error); // need to delete later *
           res.status(404).send({ error });
         });
     } catch (err) {
-      console.log('error:', err); // need to delete later *
       res.status(404).send(err);
     }
   };
@@ -532,7 +528,6 @@ const reportsController = function () {
       UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: false } })
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
@@ -541,7 +536,6 @@ const reportsController = function () {
           });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -571,14 +565,12 @@ const reportsController = function () {
       )
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
           res.status(200).send({ message: 'updated user record with getWeeklyReport true' });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -607,7 +599,6 @@ const reportsController = function () {
       );
       res.status(200).send({ teamsWithActiveMembers });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
