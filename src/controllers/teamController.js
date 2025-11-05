@@ -351,6 +351,7 @@ const teamcontroller = function (Team) {
                 assignlist.push(member.userId);
               } else {
                 console.log(` Unassigning user: ${member.userId}`);
+
                 unassignlist.push(member.userId);
               }
             });
