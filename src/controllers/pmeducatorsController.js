@@ -17,61 +17,27 @@ const shapeEducatorList = (e) => ({
 
 const getEducators = async (req, res) => {
   try {
-    const q = String(req.query.q || "").trim();
-    const subject = String(req.query.subject || "").trim();
-    const page = toInt(req.query.page, 1, 1, 9999);
-    const limit = toInt(req.query.limit, 10, 1, 100);
-    const sortBy = ["name", "subject", "studentCount"].includes(req.query.sortBy)
-      ? req.query.sortBy
-      : "name";
-    const sortDir = req.query.sortDir === "desc" ? -1 : 1;
+    let data = await Educator.find().lean();
 
-    const match = {};
-    if (q) match.$or = [{ name: { $regex: q, $options: "i" } }, { subject: { $regex: q, $options: "i" } }];
-    if (subject) match.subject = subject;
-
-    const pipeline = [
-      { $match: match },
-      {
-        $lookup: {
-          from: "students",
-          localField: "_id",
-          foreignField: "educator",
-          as: "students",
-        },
-      },
-      { $addFields: { studentCount: { $size: "$students" } } },
-      { $project: { students: 0 } },
-    ];
-
-    const sortStage =
-      sortBy === "studentCount"
-        ? { $sort: { studentCount: sortDir, name: 1 } }
-        : { $sort: { [sortBy]: sortDir } };
-
-    const countAgg = await Educator.aggregate([...pipeline, { $count: "total" }]);
-    const total = countAgg[0]?.total || 0;
-    const totalPages = Math.max(1, Math.ceil(total / limit));
-    const currentPage = Math.min(Math.max(1, page), totalPages);
-
-    const dataAgg = await Educator.aggregate([
-      ...pipeline,
-      sortStage,
-      { $skip: (currentPage - 1) * limit },
-      { $limit: limit },
-    ]);
-
-    const subjects = await Educator.distinct("subject");
+    // If DB is empty → return mock data
+    if (!data.length) {
+      return res.json({
+        data: [
+          { id: "t-001", name: "Alice Johnson", subject: "Mathematics", studentCount: 3 },
+          { id: "t-002", name: "Brian Lee", subject: "Science", studentCount: 2 },
+          { id: "t-003", name: "John Doe", subject: "English", studentCount: 1 }
+        ],
+        mock: true
+      });
+    }
 
     res.json({
-      data: dataAgg.map(shapeEducatorList),
-      page: currentPage,
-      totalPages,
-      total,
-      sortBy,
-      sortDir: sortDir === 1 ? "asc" : "desc",
-      filters: { q, subject },
-      subjects: subjects.sort(),
+      data: data.map(e => ({
+        id: String(e._id),
+        name: e.name,
+        subject: e.subject,
+        studentCount: e.studentCount ?? 0,
+      }))
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch educators" });
@@ -93,47 +59,33 @@ const getEducatorById = async (req, res) => {
 const getStudentsByEducator = async (req, res) => {
   try {
     const { educatorId } = req.params;
-    if (!mongoose.isValidObjectId(educatorId)) return res.status(400).json({ error: "Invalid educatorId" });
-    const edu = await Educator.findById(educatorId);
-    if (!edu) return res.status(404).json({ error: "Educator not found" });
 
-    const q = String(req.query.q || "").trim();
-    const page = toInt(req.query.page, 1, 1, 9999);
-    const limit = toInt(req.query.limit, 10, 1, 100);
-    const sortBy = ["name", "grade", "progress"].includes(req.query.sortBy) ? req.query.sortBy : "name";
-    const sortDir = req.query.sortDir === "desc" ? -1 : 1;
+    const hasAny = await Student.countDocuments();
+    if (!hasAny) {
+      const mockData = {
+        "t-001": [
+          { id: "s-101", name: "Jay", grade: "7", progress: 0.78 },
+          { id: "s-102", name: "Kate", grade: "7", progress: 0.62 },
+          { id: "s-103", name: "Sam", grade: "8", progress: 0.85 }
+        ],
+        "t-002": [
+          { id: "s-201", name: "Alina Gupta", grade: "6", progress: 0.54 },
+          { id: "s-202", name: "Samir Khan", grade: "6", progress: 0.91 }
+        ],
+        "t-003": [
+          { id: "s-301", name: "Ryan", grade: "7", progress: 0.73 }
+        ]
+      };
+      return res.json({ data: mockData[educatorId] || [] });
+    }
 
-    const match = { educator: edu._id };
-    if (q) match.name = { $regex: q, $options: "i" };
-
-    let sort = {};
-    if (sortBy === "grade") sort = { grade: sortDir, name: 1 };
-    else sort = { [sortBy]: sortDir, name: 1 };
-
-    const total = await Student.countDocuments(match);
-    const totalPages = Math.max(1, Math.ceil(total / limit));
-    const currentPage = Math.min(Math.max(1, page), totalPages);
-
-    const data = await Student.find(match)
-      .sort(sort)
-      .skip((currentPage - 1) * limit)
-      .limit(limit)
-      .lean();
-
-    res.json({
-      data,
-      page: currentPage,
-      totalPages,
-      total,
-      educator: { id: String(edu._id), name: edu.name, subject: edu.subject },
-      sortBy,
-      sortDir: sortDir === 1 ? "asc" : "desc",
-      filters: { q },
-    });
+    const data = await Student.find({ educator: educatorId }).lean();
+    res.json({ data });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch students" });
   }
 };
+
 
 const getSubjects = async (_req, res) => {
   try {
