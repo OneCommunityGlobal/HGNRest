@@ -177,6 +177,8 @@ const wastedMaterialRouter = require('../routes/mostWastedRouter');
 
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
+const materialCostRouter = require('../routes/materialCostRouter')();
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -465,4 +467,5 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api', materialCostRouter);
 };
