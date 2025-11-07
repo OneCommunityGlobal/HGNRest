@@ -71,6 +71,10 @@ module.exports = {
     'handle-callback-err': 'warn',
     'new-cap': 'warn',
     'no-lonely-if': 'warn',
+    'no-nested-ternary': 'warn',
+    'camelcase': 'warn',
+    'radix': 'warn',
+    'no-restricted-syntax': 'warn',
 
     
     // Light Complexity Control (warnings with high thresholds)
