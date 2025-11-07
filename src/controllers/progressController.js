@@ -165,13 +165,13 @@ const progressController = function () {
       }
 
       // Update firstStartedAt if status is being changed to in_progress
-      let firstStartedAt = progress.firstStartedAt;
+      let {firstStartedAt} = progress;
       if (status === 'in_progress' && progress.status === 'not_started') {
         firstStartedAt = new Date();
       }
 
       // Update completedAt if status is being changed to completed
-      let completedAt = progress.completedAt;
+      let {completedAt} = progress;
       if (status === 'completed' && progress.status !== 'completed') {
         completedAt = new Date();
       }
@@ -230,13 +230,13 @@ const progressController = function () {
       }
 
       // Update firstStartedAt if status is being changed to in_progress
-      let firstStartedAt = progress.firstStartedAt;
+      let {firstStartedAt} = progress;
       if (status === 'in_progress' && progress.status === 'not_started') {
         firstStartedAt = new Date();
       }
 
       // Update completedAt if status is being changed to completed
-      let completedAt = progress.completedAt;
+      let {completedAt} = progress;
       if (status === 'completed' && progress.status !== 'completed') {
         completedAt = new Date();
       }

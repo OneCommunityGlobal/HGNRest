@@ -10,7 +10,6 @@ const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const logger = require('../startup/logger');
-
 const {
   insertNewUser,
   removeConnection,

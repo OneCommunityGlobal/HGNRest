@@ -69,6 +69,9 @@ module.exports = {
     'no-path-concat': 'warn',
     'no-process-exit': 'warn',
     'handle-callback-err': 'warn',
+    'new-cap': 'warn',
+    'no-lonely-if': 'warn',
+
     
     // Light Complexity Control (warnings with high thresholds)
     'complexity': ['warn', { max: 15 }], // High threshold for lazy devs

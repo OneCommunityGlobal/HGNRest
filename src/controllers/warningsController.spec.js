@@ -1,9 +1,8 @@
 
-const warningsController = require('./warningsController');
 const currentWarnings = require('../models/currentWarnings');
-
 const UserProfile = require('../models/userProfile');
 const { mockReq, mockRes } = require('../test');
+const warningsController = require('./warningsController');
 
 jest.mock('../models/currentWarnings', () => ({
   find: jest.fn(),
