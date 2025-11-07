@@ -13,8 +13,6 @@ const afterConnect = async () => {
       lastName: { $regex: process.env.TIME_ARCHIVE_LAST_NAME, $options: 'i' },
     });
 
-    console.log('connected to mongodb');
-
     await initialPermissions();
     if (!user) {
       userProfile

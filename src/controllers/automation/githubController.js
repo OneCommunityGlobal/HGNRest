@@ -3,9 +3,9 @@ const appAccessService = require('../../services/automation/appAccessService');
 const { checkAppAccess } = require('./utils');
 
 async function inviteUser(req, res) {
-  const { username, targetUser } = req.body;
+  const { username, targetUser, teamIds = [] } = req.body;
   const { requestor } = req.body;
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     res.status(403).send({ message: 'Unauthorized request' });
     return;
   }
@@ -15,8 +15,8 @@ async function inviteUser(req, res) {
   }
 
   try {
-    // First, send the GitHub invitation
-    const message = await githubService.sendInvitation(username);
+    // First, send the GitHub invitation with teams (default role: direct_member)
+    const message = await githubService.sendInvitation(username, 'direct_member', teamIds);
 
     // Only update database if GitHub invitation was successful
     try {
@@ -56,11 +56,11 @@ async function removeUser(req, res) {
     return res.status(400).json({ message: 'User ID is required' });
   }
 
-  if (!requestor?.role) {
-    return res.status(400).json({ message: 'Requestor role is required' });
+  if (!requestor) {
+    return res.status(400).json({ message: 'Requestor is required' });
   }
 
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     return res.status(403).json({ message: 'Unauthorized request' });
   }
 
@@ -99,11 +99,11 @@ async function getUserDetails(req, res) {
   const { targetUser, requestor } = req.body;
 
   // 1. Authorization check
-  if (!requestor?.role) {
-    return res.status(400).json({ message: 'Requestor role is required' });
+  if (!requestor) {
+    return res.status(400).json({ message: 'Requestor is required' });
   }
 
-  if (!checkAppAccess(requestor.role)) {
+  if (!(await checkAppAccess(requestor))) {
     return res.status(403).json({ message: 'Unauthorized request' });
   }
 
@@ -139,6 +139,10 @@ async function getUserDetails(req, res) {
       'Display Name': userDetails.name,
       'Organization Role': userDetails.organizationRole,
       'Member Status': userDetails.status,
+      Teams:
+        userDetails.teams && userDetails.teams.length > 0
+          ? userDetails.teams.join(', ')
+          : 'No teams assigned',
     };
 
     return res.status(200).json({
@@ -151,8 +155,33 @@ async function getUserDetails(req, res) {
   }
 }
 
+// Get available teams in the organization
+async function getTeams(req, res) {
+  const { requestor } = req.body;
+
+  if (!requestor) {
+    return res.status(400).json({ message: 'Requestor is required' });
+  }
+
+  if (!(await checkAppAccess(requestor))) {
+    return res.status(403).json({ message: 'Unauthorized request' });
+  }
+
+  try {
+    const teams = await githubService.getTeams();
+    res.status(200).json({
+      message: 'Teams retrieved successfully',
+      data: teams,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ message: error.message });
+  }
+}
+
 module.exports = {
   inviteUser,
   removeUser,
   getUserDetails,
+  getTeams,
 };
