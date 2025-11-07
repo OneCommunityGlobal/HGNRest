@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const NodeCache = require('node-cache');
 const BuildingMaterial = require('../models/bmdashboard/buildingMaterial');
 
@@ -6,9 +7,9 @@ const cache = new NodeCache({ stdTTL: 7200 }); // Cache for 2 hour
 module.exports = () => ({
   getMaterialCosts: async (req, res) => {
     try {
-      const { projectIds } = req.query;
-      const normalizedIds = projectIds
-        ? projectIds
+      const { projectId } = req.query;
+      const normalizedIds = projectId
+        ? projectId
             .split(',')
             .map((id) => id.trim())
             .sort()
@@ -24,8 +25,11 @@ module.exports = () => ({
         'purchaseRecord.status': 'Approved',
       };
 
-      if (projectIds) {
-        matchStage.project = { $in: normalizedIds.split(',') };
+      if (projectId) {
+        const projectIdsObject = normalizedIds
+          .split(',')
+          .map((id) => new mongoose.Types.ObjectId(id));
+        matchStage.project = { $in: projectIdsObject };
       }
 
       const data = await BuildingMaterial.aggregate([
