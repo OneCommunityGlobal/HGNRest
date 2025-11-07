@@ -10,7 +10,6 @@ const { webhookTest } = webhookController(Bids);
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');
-  console.log('Paypal-Auth-Algo:', authHeader);
   if (!authHeader) {
     return res.status(501).json({ error: 'Missing PayPal-Auth-Algo header' });
   }
@@ -70,11 +69,11 @@ module.exports = function (app) {
       next();
       return;
     }
-    
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
-       req.originalUrl === '/api/applicant-analytics/track-application') &&
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
       req.method === 'POST'
     ) {
       next();
