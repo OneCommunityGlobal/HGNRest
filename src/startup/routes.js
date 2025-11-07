@@ -90,7 +90,6 @@ const costs = require('../models/costs');
 const tag = require('../models/tag');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
 
-
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
@@ -200,6 +199,7 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -389,7 +389,7 @@ module.exports = function (app) {
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
-
+  app.use('/api', knowledgeEvolutionRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
@@ -409,7 +409,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
-
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
