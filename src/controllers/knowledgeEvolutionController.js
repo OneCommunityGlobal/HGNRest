@@ -1,19 +1,15 @@
-import mongoose from 'mongoose';
-import studentTask from '../models/mockModels/studentTask';
+const mongoose = require('mongoose');
+const studentTask = require('../models/bmdashboard/studentTask');
 
-const getKnowledgeEvolution = async (req, res) => {
+exports.getKnowledgeEvolution = async (req, res) => {
   try {
     const studentId = req.params.id || req.user?.id;
-
     if (!studentId) {
       return res.status(400).json({ message: 'Student ID is required' });
     }
 
     const data = await studentTask.aggregate([
-      {
-        $match: { studentId: new mongoose.Types.ObjectId(studentId) },
-      },
-
+      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
       {
         $lookup: {
           from: 'tasks',
@@ -23,7 +19,6 @@ const getKnowledgeEvolution = async (req, res) => {
         },
       },
       { $unwind: { path: '$taskInfo', preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: 'atoms',
@@ -33,7 +28,6 @@ const getKnowledgeEvolution = async (req, res) => {
         },
       },
       { $unwind: { path: '$atomInfo', preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: 'subjects',
@@ -43,22 +37,6 @@ const getKnowledgeEvolution = async (req, res) => {
         },
       },
       { $unwind: { path: '$subjectInfo', preserveNullAndEmptyArrays: true } },
-
-      {
-        $lookup: {
-          from: 'grades',
-          let: { tId: '$_id', sId: '$studentId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $and: [{ $eq: ['$taskId', '$$tId'] }, { $eq: ['$studentId', '$$sId'] }] },
-              },
-            },
-          ],
-          as: 'gradeInfo',
-        },
-      },
-
       {
         $lookup: {
           from: 'studentatoms',
@@ -66,21 +44,20 @@ const getKnowledgeEvolution = async (req, res) => {
           pipeline: [
             {
               $match: {
-                $expr: { $and: [{ $eq: ['$atomId', '$$aId'] }, { $eq: ['$studentId', '$$sId'] }] },
+                $expr: {
+                  $and: [{ $eq: ['$atomId', '$$aId'] }, { $eq: ['$studentId', '$$sId'] }],
+                },
               },
             },
           ],
           as: 'studentAtomInfo',
         },
       },
-
       {
         $addFields: {
-          averageGrade: { $avg: '$gradeInfo.score' },
           atomStatus: { $arrayElemAt: ['$studentAtomInfo.status', 0] },
         },
       },
-
       {
         $project: {
           _id: 1,
@@ -91,15 +68,12 @@ const getKnowledgeEvolution = async (req, res) => {
           atomColor: '$atomInfo.colorLevel',
           taskStatus: '$status',
           atomStatus: 1,
-          grade: '$averageGrade',
         },
       },
-
       {
         $group: {
           _id: '$subjectId',
           subjectName: { $first: '$subjectName' },
-          averageGrade: { $avg: '$grade' },
           atoms: {
             $push: {
               atomId: '$atomId',
@@ -107,12 +81,34 @@ const getKnowledgeEvolution = async (req, res) => {
               color: '$atomColor',
               atomStatus: '$atomStatus',
               taskStatus: '$taskStatus',
-              grade: '$grade',
             },
           },
         },
       },
       { $sort: { subjectName: 1 } },
+      {
+        $addFields: {
+          totalAtoms: { $size: '$atoms' },
+          completedAtoms: {
+            $size: {
+              $filter: {
+                input: '$atoms',
+                as: 'atom',
+                cond: { $eq: ['$$atom.atomStatus', 'completed'] },
+              },
+            },
+          },
+          inProgressAtoms: {
+            $size: {
+              $filter: {
+                input: '$atoms',
+                as: 'atom',
+                cond: { $eq: ['$$atom.atomStatus', 'in_progress'] },
+              },
+            },
+          },
+        },
+      },
     ]);
 
     res.status(200).json({
@@ -129,5 +125,3 @@ const getKnowledgeEvolution = async (req, res) => {
     });
   }
 };
-
-export default getKnowledgeEvolution;
