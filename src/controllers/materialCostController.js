@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
-const NodeCache = require('node-cache');
+// const NodeCache = require('node-cache');
 const BuildingMaterial = require('../models/bmdashboard/buildingMaterial');
-
-const cache = new NodeCache({ stdTTL: 7200 }); // Cache for 2 hour
+const cache = require('../utilities/cache');
 
 module.exports = () => ({
   getMaterialCosts: async (req, res) => {
@@ -49,12 +48,12 @@ module.exports = () => ({
           $project: {
             _id: 0,
             project: '$_id',
-            totalCostK: { $round: [{ $divide: ['$totalCost', 1000] }, 1] },
+            totalCostK: { $divide: ['$totalCost', 1000] },
           },
         },
       ]);
       cache.set(cacheKey, data);
-      res.json(data);
+      res.status(200).json(data);
     } catch (err) {
       return res.status(500).json({ error: 'Internal server error', details: err.message });
     }
