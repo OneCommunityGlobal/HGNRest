@@ -1,5 +1,23 @@
 const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+
+// Date parsing helpers (consistent with injuryCategoryController.js)
+const parseYmdUtc = (s) => {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
+};
+
+const parseDateFlexibleUTC = (s) => {
+  const d1 = parseYmdUtc(s);
+  if (d1) return d1;
+  if (!s) return null;
+  const d2 = new Date(s);
+  return Number.isNaN(d2.getTime()) ? null : d2;
+};
 
 const toolStoppageReasonController = function (ToolStoppageReason) {
   const stoppageReasonFields = ['usedForLifetime', 'damaged', 'lost'];
@@ -75,7 +93,41 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         });
       }
 
-      const matchStage = buildProjectDateMatchStage(projectId, startDate, endDate);
+// Validate date formats
+      const parsedStartDate = startDate ? parseDateFlexibleUTC(startDate) : null;
+      const parsedEndDate = endDate ? parseDateFlexibleUTC(endDate) : null;
+
+      if (startDate && !parsedStartDate) {
+        return res.status(400).json({
+          error: `Invalid startDate '${startDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
+        });
+      }
+
+      if (endDate && !parsedEndDate) {
+        return res.status(400).json({
+          error: `Invalid endDate '${endDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
+        });
+      }
+
+      if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+        return res.status(400).json({
+          error: 'Invalid date range: endDate must be greater than or equal to startDate.',
+        });
+      }
+
+      const projectExists = await BuildingProject.exists({ _id: projectId });
+      if (!projectExists) {
+        return res.status(404).json({
+          error: `Project with ID '${projectId}' not found. Please verify the project ID and try again.`,
+        });
+      }
+
+      const matchStage = { projectId: new ObjectId(projectId) };
+      if (parsedStartDate || parsedEndDate) {
+        matchStage.date = {};
+        if (parsedStartDate) matchStage.date.$gte = parsedStartDate;
+        if (parsedEndDate) matchStage.date.$lte = parsedEndDate;
+      }
 
       const groupSums = stoppageReasonFields.reduce(
         (accumulator, field) => ({
