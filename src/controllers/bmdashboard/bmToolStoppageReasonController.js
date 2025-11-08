@@ -18,8 +18,7 @@ const isMongoConnectionError = (error) =>
 
 // Error message constants
 const ERROR_MESSAGES = {
-  INVALID_PROJECT_ID_FORMAT: (projectId) =>
-    `Project ID '${projectId}' is not a valid ObjectId format. Please provide a valid 24-character hexadecimal string.`,
+  // Note: INVALID_PROJECT_ID_FORMAT removed - handled by express-validator in router
   INVALID_START_DATE: (startDate) =>
     `Invalid startDate '${startDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
   INVALID_END_DATE: (endDate) =>
@@ -113,12 +112,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
-      // Validate project ID format
-      if (!ObjectId.isValid(projectId)) {
-        return res.status(400).json({
-          error: ERROR_MESSAGES.INVALID_PROJECT_ID_FORMAT(projectId),
-        });
-      }
+      // Note: ObjectId format validation is handled by express-validator in router
 
       // Validate date formats
       const parsedStartDate = startDate ? parseDateFlexibleUTC(startDate) : null;
@@ -126,20 +120,26 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
       if (startDate && !parsedStartDate) {
         return res.status(400).json({
+          success: false,
           error: ERROR_MESSAGES.INVALID_START_DATE(startDate),
+          executionTimeMs: Date.now() - startTime,
         });
       }
 
       if (endDate && !parsedEndDate) {
         return res.status(400).json({
+          success: false,
           error: ERROR_MESSAGES.INVALID_END_DATE(endDate),
+          executionTimeMs: Date.now() - startTime,
         });
       }
 
       // Validate date range logic
       if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
         return res.status(400).json({
+          success: false,
           error: ERROR_MESSAGES.INVALID_DATE_RANGE,
+          executionTimeMs: Date.now() - startTime,
         });
       }
 
@@ -147,7 +147,9 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       const projectExists = await BuildingProject.exists({ _id: projectId });
       if (!projectExists) {
         return res.status(404).json({
+          success: false,
           error: ERROR_MESSAGES.PROJECT_NOT_FOUND(projectId),
+          executionTimeMs: Date.now() - startTime,
         });
       }
 
