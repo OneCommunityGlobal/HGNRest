@@ -1,4 +1,5 @@
 const { ObjectId } = require('mongoose').Types;
+const Logger = require('../../startup/logger');
 
 const toolStoppageReasonController = function (ToolStoppageReason) {
   const getToolsStoppageReason = async (req, res) => {
@@ -8,7 +9,9 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
       // Validate project ID format
       if (!ObjectId.isValid(projectId)) {
-        return res.status(400).json({ error: 'Invalid project ID format' });
+        return res.status(400).json({
+          error: `Project ID '${projectId}' is not a valid ObjectId format. Please provide a valid 24-character hexadecimal string.`,
+        });
       }
 
       // Build date filter based on what's provided
@@ -42,7 +45,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
             projectId: new ObjectId(projectId),
             ...dateFilter,
           },
-        },     
+        },
       ]);
 
       // If no results found, return empty array
@@ -52,8 +55,24 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
       return res.json(results);
     } catch (error) {
-      console.error('Error fetching tools availability:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      const { id: projectId } = req.params;
+      const { startDate, endDate } = req.query;
+      const transactionName =
+        'GET /api/bm/projects/:id/tools-stoppage-reason - getToolsStoppageReason';
+      const requestContext = {
+        projectId,
+        startDate,
+        endDate,
+        url: req.originalUrl,
+        method: req.method,
+      };
+
+      Logger.logException(error, transactionName, requestContext);
+
+      return res.status(500).json({
+        error:
+          'Database query failed: unable to fetch tool stoppage data. Please try again or contact support if the issue persists.',
+      });
     }
   };
 
@@ -93,8 +112,18 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
       return res.json(formattedResults);
     } catch (error) {
-      console.error('Error fetching unique project IDs:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      const transactionName = 'GET /api/bm/tools-stoppage-reason/projects - getUniqueProjectIds';
+      const requestContext = {
+        url: req.originalUrl,
+        method: req.method,
+      };
+
+      Logger.logException(error, transactionName, requestContext);
+
+      return res.status(500).json({
+        error:
+          'Database query failed: unable to fetch project list. Please try again or contact support if the issue persists.',
+      });
     }
   };
 
