@@ -1,5 +1,23 @@
 const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+
+// Date parsing helpers (consistent with injuryCategoryController.js)
+const parseYmdUtc = (s) => {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
+};
+
+const parseDateFlexibleUTC = (s) => {
+  const d1 = parseYmdUtc(s);
+  if (d1) return d1;
+  if (!s) return null;
+  const d2 = new Date(s);
+  return Number.isNaN(d2.getTime()) ? null : d2;
+};
 
 const toolStoppageReasonController = function (ToolStoppageReason) {
   const getToolsStoppageReason = async (req, res) => {
@@ -14,26 +32,57 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         });
       }
 
+      // Validate date formats
+      const parsedStartDate = startDate ? parseDateFlexibleUTC(startDate) : null;
+      const parsedEndDate = endDate ? parseDateFlexibleUTC(endDate) : null;
+
+      if (startDate && !parsedStartDate) {
+        return res.status(400).json({
+          error: `Invalid startDate '${startDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
+        });
+      }
+
+      if (endDate && !parsedEndDate) {
+        return res.status(400).json({
+          error: `Invalid endDate '${endDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
+        });
+      }
+
+      // Validate date range logic
+      if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+        return res.status(400).json({
+          error: 'Invalid date range: endDate must be greater than or equal to startDate.',
+        });
+      }
+
+      // Validate project existence (optional but recommended)
+      const projectExists = await BuildingProject.exists({ _id: projectId });
+      if (!projectExists) {
+        return res.status(404).json({
+          error: `Project with ID '${projectId}' not found. Please verify the project ID and try again.`,
+        });
+      }
+
       // Build date filter based on what's provided
       let dateFilter = {};
 
-      if (startDate && endDate) {
+      if (parsedStartDate && parsedEndDate) {
         // If both dates are provided, use them as range
         dateFilter = {
           date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
+            $gte: parsedStartDate,
+            $lte: parsedEndDate,
           },
         };
-      } else if (startDate) {
+      } else if (parsedStartDate) {
         // If only start date is provided, use it as lower bound
         dateFilter = {
-          date: { $gte: new Date(startDate) },
+          date: { $gte: parsedStartDate },
         };
-      } else if (endDate) {
+      } else if (parsedEndDate) {
         // If only end date is provided, use it as upper bound
         dateFilter = {
-          date: { $lte: new Date(endDate) },
+          date: { $lte: parsedEndDate },
         };
       }
       // If no dates are provided, don't filter by date at all
