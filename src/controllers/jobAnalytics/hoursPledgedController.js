@@ -21,8 +21,9 @@ const hoursPledgedController = function () {
 
   const addHoursPledged = async (req, res) => {
     try {
+      // eslint-disable-next-line camelcase
       const { role, pledge_date, hrsPerRole } = req.body;
-
+      // eslint-disable-next-line camelcase
       if (!role || !pledge_date || hrsPerRole === undefined) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
