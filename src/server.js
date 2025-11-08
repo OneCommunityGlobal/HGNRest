@@ -26,7 +26,7 @@ initSocket(server);
 
 // Start the actual server
 server.listen(port, () => {
-  console.log(`🚀 Server is listening on http://localhost:${port}`);
+  // Server started
 });
 
 const timerService = TimerWebsockets();

@@ -240,7 +240,13 @@ const userProfileController = function (UserProfile, Project) {
   const getUserProfileBasicInfo = async function (req, res) {
     try {
       if (!(await checkPermission(req, 'getUserProfiles'))) {
-        return res.status(403).send({ error: 'Unauthorized' });
+        forbidden(res, 'You are not authorized to view all users');
+        return;
+      }
+      const ALL_USERS_KEY = 'allusers_v1';
+      const cachedAll = cache.getCache(ALL_USERS_KEY);
+      if (cachedAll) {
+        return res.status(200).json(JSON.parse(cachedAll));
       }
 
       const userProfiles = await UserProfile.find(
@@ -1383,7 +1389,11 @@ const userProfileController = function (UserProfile, Project) {
               const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
-                userData.endDate = user.endDate.toISOString();
+                if (user.endDate) {
+                  userData.endDate = user.endDate.toISOString();
+                } else {
+                  userData.endDate = null;
+                }
               }
               userData.isActive = user.isActive;
               allUserData.splice(userIdx, 1, userData);
@@ -1411,10 +1421,12 @@ const userProfileController = function (UserProfile, Project) {
             });
           })
           .catch((error) => {
+            console.log(error);
             res.status(500).send(error);
           });
       })
       .catch((error) => {
+        console.log(error);
         res.status(500).send(error);
       });
   };
@@ -1882,7 +1894,11 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+
+        .catch((error) => {
+          res.status(400).send(error);
+        });
+
     });
   };
 
@@ -1977,7 +1993,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Error Removing Image' });
     }
   };
@@ -1994,7 +2009,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user.user_id}`);
       return res.status(200).send({ message: 'Profile Updated' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Profile Update Failed' });
     }
   };
@@ -2045,7 +2059,6 @@ const userProfileController = function (UserProfile, Project) {
       });
       res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error);
       return res.status(500);
     }
   };
