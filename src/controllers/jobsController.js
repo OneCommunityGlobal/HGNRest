@@ -194,7 +194,10 @@ const getCategories = async (req, res) => {
 };
 const getPositions = async (req, res) => {
   try {
-    const positions = await JobPositionCategory.distinct('position', {});
+    const categoryIn = req?.query?.category || '';
+    const filterCategory = categoryIn ? { category: categoryIn } : {};
+
+    const positions = await JobPositionCategory.distinct('position', filterCategory);
 
     // Sort categories alphabetically
     positions.sort((a, b) => a.localeCompare(b));
@@ -222,7 +225,21 @@ const getJobById = async (req, res) => {
 
 // Controller to create a new job
 const createJob = async (req, res) => {
-  const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
+  const {
+    title,
+    category,
+    description,
+    imageUrl,
+    location,
+    applyLink,
+    jobDetailsLink,
+    requirements,
+    // skills,
+    projects,
+    // whoareyou,
+    ourCommunity,
+    // whoweare,
+  } = req.body;
 
   try {
     // Find the highest displayOrder value currently in use
@@ -239,6 +256,12 @@ const createJob = async (req, res) => {
       applyLink,
       jobDetailsLink,
       displayOrder: newDisplayOrder,
+      requirements,
+      // skills,
+      projects,
+      // whoareyou,
+      // whoweare,
+      ourCommunity,
     });
 
     const savedJob = await newJob.save();
