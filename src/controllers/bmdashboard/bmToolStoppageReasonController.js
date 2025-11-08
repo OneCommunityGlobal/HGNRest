@@ -87,12 +87,18 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       }
       // If no dates are provided, don't filter by date at all
 
-      // Query the database for tool availability data
+      // Query the database for tool stoppage reason data
       const results = await ToolStoppageReason.aggregate([
         {
           $match: {
             projectId: new ObjectId(projectId),
             ...dateFilter,
+          },
+        },
+        {
+          $sort: {
+            date: 1, // Sort by date ascending (oldest first)
+            toolName: 1, // Then by toolName alphabetically
           },
         },
       ]);
