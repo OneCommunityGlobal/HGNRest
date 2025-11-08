@@ -3,6 +3,19 @@ const Logger = require('../../startup/logger');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const cacheClosure = require('../../utilities/nodeCache');
 
+/**
+ * Check if error is a MongoDB connection error
+ * @param {Error} error - Error object to check
+ * @returns {boolean} True if error is a MongoDB connection error
+ */
+const isMongoConnectionError = (error) =>
+  error.name === 'MongoNetworkError' ||
+  error.name === 'MongoTimeoutError' ||
+  error.name === 'MongoServerError' ||
+  error.message?.includes('ECONNREFUSED') ||
+  error.message?.includes('connection') ||
+  error.code === 'ETIMEDOUT';
+
 // Error message constants
 const ERROR_MESSAGES = {
   INVALID_PROJECT_ID_FORMAT: (projectId) =>
@@ -18,6 +31,8 @@ const ERROR_MESSAGES = {
     'Database query failed: unable to fetch tool stoppage data. Please try again or contact support if the issue persists.',
   DATABASE_QUERY_FAILED_PROJECTS:
     'Database query failed: unable to fetch project list. Please try again or contact support if the issue persists.',
+  DATABASE_UNAVAILABLE:
+    'Database service is temporarily unavailable. Please try again in a few moments.',
 };
 
 // Cache key constants
@@ -190,9 +205,20 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         url: req.originalUrl,
         method: req.method,
         executionTimeMs,
+        errorType: error.name,
       };
 
       Logger.logException(error, transactionName, requestContext);
+
+      // Check if it's a MongoDB connection error
+      if (isMongoConnectionError(error)) {
+        return res.status(503).json({
+          success: false,
+          error: ERROR_MESSAGES.DATABASE_UNAVAILABLE,
+          executionTimeMs,
+          retry: true,
+        });
+      }
 
       return res.status(500).json({
         success: false,
@@ -291,9 +317,20 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         url: req.originalUrl,
         method: req.method,
         executionTimeMs,
+        errorType: error.name,
       };
 
       Logger.logException(error, transactionName, requestContext);
+
+      // Check if it's a MongoDB connection error
+      if (isMongoConnectionError(error)) {
+        return res.status(503).json({
+          success: false,
+          error: ERROR_MESSAGES.DATABASE_UNAVAILABLE,
+          executionTimeMs,
+          retry: true,
+        });
+      }
 
       return res.status(500).json({
         success: false,
