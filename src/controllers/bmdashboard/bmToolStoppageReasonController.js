@@ -12,6 +12,10 @@ const isMongoConnectionError = (error) =>
   error.code === 'ETIMEDOUT';
 
 const ERROR_MESSAGES = {
+<<<<<<< HEAD
+=======
+  // Note: INVALID_PROJECT_ID_FORMAT removed - handled by express-validator in router
+>>>>>>> 587c381e (fix(api): standardize error response format and remove redundant validation)
   INVALID_START_DATE: (startDate) =>
     `Invalid startDate '${startDate}'. Please use YYYY-MM-DD format or ISO 8601 date string.`,
   INVALID_END_DATE: (endDate) =>
@@ -101,9 +105,13 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
+<<<<<<< HEAD
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
+=======
+      // Note: ObjectId format validation is handled by express-validator in router
+>>>>>>> 587c381e (fix(api): standardize error response format and remove redundant validation)
 
       const parsedStartDate = startDate ? parseDateFlexibleUTC(startDate) : null;
       const parsedEndDate = endDate ? parseDateFlexibleUTC(endDate) : null;
@@ -132,7 +140,19 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         });
       }
 
+<<<<<<< HEAD
       const matchStage = buildProjectDateMatchStage(projectId, startDate, endDate);
+=======
+      // Validate project existence
+      const projectExists = await BuildingProject.exists({ _id: projectId });
+      if (!projectExists) {
+        return res.status(404).json({
+          success: false,
+          error: ERROR_MESSAGES.PROJECT_NOT_FOUND(projectId),
+          executionTimeMs: Date.now() - startTime,
+        });
+      }
+>>>>>>> 587c381e (fix(api): standardize error response format and remove redundant validation)
 
       const groupSums = stoppageReasonFields.reduce(
         (accumulator, field) => ({
