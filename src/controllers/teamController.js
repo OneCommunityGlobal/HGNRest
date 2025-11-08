@@ -312,9 +312,11 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    const { visibility, teamId, userId } = req.body;
+    const { visibility, teamId, userId, requestor } = req.body;
 
     try {
+      const elevatedRoles = ['Owner', 'Admin', 'Core Team'];
+
       Team.findById(teamId, (error, teamDoc) => {
         if (error || teamDoc === null) {
           res.status(400).send('No valid records found');
@@ -344,9 +346,12 @@ const teamcontroller = function (Team) {
                 return;
               }
 
-              if (visibility) {
+              if (visibility || elevatedRoles.includes(requestor.role)) {
+                console.log(`Assigning user: ${member.userId}`);
                 assignlist.push(member.userId);
               } else {
+                console.log(` Unassigning user: ${member.userId}`);
+
                 unassignlist.push(member.userId);
               }
             });

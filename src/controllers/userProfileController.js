@@ -1474,7 +1474,11 @@ const userProfileController = function (UserProfile, Project) {
               const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
-                userData.endDate = user.endDate.toISOString();
+                if (user.endDate) {
+                  userData.endDate = user.endDate.toISOString();
+                } else {
+                  userData.endDate = null;
+                }
               }
               userData.isActive = user.isActive;
               allUserData.splice(userIdx, 1, userData);
@@ -1502,10 +1506,12 @@ const userProfileController = function (UserProfile, Project) {
             });
           })
           .catch((error) => {
+            console.log(error);
             res.status(500).send(error);
           });
       })
       .catch((error) => {
+        console.log(error);
         res.status(500).send(error);
       });
   };
