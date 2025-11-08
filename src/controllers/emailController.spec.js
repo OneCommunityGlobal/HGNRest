@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 // eslint-disable-next-line no-unused-vars
 const { mockReq, mockRes, assertResMock } = require('../test');
-const emailController = require('./emailController');
 const userProfile = require('../models/userProfile');
+const emailController = require('./emailController');
 
 jest.mock('jsonwebtoken');
 jest.mock('../models/userProfile');

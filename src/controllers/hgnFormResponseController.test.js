@@ -5,8 +5,8 @@ jest.mock('../utilities/permissions', () => ({
 }));
 
 const FormResponse = require('../models/hgnFormResponse');
-const hgnFormController = require('./hgnFormResponseController');
 const { hasPermission } = require('../utilities/permissions');
+const hgnFormController = require('./hgnFormResponseController');
 
 describe('HgnFormResponseController', () => {
   let mockReq;

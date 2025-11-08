@@ -1,6 +1,5 @@
 // smsSender.js
 const axios = require('axios');
-
 const twilio = require('twilio');
 
 const client = twilio(process.env.twilio_testAccountSid, process.env.twilio_testAuthToken);

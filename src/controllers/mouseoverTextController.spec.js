@@ -1,6 +1,6 @@
-const mouseoverTextController = require('./mouseoverTextController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const MouseoverText = require('../models/mouseoverText');
+const mouseoverTextController = require('./mouseoverTextController');
 
 const makeSut = () => {
   const { createMouseoverText, getMouseoverText, updateMouseoverText } =

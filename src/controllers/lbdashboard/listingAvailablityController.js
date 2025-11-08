@@ -4,7 +4,7 @@ const Listing = require('../../models/lbdashboard/listings');
 const listingAvailablityController = (Availability) => {
   const getListingAvailablity = async (req, res) => {
     try {
-      const listingId = req.headers['listingid'];
+      const listingId = req.headers.listingid;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
@@ -21,7 +21,7 @@ const listingAvailablityController = (Availability) => {
   const createListingAvailability = async (req, res) => {
     try {
       const data = req.body;
-      const listingId = data.listingId;
+      const {listingId} = data;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
@@ -155,7 +155,7 @@ const listingAvailablityController = (Availability) => {
       if (!listing) {
         return res.status(404).json({ error: 'Listing not found' });
       }
-      const allowedUser = userId || req.headers['userid'];
+      const allowedUser = userId || req.headers.userid;
       if (
         !allowedUser ||
         (
