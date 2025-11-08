@@ -92,6 +92,8 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
    * @returns {Promise<Array>} Array of tool stoppage reason records sorted by date and toolName
    */
   const getToolsStoppageReason = async (req, res) => {
+    const startTime = Date.now(); // Start timing the request
+
     try {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
@@ -153,15 +155,32 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         },
       ]);
 
-      // If no results found, return empty array
-      if (!results || results.length === 0) {
-        return res.json([]);
+      // Calculate execution time
+      const executionTimeMs = Date.now() - startTime;
+
+      // Log query performance for monitoring
+      if (executionTimeMs > 1000) {
+        Logger.logInfo(`Slow query detected in getToolsStoppageReason: ${executionTimeMs}ms`, {
+          projectId,
+          startDate,
+          endDate,
+          executionTimeMs,
+        });
       }
 
-      return res.json(results);
+      // Return structured response with metadata
+      return res.json({
+        success: true,
+        data: results,
+        count: results.length,
+        message:
+          results.length === 0 ? 'No tool stoppage data found for the specified criteria' : null,
+        executionTimeMs,
+      });
     } catch (error) {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
+      const executionTimeMs = Date.now() - startTime;
       const transactionName =
         'GET /api/bm/projects/:id/tools-stoppage-reason - getToolsStoppageReason';
       const requestContext = {
@@ -170,12 +189,15 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         endDate,
         url: req.originalUrl,
         method: req.method,
+        executionTimeMs,
       };
 
       Logger.logException(error, transactionName, requestContext);
 
       return res.status(500).json({
+        success: false,
         error: ERROR_MESSAGES.DATABASE_QUERY_FAILED_DATA,
+        executionTimeMs,
       });
     }
   };
@@ -188,13 +210,22 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
    * @returns {Promise<Array>} Array of objects with projectId and projectName, cached for 5 minutes
    */
   const getUniqueProjectIds = async (req, res) => {
+    const startTime = Date.now(); // Start timing the request
+
     try {
       // Define cache key for project list
       const cacheKey = CACHE_KEYS.PROJECT_LIST;
 
       // Check if cached data exists (TTL: 300s / 5 minutes)
-      if (cache.hasCache(cacheKey)) {
-        return res.json(cache.getCache(cacheKey));
+      const cachedData = cache.getCache(cacheKey);
+      if (cache.hasCache(cacheKey) && cachedData) {
+        // Add execution time for cache hit
+        const executionTimeMs = Date.now() - startTime;
+        return res.json({
+          ...cachedData,
+          executionTimeMs,
+          cached: true,
+        });
       }
 
       // Use aggregation to get distinct project IDs and lookup their names
@@ -229,21 +260,45 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         projectName: item.projectName || 'Unknown Project',
       }));
 
-      // Cache the response for 5 minutes (default TTL: 300s)
-      cache.setCache(cacheKey, formattedResults);
+      // Calculate execution time
+      const executionTimeMs = Date.now() - startTime;
 
-      return res.json(formattedResults);
+      // Log query performance for monitoring
+      if (executionTimeMs > 1000) {
+        Logger.logInfo(`Slow query detected in getUniqueProjectIds: ${executionTimeMs}ms`, {
+          executionTimeMs,
+        });
+      }
+
+      // Create structured response
+      const response = {
+        success: true,
+        data: formattedResults,
+        count: formattedResults.length,
+        message: formattedResults.length === 0 ? 'No projects with tool stoppage data found' : null,
+        executionTimeMs,
+        cached: false,
+      };
+
+      // Cache the response for 5 minutes (default TTL: 300s)
+      cache.setCache(cacheKey, response);
+
+      return res.json(response);
     } catch (error) {
+      const executionTimeMs = Date.now() - startTime;
       const transactionName = 'GET /api/bm/tools-stoppage-reason/projects - getUniqueProjectIds';
       const requestContext = {
         url: req.originalUrl,
         method: req.method,
+        executionTimeMs,
       };
 
       Logger.logException(error, transactionName, requestContext);
 
       return res.status(500).json({
+        success: false,
         error: ERROR_MESSAGES.DATABASE_QUERY_FAILED_PROJECTS,
+        executionTimeMs,
       });
     }
   };
