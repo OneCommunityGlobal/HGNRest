@@ -1,6 +1,7 @@
 const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const cacheClosure = require('../../utilities/nodeCache');
 
 // Date parsing helpers (consistent with injuryCategoryController.js)
 const parseYmdUtc = (s) => {
@@ -20,6 +21,8 @@ const parseDateFlexibleUTC = (s) => {
 };
 
 const toolStoppageReasonController = function (ToolStoppageReason) {
+  const cache = cacheClosure();
+
   const getToolsStoppageReason = async (req, res) => {
     try {
       const { id: projectId } = req.params;
@@ -133,6 +136,14 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
+      // Define cache key for project list
+      const cacheKey = 'tool-stoppage-reason-projects';
+
+      // Check if cached data exists (TTL: 300s / 5 minutes)
+      if (cache.hasCache(cacheKey)) {
+        return res.json(cache.getCache(cacheKey));
+      }
+
       // Use aggregation to get distinct project IDs and lookup their names
       const results = await ToolStoppageReason.aggregate([
         {
@@ -164,6 +175,9 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         projectId: item._id,
         projectName: item.projectName || 'Unknown Project',
       }));
+
+      // Cache the response for 5 minutes (default TTL: 300s)
+      cache.setCache(cacheKey, formattedResults);
 
       return res.json(formattedResults);
     } catch (error) {
