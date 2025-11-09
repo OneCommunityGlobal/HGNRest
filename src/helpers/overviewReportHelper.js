@@ -1644,7 +1644,6 @@ const overviewReportHelper = function () {
         volunteerHoursStats['60+'] = volunteerHoursStats['60+']
           ? volunteerHoursStats['60+'] + 1
           : 1;
-        console.log('user with 60+ hours');
       } else {
         const group = Math.floor(user.totalHours / 10) * 10;
         volunteerHoursStats[`${group}-${group + 9}`] += 1;
