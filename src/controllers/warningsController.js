@@ -301,7 +301,7 @@ const warningsController = function (UserProfile) {
 
       return res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      console.log('error', error);
+      // Error handled
     }
   };
 

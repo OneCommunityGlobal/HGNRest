@@ -106,7 +106,6 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
           },
           { upsert: true, new: true },
         );
-        console.log('Blue Square assignment log created in EmailHistory');
       }
       return true;
     } catch (err) {
@@ -129,7 +128,6 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
           },
           { upsert: true, new: true },
         );
-        console.log('Failed Blue Square assignment log created in EmailHistory');
       }
     }
 

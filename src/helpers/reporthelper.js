@@ -205,7 +205,6 @@ const reporthelper = function () {
     userProfile.find({ getWeeklyReport: true }, { email: 1, _id: 0 }).then((results) => {
       mappedResults = results.map((ele) => ele.email);
       mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-      console.log('results:', mappedResults);
     });
     return mappedResults;
   };
