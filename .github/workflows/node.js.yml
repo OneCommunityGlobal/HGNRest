@@ -17,6 +17,23 @@ jobs:
         node-version: 20.x
         cache: 'npm'
 
+    - name: Install system dependencies for sharp
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libvips
+
+    - name: Clean and install dependencies
+      run: |
+        rm -rf node_modules package-lock.json
+        npm install --include=optional
+
+    - name: Rebuild sharp for linux-x64
+      run: |
+        npm rebuild sharp --platform=linux --arch=x64
+
+    - name: Verify sharp
+      run: node -e "require('sharp'); console.log('✅ sharp module loaded successfully');"
+      
     - run: npm ci
     - name: Run email sender check
       run: node src/utilities/debugEmailSender.js

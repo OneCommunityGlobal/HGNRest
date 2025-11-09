@@ -194,6 +194,7 @@ const updateTaskLoggedHours = async (
     }
   } else {
     // Handle cases where only one task is involved
+    // eslint-disable-next-line no-lonely-if
     if (fromTaskId && !toTaskId) {
       // Remove hours from old task only
       await Task.findOneAndUpdate(

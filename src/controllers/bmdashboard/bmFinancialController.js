@@ -1,3 +1,10 @@
+/* eslint-disable no-restricted-globals */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable one-var */
+/* eslint-disable no-use-before-define */
+/* eslint-disable no-shadow */
+// eslint-disable-next-line no-unused-vars
+const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {

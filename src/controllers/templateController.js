@@ -1,3 +1,5 @@
+/* eslint-disable import/extensions */
+/* eslint-disable import/no-unresolved */
 
 const Template = require("../models/TemplateModel");
 
