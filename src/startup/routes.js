@@ -190,7 +190,7 @@ const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
-
+const lessonPlanRouter = require('../routes/bmdashboard/lessonPlanRouter');
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter');
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
@@ -443,6 +443,7 @@ module.exports = function (app) {
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', bmProjectRiskProfileRouter);
+  app.use('/api', lessonPlanRouter);
 
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
