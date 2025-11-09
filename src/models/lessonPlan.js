@@ -5,39 +5,52 @@ const lessonPlanSchema = new mongoose.Schema(
     title: {
       type: String,
       required: true,
-      trim: true,
     },
-    theme: {
+    subject: {
       type: String,
-      trim: true,
+      required: true,
+    },
+    gradeLevel: {
+      type: String,
+      required: true,
     },
     description: {
       type: String,
-      trim: true,
     },
-    startDate: {
-      type: Date,
-      required: true,
+    objectives: {
+      type: [String],
+      default: [],
     },
-    endDate: {
-      type: Date,
-      required: true,
+    content: {
+      type: String,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'userProfile',
+      ref: 'User',
       required: true,
     },
-    activities: [
+    collaborators: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Activity',
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        role: { type: String, enum: ['editor', 'viewer'], default: 'editor' },
+      },
+    ],
+    lastEditedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    versionHistory: [
+      {
+        editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        updatedAt: { type: Date, default: Date.now },
+        changes: { type: String },
       },
     ],
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-module.exports = mongoose.model('LessonPlan', lessonPlanSchema);
+lessonPlanSchema.index({ title: 1, subject: 1 });
+
+const LessonPlan = mongoose.model('LessonPlan', lessonPlanSchema);
+module.exports = LessonPlan;
