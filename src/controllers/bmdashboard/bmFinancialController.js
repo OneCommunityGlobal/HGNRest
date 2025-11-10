@@ -1,53 +1,86 @@
 /* eslint-disable no-shadow */
 /* eslint-disable no-use-before-define */
 const logger = require('../../startup/logger');
-// const mongoose = require('mongoose');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {
-  const getTotalProjectCost = async (req, res) => {
-    try {
-      const project = await BuildingProject.findById(req.params.projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
-      const toolsCost = await calculateToolsCost(BuildingTool, project._id);
-      const laboorCost = await calculateLaborCost(BuildingProject, project._id);
-
-      const totalCost = materialsCost + toolsCost + laboorCost;
-      res.status(200).json({
-        totalCost,
-      });
-    } catch (error) {
-      logger.logException(`Error fetching project cost: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  };
-
-  const getCostBreakdown = async (req, res) => {
-    try {
-      const project = await BuildingProject.findById(req.params.projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
-      const toolsCost = await calculateToolsCost(BuildingTool, project._id);
-      const laboorCost = await calculateLaborCost(BuildingProject, project._id);
-
-      res.status(200).json({
-        materialsCost,
-        equipmentCost: toolsCost,
-        laborCost: laboorCost,
-      });
-    } catch (error) {
-      logger.logException(`Error fetching project cost breakdown: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  };
-
   const mongoose = require('mongoose');
+
+  const calculateLaborCost = async (projectId, hourlyRate = 25) => {
+    try {
+      const project = await BuildingProject.findById(projectId);
+      if (!project || !Array.isArray(project.members)) {
+        return 0;
+      }
+      let totalLaborCost = 0;
+      project.members.forEach((member) => {
+        const hoursWorked = member.hours || 0;
+        totalLaborCost += hoursWorked * hourlyRate;
+      });
+      return totalLaborCost;
+    } catch (err) {
+      console.error('Error calculating labor cost:', err);
+      throw err;
+    }
+  };
+
+  const calculateMaterialsCost = async (projectId) => {
+    try {
+      const materials = await BuildingMaterial.find({ project: projectId });
+      let totalCost = 0;
+
+      if (!materials.length) {
+        console.log('No materials found for project:', projectId);
+      }
+
+      materials.forEach((material) => {
+        if (Array.isArray(material.purchaseRecord)) {
+          material.purchaseRecord.forEach((record) => {
+            const { quantity = 0, unitPrice = 0, status } = record;
+
+            if (status?.trim().toLowerCase() === 'approved') {
+              totalCost += quantity * unitPrice;
+            }
+          });
+        }
+      });
+
+      return totalCost;
+    } catch (err) {
+      console.error('Error calculating materials cost:', err);
+      throw err;
+    }
+  };
+
+  const calculateToolsCost = async (projectId) => {
+    try {
+      const tools = await BuildingTool.find({ project: projectId });
+      let totalCost = 0;
+
+      if (!tools.length) {
+        console.log(`No tools found for project: ${projectId}`);
+      }
+
+      tools.forEach((tool) => {
+        if (Array.isArray(tool.purchaseRecord)) {
+          tool.purchaseRecord.forEach((record) => {
+            const quantity = record.quantity ?? 0;
+            const unitPrice = record.unitPrice ?? 0;
+            const status = record.status ?? '';
+
+            if (status.trim().toLowerCase() === 'approved') {
+              totalCost += quantity * unitPrice;
+            }
+          });
+        }
+      });
+
+      console.log('Total tools cost:', totalCost);
+      return totalCost;
+    } catch (err) {
+      console.error('Error calculating tools cost:', err);
+      throw err;
+    }
+  };
 
   const getMonthOverMonthChanges = async (req, res) => {
     try {
@@ -86,8 +119,7 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
             const rDate = new Date(record.date);
             if (
               record.status === 'Approved' &&
-              // eslint-disable-next-line no-restricted-globals
-              !isNaN(rDate) &&
+              !Number.isNaN(rDate) &&
               rDate >= monthStart &&
               rDate < end
             ) {
@@ -105,7 +137,7 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
       const thisMonthToolCost = calculateCost(toolDocs, thisMonthStart);
       const lastMonthToolCost = calculateCost(toolDocs, lastMonthStart);
 
-      const thisMonthLaborCost = await calculateLaborCost(BuildingProject, projectObjectId);
+      const thisMonthLaborCost = await calculateLaborCost(projectObjectId);
       const lastMonthLaborCost = thisMonthLaborCost; // Replace with actual last month logic if available
 
       const calcMoMChange = (current, previous) => {
@@ -150,13 +182,13 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
           }
 
           try {
-            toolsCost = await calculateToolsCost(BuildingTool, project._id);
+            toolsCost = await calculateToolsCost(project._id);
           } catch (error) {
             logger.logException(`Tools cost error for project ${project._id}: ${error.message}`);
           }
 
           try {
-            laborCost = await calculateLaborCost(BuildingProject, project._id);
+            laborCost = await calculateLaborCost(project._id);
           } catch (error) {
             logger.logException(`Labor cost error for project ${project._id}: ${error.message}`);
           }
@@ -189,8 +221,8 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
       const results = await Promise.all(
         projects.map(async (project) => {
           const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
-          const toolsCost = await calculateToolsCost(BuildingTool, project._id);
-          const laborCost = await calculateLaborCost(BuildingProject, project._id);
+          const toolsCost = await calculateToolsCost(project._id);
+          const laborCost = await calculateLaborCost(project._id);
           const totalCost = materialsCost + toolsCost + laborCost;
 
           return {
@@ -210,80 +242,46 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
     }
   };
 
-  const calculateMaterialsCost = async (BuildingMaterial, projectId) => {
+  const getTotalProjectCost = async (req, res) => {
     try {
-      const materials = await BuildingMaterial.find({ project: projectId });
-      let totalCost = 0;
-
-      if (!materials.length) {
-        console.log('No materials found for project:', projectId);
+      const project = await BuildingProject.findById(req.params.projectId);
+      if (!project) {
+        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        return res.status(404).json({ message: 'Project not found' });
       }
+      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const toolsCost = await calculateToolsCost(project._id);
+      const laboorCost = await calculateLaborCost(project._id);
 
-      materials.forEach((material) => {
-        if (Array.isArray(material.purchaseRecord)) {
-          material.purchaseRecord.forEach((record) => {
-            const { quantity = 0, unitPrice = 0, status } = record;
-
-            if (status?.trim().toLowerCase() === 'approved') {
-              totalCost += quantity * unitPrice;
-            }
-          });
-        }
+      const totalCost = materialsCost + toolsCost + laboorCost;
+      res.status(200).json({
+        totalCost,
       });
-
-      return totalCost;
-    } catch (err) {
-      console.error('Error calculating materials cost:', err);
-      throw err;
+    } catch (error) {
+      logger.logException(`Error fetching project cost: ${error.message}`);
+      res.status(500).json({ message: 'Internal server error' });
     }
   };
 
-  const calculateToolsCost = async (BuildingTool, projectId) => {
+  const getCostBreakdown = async (req, res) => {
     try {
-      const tools = await BuildingTool.find({ project: projectId });
-      let totalCost = 0;
-
-      if (!tools.length) {
-        console.log(`No tools found for project: ${projectId}`);
+      const project = await BuildingProject.findById(req.params.projectId);
+      if (!project) {
+        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        return res.status(404).json({ message: 'Project not found' });
       }
+      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const toolsCost = await calculateToolsCost(project._id);
+      const laboorCost = await calculateLaborCost(project._id);
 
-      tools.forEach((tool) => {
-        if (Array.isArray(tool.purchaseRecord)) {
-          tool.purchaseRecord.forEach((record) => {
-            const quantity = record.quantity ?? 0;
-            const unitPrice = record.unitPrice ?? 0;
-            const status = record.status ?? '';
-
-            if (status.trim().toLowerCase() === 'approved') {
-              totalCost += quantity * unitPrice;
-            }
-          });
-        }
+      res.status(200).json({
+        materialsCost,
+        equipmentCost: toolsCost,
+        laborCost: laboorCost,
       });
-
-      console.log('Total tools cost:', totalCost);
-      return totalCost;
-    } catch (err) {
-      console.error('Error calculating tools cost:', err);
-      throw err;
-    }
-  };
-
-  const calculateLaborCost = async (BuildingProject, projectId, hourlyRate = 25) => {
-    try {
-      const project = await BuildingProject.findById(projectId);
-      if (!project || !Array.isArray(project.members)) {
-        return 0;
-      }
-      let totalLaborCost = 0;
-      project.members.forEach((member) => {
-        const hoursWorked = member.hours || 0;
-        totalLaborCost += hoursWorked * hourlyRate;
-      });
-      return totalLaborCost;
-    } catch (err) {
-      console.error('Error calculating labor cost:', err);
-      throw err;
+    } catch (error) {
+      logger.logException(`Error fetching project cost breakdown: ${error.message}`);
+      res.status(500).json({ message: 'Internal server error' });
     }
   };
 

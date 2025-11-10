@@ -1,4 +1,3 @@
-// const mongoose = require('mongoose');
 const Labour = require('../models/laborCost');
 
 const createLabourCost = async (req, res) => {
@@ -55,7 +54,7 @@ const getLabourCostByDate = async (req, res) => {
 };
 
 const getLabourCostByProject = async (req, res) => {
-  const { projectName } = req.query; // changed from project_name to projectName to fix eslint camelcase error
+  const { projectName } = req.query;
 
   if (!projectName) {
     res.status(500).json({ success: false, message: 'Project Name not provided' });

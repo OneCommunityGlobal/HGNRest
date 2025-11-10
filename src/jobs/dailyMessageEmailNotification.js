@@ -13,12 +13,13 @@ cron.schedule('0 0 * * *', async () => {
   try {
     const userPreferences = await UserPreferences.find().populate('user users.userNotifyingFor');
 
-    for (const preference of userPreferences) {
-      const { user, users } = preference;
+    await Promise.all(
+      userPreferences.map(async (preference) => {
+        const { user, users } = preference;
 
-      let summary = '';
-      for (const { userNotifyingFor, notifyEmail } of users) {
-        if (notifyEmail) {
+        const summaryPromises = users.map(async ({ userNotifyingFor, notifyEmail }) => {
+          if (!notifyEmail) return '';
+
           // Fetch unread messages from the specific sender
           const unreadMessages = await Message.find({
             receiver: user._id,
@@ -32,25 +33,28 @@ cron.schedule('0 0 * * *', async () => {
 
           if (unreadMessages.length > 0) {
             if (unreadMessages.length > 5) {
-              summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
-            } else {
-              const messageList = unreadMessages
-                .map(
-                  (msg) =>
-                    `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
-                )
-                .join('');
-              summary += `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
+              return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}</li>`;
             }
+            const messageList = unreadMessages
+              .map(
+                (msg) =>
+                  `<li>${msg.content} <span style="color: #888;">(Sent: ${msg.timestamp.toLocaleString()})</span></li>`,
+              )
+              .join('');
+            return `<li>${unreadMessages.length} messages from ${userNotifyingForProfile.firstName} ${userNotifyingForProfile.lastName}<ul>${messageList}</ul></li>`;
           }
-        }
-      }
+          return '';
+        });
 
-      if (summary) {
-        const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
-        await emailSender.sendSummaryNotification(recipientEmail, summary);
-      }
-    }
+        const summaries = await Promise.all(summaryPromises);
+        const summary = summaries.join('');
+
+        if (summary) {
+          const recipientEmail = TEST_MODE ? 'test@example.com' : user.email;
+          await emailSender.sendSummaryNotification(recipientEmail, summary);
+        }
+      }),
+    );
   } catch (error) {
     console.error('❌ Error running daily email notification job:', error);
   }

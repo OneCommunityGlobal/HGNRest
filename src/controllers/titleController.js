@@ -1,11 +1,10 @@
-// const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
-const project = require('../models/project');
+const projectModel = require('../models/project');
 
-const controller = userProfileController(userProfile, project);
+const controller = userProfileController(userProfile, projectModel);
 const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
@@ -140,8 +139,7 @@ const titlecontroller = function (Title) {
       const { orderData } = req.body;
       console.log('Received order data:', orderData);
 
-      // eslint-disable-next-line no-unused-vars
-      const updates = await Promise.all(
+      await Promise.all(
         orderData.map(async ({ id, order }) => {
           const updated = await Title.findByIdAndUpdate(id, { order }, { new: true });
           console.log('Updated title:', updated);

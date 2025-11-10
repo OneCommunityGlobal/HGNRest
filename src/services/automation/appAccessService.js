@@ -30,7 +30,12 @@ async function upsertAppAccess(userId, appName, status, credentials) {
 
 async function revokeAppAccess(userId, appName) {
   const appAccess = await ApplicationAccess.findOne({ userId });
-  const app = appAccess && appAccess.apps.find((a) => a.app === appName);
+
+  if (!appAccess) {
+    throw new Error(`No application access record found for user ${userId}`);
+  }
+
+  const app = appAccess.apps.find((a) => a.app === appName);
 
   if (!app || !app.credentials) {
     throw new Error(`${appName} folder information not found for this user.`);
@@ -42,7 +47,37 @@ async function revokeAppAccess(userId, appName) {
   return appAccess;
 }
 
+async function getAppCredentials(userId, appName) {
+  const appAccess = await ApplicationAccess.findOne({ userId });
+  const app = appAccess && appAccess.apps.find((a) => a.app === appName);
+
+  if (!app || !app.credentials) {
+    throw new Error(`${appName} credentials not found for this user.`);
+  }
+
+  return app.credentials;
+}
+
+async function getAppAccess(userId, appName) {
+  const appAccess = await ApplicationAccess.findOne({ userId });
+  const app = appAccess && appAccess.apps.find((a) => a.app === appName);
+
+  if (!app) {
+    throw new Error(`${appName} access not found for this user.`);
+  }
+
+  return {
+    status: app.status,
+    credentials: app.credentials,
+    invitedOn: app.invitedOn,
+    revokedOn: app.revokedOn,
+    failedReason: app.failedReason,
+  };
+}
+
 module.exports = {
   upsertAppAccess,
   revokeAppAccess,
+  getAppCredentials,
+  getAppAccess,
 };
