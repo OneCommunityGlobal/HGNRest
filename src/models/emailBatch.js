@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const { EMAIL_CONFIG } = require('../config/emailConfig');
 
 /**
  * EmailBatch (child) model representing one SMTP send to a group of recipients.
@@ -33,16 +33,16 @@ const EmailBatchSchema = new Schema({
   // Email type for the batch item (uses config enum)
   emailType: {
     type: String,
-    enum: Object.values(EMAIL_JOB_CONFIG.EMAIL_TYPES),
-    default: EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC, // Use BCC for multiple recipients
+    enum: Object.values(EMAIL_CONFIG.EMAIL_TYPES),
+    default: EMAIL_CONFIG.EMAIL_TYPES.BCC, // Use BCC for multiple recipients
     required: [true, 'Email type is required'],
   },
 
   // Status tracking (for the entire batch item) - uses config enum
   status: {
     type: String,
-    enum: Object.values(EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES),
-    default: EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.QUEUED,
+    enum: Object.values(EMAIL_CONFIG.EMAIL_BATCH_STATUSES),
+    default: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.PENDING,
     index: true,
     required: [true, 'Status is required'],
   },
@@ -80,10 +80,10 @@ EmailBatchSchema.pre('save', function (next) {
   this.updatedAt = new Date();
 
   // Validate status consistency with timestamps
-  if (this.status === EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.SENT && !this.sentAt) {
+  if (this.status === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT && !this.sentAt) {
     this.sentAt = new Date();
   }
-  if (this.status === EMAIL_JOB_CONFIG.EMAIL_BATCH_STATUSES.FAILED && !this.failedAt) {
+  if (this.status === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.FAILED && !this.failedAt) {
     this.failedAt = new Date();
   }
 
@@ -96,5 +96,9 @@ EmailBatchSchema.index({ status: 1, createdAt: 1 }); // For status-based queries
 EmailBatchSchema.index({ emailId: 1, createdAt: -1 }); // For batch history
 EmailBatchSchema.index({ lastAttemptedAt: 1 }); // For retry logic
 EmailBatchSchema.index({ attempts: 1, status: 1 }); // For retry queries
+EmailBatchSchema.index({ errorCode: 1 }); // For error queries
+EmailBatchSchema.index({ failedAt: -1 }); // For failed batch queries
+EmailBatchSchema.index({ status: 1, failedAt: -1 }); // Compound index for failed batches
+EmailBatchSchema.index({ emailId: 1, status: 1, createdAt: -1 }); // Compound index for email batches by status
 
 module.exports = mongoose.model('EmailBatch', EmailBatchSchema, 'emailBatches');

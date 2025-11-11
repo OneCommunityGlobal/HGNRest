@@ -2,7 +2,6 @@
 require('dotenv').config();
 const http = require('http');
 require('./jobs/dailyMessageEmailNotification');
-require('./jobs/announcementEmailJob').start(); // Start email announcement job processor
 const { app, logger } = require('./app');
 const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
@@ -10,8 +9,6 @@ require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
-
-// Email batch system is initialized automatically when needed
 
 const websocketRouter = require('./websockets/webSocketRouter');
 

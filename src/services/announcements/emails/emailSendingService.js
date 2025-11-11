@@ -1,5 +1,5 @@
 /**
- * Email Announcement Service
+ * Email Sending Service
  * Handles sending emails via Gmail API using OAuth2 authentication
  * Provides validation, retry logic, and comprehensive error handling
  */
@@ -8,7 +8,7 @@ const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../../../startup/logger');
 
-class EmailAnnouncementService {
+class EmailSendingService {
   /**
    * Initialize Gmail OAuth2 transport configuration and validate required env vars.
    * Throws during construction if configuration is incomplete to fail fast.
@@ -36,6 +36,12 @@ class EmailAnnouncementService {
     );
     this.OAuth2Client.setCredentials({ refresh_token: this.config.refreshToken });
 
+    // OAuth token caching
+    this.cachedToken = null;
+    this.tokenExpiryTime = null;
+    // Tokens typically expire in 1 hour, refresh 5 minutes before expiry
+    this.tokenRefreshBufferMs = 5 * 60 * 1000; // 5 minutes
+
     // Create the email transporter
     try {
       this.transporter = nodemailer.createTransport({
@@ -48,7 +54,51 @@ class EmailAnnouncementService {
         },
       });
     } catch (error) {
-      logger.logException(error, 'EmailAnnouncementService: Failed to create transporter');
+      logger.logException(error, 'EmailSendingService: Failed to create transporter');
+      throw error;
+    }
+  }
+
+  /**
+   * Get OAuth access token with caching.
+   * Refreshes token only if expired or about to expire.
+   * @returns {Promise<string>} Access token
+   * @throws {Error} If token refresh fails
+   */
+  async getAccessToken() {
+    const now = Date.now();
+
+    // Check if we have a valid cached token
+    if (
+      this.cachedToken &&
+      this.tokenExpiryTime &&
+      now < this.tokenExpiryTime - this.tokenRefreshBufferMs
+    ) {
+      return this.cachedToken;
+    }
+
+    // Token expired or doesn't exist, refresh it
+    try {
+      const accessTokenResp = await this.OAuth2Client.getAccessToken();
+      let token;
+
+      if (accessTokenResp && typeof accessTokenResp === 'object' && accessTokenResp.token) {
+        token = accessTokenResp.token;
+      } else if (typeof accessTokenResp === 'string') {
+        token = accessTokenResp;
+      } else {
+        throw new Error('Invalid access token response format');
+      }
+
+      // Cache the token with expiry time (tokens typically last 1 hour)
+      this.cachedToken = token;
+      this.tokenExpiryTime = now + 60 * 60 * 1000; // 1 hour from now
+
+      return token;
+    } catch (error) {
+      // Clear cache on error
+      this.cachedToken = null;
+      this.tokenExpiryTime = null;
       throw error;
     }
   }
@@ -65,50 +115,43 @@ class EmailAnnouncementService {
     // Validation
     if (!mailOptions) {
       const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
-      logger.logException(error, 'EmailAnnouncementService.sendEmail validation failed');
+      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     if (!mailOptions.to && !mailOptions.bcc) {
       const error = new Error('INVALID_RECIPIENTS: At least one recipient (to or bcc) is required');
-      logger.logException(error, 'EmailAnnouncementService.sendEmail validation failed');
+      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     // Validate subject and htmlContent
     if (!mailOptions.subject || mailOptions.subject.trim() === '') {
       const error = new Error('INVALID_SUBJECT: Subject is required and cannot be empty');
-      logger.logException(error, 'EmailAnnouncementService.sendEmail validation failed');
+      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     if (!this.config.email || !this.config.clientId || !this.config.clientSecret) {
       const error = new Error('INVALID_CONFIG: Email configuration is incomplete');
-      logger.logException(error, 'EmailAnnouncementService.sendEmail configuration check failed');
+      logger.logException(error, 'EmailSendingService.sendEmail configuration check failed');
       return { success: false, error };
     }
 
     try {
-      // Get access token with proper error handling
+      // Get access token with caching
       let token;
       try {
-        const accessTokenResp = await this.OAuth2Client.getAccessToken();
-        if (accessTokenResp && typeof accessTokenResp === 'object' && accessTokenResp.token) {
-          token = accessTokenResp.token;
-        } else if (typeof accessTokenResp === 'string') {
-          token = accessTokenResp;
-        } else {
-          throw new Error('Invalid access token response format');
-        }
+        token = await this.getAccessToken();
       } catch (tokenError) {
         const error = new Error(`OAUTH_TOKEN_ERROR: ${tokenError.message}`);
-        logger.logException(error, 'EmailAnnouncementService.sendEmail OAuth token refresh failed');
+        logger.logException(error, 'EmailSendingService.sendEmail OAuth token refresh failed');
         return { success: false, error };
       }
 
       if (!token) {
         const error = new Error('NO_OAUTH_ACCESS_TOKEN: Failed to obtain access token');
-        logger.logException(error, 'EmailAnnouncementService.sendEmail OAuth failed');
+        logger.logException(error, 'EmailSendingService.sendEmail OAuth failed');
         return { success: false, error };
       }
 
@@ -154,13 +197,13 @@ class EmailAnnouncementService {
     // Validation
     if (!mailOptions) {
       const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
-      logger.logException(error, 'EmailAnnouncementService.sendWithRetry validation failed');
+      logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
       return { success: false, error, attemptCount: 0 };
     }
 
     if (!Number.isInteger(retries) || retries < 1) {
       const error = new Error('INVALID_RETRIES: retries must be a positive integer');
-      logger.logException(error, 'EmailAnnouncementService.sendWithRetry validation failed');
+      logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
       return { success: false, error, attemptCount: 0 };
     }
 
@@ -208,7 +251,7 @@ class EmailAnnouncementService {
       // Exponential backoff before retry (2^n: 1x, 2x, 4x, 8x, ...)
       if (attempt < retries) {
         const delay = initialDelayMs * 2 ** (attempt - 1);
-        await EmailAnnouncementService.sleep(delay);
+        await EmailSendingService.sleep(delay);
       }
     }
     /* eslint-enable no-await-in-loop */
@@ -233,6 +276,6 @@ class EmailAnnouncementService {
 }
 
 // Create singleton instance
-const emailAnnouncementService = new EmailAnnouncementService();
+const emailSendingService = new EmailSendingService();
 
-module.exports = emailAnnouncementService;
+module.exports = emailSendingService;

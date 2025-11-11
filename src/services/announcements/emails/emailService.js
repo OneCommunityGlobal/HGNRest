@@ -1,27 +1,97 @@
 const mongoose = require('mongoose');
 const Email = require('../../../models/email');
-const { EMAIL_JOB_CONFIG } = require('../../../config/emailJobConfig');
+const { EMAIL_CONFIG } = require('../../../config/emailConfig');
+const { ensureHtmlWithinLimit } = require('../../../utilities/emailValidators');
 
 class EmailService {
   /**
    * Create a parent Email document for announcements.
-   * Trims large text fields and supports optional transaction sessions.
-   * @param {{subject: string, htmlContent: string, createdBy: string|ObjectId}} param0
+   * Validates and trims large text fields and supports optional transaction sessions.
+   * @param {{subject: string, htmlContent: string, createdBy: string|ObjectId, templateId?: string|ObjectId}} param0
    * @param {import('mongoose').ClientSession|null} session
    * @returns {Promise<Object>} Created Email document.
+   * @throws {Error} If validation fails
    */
-  static async createEmail({ subject, htmlContent, createdBy }, session = null) {
-    const normalizedSubject = typeof subject === 'string' ? subject.trim() : subject;
-    const normalizedHtml = typeof htmlContent === 'string' ? htmlContent.trim() : htmlContent;
+  static async createEmail({ subject, htmlContent, createdBy, templateId }, session = null) {
+    // Validate required fields
+    if (!subject || typeof subject !== 'string' || !subject.trim()) {
+      const error = new Error('Subject is required');
+      error.statusCode = 400;
+      throw error;
+    }
 
-    const email = new Email({
-      subject: normalizedSubject,
+    if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
+      const error = new Error('HTML content is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!createdBy || !mongoose.Types.ObjectId.isValid(createdBy)) {
+      const error = new Error('Valid createdBy is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Validate subject length
+    const trimmedSubject = subject.trim();
+    if (trimmedSubject.length > EMAIL_CONFIG.LIMITS.SUBJECT_MAX_LENGTH) {
+      const error = new Error(
+        `Subject cannot exceed ${EMAIL_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Validate HTML content size
+    if (!ensureHtmlWithinLimit(htmlContent)) {
+      const error = new Error(
+        `HTML content exceeds ${EMAIL_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
+      );
+      error.statusCode = 413;
+      throw error;
+    }
+
+    // Validate templateId if provided
+    if (templateId && !mongoose.Types.ObjectId.isValid(templateId)) {
+      const error = new Error('Invalid templateId');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const normalizedHtml = htmlContent.trim();
+
+    const emailData = {
+      subject: trimmedSubject,
       htmlContent: normalizedHtml,
       createdBy,
-    });
+    };
+
+    // Add template reference if provided
+    if (templateId) {
+      emailData.templateId = templateId;
+    }
+
+    const email = new Email(emailData);
 
     // Save with session if provided for transaction support
-    await email.save({ session });
+    try {
+      await email.save({ session });
+    } catch (dbError) {
+      // Handle MongoDB errors
+      if (dbError.name === 'ValidationError') {
+        const error = new Error(`Validation error: ${dbError.message}`);
+        error.statusCode = 400;
+        throw error;
+      }
+      if (dbError.code === 11000) {
+        const error = new Error('Duplicate key error');
+        error.statusCode = 409;
+        throw error;
+      }
+      // Re-throw with status code for other database errors
+      dbError.statusCode = 500;
+      throw dbError;
+    }
 
     return email;
   }
@@ -30,50 +100,100 @@ class EmailService {
    * Fetch a parent Email by ObjectId.
    * @param {string|ObjectId} id
    * @param {import('mongoose').ClientSession|null} session
+   * @param {boolean} throwIfNotFound - If true, throw error with statusCode 404 if not found. Default: false (returns null).
+   * @param {boolean} populateCreatedBy - If true, populate createdBy field. Default: false.
    * @returns {Promise<Object|null>}
+   * @throws {Error} If throwIfNotFound is true and email is not found
    */
-  static async getEmailById(id, session = null) {
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    return Email.findById(id).session(session);
+  static async getEmailById(
+    id,
+    session = null,
+    throwIfNotFound = false,
+    populateCreatedBy = false,
+  ) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      if (throwIfNotFound) {
+        const error = new Error('Valid email ID is required');
+        error.statusCode = 400;
+        throw error;
+      }
+      return null;
+    }
+    let query = Email.findById(id);
+    if (session) {
+      query = query.session(session);
+    }
+    if (populateCreatedBy) {
+      query = query.populate('createdBy', 'firstName lastName email');
+    }
+    const email = await query;
+    if (!email && throwIfNotFound) {
+      const error = new Error(`Email ${id} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
+    return email;
   }
 
   /**
    * Update Email status with validation against configured enum.
    * @param {string|ObjectId} emailId
-   * @param {string} status - One of EMAIL_JOB_CONFIG.EMAIL_STATUSES.*
+   * @param {string} status - One of EMAIL_CONFIG.EMAIL_STATUSES.*
    * @returns {Promise<Object>} Updated Email document.
+   * @throws {Error} If email not found or invalid status
    */
   static async updateEmailStatus(emailId, status) {
     if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
-      throw new Error('Valid email ID is required');
+      const error = new Error('Valid email ID is required');
+      error.statusCode = 400;
+      throw error;
     }
-    if (!Object.values(EMAIL_JOB_CONFIG.EMAIL_STATUSES).includes(status)) {
-      throw new Error('Invalid email status');
+    if (!Object.values(EMAIL_CONFIG.EMAIL_STATUSES).includes(status)) {
+      const error = new Error('Invalid email status');
+      error.statusCode = 400;
+      throw error;
     }
     const email = await Email.findByIdAndUpdate(
       emailId,
       { status, updatedAt: new Date() },
       { new: true },
     );
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
     return email;
   }
 
   /**
    * Mark Email as SENDING and set startedAt.
+   * Uses atomic update with condition to prevent race conditions.
    * @param {string|ObjectId} emailId
    * @returns {Promise<Object>} Updated Email document.
+   * @throws {Error} If email not found or not in PENDING status
    */
   static async markEmailStarted(emailId) {
     const now = new Date();
-    const email = await Email.findByIdAndUpdate(
-      emailId,
+    const email = await Email.findOneAndUpdate(
       {
-        status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENDING,
+        _id: emailId,
+        status: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
+      },
+      {
+        status: EMAIL_CONFIG.EMAIL_STATUSES.SENDING,
         startedAt: now,
         updatedAt: now,
       },
       { new: true },
     );
+
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found or not in PENDING status`);
+      error.statusCode = 404;
+      throw error;
+    }
+
     return email;
   }
 
@@ -83,12 +203,13 @@ class EmailService {
    * @param {string|ObjectId} emailId
    * @param {string} finalStatus
    * @returns {Promise<Object>} Updated Email document.
+   * @throws {Error} If email not found
    */
   static async markEmailCompleted(emailId, finalStatus) {
     const now = new Date();
-    const statusToSet = Object.values(EMAIL_JOB_CONFIG.EMAIL_STATUSES).includes(finalStatus)
+    const statusToSet = Object.values(EMAIL_CONFIG.EMAIL_STATUSES).includes(finalStatus)
       ? finalStatus
-      : EMAIL_JOB_CONFIG.EMAIL_STATUSES.SENT;
+      : EMAIL_CONFIG.EMAIL_STATUSES.SENT;
 
     const email = await Email.findByIdAndUpdate(
       emailId,
@@ -99,27 +220,51 @@ class EmailService {
       },
       { new: true },
     );
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
     return email;
   }
 
   /**
-   * Mark an Email as QUEUED for retry and clear timing fields.
+   * Mark an Email as PENDING for retry and clear timing fields.
    * @param {string|ObjectId} emailId
    * @returns {Promise<Object>} Updated Email document.
+   * @throws {Error} If email not found
    */
-  static async markEmailQueued(emailId) {
+  static async markEmailPending(emailId) {
     const now = new Date();
     const email = await Email.findByIdAndUpdate(
       emailId,
       {
-        status: EMAIL_JOB_CONFIG.EMAIL_STATUSES.QUEUED,
+        status: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
         startedAt: null,
         completedAt: null,
         updatedAt: now,
       },
       { new: true },
     );
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
     return email;
+  }
+
+  /**
+   * Get all Emails ordered by creation date descending.
+   * @returns {Promise<Array>} Array of Email objects (lean, with createdBy populated).
+   */
+  static async getAllEmails() {
+    const emails = await Email.find()
+      .sort({ createdAt: -1 })
+      .populate('createdBy', 'firstName lastName email')
+      .lean();
+
+    return emails;
   }
 }
 

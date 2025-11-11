@@ -2,18 +2,16 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
-const {
-  isValidEmailAddress,
-  normalizeRecipientsToArray,
-  ensureHtmlWithinLimit,
-} = require('../utilities/emailValidators');
+const { EMAIL_CONFIG } = require('../config/emailConfig');
+const { isValidEmailAddress, normalizeRecipientsToArray } = require('../utilities/emailValidators');
+const TemplateRenderingService = require('../services/announcements/emails/templateRenderingService');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 const EmailBatchService = require('../services/announcements/emails/emailBatchService');
 const EmailService = require('../services/announcements/emails/emailService');
-const EmailBatchAuditService = require('../services/announcements/emails/emailBatchAuditService');
+const emailProcessor = require('../services/announcements/emails/emailProcessor');
 const { hasPermission } = require('../utilities/permissions');
+const { withTransaction } = require('../utilities/transactionHelper');
 const config = require('../config');
 const logger = require('../startup/logger');
 
@@ -27,7 +25,7 @@ const jwtSecret = process.env.JWT_SECRET;
  * @param {import('express').Response} res
  */
 const sendEmail = async (req, res) => {
-  // Requestor is required for permission check and audit trail
+  // Requestor is required for permission check
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
   }
@@ -43,183 +41,80 @@ const sendEmail = async (req, res) => {
   try {
     const { to, subject, html } = req.body;
 
-    const missingFields = [];
-    if (!subject) missingFields.push('Subject');
-    if (!html) missingFields.push('HTML content');
-    if (!to) missingFields.push('Recipient email');
-    if (missingFields.length) {
-      return res.status(400).json({
-        success: false,
-        message: `${missingFields.join(' and ')} ${missingFields.length > 1 ? 'are' : 'is'} required`,
-      });
-    }
-
-    // Validate HTML content size
-    if (!ensureHtmlWithinLimit(html)) {
-      return res.status(413).json({
-        success: false,
-        message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
-      });
-    }
-
-    // Validate subject length against config
-    if (subject && subject.length > EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH) {
-      return res.status(400).json({
-        success: false,
-        message: `Subject cannot exceed ${EMAIL_JOB_CONFIG.LIMITS.SUBJECT_MAX_LENGTH} characters`,
-      });
-    }
-
-    // Validate HTML does not contain base64-encoded media
-    // const mediaValidation = validateHtmlMedia(html);
-    // if (!mediaValidation.isValid) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-    //     errors: mediaValidation.errors,
-    //   });
-    // }
-
-    // Validate that all template variables have been replaced
-    const templateVariableRegex = /\{\{(\w+)\}\}/g;
-    const unmatchedVariables = [];
-    let match = templateVariableRegex.exec(html);
-    while (match !== null) {
-      if (!unmatchedVariables.includes(match[1])) {
-        unmatchedVariables.push(match[1]);
-      }
-      match = templateVariableRegex.exec(html);
-    }
-    // Check subject as well
-    if (subject) {
-      templateVariableRegex.lastIndex = 0;
-      match = templateVariableRegex.exec(subject);
-      while (match !== null) {
-        if (!unmatchedVariables.includes(match[1])) {
-          unmatchedVariables.push(match[1]);
-        }
-        match = templateVariableRegex.exec(subject);
-      }
-    }
+    // Validate that all template variables have been replaced (business rule)
+    const unmatchedVariablesHtml = TemplateRenderingService.getUnreplacedVariables(html);
+    const unmatchedVariablesSubject = TemplateRenderingService.getUnreplacedVariables(subject);
+    const unmatchedVariables = [
+      ...new Set([...unmatchedVariablesHtml, ...unmatchedVariablesSubject]),
+    ];
     if (unmatchedVariables.length > 0) {
       return res.status(400).json({
         success: false,
         message:
           'Email contains unreplaced template variables. Please ensure all variables are replaced before sending.',
-        errors: {
-          unmatchedVariables: `Found unreplaced variables: ${unmatchedVariables.join(', ')}`,
-        },
+        unmatchedVariables,
       });
     }
 
-    try {
-      // Normalize, dedupe, and validate recipients FIRST
-      const recipientsArray = normalizeRecipientsToArray(to);
-      if (recipientsArray.length === 0) {
-        return res
-          .status(400)
-          .json({ success: false, message: 'At least one recipient email is required' });
-      }
-      if (recipientsArray.length > EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST) {
-        return res.status(400).json({
-          success: false,
-          message: `A maximum of ${EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
-        });
-      }
-      const invalidRecipients = recipientsArray.filter((e) => !isValidEmailAddress(e));
-      if (invalidRecipients.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more recipient emails are invalid',
-          invalidRecipients,
-        });
-      }
-
-      // Always use batch system for tracking and progress
-      const user = await userProfile.findById(req.body.requestor.requestorId);
-      if (!user) {
-        return res.status(400).json({ success: false, message: 'Requestor not found' });
-      }
-
-      // Start MongoDB transaction
-      const session = await mongoose.startSession();
-      session.startTransaction();
-
-      try {
-        // Create parent Email within transaction
-        const email = await EmailService.createEmail(
-          {
-            subject,
-            htmlContent: html,
-            createdBy: user._id,
-          },
-          session,
-        );
-
-        // Create EmailBatch items with all recipients (chunked automatically) within transaction
-        // Always use BCC for all recipients (sender goes in 'to' field)
-        const recipientObjects = recipientsArray.map((emailAddr) => ({ email: emailAddr }));
-        const inserted = await EmailBatchService.createEmailBatches(
-          email._id,
-          recipientObjects,
-          {
-            emailType: EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC,
-          },
-          session,
-        );
-
-        // Commit transaction
-        await session.commitTransaction();
-
-        // Audit logging after successful commit (outside transaction to avoid failures)
-        try {
-          await EmailBatchAuditService.logEmailQueued(
-            email._id,
-            {
-              subject: email.subject,
-            },
-            user._id,
-          );
-
-          // Audit each batch creation
-          await Promise.all(
-            inserted.map(async (item) => {
-              await EmailBatchAuditService.logEmailBatchQueued(
-                email._id,
-                item._id,
-                {
-                  recipientCount: item.recipients?.length || 0,
-                  emailType: item.emailType,
-                  recipients: item.recipients?.map((r) => r.email) || [],
-                  emailBatchId: item._id.toString(),
-                },
-                user._id,
-              );
-            }),
-          );
-        } catch (auditErr) {
-          logger.logException(auditErr, 'Audit failure after successful email creation');
-          // Don't fail the request if audit fails
-        }
-
-        session.endSession();
-
-        return res.status(200).json({
-          success: true,
-          message: `Email created successfully for ${recipientsArray.length} recipient(s)`,
-        });
-      } catch (emailError) {
-        // Abort transaction on error
-        await session.abortTransaction();
-        session.endSession();
-        throw emailError;
-      }
-    } catch (emailError) {
-      logger.logException(emailError, 'Error creating email');
-      return res.status(500).json({ success: false, message: 'Error creating email' });
+    // Get user
+    const user = await userProfile.findById(req.body.requestor.requestorId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Requestor not found' });
     }
+
+    // Normalize recipients once for service and response
+    const recipientsArray = normalizeRecipientsToArray(to);
+
+    // Create email and batches in transaction (validation happens in services)
+    const email = await withTransaction(async (session) => {
+      // Create parent Email (validates subject, htmlContent, createdBy)
+      const createdEmail = await EmailService.createEmail(
+        {
+          subject,
+          htmlContent: html,
+          createdBy: user._id,
+        },
+        session,
+      );
+
+      // Create EmailBatch items with all recipients (validates recipients, counts, email format)
+      const recipientObjects = recipientsArray.map((emailAddr) => ({ email: emailAddr }));
+      await EmailBatchService.createEmailBatches(
+        createdEmail._id,
+        recipientObjects,
+        {
+          emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
+        },
+        session,
+      );
+
+      return createdEmail;
+    });
+
+    // Process email immediately (async, fire and forget)
+    emailProcessor.processEmail(email._id).catch((processError) => {
+      logger.logException(
+        processError,
+        `Error processing email ${email._id} immediately after creation`,
+      );
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Email created successfully for ${recipientsArray.length} recipient(s)`,
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Error creating email' });
+    logger.logException(error, 'Error creating email');
+    const statusCode = error.statusCode || 500;
+    const response = {
+      success: false,
+      message: error.message || 'Error creating email',
+    };
+    // Include invalidRecipients if present (from service validation)
+    if (error.invalidRecipients) {
+      response.invalidRecipients = error.invalidRecipients;
+    }
+    return res.status(statusCode).json(response);
   }
 };
 
@@ -230,7 +125,7 @@ const sendEmail = async (req, res) => {
  * @param {import('express').Response} res
  */
 const sendEmailToSubscribers = async (req, res) => {
-  // Requestor is required for permission check and audit trail
+  // Requestor is required for permission check
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
   }
@@ -245,68 +140,29 @@ const sendEmailToSubscribers = async (req, res) => {
 
   try {
     const { subject, html } = req.body;
-    if (!subject || !html) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Subject and HTML content are required' });
-    }
 
-    if (!ensureHtmlWithinLimit(html)) {
-      return res.status(413).json({
-        success: false,
-        message: `HTML content exceeds ${EMAIL_JOB_CONFIG.LIMITS.MAX_HTML_BYTES / (1024 * 1024)}MB limit`,
-      });
-    }
-
-    // Validate HTML does not contain base64-encoded media
-    // const mediaValidation = validateHtmlMedia(html);
-    // if (!mediaValidation.isValid) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'HTML contains embedded media files. Only URLs are allowed for media.',
-    //     errors: mediaValidation.errors,
-    //   });
-    // }
-
-    // Validate that all template variables have been replaced
-    const templateVariableRegex = /\{\{(\w+)\}\}/g;
-    const unmatchedVariables = [];
-    let match = templateVariableRegex.exec(html);
-    while (match !== null) {
-      if (!unmatchedVariables.includes(match[1])) {
-        unmatchedVariables.push(match[1]);
-      }
-      match = templateVariableRegex.exec(html);
-    }
-    // Check subject as well
-    if (subject) {
-      templateVariableRegex.lastIndex = 0;
-      match = templateVariableRegex.exec(subject);
-      while (match !== null) {
-        if (!unmatchedVariables.includes(match[1])) {
-          unmatchedVariables.push(match[1]);
-        }
-        match = templateVariableRegex.exec(subject);
-      }
-    }
+    // Validate that all template variables have been replaced (business rule)
+    const unmatchedVariablesHtml = TemplateRenderingService.getUnreplacedVariables(html);
+    const unmatchedVariablesSubject = TemplateRenderingService.getUnreplacedVariables(subject);
+    const unmatchedVariables = [
+      ...new Set([...unmatchedVariablesHtml, ...unmatchedVariablesSubject]),
+    ];
     if (unmatchedVariables.length > 0) {
       return res.status(400).json({
         success: false,
         message:
           'Email contains unreplaced template variables. Please ensure all variables are replaced before sending.',
-        errors: {
-          unmatchedVariables: `Found unreplaced variables: ${unmatchedVariables.join(', ')}`,
-        },
+        unmatchedVariables,
       });
     }
 
-    // Always use new batch system for broadcast emails
+    // Get user
     const user = await userProfile.findById(req.body.requestor.requestorId);
     if (!user) {
-      return res.status(400).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Get ALL recipients FIRST (HGN users + email subscribers)
+    // Get ALL recipients (HGN users + email subscribers)
     const users = await userProfile.find({
       firstName: { $ne: '' },
       email: { $ne: null },
@@ -325,13 +181,10 @@ const sendEmailToSubscribers = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No recipients found' });
     }
 
-    // Start MongoDB transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      // Create parent Email within transaction
-      const email = await EmailService.createEmail(
+    // Create email and batches in transaction (validation happens in services)
+    const email = await withTransaction(async (session) => {
+      // Create parent Email (validates subject, htmlContent, createdBy)
+      const createdEmail = await EmailService.createEmail(
         {
           subject,
           htmlContent: html,
@@ -346,66 +199,43 @@ const sendEmailToSubscribers = async (req, res) => {
         ...emailSubscribers.map((subscriber) => ({ email: subscriber.email })),
       ];
 
-      // Create EmailBatch items with all recipients (chunked automatically) within transaction
-      // Use BCC for broadcast emails to hide recipient list from each other
-      const inserted = await EmailBatchService.createEmailBatches(
-        email._id,
+      // Create EmailBatch items with all recipients (validates recipients, counts, email format)
+      await EmailBatchService.createEmailBatches(
+        createdEmail._id,
         allRecipients,
         {
-          emailType: EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC,
+          emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
         },
         session,
       );
 
-      // Commit transaction
-      await session.commitTransaction();
+      return createdEmail;
+    });
 
-      // Audit logging after successful commit (outside transaction to avoid failures)
-      try {
-        await EmailBatchAuditService.logEmailQueued(
-          email._id,
-          {
-            subject: email.subject,
-          },
-          user._id,
-        );
+    // Process email immediately (async, fire and forget)
+    emailProcessor.processEmail(email._id).catch((processError) => {
+      logger.logException(
+        processError,
+        `Error processing broadcast email ${email._id} immediately after creation`,
+      );
+    });
 
-        // Audit each batch creation
-        await Promise.all(
-          inserted.map(async (item) => {
-            await EmailBatchAuditService.logEmailBatchQueued(
-              email._id,
-              item._id,
-              {
-                recipientCount: item.recipients?.length || 0,
-                emailType: item.emailType,
-                recipients: item.recipients?.map((r) => r.email) || [],
-                emailBatchId: item._id.toString(),
-              },
-              user._id,
-            );
-          }),
-        );
-      } catch (auditErr) {
-        logger.logException(auditErr, 'Audit failure after successful broadcast email creation');
-        // Don't fail the request if audit fails
-      }
-
-      session.endSession();
-
-      return res.status(200).json({
-        success: true,
-        message: `Broadcast email created successfully for ${totalRecipients} recipient(s)`,
-      });
-    } catch (error) {
-      // Abort transaction on error
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    return res.status(200).json({
+      success: true,
+      message: `Broadcast email created successfully for ${totalRecipients} recipient(s)`,
+    });
   } catch (error) {
     logger.logException(error, 'Error creating broadcast email');
-    return res.status(500).json({ success: false, message: 'Error creating broadcast email' });
+    const statusCode = error.statusCode || 500;
+    const response = {
+      success: false,
+      message: error.message || 'Error creating broadcast email',
+    };
+    // Include invalidRecipients if present (from service validation)
+    if (error.invalidRecipients) {
+      response.invalidRecipients = error.invalidRecipients;
+    }
+    return res.status(statusCode).json(response);
   }
 };
 
@@ -416,7 +246,7 @@ const sendEmailToSubscribers = async (req, res) => {
  * @param {import('express').Response} res
  */
 const resendEmail = async (req, res) => {
-  // Requestor is required for permission check and audit trail
+  // Requestor is required for permission check
   if (!req?.body?.requestor?.requestorId) {
     return res.status(401).json({ success: false, message: 'Missing requestor' });
   }
@@ -437,11 +267,8 @@ const resendEmail = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid emailId' });
     }
 
-    // Get the original email
-    const originalEmail = await EmailService.getEmailById(emailId);
-    if (!originalEmail) {
-      return res.status(404).json({ success: false, message: 'Email not found' });
-    }
+    // Get the original email (service throws error if not found)
+    const originalEmail = await EmailService.getEmailById(emailId, null, true);
 
     // Validate recipient option
     if (!recipientOption) {
@@ -497,24 +324,8 @@ const resendEmail = async (req, res) => {
         });
       }
 
-      // Normalize and validate recipients
+      // Normalize recipients (validation happens in service)
       const recipientsArray = normalizeRecipientsToArray(specificRecipients);
-      const invalidRecipients = recipientsArray.filter((e) => !isValidEmailAddress(e));
-      if (invalidRecipients.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more recipient emails are invalid',
-          invalidRecipients,
-        });
-      }
-
-      if (recipientsArray.length > EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST) {
-        return res.status(400).json({
-          success: false,
-          message: `A maximum of ${EMAIL_JOB_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
-        });
-      }
-
       allRecipients = recipientsArray.map((email) => ({ email }));
     } else if (recipientOption === 'same') {
       // Get recipients from original email's EmailBatch items
@@ -546,13 +357,10 @@ const resendEmail = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No recipients found' });
     }
 
-    // Start MongoDB transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      // Create new Email (copy) within transaction
-      const newEmail = await EmailService.createEmail(
+    // Create email and batches in transaction
+    const newEmail = await withTransaction(async (session) => {
+      // Create new Email (copy) - validation happens in service
+      const createdEmail = await EmailService.createEmail(
         {
           subject: originalEmail.subject,
           htmlContent: originalEmail.htmlContent,
@@ -561,71 +369,47 @@ const resendEmail = async (req, res) => {
         session,
       );
 
-      // Create EmailBatch items within transaction
-      // Always use BCC for all recipients (sender goes in 'to' field)
-      const inserted = await EmailBatchService.createEmailBatches(
-        newEmail._id,
+      // Create EmailBatch items
+      await EmailBatchService.createEmailBatches(
+        createdEmail._id,
         allRecipients,
         {
-          emailType: EMAIL_JOB_CONFIG.EMAIL_TYPES.BCC,
+          emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
         },
         session,
       );
 
-      // Commit transaction
-      await session.commitTransaction();
+      return createdEmail;
+    });
 
-      // Audit logging after successful commit (outside transaction)
-      try {
-        await EmailBatchAuditService.logEmailQueued(
-          newEmail._id,
-          {
-            subject: newEmail.subject,
-            resendFrom: emailId.toString(),
-            recipientOption,
-          },
-          user._id,
-        );
+    // Process email immediately (async, fire and forget)
+    emailProcessor.processEmail(newEmail._id).catch((processError) => {
+      logger.logException(
+        processError,
+        `Error processing resent email ${newEmail._id} immediately after creation`,
+      );
+    });
 
-        // Audit each batch creation
-        await Promise.all(
-          inserted.map(async (item) => {
-            await EmailBatchAuditService.logEmailBatchQueued(
-              newEmail._id,
-              item._id,
-              {
-                recipientCount: item.recipients?.length || 0,
-                emailType: item.emailType,
-                recipients: item.recipients?.map((r) => r.email) || [],
-                emailBatchId: item._id.toString(),
-              },
-              user._id,
-            );
-          }),
-        );
-      } catch (auditErr) {
-        logger.logException(auditErr, 'Audit failure after successful email resend');
-      }
-
-      session.endSession();
-
-      return res.status(200).json({
-        success: true,
-        message: `Email queued for resend successfully to ${allRecipients.length} recipient(s)`,
-        data: {
-          emailId: newEmail._id,
-          recipientCount: allRecipients.length,
-        },
-      });
-    } catch (error) {
-      // Abort transaction on error
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    return res.status(200).json({
+      success: true,
+      message: `Email created for resend successfully to ${allRecipients.length} recipient(s)`,
+      data: {
+        emailId: newEmail._id,
+        recipientCount: allRecipients.length,
+      },
+    });
   } catch (error) {
     logger.logException(error, 'Error resending email');
-    return res.status(500).json({ success: false, message: 'Error resending email' });
+    const statusCode = error.statusCode || 500;
+    const response = {
+      success: false,
+      message: error.message || 'Error resending email',
+    };
+    // Include invalidRecipients if present (from service validation)
+    if (error.invalidRecipients) {
+      response.invalidRecipients = error.invalidRecipients;
+    }
+    return res.status(statusCode).json(response);
   }
 };
 
@@ -667,7 +451,11 @@ const updateEmailSubscriptions = async (req, res) => {
       .json({ success: true, message: 'Email subscription updated successfully' });
   } catch (error) {
     logger.logException(error, 'Error updating email subscriptions');
-    return res.status(500).json({ success: false, message: 'Error updating email subscriptions' });
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Error updating email subscriptions',
+    });
   }
 };
 
@@ -722,7 +510,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
     const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' }); // Fixed: was '360' (invalid)
 
     if (!config.FRONT_END_URL) {
-      console.error('FRONT_END_URL is not configured');
+      logger.logException(new Error('FRONT_END_URL is not configured'), 'Configuration error');
       return res
         .status(500)
         .json({ success: false, message: 'Server configuration error. Please contact support.' });

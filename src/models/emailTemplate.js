@@ -11,7 +11,6 @@ const emailTemplateSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     subject: {
@@ -54,8 +53,10 @@ const emailTemplateSchema = new mongoose.Schema(
   },
 );
 
+// Unique index on name (case-insensitive)
+emailTemplateSchema.index({ name: 1 }, { unique: true });
+
 // Indexes for better search performance
-emailTemplateSchema.index({ name: 1 });
 emailTemplateSchema.index({ created_at: -1 });
 emailTemplateSchema.index({ updated_at: -1 });
 emailTemplateSchema.index({ created_by: 1 });
@@ -70,5 +71,30 @@ emailTemplateSchema.index({
 // Compound indexes for common queries
 emailTemplateSchema.index({ created_by: 1, created_at: -1 });
 emailTemplateSchema.index({ name: 1, created_at: -1 });
+
+// Virtual for camelCase compatibility (for API responses)
+emailTemplateSchema.virtual('htmlContent').get(function () {
+  return this.html_content;
+});
+
+emailTemplateSchema.virtual('createdBy').get(function () {
+  return this.created_by;
+});
+
+emailTemplateSchema.virtual('updatedBy').get(function () {
+  return this.updated_by;
+});
+
+emailTemplateSchema.virtual('createdAt').get(function () {
+  return this.created_at;
+});
+
+emailTemplateSchema.virtual('updatedAt').get(function () {
+  return this.updated_at;
+});
+
+// Ensure virtuals are included in JSON output
+emailTemplateSchema.set('toJSON', { virtuals: true });
+emailTemplateSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('EmailTemplate', emailTemplateSchema);

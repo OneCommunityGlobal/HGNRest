@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
-const { EMAIL_JOB_CONFIG } = require('../config/emailJobConfig');
+const { EMAIL_CONFIG } = require('../config/emailConfig');
 
 /**
  * Email (parent) model for announcement sending lifecycle.
- * - Stores subject/html and status transitions (QUEUED → SENDING → SENT/PROCESSED/FAILED).
+ * - Stores subject/html and status transitions (PENDING → SENDING → SENT/PROCESSED/FAILED).
  * - References creator and tracks timing fields for auditing.
  */
 const { Schema } = mongoose;
@@ -19,8 +19,14 @@ const EmailSchema = new Schema({
   },
   status: {
     type: String,
-    enum: Object.values(EMAIL_JOB_CONFIG.EMAIL_STATUSES),
-    default: EMAIL_JOB_CONFIG.EMAIL_STATUSES.QUEUED,
+    enum: Object.values(EMAIL_CONFIG.EMAIL_STATUSES),
+    default: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
+    index: true,
+  },
+  // Optional template reference for tracking which template was used
+  templateId: {
+    type: Schema.Types.ObjectId,
+    ref: 'EmailTemplate',
     index: true,
   },
   createdBy: {
@@ -49,5 +55,6 @@ EmailSchema.index({ status: 1, createdAt: 1 });
 EmailSchema.index({ createdBy: 1, createdAt: -1 });
 EmailSchema.index({ startedAt: 1 });
 EmailSchema.index({ completedAt: 1 });
+EmailSchema.index({ templateId: 1, createdAt: -1 }); // For template usage tracking
 
 module.exports = mongoose.model('Email', EmailSchema, 'emails');
