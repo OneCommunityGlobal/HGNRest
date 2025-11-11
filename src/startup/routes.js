@@ -251,7 +251,10 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 // PR Analytics
-const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
+  PRReviewInsights,
+  userProfile,
+);
 
 const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
