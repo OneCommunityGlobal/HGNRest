@@ -144,13 +144,8 @@ const retryEmail = async (req, res) => {
       `Successfully reset Email ${emailId} and ${failedItems.length} failed EmailBatch items to PENDING for retry`,
     );
 
-    // Process email immediately (async, fire and forget)
-    emailProcessor.processEmail(emailId).catch((processError) => {
-      logger.logException(
-        processError,
-        `Error processing email ${emailId} immediately after retry`,
-      );
-    });
+    // Add email to queue for processing (non-blocking, sequential processing)
+    emailProcessor.queueEmail(emailId);
 
     res.status(200).json({
       success: true,

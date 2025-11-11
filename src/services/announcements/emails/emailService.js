@@ -266,6 +266,59 @@ class EmailService {
 
     return emails;
   }
+
+  /**
+   * Get all PENDING emails that need to be processed.
+   * @returns {Promise<Array>} Array of Email objects with PENDING status.
+   */
+  static async getPendingEmails() {
+    return Email.find({
+      status: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
+    })
+      .sort({ createdAt: 1 }) // Process oldest first
+      .lean();
+  }
+
+  /**
+   * Get all STUCK emails (SENDING status).
+   * On server restart, any email in SENDING status is considered stuck because
+   * the processing was interrupted. We reset ALL SENDING emails because the
+   * server restart means they're no longer being processed.
+   * @returns {Promise<Array>} Array of Email objects with SENDING status that are stuck.
+   */
+  static async getStuckEmails() {
+    // On server restart: Reset ALL emails in SENDING status (they're all stuck)
+    return Email.find({
+      status: EMAIL_CONFIG.EMAIL_STATUSES.SENDING,
+    })
+      .sort({ startedAt: 1 }) // Process oldest first
+      .lean();
+  }
+
+  /**
+   * Reset stuck email to PENDING status so it can be reprocessed.
+   * @param {string|ObjectId} emailId
+   * @returns {Promise<Object>} Updated Email document.
+   * @throws {Error} If email not found
+   */
+  static async resetStuckEmail(emailId) {
+    const now = new Date();
+    const email = await Email.findByIdAndUpdate(
+      emailId,
+      {
+        status: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
+        startedAt: null, // Clear startedAt so it can be reprocessed
+        updatedAt: now,
+      },
+      { new: true },
+    );
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
+    return email;
+  }
 }
 
 module.exports = EmailService;

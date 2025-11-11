@@ -12,7 +12,7 @@ const EMAIL_CONFIG = {
   EMAIL_STATUSES: {
     PENDING: 'PENDING', // Created, waiting to be processed
     SENDING: 'SENDING', // Currently sending
-    SENT: 'SENT', // All emails successfully sent
+    SENT: 'SENT', // All emails successfully accepted by SMTP server
     PROCESSED: 'PROCESSED', // Processing finished (mixed results)
     FAILED: 'FAILED', // Failed to send
   },
@@ -32,7 +32,7 @@ const EMAIL_CONFIG = {
 
   // Centralized limits to keep model, services, and controllers consistent
   LIMITS: {
-    MAX_RECIPIENTS_PER_REQUEST: 1000, // Must match EmailBatch.recipients validator
+    MAX_RECIPIENTS_PER_REQUEST: 2000, // Must match EmailBatch.recipients validator
     MAX_HTML_BYTES: 1 * 1024 * 1024, // 1MB - Reduced since base64 media files are blocked
     SUBJECT_MAX_LENGTH: 200, // Standardized subject length limit
     TEMPLATE_NAME_MAX_LENGTH: 50, // Template name maximum length
@@ -40,8 +40,10 @@ const EMAIL_CONFIG = {
 
   // Announcement service runtime knobs
   ANNOUNCEMENTS: {
-    BATCH_SIZE: 50, // recipients per SMTP send batch
-    CONCURRENCY: 3, // concurrent SMTP batches
+    BATCH_SIZE: 100, // recipients per SMTP send batch
+    CONCURRENCY: 3, // concurrent SMTP batches processed simultaneously
+    BATCH_STAGGER_START_MS: 100, // Delay between starting batches within a concurrent chunk (staggered start for rate limiting)
+    DELAY_BETWEEN_CHUNKS_MS: 1000, // Delay after a chunk of batches completes before starting the next chunk
   },
 
   // Email configuration

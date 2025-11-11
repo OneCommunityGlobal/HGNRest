@@ -72,9 +72,30 @@ function ensureHtmlWithinLimit(html) {
   return size <= maxBytes;
 }
 
+/**
+ * Normalize email field (to, cc, bcc) to array format.
+ * Handles arrays, comma-separated strings, single strings, or null/undefined.
+ * @param {string|string[]|null|undefined} field - Email field to normalize
+ * @returns {string[]} Array of email addresses (empty array if input is invalid)
+ */
+function normalizeEmailField(field) {
+  if (!field) {
+    return [];
+  }
+  if (Array.isArray(field)) {
+    return field.filter((e) => e && typeof e === 'string' && e.trim().length > 0);
+  }
+  // Handle comma-separated string
+  return String(field)
+    .split(',')
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+}
+
 module.exports = {
   isValidEmailAddress,
   normalizeRecipientsToArray,
   normalizeRecipientsToObjects,
   ensureHtmlWithinLimit,
+  normalizeEmailField,
 };

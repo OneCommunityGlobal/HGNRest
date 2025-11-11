@@ -71,6 +71,11 @@ const EmailBatchSchema = new Schema({
     type: String,
   },
 
+  sendResponse: {
+    type: Schema.Types.Mixed,
+    default: null,
+  },
+
   createdAt: { type: Date, default: () => new Date(), index: true },
   updatedAt: { type: Date, default: () => new Date() },
 });

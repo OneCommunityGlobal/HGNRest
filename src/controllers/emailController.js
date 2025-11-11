@@ -91,13 +91,8 @@ const sendEmail = async (req, res) => {
       return createdEmail;
     });
 
-    // Process email immediately (async, fire and forget)
-    emailProcessor.processEmail(email._id).catch((processError) => {
-      logger.logException(
-        processError,
-        `Error processing email ${email._id} immediately after creation`,
-      );
-    });
+    // Add email to queue for processing (non-blocking, sequential processing)
+    emailProcessor.queueEmail(email._id);
 
     return res.status(200).json({
       success: true,
@@ -212,13 +207,8 @@ const sendEmailToSubscribers = async (req, res) => {
       return createdEmail;
     });
 
-    // Process email immediately (async, fire and forget)
-    emailProcessor.processEmail(email._id).catch((processError) => {
-      logger.logException(
-        processError,
-        `Error processing broadcast email ${email._id} immediately after creation`,
-      );
-    });
+    // Add email to queue for processing (non-blocking, sequential processing)
+    emailProcessor.queueEmail(email._id);
 
     return res.status(200).json({
       success: true,
@@ -382,13 +372,8 @@ const resendEmail = async (req, res) => {
       return createdEmail;
     });
 
-    // Process email immediately (async, fire and forget)
-    emailProcessor.processEmail(newEmail._id).catch((processError) => {
-      logger.logException(
-        processError,
-        `Error processing resent email ${newEmail._id} immediately after creation`,
-      );
-    });
+    // Add email to queue for processing (non-blocking, sequential processing)
+    emailProcessor.queueEmail(newEmail._id);
 
     return res.status(200).json({
       success: true,

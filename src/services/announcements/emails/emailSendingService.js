@@ -36,12 +36,6 @@ class EmailSendingService {
     );
     this.OAuth2Client.setCredentials({ refresh_token: this.config.refreshToken });
 
-    // OAuth token caching
-    this.cachedToken = null;
-    this.tokenExpiryTime = null;
-    // Tokens typically expire in 1 hour, refresh 5 minutes before expiry
-    this.tokenRefreshBufferMs = 5 * 60 * 1000; // 5 minutes
-
     // Create the email transporter
     try {
       this.transporter = nodemailer.createTransport({
@@ -60,47 +54,28 @@ class EmailSendingService {
   }
 
   /**
-   * Get OAuth access token with caching.
-   * Refreshes token only if expired or about to expire.
+   * Get OAuth access token (refreshes on each call).
+   * Similar to emailSender.js pattern - refreshes token for each send to avoid stale tokens.
    * @returns {Promise<string>} Access token
    * @throws {Error} If token refresh fails
    */
   async getAccessToken() {
-    const now = Date.now();
+    const accessTokenResp = await this.OAuth2Client.getAccessToken();
+    let token;
 
-    // Check if we have a valid cached token
-    if (
-      this.cachedToken &&
-      this.tokenExpiryTime &&
-      now < this.tokenExpiryTime - this.tokenRefreshBufferMs
-    ) {
-      return this.cachedToken;
+    if (accessTokenResp && typeof accessTokenResp === 'object' && accessTokenResp.token) {
+      token = accessTokenResp.token;
+    } else if (typeof accessTokenResp === 'string') {
+      token = accessTokenResp;
+    } else {
+      throw new Error('Invalid access token response format');
     }
 
-    // Token expired or doesn't exist, refresh it
-    try {
-      const accessTokenResp = await this.OAuth2Client.getAccessToken();
-      let token;
-
-      if (accessTokenResp && typeof accessTokenResp === 'object' && accessTokenResp.token) {
-        token = accessTokenResp.token;
-      } else if (typeof accessTokenResp === 'string') {
-        token = accessTokenResp;
-      } else {
-        throw new Error('Invalid access token response format');
-      }
-
-      // Cache the token with expiry time (tokens typically last 1 hour)
-      this.cachedToken = token;
-      this.tokenExpiryTime = now + 60 * 60 * 1000; // 1 hour from now
-
-      return token;
-    } catch (error) {
-      // Clear cache on error
-      this.cachedToken = null;
-      this.tokenExpiryTime = null;
-      throw error;
+    if (!token) {
+      throw new Error('NO_OAUTH_ACCESS_TOKEN: Failed to obtain access token');
     }
+
+    return token;
   }
 
   /**
@@ -139,19 +114,13 @@ class EmailSendingService {
     }
 
     try {
-      // Get access token with caching
+      // Get access token (refreshes on each send to avoid stale tokens)
       let token;
       try {
         token = await this.getAccessToken();
       } catch (tokenError) {
         const error = new Error(`OAUTH_TOKEN_ERROR: ${tokenError.message}`);
         logger.logException(error, 'EmailSendingService.sendEmail OAuth token refresh failed');
-        return { success: false, error };
-      }
-
-      if (!token) {
-        const error = new Error('NO_OAUTH_ACCESS_TOKEN: Failed to obtain access token');
-        logger.logException(error, 'EmailSendingService.sendEmail OAuth failed');
         return { success: false, error };
       }
 
