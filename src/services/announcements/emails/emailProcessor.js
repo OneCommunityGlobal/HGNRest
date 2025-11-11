@@ -226,9 +226,12 @@ class EmailProcessor {
     );
 
     if (sendResult.success) {
-      await EmailBatchService.markEmailBatchSent(item._id);
+      const actualAttemptCount = sendResult.attemptCount || updatedItem?.attempts || 1;
+      await EmailBatchService.markEmailBatchSent(item._id, {
+        attemptCount: actualAttemptCount, // Persist the actual number of attempts made
+      });
       logger.logInfo(
-        `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempts ${sendResult.attemptCount || updatedItem?.attempts || 1})`,
+        `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempts ${actualAttemptCount})`,
       );
       return;
     }
@@ -238,13 +241,16 @@ class EmailProcessor {
     // Extract error code, or use error name if code is missing, or default to 'SEND_FAILED'
     const errorCode = finalError.code || finalError.name || 'SEND_FAILED';
     const errorMessage = finalError.message || 'Failed to send email';
+    const actualAttemptCount = sendResult.attemptCount || 1; // Use actual attempt count from retry logic
+
     await EmailBatchService.markEmailBatchFailed(item._id, {
       errorCode,
       errorMessage,
+      attemptCount: actualAttemptCount, // Persist the actual number of attempts made
     });
 
     logger.logInfo(
-      `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${sendResult.attemptCount || this.maxRetries} attempts`,
+      `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${actualAttemptCount} attempts`,
     );
     // Throw to ensure Promise.allSettled records this item as failed
     throw finalError;

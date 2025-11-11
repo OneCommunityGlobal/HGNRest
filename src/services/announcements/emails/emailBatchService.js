@@ -310,10 +310,11 @@ class EmailBatchService {
   /**
    * Mark a batch item as SENT and set sentAt timestamp.
    * @param {string|ObjectId} emailBatchId - Batch ObjectId.
+   * @param {{attemptCount?: number}} options - Optional attempt count to update.
    * @returns {Promise<Object>} Updated batch document.
    * @throws {Error} If batch not found
    */
-  static async markEmailBatchSent(emailBatchId) {
+  static async markEmailBatchSent(emailBatchId, options = {}) {
     if (!emailBatchId || !mongoose.Types.ObjectId.isValid(emailBatchId)) {
       const error = new Error('Valid email batch ID is required');
       error.statusCode = 400;
@@ -321,14 +322,18 @@ class EmailBatchService {
     }
 
     const now = new Date();
-    const updated = await EmailBatch.findByIdAndUpdate(
-      emailBatchId,
-      {
-        status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT,
-        sentAt: now,
-      },
-      { new: true },
-    );
+    const updateFields = {
+      status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT,
+      sentAt: now,
+      updatedAt: now,
+    };
+
+    // Update attempts count if provided (to reflect actual retry attempts)
+    if (options.attemptCount && options.attemptCount > 0) {
+      updateFields.attempts = options.attemptCount;
+    }
+
+    const updated = await EmailBatch.findByIdAndUpdate(emailBatchId, updateFields, { new: true });
 
     if (!updated) {
       const error = new Error(`EmailBatch ${emailBatchId} not found`);
@@ -342,11 +347,11 @@ class EmailBatchService {
   /**
    * Mark a batch item as FAILED and snapshot the error info.
    * @param {string|ObjectId} emailBatchId - Batch ObjectId.
-   * @param {{errorCode?: string, errorMessage?: string}} param1 - Error details.
+   * @param {{errorCode?: string, errorMessage?: string, attemptCount?: number}} param1 - Error details and attempt count.
    * @returns {Promise<Object>} Updated batch document.
    * @throws {Error} If batch not found
    */
-  static async markEmailBatchFailed(emailBatchId, { errorCode, errorMessage }) {
+  static async markEmailBatchFailed(emailBatchId, { errorCode, errorMessage, attemptCount }) {
     if (!emailBatchId || !mongoose.Types.ObjectId.isValid(emailBatchId)) {
       const error = new Error('Valid email batch ID is required');
       error.statusCode = 400;
@@ -354,17 +359,21 @@ class EmailBatchService {
     }
 
     const now = new Date();
-    const updated = await EmailBatch.findByIdAndUpdate(
-      emailBatchId,
-      {
-        status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.FAILED,
-        failedAt: now,
-        lastError: errorMessage?.slice(0, 500) || null,
-        lastErrorAt: now,
-        errorCode: errorCode?.toString().slice(0, 1000) || null,
-      },
-      { new: true },
-    );
+    const updateFields = {
+      status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.FAILED,
+      failedAt: now,
+      lastError: errorMessage?.slice(0, 500) || null,
+      lastErrorAt: now,
+      errorCode: errorCode?.toString().slice(0, 1000) || null,
+      updatedAt: now,
+    };
+
+    // Update attempts count if provided (to reflect actual retry attempts)
+    if (attemptCount && attemptCount > 0) {
+      updateFields.attempts = attemptCount;
+    }
+
+    const updated = await EmailBatch.findByIdAndUpdate(emailBatchId, updateFields, { new: true });
 
     if (!updated) {
       const error = new Error(`EmailBatch ${emailBatchId} not found`);
