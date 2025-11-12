@@ -1,16 +1,34 @@
 const express = require('express');
 
-const routes = function (BlueSquareEmailAssignment,userProfile) {
+const routes = function (BlueSquareEmailAssignment, userProfile) {
   const BlueSquareEmailAssignmentRouter = express.Router();
-  const controller = require('../controllers/BlueSquareEmailAssignmentController')(BlueSquareEmailAssignment,userProfile);
+  const controller = require('../controllers/BlueSquareEmailAssignmentController')(
+    BlueSquareEmailAssignment,
+    userProfile,
+  );
 
   BlueSquareEmailAssignmentRouter.route('/AssignBlueSquareEmail')
-  .get(controller.getBlueSquareEmailAssignment)
-  .post(controller.setBlueSquareEmailAssignment)
+    .get(controller.getBlueSquareEmailAssignment)
+    .post(controller.setBlueSquareEmailAssignment);
 
-  BlueSquareEmailAssignmentRouter.route('/AssignBlueSquareEmail/:id')
-  .delete(controller.deleteBlueSquareEmailAssignment);
+  BlueSquareEmailAssignmentRouter.route('/AssignBlueSquareEmail/:id').delete(
+    controller.deleteBlueSquareEmailAssignment,
+  );
 
+  BlueSquareEmailAssignmentRouter.post(
+    '/blueSquare/resend-weekly-summary-emails',
+    controller.runManuallyResendWeeklySummaries,
+  );
+
+  BlueSquareEmailAssignmentRouter.post(
+    '/blueSquare/resend-infringement-emails-only',
+    controller.runManualBlueSquareEmailResend,
+  );
+
+  BlueSquareEmailAssignmentRouter.route('/assignCCEmail/:userId').post(controller.assignCCEmail);
+  BlueSquareEmailAssignmentRouter.route('/removeCCEmail/:userId/:email').delete(
+    controller.removeCCEmail,
+  );
 
   return BlueSquareEmailAssignmentRouter;
 };
