@@ -680,6 +680,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
         'isStartDateManuallyModified',
       ];
 
@@ -1853,6 +1854,7 @@ const userProfileController = function (UserProfile, Project) {
         }) || [];
       const ccList = (record?.infringementCCList ?? []).map((cc) => cc.email);
       record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -1951,6 +1953,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()

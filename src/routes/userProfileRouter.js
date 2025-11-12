@@ -66,6 +66,11 @@ const routes = function (userProfile, project) {
           throw new ValidationError('adminLinks not valid');
         }),
       ),
+      body('infringementCount')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('InfringementCount must be a non-negative integer')
+        .toInt(),
       controller.putUserProfile,
     )
     .delete(controller.deleteUserProfile)
