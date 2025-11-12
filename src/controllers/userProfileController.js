@@ -1742,9 +1742,18 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const inputDate = req.body.blueSquare.date;
+      const isValidDate = moment(inputDate, moment.ISO_8601, true).isValid();
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
       const newInfringement = {
         ...req.body.blueSquare,
-        date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // date:validDate,
+        date: new Date(inputDate),
+
+        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
         reason: [
           'missingHours',
@@ -1756,11 +1765,8 @@ const userProfileController = function (UserProfile, Project) {
           ? req.body.blueSquare.reason
           : 'missingHours',
         // Maintain backward compatibility
-        
       };
       console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
-
-     
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -1898,7 +1904,6 @@ const userProfileController = function (UserProfile, Project) {
         .catch((error) => {
           res.status(400).send(error);
         });
-
     });
   };
 
