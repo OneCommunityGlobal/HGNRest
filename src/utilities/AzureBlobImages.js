@@ -8,6 +8,8 @@ const saveImagestoAzureBlobStorage = async (images, title) => {
   let imageUrls = [];
   if (images) {
     const imageArray = Array.isArray(images) ? images : [images];
+    console.log('In Azure Method', title);
+    console.log(images);
     let baseName;
     if (title) {
       baseName = title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -63,6 +65,7 @@ const fetchImagesFromAzureBlobStorage = async (imageUrls) => {
         const blobName = url.split('/').pop();
         const blockBlobClient = containerClient.getBlockBlobClient(blobName);
         let imageBuffer;
+        console.log(url);
         if (blockBlobClient) {
           const downloadResponse = await blockBlobClient.download();
           imageBuffer = await streamToBuffer(downloadResponse.readableStreamBody);
