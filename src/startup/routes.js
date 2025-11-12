@@ -261,6 +261,9 @@ const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 
+// Actual Cost
+const actualCostRouter = require('../routes/actualCostRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -381,4 +384,5 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api', actualCostRouter);
 };
