@@ -27,84 +27,83 @@ const prInsightsController = function (insightsData) {
         { $match: query },
         {
           $group: {
-            _id: "$teamCode",
+            _id: '$teamCode',
             actionSummary: {
               $push: {
-                actionTaken: "$actionTaken",
-                count: 1
-              }
+                actionTaken: '$actionTaken',
+                count: 1,
+              },
             },
             qualityDistribution: {
               $push: {
-                qualityLevel: "$qualityLevel",
-                count: 1
-              }
-            }
-          }
+                qualityLevel: '$qualityLevel',
+                count: 1,
+              },
+            },
+          },
         },
         {
-          $unwind: "$actionSummary"
+          $unwind: '$actionSummary',
         },
         {
           $group: {
             _id: {
-              teamCode: "$_id",
-              actionTaken: "$actionSummary.actionTaken"
+              teamCode: '$_id',
+              actionTaken: '$actionSummary.actionTaken',
             },
             totalCount: {
-              $sum: "$actionSummary.count"
+              $sum: '$actionSummary.count',
             },
             qualityDistribution: {
-              $first: "$qualityDistribution"
-            }
-          }
+              $first: '$qualityDistribution',
+            },
+          },
         },
         {
           $group: {
-            _id: "$_id.teamCode",
+            _id: '$_id.teamCode',
             actionSummary: {
               $push: {
-                actionTaken: "$_id.actionTaken",
-                count: "$totalCount"
-              }
+                actionTaken: '$_id.actionTaken',
+                count: '$totalCount',
+              },
             },
             qualityDistribution: {
-              $first: "$qualityDistribution"
-            }
-          }
+              $first: '$qualityDistribution',
+            },
+          },
         },
         {
-          $unwind: "$qualityDistribution"
+          $unwind: '$qualityDistribution',
         },
         {
           $group: {
             _id: {
-              teamCode: "$_id",
-              qualityLevel:
-                "$qualityDistribution.qualityLevel"
+              teamCode: '$_id',
+              qualityLevel: '$qualityDistribution.qualityLevel',
             },
             totalCount: {
-              $sum: "$qualityDistribution.count"
+              $sum: '$qualityDistribution.count',
             },
             actionSummary: {
-              $first: "$actionSummary"
-            }
-          }
+              $first: '$actionSummary',
+            },
+          },
         },
         {
           $group: {
-            _id: "$_id.teamCode",
+            _id: '$_id.teamCode',
             qualityDistribution: {
               $push: {
-                qualityLevel: "$_id.qualityLevel",
-                count: "$totalCount"
-              }
+                qualityLevel: '$_id.qualityLevel',
+                count: '$totalCount',
+              },
             },
             actionSummary: {
-              $first: "$actionSummary"
-            }
-          }
-        }
+              $first: '$actionSummary',
+            },
+          },
+        },
       ]);
 
       return res.status(200).json({ teams: insightsDataResult });
@@ -143,7 +142,9 @@ const prInsightsController = function (insightsData) {
 
       await newInsight.save();
 
-      return res.status(201).json({ message: 'PR review insight saved successfully', data: newInsight });
+      return res
+        .status(201)
+        .json({ message: 'PR review insight saved successfully', data: newInsight });
     } catch (error) {
       console.error('Error saving PR review insight:', error);
       res.status(500).json({ error: 'Internal server error' });

@@ -52,11 +52,11 @@ const progressController = function () {
       const progress = await Progress.findById(id)
         .populate('studentId', 'firstName lastName email')
         .populate('atomId', 'name description difficulty');
-      
+
       if (!progress) {
         return res.status(404).json({ error: 'Progress record not found' });
       }
-      
+
       res.status(200).json(progress);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -70,11 +70,11 @@ const progressController = function () {
       const progress = await Progress.findOne({ studentId, atomId })
         .populate('studentId', 'firstName lastName email')
         .populate('atomId', 'name description difficulty');
-      
+
       if (!progress) {
         return res.status(404).json({ error: 'Progress record not found' });
       }
-      
+
       res.status(200).json(progress);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -84,13 +84,7 @@ const progressController = function () {
   // Create new progress record
   const createProgress = async (req, res) => {
     try {
-      const { 
-        studentId, 
-        atomId, 
-        status, 
-        grade, 
-        feedback 
-      } = req.body;
+      const { studentId, atomId, status, grade, feedback } = req.body;
 
       // Validate student exists
       const student = await UserProfile.findById(studentId);
@@ -107,7 +101,9 @@ const progressController = function () {
       // Check if progress record already exists
       const existingProgress = await Progress.findOne({ studentId, atomId });
       if (existingProgress) {
-        return res.status(400).json({ error: 'Progress record already exists for this student and atom' });
+        return res
+          .status(400)
+          .json({ error: 'Progress record already exists for this student and atom' });
       }
 
       const progress = new Progress({
@@ -115,7 +111,7 @@ const progressController = function () {
         atomId,
         status: status || 'not_started',
         grade: grade || 'pending',
-        feedback
+        feedback,
       });
 
       const savedProgress = await progress.save();
@@ -133,11 +129,7 @@ const progressController = function () {
   const updateProgress = async (req, res) => {
     try {
       const { id } = req.params;
-      const { 
-        status, 
-        grade, 
-        feedback 
-      } = req.body;
+      const { status, grade, feedback } = req.body;
 
       const progress = await Progress.findById(id);
       if (!progress) {
@@ -148,8 +140,8 @@ const progressController = function () {
       if (status) {
         const validStatuses = ['not_started', 'in_progress', 'completed'];
         if (!validStatuses.includes(status)) {
-          return res.status(400).json({ 
-            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+          return res.status(400).json({
+            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
           });
         }
       }
@@ -158,36 +150,37 @@ const progressController = function () {
       if (grade) {
         const validGrades = ['A', 'B', 'C', 'D', 'F', 'pending'];
         if (!validGrades.includes(grade)) {
-          return res.status(400).json({ 
-            error: `Invalid grade. Must be one of: ${validGrades.join(', ')}` 
+          return res.status(400).json({
+            error: `Invalid grade. Must be one of: ${validGrades.join(', ')}`,
           });
         }
       }
 
       // Update firstStartedAt if status is being changed to in_progress
-      let {firstStartedAt} = progress;
+      let { firstStartedAt } = progress;
       if (status === 'in_progress' && progress.status === 'not_started') {
         firstStartedAt = new Date();
       }
 
       // Update completedAt if status is being changed to completed
-      let {completedAt} = progress;
+      let { completedAt } = progress;
       if (status === 'completed' && progress.status !== 'completed') {
         completedAt = new Date();
       }
 
       const updatedProgress = await Progress.findByIdAndUpdate(
         id,
-        { 
-          status, 
-          grade, 
+        {
+          status,
+          grade,
           feedback,
           firstStartedAt,
-          completedAt
+          completedAt,
         },
-        { new: true, runValidators: true }
-      ).populate('studentId', 'firstName lastName email')
-       .populate('atomId', 'name description difficulty');
+        { new: true, runValidators: true },
+      )
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomId', 'name description difficulty');
 
       res.status(200).json(updatedProgress);
     } catch (error) {
@@ -224,19 +217,19 @@ const progressController = function () {
 
       const validStatuses = ['not_started', 'in_progress', 'completed'];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ 
-          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
         });
       }
 
       // Update firstStartedAt if status is being changed to in_progress
-      let {firstStartedAt} = progress;
+      let { firstStartedAt } = progress;
       if (status === 'in_progress' && progress.status === 'not_started') {
         firstStartedAt = new Date();
       }
 
       // Update completedAt if status is being changed to completed
-      let {completedAt} = progress;
+      let { completedAt } = progress;
       if (status === 'completed' && progress.status !== 'completed') {
         completedAt = new Date();
       }
@@ -244,9 +237,10 @@ const progressController = function () {
       const updatedProgress = await Progress.findByIdAndUpdate(
         id,
         { status, firstStartedAt, completedAt },
-        { new: true }
-      ).populate('studentId', 'firstName lastName email')
-       .populate('atomId', 'name description difficulty');
+        { new: true },
+      )
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomId', 'name description difficulty');
 
       res.status(200).json(updatedProgress);
     } catch (error) {
@@ -267,17 +261,18 @@ const progressController = function () {
 
       const validGrades = ['A', 'B', 'C', 'D', 'F', 'pending'];
       if (!validGrades.includes(grade)) {
-        return res.status(400).json({ 
-          error: `Invalid grade. Must be one of: ${validGrades.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid grade. Must be one of: ${validGrades.join(', ')}`,
         });
       }
 
       const updatedProgress = await Progress.findByIdAndUpdate(
         id,
         { grade, feedback },
-        { new: true }
-      ).populate('studentId', 'firstName lastName email')
-       .populate('atomId', 'name description difficulty');
+        { new: true },
+      )
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomId', 'name description difficulty');
 
       res.status(200).json(updatedProgress);
     } catch (error) {
@@ -303,24 +298,24 @@ const progressController = function () {
   const getStudentProgressSummary = async (req, res) => {
     try {
       const { studentId } = req.params;
-      
+
       const progress = await Progress.find({ studentId })
         .populate('atomId', 'name description difficulty subjectId')
         .populate('atomId.subjectId', 'name');
 
       const summary = {
         total: progress.length,
-        notStarted: progress.filter(p => p.status === 'not_started').length,
-        inProgress: progress.filter(p => p.status === 'in_progress').length,
-        completed: progress.filter(p => p.status === 'completed').length,
+        notStarted: progress.filter((p) => p.status === 'not_started').length,
+        inProgress: progress.filter((p) => p.status === 'in_progress').length,
+        completed: progress.filter((p) => p.status === 'completed').length,
         grades: {
-          A: progress.filter(p => p.grade === 'A').length,
-          B: progress.filter(p => p.grade === 'B').length,
-          C: progress.filter(p => p.grade === 'C').length,
-          D: progress.filter(p => p.grade === 'D').length,
-          F: progress.filter(p => p.grade === 'F').length,
-          pending: progress.filter(p => p.grade === 'pending').length
-        }
+          A: progress.filter((p) => p.grade === 'A').length,
+          B: progress.filter((p) => p.grade === 'B').length,
+          C: progress.filter((p) => p.grade === 'C').length,
+          D: progress.filter((p) => p.grade === 'D').length,
+          F: progress.filter((p) => p.grade === 'F').length,
+          pending: progress.filter((p) => p.grade === 'pending').length,
+        },
       };
 
       res.status(200).json(summary);
@@ -341,8 +336,8 @@ const progressController = function () {
     updateProgressStatus,
     gradeProgress,
     getProgressByStatus,
-    getStudentProgressSummary
+    getStudentProgressSummary,
   };
 };
 
-module.exports = progressController; 
+module.exports = progressController;
