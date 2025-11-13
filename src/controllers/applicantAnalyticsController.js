@@ -1,4 +1,5 @@
 const geoIP = require('geoip-lite');
+const fallbackApplicantSources = require('../data/applicantSourcesFallback.json');
 
 const analyticsController = function (Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary) {
   
@@ -499,10 +500,22 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
       const currentTotal = currentData.reduce((sum, item) => sum + item.count, 0);
       const currentDataWithPercentages = currentData.map(item => ({
         ...item,
-        percentage: currentTotal > 0 ? ((item.count / currentTotal) * 100).toFixed(2) : 0
+        percentage: currentTotal > 0 ? ((item.count / currentTotal) * 100).toFixed(2) : '0.00'
       }));
 
+      const formatSources = dataset =>
+        dataset.map(item => ({
+          name: item.source || item.name || 'Unknown',
+          value: item.count ?? item.value ?? 0,
+          percentage: parseFloat(item.percentage ?? 0)
+        }));
+
+      if (currentTotal === 0) {
+        return res.status(200).json(fallbackApplicantSources);
+      }
+
       let comparisonData = null;
+      let previousTotal = 0;
 
       // Get comparison data if comparisonType is provided
       if (comparisonType && startDate && endDate) {
@@ -532,7 +545,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
             }
           ]);
 
-          const previousTotal = previousData.reduce((sum, item) => sum + item.count, 0);
+          previousTotal = previousData.reduce((sum, item) => sum + item.count, 0);
           
           // Calculate percentage differences
           comparisonData = currentDataWithPercentages.map(currentItem => {
@@ -554,23 +567,49 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         }
       }
 
-      const response = {
-        currentPeriod: {
-          total: currentTotal,
-          data: currentDataWithPercentages,
-          dateRange: startDate && endDate ? { startDate, endDate } : null
+      const sources = formatSources(currentDataWithPercentages);
+
+      const normalizeComparisonLabel = type => {
+        switch (type) {
+          case 'week':
+            return 'week';
+          case 'month':
+            return 'month';
+          case 'year':
+            return 'year';
+          default:
+            return 'period';
         }
       };
 
-      if (comparisonData) {
-        response.comparison = {
-          type: comparisonType,
-          data: comparisonData,
-          previousPeriodTotal: previousTotal
-        };
+      let comparisonText = `${currentTotal} applicants`;
+      if (comparisonData && previousTotal !== null) {
+        const delta = previousTotal > 0
+          ? (((currentTotal - previousTotal) / previousTotal) * 100).toFixed(1)
+          : currentTotal > 0 ? '100.0' : '0.0';
+        const sign = parseFloat(delta) > 0 ? '+' : '';
+        const periodLabel = normalizeComparisonLabel(comparisonType);
+        comparisonText = `${currentTotal} applicants\n${sign}${delta}% vs last ${periodLabel}`;
       }
 
-      return res.status(200).json(response);
+      return res.status(200).json({
+        sources,
+        total: currentTotal,
+        comparisonText,
+        comparison:
+          comparisonData && previousTotal !== null
+            ? {
+                type: comparisonType,
+                previousTotal,
+                data: comparisonData.map(item => ({
+                  name: item.source || item.name || 'Unknown',
+                  value: item.count ?? item.value ?? 0,
+                  previousCount: item.previousCount ?? 0,
+                  percentageChange: item.percentageChange ?? 0
+                }))
+              }
+            : null
+      });
 
     } catch (error) {
       console.error('Error fetching applicant sources:', error);
