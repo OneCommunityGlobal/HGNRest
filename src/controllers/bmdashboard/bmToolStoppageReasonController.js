@@ -6,53 +6,93 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
-      // Validate project ID format
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
-      // Build date filter based on what's provided
-      let dateFilter = {};
+      const matchStage = {
+        projectId: new ObjectId(projectId),
+      };
 
-      if (startDate && endDate) {
-        // If both dates are provided, use them as range
-        dateFilter = {
-          date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        };
-      } else if (startDate) {
-        // If only start date is provided, use it as lower bound
-        dateFilter = {
-          date: { $gte: new Date(startDate) },
-        };
-      } else if (endDate) {
-        // If only end date is provided, use it as upper bound
-        dateFilter = {
-          date: { $lte: new Date(endDate) },
-        };
+      if (startDate || endDate) {
+        matchStage.date = {};
+        if (startDate) {
+          matchStage.date.$gte = new Date(startDate);
+        }
+        if (endDate) {
+          matchStage.date.$lte = new Date(endDate);
+        }
       }
-      // If no dates are provided, don't filter by date at all
 
-      // Query the database for tool availability data
       const results = await ToolStoppageReason.aggregate([
+        { $match: matchStage },
         {
-          $match: {
-            projectId: new ObjectId(projectId),
-            ...dateFilter,
+          $group: {
+            _id: '$toolName',
+            usedForLifetime: { $sum: '$usedForLifetime' },
+            damaged: { $sum: '$damaged' },
+            lost: { $sum: '$lost' },
           },
-        },     
+        },
+        {
+          $addFields: {
+            total: { $add: ['$usedForLifetime', '$damaged', '$lost'] },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            toolName: '$_id',
+            usedForLifetime: {
+              $cond: [
+                { $gt: ['$total', 0] },
+                {
+                  $round: [
+                    {
+                      $multiply: [{ $divide: ['$usedForLifetime', '$total'] }, 100],
+                    },
+                    2,
+                  ],
+                },
+                0,
+              ],
+            },
+            damaged: {
+              $cond: [
+                { $gt: ['$total', 0] },
+                {
+                  $round: [
+                    {
+                      $multiply: [{ $divide: ['$damaged', '$total'] }, 100],
+                    },
+                    2,
+                  ],
+                },
+                0,
+              ],
+            },
+            lost: {
+              $cond: [
+                { $gt: ['$total', 0] },
+                {
+                  $round: [
+                    {
+                      $multiply: [{ $divide: ['$lost', '$total'] }, 100],
+                    },
+                    2,
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+        },
+        { $sort: { toolName: 1 } },
       ]);
-
-      // If no results found, return empty array
-      if (!results || results.length === 0) {
-        return res.json([]);
-      }
 
       return res.json(results);
     } catch (error) {
-      console.error('Error fetching tools availability:', error);
+      console.error('Error fetching tools stoppage reason:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   };
