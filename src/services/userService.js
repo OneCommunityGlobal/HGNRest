@@ -47,7 +47,7 @@ const updateBioPostedStatus = async (userId, bioPosted) => {
   const updatedUser = await UserProfileModel.findByIdAndUpdate(
     userId,
     { bioPosted },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   );
 
   if (!updatedUser) {
@@ -57,9 +57,8 @@ const updateBioPostedStatus = async (userId, bioPosted) => {
   return updatedUser;
 };
 
-
 module.exports = {
   getUserIdAndEmailByEmails,
   getUserFullNameAndEmailById,
-  updateBioPostedStatus
+  updateBioPostedStatus,
 };
