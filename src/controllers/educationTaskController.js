@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
+const StudentGroup = require('../models/studentGroup');
+const StudentGroupMember = require('../models/studentGroupMember');
 
 const educationTaskController = function () {
   // Get all education tasks
@@ -57,11 +58,11 @@ const educationTaskController = function () {
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
         .populate('atomIds', 'name description difficulty');
-      
+
       if (!task) {
         return res.status(404).json({ error: 'Task not found' });
       }
-      
+
       res.status(200).json(task);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -71,13 +72,7 @@ const educationTaskController = function () {
   // Create new task
   const createTask = async (req, res) => {
     try {
-      const { 
-        lessonPlanId, 
-        studentId, 
-        atomIds, 
-        type, 
-        dueAt 
-      } = req.body;
+      const { lessonPlanId, studentId, groupId, atomIds, type, dueAt } = req.body;
 
       // Validate lesson plan exists
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -85,10 +80,21 @@ const educationTaskController = function () {
         return res.status(404).json({ error: 'Lesson plan not found' });
       }
 
-      // Validate student exists
-      const student = await UserProfile.findById(studentId);
-      if (!student) {
-        return res.status(404).json({ error: 'Student not found' });
+      // Validate group exist and its members number not 0
+      let targetStudents = [];
+      if (groupId) {
+        const group = await StudentGroup.findById(groupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const members = await StudentGroupMember.find({ groupId }).select('studentId');
+        targetStudents = members.map((m) => m.studentId);
+        if (targetStudents.length === 0)
+          return res.status(400).json({ error: 'No members found in this group' });
+      } else if (studentId) {
+        // Normal single student assignment
+        const student = await UserProfile.findById(studentId);
+        if (!student) return res.status(404).json({ error: 'Student not found' });
+        targetStudents = [studentId];
       }
 
       // Validate atoms exist
@@ -102,24 +108,24 @@ const educationTaskController = function () {
       // Validate task type
       const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
       if (!validTaskTypes.includes(type)) {
-        return res.status(400).json({ 
-          error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`,
         });
       }
 
-      const task = new EducationTask({
+      // Create multiple tasks if assigning to a group
+      const tasksToInsert = targetStudents.map((id) => ({
         lessonPlanId,
-        studentId,
+        studentId: id,
         atomIds: atomIds || [],
         type,
         status: 'assigned',
         assignedAt: new Date(),
         dueAt,
         uploadUrls: [],
-        grade: 'pending'
-      });
-
-      const savedTask = await task.save();
+        grade: 'pending',
+      }));
+      const savedTask = await EducationTask.insertMany(tasksToInsert);
       const populatedTask = await EducationTask.findById(savedTask._id)
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
@@ -135,15 +141,7 @@ const educationTaskController = function () {
   const updateTask = async (req, res) => {
     try {
       const { id } = req.params;
-      const { 
-        atomIds, 
-        type, 
-        status, 
-        dueAt, 
-        uploadUrls, 
-        grade, 
-        feedback 
-      } = req.body;
+      const { atomIds, type, status, dueAt, uploadUrls, grade, feedback } = req.body;
 
       const task = await EducationTask.findById(id);
       if (!task) {
@@ -162,8 +160,8 @@ const educationTaskController = function () {
       if (type) {
         const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
         if (!validTaskTypes.includes(type)) {
-          return res.status(400).json({ 
-            error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` 
+          return res.status(400).json({
+            error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`,
           });
         }
       }
@@ -172,34 +170,35 @@ const educationTaskController = function () {
       if (status) {
         const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
         if (!validStatuses.includes(status)) {
-          return res.status(400).json({ 
-            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+          return res.status(400).json({
+            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
           });
         }
       }
 
       // Update completedAt if status is being changed to completed
-      let completedAt = task.completedAt;
+      let { completedAt } = task;
       if (status === 'completed' && task.status !== 'completed') {
         completedAt = new Date();
       }
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
-        { 
-          atomIds, 
-          type, 
-          status, 
-          dueAt, 
-          uploadUrls, 
-          grade, 
+        {
+          atomIds,
+          type,
+          status,
+          dueAt,
+          uploadUrls,
+          grade,
           feedback,
-          completedAt
+          completedAt,
         },
-        { new: true, runValidators: true }
-      ).populate('lessonPlanId', 'title theme')
-       .populate('studentId', 'firstName lastName email')
-       .populate('atomIds', 'name description difficulty');
+        { new: true, runValidators: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
 
       res.status(200).json(updatedTask);
     } catch (error) {
@@ -236,12 +235,12 @@ const educationTaskController = function () {
 
       const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ 
-          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
         });
       }
 
-      let completedAt = task.completedAt;
+      let { completedAt } = task;
       if (status === 'completed' && task.status !== 'completed') {
         completedAt = new Date();
       }
@@ -249,10 +248,11 @@ const educationTaskController = function () {
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
         { status, completedAt },
-        { new: true }
-      ).populate('lessonPlanId', 'title theme')
-       .populate('studentId', 'firstName lastName email')
-       .populate('atomIds', 'name description difficulty');
+        { new: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
 
       res.status(200).json(updatedTask);
     } catch (error) {
@@ -273,18 +273,19 @@ const educationTaskController = function () {
 
       const validGrades = ['A', 'B', 'C', 'D', 'F', 'pending'];
       if (!validGrades.includes(grade)) {
-        return res.status(400).json({ 
-          error: `Invalid grade. Must be one of: ${validGrades.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid grade. Must be one of: ${validGrades.join(', ')}`,
         });
       }
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
         { grade, feedback, status: 'graded' },
-        { new: true }
-      ).populate('lessonPlanId', 'title theme')
-       .populate('studentId', 'firstName lastName email')
-       .populate('atomIds', 'name description difficulty');
+        { new: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
 
       res.status(200).json(updatedTask);
     } catch (error) {
@@ -317,8 +318,8 @@ const educationTaskController = function () {
     deleteTask,
     updateTaskStatus,
     gradeTask,
-    getTasksByStatus
+    getTasksByStatus,
   };
 };
 
-module.exports = educationTaskController; 
+module.exports = educationTaskController;
