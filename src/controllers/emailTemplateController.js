@@ -3,7 +3,6 @@
  */
 
 const EmailTemplateService = require('../services/announcements/emails/emailTemplateService');
-const TemplateRenderingService = require('../services/announcements/emails/templateRenderingService');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 
@@ -310,7 +309,7 @@ const previewTemplate = async (req, res) => {
     });
 
     // Validate variables
-    const validation = TemplateRenderingService.validateVariables(template, variables);
+    const validation = EmailTemplateService.validateVariables(template, variables);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -321,7 +320,7 @@ const previewTemplate = async (req, res) => {
     }
 
     // Render template
-    const rendered = TemplateRenderingService.renderTemplate(template, variables, {
+    const rendered = EmailTemplateService.renderTemplate(template, variables, {
       sanitize: false, // Don't sanitize for preview
       strict: false,
     });

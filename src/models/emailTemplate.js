@@ -5,6 +5,7 @@
  * - Includes helpful indexes and text search for fast lookup
  */
 const mongoose = require('mongoose');
+const { EMAIL_CONFIG } = require('../config/emailConfig');
 
 const emailTemplateSchema = new mongoose.Schema(
   {
@@ -31,7 +32,7 @@ const emailTemplateSchema = new mongoose.Schema(
         },
         type: {
           type: String,
-          enum: ['text', 'url', 'number', 'textarea', 'image'],
+          enum: EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES,
           default: 'text',
         },
       },

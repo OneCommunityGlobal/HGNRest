@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
 const { EMAIL_CONFIG } = require('../config/emailConfig');
 const { isValidEmailAddress, normalizeRecipientsToArray } = require('../utilities/emailValidators');
-const TemplateRenderingService = require('../services/announcements/emails/templateRenderingService');
+const EmailTemplateService = require('../services/announcements/emails/emailTemplateService');
 const EmailSubcriptionList = require('../models/emailSubcriptionList');
 const userProfile = require('../models/userProfile');
 const EmailBatchService = require('../services/announcements/emails/emailBatchService');
@@ -42,8 +42,8 @@ const sendEmail = async (req, res) => {
     const { to, subject, html } = req.body;
 
     // Validate that all template variables have been replaced (business rule)
-    const unmatchedVariablesHtml = TemplateRenderingService.getUnreplacedVariables(html);
-    const unmatchedVariablesSubject = TemplateRenderingService.getUnreplacedVariables(subject);
+    const unmatchedVariablesHtml = EmailTemplateService.getUnreplacedVariables(html);
+    const unmatchedVariablesSubject = EmailTemplateService.getUnreplacedVariables(subject);
     const unmatchedVariables = [
       ...new Set([...unmatchedVariablesHtml, ...unmatchedVariablesSubject]),
     ];
@@ -137,8 +137,8 @@ const sendEmailToSubscribers = async (req, res) => {
     const { subject, html } = req.body;
 
     // Validate that all template variables have been replaced (business rule)
-    const unmatchedVariablesHtml = TemplateRenderingService.getUnreplacedVariables(html);
-    const unmatchedVariablesSubject = TemplateRenderingService.getUnreplacedVariables(subject);
+    const unmatchedVariablesHtml = EmailTemplateService.getUnreplacedVariables(html);
+    const unmatchedVariablesSubject = EmailTemplateService.getUnreplacedVariables(subject);
     const unmatchedVariables = [
       ...new Set([...unmatchedVariablesHtml, ...unmatchedVariablesSubject]),
     ];

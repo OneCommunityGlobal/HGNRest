@@ -38,6 +38,9 @@ const EMAIL_CONFIG = {
     TEMPLATE_NAME_MAX_LENGTH: 50, // Template name maximum length
   },
 
+  // Template variable types
+  TEMPLATE_VARIABLE_TYPES: ['text', 'url', 'number', 'textarea', 'image'],
+
   // Announcement service runtime knobs
   ANNOUNCEMENTS: {
     BATCH_SIZE: 100, // recipients per SMTP send batch
