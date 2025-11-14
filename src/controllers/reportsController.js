@@ -20,6 +20,15 @@ const reportsController = function () {
     cacheUtil.removeCache('weeklySummaries_all');
   };
 
+  // helper to safely get requestor object to avoid undefined property access in hasPermission
+  const safeRequestorFromReq = (req) => {
+    // If your tests or app may set req.user instead of req.body.requestor adapt here
+    if (req && req.body && req.body.requestor) return req.body.requestor;
+    if (req && req.user) return req.user;
+    // provide minimal shape so hasPermission won't throw when reading requestorId
+    return { requestorId: null };
+  };
+
   /**
    * Aggregates the trend data for volunteer count
    * Parameters:
@@ -208,10 +217,20 @@ const reportsController = function () {
   };
 
   const getWeeklySummaries = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+    // Use safe requestor to avoid hasPermission reading properties off undefined
+    const requestor = safeRequestorFromReq(req);
+
+    try {
+      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      if (!allowed) {
+        return res.status(403).send('You are not authorized to view all users');
+      }
+    } catch (permErr) {
+      // If permission utility itself throws, handle gracefully and deny access
+      console.error('Permission check failed:', permErr);
+      return res.status(403).send('You are not authorized to view all users');
     }
+
     // Extract forceRefresh parameter
     const forceRefresh = req.query.forceRefresh === 'true';
     // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
@@ -236,15 +255,6 @@ const reportsController = function () {
         return res.status(304).end();
       }
       return res.status(200).send(cached);
-    }
-    // if (forceRefresh) {
-    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
-    // } else {
-    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
-    // }
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
     }
 
     // Determine cache duration based on week
