@@ -78,12 +78,14 @@ const sendEmail = async (req, res) => {
       );
 
       // Create EmailBatch items with all recipients (validates recipients, counts, email format)
+      // Enforce recipient limit for specific recipient requests
       const recipientObjects = recipientsArray.map((emailAddr) => ({ email: emailAddr }));
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
         recipientObjects,
         {
           emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
+          enforceRecipientLimit: true, // Enforce limit for specific recipients
         },
         session,
       );
@@ -96,7 +98,7 @@ const sendEmail = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Email created successfully for ${recipientsArray.length} recipient(s)`,
+      message: `Email created successfully for ${recipientsArray.length} recipient(s) and will be processed shortly`,
     });
   } catch (error) {
     logger.logException(error, 'Error creating email');
@@ -166,7 +168,7 @@ const sendEmailToSubscribers = async (req, res) => {
     });
 
     const emailSubscribers = await EmailSubcriptionList.find({
-      email: { $exists: true, $ne: '' },
+      email: { $exists: true, $nin: [null, ''] },
       isConfirmed: true,
       emailSubscriptions: true,
     });
@@ -195,11 +197,13 @@ const sendEmailToSubscribers = async (req, res) => {
       ];
 
       // Create EmailBatch items with all recipients (validates recipients, counts, email format)
+      // Skip recipient limit for broadcast to all subscribers
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
         allRecipients,
         {
           emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
+          enforceRecipientLimit: false, // Skip limit for broadcast
         },
         session,
       );
@@ -212,7 +216,7 @@ const sendEmailToSubscribers = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Broadcast email created successfully for ${totalRecipients} recipient(s)`,
+      message: `Broadcast email created successfully for ${totalRecipients} recipient(s) and will be processed shortly`,
     });
   } catch (error) {
     logger.logException(error, 'Error creating broadcast email');
@@ -292,7 +296,7 @@ const resendEmail = async (req, res) => {
       });
 
       const emailSubscribers = await EmailSubcriptionList.find({
-        email: { $exists: true, $ne: '' },
+        email: { $exists: true, $nin: [null, ''] },
         isConfirmed: true,
         emailSubscriptions: true,
       });
@@ -319,7 +323,7 @@ const resendEmail = async (req, res) => {
       allRecipients = recipientsArray.map((email) => ({ email }));
     } else if (recipientOption === 'same') {
       // Get recipients from original email's EmailBatch items
-      const emailBatchItems = await EmailBatchService.getEmailBatchesByEmailId(emailId);
+      const emailBatchItems = await EmailBatchService.getBatchesForEmail(emailId);
       if (!emailBatchItems || emailBatchItems.length === 0) {
         return res
           .status(404)
@@ -360,11 +364,14 @@ const resendEmail = async (req, res) => {
       );
 
       // Create EmailBatch items
+      // Enforce limit only for 'specific' recipient option, skip for 'all' and 'same' (broadcast scenarios)
+      const shouldEnforceLimit = recipientOption === 'specific';
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
         allRecipients,
         {
           emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
+          enforceRecipientLimit: shouldEnforceLimit,
         },
         session,
       );
@@ -377,7 +384,7 @@ const resendEmail = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Email created for resend successfully to ${allRecipients.length} recipient(s)`,
+      message: `Email created for resend successfully to ${allRecipients.length} recipient(s) and will be processed shortly`,
       data: {
         emailId: newEmail._id,
         recipientCount: allRecipients.length,
@@ -399,7 +406,149 @@ const resendEmail = async (req, res) => {
 };
 
 /**
+ * Retry a parent Email by resetting all FAILED EmailBatch items to PENDING.
+ * - Processes the email immediately asynchronously.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const retryEmail = async (req, res) => {
+  try {
+    const { emailId } = req.params;
+
+    // Requestor is required for permission check
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
+    // Validate emailId is a valid ObjectId
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Email ID',
+      });
+    }
+
+    // Permission check - retrying emails requires sendEmails permission
+    const canRetryEmail = await hasPermission(req.body.requestor, 'sendEmails');
+    if (!canRetryEmail) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You are not authorized to retry emails.' });
+    }
+
+    // Get the Email (service throws error if not found)
+    const email = await EmailService.getEmailById(emailId, null, true);
+
+    // Only allow retry for emails in final states (FAILED or PROCESSED)
+    const allowedRetryStatuses = [
+      EMAIL_CONFIG.EMAIL_STATUSES.FAILED,
+      EMAIL_CONFIG.EMAIL_STATUSES.PROCESSED,
+    ];
+
+    if (!allowedRetryStatuses.includes(email.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Email must be in FAILED or PROCESSED status to retry. Current status: ${email.status}`,
+      });
+    }
+
+    // Get all FAILED EmailBatch items (service validates emailId)
+    const failedItems = await EmailBatchService.getFailedBatchesForEmail(emailId);
+
+    if (failedItems.length === 0) {
+      logger.logInfo(`Email ${emailId} has no failed EmailBatch items to retry`);
+      return res.status(200).json({
+        success: true,
+        message: 'No failed EmailBatch items to retry',
+        data: {
+          emailId: email._id,
+          failedItemsRetried: 0,
+        },
+      });
+    }
+
+    logger.logInfo(`Retrying ${failedItems.length} failed EmailBatch items: ${emailId}`);
+
+    // Mark parent Email as PENDING for retry
+    await EmailService.markEmailPending(emailId);
+
+    // Reset each failed item to PENDING
+    await Promise.all(
+      failedItems.map(async (item) => {
+        await EmailBatchService.resetEmailBatchForRetry(item._id);
+      }),
+    );
+
+    logger.logInfo(
+      `Successfully reset Email ${emailId} and ${failedItems.length} failed EmailBatch items to PENDING for retry`,
+    );
+
+    // Add email to queue for processing (non-blocking, sequential processing)
+    emailProcessor.queueEmail(emailId);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully reset ${failedItems.length} failed EmailBatch items for retry`,
+      data: {
+        emailId: email._id,
+        failedItemsRetried: failedItems.length,
+      },
+    });
+  } catch (error) {
+    logger.logException(error, 'Error retrying Email');
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Error retrying Email',
+    });
+  }
+};
+
+/**
+ * Manually trigger processing of pending and stuck emails.
+ * - Resets stuck emails (SENDING status) to PENDING
+ * - Resets stuck batches (SENDING status) to PENDING
+ * - Queues all PENDING emails for processing
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const processPendingAndStuckEmails = async (req, res) => {
+  // Requestor is required for permission check
+  if (!req?.body?.requestor?.requestorId) {
+    return res.status(401).json({ success: false, message: 'Missing requestor' });
+  }
+
+  // Permission check - processing emails requires sendEmails permission
+  const canProcessEmails = await hasPermission(req.body.requestor, 'sendEmails');
+  if (!canProcessEmails) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'You are not authorized to process emails.' });
+  }
+
+  try {
+    logger.logInfo('Manual trigger: Starting processing of pending and stuck emails...');
+
+    // Trigger the processor to handle pending and stuck emails
+    await emailProcessor.processPendingAndStuckEmails();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Processing of pending and stuck emails triggered successfully',
+    });
+  } catch (error) {
+    logger.logException(error, 'Error triggering processing of pending and stuck emails');
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Error triggering processing of pending and stuck emails',
+    });
+  }
+};
+
+/**
  * Update the current user's emailSubscriptions preference.
+ * - Normalizes email to lowercase for consistent lookups.
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  */
@@ -421,8 +570,11 @@ const updateEmailSubscriptions = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email address' });
     }
 
+    // Normalize email for consistent lookup
+    const normalizedEmail = email.trim().toLowerCase();
+
     const user = await userProfile.findOneAndUpdate(
-      { email },
+      { email: normalizedEmail },
       { emailSubscriptions },
       { new: true },
     );
@@ -463,9 +615,9 @@ const addNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email address' });
     }
 
-    // Check if email already exists (case-insensitive)
+    // Check if email already exists (direct match since schema enforces lowercase)
     const existingSubscription = await EmailSubcriptionList.findOne({
-      email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') },
+      email: normalizedEmail,
     });
 
     if (existingSubscription) {
@@ -477,8 +629,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
     if (hgnUser) {
       return res.status(400).json({
         success: false,
-        message:
-          'You are already a member of the HGN community. Please use the HGN account profile page to subscribe to email updates.',
+        message: 'Please use the HGN account profile page to subscribe to email updates.',
       });
     }
 
@@ -494,16 +645,45 @@ const addNonHgnEmailSubscription = async (req, res) => {
     const payload = { email: normalizedEmail };
     const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' }); // Fixed: was '360' (invalid)
 
-    if (!config.FRONT_END_URL) {
-      logger.logException(new Error('FRONT_END_URL is not configured'), 'Configuration error');
+    // Get frontend URL from request origin
+    const getFrontendUrl = () => {
+      // Try to get from request origin header first
+      const origin = req.get('origin') || req.get('referer');
+      if (origin) {
+        try {
+          const url = new URL(origin);
+          return `${url.protocol}//${url.host}`;
+        } catch (error) {
+          logger.logException(error, 'Error parsing request origin');
+        }
+      }
+      // Fallback to config or construct from request
+      if (config.FRONT_END_URL) {
+        return config.FRONT_END_URL;
+      }
+      // Last resort: construct from request
+      const protocol = req.protocol || 'https';
+      const host = req.get('host');
+      if (host) {
+        return `${protocol}://${host}`;
+      }
+      return null;
+    };
+
+    const frontendUrl = getFrontendUrl();
+    if (!frontendUrl) {
+      logger.logException(
+        new Error('Unable to determine frontend URL from request'),
+        'Configuration error',
+      );
       return res
         .status(500)
-        .json({ success: false, message: 'Server configuration error. Please contact support.' });
+        .json({ success: false, message: 'Server Error. Please contact support.' });
     }
 
     const emailContent = `
       <p>Thank you for subscribing to our email updates!</p>
-      <p><a href="${config.FRONT_END_URL}/subscribe?token=${token}">Click here to confirm your email</a></p>
+      <p><a href="${frontendUrl}/subscribe?token=${token}">Click here to confirm your email</a></p>
     `;
 
     try {
@@ -541,7 +721,8 @@ const addNonHgnEmailSubscription = async (req, res) => {
 
 /**
  * Confirm a non-HGN email subscription using a signed token.
- * - Creates or updates the subscriber record as confirmed.
+ * - Only confirms existing unconfirmed subscriptions.
+ * - Returns error if subscription doesn't exist (user must subscribe first).
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  */
@@ -564,45 +745,45 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid token payload' });
     }
 
-    // Normalize email
+    // Normalize email (schema enforces lowercase, but normalize here for consistency)
     const normalizedEmail = email.trim().toLowerCase();
 
-    try {
-      // Update existing subscription to confirmed, or create new one
-      const existingSubscription = await EmailSubcriptionList.findOne({
-        email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') },
+    // Find existing subscription (direct match since schema enforces lowercase)
+    const existingSubscription = await EmailSubcriptionList.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!existingSubscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription not found. Please subscribe first using the subscription form.',
       });
-
-      if (existingSubscription) {
-        existingSubscription.isConfirmed = true;
-        existingSubscription.confirmedAt = new Date();
-        existingSubscription.emailSubscriptions = true;
-        await existingSubscription.save();
-      } else {
-        const newEmailList = new EmailSubcriptionList({
-          email: normalizedEmail,
-          isConfirmed: true,
-          confirmedAt: new Date(),
-          emailSubscriptions: true,
-        });
-        await newEmailList.save();
-      }
-
-      return res
-        .status(200)
-        .json({ success: true, message: 'Email subscription confirmed successfully' });
-    } catch (error) {
-      if (error.code === 11000) {
-        // Race condition - email was already confirmed/subscribed
-        return res
-          .status(200)
-          .json({ success: true, message: 'Email subscription already confirmed' });
-      }
-      throw error;
     }
+
+    // If already confirmed, return success (idempotent)
+    if (existingSubscription.isConfirmed) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email subscription already confirmed',
+      });
+    }
+
+    // Update subscription to confirmed
+    existingSubscription.isConfirmed = true;
+    existingSubscription.confirmedAt = new Date();
+    existingSubscription.emailSubscriptions = true;
+    await existingSubscription.save();
+
+    return res
+      .status(200)
+      .json({ success: true, message: 'Email subscription confirmed successfully' });
   } catch (error) {
     logger.logException(error, 'Error confirming email subscription');
-    return res.status(500).json({ success: false, message: 'Error confirming email subscription' });
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Error confirming email subscription',
+    });
   }
 };
 
@@ -626,9 +807,9 @@ const removeNonHgnEmailSubscription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email address' });
     }
 
-    // Try to delete the email subscription (case-insensitive)
+    // Try to delete the email subscription (direct match since schema enforces lowercase)
     const deletedEntry = await EmailSubcriptionList.findOneAndDelete({
-      email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') },
+      email: normalizedEmail,
     });
 
     // If not found, respond accordingly
@@ -653,4 +834,6 @@ module.exports = {
   addNonHgnEmailSubscription,
   removeNonHgnEmailSubscription,
   confirmNonHgnEmailSubscription,
+  retryEmail,
+  processPendingAndStuckEmails,
 };

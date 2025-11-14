@@ -23,12 +23,6 @@ const EmailSchema = new Schema({
     default: EMAIL_CONFIG.EMAIL_STATUSES.PENDING,
     index: true,
   },
-  // Optional template reference for tracking which template was used
-  templateId: {
-    type: Schema.Types.ObjectId,
-    ref: 'EmailTemplate',
-    index: true,
-  },
   createdBy: {
     type: Schema.Types.ObjectId,
     ref: 'userProfile',
@@ -55,6 +49,5 @@ EmailSchema.index({ status: 1, createdAt: 1 });
 EmailSchema.index({ createdBy: 1, createdAt: -1 });
 EmailSchema.index({ startedAt: 1 });
 EmailSchema.index({ completedAt: 1 });
-EmailSchema.index({ templateId: 1, createdAt: -1 }); // For template usage tracking
 
 module.exports = mongoose.model('Email', EmailSchema, 'emails');

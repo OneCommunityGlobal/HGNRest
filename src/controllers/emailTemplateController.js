@@ -339,55 +339,6 @@ const previewTemplate = async (req, res) => {
   }
 };
 
-/**
- * Validate template structure and variables.
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- */
-const validateTemplate = async (req, res) => {
-  try {
-    // Permission check
-    if (!req?.body?.requestor?.requestorId && !req?.user?.userid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Missing requestor',
-      });
-    }
-
-    const requestor = req.body.requestor || req.user;
-    const canViewTemplates = await hasPermission(requestor, 'sendEmails');
-    if (!canViewTemplates) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized to validate email templates.',
-      });
-    }
-
-    const { id } = req.params;
-
-    // Service validates ID and throws error with statusCode if not found
-    const template = await EmailTemplateService.getTemplateById(id, {
-      populate: false,
-    });
-
-    // Validate template data
-    const validation = EmailTemplateService.validateTemplateData(template);
-
-    res.status(200).json({
-      success: true,
-      isValid: validation.isValid,
-      errors: validation.errors || [],
-    });
-  } catch (error) {
-    logger.logException(error, 'Error validating email template');
-    const statusCode = error.statusCode || 500;
-    return res.status(statusCode).json({
-      success: false,
-      message: error.message || 'Error validating email template',
-    });
-  }
-};
-
 module.exports = {
   getAllEmailTemplates,
   getEmailTemplateById,
@@ -395,5 +346,4 @@ module.exports = {
   updateEmailTemplate,
   deleteEmailTemplate,
   previewTemplate,
-  validateTemplate,
 };

@@ -14,12 +14,6 @@ const {
 const logger = require('../../../startup/logger');
 
 class EmailBatchService {
-  // Debounce map for auto-sync to prevent race conditions
-  // Key: emailId, Value: timeoutId
-  static syncDebounceMap = new Map();
-
-  static SYNC_DEBOUNCE_MS = 500; // Wait 500ms before syncing (allows multiple batch updates to complete)
-
   /**
    * Create EmailBatch items for a parent Email.
    * - Validates parent Email ID, normalizes recipients and chunks by configured size.
@@ -50,8 +44,13 @@ class EmailBatchService {
         throw error;
       }
 
-      // Validate recipient count limit
-      if (normalizedRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST) {
+      // Validate recipient count limit (only enforce when enforceRecipientLimit is true)
+      // Default to true to enforce limit for specific recipient requests
+      const enforceRecipientLimit = config.enforceRecipientLimit !== false;
+      if (
+        enforceRecipientLimit &&
+        normalizedRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST
+      ) {
         const error = new Error(
           `A maximum of ${EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
         );
@@ -149,9 +148,9 @@ class EmailBatchService {
       const transformedBatches = emailBatches.map((batch) => ({
         _id: batch._id,
         emailId: batch.emailId,
-        recipients: batch.recipients || [],
+        recipients: batch.recipients || null,
         status: batch.status,
-        attempts: batch.attempts || 0,
+        attempts: batch.attempts || null,
         lastAttemptedAt: batch.lastAttemptedAt,
         sentAt: batch.sentAt,
         failedAt: batch.failedAt,
@@ -204,13 +203,6 @@ class EmailBatchService {
       emailId,
       status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.PENDING,
     }).sort({ createdAt: 1 });
-  }
-
-  /**
-   * Alias of getBatchesForEmail for naming consistency.
-   */
-  static async getEmailBatchesByEmailId(emailId) {
-    return this.getBatchesForEmail(emailId);
   }
 
   /**
@@ -293,10 +285,6 @@ class EmailBatchService {
       error.statusCode = 404;
       throw error;
     }
-
-    // Auto-sync parent Email status with debouncing (fire-and-forget to avoid blocking)
-    // When batches are reset for retry, parent status might change from FAILED/PROCESSED to PENDING/SENDING
-    this.debouncedSyncParentEmailStatus(updated.emailId);
 
     return updated;
   }
@@ -390,9 +378,6 @@ class EmailBatchService {
       return currentBatch;
     }
 
-    // Auto-sync parent Email status with debouncing (fire-and-forget to avoid blocking)
-    this.debouncedSyncParentEmailStatus(updated.emailId);
-
     return updated;
   }
 
@@ -458,9 +443,6 @@ class EmailBatchService {
       return currentBatch;
     }
 
-    // Auto-sync parent Email status with debouncing (fire-and-forget to avoid blocking)
-    this.debouncedSyncParentEmailStatus(updated.emailId);
-
     return updated;
   }
 
@@ -517,35 +499,6 @@ class EmailBatchService {
 
     // Still processing (pending or sending batches) = keep SENDING status
     return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
-  }
-
-  /**
-   * Debounced version of syncParentEmailStatus to prevent race conditions.
-   * Waits for a short period before syncing to allow multiple batch updates to complete.
-   * @param {string|ObjectId} emailId - Parent Email ObjectId.
-   * @returns {void}
-   */
-  static debouncedSyncParentEmailStatus(emailId) {
-    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
-      return;
-    }
-
-    const emailIdStr = emailId.toString();
-
-    // Clear existing timeout if any
-    if (this.syncDebounceMap.has(emailIdStr)) {
-      clearTimeout(this.syncDebounceMap.get(emailIdStr));
-    }
-
-    // Set new timeout for syncing
-    const timeoutId = setTimeout(() => {
-      this.syncDebounceMap.delete(emailIdStr);
-      this.syncParentEmailStatus(emailIdStr).catch((syncError) => {
-        logger.logException(syncError, `Error syncing parent Email status for ${emailIdStr}`);
-      });
-    }, this.SYNC_DEBOUNCE_MS);
-
-    this.syncDebounceMap.set(emailIdStr, timeoutId);
   }
 
   /**

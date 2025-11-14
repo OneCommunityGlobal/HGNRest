@@ -7,12 +7,12 @@ class EmailService {
   /**
    * Create a parent Email document for announcements.
    * Validates and trims large text fields and supports optional transaction sessions.
-   * @param {{subject: string, htmlContent: string, createdBy: string|ObjectId, templateId?: string|ObjectId}} param0
+   * @param {{subject: string, htmlContent: string, createdBy: string|ObjectId}} param0
    * @param {import('mongoose').ClientSession|null} session
    * @returns {Promise<Object>} Created Email document.
    * @throws {Error} If validation fails
    */
-  static async createEmail({ subject, htmlContent, createdBy, templateId }, session = null) {
+  static async createEmail({ subject, htmlContent, createdBy }, session = null) {
     // Validate required fields
     if (!subject || typeof subject !== 'string' || !subject.trim()) {
       const error = new Error('Subject is required');
@@ -51,13 +51,6 @@ class EmailService {
       throw error;
     }
 
-    // Validate templateId if provided
-    if (templateId && !mongoose.Types.ObjectId.isValid(templateId)) {
-      const error = new Error('Invalid templateId');
-      error.statusCode = 400;
-      throw error;
-    }
-
     const normalizedHtml = htmlContent.trim();
 
     const emailData = {
@@ -65,11 +58,6 @@ class EmailService {
       htmlContent: normalizedHtml,
       createdBy,
     };
-
-    // Add template reference if provided
-    if (templateId) {
-      emailData.templateId = templateId;
-    }
 
     const email = new Email(emailData);
 
