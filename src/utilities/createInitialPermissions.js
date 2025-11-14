@@ -107,7 +107,7 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
-      'interactWithSetFinalDayButton',
+      'setFinalDay',
     ],
   },
   {
@@ -297,7 +297,7 @@ const permissionsRoles = [
       'accessHgnSkillsDashboard',
       'manageFAQs',
       'manageHGNAccessSetup',
-      'interactWithSetFinalDayButton'
+      'setFinalDay'
     ],
   },
 ];

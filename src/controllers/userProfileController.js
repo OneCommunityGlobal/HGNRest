@@ -22,7 +22,6 @@ const logUserPermissionChangeByAccount = require('../utilities/logUserPermission
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
-// const { hasPermission } = require('../utilities/createInitialPermissions'); 
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
@@ -2337,20 +2336,7 @@ const userProfileController = function (UserProfile, Project) {
     try {
       const { userId } = req.params;
       const { date } = req.body;
-
-
-    //     if (!req.user.permissions.includes('interactWithSetFinalDayButton')) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Access denied. Insufficient permissions.',
-    //   });
-    // }
-    //    if (!req.user || !req.user.permissions || !req.user.permissions.includes('interactWithSetFinalDayButton')) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Access denied. Insufficient permissions.',
-    //   });
-    // }
+    
      console.log('=== DEBUG setFinalDay ===');
     console.log('req.body.requestor:', req.body.requestor);
     console.log('req.body.requestor.role:', req.body.requestor?.role);
@@ -2366,14 +2352,8 @@ const userProfileController = function (UserProfile, Project) {
     }
     
     const requestor = req.body.requestor;
-    const hasPermission =
-  requestor?.role === 'Owner' ||
-  requestor?.role === 'Administrator' ||
-  requestor?.permissions?.frontPermissions?.includes('setUserFinalDay') ||
-  requestor?.permissions?.backPermissions?.includes('interactWithSetFinalDayButton');
-
-   
-    if (!hasPermission) {
+   const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
+    if (!allowed) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions.',
