@@ -143,7 +143,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getRoleDistributionStats(),
+        overviewReportHelper.getRoleDistributionStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getTeamMembersCount(isoEndDate, isoComparisonEndDate),
         overviewReportHelper.getBlueSquareStats(
           isoStartDate,
@@ -211,7 +216,6 @@ const reportsController = function () {
         totalSummariesSubmitted,
       });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -281,9 +285,10 @@ const reportsController = function () {
         summaries = reporthelper.formatSummaries(results);
       }
 
-      // Cache the results
-      cacheUtil.setCache(cacheKey, summaries);
-      cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      if (!forceRefresh) {
+        cacheUtil.setCache(cacheKey, summaries);
+        cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      }
 
       // Force browser to revalidate and avoid stale content while keeping server-side cache intact
       res.set('Cache-Control', 'private, max-age=0, must-revalidate');
@@ -526,11 +531,9 @@ const reportsController = function () {
           res.status(200).send(results);
         })
         .catch((error) => {
-          console.log('error:', error); // need to delete later *
           res.status(404).send({ error });
         });
     } catch (err) {
-      console.log('error:', err); // need to delete later *
       res.status(404).send(err);
     }
   };
@@ -554,7 +557,6 @@ const reportsController = function () {
       UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: false } })
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
@@ -563,7 +565,6 @@ const reportsController = function () {
           });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -593,14 +594,12 @@ const reportsController = function () {
       )
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
           res.status(200).send({ message: 'updated user record with getWeeklyReport true' });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -629,8 +628,23 @@ const reportsController = function () {
       );
       res.status(200).send({ teamsWithActiveMembers });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const getReportTeamCodes = async (req, res) => {
+    try {
+      // const minActive = Number(req.query.activeMembersMinimum ?? 1);
+      const minActive = Number.isFinite(Number(req.query.activeMembersMinimum))
+        ? Number(req.query.activeMembersMinimum)
+        : 1;
+
+      const codes = await overviewReportHelper.getCurrentTeamCodes(minActive);
+
+      return res.status(200).send({ teamCodes: codes });
+    } catch (err) {
+      console.error('getReportTeamCodes error:', err);
+      return res.status(500).send({ msg: 'Failed to fetch report team codes' });
     }
   };
 
@@ -647,6 +661,7 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    getReportTeamCodes,
     invalidateWeeklySummariesCache,
   };
 };
