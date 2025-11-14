@@ -222,6 +222,7 @@ const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIss
 const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
 
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
@@ -406,15 +407,18 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+ 
   app.use('/api', bmProjectRiskProfileRouter);
-
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   // lb dashboard
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
+  
+  app.use('/api/bm', bmOrgLocation);
+  app.use('api', bmIssueRouter);
+
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
