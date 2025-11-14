@@ -1,3 +1,6 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
+// eslint-disable-next-line no-unused-vars
 const mongoose = require('mongoose');
 const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
@@ -42,11 +45,11 @@ const activityController = function () {
         .populate('lessonPlanId', 'title theme')
         .populate('atomTaskTemplates.subjectId', 'name iconUrl')
         .populate('atomTaskTemplates.atomId', 'name description difficulty');
-      
+
       if (!activity) {
         return res.status(404).json({ error: 'Activity not found' });
       }
-      
+
       res.status(200).json(activity);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -56,12 +59,7 @@ const activityController = function () {
   // Create new activity
   const createActivity = async (req, res) => {
     try {
-      const { 
-        lessonPlanId, 
-        title, 
-        description, 
-        atomTaskTemplates 
-      } = req.body;
+      const { lessonPlanId, title, description, atomTaskTemplates } = req.body;
 
       // Validate lesson plan exists
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -87,8 +85,8 @@ const activityController = function () {
           // Validate task type
           const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
           if (!validTaskTypes.includes(template.taskType)) {
-            return res.status(400).json({ 
-              error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` 
+            return res.status(400).json({
+              error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`,
             });
           }
         }
@@ -98,7 +96,7 @@ const activityController = function () {
         lessonPlanId,
         title,
         description,
-        atomTaskTemplates: atomTaskTemplates || []
+        atomTaskTemplates: atomTaskTemplates || [],
       });
 
       const savedActivity = await activity.save();
@@ -122,11 +120,7 @@ const activityController = function () {
   const updateActivity = async (req, res) => {
     try {
       const { id } = req.params;
-      const { 
-        title, 
-        description, 
-        atomTaskTemplates 
-      } = req.body;
+      const { title, description, atomTaskTemplates } = req.body;
 
       const activity = await Activity.findById(id);
       if (!activity) {
@@ -151,8 +145,8 @@ const activityController = function () {
           // Validate task type
           const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
           if (!validTaskTypes.includes(template.taskType)) {
-            return res.status(400).json({ 
-              error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` 
+            return res.status(400).json({
+              error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`,
             });
           }
         }
@@ -161,10 +155,11 @@ const activityController = function () {
       const updatedActivity = await Activity.findByIdAndUpdate(
         id,
         { title, description, atomTaskTemplates },
-        { new: true, runValidators: true }
-      ).populate('lessonPlanId', 'title theme')
-       .populate('atomTaskTemplates.subjectId', 'name iconUrl')
-       .populate('atomTaskTemplates.atomId', 'name description difficulty');
+        { new: true, runValidators: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('atomTaskTemplates.subjectId', 'name iconUrl')
+        .populate('atomTaskTemplates.atomId', 'name description difficulty');
 
       res.status(200).json(updatedActivity);
     } catch (error) {
@@ -186,7 +181,7 @@ const activityController = function () {
       const lessonPlan = await LessonPlan.findById(activity.lessonPlanId);
       if (lessonPlan) {
         lessonPlan.activities = lessonPlan.activities.filter(
-          activityId => !activityId.equals(id)
+          (activityId) => !activityId.equals(id),
         );
         await lessonPlan.save();
       }
@@ -224,8 +219,8 @@ const activityController = function () {
       // Validate task type
       const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
       if (!validTaskTypes.includes(taskType)) {
-        return res.status(400).json({ 
-          error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`,
         });
       }
 
@@ -234,7 +229,7 @@ const activityController = function () {
         atomId,
         taskType,
         instructions,
-        resources: resources || []
+        resources: resources || [],
       };
 
       activity.atomTaskTemplates.push(newTemplate);
@@ -261,6 +256,7 @@ const activityController = function () {
         return res.status(404).json({ error: 'Activity not found' });
       }
 
+      // eslint-disable-next-line radix
       const index = parseInt(templateIndex);
       if (index < 0 || index >= activity.atomTaskTemplates.length) {
         return res.status(404).json({ error: 'Template index not found' });
@@ -288,8 +284,8 @@ const activityController = function () {
     updateActivity,
     deleteActivity,
     addAtomTaskTemplate,
-    removeAtomTaskTemplate
+    removeAtomTaskTemplate,
   };
 };
 
-module.exports = activityController; 
+module.exports = activityController;
