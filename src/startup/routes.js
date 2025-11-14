@@ -304,6 +304,7 @@ const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const userStateRouter = require('../routes/userState');
 const applicationRoutes = require('../routes/applications');
 
 module.exports = function (app) {
@@ -452,6 +453,8 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api/user-states', userStateRouter);
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
