@@ -1,5 +1,4 @@
 const moment = require('moment-timezone');
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -239,58 +238,29 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    const inputUserId = req.query.userId;
-    console.log('before logger');
-    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
-    if (inputUserId) {
-      try {
-        const cacheKey = `user_${inputUserId}`;
-        const cachedUser = cache.getCache(cacheKey);
-        if (cachedUser) {
-          return res.status(200).send(JSON.parse(cachedUser));
-        }
-        const user = await UserProfile.findById(
-          inputUserId,
-          '_id firstName lastName isActive startDate createdDate endDate',
-        );
-        if (!user) {
-          return res.status(404).send({ error: 'User Not found' });
-        }
-
-        cache.setCache(cacheKey, JSON.stringify(user));
-        return res.status(200).send(user);
-      } catch (error) {
-        return res.status(500).send({ error: 'Failed to fetch userProfile' });
+    try {
+      if (!(await checkPermission(req, 'getUserProfiles'))) {
+        forbidden(res, 'You are not authorized to view all users');
+        return;
       }
-    }
+      const ALL_USERS_KEY = 'allusers_v1';
+      const cachedAll = cache.getCache(ALL_USERS_KEY);
+      if (cachedAll) {
+        return res.status(200).json(JSON.parse(cachedAll));
+      }
 
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
-      forbidden(res, 'You are not authorized to view all users');
-      return;
-    }
-
-    const userProfiles = await UserProfile.find(
-      {},
-      '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
-    )
-      .sort({
+      const userProfiles = await UserProfile.find(
+        {},
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+      ).sort({
         lastName: 1,
-      })
-      .then((results) => {
-        if (!results) {
-          if (cache.getCache('allusers')) {
-            const getData = JSON.parse(cache.getCache('allusers'));
-            res.status(200).send(getData);
-            return;
-          }
-          res.status(500).send({ error: 'User result was invalid' });
-          return;
-        }
-        cache.setCache('allusers', JSON.stringify(results));
-        res.status(200).send(results);
-      })
-      .catch((error) => res.status(404).send(error));
-    console.log(userProfiles);
+      });
+
+      res.status(200).json(userProfiles);
+    } catch (error) {
+      console.error('Error fetching user profiles:', error);
+      res.status(500).send({ error: 'Failed to fetch user profiles' });
+    }
   };
 
   const getProjectMembers = async function (req, res) {
@@ -462,12 +432,6 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
-    // Handle defaultPassword
-    if (req.body.defaultPassword) {
-      const salt = await bcrypt.genSalt(10);
-      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
-    }
-
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -606,12 +570,6 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
-      // Prevent modification of defaultPassword
-      if (req.body.defaultPassword && record.defaultPassword) {
-        res.status(403).send('defaultPassword cannot be modified.');
-        return;
-      }
-
       // To keep a copy of the original record if we edit the protected account
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
@@ -747,19 +705,26 @@ const userProfileController = function (UserProfile, Project) {
           record.teams = Array.from(new Set(req.body.teams));
         }
 
-        if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+        if (Array.isArray(req.body.projects)) {
+          const newProjects = req.body.projects
+            .map((project) => {
+              if (!project) return null;
 
-          // check if the projects have changed
+              const id = project._id || project.projectId || project;
+
+              if (!id) return null;
+              return id.toString();
+            })
+            .filter(Boolean);
+
+          const oldProjects = (record.projects || []).map((id) => id.toString());
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            oldProjects.length !== newProjects.length ||
+            !oldProjects.every((id) => newProjects.includes(id)) ||
+            !newProjects.every((id) => oldProjects.includes(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
-
-            // update the projects
             record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
@@ -1431,7 +1396,11 @@ const userProfileController = function (UserProfile, Project) {
               const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
-                userData.endDate = user.endDate.toISOString();
+                if (user.endDate) {
+                  userData.endDate = user.endDate.toISOString();
+                } else {
+                  userData.endDate = null;
+                }
               }
               userData.isActive = user.isActive;
               allUserData.splice(userIdx, 1, userData);
@@ -1459,10 +1428,12 @@ const userProfileController = function (UserProfile, Project) {
             });
           })
           .catch((error) => {
+            console.log(error);
             res.status(500).send(error);
           });
       })
       .catch((error) => {
+        console.log(error);
         res.status(500).send(error);
       });
   };
@@ -1778,8 +1749,31 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const inputDate = req.body.blueSquare.date;
+      const isValidDate = moment(inputDate, moment.ISO_8601, true).isValid();
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
+      const newInfringement = {
+        ...req.body.blueSquare,
+        // date:validDate,
+        date: new Date(inputDate),
 
-      req.body.blueSquare.reasons = ['other'];
+        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // Handle reason - default to 'missingHours' if not provided
+        reason: [
+          'missingHours',
+          'missingTimeEntry',
+          'missingSummary',
+          'vacationTime',
+          'other',
+        ].includes(req.body.blueSquare.reason)
+          ? req.body.blueSquare.reason
+          : 'missingHours',
+        // Maintain backward compatibility
+      };
+      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -1793,11 +1787,17 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      record.infringements = originalinfringements.concat(req.body.blueSquare);
+      // record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringements = originalinfringements.concat(newInfringement);
 
       record
         .save()
         .then(async (results) => {
+          console.log(
+            '✅ Infringements saved in DB:',
+            JSON.stringify(results.infringements, null, 2),
+          );
+
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
@@ -1883,7 +1883,6 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
-
       const originalinfringements = record?.infringements ?? [];
 
       record.infringements = originalinfringements.filter(
@@ -1908,7 +1907,10 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+
+        .catch((error) => {
+          res.status(400).send(error);
+        });
     });
   };
 
@@ -2003,7 +2005,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Error Removing Image' });
     }
   };
@@ -2020,7 +2021,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user.user_id}`);
       return res.status(200).send({ message: 'Profile Updated' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Profile Update Failed' });
     }
   };
@@ -2071,7 +2071,6 @@ const userProfileController = function (UserProfile, Project) {
       });
       res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error);
       return res.status(500);
     }
   };
