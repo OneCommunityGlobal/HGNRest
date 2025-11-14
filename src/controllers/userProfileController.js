@@ -705,19 +705,26 @@ const userProfileController = function (UserProfile, Project) {
           record.teams = Array.from(new Set(req.body.teams));
         }
 
-        if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+        if (Array.isArray(req.body.projects)) {
+          const newProjects = req.body.projects
+            .map((project) => {
+              if (!project) return null;
 
-          // check if the projects have changed
+              const id = project._id || project.projectId || project;
+
+              if (!id) return null;
+              return id.toString();
+            })
+            .filter(Boolean);
+
+          const oldProjects = (record.projects || []).map((id) => id.toString());
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            oldProjects.length !== newProjects.length ||
+            !oldProjects.every((id) => newProjects.includes(id)) ||
+            !newProjects.every((id) => oldProjects.includes(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
-
-            // update the projects
             record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
