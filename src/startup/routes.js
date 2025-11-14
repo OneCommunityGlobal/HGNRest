@@ -306,6 +306,8 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const certificationRouter = require('../routes/certificationRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -383,6 +385,8 @@ module.exports = function (app) {
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+  app.use('/api/pm', certificationRouter);
+  console.log('✅ Certification router loaded');
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
