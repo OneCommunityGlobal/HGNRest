@@ -215,89 +215,102 @@ async function getPRsToUpdate(
  * @returns error string and a list of remaining PRs that fails to sync
  */
 async function updateGitHubRepo(prefix, repo, prList, client) {
-  const updatedPRList = [];
   const error = [];
   const remaining = [];
 
-  // Update all PRs data to local db
-  await Promise.all(
-    prList.map(async (pr) => {
-      // Sync pull request information to the local database
-      try {
-        const updatedPR = await PullRequest.findOneAndUpdate(
-          { prNumber: `${prefix}-${pr.number}` },
-          {
-            $setOnInsert: {
-              prNumber: `${prefix}-${pr.number}`,
-              prRepo: repo,
-              prCreatedAt: pr.created_at,
-            },
-            $set: {
-              prTitle: pr.title, // Always update the title for change
-            },
-          },
-          { upsert: true, new: true },
-        );
-        if (updatedPR) {
-          updatedPRList.push(pr);
-        } else {
-          remaining.push({
-            number: pr.number,
-            created_at: pr.created_at,
-            title: pr.title,
-          });
-        }
-      } catch (err) {
-        error.push(
-          `Failed to update PR ${pr.number} and the reviews to the database. Error: ${err}.\n`,
-        );
-      }
-    }),
-  );
+  // Update all PRs data to local db, improve performance with bulkWrite
+  const operations = prList.map((pr) => ({
+    updateOne: {
+      filter: { prNumber: `${prefix}-${pr.number}` },
+      update: {
+        $setOnInsert: {
+          prNumber: `${prefix}-${pr.number}`,
+          prRepo: repo,
+          prCreatedAt: pr.created_at,
+        },
+        $set: {
+          prTitle: pr.title,
+        },
+      },
+      upsert: true,
+    },
+  }));
 
-  // Update PR reviews of successfully updated PRs
-  // eslint-disable-next-line no-restricted-syntax
-  for (let i = 0; i < updatedPRList.length; i += 1) {
-    const pr = updatedPRList[i];
-    let prReviews;
+  try {
+    await PullRequest.bulkWrite(operations, { ordered: false });
+  } catch (err) {
+    error.push(`Bulk PR update failed: ${err.message}\n`);
+  }
+
+  const BATCH_SIZE = 5;
+
+  for (let i = 0; i < prList.length; i += BATCH_SIZE) {
+    const batch = prList.slice(i, i + BATCH_SIZE);
+
+    // 1. Fetch reviews in small parallel batches (still safe)
+    let batchResults;
     try {
       // eslint-disable-next-line no-await-in-loop
-      prReviews = await client.fetchReviews(pr.number);
-    } catch (err) {
-      if (err instanceof RateLimitedError) {
-        remaining.push(
-          ...updatedPRList.slice(i).map((prItem) => ({
-            number: prItem.number,
-            created_at: prItem.created_at,
-            title: prItem.title,
-          })),
-        );
-        error.push(`Failed to get reviews from PR ${pr.number} in repo ${repo}. Rate limited\n`);
-        const errorStr = error.join(' ');
-        // Stop immediately after getting rate-limited
-        return { errorStr, remaining };
-      }
-
-      error.push(
-        `Failed to get reviews from PR ${pr.number} in repo ${repo} from Github. Skip updating reviews. Error ${err}\n`,
+      batchResults = await Promise.all(
+        batch.map(async (pr) => {
+          try {
+            // If saving PR failed, we should not proceed to fetch reviews
+            const exists = await PullRequest.exists({ prNumber: `${prefix}-${pr.number}` });
+            if (!exists) {
+              throw new Error(`Failed to save PR ${pr.number} to database`);
+            }
+            return {
+              pr,
+              reviews: await client.fetchReviews(pr.number),
+            };
+          } catch (err) {
+            if (err instanceof RateLimitedError) {
+              error.push(`Failed to fetch reviews for PR ${pr.number} due to rate limit\n`);
+              return { rateLimited: true };
+            }
+            // Non-rate-limit error -> mark as skipped
+            remaining.push({
+              number: pr.number,
+              title: pr.title,
+              created_at: pr.created_at,
+            });
+            error.push(`Failed to fetch reviews for PR ${pr.number}: ${err}\n`);
+            return { pr, reviews: null }; // continue
+          }
+        }),
       );
-      remaining.push({
-        number: pr.number,
-        created_at: pr.created_at,
-        title: pr.title,
-      });
-      // eslint-disable-next-line no-continue
+    } catch (err) {
+      error.push(`Failed to fetch batch reviews: ${err}\n`);
       continue;
     }
 
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await Promise.all(
-        prReviews.map(async (review) => {
-          // Sync reviews information of that pull request in the database
-          const updatedReview = await PullRequestReview.findOneAndUpdate(
-            { id: review.id },
-            {
+    // 2. Stop immediately if any PR was rate limited
+    const rateObj = batchResults.find((r) => r.rateLimited);
+    if (rateObj) {
+      const remainingList = prList.slice(i).map((item) => ({
+        number: item.number,
+        title: item.title,
+        created_at: item.created_at,
+      }));
+      return {
+        errorStr: error.join(' '),
+        remaining: remainingList,
+      };
+    }
+
+    // 3. Bulk write all reviews in this batch
+    // eslint-disable-next-line no-restricted-syntax
+    for (const result of batchResults) {
+      const { pr, reviews } = result;
+      if (!pr) continue;
+
+      if (!reviews || reviews.length === 0) continue;
+
+      try {
+        const ops = reviews.map((review) => ({
+          updateOne: {
+            filter: { id: review.id },
+            update: {
               $setOnInsert: {
                 id: review.id,
                 prNumber: `${prefix}-${pr.number}`,
@@ -306,24 +319,20 @@ async function updateGitHubRepo(prefix, repo, prList, client) {
                 userId: review.user.id,
               },
             },
-            { upsert: true, new: true },
-          );
-          if (!updatedReview) {
-            error.push(
-              `Failed to save review ${review.id} of PR ${prefix}-${pr.number} to the database\n`,
-            );
-          }
-        }),
-      );
-    } catch (err) {
-      error.push(
-        `Failed to update PR ${pr.number} and the reviews to the database. Error: ${err}.\n`,
-      );
-      remaining.push({
-        number: pr.number,
-        created_at: pr.created_at,
-        title: pr.title,
-      });
+            upsert: true,
+          },
+        }));
+
+        // eslint-disable-next-line no-await-in-loop
+        await PullRequestReview.bulkWrite(ops, { ordered: false });
+      } catch (err) {
+        error.push(`Failed to save reviews for PR ${prefix}-${pr.number}: ${err}\n`);
+        remaining.push({
+          number: pr.number,
+          title: pr.title,
+          created_at: pr.created_at,
+        });
+      }
     }
   }
 
