@@ -21,6 +21,16 @@ const studentAtomSchema = new Schema({
   notes: {
     type: String,
   },
+  firstStartedAt: {
+    type: Date,
+  },
+  completedAt: {
+    type: Date,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
   updatedAt: {
     type: Date,
     default: Date.now,
