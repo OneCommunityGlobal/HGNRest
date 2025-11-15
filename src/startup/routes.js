@@ -305,6 +305,7 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+const announcementRouter = require('../routes/announcementRouter')();
 
 const PromotionEligibility = require('../models/promotionEligibility');
 
@@ -325,6 +326,7 @@ module.exports = function (app) {
   app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
+  app.use('/api', announcementRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
