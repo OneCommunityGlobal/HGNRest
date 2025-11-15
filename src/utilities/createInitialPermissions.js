@@ -295,6 +295,7 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
     ],
   },
 ];
@@ -313,7 +314,6 @@ const createInitialPermissions = async () => {
   ) {
     jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
     await jaeProfile.save();
-    console.log('Added resendBlueSquareAndSummaryEmails permission to Jae');
   }
 
   // Get Roles From DB

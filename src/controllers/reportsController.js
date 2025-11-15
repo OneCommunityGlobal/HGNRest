@@ -226,7 +226,6 @@ const reportsController = function () {
         totalSummariesSubmitted,
       });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -247,14 +246,9 @@ const reportsController = function () {
 
     // Check if we have cached data and aren't forcing a refresh
     if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
-      // console.log(`Cache hit for ${cacheKey}, serving from cache`);
       return res.status(200).send(cacheUtil.getCache(cacheKey));
     }
-    // if (forceRefresh) {
-    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
-    // } else {
-    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
-    // }
+
     if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
       res.status(403).send('You are not authorized to view all users');
       return;
@@ -284,15 +278,21 @@ const reportsController = function () {
         summaries = reporthelper.formatSummaries(results);
       }
 
-      // Cache the results
-      cacheUtil.setCache(cacheKey, summaries);
-      cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      if (!forceRefresh) {
+        cacheUtil.setCache(cacheKey, summaries);
+        cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      }
 
-      res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-      res.set(
-        'ETag',
-        require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
-      );
+      if (forceRefresh) {
+        // Always fetch fresh — disable caching at all layers
+        res.set('Cache-Control', 'no-store');
+      } else {
+        res.set('Cache-Control', `public, max-age=${cacheTTL}`);
+        res.set(
+          'ETag',
+          require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
+        );
+      }
 
       res.status(200).send(summaries);
     } catch (error) {
@@ -521,11 +521,9 @@ const reportsController = function () {
           res.status(200).send(results);
         })
         .catch((error) => {
-          console.log('error:', error); // need to delete later *
           res.status(404).send({ error });
         });
     } catch (err) {
-      console.log('error:', err); // need to delete later *
       res.status(404).send(err);
     }
   };
@@ -549,7 +547,6 @@ const reportsController = function () {
       UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: false } })
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
@@ -558,7 +555,6 @@ const reportsController = function () {
           });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -588,14 +584,12 @@ const reportsController = function () {
       )
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
           res.status(200).send({ message: 'updated user record with getWeeklyReport true' });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -624,8 +618,23 @@ const reportsController = function () {
       );
       res.status(200).send({ teamsWithActiveMembers });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const getReportTeamCodes = async (req, res) => {
+    try {
+      // const minActive = Number(req.query.activeMembersMinimum ?? 1);
+      const minActive = Number.isFinite(Number(req.query.activeMembersMinimum))
+        ? Number(req.query.activeMembersMinimum)
+        : 1;
+
+      const codes = await overviewReportHelper.getCurrentTeamCodes(minActive);
+
+      return res.status(200).send({ teamCodes: codes });
+    } catch (err) {
+      console.error('getReportTeamCodes error:', err);
+      return res.status(500).send({ msg: 'Failed to fetch report team codes' });
     }
   };
 
@@ -642,6 +651,7 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    getReportTeamCodes,
     invalidateWeeklySummariesCache,
   };
 };
