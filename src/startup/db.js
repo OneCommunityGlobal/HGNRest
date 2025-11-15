@@ -13,8 +13,6 @@ const afterConnect = async () => {
       lastName: { $regex: process.env.TIME_ARCHIVE_LAST_NAME, $options: 'i' },
     });
 
-    console.log('connected to mongodb');
-
     await initialPermissions();
     if (!user) {
       userProfile
@@ -37,7 +35,6 @@ const afterConnect = async () => {
 
 module.exports = function () {
   const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
-
   mongoose
     .connect(uri, {
       useNewUrlParser: true,
