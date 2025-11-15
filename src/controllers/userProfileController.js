@@ -17,7 +17,7 @@ const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
+// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -792,16 +792,16 @@ const userProfileController = function (UserProfile, Project) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
-        if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
-        ) {
-          record.permissions = {
-            isAcknowledged: false, // used to inform the user
-            ...req.body.permissions,
-          };
-          await logUserPermissionChangeByAccount(req);
-        }
+        // if (
+        //   req.body.permissions !== undefined &&
+        //   (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+        // ) {
+        //   record.permissions = {
+        //     isAcknowledged: false, // used to inform the user
+        //     ...req.body.permissions,
+        //   };
+        //   await logUserPermissionChangeByAccount(req);
+        // }
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
