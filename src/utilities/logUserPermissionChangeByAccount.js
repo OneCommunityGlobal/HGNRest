@@ -66,7 +66,6 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     });
 
     await logEntry.save();
-    console.log('Permission change logged successfully');
   } catch (error) {
     console.error('Error logging permission change:', error);
   }
