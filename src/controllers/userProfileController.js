@@ -1,5 +1,4 @@
 const moment = require('moment-timezone');
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -13,11 +12,12 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
+// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -240,7 +240,13 @@ const userProfileController = function (UserProfile, Project) {
   const getUserProfileBasicInfo = async function (req, res) {
     try {
       if (!(await checkPermission(req, 'getUserProfiles'))) {
-        return res.status(403).send({ error: 'Unauthorized' });
+        forbidden(res, 'You are not authorized to view all users');
+        return;
+      }
+      const ALL_USERS_KEY = 'allusers_v1';
+      const cachedAll = cache.getCache(ALL_USERS_KEY);
+      if (cachedAll) {
+        return res.status(200).json(JSON.parse(cachedAll));
       }
 
       const userProfiles = await UserProfile.find(
@@ -491,7 +497,7 @@ const userProfileController = function (UserProfile, Project) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(501).send(error);
+      res.status(400).send(error);
     }
   };
 
@@ -623,6 +629,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -698,19 +705,26 @@ const userProfileController = function (UserProfile, Project) {
           record.teams = Array.from(new Set(req.body.teams));
         }
 
-        if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+        if (Array.isArray(req.body.projects)) {
+          const newProjects = req.body.projects
+            .map((project) => {
+              if (!project) return null;
 
-          // check if the projects have changed
+              const id = project._id || project.projectId || project;
+
+              if (!id) return null;
+              return id.toString();
+            })
+            .filter(Boolean);
+
+          const oldProjects = (record.projects || []).map((id) => id.toString());
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            oldProjects.length !== newProjects.length ||
+            !oldProjects.every((id) => newProjects.includes(id)) ||
+            !newProjects.every((id) => oldProjects.includes(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
-
-            // update the projects
             record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
@@ -778,16 +792,16 @@ const userProfileController = function (UserProfile, Project) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
-        if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
-        ) {
-          record.permissions = {
-            isAcknowledged: false, // used to inform the user
-            ...req.body.permissions,
-          };
-          await logUserPermissionChangeByAccount(req);
-        }
+        // if (
+        //   req.body.permissions !== undefined &&
+        //   (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+        // ) {
+        //   record.permissions = {
+        //     isAcknowledged: false, // used to inform the user
+        //     ...req.body.permissions,
+        //   };
+        //   await logUserPermissionChangeByAccount(req);
+        // }
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
@@ -1382,7 +1396,11 @@ const userProfileController = function (UserProfile, Project) {
               const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
-                userData.endDate = user.endDate.toISOString();
+                if (user.endDate) {
+                  userData.endDate = user.endDate.toISOString();
+                } else {
+                  userData.endDate = null;
+                }
               }
               userData.isActive = user.isActive;
               allUserData.splice(userIdx, 1, userData);
@@ -1410,10 +1428,12 @@ const userProfileController = function (UserProfile, Project) {
             });
           })
           .catch((error) => {
+            console.log(error);
             res.status(500).send(error);
           });
       })
       .catch((error) => {
+        console.log(error);
         res.status(500).send(error);
       });
   };
@@ -1714,6 +1734,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1728,6 +1749,32 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const inputDate = req.body.blueSquare.date;
+      const isValidDate = moment(inputDate, moment.ISO_8601, true).isValid();
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
+      const newInfringement = {
+        ...req.body.blueSquare,
+        // date:validDate,
+        date: new Date(inputDate),
+
+        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // Handle reason - default to 'missingHours' if not provided
+        reason: [
+          'missingHours',
+          'missingTimeEntry',
+          'missingSummary',
+          'vacationTime',
+          'other',
+        ].includes(req.body.blueSquare.reason)
+          ? req.body.blueSquare.reason
+          : 'missingHours',
+        // Maintain backward compatibility
+      };
+      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1740,11 +1787,17 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      record.infringements = originalinfringements.concat(req.body.blueSquare);
+      // record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringements = originalinfringements.concat(newInfringement);
 
       record
         .save()
         .then(async (results) => {
+          console.log(
+            '✅ Infringements saved in DB:',
+            JSON.stringify(results.infringements, null, 2),
+          );
+
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
@@ -1776,7 +1829,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1790,6 +1843,9 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });
@@ -1822,13 +1878,11 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
       }
-
       const originalinfringements = record?.infringements ?? [];
 
       record.infringements = originalinfringements.filter(
@@ -1853,7 +1907,10 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+
+        .catch((error) => {
+          res.status(400).send(error);
+        });
     });
   };
 
@@ -1948,7 +2005,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Error Removing Image' });
     }
   };
@@ -1965,7 +2021,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user.user_id}`);
       return res.status(200).send({ message: 'Profile Updated' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Profile Update Failed' });
     }
   };
@@ -2016,8 +2071,100 @@ const userProfileController = function (UserProfile, Project) {
       });
       res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error);
       return res.status(500);
+    }
+  };
+
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+
+      const userId = req.body.requestor.requestorId;
+
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId }, // Exclude current user
+      }).lean();
+
+      // Get user IDs from form responses
+      const userIds = formResponses.map((response) => response.user_id);
+
+      // Get user profiles to get privacy settings
+      const userProfiles = await UserProfile.find({
+        _id: { $in: userIds },
+      })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+
+      // Map data with privacy considerations
+      const membersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
+          }
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
+      // Sort by skill score (highest first)
+      const sortedData = [...membersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+
+      return res.status(200).send(sortedData);
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message,
+      });
     }
   };
 
@@ -2045,35 +2192,72 @@ const userProfileController = function (UserProfile, Project) {
 
       const updatedUsersInfo = await Promise.all(
         usersToUpdate.map(async (user) => {
-          user.teamCode = newTeamCode;
-          let { teamCodeWarning } = user;
+          // if (!user || !user._id || !newTeamCode) {
+          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
+          //   return null;
+          // }
+          // user.teamCode = newTeamCode;
+          // let { teamCodeWarning } = user;
+          let teamCodeWarning = user.teamCodeWarning ?? false;
 
           if (warningUsers && warningUsers.includes(user._id.toString())) {
             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
           }
 
+          // return {
+          //   updateOne: {
+          //     // filter: { _id: user._id },
+          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
+          //     update: {
+          //       $set: {
+          //         teamCode: newTeamCode,
+          //         // teamCodeWarning: teamCodeWarning ?? false,
+          //         teamCodeWarning,
+          //       },
+          //     },
+          //   },
+          //   userInfo: {
+          //     userId: user._id,
+          //     teamCodeWarning,
+          //   },
+          // };
           return {
-            updateOne: {
-              filter: { _id: user._id },
-              update: {
-                $set: {
-                  teamCode: newTeamCode,
-                  teamCodeWarning,
-                },
-              },
-            },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id,
+            teamCodeWarning,
           };
         }),
       );
 
+      // Filter out null entries
+      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
+      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
 
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
       // 2. Execute all updates at once
+      // if (bulkOps.length > 0) {
+      //   await UserProfile.bulkWrite(bulkOps);
+      // } else {
+      //   console.warn('Invalid bulkOps detected. Aborting write.');
+      // }
+
+      // ✅ Build the proper bulkWrite payload
+      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+        updateOne: {
+          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
+          update: {
+            $set: {
+              teamCode: newTeamCode,
+              teamCodeWarning,
+            },
+          },
+        },
+      }));
+
+      // // ✅ Log structure
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
@@ -2124,6 +2308,7 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
   };
 };
