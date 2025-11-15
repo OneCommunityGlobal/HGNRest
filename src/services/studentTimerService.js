@@ -179,6 +179,24 @@ async function stats({ userId, from, to }) {
   }));
 }
 
+async function adjustDuration({ userId, deltaMinutes }) {
+  assertObjectId(userId, "userId");
+
+  const timer = await getActiveTimer(userId);
+  if (!timer) {
+    const e = new Error("No active timer");
+    e.status = 404;
+    throw e;
+  }
+
+  const deltaMs = Number(deltaMinutes) * 60 * 1000;
+  timer.durationMs = Math.max(60 * 1000, timer.durationMs + deltaMs);
+
+  await timer.save();
+  return timer.summarize();
+}
+
+
 module.exports = {
   start,
   pause,
@@ -188,4 +206,5 @@ module.exports = {
   reset,
   history,
   stats,
+  adjustDuration,
 };
