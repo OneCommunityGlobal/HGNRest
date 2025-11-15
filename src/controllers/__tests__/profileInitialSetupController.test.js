@@ -265,7 +265,8 @@ describe('profileInitialSetupController', () => {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
       };
-
+      console.log(req);
+      console.log(res);
       mockProfileInitialSetupToken.findOneAndUpdate.mockResolvedValue({
         token: 'test-token',
         email: 'test@example.com',
