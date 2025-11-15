@@ -4,6 +4,11 @@ const { Schema } = mongoose;
 
 const resourceRequestSchema = new Schema(
   {
+    requestor_id: {
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'userProfile',
+      required: true,
+    },
     educator_id: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: 'userProfile',
