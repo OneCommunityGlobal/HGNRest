@@ -36,6 +36,13 @@ class RuntimeError extends CustomError {
   }
 }
 
+class RateLimitedError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'RateLimitedError';
+  }
+}
+
 // Define other error classes here...
 
 module.exports = {
@@ -44,5 +51,6 @@ module.exports = {
   AuthenticationError,
   AuthorizationError,
   RuntimeError,
+  RateLimitedError,
   // Export other error classes here...
 };
