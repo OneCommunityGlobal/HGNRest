@@ -225,6 +225,7 @@ const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
+const toolUtilizationRouter = require('../routes/bmdashboard/toolUtilizationRouter')(buildingTool);
 const bmToolsDowntimeRouter = require('../routes/bmdashboard/bmToolsDowntimeRouter');
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
@@ -421,6 +422,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
+  app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
   app.use('/api', toolAvailabilityRouter);
