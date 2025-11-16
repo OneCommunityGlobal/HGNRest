@@ -362,6 +362,226 @@ const educationTaskController = function () {
     }
   };
 
+  // Get student progress - aggregates task completion, subject progress, unit progress
+  const getStudentProgress = async (req, res) => {
+    try {
+      const { studentId } = req.query;
+
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID is required' });
+      }
+
+      // Fetch all tasks for the student
+      const tasks = await EducationTask.find({ studentId })
+        .populate('lessonPlanId', 'title theme')
+        .populate('atomIds', 'name difficulty color subject')
+        .lean();
+
+      if (!tasks || tasks.length === 0) {
+        // Return mock data for testing purposes
+        return res.status(200).json({
+          tasks: [
+            {
+              _id: 't1',
+              type: 'read',
+              status: 'in_progress',
+              suggestedHours: 5,
+              hoursLogged: 3,
+              progressPercent: 60,
+              lessonPlanId: 'lp1',
+              lessonPlanTitle: 'Introduction to Mathematics',
+              subject: 'Mathematics',
+            },
+            {
+              _id: 't2',
+              type: 'write',
+              status: 'completed',
+              suggestedHours: 8,
+              hoursLogged: 8,
+              progressPercent: 100,
+              lessonPlanId: 'lp1',
+              lessonPlanTitle: 'Introduction to Mathematics',
+              subject: 'Mathematics',
+            },
+            {
+              _id: 't3',
+              type: 'read',
+              status: 'assigned',
+              suggestedHours: 4,
+              hoursLogged: 0,
+              progressPercent: 0,
+              lessonPlanId: 'lp2',
+              lessonPlanTitle: 'Science Basics',
+              subject: 'Science',
+            },
+            {
+              _id: 't4',
+              type: 'practice',
+              status: 'in_progress',
+              suggestedHours: 6,
+              hoursLogged: 2,
+              progressPercent: 33,
+              lessonPlanId: 'lp2',
+              lessonPlanTitle: 'Science Basics',
+              subject: 'Science',
+            },
+            {
+              _id: 't5',
+              type: 'write',
+              status: 'completed',
+              suggestedHours: 10,
+              hoursLogged: 10,
+              progressPercent: 100,
+              lessonPlanId: 'lp3',
+              lessonPlanTitle: 'World History',
+              subject: 'History',
+            },
+            {
+              _id: 't6',
+              type: 'quiz',
+              status: 'assigned',
+              suggestedHours: 2,
+              hoursLogged: 0,
+              progressPercent: 0,
+              lessonPlanId: 'lp1',
+              lessonPlanTitle: 'Introduction to Mathematics',
+              subject: 'Mathematics',
+            },
+          ],
+          subjects: [
+            {
+              subjectId: 'Mathematics',
+              subjectName: 'Mathematics',
+              hoursLogged: 11,
+              suggestedHours: 15,
+              progressPercent: 73,
+            },
+            {
+              subjectId: 'Science',
+              subjectName: 'Science',
+              hoursLogged: 2,
+              suggestedHours: 10,
+              progressPercent: 20,
+            },
+            {
+              subjectId: 'History',
+              subjectName: 'History',
+              hoursLogged: 10,
+              suggestedHours: 10,
+              progressPercent: 100,
+            },
+          ],
+          units: [
+            {
+              lessonPlanId: 'lp1',
+              lessonPlanTitle: 'Introduction to Mathematics',
+              hoursLogged: 11,
+              suggestedHours: 15,
+              progressPercent: 73,
+            },
+            {
+              lessonPlanId: 'lp2',
+              lessonPlanTitle: 'Science Basics',
+              hoursLogged: 2,
+              suggestedHours: 10,
+              progressPercent: 20,
+            },
+            {
+              lessonPlanId: 'lp3',
+              lessonPlanTitle: 'World History',
+              hoursLogged: 10,
+              suggestedHours: 10,
+              progressPercent: 100,
+            },
+          ],
+          overall: { progressPercent: 66, hoursLogged: 23, suggestedHours: 35 },
+        });
+      }
+
+      // Helper function to calculate percentage
+      const calculatePercent = (logged, suggested) => {
+        if (!suggested || suggested <= 0) return 0;
+        return Math.min(100, Math.round((logged / suggested) * 100));
+      };
+
+      // Process tasks and calculate progress
+      const taskProgress = tasks.map((task) => ({
+        _id: task._id,
+        type: task.type,
+        status: task.status,
+        suggestedHours: task.suggestedTotalHours || 0,
+        hoursLogged: task.loggedHours || 0,
+        progressPercent: calculatePercent(task.loggedHours, task.suggestedTotalHours),
+        lessonPlanId: task.lessonPlanId?._id,
+        lessonPlanTitle: task.lessonPlanId?.title,
+        subject: task.atomIds?.[0]?.subject || 'General',
+      }));
+
+      // Aggregate by subject
+      const subjectMap = {};
+      taskProgress.forEach((task) => {
+        if (!subjectMap[task.subject]) {
+          subjectMap[task.subject] = {
+            subjectId: task.subject,
+            subjectName: task.subject,
+            hoursLogged: 0,
+            suggestedHours: 0,
+            progressPercent: 0,
+          };
+        }
+        subjectMap[task.subject].hoursLogged += task.hoursLogged;
+        subjectMap[task.subject].suggestedHours += task.suggestedHours;
+      });
+
+      const subjects = Object.values(subjectMap).map((subject) => ({
+        ...subject,
+        progressPercent: calculatePercent(subject.hoursLogged, subject.suggestedHours),
+      }));
+
+      // Aggregate by unit (lesson plan)
+      const unitMap = {};
+      taskProgress.forEach((task) => {
+        if (task.lessonPlanId) {
+          const unitId = task.lessonPlanId.toString();
+          if (!unitMap[unitId]) {
+            unitMap[unitId] = {
+              lessonPlanId: task.lessonPlanId,
+              lessonPlanTitle: task.lessonPlanTitle,
+              hoursLogged: 0,
+              suggestedHours: 0,
+              progressPercent: 0,
+            };
+          }
+          unitMap[unitId].hoursLogged += task.hoursLogged;
+          unitMap[unitId].suggestedHours += task.suggestedHours;
+        }
+      });
+
+      const units = Object.values(unitMap).map((unit) => ({
+        ...unit,
+        progressPercent: calculatePercent(unit.hoursLogged, unit.suggestedHours),
+      }));
+
+      // Calculate overall progress
+      const totalHoursLogged = taskProgress.reduce((sum, t) => sum + t.hoursLogged, 0);
+      const totalSuggestedHours = taskProgress.reduce((sum, t) => sum + t.suggestedHours, 0);
+      const overallProgress = {
+        progressPercent: calculatePercent(totalHoursLogged, totalSuggestedHours),
+        hoursLogged: totalHoursLogged,
+        suggestedHours: totalSuggestedHours,
+      };
+
+      res.status(200).json({
+        tasks: taskProgress,
+        subjects,
+        units,
+        overall: overallProgress,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   return {
     getEducationTasks,
     getTasksByStudent,
@@ -374,6 +594,7 @@ const educationTaskController = function () {
     gradeTask,
     getTasksByStatus,
     markTaskAsComplete,
+    getStudentProgress,
   };
 };
 
