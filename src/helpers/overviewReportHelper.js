@@ -733,7 +733,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares.length > 0 ? currTotalBlueSquares[0].totalBlueSquares : 0,
+      count: currTotalBlueSquares[0]?.totalBlueSquares || 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -743,8 +743,8 @@ const overviewReportHelper = function () {
       );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalBlueSquares[0].totalBlueSquares,
-        comparisonTotalBlueSquares[0].totalBlueSquares,
+        currTotalBlueSquares[0]?.totalBlueSquares || 0,
+        comparisonTotalBlueSquares[0]?.totalBlueSquares || 0,
       );
     }
 
@@ -2147,37 +2147,45 @@ const overviewReportHelper = function () {
     const getSummariesCount = async (start, end) =>
       UserProfile.aggregate([
         {
+          // Stage 1: Match users who have weeklySummaries array
           $match: {
-            summarySubmissionDates: {
-              $elemMatch: {
-                $gte: new Date(start),
-                $lte: new Date(end),
-              },
-            },
+            weeklySummaries: { $exists: true, $ne: [] },
           },
         },
         {
+          // Stage 2: Project only the summaries that meet ALL criteria
           $project: {
-            totalSummaries: {
-              $size: {
-                $filter: {
-                  input: '$summarySubmissionDates',
-                  as: 'date',
-                  cond: {
-                    $and: [
-                      { $gte: ['$$date', new Date(start)] },
-                      { $lte: ['$$date', new Date(end)] },
-                    ],
-                  },
+            validSummaries: {
+              $filter: {
+                input: '$weeklySummaries',
+                as: 'summary',
+                cond: {
+                  $and: [
+                    // Condition 1: Summary content is not empty
+                    { $ne: ['$$summary.summary', ''] },
+                    { $ne: ['$$summary.summary', null] },
+                    // Condition 2: uploadDate field exists
+                    { $ne: ['$$summary.uploadDate', null] },
+                    // Condition 3: uploadDate is within the date range
+                    { $gte: ['$$summary.uploadDate', new Date(start)] },
+                    { $lte: ['$$summary.uploadDate', new Date(end)] },
+                  ],
                 },
               },
             },
           },
         },
         {
+          // Stage 3: Count the valid summaries for each user
+          $project: {
+            summaryCount: { $size: '$validSummaries' },
+          },
+        },
+        {
+          // Stage 4: Sum across all users
           $group: {
             _id: null,
-            totalSummaries: { $sum: '$totalSummaries' },
+            totalSummaries: { $sum: '$summaryCount' },
           },
         },
       ]);
