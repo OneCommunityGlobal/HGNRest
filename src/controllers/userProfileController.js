@@ -29,6 +29,9 @@ const objectUtils = require('../utilities/objectUtils');
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
+// Import reports controller to access cache invalidation function
+const reportsController = require('./reportsController')();
+
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
   const { requestor } = req.body;
@@ -189,6 +192,7 @@ const userProfileController = function (UserProfile, Project) {
             createdDate: 1,
             endDate: 1,
             timeZone: 1,
+            bioPosted: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -523,6 +527,55 @@ const userProfileController = function (UserProfile, Project) {
 
       // Update bioPosted
       const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
+
+      // Verify the update was successful by fetching the user directly from DB
+      const verificationUser = await UserProfile.findById(userId, 'bioPosted firstName lastName');
+      console.log(
+        `Database verification - User: ${verificationUser.firstName} ${verificationUser.lastName}, bioPosted: ${verificationUser.bioPosted}`,
+      );
+
+      if (verificationUser.bioPosted !== bioPosted) {
+        console.error(
+          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
+        );
+        return res.status(500).json({ error: 'Failed to update bio status in database.' });
+      }
+
+      // Clear caches to ensure updated data is displayed
+      cache.removeCache(`user-${userId}`);
+
+      // Update or invalidate the allusers cache if it exists
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIndex = allUserData.findIndex((user) => user._id === userId);
+
+        if (userIndex !== -1) {
+          // Update the bioPosted field in the cache
+          allUserData[userIndex].bioPosted = bioPosted;
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        } else {
+          // If user not found in cache, invalidate entire cache to be safe
+          cache.removeCache('allusers');
+        }
+      }
+
+      // Clear weekly summaries caches since bio status affects the weekly summaries report
+      // Invalidate cache for each week (0-3) - this will also invalidate the 'all' cache
+      console.log('Invalidating weekly summaries cache for bio status update for user:', userId);
+      for (let week = 0; week <= 3; week += 1) {
+        console.log(`Invalidating cache for week: ${week}`);
+        reportsController.invalidateWeeklySummariesCache(week);
+      }
+      console.log('All weekly summaries caches invalidated');
+
+      // Force clear all potential cache keys
+      for (let week = 0; week <= 10; week += 1) {
+        cache.removeCache(`weeklySummaries_${week}`);
+      }
+      cache.removeCache('weeklySummaries_all');
+      cache.removeCache('weeklySummaries_null');
+      cache.removeCache('weeklySummaries_undefined');
+      console.log('Manual cache clearing completed');
 
       return res.status(200).json({
         message: `Bio status updated to "${bioPosted}" successfully.`,
@@ -1109,6 +1162,39 @@ const userProfileController = function (UserProfile, Project) {
         return user
           .save()
           .then(() => {
+            // If bioPosted was updated via this generic property route,
+            // update caches and invalidate weekly summaries to avoid stale data.
+            if (key === 'bioPosted') {
+              try {
+                // Update or invalidate the allusers cache
+                if (cache.hasCache('allusers')) {
+                  const allUserData = JSON.parse(cache.getCache('allusers'));
+                  const userIdx = allUserData.findIndex((u) => u._id === userId);
+                  if (userIdx !== -1) {
+                    allUserData[userIdx].bioPosted = value;
+                    cache.setCache('allusers', JSON.stringify(allUserData));
+                  } else {
+                    cache.removeCache('allusers');
+                  }
+                }
+
+                // Invalidate weekly summaries caches, as bioPosted is part of that response
+                for (let week = 0; week <= 3; week += 1) {
+                  reportsController.invalidateWeeklySummariesCache(week);
+                }
+                for (let week = 0; week <= 10; week += 1) {
+                  cache.removeCache(`weeklySummaries_${week}`);
+                }
+                cache.removeCache('weeklySummaries_all');
+                cache.removeCache('weeklySummaries_null');
+                cache.removeCache('weeklySummaries_undefined');
+              } catch (e) {
+                // non-blocking cache invalidation
+                // eslint-disable-next-line no-console
+                console.error('Error invalidating caches after bioPosted update:', e);
+              }
+            }
+
             res.status(200).send({ message: 'updated property' });
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
