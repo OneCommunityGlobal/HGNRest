@@ -154,6 +154,8 @@ const auditIfProtectedAccountUpdated = async (
   }
 };
 
+const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+
 const userProfileController = function (UserProfile, Project) {
   const cache = cacheClosure();
 
@@ -1965,13 +1967,37 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getAllTeamCodeHelper = async function () {
+  const getAllTeamCodeHelper = async function (includePRTeams = false) {
     try {
       let distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
       });
 
       distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
+
+      if (includePRTeams) {
+        let prInsightsTeamCodes = [];
+        try {
+          prInsightsTeamCodes = await PRReviewInsights.distinct('teamCode', {
+            teamCode: { $ne: null },
+          });
+          prInsightsTeamCodes = prInsightsTeamCodes.filter((code) => code && code.trim() !== '');
+        } catch (error) {
+          console.error('Error fetching PR insights team codes:', error);
+        }
+
+        const allTeamCodes = [...new Set([...distinctTeamCodes, ...prInsightsTeamCodes])];
+        allTeamCodes.sort();
+
+        try {
+          cache.removeCache('teamCodes');
+          cache.setCache('teamCodes', JSON.stringify(allTeamCodes));
+        } catch (error) {
+          console.error('Error caching team codes:', error);
+        }
+
+        return allTeamCodes;
+      }
 
       try {
         cache.removeCache('teamCodes');
@@ -1988,7 +2014,9 @@ const userProfileController = function (UserProfile, Project) {
 
   const getAllTeamCode = async function (req, res) {
     try {
-      const distinctTeamCodes = await getAllTeamCodeHelper();
+      // Check if includePRTeams query parameter is set to 'true'
+      const includePRTeams = req.query.includePRTeams === 'true';
+      const distinctTeamCodes = await getAllTeamCodeHelper(includePRTeams);
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
       return res
