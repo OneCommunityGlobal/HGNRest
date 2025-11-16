@@ -2,6 +2,7 @@ const WeeklySummariesFilter = require('../models/weeklySummariesFilter');
 const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 
+// Check if the requestor has permission to manage weekly summaries filters
 const hasManageFilterPermission = async function (req) {
   const requestor = await UserProfile.findById(req.body.requestor.requestorId)
     .select('firstName lastName email role')
