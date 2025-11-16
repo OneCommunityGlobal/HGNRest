@@ -16,8 +16,10 @@ const findLatestRelatedLog = (userId) =>
       });
   });
 
-const logUserPermissionChangeByAccount = async (req) => {
-  const { permissions, firstName, lastName, requestor } = req.body;
+//
+
+const logUserPermissionChangeByAccount = async (req, user) => {
+  const { permissions, requestor } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
@@ -25,9 +27,15 @@ const logUserPermissionChangeByAccount = async (req) => {
     let permissionsRemoved = [];
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
+
+    // Fetch requestor email
     const requestorEmailId = await UserProfile.findById(requestor.requestorId)
       .select('email')
       .exec();
+
+    // Use the user object passed from controller (already fetched)
+    const { firstName, lastName } = user;
+
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
@@ -46,6 +54,7 @@ const logUserPermissionChangeByAccount = async (req) => {
     if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
       return;
     }
+
     const logEntry = new UserPermissionChangeLog({
       logDateTime: dateTime,
       userId,

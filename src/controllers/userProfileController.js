@@ -1,5 +1,4 @@
 const moment = require('moment-timezone');
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -19,8 +18,7 @@ const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-// eslint-disable-next-line no-unused-vars
-const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
+// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
@@ -194,7 +192,6 @@ const userProfileController = function (UserProfile, Project) {
             timeZone: 1,
             filterColor: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
-            infringementCCList: { $ifNull: ['$infringementCCList', []] },
             jobTitle: {
               $cond: {
                 if: { $isArray: '$jobTitle' },
@@ -243,30 +240,6 @@ const userProfileController = function (UserProfile, Project) {
    * _id, firstName, lastName, isActive, startDate, and endDate, sorted by last name.
    */
   const getUserProfileBasicInfo = async function (req, res) {
-    const inputUserId = req.query.userId;
-    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
-    if (inputUserId) {
-      try {
-        const cacheKey = `user_${inputUserId}`;
-        const cachedUser = cache.getCache(cacheKey);
-        if (cachedUser) {
-          return res.status(200).json(JSON.parse(cachedUser));
-        }
-        const user = await UserProfile.findById(
-          inputUserId,
-          '_id firstName lastName isActive startDate createdDate endDate',
-        );
-        if (!user) {
-          return res.status(404).send({ error: 'User Not found' });
-        }
-
-        cache.setCache(cacheKey, JSON.stringify(user));
-        return res.status(200).json(user);
-      } catch (error) {
-        return res.status(500).send({ error: 'Failed to fetch userProfile' });
-      }
-    }
-
     try {
       if (!(await checkPermission(req, 'getUserProfiles'))) {
         forbidden(res, 'You are not authorized to view all users');
@@ -277,6 +250,7 @@ const userProfileController = function (UserProfile, Project) {
       if (cachedAll) {
         return res.status(200).json(JSON.parse(cachedAll));
       }
+
       const userProfiles = await UserProfile.find(
         {},
         '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic filterColor', // Include profilePic
@@ -284,22 +258,10 @@ const userProfileController = function (UserProfile, Project) {
         lastName: 1,
       });
 
-      if (!userProfiles) {
-        return res.status(500).json({ error: 'User results invalid' });
-      }
-
-      cache.setCache(ALL_USERS_KEY, JSON.stringify(userProfiles));
-      return res.status(200).json(userProfiles);
+      res.status(200).json(userProfiles);
     } catch (error) {
-      logger.logException(error, 'getUserProfileBasicInfo error');
-
-      // fallback: serve stale cache if DB query fails
-      const fallback = cache.getCache('allusers_v1');
-      if (fallback) {
-        return res.status(200).json(JSON.parse(fallback));
-      }
-
-      return res.status(500).json({ error: 'Failed to fetch userProfile' });
+      console.error('Error fetching user profiles:', error);
+      res.status(500).send({ error: 'Failed to fetch user profiles' });
     }
   };
 
@@ -472,12 +434,6 @@ const userProfileController = function (UserProfile, Project) {
     up.actualEmail = req.body.actualEmail;
     up.isVisible = !['Mentor'].includes(req.body.role);
 
-    // Handle defaultPassword
-    if (req.body.defaultPassword) {
-      const salt = await bcrypt.genSalt(10);
-      up.defaultPassword = await bcrypt.hash(req.body.defaultPassword, salt);
-    }
-
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
         .select('firstName lastName email role')
@@ -579,687 +535,6 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  // const putUserProfile = async function (req, res) {
-  //   const userid = req.params.userId;
-  //   const canEditProtectedAccount = await canRequestorUpdateUser(
-  //     req.body.requestor.requestorId,
-  //     userid,
-  //   );
-
-  //   const isRequestorAuthorized = !!(
-  //     canEditProtectedAccount &&
-  //     ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-  //       req.body.requestor.requestorId === userid)
-  //   );
-
-  //   const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
-
-  //   const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-  //   if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
-  //     res.status(403).send('You are not authorized to update this user');
-  //     return;
-  //   }
-
-  //   if (
-  //     req.body.role === 'Owner' &&
-  //     !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
-  //   ) {
-  //     res.status(403).send('You are not authorized to update this user');
-  //     return;
-  //   }
-
-  //   cache.removeCache(`user-${userid}`);
-  //   UserProfile.findById(userid, async (err, record) => {
-  //     if (err || !record) {
-  //       res.status(404).send('No valid records found');
-  //       return;
-  //     }
-
-  //     // To keep a copy of the original record if we edit the protected account
-  //     let originalRecord = {};
-  //     if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-  //       originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-  //     }
-  //     // validate userprofile pic
-
-  //     // if (req.body.profilePic) {
-  //     //   const results = userHelper.validateProfilePic(req.body.profilePic);
-
-  //     //   if (!results.result) {
-  //     //     res.status(400).json(results.errors);
-  //     //     return;
-  //     //   }
-  //     // }
-
-  //     // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-  //     // we need to remove the cache when team code is updated in case of new team code generation
-  //     if (req.body.teamCode) {
-  //       const canEditTeamCode =
-  //         req.body.requestor.role === 'Owner' ||
-  //         req.body.requestor.role === 'Administrator' ||
-  //         req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-  //       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-  //         res.status(403).send('You are not authorized to edit team code.');
-  //         return;
-  //       }
-  //       // remove teamCode cache when new team assigned
-  //       if (req.body.teamCode !== record.teamCode) {
-  //         cache.removeCache('teamCodes');
-  //       }
-  //       record.teamCode = req.body.teamCode;
-  //     }
-
-  //     const originalinfringements = record.infringements ? record.infringements : [];
-
-  //     const commonFields = [
-  //       'jobTitle',
-  //       'emailPubliclyAccessible',
-  //       'phoneNumberPubliclyAccessible',
-  //       'filterColor',
-  //       'profilePic',
-  //       'firstName',
-  //       'lastName',
-  //       'phoneNumber',
-  //       'bio',
-  //       'personalLinks',
-  //       'location',
-  //       'privacySettings',
-  //       'weeklySummaries',
-  //       'weeklySummariesCount',
-  //       'mediaUrl',
-  //       'timeZone',
-  //       'hoursByCategory',
-  //       'totalTangibleHrs',
-  //       'totalIntangibleHrs',
-  //       'isFirstTimelog',
-  //       'isVisible',
-  //       'bioPosted',
-  //       'isStartDateManuallyModified',
-  //     ];
-
-  //     commonFields.forEach((fieldName) => {
-  //       if (req.body[fieldName] !== undefined) {
-  //         record[fieldName] = req.body[fieldName];
-  //       }
-  //     });
-
-  //     record.lastModifiedDate = Date.now();
-
-  //     // find userData in cache
-  //     const isUserInCache = cache.hasCache('allusers');
-  //     let allUserData;
-  //     let userData;
-  //     let userIdx;
-  //     if (isUserInCache) {
-  //       allUserData = JSON.parse(cache.getCache('allusers'));
-  //       userIdx = allUserData.findIndex((users) => users._id === userid);
-  //       userData = allUserData[userIdx];
-  //     }
-  //     if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
-  //       const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
-  //       summaryFields.forEach((fieldName) => {
-  //         if (req.body[fieldName] !== undefined) {
-  //           record[fieldName] = req.body[fieldName];
-  //         }
-  //       });
-  //     }
-
-  //     if (req.body.adminLinks !== undefined && canManageAdminLinks) {
-  //       record.adminLinks = req.body.adminLinks;
-  //     }
-
-  //     if (req.body.isAcknowledged !== undefined && record.permissions) {
-  //       record.permissions.isAcknowledged = req.body.isAcknowledged;
-  //     }
-
-  //     if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
-  //       const importantFields = [
-  //         'email',
-  //         'role',
-  //         'isRehireable',
-  //         'isActive',
-  //         'weeklySummaries',
-  //         'weeklySummariesCount',
-  //         'mediaUrl',
-  //         'collaborationPreference',
-  //         'categoryTangibleHrs',
-  //         'totalTangibleHrs',
-  //         'timeEntryEditHistory',
-  //       ];
-
-  //       if (req.body.role !== record.role) {
-  //         switch (req.body.role) {
-  //           case 'Mentor':
-  //             record.isVisible = false;
-  //             break;
-  //           default:
-  //             record.isVisible = true;
-  //         }
-  //       }
-  //       importantFields.forEach((fieldName) => {
-  //         if (req.body[fieldName] !== undefined) {
-  //           record[fieldName] = req.body[fieldName];
-  //         }
-  //       });
-
-  //       if (req.body.missedHours !== undefined) {
-  //         record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
-  //       }
-
-  //       if (req.body.teams !== undefined) {
-  //         record.teams = Array.from(new Set(req.body.teams));
-  //       }
-
-  //       if (req.body.projects !== undefined) {
-  //         const newProjects = req.body.projects.map((project) => project._id.toString());
-
-  //         // check if the projects have changed
-  //         const projectsChanged =
-  //           !record.projects.every((id) => newProjects.includes(id.toString())) ||
-  //           !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
-
-  //         if (projectsChanged) {
-  //           // store the old projects for comparison
-  //           const oldProjects = record.projects.map((id) => id.toString());
-
-  //           // update the projects
-  //           record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
-
-  //           const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
-  //           const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
-
-  //           const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
-  //             mongoose.Types.ObjectId(id),
-  //           );
-
-  //           if (changedProjectIds.length > 0) {
-  //             const now = new Date();
-  //             Project.updateMany(
-  //               { _id: { $in: changedProjectIds } },
-  //               { $set: { membersModifiedDatetime: now } },
-  //             )
-  //               .exec()
-  //               .catch((error) => {
-  //                 console.error('Error updating project membersModifiedDatetime:', error);
-  //               });
-  //           }
-  //         }
-  //       }
-
-  //       if (req.body.email !== undefined) {
-  //         record.email = req.body.email.toLowerCase();
-  //       }
-
-  //       // Logic to update weeklycommittedHours and the history of the committed hours made
-  //       if (
-  //         req.body.weeklycommittedHours !== undefined &&
-  //         record.weeklycommittedHours !== req.body.weeklycommittedHours
-  //       ) {
-  //         record.weeklycommittedHours = req.body.weeklycommittedHours;
-
-  //         // If their last update was made today, remove that
-  //         const lasti = record.weeklycommittedHoursHistory.length - 1;
-  //         const lastChangeDate = moment(record.weeklycommittedHoursHistory[lasti].dateChanged);
-  //         const now = moment();
-
-  //         if (lastChangeDate.isSame(now, 'day')) {
-  //           record.weeklycommittedHoursHistory.pop();
-  //         }
-
-  //         // Add the new committed hours with current date to history
-  //         // from this date onward user will commit this much hours
-  //         const newEntry = {
-  //           hours: record.weeklycommittedHours,
-  //           dateChanged: Date.now(),
-  //         };
-  //         record.weeklycommittedHoursHistory.push(newEntry);
-  //       }
-
-  //       if (req.body.startDate !== undefined && record.startDate !== req.body.startDate) {
-  //         record.startDate = moment.tz(req.body.startDate, 'America/Los_Angeles').toDate();
-  //         // Make sure weeklycommittedHoursHistory isn't empty
-  //         if (record.weeklycommittedHoursHistory.length === 0) {
-  //           const newEntry = {
-  //             hours: record.weeklycommittedHours,
-  //             dateChanged: Date.now(),
-  //           };
-  //           record.weeklycommittedHoursHistory.push(newEntry);
-  //         }
-  //         // then also change the first committed history (index 0)
-
-  //         record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
-  //       }
-
-  //       if (
-  //         req.body.permissions !== undefined &&
-  //         (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
-  //       ) {
-  //         record.permissions = {
-  //           isAcknowledged: false, // used to inform the user
-  //           ...req.body.permissions,
-  //         };
-  //         await logUserPermissionChangeByAccount(req);
-  //       }
-
-  //       if (req.body.endDate !== undefined) {
-  //         if (yearMonthDayDateValidator(req.body.endDate)) {
-  //           record.endDate = moment.tz(req.body.endDate, 'America/Los_Angeles').toDate();
-  //           if (isUserInCache) {
-  //             userData.endDate = record.endDate.toISOString();
-  //           }
-  //         } else {
-  //           record.set('endDate', undefined, { strict: false });
-  //         }
-  //       }
-
-  //       if (isUserInCache) {
-  //         userData.role = record.role;
-  //         userData.weeklycommittedHours = record.weeklycommittedHours;
-  //         userData.email = record.email;
-  //         userData.isActive = record.isActive;
-  //         userData.startDate = record.startDate.toISOString();
-
-  //         // ✅ Ensure filterColor is updated in allusers cache
-  //         userData.filterColor = record.filterColor;
-
-  //         allUserData.splice(userIdx, 1, userData);
-  //         cache.setCache('allusers', JSON.stringify(allUserData));
-  //       }
-  //     }
-
-  //     let updatedDiff = null;
-  //     if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-  //       updatedDiff = record.modifiedPaths();
-  //     }
-  //     record
-  //       .save()
-  //       .then(async (results) => {
-  //         await userHelper.notifyInfringements(
-  //           originalinfringements,
-  //           results.infringements,
-  //           results.firstName,
-  //           results.lastName,
-  //           results.email,
-  //           results.role,
-  //           results.startDate,
-  //           results.jobTitle[0],
-  //           results.weeklycommittedHours,
-  //         );
-
-  //         // // ✅ More targeted cache clearing
-  //         // const cacheUtil = require('../utilities/nodeCache')();
-
-  //         // // Log what we're clearing
-  //         // console.log('🧹 Clearing caches for user:', userid);
-  //         // console.log('🎨 Updated filterColor:', record.filterColor);
-
-  //         // // Clear the obvious ones
-  //         // const keysToRemove = [
-  //         //   'weeklySummaries_0',
-  //         //   'weeklySummaries_all',
-  //         //   'weeklySummariesReport',
-  //         //   `weeklySummaries_user_${userid}`,
-  //         //   'allusers', // This one is important!
-  //         //   `user-${userid}`, // Single user cache
-  //         //   'summariesReport',
-  //         //   'weeklyReport',
-  //         //   'userReport',
-  //         // ];
-
-  //         // // Add team-specific keys if user has teams
-  //         // if (record.teams && record.teams.length > 0) {
-  //         //   record.teams.forEach(teamId => {
-  //         //     keysToRemove.push(`weeklySummaries_team_${teamId}`);
-  //         //     keysToRemove.push(`team_${teamId}_summaries`);
-  //         //     keysToRemove.push(`team_${teamId}`);
-  //         //   });
-  //         // }
-
-  //         // // Add role-based cache keys
-  //         // keysToRemove.push(`weeklySummaries_role_${results.role}`);
-
-  //         // // Clear each key and log it
-  //         // keysToRemove.forEach(key => {
-  //         //   if (cacheUtil.hasCache(key)) {
-  //         //     console.log(`🗑️ Removing cache key: ${key}`);
-  //         //     cacheUtil.removeCache(key);
-  //         //   }
-  //         //   // Clear from utility cache instance
-  //         //   if (cacheUtil.hasCache && cacheUtil.hasCache(key)) {
-  //         //     console.log(`🗑️ Removing from utility cache: ${key}`);
-  //         //     cacheUtil.removeCache(key);
-  //         //   }
-  //         // });
-
-  //         // // ✅ MOST IMPORTANT: Update the allusers cache properly
-  //         // if (isUserInCache && userData) {
-  //         //   console.log('📝 Updating allusers cache with new filterColor:', record.filterColor);
-
-  //         //   userData.filterColor = record.filterColor;
-  //         //   // Update other critical fields
-  //         //   userData.role = record.role;
-  //         //   userData.email = record.email;
-  //         //   userData.firstName = record.firstName;
-  //         //   userData.lastName = record.lastName;
-  //         //   userData.isActive = results.isActive;
-  //         //   userData.weeklycommittedHours = results.weeklycommittedHours;
-  //         //   userData.lastModifiedDate = results.lastModifiedDate;
-
-  //         //   allUserData.splice(userIdx, 1, userData);
-  //         //   cache.setCache('allusers', JSON.stringify(allUserData));
-  //         //   console.log('✅ Updated allusers cache');
-  //         // }
-
-  //         // // ✅ Also clear the main cache object (the one imported at the top)
-  //         // cache.removeCache(`user-${userid}`);
-  //         // cache.removeCache('allusers');
-
-  //         // res.status(200).json({
-  //         //   _id: record._id,
-  //         //   filterColor: record.filterColor,
-  //         //   message: 'User updated successfully'
-  //         // });
-
-  //         // ✅ Clear cached weekly summaries so UI sees fresh filterColor
-  //         const cacheUtil = require('../utilities/nodeCache')();
-  //         cacheUtil.removeCache('weeklySummaries_0');
-  //         cacheUtil.removeCache('weeklySummaries_all');
-  //         // ✅ Clear all possible weekly summaries caches (extra safety)
-  //         cacheUtil.removeCache('weeklySummariesReport'); // added extra key
-  //         cacheUtil.removeCache(`weeklySummaries_user_${userid}`); // in case per-user cache is used
-
-  //         // update alluser cache if we have cache
-  //         if (isUserInCache) {
-  //           allUserData.splice(userIdx, 1, userData);
-  //           cache.setCache('allusers', JSON.stringify(allUserData));
-  //         }
-  //         // Log the update of a protected email account
-  //         auditIfProtectedAccountUpdated(
-  //           req.body.requestor.requestorId,
-  //           originalRecord.email,
-  //           originalRecord,
-  //           record,
-  //           updatedDiff,
-  //           'update',
-  //         );
-
-  //         // ✅ Send back the full updated record so frontend can update immediately
-  //         res.status(200).json(record);
-  //       })
-  //       .catch((error) => {
-  //         if (error.name === 'ValidationError' && error.errors.lastName) {
-  //           const errors = Object.values(error.errors).map((er) => er.message);
-  //           return res.status(400).json({
-  //             message: 'Validation Error',
-  //             error: errors,
-  //           });
-  //         }
-  //         console.error('Failed to save record:', error);
-  //         return res.status(400).json({ error: 'Failed to save record.' });
-  //       });
-  //   });
-  // };
-
-  // old working one
-  // const putUserProfile = async function (req, res) {
-  //   const userid = req.params.userId;
-  //   const canEditProtectedAccount = await canRequestorUpdateUser(
-  //     req.body.requestor.requestorId,
-  //     userid,
-  //   );
-
-  //   const isRequestorAuthorized = !!(
-  //     canEditProtectedAccount &&
-  //     ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-  //       req.body.requestor.requestorId === userid)
-  //   );
-
-  //   const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
-  //   const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
-
-  //   if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
-  //     res.status(403).send('You are not authorized to update this user');
-  //     return;
-  //   }
-
-  //   if (
-  //     req.body.role === 'Owner' &&
-  //     !(await hasPermission(req.body.requestor, 'addDeleteEditOwners'))
-  //   ) {
-  //     res.status(403).send('You are not authorized to update this user');
-  //     return;
-  //   }
-
-  //   cache.removeCache(`user-${userid}`);
-  //   UserProfile.findById(userid, async (err, record) => {
-  //     if (err || !record) {
-  //       res.status(404).send('No valid records found');
-  //       return;
-  //     }
-
-  //     let originalRecord = {};
-  //     if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-  //       originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-  //     }
-
-  //     if (req.body.teamCode) {
-  //       const canEditTeamCode =
-  //         req.body.requestor.role === 'Owner' ||
-  //         req.body.requestor.role === 'Administrator' ||
-  //         req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-  //       if (!canEditTeamCode && record.teamCode !== req.body.teamCode) {
-  //         res.status(403).send('You are not authorized to edit team code.');
-  //         return;
-  //       }
-  //       if (req.body.teamCode !== record.teamCode) {
-  //         cache.removeCache('teamCodes');
-  //       }
-  //       record.teamCode = req.body.teamCode;
-  //     }
-
-  //     const originalinfringements = record.infringements ? record.infringements : [];
-
-  //     const commonFields = [
-  //       'jobTitle',
-  //       'emailPubliclyAccessible',
-  //       'phoneNumberPubliclyAccessible',
-  //       'filterColor', // ✅ includes filterColor already
-  //       'profilePic',
-  //       'firstName',
-  //       'lastName',
-  //       'phoneNumber',
-  //       'bio',
-  //       'personalLinks',
-  //       'location',
-  //       'privacySettings',
-  //       'weeklySummaries',
-  //       'weeklySummariesCount',
-  //       'mediaUrl',
-  //       'timeZone',
-  //       'hoursByCategory',
-  //       'totalTangibleHrs',
-  //       'totalIntangibleHrs',
-  //       'isFirstTimelog',
-  //       'isVisible',
-  //       'bioPosted',
-  //       'isStartDateManuallyModified',
-  //     ];
-
-  //     commonFields.forEach((fieldName) => {
-  //       if (req.body[fieldName] !== undefined) {
-  //         record[fieldName] = req.body[fieldName];
-  //       }
-  //     });
-
-  //     record.lastModifiedDate = Date.now();
-
-  //     const isUserInCache = cache.hasCache('allusers');
-  //     let allUserData; let userData; let userIdx;
-  //     if (isUserInCache) {
-  //       allUserData = JSON.parse(cache.getCache('allusers'));
-  //       userIdx = allUserData.findIndex((users) => users._id === userid);
-  //       userData = allUserData[userIdx];
-  //     }
-
-  //     if (await hasPermission(req.body.requestor, 'updateSummaryRequirements')) {
-  //       const summaryFields = ['weeklySummaryNotReq', 'weeklySummaryOption'];
-  //       summaryFields.forEach((fieldName) => {
-  //         if (req.body[fieldName] !== undefined) {
-  //           record[fieldName] = req.body[fieldName];
-  //         }
-  //       });
-  //     }
-
-  //     if (req.body.adminLinks !== undefined && canManageAdminLinks) {
-  //       record.adminLinks = req.body.adminLinks;
-  //     }
-
-  //     if (req.body.isAcknowledged !== undefined && record.permissions) {
-  //       record.permissions.isAcknowledged = req.body.isAcknowledged;
-  //     }
-
-  //     if (await hasPermission(req.body.requestor, 'putUserProfileImportantInfo')) {
-  //       const importantFields = [
-  //         'email',
-  //         'role',
-  //         'isRehireable',
-  //         'isActive',
-  //         'weeklySummaries',
-  //         'weeklySummariesCount',
-  //         'mediaUrl',
-  //         'collaborationPreference',
-  //         'categoryTangibleHrs',
-  //         'totalTangibleHrs',
-  //         'timeEntryEditHistory',
-  //       ];
-
-  //       if (req.body.role !== record.role) {
-  //         switch (req.body.role) {
-  //           case 'Mentor':
-  //             record.isVisible = false;
-  //             break;
-  //           default:
-  //             record.isVisible = true;
-  //         }
-  //       }
-
-  //       importantFields.forEach((fieldName) => {
-  //         if (req.body[fieldName] !== undefined) {
-  //           record[fieldName] = req.body[fieldName];
-  //         }
-  //       });
-
-  //       if (req.body.missedHours !== undefined) {
-  //         record.missedHours = req.body.role === 'Core Team' ? req.body?.missedHours ?? 0 : 0;
-  //       }
-
-  //       if (req.body.teams !== undefined) {
-  //         record.teams = Array.from(new Set(req.body.teams));
-  //       }
-
-  //       if (req.body.projects !== undefined) {
-  //         const newProjects = req.body.projects.map((project) => project._id.toString());
-  //         const projectsChanged =
-  //           !record.projects.every((id) => newProjects.includes(id.toString())) ||
-  //           !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
-
-  //         if (projectsChanged) {
-  //           const oldProjects = record.projects.map((id) => id.toString());
-  //           record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
-  //           const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
-  //           const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
-  //           const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
-  //             mongoose.Types.ObjectId(id)
-  //           );
-
-  //           if (changedProjectIds.length > 0) {
-  //             const now = new Date();
-  //             Project.updateMany(
-  //               { _id: { $in: changedProjectIds } },
-  //               { $set: { membersModifiedDatetime: now } }
-  //             ).exec().catch((error) => {
-  //               console.error('Error updating project membersModifiedDatetime:', error);
-  //             });
-  //           }
-  //         }
-  //       }
-
-  //       if (req.body.email !== undefined) {
-  //         record.email = req.body.email.toLowerCase();
-  //       }
-  //     }
-
-  //     let updatedDiff = null;
-  //     if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-  //       updatedDiff = record.modifiedPaths();
-  //     }
-
-  //     record
-  //       .save()
-  //       .then(async (results) => {
-  //         await userHelper.notifyInfringements(
-  //           originalinfringements,
-  //           results.infringements,
-  //           results.firstName,
-  //           results.lastName,
-  //           results.email,
-  //           results.role,
-  //           results.startDate,
-  //           results.jobTitle[0],
-  //           results.weeklycommittedHours,
-  //         );
-
-  //         // ✅ Clear all possible weekly summaries caches (extra safety)
-  //         const cacheUtil = require('../utilities/nodeCache')();
-  //         cacheUtil.removeCache('weeklySummaries_0');
-  //         cacheUtil.removeCache('weeklySummaries_all');
-  //         cacheUtil.removeCache('weeklySummariesReport'); // added extra key
-  //         cacheUtil.removeCache(`weeklySummaries_user_${userid}`); // in case per-user cache is used
-  //         cacheUtil.removeCache(`user-${userid}`);
-
-  //         // Update allusers cache if we have cache
-  //         if (isUserInCache) {
-  //           userData.role = record.role;
-  //           userData.weeklycommittedHours = record.weeklycommittedHours;
-  //           userData.email = record.email;
-  //           userData.isActive = record.isActive;
-  //           userData.startDate = record.startDate.toISOString();
-
-  //           // ✅ Make sure filterColor is also updated in cache
-  //           userData.filterColor = record.filterColor;
-  //           allUserData.splice(userIdx, 1, userData);
-  //           cache.setCache('allusers', JSON.stringify(allUserData));
-  //         }
-
-  //         auditIfProtectedAccountUpdated(
-  //           req.body.requestor.requestorId,
-  //           originalRecord.email,
-  //           originalRecord,
-  //           record,
-  //           updatedDiff,
-  //           'update',
-  //         );
-
-  //         // ✅ Send back the full updated record so frontend can update immediately
-  //         res.status(200).json(record);
-  //       })
-  //       .catch((error) => {
-  //         if (error.name === 'ValidationError' && error.errors.lastName) {
-  //           const errors = Object.values(error.errors).map((er) => er.message);
-  //           return res.status(400).json({
-  //             message: 'Validation Error',
-  //             error: errors,
-  //           });
-  //         }
-  //         console.error('Failed to save record:', error);
-  //         return res.status(400).json({ error: 'Failed to save record.' });
-  //       });
-  //   });
-  // };
-
   const putUserProfile = async function (req, res) {
     console.log('➡️ PUT /userprofile triggered');
     console.log('UserID:', req.params.userId);
@@ -1267,45 +542,7 @@ const userProfileController = function (UserProfile, Project) {
     console.log('🟩 PUT /userProfile called with:', req.params.userId);
     console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
     const userid = req.params.userId;
-    // ⚡️ If request is only updating filterColor, bypass all role/permission checks
-    // if (req.body.filterColor !== undefined && Object.keys(req.body).length === 2 && req.body.requestor) {
-    //   try {
-    //     const record = await UserProfile.findById(userid);
-    //     if (!record) return res.status(404).json({ error: 'User not found' });
 
-    //     record.filterColor = req.body.filterColor;
-    //     record.lastModifiedDate = Date.now();
-    //     await record.save();
-
-    //     // clear caches
-    //     // [
-    //     //   'weeklySummaries_0',
-    //     //   'weeklySummaries_1',
-    //     //   'weeklySummaries_3',
-    //     //   'weeklySummaries_all',
-    //     //   'weeklySummariesReport',
-    //     //   `weeklySummaries_user_${userid}`,
-    //     //   'allusers',
-    //     //   `user-${userid}`,
-    //     // ].forEach((key) => cache.removeCache(key));
-    //     // cache.removeByPrefix('weeklySummaries');
-    //     cache.removeCache(`user-${userid}`);
-    //     cache.removeByPrefix('weeklySummaries');
-    //     cache.removeCache('allusers');
-
-    //     console.log('✅ Bypass updated filterColor in DB:', record.filterColor);
-
-    //     return res.status(200).json({
-    //       _id: record._id,
-    //       filterColor: record.filterColor,
-    //     });
-    //   } catch (err) {
-    //     console.error('❌ Failed filterColor update:', err);
-    //     return res.status(500).json({ error: 'Failed to update filterColor' });
-    //   }
-    // }
-    // ⚡️ Fast-path for bulk color updates (skip all role checks)
-    // ⚡️ Allow bulk/bypass updates for filterColor
     if (req.body.filterColor !== undefined && req.body.requestor) {
       try {
         const record = await UserProfile.findById(userid);
@@ -1353,16 +590,14 @@ const userProfileController = function (UserProfile, Project) {
     const isRequestorAuthorized = !!(
       canEditProtectedAccount &&
       ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        (await hasPermission(req.body.requestor, 'modifyBadgeAmount')) ||
         req.body.requestor.requestorId === userid)
     );
 
-    // fix linting error
-    // const canEditTeamCode =
-    //   req.body.requestor.role === 'Owner' ||
-    //   req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+    const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
 
-    if (!isRequestorAuthorized) {
+    const canManageAdminLinks = await hasPermission(req.body.requestor, 'manageAdminLinks');
+
+    if (!isRequestorAuthorized && !canManageAdminLinks && !hasEditTeamCodePermission) {
       res.status(403).send('You are not authorized to update this user');
       return;
     }
@@ -1382,20 +617,12 @@ const userProfileController = function (UserProfile, Project) {
         return;
       }
 
-      // Prevent modification of defaultPassword
-      if (req.body.defaultPassword && record.defaultPassword) {
-        res.status(403).send('defaultPassword cannot be modified.');
-        return;
-      }
-
       // To keep a copy of the original record if we edit the protected account
       let originalRecord = {};
       if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
       }
 
-      // Since we leverage cache for all team code retrival (refer func getAllTeamCode()),
-      // we need to remove the cache when team code is updated in case of new team code generation
       if (req.body.teamCode) {
         // eslint-disable-next-line no-shadow
         const canEditTeamCode =
@@ -1420,7 +647,6 @@ const userProfileController = function (UserProfile, Project) {
         'jobTitle',
         'emailPubliclyAccessible',
         'phoneNumberPubliclyAccessible',
-        // 'filterColor',
         'profilePic',
         'firstName',
         'lastName',
@@ -1447,24 +673,6 @@ const userProfileController = function (UserProfile, Project) {
         }
       });
 
-      // if (req.body.filterColor !== undefined) {
-      //   if (JSON.stringify(req.body.filterColor) !== JSON.stringify(record.filterColor)) {
-      //     console.log('🛠 PUT UserProfile filterColor update request:', req.body.filterColor);
-      //     record.filterColor = req.body.filterColor;
-      //   } else {
-      //     console.log(
-      //       '⚠️ No filterColor in request — keeping existing:, filterColor is unchanged',
-      //       record.filterColor,
-      //     );
-      //   }
-      // }
-
-      // ✅ Ensure filterColor can still be updated through the normal path
-      // if (req.body.filterColor !== undefined) {
-      //   console.log('🛠 PUT UserProfile filterColor update request:', req.body.filterColor);
-      //   record.filterColor = req.body.filterColor;
-      // }
-
       record.lastModifiedDate = Date.now();
 
       // find userData in cache
@@ -1487,7 +695,7 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      if (req.body.adminLinks !== undefined) {
+      if (req.body.adminLinks !== undefined && canManageAdminLinks) {
         record.adminLinks = req.body.adminLinks;
       }
 
@@ -1533,62 +741,35 @@ const userProfileController = function (UserProfile, Project) {
           record.teams = Array.from(new Set(req.body.teams));
         }
 
-        if (req.body.projects !== undefined) {
-          // Normalize incoming projects to a deduped array of string IDs
-          const normalizeToIdString = (p) => {
-            if (!p) return null;
-            if (typeof p === 'string') return p.trim();
-            if (typeof p === 'object' && p._id) return String(p._id);
-            if (typeof p === 'object' && p.id) return String(p.id);
-            if (typeof p === 'object' && p.projectId) return String(p.projectId);
-            return null;
-          };
+        if (Array.isArray(req.body.projects)) {
+          const newProjects = req.body.projects
+            .map((project) => {
+              if (!project) return null;
 
-          const incomingIdsRaw = Array.isArray(req.body.projects)
-            ? req.body.projects
-            : [req.body.projects];
-          const incomingIdStrings = Array.from(
-            new Set(
-              incomingIdsRaw
-                .map(normalizeToIdString)
-                .filter(Boolean)
-                .map((s) => s.trim()),
-            ),
-          );
+              const id = project._id || project.projectId || project;
 
-          // Validate all incoming IDs are valid ObjectIds
-          const invalidIds = incomingIdStrings.filter((id) => !mongoose.Types.ObjectId.isValid(id));
-          if (invalidIds.length) {
-            return res.status(400).send({
-              error: 'One or more project ids are invalid',
-              invalidProjectIds: invalidIds,
-            });
-          }
+              if (!id) return null;
+              return id.toString();
+            })
+            .filter(Boolean);
 
-          // Existing projects on the record (may be ObjectIds or strings); normalize safely
-          const currentIdStrings = Array.isArray(record.projects)
-            ? record.projects.filter(Boolean).map((id) => String(id))
-            : [];
-
-          // Compare sets to determine if anything actually changed
-          const curSet = new Set(currentIdStrings);
-          const newSet = new Set(incomingIdStrings);
+          const oldProjects = (record.projects || []).map((id) => id.toString());
 
           const projectsChanged =
-            currentIdStrings.length !== incomingIdStrings.length ||
-            currentIdStrings.some((id) => !newSet.has(id));
+            oldProjects.length !== newProjects.length ||
+            !oldProjects.every((id) => newProjects.includes(id)) ||
+            !newProjects.every((id) => oldProjects.includes(id));
 
           if (projectsChanged) {
-            const addedIds = incomingIdStrings.filter((id) => !curSet.has(id));
-            const removedIds = currentIdStrings.filter((id) => !newSet.has(id));
+            record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
 
-            // Apply updates to the user record
-            record.projects = incomingIdStrings.map((id) => new mongoose.Types.ObjectId(id));
+            const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
+            const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
 
-            // Touch membersModifiedDatetime for changed projects
-            const changedProjectIds = [...addedIds, ...removedIds].map(
-              (id) => new mongoose.Types.ObjectId(id),
+            const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
+              mongoose.Types.ObjectId(id),
             );
+
             if (changedProjectIds.length > 0) {
               const now = new Date();
               Project.updateMany(
@@ -1647,16 +828,16 @@ const userProfileController = function (UserProfile, Project) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
-        if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
-        ) {
-          record.permissions = {
-            isAcknowledged: false, // used to inform the user
-            ...req.body.permissions,
-          };
-          await logUserPermissionChangeByAccount(req);
-        }
+        // if (
+        //   req.body.permissions !== undefined &&
+        //   (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+        // ) {
+        //   record.permissions = {
+        //     isAcknowledged: false, // used to inform the user
+        //     ...req.body.permissions,
+        //   };
+        //   await logUserPermissionChangeByAccount(req);
+        // }
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
@@ -1713,18 +894,6 @@ const userProfileController = function (UserProfile, Project) {
           );
 
           console.log('✅ Saved filterColor in DB:', results.filterColor);
-          // ✅ Clear cached weekly summaries so UI sees fresh filterColor
-          // Try to use nodeCache utility safely
-          // try {
-          //   const nodeCacheUtil = require('../utilities/nodeCache');
-          //   const cacheUtil = nodeCacheUtil();
-          //   cacheUtil.removeCache('weeklySummaries_0');
-          //   cacheUtil.removeCache('weeklySummaries_all');
-          //   cacheUtil.removeCache('weeklySummariesReport');
-          //   cacheUtil.removeCache(`weeklySummaries_user_${userid}`);
-          // } catch (error) {
-          //   console.log('Could not load nodeCache utility:', error.message);
-          // }
           [
             'weeklySummaries_0',
             'weeklySummaries_1',
@@ -1736,17 +905,8 @@ const userProfileController = function (UserProfile, Project) {
             `user-${userid}`,
           ].forEach((key) => cache.removeCache(key));
 
-          // ✅ Also clear from main cache instance (this is the most important part)
-          // cache.removeCache('weeklySummaries_0');
-          // cache.removeCache('weeklySummaries_1');
-          // cache.removeCache('weeklySummaries_3');
-          // cache.removeCache('weeklySummaries_all');
-          // cache.removeCache('weeklySummariesReport');
-          // cache.removeCache(`weeklySummaries_user_${userid}`);
           cache.removeByPrefix('weeklySummaries');
-          // cache.removeCache('allusers'); // This is crucial!
-          // cache.removeCache(`user-${userid}`);
-          // ✅ Ensure updated filterColor goes to cache
+          // ✅ Ensures updated filterColor goes to cache
           if (cache.hasCache('allusers')) {
             allUserData = JSON.parse(cache.getCache('allusers'));
             const idx = allUserData.findIndex((u) => u._id === userid);
@@ -1755,14 +915,6 @@ const userProfileController = function (UserProfile, Project) {
               cache.setCache('allusers', JSON.stringify(allUserData));
             }
           }
-          // update alluser cache if we have cache
-          // if (isUserInCache) {
-          //   // ✅ Make sure userData has the updated filterColor, always update after db result
-          //   userData.filterColor = results.filterColor;
-          //   allUserData.splice(userIdx, 1, userData);
-          //   cache.setCache('allusers', JSON.stringify(allUserData));
-          // }
-
           // Log the update of a protected email account
           auditIfProtectedAccountUpdated(
             req.body.requestor.requestorId,
@@ -1781,19 +933,8 @@ const userProfileController = function (UserProfile, Project) {
           });
         })
         .catch((error) => {
-          // if (error.name === 'ValidationError' && error.errors.lastName) {
-          //   const errors = Object.values(error.errors).map((er) => er.message);
-          //   return res.status(400).json({
-          //     message: 'Validation Error',
-          //     error: errors,
-          //   });
-          // }
-          // console.error('Failed to save record:', error);
-          // return res.status(400).json({ error: 'Failed to save record.' });
-          // *** Log the EXACT error from Mongoose ***
           console.error('❌ Backend: record.save() FAILED:', error);
           // *******************************************
-
           // Keep existing error handling
           if (error.name === 'ValidationError') {
             // More specific check
@@ -2661,7 +1802,7 @@ const userProfileController = function (UserProfile, Project) {
     UserProfile.find({
       $or: [{ firstName: { $regex: fullNameRegex } }, { lastName: { $regex: fullNameRegex } }],
     })
-      .select('firstName lastName isActive')
+      .select('firstName lastName')
       // eslint-disable-next-line consistent-return
       .then((users) => {
         if (users.length === 0) {
@@ -2767,6 +1908,32 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const inputDate = req.body.blueSquare.date;
+      const isValidDate = moment(inputDate, moment.ISO_8601, true).isValid();
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
+      const newInfringement = {
+        ...req.body.blueSquare,
+        // date:validDate,
+        date: new Date(inputDate),
+
+        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // Handle reason - default to 'missingHours' if not provided
+        reason: [
+          'missingHours',
+          'missingTimeEntry',
+          'missingSummary',
+          'vacationTime',
+          'other',
+        ].includes(req.body.blueSquare.reason)
+          ? req.body.blueSquare.reason
+          : 'missingHours',
+        // Maintain backward compatibility
+      };
+      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -2779,21 +1946,17 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      req.body.blueSquare.ccdUsers =
-        record?.infringementCCList?.map((cc) => {
-          const matchedUser = allUserData?.find((u) => u.email === cc.email);
-          return {
-            firstName: matchedUser?.firstName || '',
-            lastName: matchedUser?.lastName || '',
-            email: cc.email,
-          };
-        }) || [];
-      const ccList = (record?.infringementCCList ?? []).map((cc) => cc.email);
-      record.infringements = originalinfringements.concat(req.body.blueSquare);
+      // record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringements = originalinfringements.concat(newInfringement);
 
       record
         .save()
         .then(async (results) => {
+          console.log(
+            '✅ Infringements saved in DB:',
+            JSON.stringify(results.infringements, null, 2),
+          );
+
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
@@ -2804,11 +1967,9 @@ const userProfileController = function (UserProfile, Project) {
             results.startDate,
             results.jobTitle[0],
             results.weeklycommittedHours,
-            ccList,
           );
           res.status(200).json({
             _id: record._id,
-            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache
@@ -2841,7 +2002,6 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
-          blueSquare.ccdUsers = Array.isArray(req.body.ccdUsers) ? req.body.ccdUsers : [];
           if (Array.isArray(reasons)) {
             blueSquare.reasons = reasons;
           }
@@ -2883,7 +2043,6 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
-
       const originalinfringements = record?.infringements ?? [];
 
       record.infringements = originalinfringements.filter(
@@ -2908,6 +2067,7 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
+
         .catch((error) => {
           res.status(400).send(error);
         });

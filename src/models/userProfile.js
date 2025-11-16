@@ -13,7 +13,7 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: { type: [Date], default: [] },
   defaultPassword: {
     type: String,
     required: false, // Not required since it's optional
@@ -128,6 +128,19 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
+
       ccdUsers: {
         type: [
           {
@@ -140,6 +153,7 @@ const userProfileSchema = new Schema({
       },
     },
   ],
+
   warnings: [
     {
       date: { type: String, required: true },
@@ -318,6 +332,7 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+
   infringementCCList: [
     {
       email: { type: String, required: true },

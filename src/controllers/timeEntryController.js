@@ -206,7 +206,7 @@ const updateTaskLoggedHours = async (
       // Add hours to new task only (your case!)
       const updatedTask = await Task.findOneAndUpdate(
         { _id: toTaskId },
-        { $inc: { hoursLogged: hoursToBeAdded } },  // Only add, don't subtract
+        { $inc: { hoursLogged: hoursToBeAdded } }, // Only add, don't subtract
         { new: true, session },
       );
       if (updatedTask.hoursLogged > updatedTask.estimatedHours && pendingEmailCollection) {

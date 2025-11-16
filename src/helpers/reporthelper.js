@@ -58,10 +58,16 @@ const reporthelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
+                    $gte: [
+                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
+                      pstStart,
+                    ],
                   },
                   {
-                    $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
+                    $lte: [
+                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
+                      pstEnd,
+                    ],
                   },
                 ],
               },
@@ -176,17 +182,15 @@ const reporthelper = function () {
       // create Array(4) to hold totalSeconds for each week
       result.totalSeconds = [0, 0, 0, 0];
 
+      if (!result.timeEntries || result.timeEntries.length === 0) return;
+
       result.timeEntries.forEach((entry) => {
         const index =
-          startWeekIndex === endWeekIndex
-            ? startWeekIndex
-            : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
-          result.totalSeconds[index] = 0;
-        }
+          startWeekIndex === endWeekIndex ? 0 : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
         if (index >= 0 && index < 4) {
-          result.totalSeconds[index] += entry.totalSeconds;
+          result.totalSeconds[index] =
+            (result.totalSeconds[index] || 0) + (entry.totalSeconds || 0);
         }
       });
 
