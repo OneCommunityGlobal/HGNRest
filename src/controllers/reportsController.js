@@ -20,6 +20,15 @@ const reportsController = function () {
     cacheUtil.removeCache('weeklySummaries_all');
   };
 
+  // helper to safely get requestor object to avoid undefined property access in hasPermission
+  const safeRequestorFromReq = (req) => {
+    // If your tests or app may set req.user instead of req.body.requestor adapt here
+    if (req && req.body && req.body.requestor) return req.body.requestor;
+    if (req && req.user) return req.user;
+    // provide minimal shape so hasPermission won't throw when reading requestorId
+    return { requestorId: null };
+  };
+
   /**
    * Aggregates the trend data for volunteer count
    * Parameters:
@@ -73,16 +82,33 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
 
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+
+    // Validate that dates are valid
+    if (Number.isNaN(isoStartDate.getTime()) || Number.isNaN(isoEndDate.getTime())) {
+      return res
+        .status(400)
+        .send({ msg: 'Invalid date format. Please provide valid dates in YYYY-MM-DD format' });
+    }
+
     let isoComparisonStartDate;
     let isoComparisonEndDate;
 
     if (comparisonStartDate && comparisonEndDate) {
       isoComparisonStartDate = new Date(comparisonStartDate);
       isoComparisonEndDate = new Date(comparisonEndDate);
-    }
 
-    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
-    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+      // Validate comparison dates if provided
+      if (
+        Number.isNaN(isoComparisonStartDate.getTime()) ||
+        Number.isNaN(isoComparisonEndDate.getTime())
+      ) {
+        return res.status(400).send({
+          msg: 'Invalid comparison date format. Please provide valid dates in YYYY-MM-DD format',
+        });
+      }
+    }
 
     try {
       const [
@@ -212,10 +238,20 @@ const reportsController = function () {
   };
 
   const getWeeklySummaries = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+    // Use safe requestor to avoid hasPermission reading properties off undefined
+    const requestor = safeRequestorFromReq(req);
+
+    try {
+      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      if (!allowed) {
+        return res.status(403).send('You are not authorized to view all users');
+      }
+    } catch (permErr) {
+      // If permission utility itself throws, handle gracefully and deny access
+      console.error('Permission check failed:', permErr);
+      return res.status(403).send('You are not authorized to view all users');
     }
+
     // Extract forceRefresh parameter
     const forceRefresh = req.query.forceRefresh === 'true';
     // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
@@ -227,12 +263,19 @@ const reportsController = function () {
 
     // Check if we have cached data and aren't forcing a refresh
     if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
-      return res.status(200).send(cacheUtil.getCache(cacheKey));
-    }
+      // console.log(`Cache hit for ${cacheKey}, serving from cache`);
+      const cached = cacheUtil.getCache(cacheKey);
+      const etag = require('crypto').createHash('md5').update(JSON.stringify(cached)).digest('hex');
+      const ifNoneMatch = req.headers['if-none-match'];
 
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+      // Force browser to revalidate with server and avoid serving stale content from browser cache
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+      res.set('ETag', etag);
+
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
+      }
+      return res.status(200).send(cached);
     }
 
     // Determine cache duration based on week
@@ -264,15 +307,18 @@ const reportsController = function () {
         cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
       }
 
-      if (forceRefresh) {
-        // Always fetch fresh — disable caching at all layers
-        res.set('Cache-Control', 'no-store');
-      } else {
-        res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-        res.set(
-          'ETag',
-          require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
-        );
+      // Force browser to revalidate and avoid stale content while keeping server-side cache intact
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+
+      const etag = require('crypto')
+        .createHash('md5')
+        .update(JSON.stringify(summaries))
+        .digest('hex');
+      res.set('ETag', etag);
+
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
       }
 
       res.status(200).send(summaries);

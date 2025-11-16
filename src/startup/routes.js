@@ -225,6 +225,8 @@ const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
+const toolUtilizationRouter = require('../routes/bmdashboard/toolUtilizationRouter')(buildingTool);
+const bmToolsDowntimeRouter = require('../routes/bmdashboard/bmToolsDowntimeRouter');
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
 const lbUserPrefRouter = require('../routes/lbdashboard/userPreferencesRouter')(
@@ -305,6 +307,13 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+const announcementRouter = require('../routes/announcementRouter')();
+
+const permissionRouter = require('../routes/permissionRouter');
+
+const PromotionEligibility = require('../models/promotionEligibility');
+
+const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -317,10 +326,12 @@ module.exports = function (app) {
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
+  app.use('/api/permission-management', permissionRouter(userProfile));
 
   app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
+  app.use('/api', announcementRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
@@ -411,6 +422,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
+  app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
   app.use('/api', toolAvailabilityRouter);
@@ -451,7 +463,9 @@ module.exports = function (app) {
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
+  app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
   // PR Analytics
   app.use('/api', prInsightsRouter);

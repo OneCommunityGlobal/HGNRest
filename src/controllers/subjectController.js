@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const Subject = require('../models/subject');
 const Atom = require('../models/atom');
 
@@ -19,13 +19,12 @@ const subjectController = function () {
   const getSubjectById = async (req, res) => {
     try {
       const { id } = req.params;
-      const subject = await Subject.findById(id)
-        .populate('atomIds', 'name description difficulty');
-      
+      const subject = await Subject.findById(id).populate('atomIds', 'name description difficulty');
+
       if (!subject) {
         return res.status(404).json({ error: 'Subject not found' });
       }
-      
+
       res.status(200).json(subject);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -36,7 +35,7 @@ const subjectController = function () {
   const createSubject = async (req, res) => {
     try {
       const { name, iconUrl, sequence, description } = req.body;
-      
+
       // Check if subject with same name already exists
       const existingSubject = await Subject.findOne({ name });
       if (existingSubject) {
@@ -47,7 +46,7 @@ const subjectController = function () {
         name,
         iconUrl,
         sequence: sequence || 0,
-        description
+        description,
       });
 
       const savedSubject = await subject.save();
@@ -79,7 +78,7 @@ const subjectController = function () {
       const updatedSubject = await Subject.findByIdAndUpdate(
         id,
         { name, iconUrl, sequence, description, atomIds },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       ).populate('atomIds', 'name description difficulty');
 
       res.status(200).json(updatedSubject);
@@ -96,8 +95,8 @@ const subjectController = function () {
       // Check if subject has atoms
       const atoms = await Atom.find({ subjectId: id });
       if (atoms.length > 0) {
-        return res.status(400).json({ 
-          error: 'Cannot delete subject that has atoms. Please remove all atoms first.' 
+        return res.status(400).json({
+          error: 'Cannot delete subject that has atoms. Please remove all atoms first.',
         });
       }
 
@@ -134,8 +133,10 @@ const subjectController = function () {
       subject.atomIds.push(atomId);
       await subject.save();
 
-      const updatedSubject = await Subject.findById(subjectId)
-        .populate('atomIds', 'name description difficulty');
+      const updatedSubject = await Subject.findById(subjectId).populate(
+        'atomIds',
+        'name description difficulty',
+      );
 
       res.status(200).json(updatedSubject);
     } catch (error) {
@@ -161,8 +162,10 @@ const subjectController = function () {
       subject.atomIds.splice(atomIndex, 1);
       await subject.save();
 
-      const updatedSubject = await Subject.findById(subjectId)
-        .populate('atomIds', 'name description difficulty');
+      const updatedSubject = await Subject.findById(subjectId).populate(
+        'atomIds',
+        'name description difficulty',
+      );
 
       res.status(200).json(updatedSubject);
     } catch (error) {
@@ -177,8 +180,8 @@ const subjectController = function () {
     updateSubject,
     deleteSubject,
     addAtomToSubject,
-    removeAtomFromSubject
+    removeAtomFromSubject,
   };
 };
 
-module.exports = subjectController; 
+module.exports = subjectController;
