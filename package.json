@@ -97,7 +97,7 @@
     "redis": "^4.2.0",
     "regression": "^2.0.1",
     "sanitize-html": "^2.16.0",
-    "sharp": "^0.34.4",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "supertest": "^6.3.4",
     "telesignsdk": "^3.0.3",
