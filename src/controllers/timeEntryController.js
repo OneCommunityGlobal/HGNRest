@@ -193,27 +193,27 @@ const updateTaskLoggedHours = async (
       throw new Error(`Failed to update task hoursLogged for task with id ${toTaskId}`);
     }
   } else {
-    // only remove hours from the old task or add hours to the new task
-    // in this case, only one of fromTaskId or toTaskId will be truthy, and only one of secondsToBeRemoved or secondsToBeAdded will be truthy
-    try {
-      const updatedTask = await Task.findOneAndUpdate(
-        { _id: fromTaskId || toTaskId },
-        { $inc: { hoursLogged: -hoursToBeRemoved || hoursToBeAdded } },
+    // Handle cases where only one task is involved
+    // eslint-disable-next-line no-lonely-if
+    if (fromTaskId && !toTaskId) {
+      // Remove hours from old task only
+      await Task.findOneAndUpdate(
+        { _id: fromTaskId },
+        { $inc: { hoursLogged: -hoursToBeRemoved } },
         { new: true, session },
       );
-      if (
-        toTaskId &&
-        updatedTask.hoursLogged > updatedTask.estimatedHours &&
-        pendingEmailCollection
-      ) {
+    } else if (!fromTaskId && toTaskId) {
+      // Add hours to new task only (your case!)
+      const updatedTask = await Task.findOneAndUpdate(
+        { _id: toTaskId },
+        { $inc: { hoursLogged: hoursToBeAdded } }, // Only add, don't subtract
+        { new: true, session },
+      );
+      if (updatedTask.hoursLogged > updatedTask.estimatedHours && pendingEmailCollection) {
         pendingEmailCollection.push(
           notifyTaskOvertimeEmailBody.bind(null, userprofile, updatedTask),
         );
       }
-    } catch (error) {
-      throw new Error(
-        `Failed to update task hoursLogged for task with id ${fromTaskId || toTaskId}`,
-      );
     }
   }
 };
@@ -473,15 +473,14 @@ const updateTaskIdInTimeEntry = async (id, timeEntry) => {
  * Controller for timeEntry
  */
 const timeEntrycontroller = function (TimeEntry) {
-
   const invalidateWeeklySummariesCache = (weekIndex) => {
     const cacheKey = `weeklySummaries_${weekIndex}`;
     cacheUtil.removeCache(cacheKey);
-    
+
     // Also invalidate the "all weeks" cache
     cacheUtil.removeCache('weeklySummaries_all');
   };
-  
+
   /**
    * Helper func: Check if this is the first time entry for the given user id
    *
@@ -614,10 +613,10 @@ const timeEntrycontroller = function (TimeEntry) {
         const today = new Date();
         const diffTime = today - dateOfWork;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         // Calculate which week this entry belongs to (0 = this week, 1 = last week, etc.)
         const weekIndex = Math.floor(diffDays / 7);
-        
+
         // Only invalidate cache for entries in the last 4 weeks
         if (weekIndex >= 0 && weekIndex <= 3) {
           // Call the invalidation function
@@ -1041,7 +1040,6 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
-  
   /**
    * Get total hours for a specified period for multiple users at once
    */
@@ -1067,20 +1065,20 @@ const timeEntrycontroller = function (TimeEntry) {
         {
           $match: {
             entryType: { $in: ['default', 'person', null] },
-            personId: { $in:  userIds.map(id => mongoose.Types.ObjectId(id)) },
-            dateOfWork: { $gte: startDate, $lte: endDate }
-          }
+            personId: { $in: userIds.map((id) => mongoose.Types.ObjectId(id)) },
+            dateOfWork: { $gte: startDate, $lte: endDate },
+          },
         },
         {
           $group: {
             _id: '$personId',
-            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } }
-          }
-        }
+            totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
+          },
+        },
       ]);
-      const result = userHoursSummary.map(entry => ({
+      const result = userHoursSummary.map((entry) => ({
         userId: entry._id,
-        totalHours: Math.round(entry.totalHours * 10) / 10 //round
+        totalHours: Math.round(entry.totalHours * 10) / 10, // round
       }));
       res.status(200).send(result);
     } catch (error) {

@@ -1,11 +1,12 @@
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
 const Task = require('../../models/task');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
 
-const bmMProjectController = function (BuildingProject) {
+const bmMProjectController = function () {
   // TODO: uncomment when executing auth checks
   // const { JWT_SECRET } = config;
 
