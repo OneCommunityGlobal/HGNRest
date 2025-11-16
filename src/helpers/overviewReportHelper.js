@@ -733,7 +733,7 @@ const overviewReportHelper = function () {
     });
 
     formattedData.totalBlueSquares = {
-      count: currTotalBlueSquares.length > 0 ? currTotalBlueSquares[0].totalBlueSquares : 0,
+      count: currTotalBlueSquares[0]?.totalBlueSquares || 0,
     };
 
     if (isoComparisonStartDate && isoComparisonEndDate) {
@@ -743,8 +743,8 @@ const overviewReportHelper = function () {
       );
 
       formattedData.totalBlueSquares.comparisonPercentage = calculateGrowthPercentage(
-        currTotalBlueSquares[0].totalBlueSquares,
-        comparisonTotalBlueSquares[0].totalBlueSquares,
+        currTotalBlueSquares[0]?.totalBlueSquares || 0,
+        comparisonTotalBlueSquares[0]?.totalBlueSquares || 0,
       );
     }
 
@@ -757,14 +757,34 @@ const overviewReportHelper = function () {
   async function getTeamMembersCount(isoEndDate, isoComparisonEndDate) {
     // Gets counts for total members and members in team within a given time range
     const getData = async (endDate) => {
-      const [data] = await UserProfile.aggregate([
-        {
-          $match: {
-            isActive: true,
+      const baseFilters = {
+        isActive: true,
+        weeklycommittedHours: {
+          $gte: 1,
+        },
+        role: {
+          $ne: 'Mentor',
+        },
+      };
+
+      if (endDate) {
+        baseFilters.$or = [
+          {
+            createdDate: {
+              $exists: false,
+            },
+          },
+          {
             createdDate: {
               $lte: endDate,
             },
           },
+        ];
+      }
+
+      const [data] = await UserProfile.aggregate([
+        {
+          $match: baseFilters,
         },
         {
           $facet: {
@@ -778,7 +798,16 @@ const overviewReportHelper = function () {
                 $match: {
                   teams: {
                     $exists: true,
-                    $ne: [],
+                  },
+                  $expr: {
+                    $gt: [
+                      {
+                        $size: {
+                          $ifNull: ['$teams', []],
+                        },
+                      },
+                      0,
+                    ],
                   },
                 },
               },
@@ -1311,7 +1340,20 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   isActive: true,
+                  role: { $ne: 'Mentor' },
                   createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
+            ],
+            mentors: [
+              {
+                $match: {
+                  isActive: true,
+                  role: 'Mentor',
+                  createdDate: {
+                    $lte: isoEndDate,
+                  },
                 },
               },
               { $count: 'count' },
@@ -1342,12 +1384,14 @@ const overviewReportHelper = function () {
       ]);
 
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
+      const mentors = data[0].mentors[0]?.count || 0;
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
-      const totalVolunteers = activeVolunteers + deactivatedVolunteers;
+      const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
 
       return {
         activeVolunteers,
+        mentors,
         newVolunteers,
         deactivatedVolunteers,
         totalVolunteers,
@@ -1357,6 +1401,7 @@ const overviewReportHelper = function () {
     // Get data for the current time range
     const {
       activeVolunteers: currentActiveVolunteers,
+      mentors: currentMentors,
       newVolunteers: currentNewVolunteers,
       deactivatedVolunteers: currentDeactivatedVolunteers,
       totalVolunteers: currentTotalVolunteers,
@@ -1366,17 +1411,30 @@ const overviewReportHelper = function () {
       activeVolunteers: {
         count: currentActiveVolunteers,
         percentageOutOfTotal:
-          Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentActiveVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
+      },
+      mentors: {
+        count: currentMentors,
+        percentageOutOfTotal:
+          currentTotalVolunteers > 0
+            ? Math.round((currentMentors / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       newVolunteers: {
         count: currentNewVolunteers,
         percentageOutOfTotal:
-          Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentNewVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       deactivatedVolunteers: {
         count: currentDeactivatedVolunteers,
         percentageOutOfTotal:
-          Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100,
+          currentTotalVolunteers > 0
+            ? Math.round((currentDeactivatedVolunteers / currentTotalVolunteers) * 100) / 100
+            : 0,
       },
       totalVolunteers: { count: currentTotalVolunteers },
     };
@@ -1385,6 +1443,7 @@ const overviewReportHelper = function () {
     if (comparisonStartDate && comparisonEndDate) {
       const {
         activeVolunteers: comparisonActiveVolunteers,
+        mentors: comparisonMentors,
         newVolunteers: comparisonNewVolunteers,
         deactivatedVolunteers: comparisonDeactivatedVolunteers,
         totalVolunteers: comparisonTotalVolunteers,
@@ -1394,6 +1453,10 @@ const overviewReportHelper = function () {
       res.activeVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentActiveVolunteers,
         comparisonActiveVolunteers,
+      );
+      res.mentors.comparisonPercentage = calculateGrowthPercentage(
+        currentMentors,
+        comparisonMentors,
       );
       res.newVolunteers.comparisonPercentage = calculateGrowthPercentage(
         currentNewVolunteers,
@@ -2113,37 +2176,45 @@ const overviewReportHelper = function () {
     const getSummariesCount = async (start, end) =>
       UserProfile.aggregate([
         {
+          // Stage 1: Match users who have weeklySummaries array
           $match: {
-            summarySubmissionDates: {
-              $elemMatch: {
-                $gte: new Date(start),
-                $lte: new Date(end),
-              },
-            },
+            weeklySummaries: { $exists: true, $ne: [] },
           },
         },
         {
+          // Stage 2: Project only the summaries that meet ALL criteria
           $project: {
-            totalSummaries: {
-              $size: {
-                $filter: {
-                  input: '$summarySubmissionDates',
-                  as: 'date',
-                  cond: {
-                    $and: [
-                      { $gte: ['$$date', new Date(start)] },
-                      { $lte: ['$$date', new Date(end)] },
-                    ],
-                  },
+            validSummaries: {
+              $filter: {
+                input: '$weeklySummaries',
+                as: 'summary',
+                cond: {
+                  $and: [
+                    // Condition 1: Summary content is not empty
+                    { $ne: ['$$summary.summary', ''] },
+                    { $ne: ['$$summary.summary', null] },
+                    // Condition 2: uploadDate field exists
+                    { $ne: ['$$summary.uploadDate', null] },
+                    // Condition 3: uploadDate is within the date range
+                    { $gte: ['$$summary.uploadDate', new Date(start)] },
+                    { $lte: ['$$summary.uploadDate', new Date(end)] },
+                  ],
                 },
               },
             },
           },
         },
         {
+          // Stage 3: Count the valid summaries for each user
+          $project: {
+            summaryCount: { $size: '$validSummaries' },
+          },
+        },
+        {
+          // Stage 4: Sum across all users
           $group: {
             _id: null,
-            totalSummaries: { $sum: '$totalSummaries' },
+            totalSummaries: { $sum: '$summaryCount' },
           },
         },
       ]);
