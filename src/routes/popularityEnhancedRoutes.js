@@ -1,4 +1,3 @@
-// src/routes/popularityEnhancedRoutes.js
 const express = require('express');
 
 const router = express.Router();
@@ -7,24 +6,14 @@ const EnhancedPopularityCache = require('../utilities/popularityEnhancedCache');
 
 /**
  * Enhanced Popularity Timeline Routes
- * Version: 2.1 - Fixed role filtering and data structure
  */
 
 // GET: Enhanced popularity timeline with role-based grouping
 router.get('/timeline', async (req, res) => {
   try {
+    // Setting default for groupByRole to 'true' as this is the enhanced endpoint
     const { range, roles, start, end, groupByRole = 'true', includeLowVolume = 'true' } = req.query;
 
-    console.log('Timeline query params:', {
-      range,
-      roles,
-      start,
-      end,
-      groupByRole,
-      includeLowVolume,
-    });
-
-    // Generate cache key based on all parameters
     const cacheKey = `enhanced_timeline_${JSON.stringify({ range, roles, start, end, groupByRole, includeLowVolume })}`;
 
     const cachedData = EnhancedPopularityCache.get(cacheKey);
@@ -37,9 +26,8 @@ router.get('/timeline', async (req, res) => {
       });
     }
 
-    const match = { isActive: true };
+    const match = { isActive: true }; // Enhanced role filtering with partial matching
 
-    // Enhanced role filtering with partial matching
     if (roles && roles !== 'All Roles' && roles !== '["All Roles"]') {
       let parsedRoles;
       try {
@@ -49,16 +37,13 @@ router.get('/timeline', async (req, res) => {
         parsedRoles = roles.split(',').map((r) => r.trim().replace(/"/g, ''));
       }
 
-      console.log('Parsed roles for filtering:', parsedRoles);
-
       if (parsedRoles.length > 0 && !parsedRoles.includes('All Roles')) {
         // Create regex patterns for partial matching
         const rolePatterns = parsedRoles.map((role) => new RegExp(role, 'i'));
         match.role = { $in: rolePatterns };
       }
-    }
+    } // Enhanced date range handling
 
-    // Enhanced date range handling
     if (start && end) {
       const [startYear, startMonth] = start.split('-').map(Number);
       const [endYear, endMonth] = end.split('-').map(Number);
@@ -69,42 +54,22 @@ router.get('/timeline', async (req, res) => {
       match.timestamp = { $gte: startDate, $lte: endDate };
     } else if (range) {
       const months = parseInt(range, 10) || 12;
-      // const endDate = new Date();
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - months);
-
-      // Instead of filtering by timestamp, filter by month strings for demo data
-      const monthStrings = [];
-      for (let i = 0; i < months; i += 1) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        monthStrings.push(`${year}-${month}`);
-      }
 
       if (months <= 6) {
-        // For shorter ranges, use the last N months from our available data
         const availableMonths = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06'];
         const recentMonths = availableMonths.slice(-months);
         match.month = { $in: recentMonths };
-      } else {
-        // For longer ranges, just use all available data
-        console.log(`Using all available data for ${months} month range (demo mode)`);
       }
     }
 
-    // Low volume filtering
     if (includeLowVolume === 'false') {
       match.hitsCount = { $gte: 10 };
     }
 
-    console.log('MongoDB match query:', JSON.stringify(match, null, 2));
-
-    let result;
+    let result; // We always run the role-based aggregation as this is the enhanced endpoint
 
     if (groupByRole === 'true') {
-      // Enhanced role-based aggregation for pairing
+      // Role-based aggregation for timeline data (Supports the UX requirement for multiple lines)
       result = await PopularityEnhanced.aggregate([
         { $match: match },
         {
@@ -128,7 +93,6 @@ router.get('/timeline', async (req, res) => {
                 hitsCount: '$hitsCount',
                 applicationsCount: '$applicationsCount',
                 timestamp: '$timestamp',
-                dataPoints: '$dataPoints',
               },
             },
             totalHits: { $sum: '$hitsCount' },
@@ -171,47 +135,23 @@ router.get('/timeline', async (req, res) => {
               totalHits: '$totalHits',
               totalApplications: '$totalApplications',
               avgConversionRate: { $round: ['$avgConversionRate', 4] },
-              popularityScore: {
-                $multiply: ['$totalHits', { $add: [1, '$avgConversionRate'] }],
-              },
+              popularityScore: { $multiply: ['$totalHits', { $add: [1, '$avgConversionRate'] }] },
             },
           },
         },
         { $sort: { 'summary.popularityScore': -1 } },
-      ]);
+      ]); // Sort each role's data by timestamp for correct line plotting order
 
-      // Sort each role's data by timestamp
       result.forEach((roleGroup) => {
         roleGroup.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       });
     } else {
-      // Fallback to simple aggregation (compatible with old frontend)
-      result = await PopularityEnhanced.aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: '$month',
-            hitsCount: { $sum: '$hitsCount' },
-            applicationsCount: { $sum: '$applicationsCount' },
-            timestamp: { $first: '$timestamp' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            month: '$_id',
-            hitsCount: 1,
-            applicationsCount: 1,
-            timestamp: 1,
-          },
-        },
-        { $sort: { timestamp: 1 } },
-      ]);
-    }
+      return res.status(400).json({
+        success: false,
+        error: 'This endpoint only supports role-grouped aggregation (groupByRole=true)',
+      });
+    } // Cache the result
 
-    console.log(`Query returned ${result.length} role groups`);
-
-    // Cache the result
     EnhancedPopularityCache.set(cacheKey, result);
 
     res.json({
@@ -222,7 +162,7 @@ router.get('/timeline', async (req, res) => {
       recordCount: Array.isArray(result) ? result.length : 0,
     });
   } catch (error) {
-    console.error('Error in enhanced popularity timeline:', error);
+    console.error('Error fetching enhanced popularity data:', error.message);
     res.status(500).json({
       success: false,
       error: 'Server error fetching enhanced popularity data',
@@ -235,8 +175,6 @@ router.get('/timeline', async (req, res) => {
 router.get('/role-pairs', async (req, res) => {
   try {
     const { roles, start, end } = req.query;
-
-    console.log('Role pairs query params:', { roles, start, end });
 
     if (!roles || roles === 'All Roles' || roles === '["All Roles"]') {
       return res.status(400).json({
@@ -256,17 +194,13 @@ router.get('/role-pairs', async (req, res) => {
       parsedRoles = roles.split(',').map((r) => r.trim().replace(/"/g, ''));
     }
 
-    console.log('Parsed roles for pairs:', parsedRoles);
-
-    // Use regex for partial matching of role names
     const rolePatterns = parsedRoles.map((role) => new RegExp(role, 'i'));
 
     const match = {
       role: { $in: rolePatterns },
       isActive: true,
-    };
+    }; // Date filtering
 
-    // Date filtering
     if (start && end) {
       const [startYear, startMonth] = start.split('-').map(Number);
       const [endYear, endMonth] = end.split('-').map(Number);
@@ -274,8 +208,6 @@ router.get('/role-pairs', async (req, res) => {
       const endDate = new Date(endYear, endMonth, 0, 23, 59, 59, 999);
       match.timestamp = { $gte: startDate, $lte: endDate };
     }
-
-    console.log('Role pairs match query:', JSON.stringify(match, null, 2));
 
     const rolePairs = await PopularityEnhanced.aggregate([
       { $match: match },
@@ -320,8 +252,6 @@ router.get('/role-pairs', async (req, res) => {
       { $sort: { timestamp: 1 } },
     ]);
 
-    console.log(`Role pairs query returned ${rolePairs.length} months of data`);
-
     EnhancedPopularityCache.set(cacheKey, rolePairs);
 
     res.json({
@@ -332,11 +262,108 @@ router.get('/role-pairs', async (req, res) => {
       monthsCount: rolePairs.length,
     });
   } catch (error) {
-    console.error('Error fetching role pairs:', error);
+    console.error('Error fetching role pairs:', error.message);
     res.status(500).json({
       success: false,
       error: 'Server error fetching role pairs',
       details: error.message,
+    });
+  }
+});
+
+// GET: Role list with aggregated summaries (for filter dropdown)
+router.get('/roles-enhanced', async (req, res) => {
+  try {
+    const cacheKey = 'enhanced_roles_analytics';
+    const cachedData = EnhancedPopularityCache.get(cacheKey);
+
+    if (cachedData) {
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true,
+      });
+    }
+
+    const roles = await PopularityEnhanced.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: '$role',
+          totalHits: { $sum: '$hitsCount' },
+          totalApplications: { $sum: '$applicationsCount' },
+          lastActivity: { $max: '$timestamp' },
+          dataPointCount: { $sum: 1 },
+          monthsActive: { $addToSet: '$month' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          role: '$_id',
+          totalHits: 1,
+          totalApplications: 1,
+          lastActivity: 1,
+          dataPointCount: 1,
+          monthsActive: { $size: '$monthsActive' },
+          conversionRate: {
+            $cond: [
+              { $eq: ['$totalHits', 0] },
+              0,
+              { $divide: ['$totalApplications', '$totalHits'] },
+            ],
+          },
+          popularityScore: {
+            $multiply: ['$totalHits', { $add: [1, { $ifNull: ['$conversionRate', 0] }] }],
+          },
+          activityLevel: {
+            $switch: {
+              branches: [
+                { case: { $gte: ['$totalHits', 1000] }, then: 'High' },
+                { case: { $gte: ['$totalHits', 100] }, then: 'Medium' },
+              ],
+              default: 'Low',
+            },
+          },
+        },
+      },
+      { $sort: { popularityScore: -1 } },
+    ]);
+
+    const allRolesSummary = {
+      role: 'All Roles',
+      totalHits: roles.reduce((sum, r) => sum + r.totalHits, 0),
+      totalApplications: roles.reduce((sum, r) => sum + r.totalApplications, 0),
+      lastActivity: new Date(Math.max(...roles.map((r) => new Date(r.lastActivity)))),
+      dataPointCount: roles.reduce((sum, r) => sum + r.dataPointCount, 0),
+      monthsActive: new Set(roles.flatMap((r) => r.monthsActive)).size,
+      conversionRate: 0,
+      popularityScore: 0,
+      activityLevel: 'All',
+    };
+
+    if (allRolesSummary.totalHits > 0) {
+      allRolesSummary.conversionRate =
+        allRolesSummary.totalApplications / allRolesSummary.totalHits;
+      allRolesSummary.popularityScore =
+        allRolesSummary.totalHits * (1 + allRolesSummary.conversionRate);
+    }
+
+    const enhancedRoles = [allRolesSummary, ...roles];
+
+    EnhancedPopularityCache.set(cacheKey, enhancedRoles, 15 * 60 * 1000); // 15 minutes
+
+    res.json({
+      success: true,
+      data: enhancedRoles,
+      cached: false,
+      totalRoles: enhancedRoles.length,
+    });
+  } catch (error) {
+    console.error('Error fetching enhanced roles:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error fetching enhanced roles',
     });
   }
 });
