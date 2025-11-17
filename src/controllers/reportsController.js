@@ -82,20 +82,52 @@ const reportsController = function () {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
 
+    // Validate date format and validity
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!dateRegex.test(startDate)) {
+      return res.status(400).send({
+        msg: 'Invalid startDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (!dateRegex.test(endDate)) {
+      return res.status(400).send({
+        msg: 'Invalid endDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
+    }
+
     const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
     const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
 
-    // Validate that dates are valid
-    if (Number.isNaN(isoStartDate.getTime()) || Number.isNaN(isoEndDate.getTime())) {
-      return res
-        .status(400)
-        .send({ msg: 'Invalid date format. Please provide valid dates in YYYY-MM-DD format' });
+    // Check if dates are valid
+    if (Number.isNaN(isoStartDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid startDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (Number.isNaN(isoEndDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid endDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
     }
 
     let isoComparisonStartDate;
     let isoComparisonEndDate;
 
     if (comparisonStartDate && comparisonEndDate) {
+      if (!dateRegex.test(comparisonStartDate) || !dateRegex.test(comparisonEndDate)) {
+        return res.status(400).send({
+          msg: 'Invalid comparison date format. Please use YYYY-MM-DD format',
+          error: 'Invalid date parameters',
+        });
+      }
+
       isoComparisonStartDate = new Date(comparisonStartDate);
       isoComparisonEndDate = new Date(comparisonEndDate);
 
@@ -104,11 +136,10 @@ const reportsController = function () {
         Number.isNaN(isoComparisonStartDate.getTime()) ||
         Number.isNaN(isoComparisonEndDate.getTime())
       ) {
-        return res
-          .status(400)
-          .send({
-            msg: 'Invalid comparison date format. Please provide valid dates in YYYY-MM-DD format',
-          });
+        return res.status(400).send({
+          msg: 'Invalid comparison dates. Please provide valid dates',
+          error: 'Invalid date parameters',
+        });
       }
     }
 
@@ -215,6 +246,32 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
       ]);
+
+      // Check for validation errors in functions that use date parameters
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error in volunteerHoursStats:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (workDistributionStats && workDistributionStats.error) {
+        console.log('Date validation error in workDistributionStats:', workDistributionStats.error);
+        return res.status(400).json({
+          msg: workDistributionStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (totalHoursWorked && totalHoursWorked.error) {
+        console.log('Date validation error in totalHoursWorked:', totalHoursWorked.error);
+        return res.status(400).json({
+          msg: totalHoursWorked.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).send({
         volunteerNumberStats,
         volunteerHoursStats,
@@ -409,10 +466,20 @@ const reportsController = function () {
         lastWeekStartDate,
         lastWeekEndDate,
       );
+
+      // Check if the helper function returned an error
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).json(volunteerHoursStats);
     } catch (error) {
       console.log(error);
-      res.status(404).send(error);
+      res.status(500).json({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
