@@ -290,6 +290,13 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 const templateRouter = require('../routes/templateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
+console.log('Loading plannedCost model...');
+const plannedCost = require('../models/plannedCost');
+console.log('PlannedCost model loaded:', plannedCost ? 'success' : 'failed');
+
+console.log('Loading plannedCostRouter...');
+const plannedCostRouter = require('../routes/plannedCostRouter');
+console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
@@ -316,6 +323,7 @@ const PromotionEligibility = require('../models/promotionEligibility');
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
 module.exports = function (app) {
+  console.log('Routes function called - registering planned cost routes...');
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -425,6 +433,7 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
+
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -459,6 +468,9 @@ module.exports = function (app) {
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api', plannedCostRouter(plannedCost, project));
+
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
