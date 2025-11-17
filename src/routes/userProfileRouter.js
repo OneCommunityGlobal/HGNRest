@@ -1,13 +1,25 @@
 const { body, param } = require('express-validator');
-
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 
 const routes = function (userProfile, project) {
   const controller = require('../controllers/userProfileController')(userProfile, project);
-
   const userProfileRouter = express.Router();
 
+  // Skills radar route
+  userProfileRouter.get('/userProfile/:userId/skills-radar', async (req, res) => {
+    try {
+      if (typeof controller.getUserSkillRadarData === 'function') {
+        await controller.getUserSkillRadarData(req, res);
+      } else {
+        res.status(500).send('Controller function not found');
+      }
+    } catch (err) {
+      res.status(500).send({ error: err.message });
+    }
+  });
+
+  // Other routes (unchanged, just formatted for clarity)
   userProfileRouter
     .route('/userProfile')
     .get(controller.getUserProfiles)
@@ -28,8 +40,8 @@ const routes = function (userProfile, project) {
     .get(param('name').exists(), controller.searchUsersByName);
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
-  // Endpoint to retrieve basic user profile information
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
+
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
@@ -72,75 +84,52 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserStatus);
 
   userProfileRouter.route('/userProfile/name/:name').get(controller.getUserByName);
-
   userProfileRouter
     .route('/userProfile/:userId/rehireable')
     .patch(controller.changeUserRehireableStatus);
-
   userProfileRouter
     .route('/userProfile/:userId/toggleInvisibility')
     .patch(controller.toggleInvisibility);
-
   userProfileRouter
     .route('/userProfile/singleName/:singleName')
     .get(controller.getUserBySingleName);
-
   userProfileRouter.route('/userProfile/fullName/:fullName').get(controller.getUserByFullName);
-
   userProfileRouter.route('/refreshToken/:userId').get(controller.refreshToken);
-
   userProfileRouter.route('/userProfile/reportees/:userId').get(controller.getreportees);
-
   userProfileRouter.route('/userProfile/teammembers/:userId').get(controller.getTeamMembersofUser);
-
   userProfileRouter.route('/userProfile/:userId/property').patch(controller.updateOneProperty);
-
   userProfileRouter.route('/AllTeamCodeChanges').patch(controller.updateAllMembersTeamCode);
-
   userProfileRouter.route('/userProfile/:userId/updatePassword').patch(controller.updatepassword);
-
   userProfileRouter.route('/userProfile/:userId/resetPassword').patch(controller.resetPassword);
-
   userProfileRouter.route('/userProfile/name/:userId').get(controller.getUserName);
-
   userProfileRouter.route('/userProfile/project/:projectId').get(controller.getProjectMembers);
-
   userProfileRouter
     .route('/userProfile/socials/facebook')
     .get(controller.getAllUsersWithFacebookLink);
-
   userProfileRouter
     .route('/userProfile/authorizeUser/weeeklySummaries')
     .post(controller.authorizeUser);
-
   userProfileRouter.route('/userProfile/:userId/addInfringement').post(controller.addInfringements);
-
   userProfileRouter
     .route('/userProfile/:userId/infringements/:blueSquareId')
     .put(controller.editInfringements)
     .delete(controller.deleteInfringements);
-
   userProfileRouter.route('/userProfile/projects/:name').get(controller.getProjectsByPerson);
-
   userProfileRouter.route('/userProfile/teamCode/list').get(controller.getAllTeamCode);
-
   userProfileRouter.route('/userProfile/profileImage/remove').put(controller.removeProfileImage);
   userProfileRouter
     .route('/userProfile/profileImage/imagefromwebsite')
     .put(controller.updateProfileImageFromWebsite);
-
   userProfileRouter
     .route('/userProfile/autocomplete/:searchText')
     .get(controller.getUserByAutocomplete);
-
   userProfileRouter.route('/userProfile/:userId/toggleBio').patch(controller.toggleUserBioPosted);
-
   userProfileRouter.route('/userProfile/replaceTeamCode').post(controller.replaceTeamCodeForUsers);
-
   userProfileRouter
     .route('/userProfile/skills/:skill')
     .get(controller.getAllMembersSkillsAndContact);
 
+  // Return the router
   return userProfileRouter;
 };
 
