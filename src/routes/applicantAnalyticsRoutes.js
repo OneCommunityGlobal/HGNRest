@@ -14,7 +14,7 @@ const {
   trackApplication,
   getInteractionSummary,
   getConversionMetrics,
-  triggerAggregation
+  triggerAggregation,
 } = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
 
 router.get('/experience-breakdown', getExperienceBreakdown);
