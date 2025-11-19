@@ -1,13 +1,17 @@
 const geoIP = require('geoip-lite');
 
-const analyticsController = function (Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary) {
-  
+const analyticsController = function (
+  Applicant,
+  AnonymousInteraction,
+  AnonymousApplication,
+  AnalyticsSummary,
+) {
   // Helper function to extract location from request
   const getLocationFromRequest = (req) => {
     try {
       const ip = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
       const location = geoIP.lookup(ip);
-      
+
       return {
         country: location?.country || 'Unknown',
         state: location?.region || 'Unknown',
@@ -42,7 +46,12 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
       if (domain.includes('google') || domain.includes('bing') || domain.includes('yahoo')) {
         return 'search';
       }
-      if (domain.includes('facebook') || domain.includes('twitter') || domain.includes('linkedin') || domain.includes('instagram')) {
+      if (
+        domain.includes('facebook') ||
+        domain.includes('twitter') ||
+        domain.includes('linkedin') ||
+        domain.includes('instagram')
+      ) {
         return 'social';
       }
       if (domain.includes('gmail') || domain.includes('outlook') || domain.includes('mail')) {
@@ -146,13 +155,13 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         targetId,
         targetTitle,
         sessionDuration = 0,
-        metadata = {}
+        metadata = {},
       } = req.body;
 
       // Validate required fields
       if (!sessionId || !interactionType || !targetId || !targetTitle) {
         return res.status(400).json({
-          error: 'Missing required fields: sessionId, interactionType, targetId, targetTitle'
+          error: 'Missing required fields: sessionId, interactionType, targetId, targetTitle',
         });
       }
 
@@ -180,9 +189,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       return res.status(201).json({
         success: true,
-        message: 'Interaction tracked successfully'
+        message: 'Interaction tracked successfully',
       });
-
     } catch (error) {
       console.error('Error tracking interaction:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -199,13 +207,13 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         applicationSource = 'job_listing',
         conversionTime = 0,
         interactionsBeforeApplication = 0,
-        metadata = {}
+        metadata = {},
       } = req.body;
 
       // Validate required fields
       if (!sessionId || !jobId || !jobTitle) {
         return res.status(400).json({
-          error: 'Missing required fields: sessionId, jobId, jobTitle'
+          error: 'Missing required fields: sessionId, jobId, jobTitle',
         });
       }
 
@@ -234,9 +242,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
       return res.status(201).json({
         success: true,
-        message: 'Application tracked successfully'
+        message: 'Application tracked successfully',
       });
-
     } catch (error) {
       console.error('Error tracking application:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -261,7 +268,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
 
         if (start > end) {
           return res.status(400).json({
-            error: 'Invalid date range: startDate cannot be after endDate'
+            error: 'Invalid date range: startDate cannot be after endDate',
           });
         }
       }
@@ -273,16 +280,13 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         if (endDate) match.date.$lte = new Date(endDate);
       }
 
-      const summaries = await AnalyticsSummary.find(match)
-        .sort({ date: -1 })
-        .limit(100);
+      const summaries = await AnalyticsSummary.find(match).sort({ date: -1 }).limit(100);
 
       if (!summaries.length) {
         return res.status(404).json({ message: 'No analytics data available' });
       }
 
       return res.status(200).json(summaries);
-
     } catch (error) {
       console.error('Error fetching interaction summary:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -314,21 +318,21 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
             totalSessions: { $addToSet: '$sessionId' },
             totalInteractions: { $sum: 1 },
             deviceBreakdown: {
-              $push: '$deviceType'
+              $push: '$deviceType',
             },
             originBreakdown: {
-              $push: '$origin'
-            }
-          }
+              $push: '$origin',
+            },
+          },
         },
         {
           $project: {
             totalSessions: { $size: '$totalSessions' },
             totalInteractions: 1,
             deviceBreakdown: 1,
-            originBreakdown: 1
-          }
-        }
+            originBreakdown: 1,
+          },
+        },
       ]);
 
       const applications = await AnonymousApplication.aggregate([
@@ -341,19 +345,20 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
             topJobs: {
               $push: {
                 jobId: '$jobId',
-                jobTitle: '$jobTitle'
-              }
-            }
-          }
-        }
+                jobTitle: '$jobTitle',
+              },
+            },
+          },
+        },
       ]);
 
       const interactionData = interactions[0] || { totalSessions: 0, totalInteractions: 0 };
       const applicationData = applications[0] || { totalApplications: 0, avgConversionTime: 0 };
 
-      const conversionRate = interactionData.totalSessions > 0
-        ? ((applicationData.totalApplications / interactionData.totalSessions) * 100).toFixed(2)
-        : 0;
+      const conversionRate =
+        interactionData.totalSessions > 0
+          ? ((applicationData.totalApplications / interactionData.totalSessions) * 100).toFixed(2)
+          : 0;
 
       return res.status(200).json({
         summary: {
@@ -365,9 +370,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         },
         deviceBreakdown: interactionData.deviceBreakdown || [],
         originBreakdown: interactionData.originBreakdown || [],
-        topJobs: applicationData.topJobs || []
+        topJobs: applicationData.topJobs || [],
       });
-
     } catch (error) {
       console.error('Error fetching conversion metrics:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -391,7 +395,7 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
         return res.status(200).json({
           message: `Generated ${summaries.length} daily summaries`,
           dateRange: { startDate, endDate },
-          summariesCount: summaries.length
+          summariesCount: summaries.length,
         });
       }
 
@@ -405,9 +409,8 @@ const analyticsController = function (Applicant, AnonymousInteraction, Anonymous
       return res.status(200).json({
         message: 'Daily summary generated successfully',
         date: targetDate.toDateString(),
-        summary
+        summary,
       });
-
     } catch (error) {
       console.error('Error triggering aggregation:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
