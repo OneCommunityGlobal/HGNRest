@@ -2150,14 +2150,24 @@ const userProfileController = function (UserProfile, Project) {
   const updateUserInformation = async function (req, res) {
     try {
       const data = req.body;
-      data.map(async (e) => {
-        const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
-        await result.save();
-      });
-      res.status(200).send({ message: 'Update successful' });
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).send({ error: 'No updates provided' });
+      }
+
+      const ops = data.map(({ user_id, item, value }) => ({
+        updateOne: {
+          filter: { _id: user_id },
+          update: { $set: { [item]: value } },
+        },
+      }));
+
+      await UserProfile.bulkWrite(ops);
+
+      return res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      return res.status(500);
+      console.error('Error updating user information:', error);
+      return res.status(500).send({ error: 'Internal server error' });
     }
   };
 
