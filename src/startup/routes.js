@@ -286,6 +286,7 @@ const collaborationRouter = require('../routes/collaborationRouter');
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
+const attendanceRouter = require('../routes/attendanceRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
@@ -378,6 +379,7 @@ module.exports = function (app) {
   app.use('/api/education-tasks', educationTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
+  app.use('/api', attendanceRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
