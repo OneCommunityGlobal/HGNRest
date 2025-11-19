@@ -88,6 +88,8 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
+
+const supplierPerformance = require('../models/summaryDashboard/supplierPerformance');
 const costs = require('../models/costs');
 const tag = require('../models/tag');
 const educationTask = require('../models/educationTask');
@@ -226,6 +228,7 @@ const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
+const toolUtilizationRouter = require('../routes/bmdashboard/toolUtilizationRouter')(buildingTool);
 const bmToolsDowntimeRouter = require('../routes/bmdashboard/bmToolsDowntimeRouter');
 
 const lbMessageRouter = require('../routes/lbdashboard/messagesRouter')(message);
@@ -285,6 +288,9 @@ const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRo
 
 const collaborationRouter = require('../routes/collaborationRouter');
 
+// summary dashboard routes
+const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
+
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
@@ -307,6 +313,7 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
 
@@ -330,6 +337,7 @@ module.exports = function (app) {
   app.use('/api', laborCostRouter);
   // app.use('/api', actionItemRouter);
   app.use('/api', notificationRouter);
+  app.use('/api', announcementRouter);
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
@@ -421,6 +429,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
+  app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
   app.use('/api', toolAvailabilityRouter);
@@ -457,6 +466,9 @@ module.exports = function (app) {
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
+
+  // summary dashboard
+  app.use('/api/suppliers', supplierPerformanceRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
