@@ -313,6 +313,12 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+// education portal
+
+const epBadge = require('../models/educationPortal/epBadgeModel');
+const studentBadges = require('../models/educationPortal/studentBadgesModel');
+const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -477,4 +483,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  // education portal
+  app.use('/api/education', badgeSystemRouter);
 };
