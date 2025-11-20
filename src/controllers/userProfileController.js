@@ -21,7 +21,6 @@ const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
-
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
@@ -2368,6 +2367,74 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const setFinalDay = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { date } = req.body;
+    
+     console.log('=== DEBUG setFinalDay ===');
+    console.log('req.body.requestor:', req.body.requestor);
+    console.log('req.body.requestor.role:', req.body.requestor?.role);
+    console.log('req.body.requestor.permissions:', req.body.requestor?.permissions);
+    
+    // Check if user has permission to set final day
+    if (!req.body.requestor) {
+      console.log('No requestor found');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+    
+    const requestor = req.body.requestor;
+   const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.',
+      });
+    }
+     
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      const finalDate = new Date(date);
+
+      if (finalDate < user.startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final day cannot be before start date',
+          startDate: user.startDate,
+        });
+      }
+
+      user.endDate = finalDate;
+      const updatedUser = await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Final day set successfully',
+        user: {
+          id: updatedUser._id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          endDate: updatedUser.endDate,
+          isActive: updatedUser.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Error setting final day:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  };
   return {
     searchUsersByName,
     postUserProfile,
@@ -2406,6 +2473,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    setFinalDay,
   };
 };
 
