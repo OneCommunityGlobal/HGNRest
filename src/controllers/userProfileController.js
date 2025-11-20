@@ -587,6 +587,28 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const putUserProfile = async function (req, res) {
+    try {
+      const user = await UserProfile.findById(req.params.userId);
+
+      if (user && user.isProductionLinked) {
+        const forbiddenFields = ['firstName', 'lastName', 'email'];
+
+        const tryingToEditIdentity = forbiddenFields.some((field) =>
+          Object.prototype.hasOwnProperty.call(req.body, field),
+        );
+
+        if (tryingToEditIdentity) {
+          return res.status(400).json({
+            success: false,
+            message:
+              'This account is linked to a Production identity. First name, last name, and email cannot be updated from the Dev environment.',
+          });
+        }
+      }
+    } catch (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+
     const userid = req.params.userId;
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
@@ -621,6 +643,22 @@ const userProfileController = function (UserProfile, Project) {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
+      }
+
+      if (record.isProductionLinked) {
+        const forbiddenIdentityFields = ['firstName', 'lastName', 'email'];
+
+        const tryingToEditIdentity = forbiddenIdentityFields.some((field) =>
+          Object.prototype.hasOwnProperty.call(req.body, field),
+        );
+
+        if (tryingToEditIdentity) {
+          return res.status(400).json({
+            success: false,
+            message:
+              'This account is linked to a Production identity. First name, last name, and email cannot be updated from the Dev environment.',
+          });
+        }
       }
 
       // To keep a copy of the original record if we edit the protected account

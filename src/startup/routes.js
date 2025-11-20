@@ -1,3 +1,4 @@
+const devSignupRouter = require('../routes/devSignupRouter');
 const timeEntry = require('../models/timeentry');
 const userProfile = require('../models/userProfile');
 const project = require('../models/project');
@@ -481,4 +482,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  //dev signup router
+  app.use('/api/dev', devSignupRouter);
 };

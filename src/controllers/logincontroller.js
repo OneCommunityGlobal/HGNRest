@@ -63,7 +63,19 @@ const logincontroller = function () {
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-          res.status(200).send({ token });
+          res.status(200).send({
+            token,
+            user: {
+              _id: user._id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              role: user.role,
+              isProductionLinked: user.isProductionLinked,
+              productionEmail: user.productionEmail,
+              productionUserId: user.productionUserId,
+            },
+          });
         } else {
           res.status(404).send({
             message: 'Invalid password.',

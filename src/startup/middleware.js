@@ -42,6 +42,10 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/dev/signup-production' && req.method === 'POST') {
+      next();
+      return;
+    }
     if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
       next();
       return;

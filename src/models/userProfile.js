@@ -75,6 +75,22 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
+
+  // Production Identity Fields
+  productionUserId: {
+    type: String,
+    required: false, // required only for new Dev users after this feature
+  },
+  productionEmail: {
+    type: String,
+    required: false,
+    validate: [validate({ validator: 'isEmail', message: 'Invalid production email' })],
+  },
+  isProductionLinked: {
+    type: Boolean,
+    default: false, // Older Dev users remain unlinked
+  },
+
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {
     type: Boolean,
@@ -124,35 +140,35 @@ const userProfileSchema = new Schema({
     default: [],
   },
   infringements: [
-  {
-    date: { type: String, required: true },
-    description: { type: String, required: true },
-    createdDate: { type: String },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+      createdDate: { type: String },
 
-    reason: {
-      type: String,
-      enum: [
-        'missingHours',
-        'missingSummary',
-        'missingBothHoursAndSummary',
-        'vacationTime',
-        'other',
-      ],
-      required: false,
-    },
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
 
-    ccdUsers: {
-      type: [
-        {
-          firstName: { type: String },
-          lastName: { type: String },
-          email: { type: String, required: true },
-        },
-      ],
-      default: [],
+      ccdUsers: {
+        type: [
+          {
+            firstName: { type: String },
+            lastName: { type: String },
+            email: { type: String, required: true },
+          },
+        ],
+        default: [],
+      },
     },
-  },
-],
+  ],
 
   warnings: [
     {
@@ -394,7 +410,6 @@ const userProfileSchema = new Schema({
       ],
     },
   },
-
 });
 
 function clearUserCache(doc) {
