@@ -502,7 +502,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -522,10 +522,27 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
+
+      // fetch emailBCCs once - same for all users
+      let emailsBCCs;
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        // Keep only assignments with an active assignedTo and map to their email
+        emailsBCCs = blueSquareBCCs
+          .filter((assignment) => assignment.assignedTo && assignment.assignedTo.isActive === true)
+          .map((assignment) => assignment.email);
+      } else {
+        emailsBCCs = null;
+      }
+
+      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+
+      const emailQueue = [];
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-
-        const person = await userProfile.findById(user._id);
+        // avoid multiple db calls and fetch necessary data in first db call??
+        // const person = await userProfile.findById(user._id);
+        const person = user;
 
         const personId = mongoose.Types.ObjectId(user._id);
 
@@ -547,7 +564,10 @@ const userHelper = function () {
           pdtEndOfLastWeek,
         );
 
-        const { timeSpent_hrs: timeSpent } = results[0];
+        if (!Array.isArray(results) || results.length === 0) {
+          console.log(`⚠️ No laborThisWeek results for user ${personId}`);
+        }
+        const timeSpent = results?.[0]?.timeSpent_hrs ?? 0;
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
@@ -816,7 +836,7 @@ const userHelper = function () {
             const administrativeContent = {
               startDate: moment(person.startDate).utc().format('M-D-YYYY'),
               role: person.role,
-              userTitle: person.jobTitle[0],
+              userTitle: person.jobTitle,
               historyInfringements,
             };
             if (person.role === 'Core Team' && timeRemaining > 0) {
@@ -844,6 +864,7 @@ const userHelper = function () {
               );
             }
 
+
             let emailsBCCs;
             /* eslint-disable array-callback-return */
             const blueSquareBCCs = await BlueSquareEmailAssignment.find()
@@ -867,6 +888,17 @@ const userHelper = function () {
               emailsBCCs,
               'onecommunityglobal@gmail.com',
             );
+
+            emailQueue.push({
+              to: status.email,
+              subject: 'New Infringement Assigned',
+              body: emailBody,
+              cc: DEFAULT_CC_EMAILS,
+              replyTo: DEFAULT_REPLY_TO[0],
+              bcc: emailsBCCs,
+              startDate: person.startDate,
+            });
+
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
@@ -920,6 +952,19 @@ const userHelper = function () {
         if (cache.hasCache(`user-${personId}`)) {
           cache.removeCache(`user-${personId}`);
         }
+      }
+      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      for (const email of emailQueue) {
+        await emailSender(
+          email.to,
+          email.subject,
+          email.body,
+          email.attachments ? email.attachments : null,
+          email.cc,
+          email.replyTo,
+          email.bcc,
+          { type: 'blue_square_assignment' },
+        );
       }
       // eslint-disable-next-line no-use-before-define
       await deleteOldTimeOffRequests();
@@ -2551,9 +2596,12 @@ const userHelper = function () {
     if (typeof data === 'object' && data !== null) {
       const result = Object.keys(data).some((key) => {
         if (typeof data[key] === 'object') {
-          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          const found = searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          return Boolean(found); // always returns boolean
         }
+        return false; // MUST return boolean here
       });
+
       return result ? data : null;
     }
     return [];
