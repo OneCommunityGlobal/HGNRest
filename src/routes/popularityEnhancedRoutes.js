@@ -4,18 +4,14 @@ const router = express.Router();
 const PopularityEnhanced = require('../models/popularityEnhanced');
 const EnhancedPopularityCache = require('../utilities/popularityEnhancedCache');
 
-/**
- * Enhanced Popularity Timeline Routes
- */
+/** * Enhanced Popularity Timeline Routes */
 
 // GET: Enhanced popularity timeline with role-based grouping
 router.get('/timeline', async (req, res) => {
   try {
-    // Setting default for groupByRole to 'true' as this is the enhanced endpoint
     const { range, roles, start, end, groupByRole = 'true', includeLowVolume = 'true' } = req.query;
 
-    const cacheKey = `enhanced_timeline_${JSON.stringify({ range, roles, start, end, groupByRole, includeLowVolume })}`;
-
+    const cacheKey = `v2_enhanced_timeline_${JSON.stringify({ range, roles, start, end, groupByRole, includeLowVolume })}`;
     const cachedData = EnhancedPopularityCache.get(cacheKey);
     if (cachedData) {
       return res.json({
@@ -26,24 +22,23 @@ router.get('/timeline', async (req, res) => {
       });
     }
 
-    const match = { isActive: true }; // Enhanced role filtering with partial matching
+    const match = { isActive: true };
 
     if (roles && roles !== 'All Roles' && roles !== '["All Roles"]') {
       let parsedRoles;
       try {
-        // Handle both JSON array and comma-separated string
         parsedRoles = JSON.parse(roles);
       } catch {
         parsedRoles = roles.split(',').map((r) => r.trim().replace(/"/g, ''));
       }
 
       if (parsedRoles.length > 0 && !parsedRoles.includes('All Roles')) {
-        // Create regex patterns for partial matching
         const rolePatterns = parsedRoles.map((role) => new RegExp(role, 'i'));
         match.role = { $in: rolePatterns };
       }
-    } // Enhanced date range handling
+    }
 
+    // Date range handling
     if (start && end) {
       const [startYear, startMonth] = start.split('-').map(Number);
       const [endYear, endMonth] = end.split('-').map(Number);
@@ -53,23 +48,26 @@ router.get('/timeline', async (req, res) => {
 
       match.timestamp = { $gte: startDate, $lte: endDate };
     } else if (range) {
-      const months = parseInt(range, 10) || 12;
+      const months = parseInt(range, 10) || 6;
 
-      if (months <= 6) {
-        const availableMonths = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06'];
-        const recentMonths = availableMonths.slice(-months);
-        match.month = { $in: recentMonths };
-      }
+      // Dynamic date calculation relative to current date
+      const startDate = new Date();
+      // Subtract (months - 1) to include the current month in the count
+      startDate.setMonth(startDate.getMonth() - (months - 1));
+
+      // Reset to first day of month to be inclusive
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+
+      match.timestamp = { $gte: startDate };
     }
 
     if (includeLowVolume === 'false') {
       match.hitsCount = { $gte: 10 };
     }
 
-    let result; // We always run the role-based aggregation as this is the enhanced endpoint
-
+    let result;
     if (groupByRole === 'true') {
-      // Role-based aggregation for timeline data (Supports the UX requirement for multiple lines)
       result = await PopularityEnhanced.aggregate([
         { $match: match },
         {
@@ -140,7 +138,7 @@ router.get('/timeline', async (req, res) => {
           },
         },
         { $sort: { 'summary.popularityScore': -1 } },
-      ]); // Sort each role's data by timestamp for correct line plotting order
+      ]);
 
       result.forEach((roleGroup) => {
         roleGroup.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -150,7 +148,7 @@ router.get('/timeline', async (req, res) => {
         success: false,
         error: 'This endpoint only supports role-grouped aggregation (groupByRole=true)',
       });
-    } // Cache the result
+    }
 
     EnhancedPopularityCache.set(cacheKey, result);
 
@@ -183,7 +181,7 @@ router.get('/role-pairs', async (req, res) => {
       });
     }
 
-    const cacheKey = `role_pairs_${roles}_${start}_${end}`;
+    const cacheKey = `v2_role_pairs_${roles}_${start}_${end}`;
     const cachedData = EnhancedPopularityCache.get(cacheKey);
     if (cachedData) return res.json({ success: true, data: cachedData, cached: true });
 
@@ -199,7 +197,7 @@ router.get('/role-pairs', async (req, res) => {
     const match = {
       role: { $in: rolePatterns },
       isActive: true,
-    }; // Date filtering
+    };
 
     if (start && end) {
       const [startYear, startMonth] = start.split('-').map(Number);
@@ -228,8 +226,8 @@ router.get('/role-pairs', async (req, res) => {
           roles: {
             $push: {
               role: '$_id.role',
-              hitsCount: '$hitsCount',
-              applicationsCount: '$applicationsCount',
+              hitsCount: { $sum: '$hitsCount' },
+              applicationsCount: { $sum: '$applicationsCount' },
               pairId: { $concat: ['$_id.role', '_', '$_id.month'] },
             },
           },
@@ -341,7 +339,6 @@ router.get('/roles-enhanced', async (req, res) => {
       popularityScore: 0,
       activityLevel: 'All',
     };
-
     if (allRolesSummary.totalHits > 0) {
       allRolesSummary.conversionRate =
         allRolesSummary.totalApplications / allRolesSummary.totalHits;
@@ -352,7 +349,6 @@ router.get('/roles-enhanced', async (req, res) => {
     const enhancedRoles = [allRolesSummary, ...roles];
 
     EnhancedPopularityCache.set(cacheKey, enhancedRoles, 15 * 60 * 1000); // 15 minutes
-
     res.json({
       success: true,
       data: enhancedRoles,
