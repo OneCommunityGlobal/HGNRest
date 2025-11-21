@@ -9,7 +9,6 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
    */
   const createResourceRequest = async (req, res) => {
     try {
-      // Check if user has permission or is creating their own request
       const requestorId = req.body.requestor?.requestorId || req.body.requestor?._id;
       const educatorId = req.body.educator_id || requestorId;
 
@@ -25,7 +24,6 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
         return res.status(403).send('You are not authorized to create resource requests.');
       }
 
-      // Validate required fields
       const requestTitle = req.body.request_title;
       const requestDetails = req.body.request_details;
 
@@ -37,13 +35,11 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
         return res.status(400).send('Educator ID is required.');
       }
 
-      // Validate educator exists
       const educator = await UserProfile.findById(educatorId);
       if (!educator) {
         return res.status(404).send('Educator not found.');
       }
 
-      // Validate PM if provided
       if (req.body.pm_id) {
         const pm = await UserProfile.findById(req.body.pm_id);
         if (!pm) {
@@ -51,12 +47,10 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
         }
       }
 
-      // Validate status if provided
       if (req.body.status && !['pending', 'approved', 'denied'].includes(req.body.status)) {
         return res.status(400).send('Status must be one of: pending, approved, denied.');
       }
 
-      // Create new resource request
       const newResourceRequest = new ResourceRequest({
         educator_id: mongoose.Types.ObjectId(educatorId),
         pm_id: req.body.pm_id ? mongoose.Types.ObjectId(req.body.pm_id) : null,
@@ -67,7 +61,6 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
 
       const savedRequest = await newResourceRequest.save();
 
-      // Populate the educator and pm fields for response
       const populatedRequest = await ResourceRequest.findById(savedRequest._id)
         .populate('educator_id', 'firstName lastName email role')
         .populate('pm_id', 'firstName lastName email role');
@@ -82,8 +75,45 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
     }
   };
 
+  /**
+   * Get all resource requests created by the logged-in educator
+   * @param {Object} req
+   * @param {Object} res
+   */
+  const getEducatorResourceRequests = async (req, res) => {
+    try {
+      const requestor = req.body.requestor;
+
+      const isEducator =
+        requestor?.role === 'Educator' ||
+        (await hasPermission(requestor, 'createResourceRequests'));
+
+      if (!isEducator) {
+        return res.status(403).send('Only educators can view their own resource requests.');
+      }
+
+      const educatorId = requestor?._id;
+
+      const filter = { educator_id: educatorId };
+
+      if (req.query.status) {
+        filter.status = req.query.status;
+      }
+
+      const requests = await ResourceRequest.find(filter)
+        .sort({ createdAt: -1 })
+        .populate('pm_id', 'firstName lastName email role');
+
+      return res.status(200).send(requests);
+    } catch (error) {
+      console.error('Error in getEducatorResourceRequests:', error);
+      return res.status(500).send('Error fetching resource requests. Please try again.');
+    }
+  };
+
   return {
     createResourceRequest,
+    getEducatorResourceRequests,
   };
 };
 
