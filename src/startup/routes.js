@@ -39,6 +39,7 @@ const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
+const analyticsRouter = require('../routes/analyticsRouter');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
@@ -376,6 +377,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
   app.use('/api/education-tasks', educationTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
+  app.use('/api/analytics', analyticsRouter);
   app.use('/api', registrationRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
