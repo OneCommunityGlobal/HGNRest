@@ -1,4 +1,4 @@
-const prInsightsController = function (insightsData) {
+const prInsightsController = function (insightsData, userProfile) {
   const getPRReviewInsights = async (req, res) => {
     try {
       const { duration, teams } = req.query;
@@ -106,7 +106,17 @@ const prInsightsController = function (insightsData) {
         },
       ]);
 
-      return res.status(200).json({ teams: insightsDataResult });
+      const teamsWithCounts = await Promise.all(
+        insightsDataResult.map(async (team) => {
+          const count = await userProfile.countDocuments({ teamCode: team._id, isActive: true });
+          return {
+            ...team,
+            memberCount: count,
+          };
+        }),
+      );
+
+      return res.status(200).json({ teams: teamsWithCounts });
     } catch (error) {
       console.error('Error fetching PR review insights:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -132,8 +142,9 @@ const prInsightsController = function (insightsData) {
         return res.status(400).json({ error: 'Invalid qualityLevel value' });
       }
 
-      // eslint-disable-next-line new-cap
-      const newInsight = new insightsData({
+      const Insight = insightsData;
+
+      const newInsight = new Insight({
         teamCode,
         reviewDate: new Date(reviewDate),
         actionTaken,

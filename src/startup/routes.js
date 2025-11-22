@@ -102,7 +102,6 @@ const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 
-
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -178,6 +177,7 @@ const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
+const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
 
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
@@ -258,7 +258,10 @@ const blueSquareEmailAssignmentRouter = require('../routes/BlueSquareEmailAssign
   userProfile,
 );
 // PR Analytics
-const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(PRReviewInsights);
+const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
+  PRReviewInsights,
+  userProfile,
+);
 
 const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
@@ -288,7 +291,6 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
-
 
 // summary dashboard routes
 const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
@@ -406,6 +408,7 @@ module.exports = function (app) {
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+  app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
 
@@ -473,7 +476,6 @@ module.exports = function (app) {
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
-
 
   // summary dashboard
   app.use('/api/suppliers', supplierPerformanceRouter);
