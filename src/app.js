@@ -10,7 +10,6 @@ const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler
 logger.init();
 
 app.use(Sentry.Handlers.requestHandler());
-app.use(express.json());
 
 // ✅ Mount analytics routes
 const analyticsRoutes = require('./routes/applicantAnalyticsRoutes');

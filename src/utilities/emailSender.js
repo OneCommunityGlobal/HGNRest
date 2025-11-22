@@ -1,6 +1,8 @@
+// src/utilities/emailSender.js
 const nodemailer = require('nodemailer');
-const { google } = require('googleapis');
+// const { google } = require('googleapis');
 const logger = require('../startup/logger');
+const EmailHistory = require('../models/emailHistory');
 
 const config = {
   email: process.env.REACT_APP_EMAIL,
@@ -16,30 +18,34 @@ const config = {
 // Check if email sending is enabled
 const sendEmailEnabled = process.env.sendEmail === 'true';
 if (!sendEmailEnabled) console.log('Email sending is DISABLED via env variable.');
-const OAuth2Client = new google.auth.OAuth2(
-  config.clientId,
-  config.clientSecret,
-  config.redirectUri,
-);
-OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
+// const OAuth2Client = new google.auth.OAuth2(
+//   config.clientId,
+//   config.clientSecret,
+//   config.redirectUri,
+// );
+// OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
 
 // Create the email envelope (transport)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  auth: {
-    type: 'OAuth2',
-    user: config.email,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-  },
+  // auth: {
+  //   type: 'OAuth2',
+  //   user: config.email,
+  //   clientId: config.clientId,
+  //   clientSecret: config.clientSecret,
+  // },
+  // auth: {
+  //   user: process.env.REACT_APP_EMAIL,
+  //   pass: process.env.EMAIL_APP_PASSWORD,
+  // },
   host: 'smtp.gmail.com',
   // port: parseInt(process.env.SMTPPort, 10),
   port: 587,
   secure: false, // true for port 465
-  // auth: {
-  //   user: process.env.SMTPUser,
-  //   pass: process.env.SMTPPass,
-  // },
+  auth: {
+    user: process.env.TEST_EMAIL,
+    pass: process.env.EMAIL_APP_PASSWORD,
+  },
 });
 
 // Queue system for batch sending
@@ -48,21 +54,21 @@ let isProcessing = false;
 
 const sendEmail = async (mailOptions) => {
   try {
-    const accessTokenResp = await OAuth2Client.getAccessToken();
-    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+    // const accessTokenResp = await OAuth2Client.getAccessToken();
+    // const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
 
-    if (!token) {
-      throw new Error('NO_OAUTH_ACCESS_TOKEN');
-    }
+    // if (!token) {
+    //   throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    // }
 
-    mailOptions.auth = {
-      type: 'OAuth2', // include type
-      user: config.email,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      refreshToken: config.refreshToken,
-      accessToken: token,
-    };
+    // mailOptions.auth = {
+    //   type: 'OAuth2', // include type
+    //   user: config.email,
+    //   clientId: config.clientId,
+    //   clientSecret: config.clientSecret,
+    //   refreshToken: config.refreshToken,
+    //   accessToken: token,
+    // };
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
@@ -78,30 +84,96 @@ const sendEmail = async (mailOptions) => {
 // const queue = [];
 // let isProcessing = false;
 
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const normalize = (field) => {
+  if (!field) {
+    return [];
+  }
+  if (Array.isArray(field)) {
+    return field;
+  }
+  return String(field).split(',');
+};
+
+const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
+  const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
+  const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await sendEmail(batch);
+
+      if (isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'SENT',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+      }
+      return true;
+    } catch (err) {
+      logger.logException(err, `Batch to ${batch.to || '(empty)'} attempt ${attempt}`);
+
+      if (attempt === retries && isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'FAILED',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+      }
+    }
+
+    if (attempt < retries) await sleep(baseDelay * attempt); // backoff
+  }
+  return false;
+};
+
+const worker = async () => {
+  while (true) {
+    // atomically pull next batch
+    const batch = queue.shift();
+    if (!batch) break; // queue drained for this worker
+
+    await sendWithRetry(batch);
+    if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
+  }
+};
+
 const processQueue = async () => {
   if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
 
-  const processBatch = async () => {
-    if (queue.length === 0) {
-      isProcessing = false;
-      return;
-    }
-
-    const batch = queue.shift();
-    try {
-      await sendEmail(batch);
-    } catch (error) {
-      logger.logException(error, 'Failed to send email batch');
-    }
-    setTimeout(processBatch, config.rateLimitDelay);
-  };
-
-  const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
-
   try {
-    await Promise.all(concurrentProcesses);
+    const n = Math.max(1, Number(config.concurrency) || 1);
+    const workers = Array.from({ length: n }, () => worker());
+    await Promise.all(workers); // drain-until-empty with N workers
   } finally {
     isProcessing = false;
   }
@@ -163,7 +235,8 @@ const emailSender = (
     for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
-        from: config.email,
+        // from: config.email,
+        from: process.env.TEST_EMAIL,
         to: batchRecipients.length ? batchRecipients.join(',') : '',
         bcc: emailBccs ? emailBccs.join(',') : '',
         subject,
@@ -171,6 +244,7 @@ const emailSender = (
         attachments,
         cc,
         replyTo,
+        meta: { type },
       });
     }
 
@@ -212,7 +286,8 @@ const sendSummaryNotification = async (recipientEmail, summary) => {
 
   try {
     await sendEmail({
-      from: config.email,
+      // from: config.email,
+      from: process.env.TEST_EMAIL,
       to: recipientEmail,
       subject: `Unread Messages Summary`,
       html: emailContent,
