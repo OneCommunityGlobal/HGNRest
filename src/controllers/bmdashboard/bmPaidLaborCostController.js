@@ -150,6 +150,43 @@ const laborCostController = () => {
         }
       }
 
+      // Build MongoDB query filters
+      const queryFilter = {};
+
+      // Build date filter
+      if (dateRange !== null) {
+        // date_range exists, check which dates are provided
+        if (startDate !== null || endDate !== null) {
+          queryFilter.date = {};
+          if (startDate !== null) {
+            // Convert to Date object and set to start of day for inclusive filtering
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            queryFilter.date.$gte = start;
+          }
+          if (endDate !== null) {
+            // Convert to Date object and set to end of day for inclusive filtering
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            queryFilter.date.$lte = end;
+          }
+        }
+        // If neither date is provided but date_range exists, don't add date filter
+      }
+      // If date_range is null, don't add date filter (return all dates)
+
+      // Build project filter
+      if (projectsArray.length > 0) {
+        queryFilter.project_name = { $in: projectsArray };
+      }
+      // If projectsArray is empty, don't add project filter (return all projects)
+
+      // Build task filter
+      if (tasksArray.length > 0) {
+        queryFilter.task = { $in: tasksArray };
+      }
+      // If tasksArray is empty, don't add task filter (return all tasks)
+
       res.status(200).json([]); // Return empty array for now
     } catch (error) {
       logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
