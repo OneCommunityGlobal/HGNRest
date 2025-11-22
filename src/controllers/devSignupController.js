@@ -1,85 +1,171 @@
-console.log('YOU ARE INSIDE THE EXPECTED devController.js FILE');
 const UserProfile = require('../models/userProfile');
-const { validateProductionIdentity } = require('../services/productionAuthService');
+const devSignupLog = require('../models/devSignupLog');
 
-exports.devSignup = async (req, res) => {
+const devSignup = async (req, res) => {
+  const requestIP = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
   try {
-    const { productionEmail, productionPassword, firstName, lastName, email, devPassword } =
-      req.body;
+    const {
+      productionEmail,
+      productionPassword,
+      firstName,
+      lastName,
+      email: devEmail,
+      devPassword,
+    } = req.body;
 
-    // Validate required input
-    if (
-      !productionEmail ||
-      !productionPassword ||
-      !firstName ||
-      !lastName ||
-      !email ||
-      !devPassword
-    ) {
+    const strongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/;
+
+    if (!strongPassword.test(devPassword)) {
       return res.status(400).json({
         success: false,
         message:
-          'Missing required fields. Required: productionEmail, productionPassword, firstName, lastName, email, devPassword',
+          'Password must contain uppercase, lowercase, number, and be at least 8 characters.',
       });
     }
 
-    // Validate Production identity
-    const result = await validateProductionIdentity(productionEmail, productionPassword);
+    // ------------------------------
+    // Validation: Production creds required
+    // ------------------------------
+    if (!productionEmail || !productionPassword) {
+      await devSignupLog.create({
+        productionEmail,
+        devEmail,
+        status: 'error',
+        ipAddress: requestIP,
+        reason: 'Missing production credentials',
+      });
 
-    if (!result.success) {
-      return res.status(401).json({
+      return res.status(400).json({
         success: false,
-        message: result.error || 'Production identity validation failed',
+        message: 'Production credentials are required',
       });
     }
 
-    const prodUser = result.user;
+    // ------------------------------
+    // Validation: Dev first/last name
+    // ------------------------------
+    if (!firstName || !lastName) {
+      await devSignupLog.create({
+        productionEmail,
+        devEmail,
+        status: 'error',
+        ipAddress: requestIP,
+        reason: 'Missing first or last name',
+      });
 
-    if (prodUser.status !== 'active') {
-      return res.status(403).json({
+      return res.status(400).json({
         success: false,
-        message: 'Your Production account is inactive and cannot create a Dev account.',
+        message: 'First name and last name are required',
       });
     }
 
-    // Ensure Dev email doesn't already exist
-    const existing = await UserProfile.findOne({ email });
+    // ------------------------------
+    // Validation: Dev email required
+    // ------------------------------
+    if (!devEmail) {
+      await devSignupLog.create({
+        productionEmail,
+        devEmail,
+        status: 'error',
+        ipAddress: requestIP,
+        reason: 'Missing dev email',
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: 'Dev account email is required',
+      });
+    }
+
+    // ------------------------------
+    // Validation: Dev email duplicate
+    // ------------------------------
+    const existing = await UserProfile.findOne({ email: devEmail });
     if (existing) {
+      await devSignupLog.create({
+        productionEmail,
+        devEmail,
+        status: 'error',
+        ipAddress: requestIP,
+        reason: 'Dev email already exists',
+      });
+
       return res.status(409).json({
         success: false,
         message: 'A Dev user with this email already exists.',
       });
     }
 
-    // Create Dev user (Dev data comes from Dev request)
-    const newUser = new UserProfile({
+    // ------------------------------
+    // Mock Production Identity Validation
+    // ------------------------------
+    const mockProductionIdentity = {
+      id: 'dummy-prod-id',
+      email: productionEmail,
       firstName,
       lastName,
-      email,
+      status: 'active',
+    };
+
+    // ------------------------------
+    // Create the Dev user
+    // ------------------------------
+    const newUser = await UserProfile.create({
+      firstName,
+      lastName,
+      email: devEmail,
       password: devPassword,
       role: 'Volunteer',
       isProductionLinked: true,
-      isActive: true,
-
-      // Store production metadata ONLY
       productionIdentity: {
-        email: productionEmail,
-        id: prodUser.id,
+        prodEmail: productionEmail,
+        prodUserId: mockProductionIdentity.id,
       },
     });
 
-    await newUser.save();
+    // ------------------------------
+    // SUCCESS LOG
+    // ------------------------------
+    await devSignupLog.create({
+      productionEmail,
+      devEmail,
+      status: 'success',
+      ipAddress: requestIP,
+      reason: null,
+      linkedUserId: newUser._id,
+    });
 
+    // ------------------------------
+    // Final Response
+    // ------------------------------
     return res.status(201).json({
       success: true,
-      message: 'Dev account created and linked to Production identity',
-      userId: newUser._id,
+      message: 'Dev account created successfully',
+      data: {
+        productionIdentity: mockProductionIdentity,
+        devEmail,
+      },
     });
   } catch (err) {
-    console.error('devSignup error:', err);
+    console.error('Signup Error:', err);
+
+    // ------------------------------
+    // FAILURE LOG
+    // ------------------------------
+    await devSignupLog.create({
+      productionEmail: req.body.productionEmail,
+      devEmail: req.body.email,
+      status: 'error',
+      ipAddress: requestIP,
+      reason: err.message,
+    });
+
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: 'Internal server error',
     });
   }
 };
+
+module.exports = { devSignup };

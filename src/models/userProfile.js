@@ -90,6 +90,7 @@ const userProfileSchema = new Schema({
     type: Boolean,
     default: false, // Older Dev users remain unlinked
   },
+  // End of Production Identity Fields
 
   copiedAiPrompt: { type: Date, default: Date.now() },
   emailSubscriptions: {

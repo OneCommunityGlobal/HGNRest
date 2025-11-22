@@ -22,9 +22,7 @@ require('./startup/middleware')(app);
 
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
-const devRoutes = require('./routes/devRoutes');
 
-app.use('/api/dev', devRoutes);
 app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
 

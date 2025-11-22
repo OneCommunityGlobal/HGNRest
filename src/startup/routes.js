@@ -486,8 +486,6 @@ module.exports = function (app) {
   app.use(
     '/api/dev',
     (req, res, next) => {
-      console.log('🔥 DevSignup route hit:', req.method, req.originalUrl);
-      console.log('🔥 Body:', req.body);
       next();
     },
     devSignupRouter,

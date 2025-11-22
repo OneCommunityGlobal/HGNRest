@@ -587,6 +587,7 @@ const userProfileController = function (UserProfile, Project) {
   };
 
   const putUserProfile = async function (req, res) {
+    // Preventing user trying to change fname, lname and email
     try {
       const user = await UserProfile.findById(req.params.userId);
 
