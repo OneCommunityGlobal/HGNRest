@@ -77,8 +77,6 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
 
   /**
    * Get all resource requests created by the logged-in educator
-   * @param {Object} req
-   * @param {Object} res
    */
   const getEducatorResourceRequests = async (req, res) => {
     try {
@@ -111,9 +109,85 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
     }
   };
 
+  /**
+   * Get all resource requests (PM only)
+   */
+  const getPMResourceRequests = async (req, res) => {
+    try {
+      const requestor = req.body.requestor;
+      const isPM = await hasPermission(requestor, 'manageResourceRequests');
+
+      if (!isPM && !['Owner', 'Administrator'].includes(requestor?.role)) {
+        return res.status(403).send('Only PMs can view all resource requests.');
+      }
+
+      const filter = {};
+
+      if (req.query.status) {
+        filter.status = req.query.status;
+      }
+
+      if (req.query.educator_id) {
+        filter.educator_id = req.query.educator_id;
+      }
+
+      const requests = await ResourceRequest.find(filter)
+        .sort({ createdAt: -1 })
+        .populate('educator_id', 'firstName lastName email role')
+        .populate('pm_id', 'firstName lastName email role');
+
+      return res.status(200).send(requests);
+    } catch (error) {
+      console.error('Error in getPMResourceRequests:', error);
+      return res.status(500).send('Error fetching resource requests.');
+    }
+  };
+
+  /**
+   * Update status of a resource request (PM only)
+   */
+  const updatePMResourceRequestStatus = async (req, res) => {
+    try {
+      const requestor = req.body.requestor;
+      const isPM = await hasPermission(requestor, 'manageResourceRequests');
+
+      if (!isPM && !['Owner', 'Administrator'].includes(requestor?.role)) {
+        return res.status(403).send('Only PMs can update resource request status.');
+      }
+
+      const requestId = req.params.id;
+      const newStatus = req.body.status;
+
+      if (!['approved', 'denied', 'pending'].includes(newStatus)) {
+        return res.status(400).send('Invalid status value.');
+      }
+
+      const existingRequest = await ResourceRequest.findById(requestId);
+      if (!existingRequest) {
+        return res.status(404).send('Resource request not found.');
+      }
+
+      existingRequest.status = newStatus;
+      existingRequest.pm_id = requestor._id;
+
+      const updated = await existingRequest.save();
+
+      const populated = await ResourceRequest.findById(updated._id)
+        .populate('educator_id', 'firstName lastName email role')
+        .populate('pm_id', 'firstName lastName email role');
+
+      return res.status(200).send(populated);
+    } catch (error) {
+      console.error('Error in updatePMResourceRequestStatus:', error);
+      return res.status(500).send('Error updating resource request status.');
+    }
+  };
+
   return {
     createResourceRequest,
     getEducatorResourceRequests,
+    getPMResourceRequests,
+    updatePMResourceRequestStatus,
   };
 };
 
