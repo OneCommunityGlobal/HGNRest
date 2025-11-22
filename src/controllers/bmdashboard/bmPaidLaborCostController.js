@@ -58,6 +58,7 @@ const isValidDateValue = (dateString) => {
 
   // For date-only format (YYYY-MM-DD), verify components match to catch invalid months/days
   // This catches edge cases like "2025-13-01" (invalid month) which JavaScript adjusts
+  // Note: Date-only strings are parsed as UTC midnight, so use UTC methods for comparison
   if (!dateString.includes('T') && !dateString.includes('Z')) {
     const parts = dateString.split('-');
     if (parts.length === 3) {
@@ -66,11 +67,14 @@ const isValidDateValue = (dateString) => {
       const day = parseInt(parts[2], 10);
 
       // Check if parsed values match input (catches invalid months/days that get adjusted)
+      // Use UTC methods since date-only strings are parsed as UTC midnight
       if (
         !Number.isNaN(year) &&
         !Number.isNaN(month) &&
         !Number.isNaN(day) &&
-        (date.getFullYear() !== year || date.getMonth() + 1 !== month || date.getDate() !== day)
+        (date.getUTCFullYear() !== year ||
+          date.getUTCMonth() + 1 !== month ||
+          date.getUTCDate() !== day)
       ) {
         return false; // Date was adjusted (e.g., invalid month/day like "2025-13-01")
       }
@@ -135,7 +139,25 @@ const laborCostController = () => {
         if (dateRangeParam === null) {
           dateRange = null;
         } else {
+          // Track if the param was a string before parsing (to detect parsing failures)
+          const wasString = typeof dateRangeParam === 'string';
           dateRange = parseDateRangeParam(dateRangeParam);
+
+          // If dateRangeParam was a non-empty string but parsing returned null,
+          // that means JSON parsing failed (invalid JSON format)
+          if (
+            wasString &&
+            dateRangeParam !== 'null' &&
+            dateRangeParam.trim() !== '' &&
+            dateRange === null
+          ) {
+            return res.status(400).json({
+              Code: 'INVALID_PARAMETER',
+              error:
+                'date_range must be a valid JSON object (e.g., {"start_date":"2025-04-01","end_date":"2025-04-30"}) or null',
+            });
+          }
+
           if (dateRange !== null && typeof dateRange !== 'object') {
             return res.status(400).json({
               Code: 'INVALID_PARAMETER',
@@ -151,6 +173,23 @@ const laborCostController = () => {
       if (dateRange !== null && typeof dateRange === 'object') {
         startDate = dateRange.start_date !== undefined ? dateRange.start_date : null;
         endDate = dateRange.end_date !== undefined ? dateRange.end_date : null;
+
+        // Validate that dates are strings if provided (not numbers or other types)
+        if (startDate !== null && typeof startDate !== 'string') {
+          return res.status(422).json({
+            Code: 'INVALID_DATE_FORMAT',
+            error:
+              'start_date must be a string in ISO 8601 format (e.g., "2025-04-01" or "2025-04-01T00:00:00Z")',
+          });
+        }
+
+        if (endDate !== null && typeof endDate !== 'string') {
+          return res.status(422).json({
+            Code: 'INVALID_DATE_FORMAT',
+            error:
+              'end_date must be a string in ISO 8601 format (e.g., "2025-04-30" or "2025-04-30T23:59:59Z")',
+          });
+        }
       }
 
       // Validate date formats
