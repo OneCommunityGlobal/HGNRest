@@ -192,7 +192,25 @@ const laborCostController = () => {
         .lean() // Return plain JavaScript objects for better performance
         .exec();
 
-      res.status(200).json(laborCostRecords);
+      // Format response data
+      // Map database fields to response fields and format dates
+      const formattedData = laborCostRecords.map((record) => ({
+        project: record.project_name,
+        task: record.task,
+        date: record.date ? new Date(record.date).toISOString() : null,
+        cost: typeof record.cost === 'number' ? record.cost : Number(record.cost),
+      }));
+
+      // Calculate total cost
+      const totalCost =
+        formattedData.length > 0
+          ? formattedData.reduce((sum, record) => sum + (record.cost || 0), 0)
+          : 0;
+
+      res.status(200).json({
+        totalCost,
+        data: formattedData,
+      });
     } catch (error) {
       logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
       return res.status(500).json({
