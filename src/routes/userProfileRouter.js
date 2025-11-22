@@ -140,6 +140,8 @@ const routes = function (userProfile, project) {
     .route('/userProfile/skills/:skill')
     .get(controller.getAllMembersSkillsAndContact);
 
+  userProfileRouter.route('/userProfile/:userId/finalDay').patch(controller.setFinalDay);
+
   return userProfileRouter;
 };
 
