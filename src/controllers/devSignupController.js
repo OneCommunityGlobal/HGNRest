@@ -1,3 +1,4 @@
+console.log('YOU ARE INSIDE THE EXPECTED devController.js FILE');
 const UserProfile = require('../models/userProfile');
 const { validateProductionIdentity } = require('../services/productionAuthService');
 

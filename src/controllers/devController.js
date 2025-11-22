@@ -1,13 +1,6 @@
 const signupDevAccount = async (req, res) => {
   try {
-    const {
-      productionEmail,
-      productionPassword,
-      firstName,
-      lastName,
-      devEmail,
-      // devPassword,  // TODO: will be used later (avoid ESLint unused error)
-    } = req.body;
+    const { productionEmail, productionPassword, firstName, lastName, devEmail } = req.body;
 
     if (!productionEmail || !productionPassword) {
       return res.status(400).json({
@@ -16,7 +9,7 @@ const signupDevAccount = async (req, res) => {
       });
     }
 
-    // Log to verify backend reached
+    // Log backend reached
     console.log('➡️ signupDevAccount() reached backend');
 
     // Mock Production identity validation
@@ -30,7 +23,6 @@ const signupDevAccount = async (req, res) => {
 
     console.log('Production Identity:', mockProdIdentity);
 
-    // Simulate creating a dev account
     console.log('Creating Dev Account for:', devEmail);
 
     return res.status(201).json({

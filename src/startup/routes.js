@@ -483,5 +483,13 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
   //dev signup router
-  app.use('/api/dev', devSignupRouter);
+  app.use(
+    '/api/dev',
+    (req, res, next) => {
+      console.log('🔥 DevSignup route hit:', req.method, req.originalUrl);
+      console.log('🔥 Body:', req.body);
+      next();
+    },
+    devSignupRouter,
+  );
 };
