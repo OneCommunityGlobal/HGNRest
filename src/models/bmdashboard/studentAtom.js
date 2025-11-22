@@ -18,15 +18,11 @@ const studentAtomSchema = new Schema({
     enum: ['not_started', 'in_progress', 'completed'],
     default: 'not_started',
   },
-  notes: {
-    type: String,
-  },
-  firstStartedAt: {
-    type: Date,
-  },
-  completedAt: {
-    type: Date,
-  },
+  notes: String,
+
+  firstStartedAt: Date,
+  completedAt: Date,
+
   createdAt: {
     type: Date,
     default: Date.now,
@@ -37,4 +33,11 @@ const studentAtomSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model('studentAtom', studentAtomSchema);
+studentAtomSchema.index({ studentId: 1, atomId: 1 }, { unique: true });
+
+studentAtomSchema.pre('save', function (next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+module.exports = mongoose.model('StudentAtom', studentAtomSchema);
