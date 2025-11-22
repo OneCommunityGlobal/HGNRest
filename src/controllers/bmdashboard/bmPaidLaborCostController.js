@@ -2,9 +2,154 @@
 const LaborCost = require('../../models/laborCost');
 const logger = require('../../startup/logger');
 
+/**
+ * Helper function to parse array from query parameter
+ * Handles JSON strings, comma-separated strings, or already parsed arrays
+ */
+const parseArrayParam = (param) => {
+  if (!param) return [];
+  if (Array.isArray(param)) return param;
+  if (typeof param === 'string') {
+    try {
+      const parsed = JSON.parse(param);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      // If not JSON, treat as comma-separated string
+      return param
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+};
+
+/**
+ * Helper function to parse date_range object from query parameter
+ * Handles JSON strings or already parsed objects
+ */
+const parseDateRangeParam = (param) => {
+  if (!param) return null;
+  if (typeof param === 'object' && param !== null) return param;
+  if (typeof param === 'string') {
+    try {
+      return JSON.parse(param);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+/**
+ * Validate ISO 8601 date format and value (not NaN when parsed)
+ */
+const isValidDateValue = (dateString) => {
+  if (!dateString) return true; // null/undefined is valid (optional)
+  if (typeof dateString !== 'string') return false;
+  const date = new Date(dateString);
+  return !Number.isNaN(date.getTime());
+};
+
 const laborCostController = () => {
   const getLaborCost = async (req, res) => {
     try {
+      // Extract parameters from req.query
+      const { projects, tasks, date_range: dateRangeParam } = req.query || {};
+
+      // Parse and validate projects array
+      let projectsArray = [];
+      if (projects !== undefined) {
+        projectsArray = parseArrayParam(projects);
+        if (!Array.isArray(projectsArray)) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: 'projects must be an array',
+          });
+        }
+        // Validate that all project names are strings
+        if (projectsArray.length > 0 && !projectsArray.every((p) => typeof p === 'string')) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: 'All project names must be strings',
+          });
+        }
+      }
+
+      // Parse and validate tasks array
+      let tasksArray = [];
+      if (tasks !== undefined) {
+        tasksArray = parseArrayParam(tasks);
+        if (!Array.isArray(tasksArray)) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: 'tasks must be an array',
+          });
+        }
+        // Validate that all task names are strings
+        if (tasksArray.length > 0 && !tasksArray.every((t) => typeof t === 'string')) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: 'All task names must be strings',
+          });
+        }
+      }
+
+      // Parse and validate date_range object
+      let dateRange = null;
+      if (dateRangeParam !== undefined) {
+        if (dateRangeParam === null) {
+          dateRange = null;
+        } else {
+          dateRange = parseDateRangeParam(dateRangeParam);
+          if (dateRange !== null && typeof dateRange !== 'object') {
+            return res.status(400).json({
+              Code: 'INVALID_PARAMETER',
+              error: 'date_range must be an object or null',
+            });
+          }
+        }
+      }
+
+      // Extract start_date and end_date from date_range
+      let startDate = null;
+      let endDate = null;
+      if (dateRange !== null && typeof dateRange === 'object') {
+        startDate = dateRange.start_date !== undefined ? dateRange.start_date : null;
+        endDate = dateRange.end_date !== undefined ? dateRange.end_date : null;
+      }
+
+      // Validate date formats
+      if (startDate !== null) {
+        if (!isValidDateValue(startDate)) {
+          return res.status(422).json({
+            Code: 'INVALID_DATE_FORMAT',
+            error: 'start_date must be a valid ISO 8601 date string',
+          });
+        }
+      }
+
+      if (endDate !== null) {
+        if (!isValidDateValue(endDate)) {
+          return res.status(422).json({
+            Code: 'INVALID_DATE_FORMAT',
+            error: 'end_date must be a valid ISO 8601 date string',
+          });
+        }
+      }
+
+      // Validate date range logic
+      if (startDate !== null && endDate !== null) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (start > end) {
+          return res.status(400).json({
+            Code: 'INVALID_DATE_RANGE',
+            error: 'start_date must be before or equal to end_date',
+          });
+        }
+      }
+
       res.status(200).json([]); // Return empty array for now
     } catch (error) {
       logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
