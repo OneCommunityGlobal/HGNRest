@@ -207,10 +207,15 @@ const laborCostController = () => {
           ? formattedData.reduce((sum, record) => sum + (record.cost || 0), 0)
           : 0;
 
-      res.status(200).json({
+      // Construct response object
+      // If no records match filters, return: { totalCost: 0, data: [] }
+      const response = {
         totalCost,
         data: formattedData,
-      });
+      };
+
+      // Return response with 200 OK status code
+      return res.status(200).json(response);
     } catch (error) {
       logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
       return res.status(500).json({
