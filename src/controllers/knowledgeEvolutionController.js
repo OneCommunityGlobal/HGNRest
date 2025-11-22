@@ -18,23 +18,22 @@ exports.getKnowledgeEvolution = async (req, res) => {
 
       {
         $lookup: {
-          from: 'tasks',
+          from: 'educationtasks',
           localField: 'taskId',
           foreignField: '_id',
           as: 'taskInfo',
         },
       },
-      { $unwind: { path: '$taskInfo', preserveNullAndEmptyArrays: false } },
+      { $unwind: '$taskInfo' },
 
       {
         $lookup: {
           from: 'atoms',
-          localField: 'taskInfo.atomId',
+          localField: 'taskInfo.atomIds',
           foreignField: '_id',
           as: 'atomInfo',
         },
       },
-      { $unwind: { path: '$atomInfo', preserveNullAndEmptyArrays: false } },
 
       {
         $lookup: {
@@ -44,23 +43,16 @@ exports.getKnowledgeEvolution = async (req, res) => {
           as: 'subjectInfo',
         },
       },
-      { $unwind: { path: '$subjectInfo', preserveNullAndEmptyArrays: false } },
 
       {
         $lookup: {
           from: 'studentatoms',
-          let: {
-            atomIdVar: '$atomInfo._id',
-            stuIdVar: '$studentId',
-          },
+          let: { atomIds: '$taskInfo.atomIds', stuId: '$studentId' },
           pipeline: [
             {
               $match: {
                 $expr: {
-                  $and: [
-                    { $eq: ['$atomId', '$$atomIdVar'] },
-                    { $eq: ['$studentId', '$$stuIdVar'] },
-                  ],
+                  $and: [{ $in: ['$atomId', '$$atomIds'] }, { $eq: ['$studentId', '$$stuId'] }],
                 },
               },
             },
@@ -69,26 +61,55 @@ exports.getKnowledgeEvolution = async (req, res) => {
         },
       },
 
-      // Extract mastery status safely
       {
         $addFields: {
-          atomStatus: {
-            $ifNull: [{ $arrayElemAt: ['$studentAtomInfo.status', 0] }, 'not_started'],
+          atoms: {
+            $map: {
+              input: '$atomInfo',
+              as: 'atom',
+              in: {
+                atomId: '$$atom._id',
+                atomName: '$$atom.name',
+                color: '$$atom.difficulty',
+                atomStatus: {
+                  $ifNull: [
+                    {
+                      $arrayElemAt: [
+                        {
+                          $map: {
+                            input: {
+                              $filter: {
+                                input: '$studentAtomInfo',
+                                as: 'sa',
+                                cond: { $eq: ['$$sa.atomId', '$$atom._id'] },
+                              },
+                            },
+                            as: 'sa',
+                            in: '$$sa.status',
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    'not_started',
+                  ],
+                },
+                taskStatus: '$status',
+              },
+            },
           },
         },
       },
 
       {
-        $project: {
-          subjectId: '$subjectInfo._id',
-          subjectName: '$subjectInfo.name',
-
-          atomId: '$atomInfo._id',
-          atomName: '$atomInfo.name',
-          atomColor: '$atomInfo.difficulty',
-
-          atomStatus: 1,
-          taskStatus: '$status',
+        $unwind: '$atoms',
+      },
+      {
+        $group: {
+          _id: '$atoms.atomId',
+          subjectId: { $first: { $arrayElemAt: ['$subjectInfo._id', 0] } },
+          subjectName: { $first: { $arrayElemAt: ['$subjectInfo.name', 0] } },
+          atoms: { $push: '$atoms' },
         },
       },
 
@@ -96,19 +117,9 @@ exports.getKnowledgeEvolution = async (req, res) => {
         $group: {
           _id: '$subjectId',
           subjectName: { $first: '$subjectName' },
-          atoms: {
-            $push: {
-              atomId: '$atomId',
-              atomName: '$atomName',
-              color: '$atomColor',
-              atomStatus: '$atomStatus',
-              taskStatus: '$taskStatus',
-            },
-          },
+          atoms: { $push: { $arrayElemAt: ['$atoms', 0] } },
         },
       },
-
-      { $sort: { subjectName: 1 } },
 
       {
         $addFields: {
@@ -133,6 +144,8 @@ exports.getKnowledgeEvolution = async (req, res) => {
           },
         },
       },
+
+      { $sort: { subjectName: 1 } },
     ]);
 
     res.status(200).json({
