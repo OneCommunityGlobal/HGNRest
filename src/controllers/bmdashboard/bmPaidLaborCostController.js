@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-unused-vars
 const LaborCost = require('../../models/laborCost');
 const logger = require('../../startup/logger');
 
@@ -187,7 +186,13 @@ const laborCostController = () => {
       }
       // If tasksArray is empty, don't add task filter (return all tasks)
 
-      res.status(200).json([]); // Return empty array for now
+      // Query database and retrieve records
+      const laborCostRecords = await LaborCost.find(queryFilter)
+        .sort({ date: 1 }) // Sort by date in chronological order
+        .lean() // Return plain JavaScript objects for better performance
+        .exec();
+
+      res.status(200).json(laborCostRecords);
     } catch (error) {
       logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
       return res.status(500).json({
