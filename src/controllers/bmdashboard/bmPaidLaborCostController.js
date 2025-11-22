@@ -217,10 +217,46 @@ const laborCostController = () => {
       // Return response with 200 OK status code
       return res.status(200).json(response);
     } catch (error) {
-      logger.logException(error, 'getLaborCost - Paid Labor Cost Controller');
+      // Prepare error context for logging
+      const errorContext = {
+        query: req.query,
+        method: req.method,
+        url: req.originalUrl || req.url,
+      };
+
+      // Check if error is a MongoDB/database error
+      const isDatabaseError =
+        error.name === 'MongoError' ||
+        error.name === 'MongooseError' ||
+        error.name === 'CastError' ||
+        error.name === 'ValidationError' ||
+        (error.message && error.message.includes('Mongo')) ||
+        (error.message && error.message.includes('connection'));
+
+      // Log error with context
+      if (isDatabaseError) {
+        logger.logException(
+          error,
+          'getLaborCost - Database Error - Paid Labor Cost Controller',
+          errorContext,
+        );
+        return res.status(500).json({
+          Code: 'DATABASE_ERROR',
+          error:
+            'A database error occurred while fetching labor cost data. Please try again later.',
+        });
+      }
+
+      // Handle unexpected errors
+      logger.logException(
+        error,
+        'getLaborCost - Unexpected Error - Paid Labor Cost Controller',
+        errorContext,
+      );
       return res.status(500).json({
         Code: 'INTERNAL_SERVER_ERROR',
-        error: 'An error occurred while fetching labor cost data',
+        error:
+          'An unexpected error occurred while fetching labor cost data. Please try again later.',
       });
     }
   };
