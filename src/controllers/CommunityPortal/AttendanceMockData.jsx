@@ -11,16 +11,58 @@ const participants = [
 
 // Mock data for Events
 const events = [
-  { eventID: 101, eventType: 'WorkShop', eventName: 'Workshops1', date: '01-10-2024', location: 'NY' },
-  { eventID: 102, eventType: 'Conference', eventName: 'Conferences1', date: '02-15-2024', location: 'CA' },
-  { eventID: 103, eventType: 'Webinar',eventName: 'Webinars1', date: '03-20-2024', location: 'TX' },
-  { eventID: 104, eventType: 'WorkShop', eventName: 'Workshops2', date: '01-10-2025', location: 'NY' },
-  { eventID: 105, eventType: 'Conference', eventName: 'Conferences2', date: '02-15-2025', location: 'CA' },
-  { eventID: 106, eventType: 'Webinar', eventName: 'Webinars2', date: '03-20-2025', location: 'TX' },
-  { eventID: 107, eventType: 'Webinar', eventName: 'Webinars3', date: '01-10-2025', location: 'NY' },
-  { eventID: 108, eventType: 'WorkShop', eventName: 'Workshops3', date: '02-15-2025', location: 'CA' },
-  { eventID: 109, eventType: 'Conference', eventName: 'Conferences3', date: '03-20-2025', location: 'TX' },
+  { 
+    eventID: 101, 
+    eventType: 'Workshop', 
+    eventName: 'React Basics Workshop', 
+    date: '2025-01-27', 
+    time: '10:00 AM',
+    location: 'Virtual', 
+    maxAttendees: 3,
+    description: 'A beginner-friendly workshop covering components, props, and state.' 
+  },
+  { 
+    eventID: 102, 
+    eventType: 'Conference', 
+    eventName: 'Tech Innovators Conf', 
+    date: '2025-01-15', 
+    time: '09:00 AM',
+    location: 'CA', 
+    maxAttendees: 5,
+    description: 'Annual conference for technology enthusiasts and innovators.' 
+  },
+  { 
+    eventID: 103, 
+    eventType: 'Webinar',
+    eventName: 'AI in Healthcare', 
+    date: '2025-01-20', 
+    time: '02:00 PM',
+    location: 'TX', 
+    maxAttendees: 50,
+    description: 'Discussing the future of Artificial Intelligence in modern medicine.' 
+  },
+  { 
+    eventID: 104, 
+    eventType: 'Social Gathering', 
+    eventName: 'Community Meetup', 
+    date: '2025-01-30', 
+    time: '06:00 PM',
+    location: 'NY', 
+    maxAttendees: 20,
+    description: 'Casual networking event for local community members.' 
+  },
+  { 
+    eventID: 105, 
+    eventType: 'Workshop', 
+    eventName: 'Advanced Node.js', 
+    date: '2025-02-10', 
+    time: '11:00 AM',
+    location: 'Virtual', 
+    maxAttendees: 10, 
+    description: 'Deep dive into streams, buffers, and performance optimization.' 
+  }
 ];
+
 
 // Mock data for Attendance
 const attendance = [
