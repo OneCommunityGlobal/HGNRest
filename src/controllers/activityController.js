@@ -1,5 +1,4 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
 const Subject = require('../models/subject');
@@ -255,6 +254,7 @@ const activityController = function () {
       if (!activity) {
         return res.status(404).json({ error: 'Activity not found' });
       }
+
       // eslint-disable-next-line radix
       const index = parseInt(templateIndex);
       if (index < 0 || index >= activity.atomTaskTemplates.length) {

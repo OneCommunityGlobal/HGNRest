@@ -37,7 +37,7 @@ const {
   createUser,
   createTestPermissions,
   // eslint-disable-next-line no-unused-vars
-  mongoHelper: { dbDisconnect, dbClearCollections, dbClearAll },
+  mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
 
 const UserModel = require('../../models/userProfile');
@@ -53,42 +53,7 @@ process.on('uncaughtException', (error) => {
   console.log('Uncaught Exception:', error);
 });
 
-async function dbConnect() {
-  try {
-    console.log('=== Starting MongoDB Connection Process ===');
-
-    if (mongoose.connection.readyState !== 0) {
-      console.log('Disconnecting existing MongoDB connection...');
-      await mongoose.disconnect();
-    }
-
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/test';
-
-    console.log('Using MongoDB URI:', mongoUri);
-
-    const mongooseOpts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-      maxPoolSize: 1,
-      minPoolSize: 0,
-    };
-
-    console.log('Connecting to MongoDB...');
-    await mongoose.connect(mongoUri, mongooseOpts);
-
-    console.log('MongoDB connection established successfully');
-    console.log('=== MongoDB Connection Process Complete ===');
-  } catch (error) {
-    console.error('MongoDB connection failed:', error.message);
-
-    throw new Error(`MongoDB connection failed. This integration test requires a MongoDB instance. 
-Please ensure MONGODB_URI is set or MongoDB is running on localhost:27017. 
-Original error: ${error.message}`);
-  }
-}
+// Using dbConnect from mongo-helper which has fallback to MongoMemoryServer
 
 async function waitForMongoReady(timeoutMs = 60000) {
   const start = Date.now();

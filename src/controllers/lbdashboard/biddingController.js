@@ -1,12 +1,6 @@
 const mongoose = require('mongoose');
-// eslint-disable-next-line no-unused-vars
-const {
-  // eslint-disable-next-line no-unused-vars
-  fetchImagesFromAzureBlobStorage,
-  saveImagestoAzureBlobStorage,
-} = require('../../utilities/AzureBlobImages');
-// eslint-disable-next-line no-unused-vars
-const userProfile = require('../../models/userProfile');
+// const { fetchImagesFromAzureBlobStorage, saveImagestoAzureBlobStorage } = require('../../utilities/AzureBlobImages');
+// const userProfile = require('../../models/userProfile');
 
 const biddingController = (Bidding) => {
   const getBidListings = async (req, res) => {

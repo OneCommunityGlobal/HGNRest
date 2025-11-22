@@ -1,5 +1,4 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const LessonPlan = require('../models/lessonPlan');
 const Activity = require('../models/activity');
 const UserProfile = require('../models/userProfile');
