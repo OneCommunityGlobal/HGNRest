@@ -2,111 +2,13 @@
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
+const UserBuilder = require("../helpers/UserBuilder");
 
 // Import models first
 const UserProfile = require('../models/userProfile');
 const TimeEntry = require('../models/timeentry');
 const createUser = require('./db/createUser');
 
-// For now - keep the mock to get tests passing
-// Once tests pass, fix the production bug and remove this mock
-// jest.mock('../helpers/userHelper', () => {
-//   return () => ({
-//     assignBlueSquareForTimeNotMet: async function () {
-//       try {
-//         // console.log('MOCKED: In assignBlueSquareForTimeNotMet');
-
-//         const now = moment().tz('America/Los_Angeles');
-//         const startOfLastWeek = now.clone().startOf('week').subtract(1, 'week');
-//         const endOfLastWeek = now.clone().endOf('week').subtract(1, 'week');
-
-//         // console.log(`MOCKED: Checking week ${startOfLastWeek.format('YYYY-MM-DD')} to ${endOfLastWeek.format('YYYY-MM-DD')}`);
-
-//         // Get all active users with committed hours
-//         const users = await UserProfile.find({
-//           isActive: true,
-//           weeklycommittedHours: { $gt: 0 },
-//         });
-
-//         // console.log(`MOCKED: Found ${users.length} active users with committed hours`);
-
-//         for (const user of users) {
-//           try {
-//             // Calculate total hours worked last week
-//             const timeEntries = await TimeEntry.find({
-//               personId: user._id,
-//               dateOfWork: {
-//                 $gte: startOfLastWeek.format('YYYY-MM-DD'),
-//                 $lte: endOfLastWeek.format('YYYY-MM-DD'),
-//               },
-//               isTangible: true,
-//               isActive: true,
-//             });
-
-//             const totalSeconds = timeEntries.reduce((sum, entry) => sum + entry.totalSeconds, 0);
-//             const totalHours = totalSeconds / 3600;
-//             const committedHours = user.weeklycommittedHours;
-//             const missedHours = Math.max(0, committedHours - totalHours);
-
-//             // console.log(`MOCKED: User ${user._id} - Committed: ${committedHours}, Worked: ${totalHours.toFixed(2)}, Missed: ${missedHours}`);
-
-//             // Assign blue square if hours missed
-//             if (missedHours > 0) {
-//               const infringement = {
-//                 date: now.format('YYYY-MM-DD'),
-//                 description: `Missed ${missedHours} hours for week ${startOfLastWeek.format('YYYY-MM-DD')} to ${endOfLastWeek.format('YYYY-MM-DD')}. Committed: ${committedHours}hs, Logged: ${totalHours.toFixed(2)}hs`,
-//               };
-
-//               await UserProfile.findByIdAndUpdate(user._id, {
-//                 $push: { infringements: infringement },
-//                 $set: { missedHours: user.missedHours + missedHours },
-//               });
-
-//               // console.log(`MOCKED: Assigned blue square to user ${user._id} for missing ${missedHours} hours`);
-//             }
-//           } catch (userError) {
-//             console.log(`MOCKED: Error processing user ${user._id}:`, userError.message);
-//           }
-//         }
-
-//         // console.log('MOCKED: Blue square assignment completed');
-//         return true;
-//       } catch (error) {
-//         console.log('MOCKED: Error in assignBlueSquareForTimeNotMet:', error.message);
-//         throw error;
-//       }
-//     },
-
-//     applyMissedHourForCoreTeam: async function () {
-//       try {
-//         // console.log('MOCKED: In applyMissedHourForCoreTeam');
-
-//         // For Core Team members, missed hours are carried forward
-//         // This is a simplified version - in reality this might adjust next week's requirements
-//         const coreTeamMembers = await UserProfile.find({
-//           role: 'Core Team',
-//           missedHours: { $gt: 0 },
-//         });
-
-//         // console.log(`MOCKED: Found ${coreTeamMembers.length} Core Team members with missed hours to carry forward`);
-
-//         // In the real implementation, this would adjust the required hours for next week
-//         // For testing purposes, we just acknowledge the carry-forward
-//         for (const user of coreTeamMembers) {
-//           // console.log(`MOCKED: User ${user._id} has ${user.missedHours} missed hours that will affect next week's requirements`);
-//         }
-
-//         // console.log('MOCKED: Missed hour application completed');
-//         return true;
-//       } catch (error) {
-//         // console.log('MOCKED: Error in applyMissedHourForCoreTeam:', error.message);
-//         throw error;
-//       }
-//     },
-//   });
-// });
-
-// Now import the mocked version
 const userHelper = require('../helpers/userHelper')();
 
 const WEEKLY_SUMMARY = "Lorem ipsum dolor sit amet consectetur adipiscing elit quisque faucibus ex sapien vitae pellentesque sem placerat in id cursus mi pretium tellus duis convallis tempus leo eu aenean sed diam urna tempor pulvinar vivamus fringilla lacus nec metus bibendum egestas iaculis massa nisl malesuada lacinia integer nunc posuere ut hendrerit semper vel class aptent taciti."
@@ -148,47 +50,6 @@ describe('Time Not Met Core Team Test', () => {
     await mongoServer.stop();
   });
 
-  // Debug helper function
-  const debugTimeEntries = async (userId, weekStart, weekEnd) => {
-    const entries = await TimeEntry.find({
-      personId: userId,
-      dateOfWork: {
-        $gte: weekStart.format('YYYY-MM-DD'),
-        $lte: weekEnd.format('YYYY-MM-DD'),
-      },
-    });
-    // console.log('DEBUG - Found time entries:', entries.length);
-    entries.forEach((entry) => {
-      // console.log(`  - ${entry.dateOfWork}: ${entry.totalSeconds / 3600} hours`);
-    });
-    return entries;
-  };
-  const debugBlueSquareAssignment = async (user, weekStart, weekEnd) => {
-    console.log('=== DEBUG BLUE SQUARE ASSIGNMENT ===');
-    console.log('User:', user._id);
-    console.log('Committed hours:', user.weeklycommittedHours);
-    console.log('Week range:', weekStart.format('YYYY-MM-DD'), 'to', weekEnd.format('YYYY-MM-DD'));
-
-    // Check time entries
-    const timeEntries = await TimeEntry.find({
-      personId: user._id,
-      dateOfWork: {
-        $gte: weekStart.format('YYYY-MM-DD'),
-        $lte: weekEnd.format('YYYY-MM-DD')
-      },
-      isTangible: true,
-      isActive: true
-    });
-
-    console.log('Time entries found:', timeEntries.length);
-    const totalHours = timeEntries.reduce((sum, entry) => sum + (entry.totalSeconds / 3600), 0);
-    console.log('Total hours worked:', totalHours);
-    console.log('Missed hours:', Math.max(0, user.weeklycommittedHours - totalHours));
-    console.log('Current infringements:', user.infringements.length);
-    console.log('Current missedHours:', user.missedHours);
-    console.log('====================================');
-  };
-
 
   describe('Less than 5 Blue Squares', () => {
     // it('should not assign blue square if no missed hours', async () => {
@@ -203,7 +64,6 @@ describe('Time Not Met Core Team Test', () => {
     //   const lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
     //   const lastWeekEnd = now.clone().endOf('week').subtract(1, 'week');
 
-    //   // console.log('DEBUG - Last week range:', lastWeekStart.format('YYYY-MM-DD'), 'to', lastWeekEnd.format('YYYY-MM-DD'));
 
     //   // 3. Create test entries with properly formatted string dates
     //   await TimeEntry.create([
@@ -236,16 +96,12 @@ describe('Time Not Met Core Team Test', () => {
     //     },
     //   ]);
 
-    //   // Debug: Check what entries were created
-    //   await debugTimeEntries(user._id, lastWeekStart, lastWeekEnd);
 
     //   // 4. Final assertions
     //   await userHelper.assignBlueSquareForTimeNotMet();
     //   await userHelper.applyMissedHourForCoreTeam();
 
     //   const updatedUser = await UserProfile.findById(user._id);
-    //   // console.log('DEBUG - User infringements:', updatedUser.infringements);
-    //   // console.log('DEBUG - User missedHours:', updatedUser.missedHours);
 
     //   expect(updatedUser.infringements.length).toBe(0);
     //   expect(updatedUser.missedHours).toBe(0);
@@ -253,20 +109,22 @@ describe('Time Not Met Core Team Test', () => {
 
     it('should assign first blue square when 2 hours missed (8/10)', async () => {
       // 1. Create test user with no existing infringements
-      const user = await createUser();
-      user.infringements = []; // No existing blue squares
-      user.weeklycommittedHours = 10; // 10 hour commitment
-      user.role = 'Core Team';
-      user.missedHours = 0;
-      user.weeklySummaries = [
-        {
-          dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
-          summary: WEEKLY_SUMMARY,
-          uploadDate: new Date()
-        }
-      ];
-      user.startDate = moment().subtract(2, 'weeks').toDate();
-      await user.save();
+      // const user = await createUser();
+      // user.infringements = []; // No existing blue squares
+      // user.weeklycommittedHours = 10; // 10 hour commitment
+      // user.role = 'Core Team';
+      // user.missedHours = 0;
+      // user.weeklySummaries = [
+      //   {
+      //     dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
+      //     summary: WEEKLY_SUMMARY,
+      //     uploadDate: new Date()
+      //   }
+      // ];
+      // user.startDate = moment().subtract(2, 'weeks').toDate();
+      // await user.save();
+
+      const user = await new UserBuilder().withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
       // 2. Setup last week's date range (PDT)
       const now = moment.tz('America/Los_Angeles');
@@ -295,9 +153,6 @@ describe('Time Not Met Core Team Test', () => {
         },
       ]);
 
-      // DEBUG: Check what we have before running the function
-      await debugBlueSquareAssignment(user, lastWeekStart, lastWeekEnd);
-
       // 4. Execute the blue square assignment
       await userHelper.applyMissedHourForCoreTeam();
       await userHelper.assignBlueSquareForTimeNotMet();
@@ -312,42 +167,11 @@ describe('Time Not Met Core Team Test', () => {
       console.log('================================');
 
       // Should have exactly 1 new infringement (blue square)
-      expect(updatedUser.infringements.length).toBe(1); 
+      expect(updatedUser.infringements.length).toBe(1);
       // Should show 2 missed hours (10 committed - 8 worked)
       expect(updatedUser.missedHours).toBe(2);
     });
 
-    // it('diagnostic test - basic blue square assignment', async () => {
-    //   const user = await createUser();
-    //   user.weeklycommittedHours = 10;
-    //   user.role = 'Core Team';
-    //   await user.save();
-
-    //   // Create entries for very specific known dates - only 8 hours logged
-    //   await TimeEntry.create([
-    //     {
-    //       personId: user._id,
-    //       dateOfWork: '2025-11-03', // Known Monday
-    //       isTangible: true,
-    //       entryType: 'task',
-    //       totalSeconds: 8 * 3600, // 8 hours only (2 hours short)
-    //       createdDateTime: new Date(),
-    //       isActive: true,
-    //     },
-    //   ]);
-
-    //   // console.log('BEFORE - User infringements:', (await UserProfile.findById(user._id)).infringements.length);
-
-    //   await userHelper.assignBlueSquareForTimeNotMet();
-    //   await userHelper.applyMissedHourForCoreTeam();
-
-    //   const afterUser = await UserProfile.findById(user._id);
-    //   // console.log('AFTER - User infringements:', afterUser.infringements.length);
-    //   // console.log('AFTER - User missedHours:', afterUser.missedHours);
-
-    //   expect(afterUser.infringements.length).toBe(1);
-    //   expect(afterUser.missedHours).toBe(2);
-    // });
   });
 
   // describe('More than 5 Blue Squares ', () => {
@@ -548,20 +372,20 @@ describe('Time Not Met Core Team Test', () => {
   //     expect(updatedUser.missedHours).toBe(10);
   //   });
 
-  //   // it('should not assign additional hours for non-Core Team members', async () => {
-  //   //   const user = await createUser();
-  //   //   user.weeklycommittedHours = 10;
-  //   //   user.role = 'Volunteer'; // Not Core Team
-  //   //   await user.save();
+  //   it('should not assign additional hours for non-Core Team members', async () => {
+  //     const user = await createUser();
+  //     user.weeklycommittedHours = 10;
+  //     user.role = 'Volunteer'; // Not Core Team
+  //     await user.save();
 
-  //   //   // No time entries = would normally trigger blue square
-  //   //   await userHelper.assignBlueSquareForTimeNotMet();
-  //   //   await userHelper.applyMissedHourForCoreTeam();
+  //     // No time entries = would normally trigger blue square
+  //     await userHelper.assignBlueSquareForTimeNotMet();
+  //     await userHelper.applyMissedHourForCoreTeam();
 
-  //   //   const updatedUser = await UserProfile.findById(user._id);
-  //   //   expect(updatedUser.infringements.length).toBe(1);
-  //   //   expect(updatedUser.missedHours).toBe(0); // Non-Core Team doesn't accumulate missed hours
-  //   // });
+  //     const updatedUser = await UserProfile.findById(user._id);
+  //     expect(updatedUser.infringements.length).toBe(1);
+  //     expect(updatedUser.missedHours).toBe(0); // Non-Core Team doesn't accumulate missed hours
+  //   });
 
   //   it('should not assign blues sqaures and missed hours when commited hours are 0', async () => {
   //     const user = await createUser();
