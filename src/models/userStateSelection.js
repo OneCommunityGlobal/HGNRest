@@ -17,6 +17,7 @@ const UserStateSelectionSchema = new Schema(
   { timestamps: true }
 );
 
-UserStateSelectionSchema.index({ userId: 1, 'selections.key': 1 });
+UserStateSelectionSchema.index({ userId: 1 }, { background: true });
+UserStateSelectionSchema.index({ 'selections.key': 1 }, { background: true });
 
 module.exports = mongoose.model('user_state_selection', UserStateSelectionSchema);
