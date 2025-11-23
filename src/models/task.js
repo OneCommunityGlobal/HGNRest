@@ -56,6 +56,21 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
+  // Flag to indicate if task category differs from project category (display purpose)
+  // false = task category matches project category
+  // true = task category differs from project category
+  categoryOverride: {
+    type: Boolean,
+    default: false,
+  },
+  // Flag to prevent category cascade when project category changes
+  // false = task category will cascade with project category changes (default)
+  // true = task category is locked and will NOT cascade
+  // This is set by explicit user action (e.g., lock button) or when user manually sets category
+  categoryLocked: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 module.exports = mongoose.model('task', taskschema, 'tasks');
