@@ -290,14 +290,16 @@ const laborCostController = () => {
           queryFilter.date = {};
           if (startDate !== null) {
             // Convert to Date object and set to start of day for inclusive filtering
+            // Use UTC methods to ensure consistent timezone handling
             const start = new Date(startDate);
-            start.setHours(0, 0, 0, 0);
+            start.setUTCHours(0, 0, 0, 0);
             queryFilter.date.$gte = start;
           }
           if (endDate !== null) {
             // Convert to Date object and set to end of day for inclusive filtering
+            // Use UTC methods to ensure consistent timezone handling
             const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
+            end.setUTCHours(23, 59, 59, 999);
             queryFilter.date.$lte = end;
           }
         }
