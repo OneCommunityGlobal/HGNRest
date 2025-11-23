@@ -2,6 +2,16 @@ const LaborCost = require('../../models/laborCost');
 const logger = require('../../startup/logger');
 
 /**
+ * Helper function to check if a string looks like a JSON object or array
+ * Used to detect invalid mixed formats (e.g., {"key":"val"},Project 1)
+ */
+const looksLikeJson = (str) => {
+  if (typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+};
+
+/**
  * Helper function to parse array from query parameter
  * Handles JSON strings, comma-separated strings, or already parsed arrays
  */
@@ -11,13 +21,34 @@ const parseArrayParam = (param) => {
   if (typeof param === 'string') {
     try {
       const parsed = JSON.parse(param);
+      // If parsed successfully, check if it's an object (not array) and not null
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        // Single JSON object when expecting array - this is invalid
+        return {
+          __invalidFormat: true,
+          __error:
+            'Invalid format: JSON object provided instead of array. Use JSON array format (e.g., ["Project 1"]) or comma-separated strings.',
+        };
+      }
       return Array.isArray(parsed) ? parsed : [parsed];
     } catch {
       // If not JSON, treat as comma-separated string
-      return param
+      const commaSeparated = param
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
+
+      // Check if any item looks like JSON (invalid mixed format)
+      const hasJsonLike = commaSeparated.some((item) => looksLikeJson(item));
+      if (hasJsonLike) {
+        return {
+          __invalidFormat: true,
+          __error:
+            'Invalid format: Cannot mix JSON objects/arrays with plain strings. Use JSON array (e.g., ["Project 1"]) or comma-separated strings (e.g., Project 1,Project 2).',
+        };
+      }
+
+      return commaSeparated;
     }
   }
   return [];
@@ -99,12 +130,22 @@ const laborCostController = () => {
       let projectsArray = [];
       if (projects !== undefined) {
         projectsArray = parseArrayParam(projects);
+
+        // Check if parsing returned an invalid format marker
+        if (projectsArray && typeof projectsArray === 'object' && projectsArray.__invalidFormat) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: projectsArray.__error || 'projects parameter contains invalid format',
+          });
+        }
+
         if (!Array.isArray(projectsArray)) {
           return res.status(400).json({
             Code: 'INVALID_PARAMETER',
             error: 'projects must be an array',
           });
         }
+
         // Validate that all project names are strings
         if (projectsArray.length > 0 && !projectsArray.every((p) => typeof p === 'string')) {
           return res.status(400).json({
@@ -118,12 +159,22 @@ const laborCostController = () => {
       let tasksArray = [];
       if (tasks !== undefined) {
         tasksArray = parseArrayParam(tasks);
+
+        // Check if parsing returned an invalid format marker
+        if (tasksArray && typeof tasksArray === 'object' && tasksArray.__invalidFormat) {
+          return res.status(400).json({
+            Code: 'INVALID_PARAMETER',
+            error: tasksArray.__error || 'tasks parameter contains invalid format',
+          });
+        }
+
         if (!Array.isArray(tasksArray)) {
           return res.status(400).json({
             Code: 'INVALID_PARAMETER',
             error: 'tasks must be an array',
           });
         }
+
         // Validate that all task names are strings
         if (tasksArray.length > 0 && !tasksArray.every((t) => typeof t === 'string')) {
           return res.status(400).json({
