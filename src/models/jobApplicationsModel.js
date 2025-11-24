@@ -9,8 +9,9 @@ const responseSchema = new mongoose.Schema(
     }, // Reference to the associated form
     answers: [
       {
+        questionText: { type: String, required: true },
         questionId: {
-          type: String, // mongoose.Schema.Types.ObjectId,
+          type: mongoose.Schema.Types.ObjectId,
           required: true,
         }, // Reference to the associated question
         answer: mongoose.Schema.Types.Mixed, // Store the user's answer (String, Array, etc.)
