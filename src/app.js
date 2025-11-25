@@ -23,6 +23,14 @@ require('./startup/middleware')(app);
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
 
+app.set('view engine', 'ejs');
+
+// app.use('/social-media', socialMediaRoutes);
+
+app.set('view engine', 'ejs');
+
+// app.use('/social-media', socialMediaRoutes);
+
 app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
 

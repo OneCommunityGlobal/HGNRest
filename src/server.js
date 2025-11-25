@@ -10,6 +10,7 @@ require('./cronjobs/userProfileJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
+require('./cronjobs/socialPostScheduler')();
 
 const port = process.env.PORT || 4500;
 
