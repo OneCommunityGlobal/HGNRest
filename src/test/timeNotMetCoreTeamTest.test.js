@@ -174,15 +174,12 @@ describe('Time Not Met Core Team Test', () => {
       expect(updatedUser.infringements.length).toBe(7);
 
       // Should have 6 missed hours (3 previous + 2 new + 1 penalty (more than 5 blue squares))
-      expect(updatedUser.missedHours).toBe(5);
+      expect(updatedUser.missedHours).toBe(6);
     });
 
     it('should only add missed hours (no penalty) for 5th blue square', async () => {
       // 1. Create user with 4 Blue Squares
       const user = await new UserBuilder().withInfringements(4).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
-
-      // const now = moment.tz('America/Los_Angeles');
-      // const weekStart = now.clone().startOf('week').subtract(1, 'week');
 
       // Log only 7 hours (3 hours short)
       const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
@@ -211,117 +208,68 @@ describe('Time Not Met Core Team Test', () => {
     });
   });
 
-  // describe('Edge Cases', () => {
-  //   it('should handle zero committed hours scenario', async () => {
-  //     // User with 0 committed hours shouldn't get infringements
-  //     const user = await createUser();
-  //     user.weeklycommittedHours = 0;
-  //     user.role = 'Core Team';
-  //     await user.save();
+  describe('Edge Cases', () => {
+    it('should handle zero committed hours scenario', async () => {
+      // User with 0 committed hours shouldn't get infringements
+      const user = await new UserBuilder().withCommittedHours(0).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     const updatedUser = await UserProfile.findById(user._id);
-  //     expect(updatedUser.infringements.length).toBe(0);
-  //     expect(updatedUser.missedHours).toBe(0);
-  //   });
+      const updatedUser = await UserProfile.findById(user._id);
+      expect(updatedUser.infringements.length).toBe(0);
+      expect(updatedUser.missedHours).toBe(0);
+    });
 
-  //   it('should handle user with no time entries at all', async () => {
-  //     // User with no time entries should get full missed hours
-  //     const user = await createUser();
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Core Team';
-  //     await user.save();
+    it('should handle user with no time entries at all', async () => {
+      // User with no time entries should get full missed hours
+      const user = await new UserBuilder().withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //     // No time entries created
+      // No time entries
 
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     const updatedUser = await UserProfile.findById(user._id);
-  //     expect(updatedUser.infringements.length).toBe(1);
-  //     expect(updatedUser.missedHours).toBe(10);
-  //   });
+      const updatedUser = await UserProfile.findById(user._id);
+      expect(updatedUser.infringements.length).toBe(1);
+      expect(updatedUser.missedHours).toBe(10);
+    });
 
-  //   it('should not assign additional hours for non-Core Team members', async () => {
-  //     const user = await createUser();
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Volunteer'; // Not Core Team
-  //     await user.save();
+    it('should not assign additional hours for non-Core Team members', async () => {
+      const user = await new UserBuilder().withWeeklySummary(WEEKLY_SUMMARY).asVolunteer().buildAndSave();
 
-  //     // No time entries = would normally trigger blue square
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      // No time entries = would normally trigger blue square
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     const updatedUser = await UserProfile.findById(user._id);
-  //     expect(updatedUser.infringements.length).toBe(1);
-  //     expect(updatedUser.missedHours).toBe(0); // Non-Core Team doesn't accumulate missed hours
-  //   });
+      const updatedUser = await UserProfile.findById(user._id);
+      expect(updatedUser.infringements.length).toBe(1);
+      expect(updatedUser.missedHours).toBe(0); // Non-Core Team doesn't accumulate missed hours
+    });
 
-  //   it('should not assign blues sqaures and missed hours when commited hours are 0', async () => {
-  //     const user = await createUser();
-  //     user.weeklycommittedHours = 0;
-  //     await user.save();
 
-  //     // No time entries = would normally trigger blue square
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+    it('should not assign penalty hours when blue squares > 5 but time entries meet committed hours', async () => {
+      // Create user with 5 existing blue squares
+      const user = await new UserBuilder().withInfringements(6).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //     const updatedUser = await UserProfile.findById(user._id);
-  //     expect(updatedUser.infringements.length).toBe(0);
-  //     expect(updatedUser.missedHours).toBe(0);
-  //   });
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
+        5 // 5 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
+        5 // 5 hours
+      ).buildAndSave();
 
-  //   it('should not assign penalty hours when blue squares > 5 but time entries meet committed hours', async () => {
-  //     // Create user with 5 existing blue squares
-  //     const user = await createUser();
-  //     user.infringements = Array(5)
-  //       .fill()
-  //       .map((_, i) => ({
-  //         date: moment()
-  //           .subtract(i + 1, 'weeks')
-  //           .format('YYYY-MM-DD'),
-  //         description: `Infringement ${i + 1}`,
-  //       }));
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Core Team';
-  //     user.missedHours = 0;
-  //     await user.save();
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     // Create time entries that exactly meet the committed hours (10 hours)
-  //     const now = moment.tz('America/Los_Angeles');
-  //     const lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
+      const updatedUser = await UserProfile.findById(user._id);
 
-  //     await TimeEntry.create([
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 5 * 3600, // 5 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 5 * 3600, // 5 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //     ]);
-
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
-
-  //     const updatedUser = await UserProfile.findById(user._id);
-
-  //     // Should not get a new blue square since hours were met
-  //     expect(updatedUser.infringements.length).toBe(5);
-  //     expect(updatedUser.missedHours).toBe(0);
-  //   });
-  // });
+      // Should not get a new blue square since hours were met
+      expect(updatedUser.infringements.length).toBe(6);
+      expect(updatedUser.missedHours).toBe(0);
+    });
+  });
 });
