@@ -5,7 +5,8 @@ const intermediateTaskController = function () {
   // Create new intermediate task
   const createIntermediateTask = async (req, res) => {
     try {
-      const { parentTaskId, title, description, expectedHours, status, dueDate } = req.body;
+      const { parentTaskId, title, description, expectedHours, loggedHours, status, dueDate } =
+        req.body;
 
       // Validate required fields
       if (!parentTaskId || !title) {
@@ -33,6 +34,7 @@ const intermediateTaskController = function () {
         title,
         description,
         expected_hours: expectedHours || 0,
+        logged_hours: loggedHours || 0,
         status: status || 'pending',
         due_date: dueDate,
       });
@@ -44,6 +46,26 @@ const intermediateTaskController = function () {
       );
 
       res.status(201).json(populatedTask);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // Get intermediate task by ID
+  const getIntermediateTaskById = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const intermediateTask = await IntermediateTask.findById(id).populate(
+        'parent_task_id',
+        'type status dueAt studentId lessonPlanId',
+      );
+
+      if (!intermediateTask) {
+        return res.status(404).json({ error: 'Intermediate task not found' });
+      }
+
+      res.status(200).json(intermediateTask);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -109,7 +131,7 @@ const intermediateTaskController = function () {
   const updateIntermediateTask = async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, description, expectedHours, status, dueDate } = req.body;
+      const { title, description, expectedHours, loggedHours, status, dueDate } = req.body;
 
       // Find the intermediate task
       const intermediateTask = await IntermediateTask.findById(id);
@@ -127,16 +149,19 @@ const intermediateTaskController = function () {
         }
       }
 
+      // Build update object with only provided fields
+      const updateFields = {};
+      if (title !== undefined) updateFields.title = title;
+      if (description !== undefined) updateFields.description = description;
+      if (expectedHours !== undefined) updateFields.expected_hours = expectedHours;
+      if (loggedHours !== undefined) updateFields.logged_hours = loggedHours;
+      if (status !== undefined) updateFields.status = status;
+      if (dueDate !== undefined) updateFields.due_date = dueDate;
+
       // Update the task
       const updatedTask = await IntermediateTask.findByIdAndUpdate(
         id,
-        {
-          title,
-          description,
-          expected_hours: expectedHours,
-          status,
-          due_date: dueDate,
-        },
+        { $set: updateFields },
         { new: true, runValidators: true },
       ).populate('parent_task_id', 'type status dueAt studentId lessonPlanId');
 
@@ -169,6 +194,7 @@ const intermediateTaskController = function () {
 
   return {
     createIntermediateTask,
+    getIntermediateTaskById,
     getIntermediateTasksByParent,
     updateIntermediateTask,
     deleteIntermediateTask,

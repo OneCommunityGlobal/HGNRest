@@ -8,6 +8,7 @@ const controller = intermediateTaskController();
 
 // Routes
 router.post('/intermediate-tasks', controller.createIntermediateTask);
+router.get('/intermediate-tasks/:id', controller.getIntermediateTaskById);
 router.get('/tasks/:taskId/intermediate', controller.getIntermediateTasksByParent);
 router.put('/intermediate-tasks/:id', controller.updateIntermediateTask);
 router.delete('/intermediate-tasks/:id', controller.deleteIntermediateTask);

@@ -20,6 +20,10 @@ const intermediateTaskSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    logged_hours: {
+      type: Number,
+      default: 0,
+    },
     status: {
       type: String,
       required: true,
