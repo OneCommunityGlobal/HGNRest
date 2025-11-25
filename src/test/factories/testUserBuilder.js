@@ -1,6 +1,6 @@
-const UserProfile = require('../models/userProfile');
-const TimeEntry = require('../models/timeentry');
-const createUser = require('../test/db/createUser');
+const UserProfile = require('../../models/userProfile');
+const TimeEntry = require('../../models/timeentry');
+const createUser = require('../db/createUser');
 
 const moment = require('moment-timezone');
 
@@ -21,14 +21,20 @@ class UserBuilder {
       role: 'Core Team',
       missedHours: 0,
       startDate: this.now.clone().subtract(2, 'weeks').toDate(),
-      weeklySummaries: []
+      weeklySummaries: [],
+      infringements: [],
     };
 
     return this;
   }
 
-  withRole(role) {
-    this.data.role = role;
+  asCoreTeam() {
+    this.data.role = 'Core Team';
+    return this;
+  }
+
+  asVolunteer() {
+    this.data.role = 'Volunteer';
     return this;
   }
 
@@ -42,8 +48,18 @@ class UserBuilder {
     return this;
   }
 
-  addInfringement(infr) {
-    this.data.infringements.push(infr);
+  withInfringements(number) {
+    this.data.infringements = Array(number)
+      .fill()
+      .map((_, i) => ({
+        date: this.now.clone().subtract(i + 1, 'weeks').toDate(),
+        description: `Infringement ${i + 1}`,
+      }));
+    return this;
+  }
+
+  withMissessedHours(hours) {
+    this.data.missedHours = hours;
     return this;
   }
 

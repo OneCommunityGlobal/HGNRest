@@ -2,7 +2,8 @@
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
-const UserBuilder = require("../helpers/UserBuilder");
+const UserBuilder = require("./factories/testUserBuilder");
+const TimeEntryBuilder = require("./factories/testTimeEntryBuilder");
 
 // Import models first
 const UserProfile = require('../models/userProfile');
@@ -23,6 +24,8 @@ describe('Time Not Met Core Team Test', () => {
   let timeEntryModel;
   let realDate;
 
+  let now, lastWeekStart, lastWeekEnd;
+
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
     await mongoose.connect(mongoServer.getUri());
@@ -35,10 +38,13 @@ describe('Time Not Met Core Team Test', () => {
   beforeEach(async () => {
     await UserProfile.deleteMany({});
     await TimeEntry.deleteMany({});
-
     const sundayPST = moment.tz('2025-11-09 00:10:00', 'America/Los_Angeles');
     realDate = Date.now;
     global.Date.now = jest.fn(() => sundayPST.valueOf());
+
+    now = moment.tz('America/Los_Angeles');
+    lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
+    lastWeekEnd = now.clone().endOf('week').subtract(1, 'week');
   });
 
   afterEach(() => {
@@ -52,119 +58,59 @@ describe('Time Not Met Core Team Test', () => {
 
 
   describe('Less than 5 Blue Squares', () => {
-    // it('should not assign blue square if no missed hours', async () => {
-    //   // 1. Create test user
-    //   const user = await createUser();
-    //   user.weeklycommittedHours = 10;
-    //   user.role = 'Core Team';
-    //   await user.save();
-
-    //   // 2. Get exact PDT date range for last week
-    //   const now = moment.tz('America/Los_Angeles');
-    //   const lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
-    //   const lastWeekEnd = now.clone().endOf('week').subtract(1, 'week');
-
-
-    //   // 3. Create test entries with properly formatted string dates
-    //   await TimeEntry.create([
-    //     {
-    //       personId: user._id,
-    //       dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'), // Monday
-    //       isTangible: true,
-    //       entryType: 'task',
-    //       totalSeconds: 4 * 3600,
-    //       createdDateTime: new Date(),
-    //       isActive: true,
-    //     },
-    //     {
-    //       personId: user._id,
-    //       dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'), // Wednesday
-    //       isTangible: true,
-    //       entryType: 'task',
-    //       totalSeconds: 4 * 3600,
-    //       createdDateTime: new Date(),
-    //       isActive: true,
-    //     },
-    //     {
-    //       personId: user._id,
-    //       dateOfWork: lastWeekStart.clone().add(5, 'days').format('YYYY-MM-DD'), // Friday
-    //       isTangible: true,
-    //       entryType: 'task',
-    //       totalSeconds: 2 * 3600,
-    //       createdDateTime: new Date(),
-    //       isActive: true,
-    //     },
-    //   ]);
-
-
-    //   // 4. Final assertions
-    //   await userHelper.assignBlueSquareForTimeNotMet();
-    //   await userHelper.applyMissedHourForCoreTeam();
-
-    //   const updatedUser = await UserProfile.findById(user._id);
-
-    //   expect(updatedUser.infringements.length).toBe(0);
-    //   expect(updatedUser.missedHours).toBe(0);
-    // });
-
-    it('should assign first blue square when 2 hours missed (8/10)', async () => {
-      // 1. Create test user with no existing infringements
-      // const user = await createUser();
-      // user.infringements = []; // No existing blue squares
-      // user.weeklycommittedHours = 10; // 10 hour commitment
-      // user.role = 'Core Team';
-      // user.missedHours = 0;
-      // user.weeklySummaries = [
-      //   {
-      //     dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
-      //     summary: WEEKLY_SUMMARY,
-      //     uploadDate: new Date()
-      //   }
-      // ];
-      // user.startDate = moment().subtract(2, 'weeks').toDate();
-      // await user.save();
+    it('should not assign blue square if no missed hours', async () => {
+      // 1. Create test user
 
       const user = await new UserBuilder().withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-      // 2. Setup last week's date range (PDT)
-      const now = moment.tz('America/Los_Angeles');
-      const lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
-      const lastWeekEnd = now.clone().endOf('week').subtract(1, 'week');
+      // 2. Create test entries with properly formatted string dates
 
-      // 3. Create time entries totaling 8 hours (2 hours short)
-      await TimeEntry.create([
-        {
-          personId: user._id,
-          dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'), // Monday
-          isTangible: true,
-          entryType: 'task',
-          totalSeconds: 3 * 3600, // 3 hours
-          createdDateTime: new Date(),
-          isActive: true,
-        },
-        {
-          personId: user._id,
-          dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'), // Wednesday
-          isTangible: true,
-          entryType: 'task',
-          totalSeconds: 5 * 3600, // 5 hours
-          createdDateTime: new Date(),
-          isActive: true,
-        },
-      ]);
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'), // Monday
+        4 // 4 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'), // Wednesday
+        4 // 4 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(5, 'days').format('YYYY-MM-DD'), // Friday
+        2 // 2 hours
+      ).buildAndSave();
 
-      // 4. Execute the blue square assignment
+      // 4. Final assertions
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
+
+      const updatedUser = await UserProfile.findById(user._id);
+
+      expect(updatedUser.infringements.length).toBe(0);
+      expect(updatedUser.missedHours).toBe(0);
+    });
+
+    it('should assign first blue square when 2 hours missed (8/10)', async () => {
+      // 1. Create test user with no existing infringements
+
+      const user = await new UserBuilder().withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
+
+      // 2. Create time entries totaling 8 hours (2 hours short)
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'), // Monday
+        3 // 3 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'), // Wednesday
+        5 // 5 hours
+      ).buildAndSave();
+
+      // 3. Execute the blue square assignment
       await userHelper.applyMissedHourForCoreTeam();
       await userHelper.assignBlueSquareForTimeNotMet();
 
-      // 5. Verify results
+      // 4. Verify results
       const updatedUser = await UserProfile.findById(user._id);
-
-      // DEBUG: Check what happened after
-      console.log('=== AFTER FUNCTION EXECUTION ===');
-      console.log('Infringements after:', updatedUser.infringements.length);
-      console.log('Missed hours after:', updatedUser.missedHours);
-      console.log('================================');
 
       // Should have exactly 1 new infringement (blue square)
       expect(updatedUser.infringements.length).toBe(1);
@@ -174,170 +120,96 @@ describe('Time Not Met Core Team Test', () => {
 
   });
 
-  // describe('More than 5 Blue Squares ', () => {
-  //   it('should maintain 6 infringements and 0 missed hours when logging exact committed hours', async () => {
-  //     // 6 existing infringements
-  //     const user = await createUser();
-  //     user.infringements = Array(6)
-  //       .fill()
-  //       .map((_, i) => ({
-  //         date: moment()
-  //           .subtract(i + 1, 'weeks')
-  //           .format('YYYY-MM-DD'),
-  //         description: `Infringement ${i + 1}`,
-  //       }));
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Core Team';
-  //     user.missedHours = 0;
-  //     await user.save();
+  describe('More than 5 Blue Squares ', () => {
+    it('should maintain 6 infringements and 0 missed hours when logging exact committed hours', async () => {
+      // 6 existing infringements
+      const user = await new UserBuilder().withInfringements(6).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //     const now = moment.tz('America/Los_Angeles');
-  //     const lastWeekStart = now.clone().startOf('week').subtract(1, 'week');
+      // 10 hours (2 entries of 5 hours) - exactly meets commitment
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
+        5 // 5 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
+        5 // 5 hours
+      ).buildAndSave();
 
-  //     // 10 hours (2 entries of 5 hours) - exactly meets commitment
-  //     await TimeEntry.create([
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: lastWeekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 5 * 3600,
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: lastWeekStart.clone().add(3, 'days').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 5 * 3600,
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //     ]);
+      // Execute
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     // Execute
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      // Verify
+      const updatedUser = await UserProfile.findById(user._id);
+      // did not miss any hours so nothing changes
+      expect(updatedUser.infringements.length).toBe(6);
+      expect(updatedUser.missedHours).toBe(0);
+    });
 
-  //     // Verify
-  //     const updatedUser = await UserProfile.findById(user._id);
-  //     // did not miss any hours so nothing changes
-  //     expect(updatedUser.infringements.length).toBe(6);
-  //     expect(updatedUser.missedHours).toBe(0);
-  //   });
+    it('should only carry forward missed hours with a penalty hours', async () => {
+      // Create user with 6 existing blue squares and 3 missed hours
 
-  //   it('should only carry forward missed hours with additional hours', async () => {
-  //     // Create user with 6 existing blue squares and 3 missed hours
-  //     const user = await createUser();
-  //     user.infringements = Array(6)
-  //       .fill()
-  //       .map((_, i) => ({
-  //         date: moment()
-  //           .subtract(i + 1, 'weeks')
-  //           .format('YYYY-MM-DD'),
-  //         description: `Week ${5 - i} infringement`,
-  //       }));
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Core Team';
-  //     user.missedHours = 3; // Existing missed hours
-  //     await user.save();
+      const user = await new UserBuilder().withInfringements(6).withMissessedHours(3).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //     const now = moment.tz('America/Los_Angeles');
-  //     const week6Start = now.clone().startOf('week').subtract(1, 'week');
+      // Log only 8 hours this week (2 hours short)
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(2, 'day').format('YYYY-MM-DD'),
+        4 // 4 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(4, 'days').format('YYYY-MM-DD'),
+        4 // 4 hours
+      ).buildAndSave();
 
-  //     // Log only 8 hours this week (2 hours short)
-  //     await TimeEntry.create([
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: week6Start.clone().add(1, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 4 * 3600, // 4 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: week6Start.clone().add(2, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 4 * 3600, // 4 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //     ]);
+      // Execute the functions
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     // Execute the functions
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      // Verify Week 6 results
+      const updatedUser = await UserProfile.findById(user._id);
 
-  //     // Verify Week 6 results
-  //     const updatedUser = await UserProfile.findById(user._id);
+      // Should have 7 infringements (added new one for this week)
+      expect(updatedUser.infringements.length).toBe(7);
 
-  //     // Should have 7 infringements (added new one for this week)
-  //     expect(updatedUser.infringements.length).toBe(7);
+      // Should have 6 missed hours (3 previous + 2 new + 1 penalty (more than 5 blue squares))
+      expect(updatedUser.missedHours).toBe(5);
+    });
 
-  //     // Should have 5 missed hours (3 previous + 2 new)
-  //     expect(updatedUser.missedHours).toBe(5);
-  //   });
+    it('should only add missed hours (no penalty) for 5th blue square', async () => {
+      // 1. Create user with 4 Blue Squares
+      const user = await new UserBuilder().withInfringements(4).withWeeklySummary(WEEKLY_SUMMARY).buildAndSave();
 
-  //   it('should only add missed hours (no penalty) for 5th blue square', async () => {
-  //     // 1. Create user with 4 Blue Squares
-  //     const user = await createUser();
-  //     user.infringements = Array(4)
-  //       .fill()
-  //       .map((_, i) => ({
-  //         date: moment()
-  //           .subtract(i + 1, 'weeks')
-  //           .format('YYYY-MM-DD'),
-  //         description: `Week ${4 - i} infringement`,
-  //       }));
-  //     user.weeklycommittedHours = 10;
-  //     user.role = 'Core Team';
-  //     user.missedHours = 0;
-  //     await user.save();
+      // const now = moment.tz('America/Los_Angeles');
+      // const weekStart = now.clone().startOf('week').subtract(1, 'week');
 
-  //     const now = moment.tz('America/Los_Angeles');
-  //     const weekStart = now.clone().startOf('week').subtract(1, 'week');
+      // Log only 7 hours (3 hours short)
+      const timeEntryBuilder = await new TimeEntryBuilder().addEntry(
+        user._id,
+        lastWeekStart.clone().add(2, 'day').format('YYYY-MM-DD'),
+        3 // 3 hours
+      ).addEntry(
+        user._id,
+        lastWeekStart.clone().add(4, 'days').format('YYYY-MM-DD'),
+        4 // 4 hours
+      ).buildAndSave();
 
-  //     // Log only 7 hours (3 hours short)
-  //     await TimeEntry.create([
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: weekStart.clone().add(1, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 3 * 3600, // 3 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //       {
-  //         personId: user._id,
-  //         dateOfWork: weekStart.clone().add(3, 'day').format('YYYY-MM-DD'),
-  //         isTangible: true,
-  //         entryType: 'task',
-  //         totalSeconds: 4 * 3600, // 4 hours
-  //         createdDateTime: new Date(),
-  //         isActive: true,
-  //       },
-  //     ]);
+      // Execute the functions
+      await userHelper.assignBlueSquareForTimeNotMet();
+      await userHelper.applyMissedHourForCoreTeam();
 
-  //     // Execute the functions
-  //     await userHelper.assignBlueSquareForTimeNotMet();
-  //     await userHelper.applyMissedHourForCoreTeam();
+      // Verify results
+      const updatedUser = await UserProfile.findById(user._id);
 
-  //     // Verify results
-  //     const updatedUser = await UserProfile.findById(user._id);
+      // Should have exactly 5 infringements (added the 5th)
+      expect(updatedUser.infringements.length).toBe(5);
 
-  //     // Should have exactly 5 infringements (added the 5th)
-  //     expect(updatedUser.infringements.length).toBe(5);
-
-  //     // Should only carry forward missed hours (no penalty yet)
-  //     // Missed hours: 10 - 7 = 3
-  //     expect(updatedUser.missedHours).toBe(3);
-  //   });
-  // });
+      // Should only carry forward missed hours (no penalty yet)
+      // Missed hours: 10 - 7 = 3
+      expect(updatedUser.missedHours).toBe(3);
+    });
+  });
 
   // describe('Edge Cases', () => {
   //   it('should handle zero committed hours scenario', async () => {
