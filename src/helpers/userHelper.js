@@ -913,7 +913,7 @@ const userHelper = function () {
               subject: 'New Infringement Assigned',
               body: emailBody,
               cc: DEFAULT_CC_EMAILS,
-              replyTo: DEFAULT_REPLY_TO[0],
+              replyTo: status.email,
               bcc: emailsBCCs,
               startDate: person.startDate,
             });
