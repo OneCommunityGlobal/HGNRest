@@ -35,16 +35,20 @@ const analyticsSummarySchema = new Schema({
       type: Number,
       default: 0,
     },
-    topCountries: [{
-      country: String,
-      count: Number,
-      percentage: Number,
-    }],
-    topStates: [{
-      state: String,
-      count: Number,
-      percentage: Number,
-    }],
+    topCountries: [
+      {
+        country: String,
+        count: Number,
+        percentage: Number,
+      },
+    ],
+    topStates: [
+      {
+        state: String,
+        count: Number,
+        percentage: Number,
+      },
+    ],
     deviceBreakdown: {
       mobile: {
         type: Number,
@@ -97,13 +101,15 @@ const analyticsSummarySchema = new Schema({
       contact_form: { type: Number, default: 0 },
       filter_use: { type: Number, default: 0 },
     },
-    topJobViews: [{
-      jobId: String,
-      jobTitle: String,
-      views: Number,
-      applications: Number,
-      conversionRate: Number,
-    }],
+    topJobViews: [
+      {
+        jobId: String,
+        jobTitle: String,
+        views: Number,
+        applications: Number,
+        conversionRate: Number,
+      },
+    ],
   },
   createdAt: {
     type: Date,
@@ -118,7 +124,7 @@ const analyticsSummarySchema = new Schema({
 analyticsSummarySchema.index({ date: 1, summaryType: 1 }, { unique: true });
 analyticsSummarySchema.index({ summaryType: 1, date: -1 });
 
-analyticsSummarySchema.pre('save', function(next) {
+analyticsSummarySchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
