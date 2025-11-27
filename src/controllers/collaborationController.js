@@ -102,7 +102,13 @@ function tryParseJSON(str) {
 // post all responses of a form
 exports.postFormResponseUpload = async (req, res) => {
   console.log('inside postFormResponseUpload');
+  console.log(req.body);
   console.log(req.file);
+  const uploadFile = req.file;
+
+  console.log('uploadFile.size');
+  console.log(uploadFile.size);
+
   const errorMap = {
     expired_access_token: 'Dropbox access token expired. Please reconnect Dropbox.',
     shared_link_already_exists: 'A shared link already exists for this file.',
@@ -126,10 +132,32 @@ exports.postFormResponseUpload = async (req, res) => {
     // 18 and 19 Software Developers
     // need to be changed for different jobForms
     // const resumeFile = req.answers[18];
-    const uploadFile = req.file;
     // if (!uploadFile) return res.status (400, 'No file uploaded');
+    if (!uploadFile) return res.status(400).json({ message: `No file uploaded` });
+
+    if (uploadFile.size > 5 * 1024 * 1024) {
+      uploadFile.value = null;
+      return res.status(500).json({ message: `File size should be less than or equal to 5MB` });
+    }
     console.log('resumeFile');
     console.log(uploadFile.originalname);
+
+    if (
+      ![
+        'application/pdf',
+        'application/doc',
+        'application/docx',
+        'image/jpeg',
+        'image/png',
+        'image/bmp',
+      ].includes(uploadFile.type)
+    ) {
+      return res
+        .status(500)
+        .json({
+          message: `Invalid file type. Please upload a PDF, DOC, DOCX, JPG, PNG, or BMP file.`,
+        });
+    }
 
     const dropboxPath = `${process.env.DROPBOX_PATH}/${uploadFile.originalname}`;
 
