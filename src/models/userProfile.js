@@ -153,7 +153,7 @@ const userProfileSchema = new Schema({
       },
     },
   ],
-
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },

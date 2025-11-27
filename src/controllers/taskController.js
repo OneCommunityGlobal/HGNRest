@@ -1333,6 +1333,18 @@ const taskController = function (Task) {
     }
   };
 
+  const replicateTasks = async (req, res) => {
+    try {
+      // Stub to keep the route valid; frontend currently performs replication via addNewTask.
+      // Return 501 so callers know it’s intentionally not wired server-side yet.
+      return res.status(501).send({
+        error: 'Replicate Task is currently handled client-side via addNewTask (one per resource).',
+      });
+    } catch (err) {
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1354,6 +1366,7 @@ const taskController = function (Task) {
     fixTaskOverrides,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    replicateTasks,
   };
 };
 
