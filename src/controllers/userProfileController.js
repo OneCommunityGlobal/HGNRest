@@ -24,7 +24,6 @@ const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
-
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 

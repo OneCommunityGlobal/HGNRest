@@ -2,9 +2,9 @@
 // IMPORTANT: mock BEFORE requiring the model
 jest.mock('../models/userProfile');
 
+const UserProfile = require('../models/userProfile');
 const isEmailExistsController = require('./isEmailExistsController');
 
-const UserProfile = require('../models/userProfile');
 
 describe('isEmailExistsController', () => {
   const { isEmailExists } = isEmailExistsController();

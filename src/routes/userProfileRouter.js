@@ -1,5 +1,4 @@
 const { body, param } = require('express-validator');
-
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 
