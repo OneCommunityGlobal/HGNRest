@@ -58,7 +58,8 @@
     "supertest": "^6.3.4"
   },
   "dependencies": {
-    "@azure/storage-blob": "^12.28.0",
+    "@aws-sdk/client-s3": "^3.920.0",
+    "@azure/storage-blob": "^12.26.0",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
     "@babel/node": "^7.14.9",
@@ -71,6 +72,7 @@
     "@types/node-fetch": "^2.6.12",
     "abort-controller": "^3.0.0",
     "async-exit-hook": "^2.0.1",
+    "aws-sdk": "^2.1692.0",
     "axios": "^1.7.7",
     "babel-plugin-module-resolver": "^5.0.0",
     "bcryptjs": "^2.4.3",
@@ -96,7 +98,7 @@
     "mongodb": "^3.7.3",
     "mongoose": "^5.13.23",
     "mongoose-validator": "^2.1.0",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.0.2",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
