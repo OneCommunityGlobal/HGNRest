@@ -14,6 +14,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const axios = require('axios');
 const sharp = require('sharp');
+
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -908,6 +909,33 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
+
+            let emailsBCCs;
+            /* eslint-disable array-callback-return */
+            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+              .populate('assignedTo')
+              .exec();
+            if (blueSquareBCCs.length > 0) {
+              emailsBCCs = blueSquareBCCs.map((assignment) => {
+                if (assignment.assignedTo.isActive === true) {
+                  return assignment.email;
+                }
+              });
+            } else {
+              emailsBCCs = null;
+            }
+
+            emailSender(
+              status.email,
+              'New Infringement Assigned',
+              emailBody,
+              null,
+              DEFAULT_CC_EMAILS,
+              DEFAULT_REPLY_TO[0],
+              emailsBCCs,
+              { type: 'blue_square_assignment' },
+            );
+
             emailQueue.push({
               to: status.email,
               subject: 'New Infringement Assigned',
