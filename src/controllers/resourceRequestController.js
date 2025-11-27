@@ -52,6 +52,7 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
       }
 
       const newResourceRequest = new ResourceRequest({
+        requestor_id: mongoose.Types.ObjectId(requestorId),
         educator_id: mongoose.Types.ObjectId(educatorId),
         pm_id: req.body.pm_id ? mongoose.Types.ObjectId(req.body.pm_id) : null,
         request_title: requestTitle,

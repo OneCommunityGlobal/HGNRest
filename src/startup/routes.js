@@ -302,6 +302,17 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
 
+const resourceRequest = require('../models/resourceRequest');
+const resourceRequestController = require('../controllers/resourceRequestController')(
+  resourceRequest,
+  userProfile
+);
+const resourceRequestRouter = require('../routes/resourceRequestRouter')(
+  resourceRequest,
+  userProfile,
+  resourceRequestController
+);
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -460,4 +471,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  app.use('/api', resourceRequestRouter);
 };

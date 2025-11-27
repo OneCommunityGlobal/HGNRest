@@ -17,7 +17,7 @@ const resourceRequestSchema = new Schema(
     pm_id: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: 'userProfile',
-      required: false, // nullable
+      required: false,
       default: null,
     },
     request_title: {
@@ -35,10 +35,9 @@ const resourceRequestSchema = new Schema(
       required: true,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-// Indexes for better query performance
 resourceRequestSchema.index({ educator_id: 1 });
 resourceRequestSchema.index({ pm_id: 1 });
 resourceRequestSchema.index({ status: 1 });
