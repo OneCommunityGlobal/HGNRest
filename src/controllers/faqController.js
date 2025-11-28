@@ -154,18 +154,28 @@ const logUnansweredFAQ = async function (req, res) {
     const { question } = req.body;
     const createdBy = req.user.userid;
 
-    const existingQuestion = await UnansweredFAQ.findOne({ question });
+    // Normalize question
+    const normalized = question.trim().toLowerCase();
+
+    // Check duplicate using normalized field
+    const existingQuestion = await UnansweredFAQ.findOne({ normalizedQuestion: normalized });
     if (existingQuestion) {
-      return res.status(409).json({ message: 'This question has already been logged' });
+      return res.status(409).json({ 
+        message: 'This question has already been logged.' 
+      });
     }
 
+    // Create unanswered FAQ entry
     const newUnansweredFAQ = new UnansweredFAQ({
       question,
+      normalizedQuestion: normalized,
       createdBy,
       createdAt: new Date().toISOString(),
     });
+
     await newUnansweredFAQ.save();
 
+    // Email owners
     let ownerEmails = [];
     if (process.env.TEST_MODE === 'true') {
       ownerEmails = [process.env.TEST_OWNER_EMAIL].filter(Boolean);
@@ -185,23 +195,21 @@ const logUnansweredFAQ = async function (req, res) {
     let emailSent = false;
     let emailNote = '';
 
-    if (ownerEmails.length === 0) {
-      emailNote = 'No owner emails configured; skipping email.';
-      console.warn(emailNote);
-    } else {
+    if (ownerEmails.length > 0) {
       const emailMessage = `
-    <p>A new unanswered question has been logged:</p>
-    <p><strong>Question:</strong> ${question}</p>
-    <p>Please review and add an answer if necessary.</p>
-  `;
+        <p>A new unanswered question has been logged:</p>
+        <p><strong>Question:</strong> ${question}</p>
+        <p>Please review and add an answer if needed.</p>
+      `;
+
       try {
-        await Promise.resolve(emailSender(ownerEmails, 'New Unanswered FAQ Logged', emailMessage));
+        await emailSender(ownerEmails, 'New Unanswered FAQ Logged', emailMessage);
         emailSent = true;
-        console.log('Owner notification email sent.');
       } catch (err) {
         emailNote = 'Failed to send email to owners.';
-        console.error('Email send failed:', err);
       }
+    } else {
+      emailNote = 'No owner emails configured; skipping email.';
     }
 
     return res.status(201).json({
@@ -215,6 +223,7 @@ const logUnansweredFAQ = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 const getFAQHistory = async function (req, res) {
   try {

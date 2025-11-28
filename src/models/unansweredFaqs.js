@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const unansweredFaqsSchema = new Schema({
-    question: { type: String, required: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'userProfile' },
-    createdAt: { type: Date, default: Date.now },
+const unansweredFaqSchema = new mongoose.Schema({
+  question: { type: String, required: true },
+  normalizedQuestion: { type: String, required: true, unique: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile' },
+  createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('UnansweredFAQ', unansweredFaqsSchema, 'UnansweredFAQs');
+unansweredFaqSchema.index({ normalizedQuestion: 1 }, { unique: true });
+
+module.exports = mongoose.model('UnansweredFAQ', unansweredFaqSchema);
