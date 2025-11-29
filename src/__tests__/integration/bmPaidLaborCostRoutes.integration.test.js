@@ -1,3 +1,14 @@
+/**
+ * Integration Tests for Paid Labor Cost Routes
+ *
+ * This test suite covers:
+ * 1. Authorization tests (401 responses without auth token)
+ * 2. Route functionality tests (method validation, route existence)
+ *
+ * Note: These tests require the full app to be loaded, which may require
+ * additional dependencies (e.g., @aws-sdk/client-s3) to be installed.
+ */
+
 const request = require('supertest');
 const { app } = require('../../app');
 
@@ -13,6 +24,10 @@ describe('bmPaidLaborCostRoutes tests', () => {
     console.log('=== Paid Labor Cost Integration Test Setup Complete ===');
   }, 60000); // 1 minute timeout for beforeAll
 
+  /**
+   * Authorization Tests
+   * Verifies that routes require authentication (return 401 without auth header)
+   */
   describe('Authorization Tests', () => {
     it('should return 401 if authorization header is not present for GET /api/labor-cost', async () => {
       console.log('Testing 401 unauthorized access for GET /api/labor-cost...');
@@ -39,11 +54,13 @@ describe('bmPaidLaborCostRoutes tests', () => {
     }, 30000);
   });
 
+  /**
+   * Route Functionality Tests
+   * Verifies route configuration and method handling
+   * Note: Full functionality tests require database connection.
+   * If database is not available, these become smoke tests.
+   */
   describe('Route Functionality Tests', () => {
-    // Note: These tests verify route configuration
-    // Full functionality tests require database connection
-    // If database is not available, these become smoke tests
-
     it('should return 404 or method not allowed for POST method', async () => {
       console.log('Testing POST method (should not be allowed)...');
 

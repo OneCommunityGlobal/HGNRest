@@ -1,3 +1,14 @@
+/**
+ * Unit Tests for Paid Labor Cost Controller
+ *
+ * This test suite covers:
+ * 1. Helper function unit tests (looksLikeJson, parseArrayParam, parseDateRangeParam, isValidDateValue)
+ * 2. Controller logic tests (parameter validation, query building, response formatting, error handling)
+ * 3. Edge case tests (boundary conditions, request object edge cases)
+ *
+ * Coverage Target: >90% (currently ~97%)
+ */
+
 jest.mock('../../../models/laborCost');
 jest.mock('../../../startup/logger');
 
@@ -5,11 +16,19 @@ const LaborCost = require('../../../models/laborCost');
 const logger = require('../../../startup/logger');
 const bmPaidLaborCostController = require('../bmPaidLaborCostController');
 
+/**
+ * Helper Functions Test Suite
+ * Tests private helper functions exported via testExports for direct unit testing
+ */
 describe('bmPaidLaborCostController - Helper Functions', () => {
   // Get test exports for helper functions
   const { looksLikeJson, parseArrayParam, parseDateRangeParam, isValidDateValue } =
     bmPaidLaborCostController.testExports;
 
+  /**
+   * Tests for looksLikeJson() helper function
+   * Validates detection of JSON-like strings (objects and arrays)
+   */
   describe('looksLikeJson()', () => {
     it('should return true for valid JSON object string', () => {
       expect(looksLikeJson('{"key":"value"}')).toBe(true);
@@ -60,6 +79,11 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     });
   });
 
+  /**
+   * Tests for parseArrayParam() helper function
+   * Validates parsing of array parameters from query strings
+   * Handles JSON arrays, comma-separated strings, and error cases
+   */
   describe('parseArrayParam()', () => {
     it('should return empty array for null input', () => {
       expect(parseArrayParam(null)).toEqual([]);
@@ -133,6 +157,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     });
   });
 
+  /**
+   * Tests for parseDateRangeParam() helper function
+   * Validates parsing of date_range parameter from query strings
+   */
   describe('parseDateRangeParam()', () => {
     it('should return null for null input', () => {
       expect(parseDateRangeParam(null)).toBeNull();
@@ -181,6 +209,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     });
   });
 
+  /**
+   * Tests for isValidDateValue() helper function
+   * Validates ISO 8601 date format and catches invalid dates (e.g., invalid months/days)
+   */
   describe('isValidDateValue()', () => {
     it('should return true for null (optional)', () => {
       expect(isValidDateValue(null)).toBe(true);
@@ -276,6 +308,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     });
   });
 
+  /**
+   * Controller Logic Test Suite
+   * Tests the main getLaborCost() function with mocked dependencies
+   */
   describe('bmPaidLaborCostController - getLaborCost()', () => {
     let controller;
     let mockReq;
@@ -284,6 +320,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     let mockLean;
     let mockExec;
 
+    /**
+     * Setup mocks before each test
+     * Creates chainable mock for LaborCost.find().sort().lean().exec()
+     */
     beforeEach(() => {
       jest.clearAllMocks();
 
@@ -317,6 +357,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       controller = bmPaidLaborCostController();
     });
 
+    /**
+     * Parameter Validation Tests - Projects
+     * Tests validation and parsing of projects query parameter
+     */
     describe('Parameter Validation - Projects', () => {
       it('should succeed when projects param is undefined', async () => {
         mockReq.query = {};
@@ -425,6 +469,11 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Parameter Validation Tests - Tasks
+     * Tests validation and parsing of tasks query parameter
+     * Similar pattern to projects validation
+     */
     describe('Parameter Validation - Tasks', () => {
       it('should succeed when tasks param is undefined', async () => {
         mockReq.query = {};
@@ -501,6 +550,11 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Parameter Validation Tests - Date Range
+     * Tests validation and parsing of date_range query parameter
+     * Includes partial date ranges and date format validation
+     */
     describe('Parameter Validation - Date Range', () => {
       it('should succeed when date_range is undefined', async () => {
         mockReq.query = {};
@@ -664,6 +718,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Query Building Tests
+     * Verifies MongoDB query construction with various filter combinations
+     */
     describe('Query Building and Database Call', () => {
       it('should build empty query filter when no filters provided', async () => {
         mockReq.query = {};
@@ -762,6 +820,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Response Formatting Tests
+     * Verifies data transformation and totalCost calculation
+     */
     describe('Response Formatting', () => {
       it('should return empty results with totalCost 0', async () => {
         mockReq.query = {};
@@ -899,6 +961,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Error Handling Tests
+     * Verifies proper error handling for database errors and unexpected errors
+     */
     describe('Error Handling', () => {
       it('should handle MongoError and return 500', async () => {
         mockReq.query = {};
@@ -1017,6 +1083,10 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Edge Cases - Boundary Conditions
+     * Tests extreme values and unusual inputs (long strings, Unicode, special chars, etc.)
+     */
     describe('Edge Cases - Boundary Conditions', () => {
       it('should handle empty string projects parameter', async () => {
         mockReq.query = { projects: '' };
@@ -1122,29 +1192,18 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       });
     });
 
+    /**
+     * Edge Cases - Request Object
+     * Tests handling of malformed or missing request query objects
+     * All three cases test the same code path: `const query = req.query || {};`
+     */
     describe('Edge Cases - Request Object', () => {
-      it('should handle missing query property', async () => {
-        mockReq.query = undefined;
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
-      });
-
-      it('should handle null query property', async () => {
-        mockReq.query = null;
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
-      });
-
-      it('should handle empty query object', async () => {
-        mockReq.query = {};
+      it.each([
+        ['missing query property', undefined],
+        ['null query property', null],
+        ['empty query object', {}],
+      ])('should handle %s', async (description, queryValue) => {
+        mockReq.query = queryValue;
         mockExec.mockResolvedValue([]);
 
         await controller.getLaborCost(mockReq, mockRes);
