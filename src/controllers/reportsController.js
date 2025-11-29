@@ -145,6 +145,7 @@ const reportsController = function () {
     try {
       const [
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
@@ -163,6 +164,12 @@ const reportsController = function () {
         totalSummariesSubmitted,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getMentorNumberStats(
           isoStartDate,
           isoEndDate,
           isoComparisonStartDate,
@@ -273,6 +280,7 @@ const reportsController = function () {
 
       res.status(200).send({
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
