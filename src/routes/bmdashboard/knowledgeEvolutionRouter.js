@@ -1,5 +1,7 @@
 const express = require('express');
-const { getKnowledgeEvolution } = require('../../controllers/knowledgeEvolutionController');
+const {
+  getKnowledgeEvolution,
+} = require('../../controllers/bmdashboard/knowledgeEvolutionController');
 
 const router = express.Router();
 

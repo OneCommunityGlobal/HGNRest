@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const StudentTask = require('../models/bmdashboard/studentTask');
+const StudentTask = require('../../models/bmdashboard/studentTask');
 
 exports.getKnowledgeEvolution = async (req, res) => {
   try {
