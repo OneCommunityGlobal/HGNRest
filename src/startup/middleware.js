@@ -76,6 +76,16 @@ module.exports = function (app) {
       return;
     }
 
+    if (req.originalUrl.startsWith('/api/jobforms/responses') && req.method === 'POST') {
+      next();
+      return;
+    }
+
+    if (req.originalUrl.startsWith('/api/jobforms/responses/upload') && req.method === 'POST') {
+      next();
+      return;
+    }
+
     // Skip auth check for PayPal webhook route
 
     if (openPaths.includes(req.path)) {

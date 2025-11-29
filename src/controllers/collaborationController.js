@@ -150,13 +150,11 @@ exports.postFormResponseUpload = async (req, res) => {
         'image/jpeg',
         'image/png',
         'image/bmp',
-      ].includes(uploadFile.type)
+      ].includes(uploadFile.mimetype)
     ) {
-      return res
-        .status(500)
-        .json({
-          message: `Invalid file type. Please upload a PDF, DOC, DOCX, JPG, PNG, or BMP file.`,
-        });
+      return res.status(500).json({
+        message: `Invalid file type. Please upload a PDF, DOC, DOCX, JPG, PNG, or BMP file.`,
+      });
     }
 
     const dropboxPath = `${process.env.DROPBOX_PATH}/${uploadFile.originalname}`;
