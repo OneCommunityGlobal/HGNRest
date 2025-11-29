@@ -378,7 +378,6 @@ module.exports = function (app) {
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
   app.use('/api/pm', certificationRouter);
-  console.log('✅ Certification router loaded');
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
