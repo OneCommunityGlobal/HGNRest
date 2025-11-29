@@ -42,12 +42,23 @@ const verifyToken = async (req) => {
 };
 
 const searchFAQs = async function (req, res) {
-  const searchQuery = req.query.q;
+  const searchQueryRaw = req.query.q || '';
+  const searchQuery = searchQueryRaw.trim();
+
   try {
-    const results = await FAQ.find({
-      question: { $regex: searchQuery, $options: 'i' },
-    }).limit(5);
-    res.status(200).send(results);
+    const filter = {};
+    if (searchQuery) {
+      filter.question = { $regex: searchQuery, $options: 'i' };
+    }
+
+    let query = FAQ.find(filter).sort({ createdAt: 1 });
+
+    if (searchQuery) {
+      query = query.limit(5);
+    }
+
+    const results = await query;
+    res.status(200).json(results);
   } catch (error) {
     console.error('Error searching FAQs:', error);
     res.status(500).json({ message: 'Error searching FAQs', error });
@@ -154,18 +165,15 @@ const logUnansweredFAQ = async function (req, res) {
     const { question } = req.body;
     const createdBy = req.user.userid;
 
-    // Normalize question
     const normalized = question.trim().toLowerCase();
 
-    // Check duplicate using normalized field
     const existingQuestion = await UnansweredFAQ.findOne({ normalizedQuestion: normalized });
     if (existingQuestion) {
-      return res.status(409).json({ 
-        message: 'This question has already been logged.' 
+      return res.status(409).json({
+        message: 'This question has already been logged.',
       });
     }
 
-    // Create unanswered FAQ entry
     const newUnansweredFAQ = new UnansweredFAQ({
       question,
       normalizedQuestion: normalized,
@@ -175,7 +183,6 @@ const logUnansweredFAQ = async function (req, res) {
 
     await newUnansweredFAQ.save();
 
-    // Email owners
     let ownerEmails = [];
     if (process.env.TEST_MODE === 'true') {
       ownerEmails = [process.env.TEST_OWNER_EMAIL].filter(Boolean);
@@ -224,6 +231,47 @@ const logUnansweredFAQ = async function (req, res) {
   }
 };
 
+const answerUnansweredFAQ = async function (req, res) {
+  try {
+    await verifyToken(req);
+    if (!req.user.permissions.includes('manageFAQs')) {
+      return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+    }
+
+    const { id } = req.params;
+    const { answer } = req.body;
+
+    if (!answer || !answer.trim()) {
+      return res.status(400).json({ message: 'Answer is required.' });
+    }
+
+    const unanswered = await UnansweredFAQ.findById(id);
+    if (!unanswered) {
+      return res.status(404).json({ message: 'Unanswered FAQ not found' });
+    }
+
+    const createdBy = req.user.userid;
+
+    const newFAQ = new FAQ({
+      question: unanswered.question,
+      answer: answer.trim(),
+      createdBy,
+      createdAt: new Date().toISOString(),
+      changeHistory: [],
+    });
+
+    await newFAQ.save();
+    await UnansweredFAQ.findByIdAndDelete(id);
+
+    res.status(201).json({
+      message: 'FAQ created from unanswered question and original entry removed.',
+      newFAQ,
+    });
+  } catch (error) {
+    console.error('Error answering unanswered FAQ:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 const getFAQHistory = async function (req, res) {
   try {
@@ -311,6 +359,7 @@ module.exports = {
   updateFAQ,
   deleteFAQ,
   logUnansweredFAQ,
+  answerUnansweredFAQ,
   getFAQHistory,
   getUnansweredFAQs,
   deleteUnansweredFAQ,
