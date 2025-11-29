@@ -2,10 +2,13 @@ const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
 const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
+const TaskChangeLog = require('../models/taskChangeLog');
+const TaskChangeTracker = require('../middleware/taskChangeTracker');
 const taskHelper = require('../helpers/taskHelper')();
 const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 const followUp = require('../models/followUp');
+const logger = require('../startup/logger');
 
 const taskController = function (Task) {
   const getTasks = (req, res) => {
@@ -477,6 +480,55 @@ const taskController = function (Task) {
         num = `${nextTopNum}`;
       }
 
+      // Determine category flags
+      let categoryOverride = false;
+      let categoryLocked = false;
+
+      // Check if task category differs from project category
+      try {
+        const currentWBS = await WBS.findById(wbsId);
+        if (currentWBS) {
+          const currentProject = await Project.findById(currentWBS.projectId);
+          if (currentProject) {
+            const taskCategory = task.category || 'Unspecified';
+            const projectCategory = currentProject.category || 'Unspecified';
+
+            if (taskCategory !== projectCategory) {
+              // Task category differs from project
+              categoryOverride = true;
+              categoryLocked = true; // Lock it since user explicitly chose different category
+              logger.logInfo(
+                `[postTask] New task category "${taskCategory}" differs from project category "${projectCategory}" - setting override=TRUE, locked=TRUE`,
+              );
+            } else {
+              // Task category matches project
+              categoryOverride = false;
+              categoryLocked = false; // Unlocked so it can cascade with project changes
+              logger.logInfo(
+                `[postTask] New task category "${taskCategory}" matches project category "${projectCategory}" - setting override=FALSE, locked=FALSE`,
+              );
+            }
+          }
+        }
+      } catch (err) {
+        logger.logException(err);
+        // Default to false/false if we can't determine
+        categoryOverride = false;
+        categoryLocked = false;
+      }
+
+      // Allow explicit override from request body (for testing or special cases)
+      if (task.categoryOverride !== undefined) {
+        categoryOverride = task.categoryOverride;
+      }
+      if (task.categoryLocked !== undefined) {
+        categoryLocked = task.categoryLocked;
+      }
+
+      logger.logInfo(
+        `[postTask] Creating new task with categoryOverride=${categoryOverride}, categoryLocked=${categoryLocked}`,
+      );
+
       const _task = new Task({
         ...task,
         wbsId,
@@ -484,6 +536,8 @@ const taskController = function (Task) {
         level,
         createdDatetime,
         modifiedDatetime,
+        categoryOverride,
+        categoryLocked,
       });
 
       const saveTask = _task.save();
@@ -741,6 +795,27 @@ const taskController = function (Task) {
     }
 
     const { taskId } = req.params;
+
+    // Get current task state before update for change logging (with error handling)
+    let oldTask = null;
+    try {
+      oldTask = await Task.findById(taskId);
+    } catch (findError) {
+      console.error('Error finding task:', findError);
+      return res.status(404).send({ error: 'No valid records found' });
+    }
+
+    // Get user information for change logging - with timeout protection
+    let user = null;
+    try {
+      if (req.body.requestor && req.body.requestor.requestorId) {
+        user = await UserProfile.findById(req.body.requestor.requestorId).maxTimeMS(5000);
+      }
+    } catch (userError) {
+      console.warn('Warning: Could not fetch user for change tracking:', userError.message);
+      // Continue without user tracking in case of timeout
+    }
+
     // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
     Task.findById(taskId).then((currentTask) => {
       WBS.findById(currentTask.wbsId).then((currentwbs) => {
@@ -749,20 +824,118 @@ const taskController = function (Task) {
       });
     });
 
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
+    try {
+      // IF CATEGORY IS BEING UPDATED, UPDATE BOTH FLAGS
+      if (req.body.category !== undefined) {
+        logger.logInfo(
+          `[Category Update] Task ${taskId} category being updated to: "${req.body.category}"`,
+        );
+
+        // Get the task's project category
+        const currentTask = await Task.findById(taskId);
+        if (currentTask) {
+          logger.logInfo(`[Category Update] Found task: ${currentTask.taskName}`);
+
+          const currentWBS = await WBS.findById(currentTask.wbsId);
+          if (currentWBS) {
+            logger.logInfo(`[Category Update] Found WBS: ${currentWBS.wbsName}`);
+
+            const currentProject = await Project.findById(currentWBS.projectId);
+            if (currentProject) {
+              logger.logInfo(
+                `[Category Update] Found project: ${currentProject.projectName}, project category: "${currentProject.category}"`,
+              );
+
+              // Check if new category is different from project category
+              if (req.body.category !== currentProject.category) {
+                // User is manually setting a different category
+                req.body.categoryOverride = true;
+                req.body.categoryLocked = true; // Lock it since user is explicitly choosing different category
+                logger.logInfo(
+                  `[Category Update] Task category "${req.body.category}" differs from project category "${currentProject.category}" - setting override=TRUE, locked=TRUE`,
+                );
+              } else {
+                // User is setting it to match project category
+                req.body.categoryOverride = false;
+                req.body.categoryLocked = false; // Unlock it so it can cascade with future project changes
+                logger.logInfo(
+                  `[Category Update] Task category "${req.body.category}" matches project category "${currentProject.category}" - setting override=FALSE, locked=FALSE`,
+                );
+              }
+            } else {
+              logger.warn(`[Category Update] Project not found for WBS ${currentWBS._id}`);
+            }
+          } else {
+            logger.warn(`[Category Update] WBS not found for task ${taskId}`);
+          }
+        } else {
+          logger.warn(`[Category Update] Task ${taskId} not found`);
+        }
+      }
+
+      // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
+      Task.findById(taskId).then((currentTask) => {
+        WBS.findById(currentTask.wbsId).then((currentwbs) => {
+          currentwbs.modifiedDatetime = Date.now();
+          return currentwbs.save();
         });
       });
-    });
-    Task.findOneAndUpdate(
-      { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() },
-    )
-      .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+
+      Task.findById(taskId).then((currentTask) => {
+        WBS.findById(currentTask.wbsId).then((currentwbs) => {
+          Project.findById(currentwbs.projectId).then((currentProject) => {
+            currentProject.modifiedDatetime = Date.now();
+            return currentProject.save();
+          });
+        });
+      });
+
+      const updatedTask = await Task.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(taskId) },
+        { ...req.body, modifiedDatetime: Date.now() },
+        { new: true },
+      );
+
+      if (!updatedTask) {
+        logger.warn(`[Category Override] Task ${taskId} not found during update`);
+        return res.status(404).send({ error: 'Task not found' });
+      }
+
+      logger.logInfo(
+        `[Category Override] Task ${taskId} updated successfully. categoryOverride: ${updatedTask.categoryOverride}, category: "${updatedTask.category}"`,
+      );
+
+      // Log the changes - only if we have user and TaskChangeTracker is available
+      try {
+        if (
+          oldTask &&
+          user &&
+          typeof TaskChangeTracker !== 'undefined' &&
+          TaskChangeTracker.logChanges
+        ) {
+          await TaskChangeTracker.logChanges(
+            taskId,
+            oldTask.toObject(),
+            updatedTask.toObject(),
+            user,
+            req,
+          );
+        }
+      } catch (logError) {
+        console.warn('Warning: Could not log task changes:', logError.message);
+        // Continue without logging - don't fail the update
+      }
+
+      res.status(201).send(updatedTask);
+    } catch (error) {
+      // Check if it's a specific error that should return 404
+      if (error && error.error === 'No valid records found') {
+        return res.status(404).send(error);
+      }
+
+      logger.logException(error);
+      res.status(500).send({ error: error.message });
+    }
   };
 
   const swap = async function (req, res) {
@@ -940,7 +1113,6 @@ const taskController = function (Task) {
         res.status(200).send(singleUserData);
       }
     } catch (error) {
-      console.log(error);
       res.status(400).send({ error });
     }
   };
@@ -963,10 +1135,7 @@ const taskController = function (Task) {
         });
       });
     });
-    Task.findOneAndUpdate(
-      { _id: mongoose.Types.ObjectId(taskId) },
-      { ...req.body, modifiedDatetime: Date.now() },
-    )
+    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
       .then(() => res.status(201).send())
       .catch((error) => res.status(404).send(error));
   };
@@ -1009,13 +1178,170 @@ const taskController = function (Task) {
     const emailBody = getReviewReqEmailBody(name, taskName);
     try {
       const recipients = await getRecipients(myUserId);
-      console.log('Recipients list:', recipients);
-      console.log('Email subject:', `Review Request from ${name}`);
       await emailSender(recipients, `Review Request from ${name}`, emailBody, null, null);
       res.status(200).send('Success');
     } catch (err) {
       console.error('Error in sendReviewReq:', err);
       res.status(500).send('Failed');
+    }
+  };
+
+  /**
+   * Fix category flags for all tasks in a WBS
+   * Compares each task's category with the project category
+   * and sets both categoryOverride and categoryLocked flags
+   *
+   * This is for one-time migration/fix only
+   */
+  const fixTaskOverrides = async (req, res) => {
+    try {
+      const { wbsId } = req.params;
+      logger.logInfo(`[Fix Category Flags] Starting fix for WBS: ${wbsId}`);
+
+      // Get the WBS and project
+      const wbsDoc = await WBS.findById(wbsId);
+      if (!wbsDoc) {
+        return res.status(404).send({ error: 'WBS not found' });
+      }
+
+      const project = await Project.findById(wbsDoc.projectId);
+      if (!project) {
+        return res.status(404).send({ error: 'Project not found' });
+      }
+
+      const projectCategory = project.category || 'Unspecified';
+      logger.logInfo(`[Fix Category Flags] Project category: "${projectCategory}"`);
+
+      // Get all tasks for this WBS
+      const tasks = await Task.find({ wbsId });
+      logger.logInfo(`[Fix Category Flags] Found ${tasks.length} tasks to check`);
+
+      let fixedCount = 0;
+      const updates = [];
+
+      tasks.forEach((task) => {
+        const taskCategory = task.category || 'Unspecified';
+        const shouldBeOverride = taskCategory !== projectCategory;
+        const shouldBeLocked = taskCategory !== projectCategory;
+
+        const currentOverride = task.categoryOverride || false;
+        const currentLocked = task.categoryLocked || false;
+
+        // Only update if either flag needs fixing
+        if (shouldBeOverride !== currentOverride || shouldBeLocked !== currentLocked) {
+          logger.logInfo(
+            `[Fix Category Flags] Fixing task "${task.taskName}": category="${taskCategory}", override=${currentOverride}->${shouldBeOverride}, locked=${currentLocked}->${shouldBeLocked}`,
+          );
+          updates.push({
+            updateOne: {
+              filter: { _id: task._id },
+              update: {
+                $set: {
+                  categoryOverride: shouldBeOverride,
+                  categoryLocked: shouldBeLocked,
+                },
+              },
+            },
+          });
+          fixedCount += 1;
+        }
+      });
+
+      if (updates.length > 0) {
+        await Task.bulkWrite(updates);
+        logger.logInfo(`[Fix Category Flags] Fixed ${fixedCount} tasks`);
+        res.status(200).send({
+          message: `Successfully fixed ${fixedCount} task(s)`,
+          fixedCount,
+          totalTasks: tasks.length,
+        });
+      } else {
+        logger.logInfo(`[Fix Category Flags] No tasks needed fixing`);
+        res.status(200).send({
+          message: 'All task category flags are already correct',
+          fixedCount: 0,
+          totalTasks: tasks.length,
+        });
+      }
+    } catch (err) {
+      logger.logException(err);
+      res.status(500).send({ error: 'Failed to fix task category flags', details: err.message });
+    }
+  };
+  // New endpoint to get change logs for a specific task
+  const getTaskChangeLogs = async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({ taskId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('userId', 'firstName lastName email profilePic')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({ taskId });
+
+      res.status(200).json({
+        changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching task change logs:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // New endpoint to get change logs for a user across all tasks
+  const getUserTaskChangeLogs = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({ userId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('taskId', 'taskName num')
+        .populate('userId', 'firstName lastName email profilePic')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({ userId });
+
+      res.status(200).json({
+        changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching user task change logs:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  const replicateTasks = async (req, res) => {
+    try {
+      // Stub to keep the route valid; frontend currently performs replication via addNewTask.
+      // Return 501 so callers know it’s intentionally not wired server-side yet.
+      return res.status(501).send({
+        error: 'Replicate Task is currently handled client-side via addNewTask (one per resource).',
+      });
+    } catch (err) {
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
     }
   };
 
@@ -1037,6 +1363,10 @@ const taskController = function (Task) {
     getTasksForTeamsByUser,
     updateTaskStatus,
     sendReviewReq,
+    fixTaskOverrides,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
+    replicateTasks,
   };
 };
 
