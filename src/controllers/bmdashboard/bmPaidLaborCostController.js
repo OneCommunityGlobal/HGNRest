@@ -403,3 +403,9 @@ const laborCostController = () => {
 };
 
 module.exports = laborCostController;
+module.exports.testExports = {
+  looksLikeJson,
+  parseArrayParam,
+  parseDateRangeParam,
+  isValidDateValue,
+};
