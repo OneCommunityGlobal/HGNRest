@@ -1016,5 +1016,142 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
         });
       });
     });
+
+    describe('Edge Cases - Boundary Conditions', () => {
+      it('should handle empty string projects parameter', async () => {
+        mockReq.query = { projects: '' };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({});
+      });
+
+      it('should handle very long project name', async () => {
+        const longProjectName = 'A'.repeat(1000);
+        mockReq.query = { projects: `["${longProjectName}"]` };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          project_name: { $in: [longProjectName] },
+        });
+      });
+
+      it('should handle Unicode characters in project names', async () => {
+        mockReq.query = { projects: '["日本語"]' };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          project_name: { $in: ['日本語'] },
+        });
+      });
+
+      it('should handle special characters in project names', async () => {
+        mockReq.query = { projects: '["Project <script>"]' };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          project_name: { $in: ['Project <script>'] },
+        });
+      });
+
+      it('should handle large array of projects', async () => {
+        // Create array with 100 projects
+        const projects = Array.from({ length: 100 }, (_, i) => `Project ${i + 1}`);
+        mockReq.query = { projects: JSON.stringify(projects) };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          project_name: { $in: projects },
+        });
+      });
+
+      it('should handle dates far in the past', async () => {
+        mockReq.query = {
+          date_range: '{"start_date":"1900-01-01","end_date":"1900-12-31"}',
+        };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          date: {
+            $gte: expect.any(Date),
+            $lte: expect.any(Date),
+          },
+        });
+        expect(mockRes.json).toHaveBeenCalledWith({
+          totalCost: 0,
+          data: [],
+        });
+      });
+
+      it('should handle dates far in the future', async () => {
+        mockReq.query = {
+          date_range: '{"start_date":"2100-01-01","end_date":"2100-12-31"}',
+        };
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({
+          date: {
+            $gte: expect.any(Date),
+            $lte: expect.any(Date),
+          },
+        });
+        expect(mockRes.json).toHaveBeenCalledWith({
+          totalCost: 0,
+          data: [],
+        });
+      });
+    });
+
+    describe('Edge Cases - Request Object', () => {
+      it('should handle missing query property', async () => {
+        mockReq.query = undefined;
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({});
+      });
+
+      it('should handle null query property', async () => {
+        mockReq.query = null;
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({});
+      });
+
+      it('should handle empty query object', async () => {
+        mockReq.query = {};
+        mockExec.mockResolvedValue([]);
+
+        await controller.getLaborCost(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(LaborCost.find).toHaveBeenCalledWith({});
+      });
+    });
   });
 });
