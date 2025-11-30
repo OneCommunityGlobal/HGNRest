@@ -90,9 +90,10 @@ const isValidDateValue = (dateString) => {
   // For date-only format (YYYY-MM-DD), verify components match to catch invalid months/days
   // This catches edge cases like "2025-13-01" (invalid month) which JavaScript adjusts
   // Note: Date-only strings are parsed as UTC midnight, so use UTC methods for comparison
+  const DATE_PARTS_COUNT = 3;
   if (!dateString.includes('T') && !dateString.includes('Z')) {
     const parts = dateString.split('-');
-    if (parts.length === 3) {
+    if (parts.length === DATE_PARTS_COUNT) {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       const day = parseInt(parts[2], 10);
@@ -115,285 +116,422 @@ const isValidDateValue = (dateString) => {
   return true;
 };
 
+/**
+ * Validates and parses projects parameter
+ * Returns { error: { status, response } } if validation fails, or { projectsArray } on success
+ */
+const validateAndParseProjects = (projects) => {
+  if (projects === undefined) {
+    return { projectsArray: [] };
+  }
+
+  const projectsArray = parseArrayParam(projects);
+
+  // Check if parsing returned an invalid format marker
+  if (projectsArray && typeof projectsArray === 'object' && projectsArray.__invalidFormat) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: projectsArray.__error || 'projects parameter contains invalid format',
+        },
+      },
+    };
+  }
+
+  if (!Array.isArray(projectsArray)) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: 'projects must be an array',
+        },
+      },
+    };
+  }
+
+  // Validate that all project names are strings
+  if (projectsArray.length > 0 && !projectsArray.every((p) => typeof p === 'string')) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: 'All project names must be strings',
+        },
+      },
+    };
+  }
+
+  return { projectsArray };
+};
+
+/**
+ * Validates and parses tasks parameter
+ * Returns { error: { status, response } } if validation fails, or { tasksArray } on success
+ */
+const validateAndParseTasks = (tasks) => {
+  if (tasks === undefined) {
+    return { tasksArray: [] };
+  }
+
+  const tasksArray = parseArrayParam(tasks);
+
+  // Check if parsing returned an invalid format marker
+  if (tasksArray && typeof tasksArray === 'object' && tasksArray.__invalidFormat) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: tasksArray.__error || 'tasks parameter contains invalid format',
+        },
+      },
+    };
+  }
+
+  if (!Array.isArray(tasksArray)) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: 'tasks must be an array',
+        },
+      },
+    };
+  }
+
+  // Validate that all task names are strings
+  if (tasksArray.length > 0 && !tasksArray.every((t) => typeof t === 'string')) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: 'All task names must be strings',
+        },
+      },
+    };
+  }
+
+  return { tasksArray };
+};
+
+/**
+ * Validates date string format
+ * Returns { error: { status, response } } if validation fails, or null on success
+ */
+const validateDateString = (dateValue, fieldName) => {
+  if (dateValue === null) {
+    return null;
+  }
+
+  if (typeof dateValue !== 'string') {
+    return {
+      error: {
+        status: 422,
+        response: {
+          Code: 'INVALID_DATE_FORMAT',
+          error: `${fieldName} must be a string in ISO 8601 format (e.g., "2025-04-01" or "2025-04-01T00:00:00Z")`,
+        },
+      },
+    };
+  }
+
+  if (!isValidDateValue(dateValue)) {
+    return {
+      error: {
+        status: 422,
+        response: {
+          Code: 'INVALID_DATE_FORMAT',
+          error: `${fieldName} must be a valid ISO 8601 date string (e.g., "2025-04-01" or "2025-04-01T00:00:00Z")`,
+        },
+      },
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Validates date range logic (start_date must be before or equal to end_date)
+ * Returns { error: { status, response } } if validation fails, or null on success
+ */
+const validateDateRangeLogic = (startDate, endDate) => {
+  if (startDate !== null && endDate !== null) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start > end) {
+      return {
+        error: {
+          status: 400,
+          response: {
+            Code: 'INVALID_DATE_RANGE',
+            error: 'start_date must be before or equal to end_date',
+          },
+        },
+      };
+    }
+  }
+  return null;
+};
+
+/**
+ * Parses date_range parameter structure
+ * Returns { error: { status, response } } if parsing fails, or { dateRange, startDate, endDate } on success
+ */
+const parseDateRangeStructure = (dateRangeParam) => {
+  if (dateRangeParam === undefined || dateRangeParam === null) {
+    return { dateRange: null, startDate: null, endDate: null };
+  }
+
+  // Track if the param was a string before parsing (to detect parsing failures)
+  const wasString = typeof dateRangeParam === 'string';
+  const dateRange = parseDateRangeParam(dateRangeParam);
+
+  // If dateRangeParam was a non-empty string but parsing returned null,
+  // that means JSON parsing failed (invalid JSON format)
+  if (
+    wasString &&
+    dateRangeParam !== 'null' &&
+    dateRangeParam.trim() !== '' &&
+    dateRange === null
+  ) {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error:
+            'date_range must be a valid JSON object (e.g., {"start_date":"2025-04-01","end_date":"2025-04-30"}) or null',
+        },
+      },
+    };
+  }
+
+  if (dateRange !== null && typeof dateRange !== 'object') {
+    return {
+      error: {
+        status: 400,
+        response: {
+          Code: 'INVALID_PARAMETER',
+          error: 'date_range must be an object or null',
+        },
+      },
+    };
+  }
+
+  // Extract start_date and end_date from date_range
+  let startDate = null;
+  let endDate = null;
+  if (dateRange !== null && typeof dateRange === 'object') {
+    startDate = dateRange.start_date !== undefined ? dateRange.start_date : null;
+    endDate = dateRange.end_date !== undefined ? dateRange.end_date : null;
+  }
+
+  return { dateRange, startDate, endDate };
+};
+
+/**
+ * Validates and parses date_range parameter
+ * Returns { error: { status, response } } if validation fails, or { dateRange, startDate, endDate } on success
+ */
+const validateAndParseDateRange = (dateRangeParam) => {
+  // Parse date range structure
+  const parseResult = parseDateRangeStructure(dateRangeParam);
+  if (parseResult.error) {
+    return parseResult;
+  }
+
+  const { dateRange, startDate, endDate } = parseResult;
+
+  // Validate start_date format
+  const startDateError = validateDateString(startDate, 'start_date');
+  if (startDateError) {
+    return startDateError;
+  }
+
+  // Validate end_date format
+  const endDateError = validateDateString(endDate, 'end_date');
+  if (endDateError) {
+    return endDateError;
+  }
+
+  // Validate date range logic
+  const rangeLogicError = validateDateRangeLogic(startDate, endDate);
+  if (rangeLogicError) {
+    return rangeLogicError;
+  }
+
+  return { dateRange, startDate, endDate };
+};
+
+// Constants for date manipulation
+const START_OF_DAY_HOUR = 0;
+const START_OF_DAY_MINUTE = 0;
+const START_OF_DAY_SECOND = 0;
+const START_OF_DAY_MS = 0;
+const END_OF_DAY_HOUR = 23;
+const END_OF_DAY_MINUTE = 59;
+const END_OF_DAY_SECOND = 59;
+const END_OF_DAY_MS = 999;
+
+/**
+ * Builds MongoDB query filter from parsed parameters
+ */
+const buildQueryFilter = ({ projectsArray, tasksArray, dateRange, startDate, endDate }) => {
+  const queryFilter = {};
+
+  // Build date filter
+  if (dateRange !== null) {
+    if (startDate !== null || endDate !== null) {
+      queryFilter.date = {};
+      if (startDate !== null) {
+        const start = new Date(startDate);
+        start.setUTCHours(
+          START_OF_DAY_HOUR,
+          START_OF_DAY_MINUTE,
+          START_OF_DAY_SECOND,
+          START_OF_DAY_MS,
+        );
+        queryFilter.date.$gte = start;
+      }
+      if (endDate !== null) {
+        const end = new Date(endDate);
+        end.setUTCHours(END_OF_DAY_HOUR, END_OF_DAY_MINUTE, END_OF_DAY_SECOND, END_OF_DAY_MS);
+        queryFilter.date.$lte = end;
+      }
+    }
+  }
+
+  // Build project filter
+  if (projectsArray.length > 0) {
+    queryFilter.project_name = { $in: projectsArray };
+  }
+
+  // Build task filter
+  if (tasksArray.length > 0) {
+    queryFilter.task = { $in: tasksArray };
+  }
+
+  return queryFilter;
+};
+
+/**
+ * Formats response data and calculates total cost
+ */
+const formatResponseData = (laborCostRecords) => {
+  const formattedData = laborCostRecords.map((record) => ({
+    project: record.project_name,
+    task: record.task,
+    date: record.date ? new Date(record.date).toISOString() : null,
+    cost: typeof record.cost === 'number' ? record.cost : Number(record.cost),
+  }));
+
+  const totalCost =
+    formattedData.length > 0
+      ? formattedData.reduce((sum, record) => sum + (record.cost || 0), 0)
+      : 0;
+
+  return {
+    totalCost,
+    data: formattedData,
+  };
+};
+
+/**
+ * Handles errors and returns appropriate response
+ */
+const handleError = (error, req, res) => {
+  const errorContext = {
+    query: req.query,
+    method: req.method,
+    url: req.originalUrl || req.url,
+  };
+
+  const isDatabaseError =
+    error.name === 'MongoError' ||
+    error.name === 'MongooseError' ||
+    error.name === 'CastError' ||
+    error.name === 'ValidationError' ||
+    (error.message && error.message.includes('Mongo')) ||
+    (error.message && error.message.includes('connection'));
+
+  if (isDatabaseError) {
+    logger.logException(
+      error,
+      'getLaborCost - Database Error - Paid Labor Cost Controller',
+      errorContext,
+    );
+    return res.status(500).json({
+      Code: 'DATABASE_ERROR',
+      error: 'A database error occurred while fetching labor cost data. Please try again later.',
+    });
+  }
+
+  logger.logException(
+    error,
+    'getLaborCost - Unexpected Error - Paid Labor Cost Controller',
+    errorContext,
+  );
+  return res.status(500).json({
+    Code: 'INTERNAL_SERVER_ERROR',
+    error: 'An unexpected error occurred while fetching labor cost data. Please try again later.',
+  });
+};
+
 const laborCostController = () => {
   const getLaborCost = async (req, res) => {
     try {
       // Handle edge case: request query is missing or null
-      // Default to empty object to allow optional parameters
       const query = req.query || {};
 
       // Extract parameters from req.query
-      // Handle edge case: optional parameters default to "all values" behavior
       const { projects, tasks, date_range: dateRangeParam } = query;
 
-      // Parse and validate projects array
-      let projectsArray = [];
-      if (projects !== undefined) {
-        projectsArray = parseArrayParam(projects);
-
-        // Check if parsing returned an invalid format marker
-        if (projectsArray && typeof projectsArray === 'object' && projectsArray.__invalidFormat) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: projectsArray.__error || 'projects parameter contains invalid format',
-          });
-        }
-
-        if (!Array.isArray(projectsArray)) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: 'projects must be an array',
-          });
-        }
-
-        // Validate that all project names are strings
-        if (projectsArray.length > 0 && !projectsArray.every((p) => typeof p === 'string')) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: 'All project names must be strings',
-          });
-        }
+      // Validate and parse projects
+      const projectsResult = validateAndParseProjects(projects);
+      if (projectsResult.error) {
+        return res.status(projectsResult.error.status).json(projectsResult.error.response);
       }
+      const { projectsArray } = projectsResult;
 
-      // Parse and validate tasks array
-      let tasksArray = [];
-      if (tasks !== undefined) {
-        tasksArray = parseArrayParam(tasks);
-
-        // Check if parsing returned an invalid format marker
-        if (tasksArray && typeof tasksArray === 'object' && tasksArray.__invalidFormat) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: tasksArray.__error || 'tasks parameter contains invalid format',
-          });
-        }
-
-        if (!Array.isArray(tasksArray)) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: 'tasks must be an array',
-          });
-        }
-
-        // Validate that all task names are strings
-        if (tasksArray.length > 0 && !tasksArray.every((t) => typeof t === 'string')) {
-          return res.status(400).json({
-            Code: 'INVALID_PARAMETER',
-            error: 'All task names must be strings',
-          });
-        }
+      // Validate and parse tasks
+      const tasksResult = validateAndParseTasks(tasks);
+      if (tasksResult.error) {
+        return res.status(tasksResult.error.status).json(tasksResult.error.response);
       }
+      const { tasksArray } = tasksResult;
 
-      // Parse and validate date_range object
-      let dateRange = null;
-      if (dateRangeParam !== undefined) {
-        if (dateRangeParam === null) {
-          dateRange = null;
-        } else {
-          // Track if the param was a string before parsing (to detect parsing failures)
-          const wasString = typeof dateRangeParam === 'string';
-          dateRange = parseDateRangeParam(dateRangeParam);
-
-          // If dateRangeParam was a non-empty string but parsing returned null,
-          // that means JSON parsing failed (invalid JSON format)
-          if (
-            wasString &&
-            dateRangeParam !== 'null' &&
-            dateRangeParam.trim() !== '' &&
-            dateRange === null
-          ) {
-            return res.status(400).json({
-              Code: 'INVALID_PARAMETER',
-              error:
-                'date_range must be a valid JSON object (e.g., {"start_date":"2025-04-01","end_date":"2025-04-30"}) or null',
-            });
-          }
-
-          if (dateRange !== null && typeof dateRange !== 'object') {
-            return res.status(400).json({
-              Code: 'INVALID_PARAMETER',
-              error: 'date_range must be an object or null',
-            });
-          }
-        }
+      // Validate and parse date_range
+      const dateRangeResult = validateAndParseDateRange(dateRangeParam);
+      if (dateRangeResult.error) {
+        return res.status(dateRangeResult.error.status).json(dateRangeResult.error.response);
       }
+      const { dateRange, startDate, endDate } = dateRangeResult;
 
-      // Extract start_date and end_date from date_range
-      let startDate = null;
-      let endDate = null;
-      if (dateRange !== null && typeof dateRange === 'object') {
-        startDate = dateRange.start_date !== undefined ? dateRange.start_date : null;
-        endDate = dateRange.end_date !== undefined ? dateRange.end_date : null;
-
-        // Validate that dates are strings if provided (not numbers or other types)
-        if (startDate !== null && typeof startDate !== 'string') {
-          return res.status(422).json({
-            Code: 'INVALID_DATE_FORMAT',
-            error:
-              'start_date must be a string in ISO 8601 format (e.g., "2025-04-01" or "2025-04-01T00:00:00Z")',
-          });
-        }
-
-        if (endDate !== null && typeof endDate !== 'string') {
-          return res.status(422).json({
-            Code: 'INVALID_DATE_FORMAT',
-            error:
-              'end_date must be a string in ISO 8601 format (e.g., "2025-04-30" or "2025-04-30T23:59:59Z")',
-          });
-        }
-      }
-
-      // Validate date formats
-      // Handle edge cases: invalid months (e.g., "2025-13-01"), invalid days, dates far in past/future
-      if (startDate !== null) {
-        if (!isValidDateValue(startDate)) {
-          return res.status(422).json({
-            Code: 'INVALID_DATE_FORMAT',
-            error:
-              'start_date must be a valid ISO 8601 date string (e.g., "2025-04-01" or "2025-04-01T00:00:00Z")',
-          });
-        }
-      }
-
-      if (endDate !== null) {
-        if (!isValidDateValue(endDate)) {
-          return res.status(422).json({
-            Code: 'INVALID_DATE_FORMAT',
-            error:
-              'end_date must be a valid ISO 8601 date string (e.g., "2025-04-30" or "2025-04-30T23:59:59Z")',
-          });
-        }
-      }
-
-      // Validate date range logic
-      if (startDate !== null && endDate !== null) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (start > end) {
-          return res.status(400).json({
-            Code: 'INVALID_DATE_RANGE',
-            error: 'start_date must be before or equal to end_date',
-          });
-        }
-      }
-
-      // Build MongoDB query filters
-      const queryFilter = {};
-
-      // Build date filter
-      // Handle edge cases: partial date ranges (only start_date or only end_date), null dates, null date_range
-      if (dateRange !== null) {
-        // date_range exists, check which dates are provided
-        // Support open-ended date ranges: only start_date (filter from start to end of data)
-        // or only end_date (filter from beginning of data to end)
-        if (startDate !== null || endDate !== null) {
-          queryFilter.date = {};
-          if (startDate !== null) {
-            // Convert to Date object and set to start of day for inclusive filtering
-            // Use UTC methods to ensure consistent timezone handling
-            const start = new Date(startDate);
-            start.setUTCHours(0, 0, 0, 0);
-            queryFilter.date.$gte = start;
-          }
-          if (endDate !== null) {
-            // Convert to Date object and set to end of day for inclusive filtering
-            // Use UTC methods to ensure consistent timezone handling
-            const end = new Date(endDate);
-            end.setUTCHours(23, 59, 59, 999);
-            queryFilter.date.$lte = end;
-          }
-        }
-        // If neither date is provided but date_range exists, don't add date filter
-      }
-      // If date_range is null, don't add date filter (return all dates)
-
-      // Build project filter
-      if (projectsArray.length > 0) {
-        queryFilter.project_name = { $in: projectsArray };
-      }
-      // If projectsArray is empty, don't add project filter (return all projects)
-
-      // Build task filter
-      if (tasksArray.length > 0) {
-        queryFilter.task = { $in: tasksArray };
-      }
-      // If tasksArray is empty, don't add task filter (return all tasks)
+      // Build MongoDB query filter
+      const queryFilter = buildQueryFilter({
+        projectsArray,
+        tasksArray,
+        dateRange,
+        startDate,
+        endDate,
+      });
 
       // Query database and retrieve records
-      const laborCostRecords = await LaborCost.find(queryFilter)
-        .sort({ date: 1 }) // Sort by date in chronological order
-        .lean() // Return plain JavaScript objects for better performance
-        .exec();
+      const laborCostRecords = await LaborCost.find(queryFilter).sort({ date: 1 }).lean().exec();
 
       // Format response data
-      // Map database fields to response fields and format dates
-      const formattedData = laborCostRecords.map((record) => ({
-        project: record.project_name,
-        task: record.task,
-        date: record.date ? new Date(record.date).toISOString() : null,
-        cost: typeof record.cost === 'number' ? record.cost : Number(record.cost),
-      }));
-
-      // Calculate total cost
-      // Handle edge case: empty results (no records match filters)
-      // This is a valid case, not an error - return totalCost: 0, data: []
-      const totalCost =
-        formattedData.length > 0
-          ? formattedData.reduce((sum, record) => sum + (record.cost || 0), 0)
-          : 0;
-
-      // Construct response object
-      // Edge case: If no records match filters, return: { totalCost: 0, data: [] }
-      // This handles cases like dates far in past/future with no records
-      const response = {
-        totalCost,
-        data: formattedData,
-      };
+      const response = formatResponseData(laborCostRecords);
 
       // Return response with 200 OK status code
       return res.status(200).json(response);
     } catch (error) {
-      // Prepare error context for logging
-      const errorContext = {
-        query: req.query,
-        method: req.method,
-        url: req.originalUrl || req.url,
-      };
-
-      // Check if error is a MongoDB/database error
-      const isDatabaseError =
-        error.name === 'MongoError' ||
-        error.name === 'MongooseError' ||
-        error.name === 'CastError' ||
-        error.name === 'ValidationError' ||
-        (error.message && error.message.includes('Mongo')) ||
-        (error.message && error.message.includes('connection'));
-
-      // Log error with context
-      if (isDatabaseError) {
-        logger.logException(
-          error,
-          'getLaborCost - Database Error - Paid Labor Cost Controller',
-          errorContext,
-        );
-        return res.status(500).json({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
-      }
-
-      // Handle unexpected errors
-      logger.logException(
-        error,
-        'getLaborCost - Unexpected Error - Paid Labor Cost Controller',
-        errorContext,
-      );
-      return res.status(500).json({
-        Code: 'INTERNAL_SERVER_ERROR',
-        error:
-          'An unexpected error occurred while fetching labor cost data. Please try again later.',
-      });
+      return handleError(error, req, res);
     }
   };
 
