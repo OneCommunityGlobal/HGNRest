@@ -515,7 +515,7 @@ const redditPostController = () => {
             const redditData = await submitRedditPostBulk(post, validToken.access_token);
 
             if (redditData.success) {
-              const updated = await RedditPost.findByIdAndUpdate(post._id, { is_posted: false });
+              const updated = await RedditPost.findByIdAndUpdate(post._id, { is_posted: true });
               results.push({
                 id: post._id,
                 status: updated ? 'posted & updated' : 'not updated',
