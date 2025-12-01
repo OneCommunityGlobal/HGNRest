@@ -1,8 +1,27 @@
 const Job = require('../models/jobs'); // Import the Job model
 const JobPositionCategory = require('../models/jobPositionCategory');
+const JobForms = require('../models/JobFormsModel');
+// const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
+const helper = require('../utilities/permissions');
+
+function getWordCount(input) {
+  const excludedSymbols = new Set(['.', '#', '$', '*', '-', '–', '—', '_']);
+
+  const wordCount = input
+    .trim()
+    .split(/\s+/) // still use this to handle any whitespace
+    .filter((word) => {
+      // Remove empty strings and standalone symbols
+      const cleanedWord = word.trim();
+      return cleanedWord && !excludedSymbols.has(cleanedWord);
+    }).length;
+
+  return wordCount;
+}
+const EIGHTEEN = 18;
 // Controller to fetch all jobs with pagination, search, and filtering
 const paginationForJobs = async (req, res) => {
-  const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
+  const { page = 1, limit = EIGHTEEN, search = '', category = '', position = '' } = req.query;
 
   try {
     // Validate query parameters
@@ -140,7 +159,7 @@ const getJobTitleSuggestions = async (req, res) => {
 };
 
 const resetJobsFilters = async (req, res) => {
-  const { page = 1, limit = 18 } = req.query;
+  const { page = 1, limit = EIGHTEEN } = req.query;
 
   try {
     // Validate pagination parameters
@@ -223,6 +242,44 @@ const getJobById = async (req, res) => {
   }
 };
 
+const MIN_WORDS = 30;
+
+// Need to check permision here
+const checkPermission = async function (req, permission) {
+  return helper.hasPermission(req.body.requestor, permission);
+};
+
+const validateCategory = async function (category) {
+  const result = await JobPositionCategory.find({ category });
+  if (!result || result.length === 0) {
+    return { error: 'Category not found' };
+  }
+  return null;
+};
+const validateTitle = async function (title) {
+  const jobPosition = await JobPositionCategory.find({ position: title });
+  if (!jobPosition || jobPosition.length === 0) {
+    return { error: 'Title not found' };
+  }
+  return null;
+};
+const validateTitleCategoryMatch = async function (title, category) {
+  const jobPositionCategory = await JobPositionCategory.find({ position: title, category });
+  if (!jobPositionCategory || jobPositionCategory.length === 0) {
+    return { error: 'Title and Category not matched' };
+  }
+  return null;
+};
+const validateApplyLink = async function (applyLink) {
+  const formId = applyLink.split('jobforms/')[1];
+
+  const jobForms = await JobForms.find({ _id: formId });
+  if (!jobForms || jobForms.length === 0) {
+    return { error: 'Mismatched ApplyLink' };
+  }
+  return null;
+};
+
 // Controller to create a new job
 const createJob = async (req, res) => {
   const {
@@ -230,16 +287,68 @@ const createJob = async (req, res) => {
     category,
     description,
     imageUrl,
-    location,
+    // location,
     applyLink,
-    jobDetailsLink,
+    // jobDetailsLink,
     requirements,
-    // skills,
     projects,
-    // whoareyou,
     ourCommunity,
-    // whoweare,
   } = req.body;
+  if (!(await checkPermission(req, 'createCollabJobAds')))
+    return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+  // Validate Category and Position
+
+  const categoryValidation = await validateCategory(category);
+  if (categoryValidation) {
+    res.status(500).json(categoryValidation);
+  }
+
+  const titleValidation = await validateTitle(title);
+  if (titleValidation) {
+    res.status(500).json(titleValidation);
+  }
+
+  const titleCategoryMatch = await validateTitleCategoryMatch(title, category);
+  if (titleCategoryMatch) {
+    return res.status(404).json(titleCategoryMatch);
+  }
+
+  const applyLinkValidation = await validateApplyLink(applyLink);
+  if (applyLinkValidation) {
+    return res.status(404).json(applyLinkValidation);
+  }
+
+  //  desctiption word count should be >= 30
+  const descriptionWordCount = getWordCount(description);
+
+  if (descriptionWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for description`,
+    });
+  }
+
+  //  requirements word count should be >= 30
+  const requirementsWordCount = getWordCount(requirements);
+
+  if (requirementsWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for Requireents`,
+    });
+  }
+
+  //  projects is required
+  if (!projects || projects.length === 0) {
+    return res.status(403).json({
+      error: 'Please enter at least one project',
+    });
+  }
+  const ourCommunityWordCount = getWordCount(ourCommunity);
+
+  if (ourCommunityWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for ourCommunity`,
+    });
+  }
 
   try {
     // Find the highest displayOrder value currently in use
@@ -248,19 +357,15 @@ const createJob = async (req, res) => {
 
     const newJob = new Job({
       title,
-      //  summaries,
       category,
       description,
       imageUrl,
-      location,
+      location: 'remote',
       applyLink,
-      jobDetailsLink,
+      //      jobDetailsLink,
       displayOrder: newDisplayOrder,
       requirements,
-      // skills,
       projects,
-      // whoareyou,
-      // whoweare,
       ourCommunity,
     });
 
