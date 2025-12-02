@@ -181,6 +181,8 @@ const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRout
 
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
+const materialCostRouter = require('../routes/materialCostRouter')();
+
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
@@ -305,6 +307,7 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 
 const tagRouter = require('../routes/tagRouter')(tag);
 const educationTaskRouter = require('../routes/educationTaskRouter');
+const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
@@ -362,12 +365,16 @@ module.exports = function (app) {
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
   // app.use('/api', emailRouter);
-  app.use('/api', (req, res, next) => {
-  // Skip JWT authentication only for the testing route
-    if (req.path === '/email/weekly-summaries/test') return next();
-    // All other /api/email routes still need auth
-    authenticateUser(req, res, next);
-  }, emailRouter);
+  app.use(
+    '/api',
+    (req, res, next) => {
+      // Skip JWT authentication only for the testing route
+      if (req.path === '/email/weekly-summaries/test') return next();
+      // All other /api/email routes still need auth
+      authenticateUser(req, res, next);
+    },
+    emailRouter,
+  );
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
@@ -403,6 +410,7 @@ module.exports = function (app) {
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
   app.use('/api/education-tasks', educationTaskRouter);
+  app.use('/api/educator', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
 
@@ -501,4 +509,5 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api', materialCostRouter);
 };

@@ -293,7 +293,7 @@ const userHelper = function () {
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
+        <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
         ${finalParagraph}
@@ -525,7 +525,7 @@ const userHelper = function () {
 
     const emails = [];
     let mappedResults; // this contains the emails
-    
+
     try {
       // Accurate counts from the DB
       const totalMembers = await userProfile.countDocuments({});
@@ -603,25 +603,25 @@ const userHelper = function () {
             teamCode,
           } = result;
 
-        if (email !== undefined && email !== null) {
-          emails.push(email);
-        }
+          if (email !== undefined && email !== null) {
+            emails.push(email);
+          }
 
-        // weeklySummaries array will have only one item fetched (if present),
-        // consequently totalSeconds array will also have only one item in the array (if present)
-        // hence totalSeconds[0] should be used
-        const hoursLogged = result.totalSeconds[0] / 3600 || 0;
+          // weeklySummaries array will have only one item fetched (if present),
+          // consequently totalSeconds array will also have only one item in the array (if present)
+          // hence totalSeconds[0] should be used
+          const hoursLogged = result.totalSeconds[0] / 3600 || 0;
 
-        const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-        const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
-        const googleDocLinkValue =
-          adminLinks?.length > 0
-            ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
+          const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+          const teamCodeStr = teamCode ? `${teamCode}` : 'X-XXX';
+          const googleDocLinkValue =
+            adminLinks?.length > 0
+              ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
+              : null;
+
+          const googleDocLink = googleDocLinkValue
+            ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
             : null;
-        
-        const googleDocLink = googleDocLinkValue
-          ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
-          : null;
 
           let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
           const colorStyle = (() => {
@@ -738,32 +738,43 @@ const userHelper = function () {
       const inactiveMembersCount = totalMembers - activeMembersCount;
 
       // logger.logInfo(`🧮 [TEST] results: total=${results.length}, active=${activeResults.length}, inactive=${inactiveResults.length}`);
-      logger.logInfo(`🔢 Member counts from DB: total=${totalMembers}, active=${activeMembersCount}, inactive=${inactiveMembersCount}`);
+      logger.logInfo(
+        `🔢 Member counts from DB: total=${totalMembers}, active=${activeMembersCount}, inactive=${inactiveMembersCount}`,
+      );
 
-       // --- Get weekly summaries results from reportHelper (may include both) ---
+      // --- Get weekly summaries results from reportHelper (may include both) ---
       const resultsRaw = await reportHelper.weeklySummaries(weekIndex, weekIndex);
 
       // Make sure we only show active users in the detailed list:
-      const activeResults = (Array.isArray(resultsRaw) ? resultsRaw : []).filter(u => u.isActive === true);
-      const inactiveResults = (Array.isArray(resultsRaw) ? resultsRaw : []).filter(u => u.isActive === false);
+      const activeResults = (Array.isArray(resultsRaw) ? resultsRaw : []).filter(
+        (u) => u.isActive === true,
+      );
+      const inactiveResults = (Array.isArray(resultsRaw) ? resultsRaw : []).filter(
+        (u) => u.isActive === false,
+      );
 
       logger.logInfo(`📩 WeeklySummaries raw count: ${resultsRaw?.length ?? 0}`);
-      logger.logInfo(`⚠️ Any inactive included in results? ${inactiveResults.length > 0 ? 'Yes' : 'No'} (inactive in results=${inactiveResults.length})`);
-      logger.logInfo(`🧮 [TEST] results: total=${resultsRaw?.length ?? 0}, activeResults=${activeResults.length}, inactiveResults=${inactiveResults.length}`);
+      logger.logInfo(
+        `⚠️ Any inactive included in results? ${inactiveResults.length > 0 ? 'Yes' : 'No'} (inactive in results=${inactiveResults.length})`,
+      );
+      logger.logInfo(
+        `🧮 [TEST] results: total=${resultsRaw?.length ?? 0}, activeResults=${activeResults.length}, inactiveResults=${inactiveResults.length}`,
+      );
 
       // 2) Recipients for real weekly email (only actives, like your page)
       const recipientsDocs = await userProfile.find(
         { getWeeklyReport: true, isActive: true },
-        { email: 1, teamCode: 1, _id: 0 }
+        { email: 1, teamCode: 1, _id: 0 },
       );
 
-      const activeRecipients = recipientsDocs
-        .map(r => r.email)
-        .filter(Boolean);
+      const activeRecipients = recipientsDocs.map((r) => r.email).filter(Boolean);
 
-      logger.logInfo(`📧 [TEST] active recipients eligible for mailing: ${activeRecipients.length}`);
       logger.logInfo(
-        activeRecipients.slice(0, 20).join(', ') + (activeRecipients.length > 20 ? ' …(truncated)' : '')
+        `📧 [TEST] active recipients eligible for mailing: ${activeRecipients.length}`,
+      );
+      logger.logInfo(
+        activeRecipients.slice(0, 20).join(', ') +
+          (activeRecipients.length > 20 ? ' …(truncated)' : ''),
       );
 
       // 3) Build an email body that includes ONLY **active** users (to match the page)
@@ -784,7 +795,9 @@ const userHelper = function () {
       `;
 
       // Build entries for active users only
-      activeResults.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+      activeResults.sort((a, b) =>
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
+      );
 
       const weeklySummaryNotProvidedMessage =
         '<div><b>Weekly Summary:</b> <span style="color: red;"> Not provided! </span></div>';
@@ -792,38 +805,51 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       const weekIdx = weekIndex;
-      const entriesHtml = activeResults.map((result) => {
-        const {
-          firstName, lastName, email, weeklySummaries, mediaUrl, adminLinks,
-          weeklySummariesCount, weeklycommittedHours, weeklySummaryOption, teamCode
-        } = result;
+      const entriesHtml = activeResults
+        .map((result) => {
+          const {
+            firstName,
+            lastName,
+            email,
+            weeklySummaries,
+            mediaUrl,
+            adminLinks,
+            weeklySummariesCount,
+            weeklycommittedHours,
+            weeklySummaryOption,
+            teamCode,
+          } = result;
 
-        const hoursLogged = (result.totalSeconds?.[weekIdx] || 0) / 3600;
-        const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
-        const teamCodeStr = teamCode || 'X-XXX';
+          const hoursLogged = (result.totalSeconds?.[weekIdx] || 0) / 3600;
+          const mediaUrlLink = mediaUrl ? `<a href="${mediaUrl}">${mediaUrl}</a>` : 'Not provided!';
+          const teamCodeStr = teamCode || 'X-XXX';
 
-        const googleDocLinkValue =
-          adminLinks?.length > 0
-            ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
+          const googleDocLinkValue =
+            adminLinks?.length > 0
+              ? adminLinks.find((link) => link.Name === 'Google Doc' && link.Link)
+              : null;
+          const googleDocLink = googleDocLinkValue
+            ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
             : null;
-        const googleDocLink = googleDocLinkValue
-          ? `<a href="${googleDocLinkValue.Link}">${googleDocLinkValue.Link}</a>`
-          : null;
 
-        let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
-        const colorStyle = (() => {
-          switch (weeklySummaryOption) {
-            case 'Team':        return 'style="color: magenta;"';
-            case 'Not Required':return 'style="color: green"';
-            case 'Required':    return '';
-            default:            return result.weeklySummaryNotReq ? 'style="color: green"' : '';
-          }
-        })();
+          let weeklySummaryMessage = weeklySummaryNotProvidedMessage;
+          const colorStyle = (() => {
+            switch (weeklySummaryOption) {
+              case 'Team':
+                return 'style="color: magenta;"';
+              case 'Not Required':
+                return 'style="color: green"';
+              case 'Required':
+                return '';
+              default:
+                return result.weeklySummaryNotReq ? 'style="color: green"' : '';
+            }
+          })();
 
-        if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
-          const { dueDate, summary } = weeklySummaries[0];
-          if (summary) {
-            weeklySummaryMessage = `
+          if (Array.isArray(weeklySummaries) && weeklySummaries[0]) {
+            const { dueDate, summary } = weeklySummaries[0];
+            if (summary) {
+              weeklySummaryMessage = `
               <div>
                 <b>Weekly Summary</b>
                 (for the week ending on <b>${moment(dueDate).tz('America/Los_Angeles').format('YYYY-MMM-DD')}</b>):
@@ -832,76 +858,79 @@ const userHelper = function () {
                 ${summary}
               </div>
             `;
-          } else if (weeklySummaryOption === 'Not Required' || (!weeklySummaryOption && result.weeklySummaryNotReq)) {
-            weeklySummaryMessage = weeklySummaryNotRequiredMessage;
+            } else if (
+              weeklySummaryOption === 'Not Required' ||
+              (!weeklySummaryOption && result.weeklySummaryNotReq)
+            ) {
+              weeklySummaryMessage = weeklySummaryNotRequiredMessage;
+            }
           }
-        }
 
-    //     return `
-    //       <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
-    //         <b>Name:</b> ${firstName} ${lastName}
-    //         <p><b>Email:</b> ${email || '—'}</p>
-    //         <p><b>Team Code:</b> ${teamCodeStr}</p>
-    //         <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
-    //         <p><b>Google Doc Link:</b> ${googleDocLink || '<span style="color: red;">Not provided!</span>'}</p>
-    //         ${
-    //           weeklySummariesCount === 8
-    //             ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
-    //             : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
-    //         }
-    //         ${
-    //           weeklycommittedHours && hoursLogged < weeklycommittedHours
-    //             ? `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
-    //             : `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)}${weeklycommittedHours ? ` / ${weeklycommittedHours}` : ''}</p>`
-    //         }
-    //         ${weeklySummaryMessage}
-    //       </div>
-    //     `;
-    //   }).join('\n');
+          //     return `
+          //       <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
+          //         <b>Name:</b> ${firstName} ${lastName}
+          //         <p><b>Email:</b> ${email || '—'}</p>
+          //         <p><b>Team Code:</b> ${teamCodeStr}</p>
+          //         <p><b>Media URL:</b> ${mediaUrlLink || '<span style="color: red;">Not provided!</span>'}</p>
+          //         <p><b>Google Doc Link:</b> ${googleDocLink || '<span style="color: red;">Not provided!</span>'}</p>
+          //         ${
+          //           weeklySummariesCount === 8
+          //             ? `<p style="color: blue;"><b>Total Valid Weekly Summaries: ${weeklySummariesCount}</b></p>`
+          //             : `<p><b>Total Valid Weekly Summaries</b>: ${weeklySummariesCount || 'No valid submissions yet!'}</p>`
+          //         }
+          //         ${
+          //           weeklycommittedHours && hoursLogged < weeklycommittedHours
+          //             ? `<p style="color: red;"><b>Hours logged</b>: ${hoursLogged.toFixed(2)} / ${weeklycommittedHours}</p>`
+          //             : `<p><b>Hours logged</b>: ${hoursLogged.toFixed(2)}${weeklycommittedHours ? ` / ${weeklycommittedHours}` : ''}</p>`
+          //         }
+          //         ${weeklySummaryMessage}
+          //       </div>
+          //     `;
+          //   }).join('\n');
 
-    //   // inactive preview table (not emailed in prod)
-    //   const inactivePreview = inactiveResults.length
-    //     ? `
-    //       <hr/>
-    //       <h3 style="color:#b00">[TEST] Inactive users excluded (${inactiveResults.length})</h3>
-    //       <ul>
-    //         ${inactiveResults.slice(0, 50).map(u => `<li>${u.firstName} ${u.lastName} — ${u.email || 'no email'}</li>`).join('')}
-    //       </ul>
-    //       ${inactiveResults.length > 50 ? '<p>…truncated</p>' : ''}
-    //     `
-    //     : '<p>No inactive users found in results.</p>';
+          //   // inactive preview table (not emailed in prod)
+          //   const inactivePreview = inactiveResults.length
+          //     ? `
+          //       <hr/>
+          //       <h3 style="color:#b00">[TEST] Inactive users excluded (${inactiveResults.length})</h3>
+          //       <ul>
+          //         ${inactiveResults.slice(0, 50).map(u => `<li>${u.firstName} ${u.lastName} — ${u.email || 'no email'}</li>`).join('')}
+          //       </ul>
+          //       ${inactiveResults.length > 50 ? '<p>…truncated</p>' : ''}
+          //     `
+          //     : '<p>No inactive users found in results.</p>';
 
-    //   emailBody += entriesHtml + inactivePreview;
+          //   emailBody += entriesHtml + inactivePreview;
 
-    //   // send only to the tester in TEST mode (or log only)
-    //   if (dryRun) {
-    //     logger.logInfo('🧪 [TEST] Dry-run enabled — no email sent.');
-    //   } else {
-    //     logger.logInfo(`🧪 [TEST] Sending preview email only to ${testerEmail}`);
-    //     await emailSender(
-    //       [testerEmail],                           // IMPORTANT: pass an array to your emailSender
-    //       '[TEST] Weekly Summaries (Active Only)',
-    //       emailBody,
-    //       null,
-    //       null,
-    //       null
-    //     );
-    //     logger.logInfo('✅ [TEST] Preview email sent.');
-    //   }
+          //   // send only to the tester in TEST mode (or log only)
+          //   if (dryRun) {
+          //     logger.logInfo('🧪 [TEST] Dry-run enabled — no email sent.');
+          //   } else {
+          //     logger.logInfo(`🧪 [TEST] Sending preview email only to ${testerEmail}`);
+          //     await emailSender(
+          //       [testerEmail],                           // IMPORTANT: pass an array to your emailSender
+          //       '[TEST] Weekly Summaries (Active Only)',
+          //       emailBody,
+          //       null,
+          //       null,
+          //       null
+          //     );
+          //     logger.logInfo('✅ [TEST] Preview email sent.');
+          //   }
 
-    //   return {
-    //     counts: {
-    //       total: results.length,
-    //       active: activeResults.length,
-    //       inactive: inactiveResults.length,
-    //       activeRecipients: activeRecipients.length,
-    //     }
-    //   };
-    // } catch (err) {
-    //   logger.logException(err);
-    //   throw err;
-    // }
-      return `
+          //   return {
+          //     counts: {
+          //       total: results.length,
+          //       active: activeResults.length,
+          //       inactive: inactiveResults.length,
+          //       activeRecipients: activeRecipients.length,
+          //     }
+          //   };
+          // } catch (err) {
+          //   logger.logException(err);
+          //   throw err;
+          // }
+          return `
           <div style="padding: 20px 0; margin-top: 5px; border-bottom: 1px solid #828282;">
             <b>Name:</b> ${firstName} ${lastName}
             <p><b>Email:</b> ${email || '—'}</p>
@@ -921,17 +950,21 @@ const userHelper = function () {
             ${weeklySummaryMessage}
           </div>
         `;
-      }).join('\n');
+        })
+        .join('\n');
 
       // Show a short preview of inactive users (but not detailed list in main body)
       const inactivePreview = inactiveResults.length
         ? `<hr/><h3 style="color:#b00">[TEST] Inactive users detected in results (${inactiveResults.length}) — they are excluded from details</h3>
-          <ul>${inactiveResults.slice(0, 50).map(u => `<li>${u.firstName} ${u.lastName} — ${u.email || 'no email'}</li>`).join('')}</ul>
+          <ul>${inactiveResults
+            .slice(0, 50)
+            .map((u) => `<li>${u.firstName} ${u.lastName} — ${u.email || 'no email'}</li>`)
+            .join('')}</ul>
           ${inactiveResults.length > 50 ? '<p>…truncated</p>' : ''}`
         : '<p>No inactive users detected in the report results.</p>';
 
-        emailBody += entriesHtml;
-        emailBody += inactivePreview;
+      emailBody += entriesHtml;
+      emailBody += inactivePreview;
 
       // 4) Send only to tester in TEST mode (or just log if dryRun)
       if (dryRun) {
@@ -939,7 +972,14 @@ const userHelper = function () {
       } else {
         logger.logInfo(`🧪 [TEST] Sending preview email only to ${testerEmail}`);
         // emailSender expects an array for recipients
-        await emailSender([testerEmail], '[TEST] Weekly Summaries (Active Only)', emailBody, null, null, null);
+        await emailSender(
+          [testerEmail],
+          '[TEST] Weekly Summaries (Active Only)',
+          emailBody,
+          null,
+          null,
+          null,
+        );
         logger.logInfo('✅ [TEST] Preview email sent.');
       }
 
@@ -1373,7 +1413,7 @@ const userHelper = function () {
               subject: 'New Infringement Assigned',
               body: emailBody,
               cc: DEFAULT_CC_EMAILS,
-              replyTo: DEFAULT_REPLY_TO[0],
+              replyTo: status.email,
               bcc: emailsBCCs,
               startDate: person.startDate,
             });
@@ -1705,8 +1745,11 @@ const userHelper = function () {
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
+    console.log('ORIGINAL', original);
     if (original.length) {
-      historyInfringements = original
+      const sortedForHistory = [...original].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      historyInfringements = sortedForHistory
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -1762,7 +1805,7 @@ const userHelper = function () {
               enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
             }
           }
-          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(new Date(item.date)).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }

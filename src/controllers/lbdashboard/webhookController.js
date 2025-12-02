@@ -1,8 +1,6 @@
 /* eslint-disable camelcase */
 const axios = require('axios');
-
 const Payments = require('../../models/lbdashboard/payments');
-
 const paymentController = require('./paymentsController');
 
 const paymentControllerInstance = paymentController(Payments);
@@ -10,7 +8,6 @@ const paymentControllerInstance = paymentController(Payments);
 const { postPaymentStatusWithoutCard } = paymentControllerInstance;
 
 const Bids = require('../../models/lbdashboard/bids');
-
 const bidsController = require('./bidsController');
 
 const bidsControllerInstance = bidsController(Bids);
