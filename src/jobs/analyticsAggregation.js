@@ -250,6 +250,7 @@ const backfillSummaries = async (startDate, endDate) => {
 
   for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
     try {
+      // eslint-disable-next-line no-await-in-loop
       const summary = await generateDailySummary(new Date(date));
       summariesGenerated.push(summary);
     } catch (error) {

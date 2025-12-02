@@ -1400,6 +1400,7 @@ const overviewReportHelper = function () {
 
     for (const user of usersWithTimeEntries) {
       if (!user.timeEntries || user.timeEntries.length === 0) {
+        // eslint-disable-next-line no-continue
         continue; // Skip users with no time entries in the date range
       }
 
