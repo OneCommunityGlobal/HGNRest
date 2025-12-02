@@ -1,5 +1,4 @@
 const { body, param } = require('express-validator');
-
 const express = require('express');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 
@@ -67,30 +66,39 @@ const routes = function (userProfile, project) {
       //   }),
       // ),
 
-      body('personalLinks').optional().customSanitizer((value) =>
-        value.map((link) => {
-          if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
-            return {
-              ...link,
-              Name: link.Name.trim(),
-              Link: link.Link.replace(/\s/g, ''),
-            };
-          }
-          throw new ValidationError('personalLinks not valid');
-        }),
-      ),
-      body('adminLinks').optional().customSanitizer((value) =>
-        value.map((link) => {
-          if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
-            return {
-              ...link,
-              Name: link.Name.trim(),
-              Link: link.Link.replace(/\s/g, ''),
-            };
-          }
-          throw new ValidationError('adminLinks not valid');
-        }),
-      ),
+      body('personalLinks')
+        .optional()
+        .customSanitizer((value) =>
+          value.map((link) => {
+            if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
+              return {
+                ...link,
+                Name: link.Name.trim(),
+                Link: link.Link.replace(/\s/g, ''),
+              };
+            }
+            throw new ValidationError('personalLinks not valid');
+          }),
+        ),
+      body('adminLinks')
+        .optional()
+        .customSanitizer((value) =>
+          value.map((link) => {
+            if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
+              return {
+                ...link,
+                Name: link.Name.trim(),
+                Link: link.Link.replace(/\s/g, ''),
+              };
+            }
+            throw new ValidationError('adminLinks not valid');
+          }),
+        ),
+      body('infringementCount')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('InfringementCount must be a non-negative integer')
+        .toInt(),
       controller.putUserProfile,
     )
     .delete(controller.deleteUserProfile)
@@ -165,6 +173,8 @@ const routes = function (userProfile, project) {
   userProfileRouter
     .route('/userProfile/skills/:skill')
     .get(controller.getAllMembersSkillsAndContact);
+
+  userProfileRouter.route('/userProfile/:userId/finalDay').patch(controller.setFinalDay);
 
   return userProfileRouter;
 };

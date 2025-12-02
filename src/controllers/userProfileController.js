@@ -1,3 +1,9 @@
+/* eslint-disable no-magic-numbers */
+/* eslint-disable max-params */
+/* eslint-disable import/order */
+/* eslint-disable no-console */
+/* eslint-disable complexity */
+/* eslint-disable max-lines-per-function */
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -22,11 +28,9 @@ const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
-
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
-
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -596,9 +600,19 @@ const userProfileController = function (UserProfile, Project) {
     console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
     const userid = req.params.userId;
 
+    // keeping this block for future use
     if (req.body.filterColor !== undefined && req.body.requestor) {
+      // if (req.body.filterColor !== undefined) {
       try {
         const record = await UserProfile.findById(userid);
+        if (!Array.isArray(record.summarySubmissionDates)) {
+          record.summarySubmissionDates = [];
+        } else {
+          record.summarySubmissionDates = record.summarySubmissionDates.filter((d) => {
+            const dateObj = new Date(d);
+            return !Number.isNaN(dateObj.getTime());
+          });
+        }
         if (!record) return res.status(404).json({ error: 'User not found' });
 
         // ✅ Always overwrite filterColor, even for Owner
@@ -620,7 +634,7 @@ const userProfileController = function (UserProfile, Project) {
           'allusers',
           `user-${userid}`,
         ].forEach((key) => cache.removeCache(key));
-        cache.removeByPrefix('weeklySummaries');
+        cache.clearByPrefix('weeklySummaries');
 
         console.log('✅ Forced filterColor update:', record.filterColor);
 
@@ -718,6 +732,8 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -958,7 +974,7 @@ const userProfileController = function (UserProfile, Project) {
             `user-${userid}`,
           ].forEach((key) => cache.removeCache(key));
 
-          cache.removeByPrefix('weeklySummaries');
+          cache.clearByPrefix('weeklySummaries');
           // ✅ Ensures updated filterColor goes to cache
           if (cache.hasCache('allusers')) {
             allUserData = JSON.parse(cache.getCache('allusers'));
@@ -1253,7 +1269,7 @@ const userProfileController = function (UserProfile, Project) {
   //           // try { cache.removeCache(`user-${userId}`); } catch {}
   //           // try { cache.removeCache('teamCodes'); } catch {}
   //           // // If you have a weekly-summaries cache, nuke it safely:
-  //           // try { cache.removeByPrefix && cache.removeByPrefix('weeklySummaries:'); } catch {}
+  //           // try { cache.clearByPrefix && cache.clearByPrefix('weeklySummaries:'); } catch {}
   //           res.status(200).send({ message: 'updated property' });
   //           auditIfProtectedAccountUpdated(
   //             req.body.requestor.requestorId,
@@ -1312,7 +1328,7 @@ const userProfileController = function (UserProfile, Project) {
         cache.removeCache(`user-${userId}`);
         cache.removeCache('allusers');
         cache.removeCache('teamCodes');
-        cache.removeByPrefix('weeklySummaries'); // clears weeklySummaries:* keys
+        cache.clearByPrefix('weeklySummaries'); // clears weeklySummaries:* keys
       } catch (err) {
         console.error('Cache clearing failed:', err.message);
       }
@@ -2001,6 +2017,7 @@ const userProfileController = function (UserProfile, Project) {
       const originalinfringements = record?.infringements ?? [];
       // record.infringements = originalinfringements.concat(req.body.blueSquare);
       record.infringements = originalinfringements.concat(newInfringement);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -2101,6 +2118,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
@@ -2286,14 +2304,24 @@ const userProfileController = function (UserProfile, Project) {
   const updateUserInformation = async function (req, res) {
     try {
       const data = req.body;
-      data.map(async (e) => {
-        const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
-        await result.save();
-      });
-      res.status(200).send({ message: 'Update successful' });
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).send({ error: 'No updates provided' });
+      }
+
+      const ops = data.map(({ user_id, item, value }) => ({
+        updateOne: {
+          filter: { _id: user_id },
+          update: { $set: { [item]: value } },
+        },
+      }));
+
+      await UserProfile.bulkWrite(ops);
+
+      return res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      return res.status(500);
+      console.error('Error updating user information:', error);
+      return res.status(500).send({ error: 'Internal server error' });
     }
   };
 
@@ -2457,6 +2485,74 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const setFinalDay = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { date } = req.body;
+
+      console.log('=== DEBUG setFinalDay ===');
+      console.log('req.body.requestor:', req.body.requestor);
+      console.log('req.body.requestor.role:', req.body.requestor?.role);
+      console.log('req.body.requestor.permissions:', req.body.requestor?.permissions);
+
+      // Check if user has permission to set final day
+      if (!req.body.requestor) {
+        console.log('No requestor found');
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      // const requestor = req.body.requestor;
+      const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Insufficient permissions.',
+        });
+      }
+
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      const finalDate = new Date(date);
+
+      if (finalDate < user.startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final day cannot be before start date',
+          startDate: user.startDate,
+        });
+      }
+
+      user.endDate = finalDate;
+      const updatedUser = await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Final day set successfully',
+        user: {
+          id: updatedUser._id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          endDate: updatedUser.endDate,
+          isActive: updatedUser.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Error setting final day:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  };
   return {
     searchUsersByName,
     postUserProfile,
@@ -2495,6 +2591,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    setFinalDay,
   };
 };
 

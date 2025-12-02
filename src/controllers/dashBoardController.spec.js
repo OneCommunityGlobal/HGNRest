@@ -7,9 +7,9 @@ jest.mock('../utilities/emailSender', () => ({
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
 const { mockReq, mockRes, assertResMock } = require('../test');
-const forgotPwdController = require('./forgotPwdcontroller');
 const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
+const forgotPwdController = require('./forgotPwdcontroller');
 
 uuidv4.mockReturnValue('');
 // emailSender.mockImplementation(() => Promise.resolve());

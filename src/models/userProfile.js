@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
@@ -153,7 +154,7 @@ const userProfileSchema = new Schema({
       },
     },
   ],
-
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },

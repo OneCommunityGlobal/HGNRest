@@ -1,8 +1,8 @@
 /* eslint-disable no-unused-vars */
 const Team = require('../models/team');
-const teamController = require('./teamController');
 const { mockReq: baseMockReq, mockRes, assertResMock } = require('../test');
 const helper = require('../utilities/permissions');
+const teamController = require('./teamController');
 
 const mockReq = {
   ...baseMockReq,

@@ -1,15 +1,13 @@
-/* eslint-disable no-restricted-globals */
-/* eslint-disable prefer-destructuring */
-/* eslint-disable one-var */
-/* eslint-disable no-use-before-define */
+/* eslint-disable max-lines-per-function */
+/* eslint-disable no-console */
 /* eslint-disable no-shadow */
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
+/* eslint-disable no-use-before-define */
 const logger = require('../../startup/logger');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {
   const mongoose = require('mongoose');
 
+  // eslint-disable-next-line no-magic-numbers
   const calculateLaborCost = async (projectId, hourlyRate = 25) => {
     try {
       const project = await BuildingProject.findById(projectId);

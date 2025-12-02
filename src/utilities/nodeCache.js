@@ -50,20 +50,16 @@ const cache = function () {
     cacheStore.ttl(key, ttl);
   }
 
-  /**
-   * Remove all cache keys that start with a given prefix
-   */
-  function removeByPrefix(prefix) {
+  function clearByPrefix(prefix) {
     try {
-      const keys = cacheStore.keys(); // NodeCache gives you all keys
+      const keys = cacheStore.keys();
       keys.forEach((key) => {
         if (key.startsWith(prefix)) {
           cacheStore.del(key);
-          console.log(`🧹 Removed cache key: ${key}`);
         }
       });
-    } catch (e) {
-      logger.logException(e);
+    } catch (error) {
+      logger.logException(error);
     }
   }
 
@@ -73,7 +69,7 @@ const cache = function () {
     removeCache,
     hasCache,
     setKeyTimeToLive,
-    removeByPrefix // new function
+    clearByPrefix,
   };
 };
 

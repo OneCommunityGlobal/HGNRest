@@ -4,11 +4,11 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const config = require('../../config');
 // eslint-disable-next-line no-unused-vars
-const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
 const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification');
 const UserProfile = require('../../models/userProfile');
 const UserPreference = require('../../models/lbdashboard/userPreferences');
+const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
 
 const authenticate = (req, res) => {
   const authToken = req.headers?.['sec-websocket-protocol'];
