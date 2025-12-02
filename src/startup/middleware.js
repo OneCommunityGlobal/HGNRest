@@ -68,6 +68,21 @@ module.exports = function (app) {
       return;
     }
 
+    if (req.originalUrl.startsWith('/api/jobforms') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    if (req.originalUrl.startsWith('/api/jobforms/responses') && req.method === 'POST') {
+      next();
+      return;
+    }
+
+    if (req.originalUrl.startsWith('/api/jobforms/responses/upload') && req.method === 'POST') {
+      next();
+      return;
+    }
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
