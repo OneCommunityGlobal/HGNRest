@@ -29,7 +29,7 @@
     "serve": "babel-node src/server.js",
     "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*",
     "prepare": "husky install",
-    "postinstall": "npm rebuild sharp --platform=linux --arch=x64"
+    "install": "npm install --ignore-scripts sharp"
   },
   "author": "AK",
   "license": "ISC",
