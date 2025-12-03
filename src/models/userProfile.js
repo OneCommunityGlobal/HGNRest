@@ -129,19 +129,6 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
-
-      reason: {
-        type: String,
-        enum: [
-          'missingHours',
-          'missingSummary',
-          'missingBothHoursAndSummary',
-          'vacationTime',
-          'other',
-        ],
-        required: false,
-      },
-
       ccdUsers: {
         type: [
           {
@@ -154,7 +141,6 @@ const userProfileSchema = new Schema({
       },
     },
   ],
-  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -342,7 +328,6 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
-
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -400,7 +385,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
@@ -425,26 +410,12 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
   },
 });
-
-function clearUserCache(doc) {
-  try {
-    const cache = require('../utilities/nodeCache')();
-    if (!cache) return;
-
-    cache.removeCache('allusers_v1');
-    if (doc && doc._id) {
-      cache.removeCache(`user_${doc._id.toString()}`);
-    }
-  } catch (error) {
-    console.error('Cache clear failed:', error.message);
-  }
-}
 
 userProfileSchema.pre('save', function (next) {
   const user = this;
@@ -460,21 +431,11 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
-userProfileSchema.post('save', (doc) => {
-  clearUserCache(doc);
-});
-userProfileSchema.post('deleteOne', { document: true, query: false }, (doc) => {
-  clearUserCache(doc);
-});
-userProfileSchema.post(['findOneAndUpdate', 'findOneAndDelete'], (doc) => {
-  clearUserCache(doc);
-});
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
 userProfileSchema.index({ projects: 1, firstName: 1 });
 userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
-userProfileSchema.index({ lastName: 1 });
 // Add index for weeklySummaries.dueDate to speed up filtering
 userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
 // Add compound index for isActive and createdDate
@@ -489,3 +450,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');
