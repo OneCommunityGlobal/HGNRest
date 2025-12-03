@@ -21,9 +21,11 @@ jobs:
         cache: 'npm'
         
     - name: Install dependencies
+      working-directory: ./backend/HGNRest
       run: npm ci
       
     - name: Run lint
+      working-directory: ./backend/HGNRest
       run: npm run lint
 
   test:
@@ -41,12 +43,15 @@ jobs:
         cache: 'npm'
         
     - name: Install dependencies
+      working-directory: ./backend/HGNRest
       run: npm ci
       
     - name: Run tests with coverage enforcement
+      working-directory: ./backend/HGNRest
       run: npm run test:ci
       
     - name: Print detailed coverage report
+      working-directory: ./backend/HGNRest
       if: always()
       run: |
         echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
