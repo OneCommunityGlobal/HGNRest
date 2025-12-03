@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const educationTaskSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     lessonPlanId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LessonPlan',
@@ -9,7 +14,7 @@ const educationTaskSchema = new mongoose.Schema(
     },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'userProfile',
+      ref: 'User',
       required: true,
     },
     atomIds: [
@@ -55,14 +60,6 @@ const educationTaskSchema = new mongoose.Schema(
     feedback: {
       type: String,
       trim: true,
-    },
-    suggestedTotalHours: {
-      type: Number,
-      default: 0,
-    },
-    loggedHours: {
-      type: Number,
-      default: 0,
     },
   },
   {
