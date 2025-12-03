@@ -20,10 +20,10 @@ jobs:
         node-version: 20.17.0
         
     - name: Install dependencies
-      run: cd backend/HGNRest && npm ci
+      run: npm ci
       
     - name: Run lint
-      run: cd backend/HGNRest && npm run lint
+      run: npm run lint
 
   test:
     name: Tests with 10% Coverage Enforcement
@@ -39,15 +39,14 @@ jobs:
         node-version: 20.17.0
         
     - name: Install dependencies
-      run: cd backend/HGNRest && npm ci
+      run: npm ci
       
     - name: Run tests with coverage enforcement
-      run: cd backend/HGNRest && npm run test:ci
+      run: npm run test:ci
       
     - name: Print detailed coverage report
       if: always()
       run: |
-        cd backend/HGNRest
         echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
         echo "=================================="
         echo "Minimum Required: Lines: 34%, Statements: 34%, Functions: 27%, Branches: 12%"
@@ -77,4 +76,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: backend-coverage-report
-        path: backend/HGNRest/coverage/
+        path: coverage/
