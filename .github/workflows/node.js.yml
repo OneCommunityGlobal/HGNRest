@@ -14,7 +14,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        path: .
+        fetch-depth: 0
+      
+    - name: Debug - Check directory and list files
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Files in current directory:"
+        ls -la
+        echo "package.json exists: $(test -f package.json && echo 'YES' || echo 'NO')"
       
     - name: Use Node.js 20.17.0
       uses: actions/setup-node@v4
@@ -34,8 +41,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        path: .
       
     - name: Use Node.js 20.17.0
       uses: actions/setup-node@v4
