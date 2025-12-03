@@ -18,8 +18,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 20.17.0
-        cache: 'npm'
-        cache-dependency-path: backend/HGNRest/package-lock.json
         
     - name: Install dependencies
       working-directory: backend/HGNRest
@@ -41,8 +39,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 20.17.0
-        cache: 'npm'
-        cache-dependency-path: backend/HGNRest/package-lock.json
         
     - name: Install dependencies
       working-directory: backend/HGNRest
