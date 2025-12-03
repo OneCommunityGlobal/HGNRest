@@ -327,6 +327,8 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+const certificationRouter = require('../routes/certificationRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -408,6 +410,7 @@ module.exports = function (app) {
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+  app.use('/api/pm', certificationRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
