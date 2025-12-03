@@ -19,13 +19,14 @@ jobs:
       with:
         node-version: 20.17.0
         cache: 'npm'
+        cache-dependency-path: backend/HGNRest/package-lock.json
         
     - name: Install dependencies
-      working-directory: ./backend/HGNRest
+      working-directory: backend/HGNRest
       run: npm ci
       
     - name: Run lint
-      working-directory: ./backend/HGNRest
+      working-directory: backend/HGNRest
       run: npm run lint
 
   test:
@@ -41,17 +42,18 @@ jobs:
       with:
         node-version: 20.17.0
         cache: 'npm'
+        cache-dependency-path: backend/HGNRest/package-lock.json
         
     - name: Install dependencies
-      working-directory: ./backend/HGNRest
+      working-directory: backend/HGNRest
       run: npm ci
       
     - name: Run tests with coverage enforcement
-      working-directory: ./backend/HGNRest
+      working-directory: backend/HGNRest
       run: npm run test:ci
       
     - name: Print detailed coverage report
-      working-directory: ./backend/HGNRest
+      working-directory: backend/HGNRest
       if: always()
       run: |
         echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
@@ -83,4 +85,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: backend-coverage-report
-        path: coverage/
+        path: backend/HGNRest/coverage/
