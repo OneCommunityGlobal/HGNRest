@@ -2,7 +2,6 @@ const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
-const IntermediateTask = require('../models/intermediateTask');
 
 const educationTaskController = function () {
   // Get all education tasks
@@ -165,9 +164,10 @@ const educationTaskController = function () {
       }
 
       // Update completedAt if status is being changed to completed
-      const { completedAt: currentCompletedAt } = task;
-      const completedAt =
-        status === 'completed' && task.status !== 'completed' ? new Date() : currentCompletedAt;
+      let { completedAt } = task;
+      if (status === 'completed' && task.status !== 'completed') {
+        completedAt = new Date();
+      }
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
@@ -227,9 +227,10 @@ const educationTaskController = function () {
         });
       }
 
-      const { completedAt: currentCompletedAt } = task;
-      const completedAt =
-        status === 'completed' && task.status !== 'completed' ? new Date() : currentCompletedAt;
+      let { completedAt } = task;
+      if (status === 'completed' && task.status !== 'completed') {
+        completedAt = new Date();
+      }
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
@@ -294,137 +295,105 @@ const educationTaskController = function () {
     }
   };
 
-  // Helper function to check and update parent task progress
-  const checkAndUpdateParentTaskProgress = async (parentTaskId) => {
+  const getTaskSubmissions = async (req, res) => {
     try {
-      // Get all intermediate tasks for this parent
-      const intermediateTasks = await IntermediateTask.find({ parent_task_id: parentTaskId });
+      const { status, studentId, lessonPlanId, courseId } = req.query;
 
-      // If there are no intermediate tasks, return
-      if (intermediateTasks.length === 0) {
-        return;
+      const filter = {};
+
+      // Support friendly status values from frontend (e.g., "submissions", "pending submissions")
+      // Map them to internal task statuses where applicable.
+      if (status) {
+        const statusMap = {
+          submissions: 'completed',
+          'pending submissions': 'assigned',
+          pending: 'assigned',
+          completed: 'completed',
+          graded: 'graded',
+        };
+        filter.status = statusMap[status] || status;
+      }
+      if (studentId) {
+        filter.studentId = studentId;
       }
 
-      // Check if all intermediate tasks are completed
-      const allCompleted = intermediateTasks.every((task) => task.status === 'completed');
-
-      if (allCompleted) {
-        // Get the parent task
-        const parentTask = await EducationTask.findById(parentTaskId);
-
-        // Only update if parent task is not already completed or graded
-        if (parentTask && parentTask.status !== 'completed' && parentTask.status !== 'graded') {
-          await EducationTask.findByIdAndUpdate(
-            parentTaskId,
-            {
-              status: 'completed',
-              completedAt: new Date(),
-            },
-            { new: true },
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error updating parent task progress:', error);
-    }
-  };
-
-  // Mark task as complete
-  const markTaskAsComplete = async (req, res) => {
-    try {
-      const { taskId, studentId, taskType } = req.body;
-      const requestorId = req.body.requestor?.requestorId;
-
-      if (!taskId) {
-        return res.status(400).json({ error: 'Task ID is required' });
+      // Accept `courseId` as an alias for lessonPlanId when frontend sends course filters.
+      const lpFilterId = lessonPlanId || courseId;
+      if (lpFilterId) {
+        filter.lessonPlanId = lpFilterId;
       }
 
-      if (!requestorId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      // Handle intermediate tasks
-      if (taskType === 'intermediate') {
-        const intermediateTask = await IntermediateTask.findById(taskId).populate('parent_task_id');
-
-        if (!intermediateTask) {
-          return res.status(404).json({ error: 'Intermediate task not found' });
-        }
-
-        // Check if task is already completed
-        if (intermediateTask.status === 'completed') {
-          return res.status(400).json({ error: 'Task is already completed' });
-        }
-
-        // Update intermediate task status to completed (only update status field)
-        const updatedTask = await IntermediateTask.findByIdAndUpdate(
-          taskId,
-          {
-            $set: { status: 'completed' },
-          },
-          { new: true, runValidators: true },
-        ).populate('parent_task_id', 'type status dueAt studentId lessonPlanId');
-
-        // Check if all intermediate tasks for the parent are completed
-        await checkAndUpdateParentTaskProgress(intermediateTask.parent_task_id);
-
-        return res.status(200).json({
-          message: 'Intermediate task marked as complete successfully',
-          task: updatedTask,
-        });
-      }
-
-      // Handle education tasks (original logic)
-      if (!studentId) {
-        return res.status(400).json({ error: 'Student ID is required' });
-      }
-
-      // Find the task and verify it belongs to the student
-      const task = await EducationTask.findOne({
-        _id: taskId,
-        studentId,
-      });
-
-      if (!task) {
-        return res.status(404).json({ error: 'Task not found or does not belong to student' });
-      }
-
-      // Check if task is already completed
-      if (task.status === 'completed') {
-        return res.status(400).json({ error: 'Task is already completed' });
-      }
-
-      // Verify task type is read-only (only read-only tasks can be marked done manually)
-      if (task.type !== 'read') {
-        return res.status(400).json({
-          error: 'Only read-only tasks can be marked as complete manually',
-        });
-      }
-
-      // Check if logged hours meet the requirement
-      if (task.loggedHours < task.suggestedTotalHours) {
-        return res.status(400).json({
-          error: `Insufficient hours logged. Required: ${task.suggestedTotalHours}, Logged: ${task.loggedHours}`,
-        });
-      }
-
-      // Update task status to completed
-      const updatedTask = await EducationTask.findByIdAndUpdate(
-        taskId,
-        {
-          status: 'completed',
-          completedAt: new Date(),
-        },
-        { new: true },
-      )
-        .populate('lessonPlanId', 'title theme')
+      const submissions = await EducationTask.find(filter)
         .populate('studentId', 'firstName lastName email')
-        .populate('atomIds', 'name description difficulty');
+        .populate('lessonPlanId', 'title')
+        .sort({ completedAt: -1 });
 
-      res.status(200).json({
-        message: 'Task marked as complete successfully',
-        task: updatedTask,
-      });
+      // Helper function to format a single task submission
+      const formatSubmission = (task) => {
+        if (!task.studentId || !task.lessonPlanId) {
+          return null;
+        }
+
+        // Detect late submission: when completedAt exists and is after dueAt
+        let isLate = false;
+        let lateByMs = 0;
+        if (task.completedAt && task.dueAt) {
+          const completed = new Date(task.completedAt).getTime();
+          const due = new Date(task.dueAt).getTime();
+          if (!Number.isNaN(completed) && !Number.isNaN(due) && completed > due) {
+            isLate = true;
+            lateByMs = completed - due;
+          }
+        }
+
+        // If no completedAt but current time is past due and status not completed,
+        // mark as overdue (not yet submitted) but not a "late submission".
+        const now = Date.now();
+        const isOverdue = !task.completedAt && task.dueAt && new Date(task.dueAt).getTime() < now;
+
+        const camelStatus = (() => {
+          if (task.status === 'completed') return 'Pending Review';
+          if (task.status === 'graded') return 'Graded';
+          return task.status;
+        })();
+
+        return {
+          _id: task._id,
+          studentId: task.studentId._id,
+
+          // CamelCase fields expected by current frontend
+          studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+          studentEmail: task.studentId.email,
+          taskName: task.name || 'Unnamed Task',
+          taskType: task.type,
+          submissionLinks: task.uploadUrls || [],
+          status: camelStatus,
+          submittedAt: task.completedAt || null,
+          assignedAt: task.assignedAt || null,
+          dueAt: task.dueAt || null,
+          grade: task.grade,
+          feedback: task.feedback,
+          lessonPlanId: task.lessonPlanId._id,
+          lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          late: isLate,
+          lateByMs: isLate ? lateByMs : 0,
+          overdue: isOverdue,
+
+          // Backwards-compatible snake_case fields (some integrations may use these)
+          student_name: `${task.studentId.firstName} ${task.studentId.lastName}`,
+          student_email: task.studentId.email,
+          task: task.name || 'Unnamed Task',
+          task_type: task.type,
+          submission_link: task.uploadUrls || [],
+          submitted_at: task.completedAt || null,
+          assigned_at: task.assignedAt || null,
+          due_at: task.dueAt || null,
+        };
+      };
+
+      const formattedSubmissions = submissions.map(formatSubmission).filter(Boolean);
+
+      res.status(200).json(formattedSubmissions);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -441,7 +410,7 @@ const educationTaskController = function () {
     updateTaskStatus,
     gradeTask,
     getTasksByStatus,
-    markTaskAsComplete,
+    getTaskSubmissions,
   };
 };
 
