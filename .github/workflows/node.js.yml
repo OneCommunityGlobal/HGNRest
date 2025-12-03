@@ -20,12 +20,10 @@ jobs:
         node-version: 20.17.0
         
     - name: Install dependencies
-      working-directory: backend/HGNRest
-      run: npm ci
+      run: cd backend/HGNRest && npm ci
       
     - name: Run lint
-      working-directory: backend/HGNRest
-      run: npm run lint
+      run: cd backend/HGNRest && npm run lint
 
   test:
     name: Tests with 10% Coverage Enforcement
@@ -41,17 +39,15 @@ jobs:
         node-version: 20.17.0
         
     - name: Install dependencies
-      working-directory: backend/HGNRest
-      run: npm ci
+      run: cd backend/HGNRest && npm ci
       
     - name: Run tests with coverage enforcement
-      working-directory: backend/HGNRest
-      run: npm run test:ci
+      run: cd backend/HGNRest && npm run test:ci
       
     - name: Print detailed coverage report
-      working-directory: backend/HGNRest
       if: always()
       run: |
+        cd backend/HGNRest
         echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
         echo "=================================="
         echo "Minimum Required: Lines: 34%, Statements: 34%, Functions: 27%, Branches: 12%"
