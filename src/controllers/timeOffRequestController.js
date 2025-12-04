@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 /* eslint-disable */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');

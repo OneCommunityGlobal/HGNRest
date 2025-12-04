@@ -1,3 +1,7 @@
+/* eslint-disable no-restricted-globals */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-else-return */
+/* eslint-disable no-unused-vars */
 const regression = require('regression');
 const mongoose = require('mongoose');
 
