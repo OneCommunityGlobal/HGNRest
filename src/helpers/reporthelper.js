@@ -164,6 +164,12 @@ const reporthelper = function () {
       },
     ]);
 
+    console.log('📩 WeeklySummaries raw count:', results.length);
+    console.log(
+      '⚠️ Any inactive slipping through?',
+      results.filter((r) => !r.isActive).map((r) => r.email),
+    );
+
     // Logic too difficult to do using aggregation.
     results.forEach((result) => {
       // create Array(4) to hold totalSeconds for each week

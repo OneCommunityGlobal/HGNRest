@@ -1,6 +1,7 @@
+/* eslint-disable no-await-in-loop */
 // src/utilities/emailSender.js
 const nodemailer = require('nodemailer');
-const { google } = require('googleapis');
+// const { google } = require('googleapis');
 const logger = require('../startup/logger');
 const EmailHistory = require('../models/emailHistory');
 
@@ -15,41 +16,60 @@ const config = {
   rateLimitDelay: 1000,
 };
 
-const OAuth2Client = new google.auth.OAuth2(
-  config.clientId,
-  config.clientSecret,
-  config.redirectUri,
-);
-OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
+// Check if email sending is enabled
+const sendEmailEnabled = process.env.sendEmail === 'true';
+if (!sendEmailEnabled) console.log('Email sending is DISABLED via env variable.');
+// const OAuth2Client = new google.auth.OAuth2(
+//   config.clientId,
+//   config.clientSecret,
+//   config.redirectUri,
+// );
+// OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
 
 // Create the email envelope (transport)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  // auth: {
+  //   type: 'OAuth2',
+  //   user: config.email,
+  //   clientId: config.clientId,
+  //   clientSecret: config.clientSecret,
+  // },
+  // auth: {
+  //   user: process.env.REACT_APP_EMAIL,
+  //   pass: process.env.EMAIL_APP_PASSWORD,
+  // },
+  host: 'smtp.gmail.com',
+  // port: parseInt(process.env.SMTPPort, 10),
+  port: 587,
+  secure: false, // true for port 465
   auth: {
-    type: 'OAuth2',
-    user: config.email,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
+    user: process.env.TEST_EMAIL,
+    pass: process.env.EMAIL_APP_PASSWORD,
   },
 });
 
+// Queue system for batch sending
+const queue = [];
+let isProcessing = false;
+
 const sendEmail = async (mailOptions) => {
   try {
-    const accessTokenResp = await OAuth2Client.getAccessToken();
-    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+    // const accessTokenResp = await OAuth2Client.getAccessToken();
+    // const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
 
-    if (!token) {
-      throw new Error('NO_OAUTH_ACCESS_TOKEN');
-    }
+    // if (!token) {
+    //   throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    // }
 
-    mailOptions.auth = {
-      type: 'OAuth2', // include type
-      user: config.email,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      refreshToken: config.refreshToken,
-      accessToken: token,
-    };
+    // mailOptions.auth = {
+    //   type: 'OAuth2', // include type
+    //   user: config.email,
+    //   clientId: config.clientId,
+    //   clientSecret: config.clientSecret,
+    //   refreshToken: config.refreshToken,
+    //   accessToken: token,
+    // };
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
@@ -62,8 +82,8 @@ const sendEmail = async (mailOptions) => {
   }
 };
 
-const queue = [];
-let isProcessing = false;
+// const queue = [];
+// let isProcessing = false;
 
 const sleep = (ms) =>
   new Promise((resolve) => {
@@ -136,6 +156,7 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 };
 
 const worker = async () => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     // atomically pull next batch
     const batch = queue.shift();
@@ -216,7 +237,8 @@ const emailSender = (
     for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
-        from: config.email,
+        // from: config.email,
+        from: process.env.TEST_EMAIL,
         to: batchRecipients.length ? batchRecipients.join(',') : '',
         bcc: emailBccs ? emailBccs.join(',') : '',
         subject,
@@ -266,7 +288,8 @@ const sendSummaryNotification = async (recipientEmail, summary) => {
 
   try {
     await sendEmail({
-      from: config.email,
+      // from: config.email,
+      from: process.env.TEST_EMAIL,
       to: recipientEmail,
       subject: `Unread Messages Summary`,
       html: emailContent,

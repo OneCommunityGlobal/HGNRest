@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 // const mongoose = require('mongoose');
 const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
