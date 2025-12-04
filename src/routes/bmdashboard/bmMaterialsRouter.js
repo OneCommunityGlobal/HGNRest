@@ -12,8 +12,6 @@ const routes = function (buildingMaterial) {
 
   materialsRouter.route('/itemType/updateName').patch(controller.bmUpdateItemTypeName);
 
-  materialsRouter.route('/itemType/updateUnit').patch(controller.bmUpdateItemTypeUnit);
-
   materialsRouter.route('/updateMaterialRecord').post(controller.bmPostMaterialUpdateRecord);
 
   materialsRouter.route('/updateMaterialRecordBulk').post(controller.bmPostMaterialUpdateBulk);

@@ -388,38 +388,8 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
-  const bmUpdateItemTypeUnit = async function (req, res) {
-    try {
-      const { itemTypeId, newUnit } = req.body;
-
-      if (!itemTypeId || !newUnit) {
-        return res.status(400).json({ message: 'itemTypeId and newUnit are required.' });
-      }
-
-      const ItemType = mongoose.model('MaterialType');
-
-      const updated = await ItemType.findByIdAndUpdate(
-        itemTypeId,
-        { $set: { unit: newUnit } },
-        { new: true },
-      );
-
-      if (!updated) {
-        return res.status(404).json({ message: 'ItemType not found.' });
-      }
-
-      res.status(200).json({
-        message: 'Material type unit updated successfully.',
-        updated,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  };
-
   return {
     bmMaterialsList,
-    bmUpdateItemTypeUnit,
     bmPostMaterialUpdateRecord,
     bmPostMaterialUpdateBulk,
     bmPurchaseMaterials,

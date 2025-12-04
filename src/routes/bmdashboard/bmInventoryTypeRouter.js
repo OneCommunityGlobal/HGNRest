@@ -41,6 +41,21 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
 
   inventoryTypeRouter.route('/inventoryUnits').get(controller.fetchInvUnitsFromJson);
 
+  // get a single inventory type (material) by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId')
+    .get(controller.fetchSingleInventoryType);
+
+  // update only the name by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId/name')
+    .put(controller.updateInventoryName);
+
+  // update only the unit by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId/unit')
+    .put(controller.updateInventoryUnit);
+
   return inventoryTypeRouter;
 };
 
