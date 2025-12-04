@@ -41,6 +41,7 @@ const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
 
 // Title
 const title = require('../models/title');
@@ -263,6 +264,7 @@ const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
   PRReviewInsights,
   userProfile,
 );
+const weeklyGradingRouter = require('../routes/prAnalytics/weeklyGradingRouter')(WeeklyGrading);
 
 const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
@@ -486,6 +488,7 @@ module.exports = function (app) {
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
+  app.use('/api', weeklyGradingRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
