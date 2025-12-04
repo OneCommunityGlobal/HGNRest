@@ -1,6 +1,5 @@
 // src/controllers/promotionEligibilityController.js
 const mongoose = require('mongoose');
-
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ValidationError } = require('../utilities/errorHandling/customError');
