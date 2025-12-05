@@ -36,7 +36,10 @@ const afterConnect = async () => {
 };
 
 module.exports = function () {
-  const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin&retryWrites=false`;
+  const uri = `mongodb+srv://${process.env.DB_USER}:${encodeURIComponent(process.env.DB_PASSWORD)}@${process.env.DB_CLUSTER}/${process.env.DB_NAME}?retryWrites=true&w=majority&appName=${process.env.DB_APP_NAME}`;
+console.log("mongo url"+
+    uri
+  );
 
   mongoose
     .connect(uri, {
