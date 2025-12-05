@@ -249,6 +249,8 @@ const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRo
   toolAvailability,
 );
 
+const downloadReportRouter = require('../routes/educationPortal/downloadReportRouter');
+
 const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
 const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
   projectCostTracking,
@@ -499,4 +501,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
   app.use('/api', materialCostRouter);
+
+  app.use('/api/educator/reports', downloadReportRouter);
 };
