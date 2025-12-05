@@ -1,9 +1,9 @@
-const rolePresetsController = require('./rolePresetsController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const Preset = require('../models/rolePreset');
 const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
+const rolePresetsController = require('./rolePresetsController');
 
 // Mock the models
 jest.mock('../models/role');
