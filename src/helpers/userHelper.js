@@ -83,24 +83,59 @@ const userHelper = function () {
     return result.length > 0 ? result[0].teamCode : null;
   }
 
+  function getTeamCodeSuffix(teamCode) {
+    if (!teamCode || typeof teamCode !== 'string') return null;
+
+    // Grab the last 3 digits at the end of the string, if any
+    const match = teamCode.match(/(\d{3})\s*$/);
+    return match ? match[1] : null;
+  }
+
+  // async function checkTeamCodeMismatch(user) {
+  //  try {
+  // no user or no teams → nothing to compare
+  //    if (!user || !user.teams.length) {
+  //      return false;
+  //    }
+
+  // looks like they always checked the first (latest) team
+  //    const latestTeamId = user.teams[0];
+
+  // this was in your diff: getCurrentTeamCode(latestTeamId)
+  //    const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
+  //    if (!teamCodeFromFirstActive) {
+  //      return false;
+  //    }
+
+  // mismatch if user's stored teamCode != that team's current code
+  //    return teamCodeFromFirstActive !== user.teamCode;
+  //  } catch (error) {
+  //    logger.logException(error);
+  //    return false;
+  //  }
+  // }
+
   async function checkTeamCodeMismatch(user) {
     try {
-      // no user or no teams → nothing to compare
-      if (!user || !user.teams.length) {
+      if (!user || !Array.isArray(user.teams) || user.teams.length === 0) {
         return false;
       }
 
-      // looks like they always checked the first (latest) team
       const latestTeamId = user.teams[0];
 
-      // this was in your diff: getCurrentTeamCode(latestTeamId)
       const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-      if (!teamCodeFromFirstActive) {
+      if (!teamCodeFromFirstActive || !user.teamCode) {
         return false;
       }
 
-      // mismatch if user's stored teamCode != that team's current code
-      return teamCodeFromFirstActive !== user.teamCode;
+      const userSuffix = getTeamCodeSuffix(user.teamCode);
+      const teamSuffix = getTeamCodeSuffix(teamCodeFromFirstActive);
+
+      if (!userSuffix || !teamSuffix) {
+        return false;
+      }
+
+      return userSuffix === teamSuffix && user.teamCode !== teamCodeFromFirstActive;
     } catch (error) {
       logger.logException(error);
       return false;
