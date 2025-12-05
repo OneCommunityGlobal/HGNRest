@@ -684,13 +684,19 @@ const overviewReportHelper = function () {
         {
           $addFields: {
             'infringements.parsedDate': {
-              $toDate: '$infringements.date',
+              $convert: {
+                input: '$infringements.date',
+                to: 'date',
+                onError: null,
+                onNull: null,
+              },
             },
           },
         },
         {
           $match: {
             'infringements.parsedDate': {
+              $ne: null,
               $gte: startDate,
               $lte: endDate,
             },
@@ -775,13 +781,19 @@ const overviewReportHelper = function () {
         {
           $addFields: {
             'infringements.parsedDate': {
-              $toDate: '$infringements.date',
+              $convert: {
+                input: '$infringements.date',
+                to: 'date',
+                onError: null,
+                onNull: null,
+              },
             },
           },
         },
         {
           $match: {
             'infringements.parsedDate': {
+              $ne: null,
               $gte: startDate,
               $lte: endDate,
             },
@@ -800,7 +812,6 @@ const overviewReportHelper = function () {
       return accum;
     }, {});
 
-    // fill missing fields
     const reasons = [
       'missingHours',
       'missingSummary',
