@@ -33,7 +33,6 @@
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.940.0",
     "@babel/eslint-parser": "^7.15.0",
     "@types/bson": "^4.2.4",
     "@types/compression": "^1.7.5",
@@ -59,6 +58,7 @@
     "supertest": "^6.3.4"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.940.0",
     "@azure/storage-blob": "^12.26.0",
     "@babel/cli": "^7.15.4",
     "@babel/core": "^7.10.2",
