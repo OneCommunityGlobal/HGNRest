@@ -38,6 +38,7 @@ const EventSchema = new Schema(
       default: 'New',
     },
     description: { type: String, required: true },
+    organizer: { type: String },
     resources: [
       {
         name: { type: String, required: true },
