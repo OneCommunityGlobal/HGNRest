@@ -1,99 +1,78 @@
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 
-const resourceRequestController = function (ResourceRequest, UserProfile) {
+const resourceRequestController = (ResourceRequest, UserProfile) => {
+  // Helper: Validate ObjectId
+  const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+
   /**
-   * Create a new resource request for educators
-   * @param {Object} req - Request object containing requestor and request data
-   * @param {Object} res - Response object
+   * Create a new resource request (Educator only)
    */
   const createResourceRequest = async (req, res) => {
     try {
-      const requestorId = req.body.requestor?.requestorId || req.body.requestor?._id;
-      const educatorId = req.body.educator_id || requestorId;
+      const requestor = req.requestor || req.body.requestor;
 
-      const isCreatingOwnRequest =
-        educatorId && requestorId && educatorId.toString() === requestorId.toString();
-      const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor?.role);
-
-      if (
-        !isCreatingOwnRequest &&
-        !hasRolePermission &&
-        !(await hasPermission(req.body.requestor, 'manageResourceRequests'))
-      ) {
-        return res.status(403).send('You are not authorized to create resource requests.');
+      if (!requestor?._id) {
+        return res.status(401).send('Authentication required.');
       }
 
-      const requestTitle = req.body.request_title;
-      const requestDetails = req.body.request_details;
+      const educatorId = requestor._id;
 
-      if (!requestTitle || !requestDetails) {
-        return res.status(400).send('Request title and request details are required.');
+      const isEducator =
+        requestor.role === 'Educator' ||
+        (await hasPermission(requestor, 'createResourceRequests'));
+
+      if (!isEducator) {
+        return res.status(403).send('Only educators can submit resource requests.');
       }
 
-      if (!educatorId) {
-        return res.status(400).send('Educator ID is required.');
+      const { request_title, request_details } = req.body;
+
+      if (!request_title || !request_details) {
+        return res.status(400).send('Request title and details are required.');
       }
 
-      const educator = await UserProfile.findById(educatorId);
-      if (!educator) {
-        return res.status(404).send('Educator not found.');
-      }
-
-      if (req.body.pm_id) {
-        const pm = await UserProfile.findById(req.body.pm_id);
-        if (!pm) {
-          return res.status(404).send('Program Manager (PM) not found.');
-        }
-      }
-
-      if (req.body.status && !['pending', 'approved', 'denied'].includes(req.body.status)) {
-        return res.status(400).send('Status must be one of: pending, approved, denied.');
-      }
-
-      const newResourceRequest = new ResourceRequest({
-        requestor_id: mongoose.Types.ObjectId(requestorId),
-        educator_id: mongoose.Types.ObjectId(educatorId),
-        pm_id: req.body.pm_id ? mongoose.Types.ObjectId(req.body.pm_id) : null,
-        request_title: requestTitle,
-        request_details: requestDetails,
-        status: req.body.status || 'pending',
+      // Educators CANNOT set or override status
+      const newRequest = new ResourceRequest({
+        educator_id: educatorId,
+        request_title,
+        request_details,
+        status: 'pending',
       });
 
-      const savedRequest = await newResourceRequest.save();
+      const saved = await newRequest.save();
 
-      const populatedRequest = await ResourceRequest.findById(savedRequest._id)
+      const populated = await ResourceRequest.findById(saved._id)
         .populate('educator_id', 'firstName lastName email role')
         .populate('pm_id', 'firstName lastName email role');
 
-      return res.status(201).send(populatedRequest);
-    } catch (error) {
-      console.error('Error in createResourceRequest:', error);
-      if (error.name === 'ValidationError') {
-        return res.status(400).send(`Validation error: ${error.message}`);
-      }
-      return res.status(500).send('Error creating resource request. Please try again.');
+      return res.status(201).send(populated);
+    } catch (err) {
+      console.error('Error in createResourceRequest:', err);
+      return res.status(500).send('Error creating resource request.');
     }
   };
 
   /**
-   * Get all resource requests created by the logged-in educator
+   * Get resource requests for the logged-in educator
    */
   const getEducatorResourceRequests = async (req, res) => {
     try {
-      const requestor = req.body.requestor;
+      const requestor = req.requestor || req.body.requestor;
+
+      if (!requestor?._id) {
+        return res.status(401).send('Authentication required.');
+      }
 
       const isEducator =
-        requestor?.role === 'Educator' ||
+        requestor.role === 'Educator' ||
         (await hasPermission(requestor, 'createResourceRequests'));
 
       if (!isEducator) {
-        return res.status(403).send('Only educators can view their own resource requests.');
+        return res.status(403).send('Only educators can view their resource requests.');
       }
 
-      const educatorId = requestor?._id;
-
-      const filter = { educator_id: educatorId };
+      const filter = { educator_id: requestor._id };
 
       if (req.query.status) {
         filter.status = req.query.status;
@@ -104,83 +83,106 @@ const resourceRequestController = function (ResourceRequest, UserProfile) {
         .populate('pm_id', 'firstName lastName email role');
 
       return res.status(200).send(requests);
-    } catch (error) {
-      console.error('Error in getEducatorResourceRequests:', error);
-      return res.status(500).send('Error fetching resource requests. Please try again.');
+    } catch (err) {
+      console.error('Error in getEducatorResourceRequests:', err);
+      return res.status(500).send('Error fetching educator requests.');
     }
   };
 
   /**
-   * Get all resource requests (PM only)
+   * PM: View all resource requests
    */
   const getPMResourceRequests = async (req, res) => {
     try {
-      const requestor = req.body.requestor;
-      const isPM = await hasPermission(requestor, 'manageResourceRequests');
+      const requestor = req.requestor || req.body.requestor;
 
-      if (!isPM && !['Owner', 'Administrator'].includes(requestor?.role)) {
+      if (!requestor?._id) {
+        return res.status(401).send('Authentication required.');
+      }
+
+      const isPM =
+        requestor.role === 'Program Manager' ||
+        (await hasPermission(requestor, 'manageResourceRequests'));
+
+      if (!isPM && !['Owner', 'Administrator'].includes(requestor.role)) {
         return res.status(403).send('Only PMs can view all resource requests.');
       }
 
       const filter = {};
 
-      if (req.query.status) {
-        filter.status = req.query.status;
-      }
-
-      if (req.query.educator_id) {
+      if (req.query.status) filter.status = req.query.status;
+      if (req.query.educator_id && isValidId(req.query.educator_id)) {
         filter.educator_id = req.query.educator_id;
       }
 
+      // Pagination
+      const limit = Number(req.query.limit) || 20;
+      const page = Number(req.query.page) || 1;
+
       const requests = await ResourceRequest.find(filter)
         .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
         .populate('educator_id', 'firstName lastName email role')
         .populate('pm_id', 'firstName lastName email role');
 
       return res.status(200).send(requests);
-    } catch (error) {
-      console.error('Error in getPMResourceRequests:', error);
+    } catch (err) {
+      console.error('Error in getPMResourceRequests:', err);
       return res.status(500).send('Error fetching resource requests.');
     }
   };
 
   /**
-   * Update status of a resource request (PM only)
+   * PM: Update request status
    */
   const updatePMResourceRequestStatus = async (req, res) => {
     try {
-      const requestor = req.body.requestor;
-      const isPM = await hasPermission(requestor, 'manageResourceRequests');
+      const requestor = req.requestor || req.body.requestor;
 
-      if (!isPM && !['Owner', 'Administrator'].includes(requestor?.role)) {
-        return res.status(403).send('Only PMs can update resource request status.');
+      if (!requestor?._id) {
+        return res.status(401).send('Authentication required.');
+      }
+
+      const isPM =
+        requestor.role === 'Program Manager' ||
+        (await hasPermission(requestor, 'manageResourceRequests'));
+
+      if (!isPM && !['Owner', 'Administrator'].includes(requestor.role)) {
+        return res.status(403).send('Only PMs can update resource requests.');
       }
 
       const requestId = req.params.id;
+
+      if (!isValidId(requestId)) {
+        return res.status(400).send('Invalid request ID.');
+      }
+
       const newStatus = req.body.status;
 
       if (!['approved', 'denied', 'pending'].includes(newStatus)) {
         return res.status(400).send('Invalid status value.');
       }
 
-      const existingRequest = await ResourceRequest.findById(requestId);
-      if (!existingRequest) {
+      const request = await ResourceRequest.findById(requestId);
+
+      if (!request) {
         return res.status(404).send('Resource request not found.');
       }
 
-      existingRequest.status = newStatus;
-      existingRequest.pm_id = requestor._id;
+      request.status = newStatus;
+      request.pm_id = requestor._id;
 
-      const updated = await existingRequest.save();
+      const updated = await request.save();
 
       const populated = await ResourceRequest.findById(updated._id)
         .populate('educator_id', 'firstName lastName email role')
         .populate('pm_id', 'firstName lastName email role');
 
       return res.status(200).send(populated);
-    } catch (error) {
-      console.error('Error in updatePMResourceRequestStatus:', error);
-      return res.status(500).send('Error updating resource request status.');
+    } catch (err) {
+      console.error('Error in updatePMResourceRequestStatus:', err);
+      return res.status(500).send('Error updating resource request.');
     }
   };
 
