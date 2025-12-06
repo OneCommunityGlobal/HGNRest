@@ -23,7 +23,6 @@ const reporthelper = function () {
    * @param {integer} endWeekIndex The end week index, eg. 1 for last week.
    */
   const weeklySummaries = async (startWeekIndex, endWeekIndex) => {
-
     const pstStart = moment()
       .tz('America/Los_Angeles')
       .startOf('week')
@@ -37,7 +36,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        $match: { isActive: true },
       },
       {
         $lookup: {
@@ -59,10 +58,16 @@ const reporthelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$timeEntry.dateOfWork', moment(pstStart).format('YYYY-MM-DD')],
+                    $gte: [
+                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
+                      pstStart,
+                    ],
                   },
                   {
-                    $lte: ['$$timeEntry.dateOfWork', moment(pstEnd).format('YYYY-MM-DD')],
+                    $lte: [
+                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
+                      pstEnd,
+                    ],
                   },
                 ],
               },
@@ -164,22 +169,15 @@ const reporthelper = function () {
       // create Array(4) to hold totalSeconds for each week
       result.totalSeconds = [0, 0, 0, 0];
 
+      if (!result.timeEntries || result.timeEntries.length === 0) return;
+
       result.timeEntries.forEach((entry) => {
         const index =
-          startWeekIndex === endWeekIndex
-            ? startWeekIndex
-            : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
-        if (result.totalSeconds[index] === undefined || result.totalSeconds[index] === null) {
-          result.totalSeconds[index] = 0;
-        }
+          startWeekIndex === endWeekIndex ? 0 : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
 
-        if (entry.isTangible === true) {
-          result.totalSeconds[index] += entry.totalSeconds;
-          if (index >= 0 && index < 4) {
-            if (entry.isTangible === true) {
-              result.totalSeconds[index] += entry.totalSeconds;
-            }
-          }
+        if (index >= 0 && index < 4) {
+          result.totalSeconds[index] =
+            (result.totalSeconds[index] || 0) + (entry.totalSeconds || 0);
         }
       });
 
@@ -198,7 +196,6 @@ const reporthelper = function () {
     userProfile.find({ getWeeklyReport: true }, { email: 1, _id: 0 }).then((results) => {
       mappedResults = results.map((ele) => ele.email);
       mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-      console.log('results:', mappedResults);
     });
     return mappedResults;
   };

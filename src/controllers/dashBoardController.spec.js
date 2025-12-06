@@ -4,9 +4,9 @@ jest.mock('../utilities/emailSender', () => jest.fn());
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
 const { mockReq, mockRes, assertResMock } = require('../test');
-const forgotPwdController = require('./forgotPwdcontroller');
 const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
+const forgotPwdController = require('./forgotPwdcontroller');
 
 uuidv4.mockReturnValue('');
 emailSender.mockImplementation(() => Promise.resolve());
@@ -120,6 +120,9 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
         expectedEmailMessage,
         null,
         null,
+        null,
+        null,
+        { type: 'password_reset' },
       );
       assertResMock(200, { message: 'generated new password' }, response, mockRes);
       expect(findOneSpy).toHaveBeenCalledWith({
