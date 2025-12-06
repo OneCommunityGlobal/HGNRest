@@ -1,46 +1,50 @@
-const {
-  studentGroups,
-  studentGroupMembers,
-  educationStudentProfile,
-  studentMetrics,
-} = require('./mockData');
+// controllers/ClassAggregation/classAggregationController.js
+const mongoose = require('mongoose');
 
-// ---------------------- Helpers ----------------------
-
-function getStudentsInGroup(groupId) {
-  return studentGroupMembers.filter((m) => m.groupId === groupId).map((m) => m.studentId);
-}
-
-function getProfile(studentId) {
-  return educationStudentProfile.find((p) => p.studentId === studentId);
-}
-
-function getMetrics(studentId) {
-  return studentMetrics[studentId];
-}
-
-// ---------------------- Score Logic ----------------------
-
+// ---------------------- Weight Constants ----------------------
 const Wc = 0.7;
 const Wa = 0.2;
 const We = 0.1;
 
-function computeStudentScore(studentId) {
-  const profile = getProfile(studentId);
-  const metrics = getMetrics(studentId);
+// ---------------------- Helpers ----------------------
+async function getStudentsInGroup(groupId) {
+  const { db } = mongoose.connection;
+  const members = await db
+    .collection('studentgroupmembers')
+    .find({ groupId: new mongoose.Types.ObjectId(groupId) })
+    .toArray();
+  return members.map((m) => m.studentId);
+}
+
+async function getProfile(studentId) {
+  const { db } = mongoose.connection;
+  return db
+    .collection('education_student_profiles')
+    .findOne({ _id: new mongoose.Types.ObjectId(studentId) });
+}
+
+async function getMetrics(studentId) {
+  const { db } = mongoose.connection;
+  const metricsDoc = await db
+    .collection('studentMetrics')
+    .findOne({ studentId: new mongoose.Types.ObjectId(studentId) });
+  return metricsDoc?.metrics || null;
+}
+
+// ---------------------- Score Logic ----------------------
+async function computeStudentScore(studentId) {
+  const profile = await getProfile(studentId);
+  const metrics = await getMetrics(studentId);
 
   if (!profile || !metrics) return null;
 
   const ps = profile.progressSummary;
 
-  // Completion %
   const C = (ps.totalCompleted / ps.totalAtoms) * 100;
-
   const A = metrics.averageScore;
   const E = metrics.engagementRate;
 
-  const score = Wc * C + Wa * A + We * E;
-  return score;
+  return Wc * C + Wa * A + We * E;
 }
 
 function performanceCategory(score) {
@@ -50,35 +54,17 @@ function performanceCategory(score) {
 }
 
 // ---------------------- Group Performance ----------------------
+async function computeGroupPerformance(groupId) {
+  const studentIds = await getStudentsInGroup(groupId);
+  const scores = await Promise.all(studentIds.map((id) => computeStudentScore(id)));
+  const validScores = scores.filter((s) => s !== null);
 
-function computeGroupPerformance(groupId) {
-  const students = getStudentsInGroup(groupId);
-
-  const scores = students.map((s) => computeStudentScore(s)).filter((s) => s !== null);
-
-  if (scores.length === 0) return 0;
-
-  return scores.reduce((a, b) => a + b, 0) / scores.length;
-}
-
-// ---------------------- Evaluate All Groups ----------------------
-
-function evaluateAllGroups() {
-  return studentGroups.map((g) => {
-    const performance = computeGroupPerformance(g.groupId);
-
-    return {
-      groupId: g.groupId,
-      groupName: g.groupName,
-      performance,
-      performanceCategory: performanceCategory(performance),
-    };
-  });
+  if (validScores.length === 0) return 0;
+  return validScores.reduce((a, b) => a + b, 0) / validScores.length;
 }
 
 module.exports = {
   computeStudentScore,
   performanceCategory,
   computeGroupPerformance,
-  evaluateAllGroups,
 };
