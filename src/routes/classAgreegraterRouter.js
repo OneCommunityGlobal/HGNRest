@@ -1,74 +1,80 @@
+// routes/classAggregationRouter.js
 const express = require('express');
 
-const router = express.Router();
+const mongoose = require('mongoose');
 
+const router = express.Router();
 const {
   computeStudentScore,
   performanceCategory,
   computeGroupPerformance,
 } = require('../controllers/ClassAggregation/classAggregationController');
 
-const {
-  studentGroupMembers,
-  educationStudentProfile,
-  studentMetrics,
-  studentGroups,
-} = require('../controllers/ClassAggregation/mockData');
-
-function getStudentsInClass(classId) {
-  return studentGroupMembers.filter((m) => m.groupId === classId).map((m) => m.studentId);
+// ---------------------- Helpers ----------------------
+async function getStudentsInClass(classId) {
+  const { db } = mongoose.connection;
+  const members = await db
+    .collection('studentgroupmembers')
+    .find({ groupId: new mongoose.Types.ObjectId(classId) })
+    .toArray();
+  return members.map(({ studentId }) => studentId);
 }
 
-function getStudentData(studentId) {
-  const profile = educationStudentProfile.find((p) => p.studentId === studentId);
-  const metrics = studentMetrics[studentId];
-
-  return {
-    studentId,
-    profile,
-    metrics,
-  };
+async function getStudentData(studentId) {
+  const { db } = mongoose.connection;
+  const profile = await db
+    .collection('education_student_profiles')
+    .findOne({ _id: new mongoose.Types.ObjectId(studentId) });
+  const metrics = await db
+    .collection('studentMetrics')
+    .findOne({ studentId: new mongoose.Types.ObjectId(studentId) });
+  return { profile, metrics: metrics?.metrics || null };
 }
 
-// ----------------------
-// 1. /educator/reports/class/:classId
-// ----------------------
-router.get('/class/:classId', (req, res) => {
-  const { classId } = req.params;
+// ---------------------- GET /educator/reports/class/:classId ----------------------
+router.get('/class/:classId', async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const { db } = mongoose.connection;
 
-  // Validate classId
-  const group = studentGroups.find((g) => g.groupId === classId);
-  if (!group) {
-    return res.status(404).json({ error: 'Class not found' });
+    const group = await db
+      .collection('studentgroups')
+      .findOne({ _id: new mongoose.Types.ObjectId(classId) });
+    if (!group) return res.status(404).json({ error: 'Class not found' });
+
+    const studentIds = await getStudentsInClass(classId);
+
+    const students = await Promise.all(
+      studentIds.map(async (studentId) => {
+        const { profile, metrics } = await getStudentData(studentId);
+        const score = await computeStudentScore(studentId);
+
+        return {
+          studentId,
+          educator: profile?.educator,
+          progressSummary: profile?.progressSummary,
+          subjects: profile?.subjects,
+          metrics,
+          score,
+          performance: performanceCategory(score),
+        };
+      }),
+    );
+
+    const classPerformance = await computeGroupPerformance(classId);
+
+    res.json({
+      classId,
+      className: group.name,
+      totalStudents: students.length,
+      classPerformance,
+      performanceCategory: performanceCategory(classPerformance),
+      students,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  const studentIds = getStudentsInClass(classId);
-
-  const students = studentIds.map((studentId) => {
-    const { profile, metrics } = getStudentData(studentId);
-    const score = computeStudentScore(studentId);
-
-    return {
-      studentId,
-      educator: profile?.educator,
-      progressSummary: profile?.progressSummary,
-      subjects: profile?.subjects,
-      metrics,
-      score,
-      performance: performanceCategory(score),
-    };
-  });
-
-  const classPerformance = computeGroupPerformance(classId);
-
-  return res.json({
-    classId,
-    className: group.groupName,
-    totalStudents: students.length,
-    classPerformance,
-    performanceCategory: performanceCategory(classPerformance),
-    students,
-  });
 });
 
 module.exports = router;
