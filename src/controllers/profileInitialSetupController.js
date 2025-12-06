@@ -9,7 +9,6 @@ const LOGGER = require('../startup/logger');
 
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
-const TOKEN_INVALID_MESSAGE = 'INVALID';
 const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
 const { startSession } = mongoose;
@@ -108,17 +107,14 @@ function informManagerMessage(user) {
   return message;
 }
 
-const sendEmailWithAcknowledgment = (email, subject, message) =>
-  new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (result) resolve(result);
-      if (error) reject(result);
-    });
-  });
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  const p = emailSender(email, subject, message, null, null, null, null);
+  return p && typeof p.then === 'function' ? p : Promise.resolve('EMAIL_SENDING_DISABLED');
+};
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
-  userProfile,
+  UserProfile,
   Project,
   MapLocation,
 ) {
@@ -139,21 +135,15 @@ const profileInitialSetupController = function (
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
-    // Wrap multiple db operations in a transaction
     const session = await startSession();
     session.startTransaction();
 
     try {
-      const existingEmail = await userProfile
-        .findOne({
-          email,
-        })
-        .session(session);
-
+      const existingEmail = await UserProfile.findOne({ email }).session(session);
       if (existingEmail) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).send('email already in use');
+        return res.status(400).send({ error: 'EMAIL_IN_USE' });
       }
 
       await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
@@ -170,30 +160,31 @@ const profileInitialSetupController = function (
 
       const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
+
       await session.commitTransaction();
+      session.endSession();
 
-      // Send response immediately without waiting for email acknowledgment
-      res.status(200).send({ message: 'Token created successfully, email is being sent.' });
-
-      // Asynchronously send the email acknowledgment
-      setImmediate(async () => {
-        try {
-          await sendEmailWithAcknowledgment(
-            email,
-            'NEEDED: Complete your One Community profile setup',
-            sendLinkMessage(link),
-          );
-        } catch (emailError) {
-          // Log email sending failure
-          LOGGER.logException(emailError, 'sendEmailWithAcknowledgment', JSON.stringify({ email, link }), null);
-        }
-      });
+      try {
+        await sendEmailWithAcknowledgment(
+          email,
+          'NEEDED: Complete your One Community profile setup',
+          sendLinkMessage(link),
+        );
+        return res.status(200).send({ sent: true });
+      } catch (emailError) {
+        LOGGER.logException(
+          emailError,
+          'sendEmailWithAcknowledgment',
+          JSON.stringify({ email, link }),
+          null,
+        );
+        return res.status(500).send({ error: 'MAIL_SEND_FAILED' });
+      }
     } catch (error) {
       await session.abortTransaction();
-      LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
-      return res.status(400).send(`Error: ${error}`);
-    } finally {
       session.endSession();
+      LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
+      return res.status(500).send({ error: 'TOKEN_CREATION_FAILED' });
     }
   };
 
@@ -254,7 +245,7 @@ const profileInitialSetupController = function (
         return;
       }
 
-      const existingEmail = await userProfile.findOne({
+      const existingEmail = await UserProfile.findOne({
         email: foundToken.email,
       });
 
@@ -269,7 +260,7 @@ const profileInitialSetupController = function (
             projectName: 'Orientation and Initial Setup',
           });
 
-          const newUser = new userProfile();
+          const newUser = new UserProfile();
           newUser.password = req.body.password;
           newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
@@ -327,23 +318,23 @@ const profileInitialSetupController = function (
             expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
           };
 
-          const token = jwt.sign(jwtPayload, JWT_SECRET);
+          const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
 
-          const locationData = {
-            title: '',
-            firstName: req.body.firstName,
-            lastName: req.body.lastName,
-            jobTitle: req.body.jobTitle,
-            location: req.body.homeCountry,
-            isActive: true,
-          };
+          // const locationData = {
+          //   title: '',
+          //   firstName: req.body.firstName,
+          //   lastName: req.body.lastName,
+          //   jobTitle: req.body.jobTitle,
+          //   location: req.body.homeCountry,
+          //   isActive: true,
+          // };
 
-          res.send({ token }).status(200);
+          res.status(200).send({ token: jwtToken });
 
-          const mapEntryResult = await setMapLocation(locationData);
-          if (mapEntryResult.type === 'Error') {
-            console.log(mapEntryResult.message);
-          }
+          // const mapEntryResult = await setMapLocation(locationData);
+          // if (mapEntryResult.type === 'Error') {
+          //   console.log(mapEntryResult.message);
+          // }
 
           const NewUserCache = {
             permissions: savedUser.permissions,
@@ -382,7 +373,7 @@ const profileInitialSetupController = function (
         projectName: 'Orientation and Initial Setup',
       });
 
-      const newUser = new userProfile();
+      const newUser = new UserProfile();
       newUser.password = req.body.password;
       newUser.role = 'Volunteer';
       newUser.firstName = req.body.firstName;
@@ -497,7 +488,7 @@ const profileInitialSetupController = function (
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
-      const results = await userProfile.find({}, 'location totalTangibleHrs hoursByCategory');
+      const results = await UserProfile.find({}, 'location totalTangibleHrs hoursByCategory');
 
       results.forEach((item) => {
         if (
@@ -534,24 +525,43 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    let user_permissions = ['getUserProfiles','postUserProfile','putUserProfile','changeUserStatus']
-    if ((role === 'Administrator') || (role === 'Owner') || (role === 'Manager') || (role === 'Mentor') ||  user_permissions.some(e=>permissions.frontPermissions.includes(e))) {
-      try{
-      ProfileInitialSetupToken
-      .find({ isSetupCompleted: false })
-      .sort({ createdDate: -1 })
-      .exec((err, result) => {
-        // Handle the result
-        if (err) {
-          LOGGER.logException(err);
-          return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-        }
-          return res.status(200).send(result);
-      });
-    } catch (error) {
-      LOGGER.logException(error);
-      return res.status(500).send('Internal Error: Please retry. If the problem persists, please contact the administrator');
-    }
+    const userPermissions = [
+      'searchUserProfile',
+      'getUserProfiles',
+      'postUserProfile',
+      'putUserProfile',
+      'changeUserStatus',
+    ];
+    if (
+      role === 'Administrator' ||
+      role === 'Owner' ||
+      role === 'Manager' ||
+      role === 'Mentor' ||
+      userPermissions.some((e) => permissions.frontPermissions.includes(e))
+    ) {
+      try {
+        ProfileInitialSetupToken.find({ isSetupCompleted: false })
+          .sort({ createdDate: -1 })
+          .exec((err, result) => {
+            // Handle the result
+            if (err) {
+              LOGGER.logException(err);
+              return res
+                .status(500)
+                .send(
+                  'Internal Error: Please retry. If the problem persists, please contact the administrator',
+                );
+            }
+            return res.status(200).send(result);
+          });
+      } catch (error) {
+        LOGGER.logException(error);
+        return res
+          .status(500)
+          .send(
+            'Internal Error: Please retry. If the problem persists, please contact the administrator',
+          );
+      }
     } else {
       return res.status(403).send('You are not authorized to get setup history.');
     }
@@ -621,7 +631,11 @@ const profileInitialSetupController = function (
         )
           .then((result) => {
             const { email } = result;
+            console.log(email);
+            LOGGER.logInfo(email);
             const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+            console.log(link);
+            LOGGER.logInfo(link);
             sendEmailWithAcknowledgment(
               email,
               'Invitation Link Refreshed: Complete Your One Community Profile Setup',
