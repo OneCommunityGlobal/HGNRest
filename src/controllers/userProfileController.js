@@ -1843,7 +1843,7 @@ const userProfileController = function (UserProfile, Project) {
       const newInfringement = {
         ...req.body.blueSquare,
         // date:validDate,
-        date: new Date(inputDate),
+        date: inputDate,
 
         // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
@@ -1897,6 +1897,7 @@ const userProfileController = function (UserProfile, Project) {
           );
           res.status(200).json({
             _id: record._id,
+            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache
