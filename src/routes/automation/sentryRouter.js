@@ -9,4 +9,7 @@ router.post('/invite', sentryController.inviteUser);
 // Route to remove a user from the organization
 router.delete('/remove', sentryController.removeUser);
 
+// Route to get detailed user information
+router.post('/user-details', sentryController.getUserDetails);
+
 module.exports = router;
