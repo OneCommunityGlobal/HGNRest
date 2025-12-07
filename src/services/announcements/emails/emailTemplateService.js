@@ -8,7 +8,7 @@ const sanitizeHtmlLib = require('sanitize-html');
 const EmailTemplate = require('../../../models/emailTemplate');
 const { EMAIL_CONFIG } = require('../../../config/emailConfig');
 const { ensureHtmlWithinLimit } = require('../../../utilities/emailValidators');
-const logger = require('../../../startup/logger');
+// const logger = require('../../../startup/logger');
 
 class EmailTemplateService {
   /**
@@ -271,7 +271,7 @@ class EmailTemplateService {
     await template.populate('created_by', 'firstName lastName email');
     await template.populate('updated_by', 'firstName lastName email');
 
-    logger.logInfo(`Email template created: ${template.name} by user ${userId}`);
+    // logger.logInfo(`Email template created: ${template.name} by user ${userId}`);
 
     return template;
   }
@@ -436,7 +436,7 @@ class EmailTemplateService {
       throw error;
     }
 
-    logger.logInfo(`Email template updated: ${template.name} by user ${userId}`);
+    // logger.logInfo(`Email template updated: ${template.name} by user ${userId}`);
 
     return template;
   }
@@ -444,11 +444,10 @@ class EmailTemplateService {
   /**
    * Delete a template (hard delete).
    * @param {string|ObjectId} id - Template ID
-   * @param {string|ObjectId} userId - User ID deleting the template
    * @returns {Promise<Object>} Deleted template
    * @throws {Error} If template not found
    */
-  static async deleteTemplate(id, userId) {
+  static async deleteTemplate(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       const error = new Error('Invalid template ID');
       error.statusCode = 400;
@@ -463,12 +462,10 @@ class EmailTemplateService {
       throw error;
     }
 
-    const templateName = template.name;
-
     // Hard delete
     await EmailTemplate.findByIdAndDelete(id);
 
-    logger.logInfo(`Email template deleted: ${templateName} by user ${userId}`);
+    // logger.logInfo(`Email template deleted: ${template.name} by user ${userId}`);
 
     return template;
   }

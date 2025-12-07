@@ -3,7 +3,7 @@ const EmailService = require('./emailService');
 const EmailBatchService = require('./emailBatchService');
 const emailSendingService = require('./emailSendingService');
 const { EMAIL_CONFIG } = require('../../../config/emailConfig');
-const logger = require('../../../startup/logger');
+// const logger = require('../../../startup/logger');
 
 class EmailProcessor {
   /**
@@ -32,7 +32,7 @@ class EmailProcessor {
    */
   queueEmail(emailId) {
     if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
-      logger.logException(new Error('Invalid emailId'), 'EmailProcessor.queueEmail');
+      // logger.logException(new Error('Invalid emailId'), 'EmailProcessor.queueEmail');
       return;
     }
 
@@ -44,19 +44,19 @@ class EmailProcessor {
       this.currentlyProcessingEmailId === emailIdStr ||
       this.processingBatches.has(emailIdStr)
     ) {
-      logger.logInfo(`Email ${emailIdStr} is already queued or being processed, skipping`);
+      // logger.logInfo(`Email ${emailIdStr} is already queued or being processed, skipping`);
       return;
     }
 
     // Add to queue
     this.emailQueue.push(emailIdStr);
-    logger.logInfo(`Email ${emailIdStr} added to queue. Queue length: ${this.emailQueue.length}`);
+    // logger.logInfo(`Email ${emailIdStr} added to queue. Queue length: ${this.emailQueue.length}`);
 
     // Start queue processor if not already running
     if (!this.isProcessingQueue) {
       setImmediate(() => {
-        this.processQueue().catch((error) => {
-          logger.logException(error, 'Error in queue processor');
+        this.processQueue().catch(() => {
+          // logger.logException(error, 'Error in queue processor');
           // Reset flag so queue can restart on next email addition
           this.isProcessingQueue = false;
         });
@@ -78,7 +78,7 @@ class EmailProcessor {
     }
 
     this.isProcessingQueue = true;
-    logger.logInfo('Email queue processor started');
+    // logger.logInfo('Email queue processor started');
 
     try {
       // eslint-disable-next-line no-constant-condition
@@ -90,18 +90,18 @@ class EmailProcessor {
         }
 
         this.currentlyProcessingEmailId = emailId;
-        logger.logInfo(
-          `Processing email ${emailId} from queue. Remaining: ${this.emailQueue.length}`,
-        );
+        // logger.logInfo(
+        //   `Processing email ${emailId} from queue. Remaining: ${this.emailQueue.length}`,
+        // );
 
         try {
           // Process the email (this processes all its batches)
           // Sequential processing is required - await in loop is necessary
           // eslint-disable-next-line no-await-in-loop
           await this.processEmail(emailId);
-          logger.logInfo(`Email ${emailId} processing completed`);
+          // logger.logInfo(`Email ${emailId} processing completed`);
         } catch (error) {
-          logger.logException(error, `Error processing email ${emailId} from queue`);
+          // logger.logException(error, `Error processing email ${emailId} from queue`);
         } finally {
           this.currentlyProcessingEmailId = null;
         }
@@ -114,7 +114,7 @@ class EmailProcessor {
       }
     } finally {
       this.isProcessingQueue = false;
-      logger.logInfo('Email queue processor stopped');
+      // logger.logInfo('Email queue processor stopped');
     }
   }
 
@@ -136,7 +136,7 @@ class EmailProcessor {
 
     // Prevent concurrent processing of the same email
     if (this.processingBatches.has(emailIdStr)) {
-      logger.logInfo(`Email ${emailIdStr} is already being processed, skipping`);
+      // logger.logInfo(`Email ${emailIdStr} is already being processed, skipping`);
       return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
     }
 
@@ -155,7 +155,7 @@ class EmailProcessor {
         email.status === EMAIL_CONFIG.EMAIL_STATUSES.FAILED ||
         email.status === EMAIL_CONFIG.EMAIL_STATUSES.PROCESSED
       ) {
-        logger.logInfo(`Email ${emailId} is already in final state: ${email.status}`);
+        // logger.logInfo(`Email ${emailId} is already in final state: ${email.status}`);
         return email.status;
       }
 
@@ -167,7 +167,7 @@ class EmailProcessor {
         // If marking as started fails, email is likely already being processed
         const currentEmail = await EmailService.getEmailById(emailId);
         if (currentEmail && currentEmail.status === EMAIL_CONFIG.EMAIL_STATUSES.SENDING) {
-          logger.logInfo(`Email ${emailIdStr} is already being processed, skipping`);
+          // logger.logInfo(`Email ${emailIdStr} is already being processed, skipping`);
           this.processingBatches.delete(emailIdStr);
           return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
         }
@@ -184,10 +184,10 @@ class EmailProcessor {
       const updatedEmail = await EmailBatchService.syncParentEmailStatus(email._id);
       const finalStatus = updatedEmail ? updatedEmail.status : EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
 
-      logger.logInfo(`Email ${emailIdStr} processed with status: ${finalStatus}`);
+      // logger.logInfo(`Email ${emailIdStr} processed with status: ${finalStatus}`);
       return finalStatus;
     } catch (error) {
-      logger.logException(error, `Error processing Email ${emailIdStr}`);
+      // logger.logException(error, `Error processing Email ${emailIdStr}`);
 
       // Reset any batches that were marked as SENDING back to PENDING
       // This prevents batches from being stuck in SENDING status
@@ -200,23 +200,23 @@ class EmailProcessor {
           sendingBatches.map(async (batch) => {
             try {
               await EmailBatchService.resetEmailBatchForRetry(batch._id);
-              logger.logInfo(
-                `Reset batch ${batch._id} from SENDING to PENDING due to email processing error`,
-              );
+              // logger.logInfo(
+              //   `Reset batch ${batch._id} from SENDING to PENDING due to email processing error`,
+              // );
             } catch (resetError) {
-              logger.logException(resetError, `Error resetting batch ${batch._id} to PENDING`);
+              // logger.logException(resetError, `Error resetting batch ${batch._id} to PENDING`);
             }
           }),
         );
       } catch (resetError) {
-        logger.logException(resetError, `Error resetting batches for email ${emailIdStr}`);
+        // logger.logException(resetError, `Error resetting batches for email ${emailIdStr}`);
       }
 
       // Mark email as failed on error
       try {
         await EmailService.markEmailCompleted(emailIdStr, EMAIL_CONFIG.EMAIL_STATUSES.FAILED);
       } catch (updateError) {
-        logger.logException(updateError, 'Error updating Email status to failed');
+        // logger.logException(updateError, 'Error updating Email status to failed');
       }
       return EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
     } finally {
@@ -237,13 +237,13 @@ class EmailProcessor {
     const pendingBatches = await EmailBatchService.getPendingBatchesForEmail(email._id);
 
     if (pendingBatches.length === 0) {
-      logger.logInfo(`No PENDING EmailBatch items found for Email ${email._id}`);
+      // logger.logInfo(`No PENDING EmailBatch items found for Email ${email._id}`);
       return;
     }
 
-    logger.logInfo(
-      `Processing ${pendingBatches.length} PENDING EmailBatch items for Email ${email._id}`,
-    );
+    // logger.logInfo(
+    //   `Processing ${pendingBatches.length} PENDING EmailBatch items for Email ${email._id}`,
+    // );
 
     // Process items with concurrency limit
     const concurrency = EMAIL_CONFIG.ANNOUNCEMENTS.CONCURRENCY || 3;
@@ -277,17 +277,18 @@ class EmailProcessor {
       // Add delay after this chunk completes before starting the next chunk
       // This provides consistent pacing to prevent hitting Gmail rate limits
       if (delayBetweenChunks > 0 && i + concurrency < pendingBatches.length) {
+        // eslint-disable-next-line no-await-in-loop
         await EmailProcessor.sleep(delayBetweenChunks);
       }
     }
 
     // Log summary of processing
-    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
+    // const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    // const failed = results.filter((r) => r.status === 'rejected').length;
 
-    logger.logInfo(
-      `Completed processing ${pendingBatches.length} EmailBatch items for Email ${email._id}: ${succeeded} succeeded, ${failed} failed`,
-    );
+    // logger.logInfo(
+    //   `Completed processing ${pendingBatches.length} EmailBatch items for Email ${email._id}: ${succeeded} succeeded, ${failed} failed`,
+    // );
   }
 
   /**
@@ -313,10 +314,10 @@ class EmailProcessor {
       .filter((e) => e && typeof e === 'string');
 
     if (recipientEmails.length === 0) {
-      logger.logException(
-        new Error('No valid recipients found'),
-        `EmailBatch item ${item._id} has no valid recipients`,
-      );
+      // logger.logException(
+      //   new Error('No valid recipients found'),
+      //   `EmailBatch item ${item._id} has no valid recipients`,
+      // );
       await EmailBatchService.markEmailBatchFailed(item._id, {
         errorCode: 'NO_RECIPIENTS',
         errorMessage: 'No valid recipients found',
@@ -339,23 +340,27 @@ class EmailProcessor {
             currentBatch.status === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT ||
             currentBatch.status === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENDING
           ) {
-            logger.logInfo(
-              `EmailBatch ${item._id} is already ${currentBatch.status}, skipping duplicate processing`,
-            );
+            // logger.logInfo(
+            //   `EmailBatch ${item._id} is already ${currentBatch.status}, skipping duplicate processing`,
+            // );
             return; // Skip this batch
           }
         }
       } catch (batchError) {
         // If batch not found or invalid ID, log and re-throw original error
-        logger.logException(batchError, `Error checking EmailBatch ${item._id} status`);
+        // logger.logException(batchError, `Error checking EmailBatch ${item._id} status`);
       }
       // Re-throw if it's a different error
       throw markError;
     }
 
-    // Build mail options
+    // Build mail options with sender name
+    const senderName = EMAIL_CONFIG.EMAIL.SENDER_NAME;
+    const senderEmail = EMAIL_CONFIG.EMAIL.SENDER;
+    const fromField = senderName ? `${senderName} <${senderEmail}>` : senderEmail;
+
     const mailOptions = {
-      from: EMAIL_CONFIG.EMAIL.SENDER,
+      from: fromField,
       subject: email.subject,
       html: email.htmlContent,
     };
@@ -380,9 +385,9 @@ class EmailProcessor {
         attemptCount: actualAttemptCount, // Persist the actual number of attempts made
         sendResponse: sendResult.response, // Store the full response from email API
       });
-      logger.logInfo(
-        `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempts ${actualAttemptCount})`,
-      );
+      // logger.logInfo(
+      //   `EmailBatch item ${item._id} sent successfully to ${recipientEmails.length} recipients (attempts ${actualAttemptCount})`,
+      // );
       return;
     }
 
@@ -399,9 +404,9 @@ class EmailProcessor {
       attemptCount: actualAttemptCount, // Persist the actual number of attempts made
     });
 
-    logger.logInfo(
-      `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${actualAttemptCount} attempts`,
-    );
+    // logger.logInfo(
+    //   `Permanently failed to send EmailBatch item ${item._id} to ${recipientEmails.length} recipients after ${actualAttemptCount} attempts`,
+    // );
     // Throw to ensure Promise.allSettled records this item as failed
     throw finalError;
   }
@@ -442,19 +447,19 @@ class EmailProcessor {
    */
   async processPendingAndStuckEmails() {
     try {
-      logger.logInfo('Starting startup processing of pending and stuck emails...');
+      // logger.logInfo('Starting startup processing of pending and stuck emails...');
 
       // Step 1: Reset stuck emails to PENDING
       const stuckEmails = await EmailService.getStuckEmails();
       if (stuckEmails.length > 0) {
-        logger.logInfo(`Found ${stuckEmails.length} stuck emails, resetting to PENDING...`);
+        // logger.logInfo(`Found ${stuckEmails.length} stuck emails, resetting to PENDING...`);
         await Promise.allSettled(
           stuckEmails.map(async (email) => {
             try {
               await EmailService.resetStuckEmail(email._id);
-              logger.logInfo(`Reset stuck email ${email._id} to PENDING`);
+              // logger.logInfo(`Reset stuck email ${email._id} to PENDING`);
             } catch (error) {
-              logger.logException(error, `Error resetting stuck email ${email._id}`);
+              // logger.logException(error, `Error resetting stuck email ${email._id}`);
             }
           }),
         );
@@ -463,14 +468,14 @@ class EmailProcessor {
       // Step 2: Reset stuck batches to PENDING
       const stuckBatches = await EmailBatchService.getStuckBatches();
       if (stuckBatches.length > 0) {
-        logger.logInfo(`Found ${stuckBatches.length} stuck batches, resetting to PENDING...`);
+        // logger.logInfo(`Found ${stuckBatches.length} stuck batches, resetting to PENDING...`);
         await Promise.allSettled(
           stuckBatches.map(async (batch) => {
             try {
               await EmailBatchService.resetEmailBatchForRetry(batch._id);
-              logger.logInfo(`Reset stuck batch ${batch._id} to PENDING`);
+              // logger.logInfo(`Reset stuck batch ${batch._id} to PENDING`);
             } catch (error) {
-              logger.logException(error, `Error resetting stuck batch ${batch._id}`);
+              // logger.logException(error, `Error resetting stuck batch ${batch._id}`);
             }
           }),
         );
@@ -479,19 +484,19 @@ class EmailProcessor {
       // Step 3: Queue all PENDING emails for processing
       const pendingEmails = await EmailService.getPendingEmails();
       if (pendingEmails.length > 0) {
-        logger.logInfo(`Found ${pendingEmails.length} pending emails, adding to queue...`);
+        // logger.logInfo(`Found ${pendingEmails.length} pending emails, adding to queue...`);
         // Queue all emails (non-blocking, sequential processing)
         pendingEmails.forEach((email) => {
           this.queueEmail(email._id);
         });
-        logger.logInfo(`Queued ${pendingEmails.length} pending emails for processing`);
+        // logger.logInfo(`Queued ${pendingEmails.length} pending emails for processing`);
       } else {
-        logger.logInfo('No pending emails found on startup');
+        // logger.logInfo('No pending emails found on startup');
       }
 
-      logger.logInfo('Startup processing of pending and stuck emails completed');
+      // logger.logInfo('Startup processing of pending and stuck emails completed');
     } catch (error) {
-      logger.logException(error, 'Error during startup processing of pending and stuck emails');
+      // logger.logException(error, 'Error during startup processing of pending and stuck emails');
     }
   }
 }

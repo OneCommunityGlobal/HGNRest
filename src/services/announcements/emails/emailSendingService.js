@@ -6,7 +6,7 @@
 
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
-const logger = require('../../../startup/logger');
+// const logger = require('../../../startup/logger');
 
 class EmailSendingService {
   /**
@@ -37,20 +37,15 @@ class EmailSendingService {
     this.OAuth2Client.setCredentials({ refresh_token: this.config.refreshToken });
 
     // Create the email transporter
-    try {
-      this.transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: this.config.email,
-          clientId: this.config.clientId,
-          clientSecret: this.config.clientSecret,
-        },
-      });
-    } catch (error) {
-      logger.logException(error, 'EmailSendingService: Failed to create transporter');
-      throw error;
-    }
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: this.config.email,
+        clientId: this.config.clientId,
+        clientSecret: this.config.clientSecret,
+      },
+    });
   }
 
   /**
@@ -90,26 +85,26 @@ class EmailSendingService {
     // Validation
     if (!mailOptions) {
       const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
-      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
+      // logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     if (!mailOptions.to && !mailOptions.bcc) {
       const error = new Error('INVALID_RECIPIENTS: At least one recipient (to or bcc) is required');
-      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
+      // logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     // Validate subject and htmlContent
     if (!mailOptions.subject || mailOptions.subject.trim() === '') {
       const error = new Error('INVALID_SUBJECT: Subject is required and cannot be empty');
-      logger.logException(error, 'EmailSendingService.sendEmail validation failed');
+      // logger.logException(error, 'EmailSendingService.sendEmail validation failed');
       return { success: false, error };
     }
 
     if (!this.config.email || !this.config.clientId || !this.config.clientSecret) {
       const error = new Error('INVALID_CONFIG: Email configuration is incomplete');
-      logger.logException(error, 'EmailSendingService.sendEmail configuration check failed');
+      // logger.logException(error, 'EmailSendingService.sendEmail configuration check failed');
       return { success: false, error };
     }
 
@@ -120,7 +115,7 @@ class EmailSendingService {
         token = await this.getAccessToken();
       } catch (tokenError) {
         const error = new Error(`OAUTH_TOKEN_ERROR: ${tokenError.message}`);
-        logger.logException(error, 'EmailSendingService.sendEmail OAuth token refresh failed');
+        // logger.logException(error, 'EmailSendingService.sendEmail OAuth token refresh failed');
         return { success: false, error };
       }
 
@@ -138,17 +133,17 @@ class EmailSendingService {
       const result = await this.transporter.sendMail(mailOptions);
 
       // Enhanced logging for announcements
-      logger.logInfo(
-        `Announcement email sent to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
-        result,
-      );
+      // logger.logInfo(
+      //   `Announcement email sent to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
+      //   result,
+      // );
 
       return { success: true, response: result };
     } catch (error) {
-      logger.logException(
-        error,
-        `Error sending announcement email to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
-      );
+      // logger.logException(
+      //   error,
+      //   `Error sending announcement email to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
+      // );
       return { success: false, error };
     }
   }
@@ -166,13 +161,13 @@ class EmailSendingService {
     // Validation
     if (!mailOptions) {
       const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
-      logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
+      // logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
       return { success: false, error, attemptCount: 0 };
     }
 
     if (!Number.isInteger(retries) || retries < 1) {
       const error = new Error('INVALID_RETRIES: retries must be a positive integer');
-      logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
+      // logger.logException(error, 'EmailSendingService.sendWithRetry validation failed');
       return { success: false, error, attemptCount: 0 };
     }
 
@@ -188,17 +183,17 @@ class EmailSendingService {
         if (result.success) {
           // Store Gmail response for audit logging
           mailOptions.gmailResponse = result.response;
-          logger.logInfo(
-            `Email sent successfully on attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
-          );
+          // logger.logInfo(
+          //   `Email sent successfully on attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || 'unknown'}`,
+          // );
           return { success: true, response: result.response, attemptCount };
         }
         // result.success is false - log and try again or return
         const error = result.error || new Error('Unknown error from sendEmail');
-        logger.logException(
-          error,
-          `Announcement send attempt ${attempt} failed to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
-        );
+        // logger.logException(
+        //   error,
+        //   `Announcement send attempt ${attempt} failed to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
+        // );
 
         // If this is the last attempt, return failure info
         if (attempt >= retries) {
@@ -206,10 +201,10 @@ class EmailSendingService {
         }
       } catch (err) {
         // Unexpected error (shouldn't happen since sendEmail now returns {success, error})
-        logger.logException(
-          err,
-          `Unexpected error in announcement send attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
-        );
+        // logger.logException(
+        //   err,
+        //   `Unexpected error in announcement send attempt ${attempt} to: ${mailOptions.to || mailOptions.bcc || '(empty)'}`,
+        // );
 
         // If this is the last attempt, return failure info
         if (attempt >= retries) {

@@ -13,7 +13,7 @@ const emailProcessor = require('../services/announcements/emails/emailProcessor'
 const { hasPermission } = require('../utilities/permissions');
 const { withTransaction } = require('../utilities/transactionHelper');
 const config = require('../config');
-const logger = require('../startup/logger');
+// const logger = require('../startup/logger');
 
 const jwtSecret = process.env.JWT_SECRET;
 
@@ -101,7 +101,7 @@ const sendEmail = async (req, res) => {
       message: `Email created successfully for ${recipientsArray.length} recipient(s) and will be processed shortly`,
     });
   } catch (error) {
-    logger.logException(error, 'Error creating email');
+    // logger.logException(error, 'Error creating email');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -219,7 +219,7 @@ const sendEmailToSubscribers = async (req, res) => {
       message: `Broadcast email created successfully for ${totalRecipients} recipient(s) and will be processed shortly`,
     });
   } catch (error) {
-    logger.logException(error, 'Error creating broadcast email');
+    // logger.logException(error, 'Error creating broadcast email');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -391,7 +391,7 @@ const resendEmail = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.logException(error, 'Error resending email');
+    // logger.logException(error, 'Error resending email');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -456,7 +456,7 @@ const retryEmail = async (req, res) => {
     const failedItems = await EmailBatchService.getFailedBatchesForEmail(emailId);
 
     if (failedItems.length === 0) {
-      logger.logInfo(`Email ${emailId} has no failed EmailBatch items to retry`);
+      // logger.logInfo(`Email ${emailId} has no failed EmailBatch items to retry`);
       return res.status(200).json({
         success: true,
         message: 'No failed EmailBatch items to retry',
@@ -467,7 +467,7 @@ const retryEmail = async (req, res) => {
       });
     }
 
-    logger.logInfo(`Retrying ${failedItems.length} failed EmailBatch items: ${emailId}`);
+    // logger.logInfo(`Retrying ${failedItems.length} failed EmailBatch items: ${emailId}`);
 
     // Mark parent Email as PENDING for retry
     await EmailService.markEmailPending(emailId);
@@ -479,9 +479,9 @@ const retryEmail = async (req, res) => {
       }),
     );
 
-    logger.logInfo(
-      `Successfully reset Email ${emailId} and ${failedItems.length} failed EmailBatch items to PENDING for retry`,
-    );
+    // logger.logInfo(
+    //   `Successfully reset Email ${emailId} and ${failedItems.length} failed EmailBatch items to PENDING for retry`,
+    // );
 
     // Add email to queue for processing (non-blocking, sequential processing)
     emailProcessor.queueEmail(emailId);
@@ -495,7 +495,7 @@ const retryEmail = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.logException(error, 'Error retrying Email');
+    // logger.logException(error, 'Error retrying Email');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -527,7 +527,7 @@ const processPendingAndStuckEmails = async (req, res) => {
   }
 
   try {
-    logger.logInfo('Manual trigger: Starting processing of pending and stuck emails...');
+    // logger.logInfo('Manual trigger: Starting processing of pending and stuck emails...');
 
     // Trigger the processor to handle pending and stuck emails
     await emailProcessor.processPendingAndStuckEmails();
@@ -537,7 +537,7 @@ const processPendingAndStuckEmails = async (req, res) => {
       message: 'Processing of pending and stuck emails triggered successfully',
     });
   } catch (error) {
-    logger.logException(error, 'Error triggering processing of pending and stuck emails');
+    // logger.logException(error, 'Error triggering processing of pending and stuck emails');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -587,7 +587,7 @@ const updateEmailSubscriptions = async (req, res) => {
       .status(200)
       .json({ success: true, message: 'Email subscription updated successfully' });
   } catch (error) {
-    logger.logException(error, 'Error updating email subscriptions');
+    // logger.logException(error, 'Error updating email subscriptions');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -654,7 +654,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
           const url = new URL(origin);
           return `${url.protocol}//${url.host}`;
         } catch (error) {
-          logger.logException(error, 'Error parsing request origin');
+          // logger.logException(error, 'Error parsing request origin');
         }
       }
       // Fallback to config or construct from request
@@ -672,10 +672,10 @@ const addNonHgnEmailSubscription = async (req, res) => {
 
     const frontendUrl = getFrontendUrl();
     if (!frontendUrl) {
-      logger.logException(
-        new Error('Unable to determine frontend URL from request'),
-        'Configuration error',
-      );
+      // logger.logException(
+      //   new Error('Unable to determine frontend URL from request'),
+      //   'Configuration error',
+      // );
       return res
         .status(500)
         .json({ success: false, message: 'Server Error. Please contact support.' });
@@ -702,7 +702,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
         message: 'Email subscribed successfully. Please check your inbox to confirm.',
       });
     } catch (emailError) {
-      logger.logException(emailError, 'Error sending confirmation email');
+      // logger.logException(emailError, 'Error sending confirmation email');
       // Still return success since the subscription was saved to DB
       return res.status(200).json({
         success: true,
@@ -711,7 +711,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
       });
     }
   } catch (error) {
-    logger.logException(error, 'Error adding email subscription');
+    // logger.logException(error, 'Error adding email subscription');
     if (error.code === 11000) {
       return res.status(400).json({ success: false, message: 'Email already subscribed' });
     }
@@ -778,7 +778,7 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
       .status(200)
       .json({ success: true, message: 'Email subscription confirmed successfully' });
   } catch (error) {
-    logger.logException(error, 'Error confirming email subscription');
+    // logger.logException(error, 'Error confirming email subscription');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -821,7 +821,7 @@ const removeNonHgnEmailSubscription = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Email unsubscribed successfully' });
   } catch (error) {
-    logger.logException(error, 'Error removing email subscription');
+    // logger.logException(error, 'Error removing email subscription');
     return res.status(500).json({ success: false, message: 'Error removing email subscription' });
   }
 };

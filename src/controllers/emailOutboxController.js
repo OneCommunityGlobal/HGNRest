@@ -1,7 +1,7 @@
 const EmailBatchService = require('../services/announcements/emails/emailBatchService');
 const EmailService = require('../services/announcements/emails/emailService');
 const { hasPermission } = require('../utilities/permissions');
-const logger = require('../startup/logger');
+// const logger = require('../startup/logger');
 
 /**
  * Get all announcement Email records (parent documents) - Outbox view.
@@ -25,7 +25,7 @@ const getEmails = async (req, res) => {
       data: emails,
     });
   } catch (error) {
-    logger.logException(error, 'Error getting emails');
+    // logger.logException(error, 'Error getting emails');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -59,7 +59,7 @@ const getEmailDetails = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    logger.logException(error, 'Error getting Email details with EmailBatch items');
+    // logger.logException(error, 'Error getting Email details with EmailBatch items');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,

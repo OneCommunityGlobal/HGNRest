@@ -4,7 +4,7 @@
 
 const EmailTemplateService = require('../services/announcements/emails/emailTemplateService');
 const { hasPermission } = require('../utilities/permissions');
-const logger = require('../startup/logger');
+// const logger = require('../startup/logger');
 
 /**
  * Get all email templates (with basic search/sort and optional content projection).
@@ -64,7 +64,7 @@ const getAllEmailTemplates = async (req, res) => {
       templates,
     });
   } catch (error) {
-    logger.logException(error, 'Error fetching email templates');
+    // logger.logException(error, 'Error fetching email templates');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -113,7 +113,7 @@ const getEmailTemplateById = async (req, res) => {
       template,
     });
   } catch (error) {
-    logger.logException(error, 'Error fetching email template');
+    // logger.logException(error, 'Error fetching email template');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -164,7 +164,7 @@ const createEmailTemplate = async (req, res) => {
       template,
     });
   } catch (error) {
-    logger.logException(error, 'Error creating email template');
+    // logger.logException(error, 'Error creating email template');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -220,7 +220,7 @@ const updateEmailTemplate = async (req, res) => {
       template,
     });
   } catch (error) {
-    logger.logException(error, 'Error updating email template');
+    // logger.logException(error, 'Error updating email template');
     const statusCode = error.statusCode || 500;
     const response = {
       success: false,
@@ -258,16 +258,15 @@ const deleteEmailTemplate = async (req, res) => {
     }
 
     const { id } = req.params;
-    const userId = req.body.requestor.requestorId;
 
-    await EmailTemplateService.deleteTemplate(id, userId);
+    await EmailTemplateService.deleteTemplate(id);
 
     res.status(200).json({
       success: true,
       message: 'Email template deleted successfully',
     });
   } catch (error) {
-    logger.logException(error, 'Error deleting email template');
+    // logger.logException(error, 'Error deleting email template');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -330,7 +329,7 @@ const previewTemplate = async (req, res) => {
       preview: rendered,
     });
   } catch (error) {
-    logger.logException(error, 'Error previewing email template');
+    // logger.logException(error, 'Error previewing email template');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,

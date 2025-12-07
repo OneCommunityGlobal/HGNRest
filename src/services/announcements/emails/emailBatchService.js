@@ -11,7 +11,7 @@ const {
   normalizeRecipientsToObjects,
   isValidEmailAddress,
 } = require('../../../utilities/emailValidators');
-const logger = require('../../../startup/logger');
+// const logger = require('../../../startup/logger');
 
 class EmailBatchService {
   /**
@@ -25,96 +25,91 @@ class EmailBatchService {
    * @returns {Promise<Array>} Created EmailBatch items.
    */
   static async createEmailBatches(emailId, recipients, config = {}, session = null) {
-    try {
-      // emailId is now the ObjectId directly - validate it
-      if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
-        const error = new Error(`Email not found with id: ${emailId}`);
-        error.statusCode = 404;
-        throw error;
-      }
-
-      const batchSize = config.batchSize || EMAIL_CONFIG.ANNOUNCEMENTS.BATCH_SIZE;
-      const emailType = config.emailType || EMAIL_CONFIG.EMAIL_TYPES.BCC;
-
-      // Normalize recipients to { email }
-      const normalizedRecipients = normalizeRecipientsToObjects(recipients);
-      if (normalizedRecipients.length === 0) {
-        const error = new Error('At least one recipient is required');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // Validate recipient count limit (only enforce when enforceRecipientLimit is true)
-      // Default to true to enforce limit for specific recipient requests
-      const enforceRecipientLimit = config.enforceRecipientLimit !== false;
-      if (
-        enforceRecipientLimit &&
-        normalizedRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST
-      ) {
-        const error = new Error(
-          `A maximum of ${EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
-        );
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // Validate email format for all recipients
-      const invalidRecipients = normalizedRecipients.filter(
-        (recipient) => !isValidEmailAddress(recipient.email),
-      );
-      if (invalidRecipients.length > 0) {
-        const error = new Error('One or more recipient emails are invalid');
-        error.statusCode = 400;
-        error.invalidRecipients = invalidRecipients.map((r) => r.email);
-        throw error;
-      }
-
-      // Chunk recipients into EmailBatch items
-      const emailBatchItems = [];
-
-      for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
-        const recipientChunk = normalizedRecipients.slice(i, i + batchSize);
-
-        const emailBatchItem = {
-          emailId, // emailId is now the ObjectId directly
-          recipients: recipientChunk.map((recipient) => ({ email: recipient.email })),
-          emailType,
-          status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.PENDING,
-        };
-
-        emailBatchItems.push(emailBatchItem);
-      }
-
-      // Insert with session if provided for transaction support
-      let inserted;
-      try {
-        inserted = await EmailBatch.insertMany(emailBatchItems, { session });
-      } catch (dbError) {
-        // Handle MongoDB errors
-        if (dbError.name === 'ValidationError') {
-          const error = new Error(`Validation error: ${dbError.message}`);
-          error.statusCode = 400;
-          throw error;
-        }
-        if (dbError.code === 11000) {
-          const error = new Error('Duplicate key error');
-          error.statusCode = 409;
-          throw error;
-        }
-        // Re-throw with status code for other database errors
-        dbError.statusCode = 500;
-        throw dbError;
-      }
-
-      logger.logInfo(
-        `Created ${emailBatchItems.length} EmailBatch items for Email ${emailId} with ${normalizedRecipients.length} total recipients`,
-      );
-
-      return inserted;
-    } catch (error) {
-      logger.logException(error, 'Error creating EmailBatch items');
+    // emailId is now the ObjectId directly - validate it
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      const error = new Error(`Email not found with id: ${emailId}`);
+      error.statusCode = 404;
       throw error;
     }
+
+    const batchSize = config.batchSize || EMAIL_CONFIG.ANNOUNCEMENTS.BATCH_SIZE;
+    const emailType = config.emailType || EMAIL_CONFIG.EMAIL_TYPES.BCC;
+
+    // Normalize recipients to { email }
+    const normalizedRecipients = normalizeRecipientsToObjects(recipients);
+    if (normalizedRecipients.length === 0) {
+      const error = new Error('At least one recipient is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Validate recipient count limit (only enforce when enforceRecipientLimit is true)
+    // Default to true to enforce limit for specific recipient requests
+    const enforceRecipientLimit = config.enforceRecipientLimit !== false;
+    if (
+      enforceRecipientLimit &&
+      normalizedRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST
+    ) {
+      const error = new Error(
+        `A maximum of ${EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Validate email format for all recipients
+    const invalidRecipients = normalizedRecipients.filter(
+      (recipient) => !isValidEmailAddress(recipient.email),
+    );
+    if (invalidRecipients.length > 0) {
+      const error = new Error('One or more recipient emails are invalid');
+      error.statusCode = 400;
+      error.invalidRecipients = invalidRecipients.map((r) => r.email);
+      throw error;
+    }
+
+    // Chunk recipients into EmailBatch items
+    const emailBatchItems = [];
+
+    for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
+      const recipientChunk = normalizedRecipients.slice(i, i + batchSize);
+
+      const emailBatchItem = {
+        emailId, // emailId is now the ObjectId directly
+        recipients: recipientChunk.map((recipient) => ({ email: recipient.email })),
+        emailType,
+        status: EMAIL_CONFIG.EMAIL_BATCH_STATUSES.PENDING,
+      };
+
+      emailBatchItems.push(emailBatchItem);
+    }
+
+    // Insert with session if provided for transaction support
+    let inserted;
+    try {
+      inserted = await EmailBatch.insertMany(emailBatchItems, { session });
+    } catch (dbError) {
+      // Handle MongoDB errors
+      if (dbError.name === 'ValidationError') {
+        const error = new Error(`Validation error: ${dbError.message}`);
+        error.statusCode = 400;
+        throw error;
+      }
+      if (dbError.code === 11000) {
+        const error = new Error('Duplicate key error');
+        error.statusCode = 409;
+        throw error;
+      }
+      // Re-throw with status code for other database errors
+      dbError.statusCode = 500;
+      throw dbError;
+    }
+
+    // logger.logInfo(
+    //   `Created ${emailBatchItems.length} EmailBatch items for Email ${emailId} with ${normalizedRecipients.length} total recipients`,
+    // );
+
+    return inserted;
   }
 
   /**
@@ -124,53 +119,48 @@ class EmailBatchService {
    * @throws {Error} If email not found
    */
   static async getEmailWithBatches(emailId) {
-    try {
-      if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
-        const error = new Error('Valid email ID is required');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // Get email with createdBy populated using lean for consistency
-      const email = await Email.findById(emailId)
-        .populate('createdBy', 'firstName lastName email')
-        .lean();
-
-      if (!email) {
-        const error = new Error(`Email ${emailId} not found`);
-        error.statusCode = 404;
-        throw error;
-      }
-
-      const emailBatches = await this.getBatchesForEmail(emailId);
-
-      // Transform EmailBatch items
-      const transformedBatches = emailBatches.map((batch) => ({
-        _id: batch._id,
-        emailId: batch.emailId,
-        recipients: batch.recipients || null,
-        status: batch.status,
-        attempts: batch.attempts || null,
-        lastAttemptedAt: batch.lastAttemptedAt,
-        sentAt: batch.sentAt,
-        failedAt: batch.failedAt,
-        lastError: batch.lastError,
-        lastErrorAt: batch.lastErrorAt,
-        errorCode: batch.errorCode,
-        sendResponse: batch.sendResponse || null,
-        emailType: batch.emailType,
-        createdAt: batch.createdAt,
-        updatedAt: batch.updatedAt,
-      }));
-
-      return {
-        email,
-        batches: transformedBatches,
-      };
-    } catch (error) {
-      logger.logException(error, 'Error getting Email with batches');
+    if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
+      const error = new Error('Valid email ID is required');
+      error.statusCode = 400;
       throw error;
     }
+
+    // Get email with createdBy populated using lean for consistency
+    const email = await Email.findById(emailId)
+      .populate('createdBy', 'firstName lastName email')
+      .lean();
+
+    if (!email) {
+      const error = new Error(`Email ${emailId} not found`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const emailBatches = await this.getBatchesForEmail(emailId);
+
+    // Transform EmailBatch items
+    const transformedBatches = emailBatches.map((batch) => ({
+      _id: batch._id,
+      emailId: batch.emailId,
+      recipients: batch.recipients || null,
+      status: batch.status,
+      attempts: batch.attempts || null,
+      lastAttemptedAt: batch.lastAttemptedAt,
+      sentAt: batch.sentAt,
+      failedAt: batch.failedAt,
+      lastError: batch.lastError,
+      lastErrorAt: batch.lastErrorAt,
+      errorCode: batch.errorCode,
+      sendResponse: batch.sendResponse || null,
+      emailType: batch.emailType,
+      createdAt: batch.createdAt,
+      updatedAt: batch.updatedAt,
+    }));
+
+    return {
+      email,
+      batches: transformedBatches,
+    };
   }
 
   /**
@@ -372,9 +362,9 @@ class EmailBatchService {
         throw error;
       }
       // Batch exists but not in SENDING status - log and return current batch (idempotent)
-      logger.logInfo(
-        `EmailBatch ${emailBatchId} is not in SENDING status (current: ${currentBatch.status}), skipping mark as SENT`,
-      );
+      // logger.logInfo(
+      //   `EmailBatch ${emailBatchId} is not in SENDING status (current: ${currentBatch.status}), skipping mark as SENT`,
+      // );
       return currentBatch;
     }
 
@@ -437,9 +427,9 @@ class EmailBatchService {
         throw error;
       }
       // Batch exists but already in final state - log and return current batch (idempotent)
-      logger.logInfo(
-        `EmailBatch ${emailBatchId} is already in final state (current: ${currentBatch.status}), skipping mark as FAILED`,
-      );
+      // logger.logInfo(
+      //   `EmailBatch ${emailBatchId} is already in final state (current: ${currentBatch.status}), skipping mark as FAILED`,
+      // );
       return currentBatch;
     }
 
@@ -468,7 +458,7 @@ class EmailBatchService {
 
     // Handle edge case: no batches
     if (batches.length === 0) {
-      logger.logInfo(`Email ${emailId} has no batches, returning FAILED status`);
+      // logger.logInfo(`Email ${emailId} has no batches, returning FAILED status`);
       return EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
     }
 
@@ -545,7 +535,7 @@ class EmailBatchService {
 
     if (!email) {
       // Email not found - log but don't throw (might have been deleted)
-      logger.logInfo(`Email ${emailId} not found when syncing status`);
+      // logger.logInfo(`Email ${emailId} not found when syncing status`);
       return null;
     }
 

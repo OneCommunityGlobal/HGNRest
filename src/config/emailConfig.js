@@ -52,6 +52,7 @@ const EMAIL_CONFIG = {
   // Email configuration
   EMAIL: {
     SENDER: process.env.ANNOUNCEMENT_EMAIL,
+    SENDER_NAME: process.env.ANNOUNCEMENT_EMAIL_SENDER_NAME,
   },
 };
 
