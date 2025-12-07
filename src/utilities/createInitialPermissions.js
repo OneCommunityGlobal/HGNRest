@@ -31,6 +31,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -45,6 +46,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       // User Profile
+      'accessPRTeamDashboard',
       'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
@@ -52,6 +54,7 @@ const permissionsRoles = [
       'changeUserStatus',
       'changeUserRehireableStatus',
       'updatePassword',
+      'resetPassword',
       'deleteUserProfile',
       'toggleInvisibility',
       'addInfringements',
@@ -102,6 +105,9 @@ const permissionsRoles = [
 
       'seeUsersInDashboard',
       'editTeamCode',
+      'accessHgnSkillsDashboard',
+      'manageFAQs',
+      'setFinalDay',
     ],
   },
   {
@@ -132,6 +138,7 @@ const permissionsRoles = [
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
       'seeUsersInDashboard',
+      'accessHgnSkillsDashboard',
     ],
   },
   {
@@ -186,6 +193,7 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
+      'accessPRTeamDashboard',
       'postRole',
       'deleteRole',
       'putRole',
@@ -194,6 +202,7 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
+      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -216,6 +225,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       'updateTask',
       'swapTask',
@@ -236,6 +246,7 @@ const permissionsRoles = [
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
+      'resetPassword',
       'getUserProfiles',
       'getProjectMembers',
       'postUserProfile',
@@ -243,6 +254,7 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
+      'reorderJobs',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
@@ -282,6 +294,10 @@ const permissionsRoles = [
       'manageAdminLinks',
       'removeUserFromTask',
       'editHeaderMessage',
+      'accessHgnSkillsDashboard',
+      'manageFAQs',
+      'manageHGNAccessSetup',
+      'setFinalDay',
     ],
   },
 ];
@@ -291,6 +307,16 @@ const createInitialPermissions = async () => {
   const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
+
+  // One-time assignment: Add resendBlueSquareAndSummaryEmails permission to Jae
+  const jaeProfile = await User.findOne({ email: 'jae@onecommunityglobal.org' });
+  if (
+    jaeProfile &&
+    !jaeProfile.permissions.frontPermissions.includes('resendBlueSquareAndSummaryEmails')
+  ) {
+    jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
+    await jaeProfile.save();
+  }
 
   // Get Roles From DB
   const allRoles = await Role.find();

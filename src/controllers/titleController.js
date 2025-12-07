@@ -1,12 +1,11 @@
-const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
-const userProfileController = require("./userProfileController");
 const userProfile = require('../models/userProfile');
-const project = require('../models/project');
+const projectModel = require('../models/project');
+const userProfileController = require('./userProfileController');
 
-const controller = userProfileController(userProfile, project);
-const getAllTeamCodeHelper = controller.getAllTeamCodeHelper;
+const controller = userProfileController(userProfile, projectModel);
+const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
@@ -14,8 +13,19 @@ const titlecontroller = function (Title) {
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
   async function checkTeamCodeExists(teamCode) {
     try {
-      const teamCodes = await getAllTeamCodeHelper();
-      return teamCodes.includes(teamCode);
+      const normalizedCode = (teamCode || '').trim().toUpperCase();
+      if (!normalizedCode) return false;
+
+      let teamCodes;
+
+      const cached = cache.getCache('teamCodes');
+      if (cached) {
+        teamCodes = JSON.parse(cached);
+      } else {
+        teamCodes = await getAllTeamCodeHelper();
+      }
+
+      return teamCodes.some((code) => (code || '').trim().toUpperCase() === normalizedCode);
     } catch (error) {
       console.error('Error checking if team code exists:', error);
       throw error;
@@ -33,7 +43,8 @@ const titlecontroller = function (Title) {
   }
 
   const getAllTitles = function (req, res) {
-    Title.find({}).sort('order')
+    Title.find({})
+      .sort('order')
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send(error));
   };
@@ -56,12 +67,16 @@ const titlecontroller = function (Title) {
     title.teamAssiged = req.body.teamAssiged;
 
     if (!title.titleCode || !title.titleCode.trim()) {
-      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+      return res
+        .status(400)
+        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
     }
 
     const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
     if (!titleCodeRegex.test(title.titleCode)) {
-      return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+      return res
+        .status(400)
+        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
     }
 
     // valid title name
@@ -110,10 +125,20 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    title
-      .save()
-      .then((results) => res.status(200).send(results))
-      .catch((error) => res.status(404).send(error));
+    // title
+    //   .save()
+    //   .then((results) => res.status(200).send(results))
+    //   .catch((error) => res.status(404).send(error));
+
+    try {
+      const savedTitle = await title.save();
+
+      await userProfile.updateMany({}, { $addToSet: { teamCodes: title.teamCode } });
+
+      res.status(200).send(savedTitle);
+    } catch (error) {
+      res.status(500).send(error);
+    }
   };
 
   const updateTitlesOrder = async function (req, res) {
@@ -121,16 +146,12 @@ const titlecontroller = function (Title) {
       const { orderData } = req.body;
       console.log('Received order data:', orderData);
 
-      const updates = await Promise.all(
+      await Promise.all(
         orderData.map(async ({ id, order }) => {
-          const updated = await Title.findByIdAndUpdate(
-            id,
-            { order },
-            { new: true }
-          );
+          const updated = await Title.findByIdAndUpdate(id, { order }, { new: true });
           console.log('Updated title:', updated);
           return updated;
-        })
+        }),
       );
 
       const updatedTitles = await Title.find({}).sort('order');
@@ -143,12 +164,9 @@ const titlecontroller = function (Title) {
     }
   };
 
-
-
   // update title function.
   const updateTitle = async function (req, res) {
     try {
-
       const filter = req.body.id;
 
       // valid title name
@@ -164,7 +182,9 @@ const titlecontroller = function (Title) {
 
       const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
       if (!titleCodeRegex.test(req.body.titleCode)) {
-        return res.status(400).send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+        return res
+          .status(400)
+          .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
       }
 
       //  if media is empty
@@ -218,17 +238,16 @@ const titlecontroller = function (Title) {
 
       await userProfile.updateMany(
         { teamCode: oldTeamCode },
-        { $set: { teamCode: req.body.teamCode } }
+        { $set: { teamCode: req.body.teamCode } },
       );
 
       cache.removeCache('teamCodes');
 
-      res.status(200).send({ message: "Update successful", updatedTitle: result });
+      res.status(200).send({ message: 'Update successful', updatedTitle: result });
     } catch (error) {
       console.log(error);
       res.status(500).send({ message: 'An error occurred', error: error.message || error });
     }
-
   };
 
   const deleteTitleById = async function (req, res) {
@@ -248,36 +267,10 @@ const titlecontroller = function (Title) {
         }
       })
       .catch((error) => {
-        console.log(error)
+        console.log(error);
         res.status(500).send(error);
       });
   };
-  // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
-  async function checkTeamCodeExists(teamCode) {
-    try {
-      if (cache.getCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes.includes(teamCode);
-      }
-      const teamCodes = await getAllTeamCodeHelper();
-      return teamCodes.includes(teamCode);
-    } catch (error) {
-      console.error('Error checking if team code exists:', error);
-      throw error;
-    }
-  }
-
-  async function checkProjectExists(projectID) {
-    try {
-      const project = await Project.findOne({ _id: projectID }).exec();
-      return !!project;
-    } catch (error) {
-      console.error('Error checking if project exists:', error);
-      throw error;
-    }
-  }
-
-
 
   return {
     getAllTitles,

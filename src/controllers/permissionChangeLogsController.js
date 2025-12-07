@@ -7,33 +7,20 @@ const permissionChangeLogController = function (PermissionChangeLog, userPermiss
 
       if (userProfile) {
         if (userProfile.role !== 'Owner') {
-          res.status(204).send([]);
-        } else {
-          const userChangeLogs = await userPermissionChangeLog.find();
-          const rolePermissionChangeLogs = await PermissionChangeLog.find();
-
-          const formattedUserChangeLogs = userChangeLogs.map((log) => ({
-            ...log.toObject(),
-            name: log.individualName,
-          }));
-
-          const formattedRolePermissionChangeLogs = rolePermissionChangeLogs.map((log) => ({
-            ...log.toObject(),
-            name: log.roleName,
-          }));
-
-          const mergedLogs = [
-            ...formattedUserChangeLogs,
-            ...formattedRolePermissionChangeLogs,
-          ].sort((a, b) => new Date(b.logDateTime) - new Date(a.logDateTime));
-
-          res.status(200).json(mergedLogs);
+          return res.status(204).send([]);
         }
-      } else {
-        res.status(403).send(`User (${req.params.userId}) not found.`);
+        // Add usage of userPermissionChangeLog so the log table displays logs of changes to permissions of both
+        // user and roles, and the .sort ensures the latest log is first on page 1, and the oldest is last on the
+        // last page
+        const roleChangeLogs = await PermissionChangeLog.find({});
+        const userChangeLogs = await userPermissionChangeLog.find({});
+        const changeLogs = [...roleChangeLogs, ...userChangeLogs];
+        changeLogs.sort((a, b) => new Date(b.logDateTime) - new Date(a.logDateTime));
+        return res.status(200).send(changeLogs);
       }
+      return res.status(403).send(`User (${req.params.userId}) not found.`);
     } catch (err) {
-      console.error(err);
+      return res.status(400).send(err.message);
     }
   };
 
