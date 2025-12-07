@@ -29,6 +29,12 @@ const lessonPlanSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    status: {
+      type: String,
+      enum: ['draft', 'approved'],
+      default: 'draft',
+      required: true,
+    },
     collaborators: [
       {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
