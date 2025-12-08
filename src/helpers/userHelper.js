@@ -508,470 +508,475 @@ const userHelper = function () {
        * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
        */
       const emailQueue = [];
-      const batchSize = 500;
-      let skip = 0;
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const users = await userProfile
-          .find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours')
-          .sort({ createdDate: 1 }) // Ensure oldest-to-newest order
-          .skip(skip)
-          .limit(batchSize);
+      // Use a cursor to stream users one-by-one to avoid loading large batches into memory
+      const query = { firstName: 'Sohail', lastName: 'Admin', isActive: true };
+      const projection = '_id weeklycommittedHours weeklySummaries missedHours';
+      const cursor = userProfile.find(query, projection).sort({ createdDate: 1 }).cursor();
 
-        if (!users.length) break;
+      // Process users sequentially. If stronger concurrency is desired, use a limited concurrency queue (p-limit).
+      // Sequential processing reduces memory pressure and avoids creating hundreds of concurrent promises.
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const user of cursor) {
+        try {
+          const person = await userProfile.findById(user._id);
+          const personId = mongoose.Types.ObjectId(user._id);
 
-        await Promise.allSettled(
-          users.map(async (user) => {
-            try {
-              const person = await userProfile.findById(user._id);
-              const personId = mongoose.Types.ObjectId(user._id);
+          let hasWeeklySummary = false;
 
-              let hasWeeklySummary = false;
+          if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+            const { summary } = user.weeklySummaries[0];
+            if (summary) {
+              hasWeeklySummary = true;
+            }
+          }
 
-              if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
-                const { summary } = user.weeklySummaries[0];
-                if (summary) {
-                  hasWeeklySummary = true;
+          await processWeeklySummariesByUserId(personId);
+
+          const results = await dashboardHelper.laborthisweek(
+            personId,
+            pdtStartOfLastWeek,
+            pdtEndOfLastWeek,
+          );
+
+          const { timeSpent_hrs: timeSpent } = results[0];
+          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+          const timeNotMet = timeSpent < weeklycommittedHours;
+          const timeRemaining = weeklycommittedHours - timeSpent;
+
+          let isNewUser = false;
+          const userStartDate = moment.tz(
+            new Date(person.startDate).toISOString(),
+            'America/Los_Angeles',
+          );
+
+          if (
+            person.totalTangibleHrs === 0 &&
+            person.totalIntangibleHrs === 0 &&
+            timeSpent === 0 &&
+            userStartDate.isAfter(pdtStartOfLastWeek)
+          ) {
+            isNewUser = true;
+          }
+
+          if (
+            userStartDate.isAfter(pdtEndOfLastWeek) ||
+            (userStartDate.isAfter(pdtStartOfLastWeek) &&
+              userStartDate.isBefore(pdtEndOfLastWeek) &&
+              timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+          ) {
+            isNewUser = true;
+          }
+
+          const updateResult = await userProfile.findByIdAndUpdate(
+            personId,
+            {
+              $inc: {
+                totalTangibleHrs: timeSpent || 0,
+              },
+              $max: {
+                personalBestMaxHrs: timeSpent || 0,
+              },
+              $push: {
+                savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
+              },
+              $set: {
+                lastWeekTangibleHrs: timeSpent || 0,
+              },
+            },
+            { new: true },
+          );
+
+          if (
+            updateResult?.weeklySummaryOption === 'Not Required' ||
+            updateResult?.weeklySummaryNotReq
+          ) {
+            hasWeeklySummary = true;
+          }
+
+          const cutOffDate = moment().subtract(1, 'year');
+
+          const oldInfringements = [];
+          for (let k = 0; k < updateResult?.infringements.length; k += 1) {
+            if (
+              updateResult?.infringements &&
+              moment(new Date(updateResult.infringements[k].date).toISOString()).diff(cutOffDate) >=
+                0
+            ) {
+              oldInfringements.push(updateResult.infringements[k]);
+            } else {
+              break;
+            }
+          }
+          let historyInfringements = 'No Previous Infringements.';
+          if (oldInfringements.length) {
+            await userProfile.findByIdAndUpdate(
+              personId,
+              {
+                $push: {
+                  oldInfringements: { $each: oldInfringements, $slice: -10 },
+                },
+              },
+              { new: true },
+            );
+
+            historyInfringements = oldInfringements
+              .map((item, index) => {
+                let enhancedDescription;
+                if (item.description) {
+                  let sentences = item.description.split('.');
+                  const dateRegex =
+                    /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
+                  sentences = sentences.map((sentence) =>
+                    sentence.replace(
+                      dateRegex,
+                      (match, year1, month1, day1, year2, month2, day2) => {
+                        const startDate = moment(`${year1}-${month1}-${day1}`, 'YYYY-MM-DD').format(
+                          'M-D-YYYY',
+                        );
+                        const endDate = moment(`${year2}-${month2}-${day2}`, 'YYYY-MM-DD').format(
+                          'M-D-YYYY',
+                        );
+                        return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
+                      },
+                    ),
+                  );
+                  if (sentences[0].includes('System auto-assigned infringement for two reasons')) {
+                    sentences[0] = sentences[0].replace(
+                      /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
+                      '<span style="color: blue;"><b>$1</b></span>',
+                    );
+                    enhancedDescription = sentences.join('.');
+                    enhancedDescription = enhancedDescription.replace(
+                      /logged (\d+(\.\d+)?\s*hours)/i,
+                      'logged <span style="color: blue;"><b>$1</b></span>',
+                    );
+                  } else if (
+                    sentences[0].includes(
+                      'System auto-assigned infringement for editing your time entries',
+                    )
+                  ) {
+                    sentences[0] = sentences[0].replace(
+                      /time entries <(\d+)>\s*times/i,
+                      'time entries <b>$1 times</b>',
+                    );
+                    enhancedDescription = sentences.join('.');
+                  } else if (sentences[0].includes('System auto-assigned infringement')) {
+                    sentences[0] = sentences[0].replace(
+                      /(not submitting a weekly summary)/gi,
+                      '<span style="color: blue;"><b>$1</b></span>',
+                    );
+                    sentences[0] = sentences[0].replace(
+                      /(not meeting weekly volunteer time commitment)/gi,
+                      '<span style="color: blue;"><b>$1</b></span>',
+                    );
+                    enhancedDescription = sentences.join('.');
+                    enhancedDescription = enhancedDescription.replace(
+                      /logged (\d+(\.\d+)?\s*hours)/i,
+                      'logged <span style="color: blue;"><b>$1</b></span>',
+                    );
+                  } else {
+                    enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
+                  }
                 }
+                return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
+                  new Date(item.date),
+                ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+              })
+              .join('');
+          }
+          // No extra hours is needed if blue squares isn't over 5.
+          // length +1 is because new infringement hasn't been created at this stage.
+          const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
+          const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+          const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: personId,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+          let requestForTimeOff;
+          let requestForTimeOffStartingDate;
+          let requestForTimeOffEndingDate;
+          let requestForTimeOffreason;
+          let requestForTimeOffEmailBody;
+
+          if (hasTimeOffRequest) {
+            // eslint-disable-next-line prefer-destructuring
+            requestForTimeOff = requestsForTimeOff[0];
+            requestForTimeOffStartingDate = moment
+              .tz(requestForTimeOff.startingDate, 'America/Los_Angeles')
+              .format('dddd M-D-YYYY');
+
+            requestForTimeOffEndingDate = moment
+              .tz(requestForTimeOff.endingDate, 'America/Los_Angeles')
+              .format('dddd  M-D-YYYY');
+            requestForTimeOffreason = requestForTimeOff.reason;
+            requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
+          }
+          let description = '';
+
+          if (timeNotMet || !hasWeeklySummary) {
+            if (hasTimeOffRequest) {
+              description = requestForTimeOffreason;
+            } else if (timeNotMet && !hasWeeklySummary) {
+              if (person.role === 'Core Team') {
+                description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )} and ending ${pdtEndOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
+                  person.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                  .localeData()
+                  .ordinal(
+                    oldInfringements.length + 1,
+                  )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                  2,
+                )} hours.`;
+              } else {
+                description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
+                  2,
+                )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
               }
-
-              await processWeeklySummariesByUserId(personId);
-
-              const results = await dashboardHelper.laborthisweek(
-                personId,
-                pdtStartOfLastWeek,
-                pdtEndOfLastWeek,
-              );
-
-              const { timeSpent_hrs: timeSpent } = results[0];
-              const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-              const timeNotMet = timeSpent < weeklycommittedHours;
-              const timeRemaining = weeklycommittedHours - timeSpent;
-
-              let isNewUser = false;
-              const userStartDate = moment.tz(
-                new Date(person.startDate).toISOString(),
-                'America/Los_Angeles',
-              );
-
-              if (
-                person.totalTangibleHrs === 0 &&
-                person.totalIntangibleHrs === 0 &&
-                timeSpent === 0 &&
-                userStartDate.isAfter(pdtStartOfLastWeek)
-              ) {
-                console.log('1');
-                isNewUser = true;
+            } else if (timeNotMet) {
+              if (person.role === 'Core Team') {
+                description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )} and ending ${pdtEndOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
+                  user.weeklycommittedHours
+                } hours + ${
+                  person.missedHours ?? 0
+                } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
+                  .localeData()
+                  .ordinal(
+                    oldInfringements.length + 1,
+                  )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                  2,
+                )} hours.`;
+              } else {
+                description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
+                  2,
+                )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
+                  'dddd M-D-YYYY',
+                )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
               }
+            } else {
+              description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
+                'dddd M-D-YYYY',
+              )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
+            }
 
-              if (
-                userStartDate.isAfter(pdtEndOfLastWeek) ||
-                (userStartDate.isAfter(pdtStartOfLastWeek) &&
-                  userStartDate.isBefore(pdtEndOfLastWeek) &&
-                  timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
-              ) {
-                console.log('2');
-                isNewUser = true;
-              }
+            const infringement = {
+              date: moment().utc().format('YYYY-MM-DD'),
+              description,
+              createdDate: hasTimeOffRequest
+                ? moment
+                    .tz(new Date(requestForTimeOff.createdAt).toISOString(), 'America/Los_Angeles')
+                    .format('YYYY-MM-DD')
+                : null,
+            };
 
-              const updateResult = await userProfile.findByIdAndUpdate(
+            // Only assign blue square and send email if the user IS NOT a new user
+            // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
+            // All other new users will not receive a blue square or notification
+            let emailBody = '';
+            if (!isNewUser) {
+              const status = await userProfile.findByIdAndUpdate(
                 personId,
                 {
-                  $inc: {
-                    totalTangibleHrs: timeSpent || 0,
-                  },
-                  $max: {
-                    personalBestMaxHrs: timeSpent || 0,
-                  },
                   $push: {
-                    savedTangibleHrs: { $each: [timeSpent || 0], $slice: -200 },
-                  },
-                  $set: {
-                    lastWeekTangibleHrs: timeSpent || 0,
+                    infringements: infringement,
                   },
                 },
                 { new: true },
               );
-
-              if (
-                updateResult?.weeklySummaryOption === 'Not Required' ||
-                updateResult?.weeklySummaryNotReq
-              ) {
-                hasWeeklySummary = true;
+              const administrativeContent = {
+                startDate: moment
+                  .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
+                  .utc()
+                  .format('M-D-YYYY'),
+                role: person.role,
+                userTitle: person.jobTitle[0],
+                historyInfringements,
+              };
+              if (person.role === 'Core Team' && timeRemaining > 0) {
+                emailBody = getInfringementEmailBody(
+                  status.firstName,
+                  status.lastName,
+                  infringement,
+                  status.infringements.length,
+                  timeRemaining,
+                  coreTeamExtraHour,
+                  requestForTimeOffEmailBody,
+                  administrativeContent,
+                  weeklycommittedHours,
+                );
+              } else {
+                emailBody = getInfringementEmailBody(
+                  status.firstName,
+                  status.lastName,
+                  infringement,
+                  status.infringements.length,
+                  undefined,
+                  null,
+                  requestForTimeOffEmailBody,
+                  administrativeContent,
+                );
               }
 
-              const cutOffDate = moment().subtract(1, 'year');
-
-              const oldInfringements = [];
-              for (let k = 0; k < updateResult?.infringements.length; k += 1) {
-                if (
-                  updateResult?.infringements &&
-                  moment(new Date(updateResult.infringements[k].date).toISOString()).diff(
-                    cutOffDate,
-                  ) >= 0
-                ) {
-                  oldInfringements.push(updateResult.infringements[k]);
-                } else {
-                  break;
-                }
+              let emailsBCCs;
+              /* eslint-disable array-callback-return */
+              const blueSquareBCCs = await BlueSquareEmailAssignment.find()
+                .populate('assignedTo')
+                .exec();
+              if (blueSquareBCCs.length > 0) {
+                emailsBCCs = blueSquareBCCs.map((assignment) => {
+                  if (assignment.assignedTo.isActive === true) {
+                    return assignment.email;
+                  }
+                });
+              } else {
+                emailsBCCs = null;
               }
-              let historyInfringements = 'No Previous Infringements.';
-              if (oldInfringements.length) {
-                await userProfile.findByIdAndUpdate(
-                  personId,
+              emailsBCCs = ['bfire9989@gmail.com', 'sohail.u.sy@gmail.com'];
+              // Queue the email instead of sending immediately to prevent race conditions
+              // emailQueue.push({
+              //   to: status.email,
+              //   subject: `Re: Infringement Assigned ${user.firstName} ${user.lastName}`,
+              //   body: emailBody,
+              //   attachments: null,
+              //   cc: DEFAULT_CC_EMAILS,
+              //   replyTo: status.email,
+              //   bcc: [...new Set([...emailsBCCs])],
+              //   // threading options for blue-square assignment
+              //   opts: {
+              //     type: 'blue_square_assignment',
+              //     recipientUserId: String(personId),
+              //     weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              //   },
+              // });
+              emailSender(
+                'sohail.u.sy@gmail.com', // recipient
+                `New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+                emailBody,
+                null,
+                'bfire9989@gmail.com', // CC
+                'sohail.u.sy@gmail.com', // replyTo
+                [...new Set([...emailsBCCs])], // BCC
+                {
+                  type: 'blue_square_assignment',
+                  recipientUserId: String(personId),
+                  weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+                },
+              );
+            } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
+              usersRequiringBlueSqNotification.push(personId);
+            }
+
+            const categories = await dashboardHelper.laborThisWeekByCategory(
+              personId,
+              pdtStartOfLastWeek,
+              pdtEndOfLastWeek,
+            );
+
+            if (!Array.isArray(categories) || categories.length === 0) continue;
+
+            await userProfile.findOneAndUpdate(
+              { _id: personId, categoryTangibleHrs: { $exists: false } },
+              { $set: { categoryTangibleHrs: [] } },
+            );
+
+            for (let j = 0; j < categories.length; j += 1) {
+              const elem = categories[j];
+
+              if (elem._id == null) {
+                elem._id = 'Other';
+              }
+
+              const updateResult2 = await userProfile.findOneAndUpdate(
+                { _id: personId, 'categoryTangibleHrs.category': elem._id },
+                { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } },
+                { new: true },
+              );
+
+              if (!updateResult2) {
+                await userProfile.findOneAndUpdate(
                   {
-                    $push: {
-                      oldInfringements: { $each: oldInfringements, $slice: -10 },
+                    _id: personId,
+                    'categoryTangibleHrs.category': { $ne: elem._id },
+                  },
+                  {
+                    $addToSet: {
+                      categoryTangibleHrs: {
+                        category: elem._id,
+                        hrs: elem.timeSpent_hrs,
+                      },
                     },
                   },
-                  { new: true },
                 );
-
-                historyInfringements = oldInfringements
-                  .map((item, index) => {
-                    let enhancedDescription;
-                    if (item.description) {
-                      let sentences = item.description.split('.');
-                      const dateRegex =
-                        /in the week starting Sunday (\d{4})-(\d{2})-(\d{2}) and ending Saturday (\d{4})-(\d{2})-(\d{2})/g;
-                      sentences = sentences.map((sentence) =>
-                        sentence.replace(
-                          dateRegex,
-                          (match, year1, month1, day1, year2, month2, day2) => {
-                            const startDate = moment(
-                              `${year1}-${month1}-${day1}`,
-                              'YYYY-MM-DD',
-                            ).format('M-D-YYYY');
-                            const endDate = moment(
-                              `${year2}-${month2}-${day2}`,
-                              'YYYY-MM-DD',
-                            ).format('M-D-YYYY');
-                            return `in the week starting Sunday ${startDate} and ending Saturday ${endDate}`;
-                          },
-                        ),
-                      );
-                      if (
-                        sentences[0].includes('System auto-assigned infringement for two reasons')
-                      ) {
-                        sentences[0] = sentences[0].replace(
-                          /(not meeting weekly volunteer time commitment as well as not submitting a weekly summary)/gi,
-                          '<span style="color: blue;"><b>$1</b></span>',
-                        );
-                        enhancedDescription = sentences.join('.');
-                        enhancedDescription = enhancedDescription.replace(
-                          /logged (\d+(\.\d+)?\s*hours)/i,
-                          'logged <span style="color: blue;"><b>$1</b></span>',
-                        );
-                      } else if (
-                        sentences[0].includes(
-                          'System auto-assigned infringement for editing your time entries',
-                        )
-                      ) {
-                        sentences[0] = sentences[0].replace(
-                          /time entries <(\d+)>\s*times/i,
-                          'time entries <b>$1 times</b>',
-                        );
-                        enhancedDescription = sentences.join('.');
-                      } else if (sentences[0].includes('System auto-assigned infringement')) {
-                        sentences[0] = sentences[0].replace(
-                          /(not submitting a weekly summary)/gi,
-                          '<span style="color: blue;"><b>$1</b></span>',
-                        );
-                        sentences[0] = sentences[0].replace(
-                          /(not meeting weekly volunteer time commitment)/gi,
-                          '<span style="color: blue;"><b>$1</b></span>',
-                        );
-                        enhancedDescription = sentences.join('.');
-                        enhancedDescription = enhancedDescription.replace(
-                          /logged (\d+(\.\d+)?\s*hours)/i,
-                          'logged <span style="color: blue;"><b>$1</b></span>',
-                        );
-                      } else {
-                        enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
-                      }
-                    }
-                    return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(
-                      item.date,
-                    ).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
-                  })
-                  .join('');
               }
-              // No extra hours is needed if blue squares isn't over 5.
-              // length +1 is because new infringement hasn't been created at this stage.
-              const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
-              const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
-              const utcEndMoment = moment(pdtEndOfLastWeek)
-                .subtract(1, 'day')
-                .subtract(1, 'second');
-
-              const requestsForTimeOff = await timeOffRequest.find({
-                requestFor: personId,
-                startingDate: { $lte: utcStartMoment },
-                endingDate: { $gte: utcEndMoment },
-              });
-
-              const hasTimeOffRequest = requestsForTimeOff.length > 0;
-              let requestForTimeOff;
-              let requestForTimeOffStartingDate;
-              let requestForTimeOffEndingDate;
-              let requestForTimeOffreason;
-              let requestForTimeOffEmailBody;
-
-              if (hasTimeOffRequest) {
-                // eslint-disable-next-line prefer-destructuring
-                requestForTimeOff = requestsForTimeOff[0];
-                requestForTimeOffStartingDate = moment
-                  .tz(requestForTimeOff.startingDate, 'America/Los_Angeles')
-                  .format('dddd M-D-YYYY');
-
-                requestForTimeOffEndingDate = moment
-                  .tz(requestForTimeOff.endingDate, 'America/Los_Angeles')
-                  .format('dddd  M-D-YYYY');
-                requestForTimeOffreason = requestForTimeOff.reason;
-                requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${requestForTimeOffStartingDate}, To ${requestForTimeOffEndingDate}, due to: <b>${requestForTimeOffreason}</b></span>`;
-              }
-              let description = '';
-
-              if (timeNotMet || !hasWeeklySummary) {
-                if (hasTimeOffRequest) {
-                  description = requestForTimeOffreason;
-                } else if (timeNotMet && !hasWeeklySummary) {
-                  if (person.role === 'Core Team') {
-                    description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${pdtStartOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )} and ending ${pdtEndOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
-                      person.weeklycommittedHours
-                    } hours + ${
-                      person.missedHours ?? 0
-                    } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
-                      .localeData()
-                      .ordinal(
-                        oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
-                      2,
-                    )} hours.`;
-                  } else {
-                    description = `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${timeSpent.toFixed(
-                      2,
-                    )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
-                  }
-                } else if (timeNotMet) {
-                  if (person.role === 'Core Team') {
-                    description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${pdtStartOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )} and ending ${pdtEndOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )}, you logged ${timeSpent.toFixed(2)} hours against a committed effort of ${
-                      user.weeklycommittedHours
-                    } hours + ${
-                      person.missedHours ?? 0
-                    } hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${moment
-                      .localeData()
-                      .ordinal(
-                        oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
-                      2,
-                    )} hours.`;
-                  } else {
-                    description = `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${timeSpent.toFixed(
-                      2,
-                    )} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${pdtStartOfLastWeek.format(
-                      'dddd M-D-YYYY',
-                    )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
-                  }
-                } else {
-                  description = `System auto-assigned infringement for not submitting a weekly summary for the week starting ${pdtStartOfLastWeek.format(
-                    'dddd M-D-YYYY',
-                  )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
-                }
-
-                const infringement = {
-                  date: moment().utc().format('YYYY-MM-DD'),
-                  description,
-                  createdDate: hasTimeOffRequest
-                    ? moment
-                        .tz(
-                          new Date(requestForTimeOff.createdAt).toISOString(),
-                          'America/Los_Angeles',
-                        )
-                        .format('YYYY-MM-DD')
-                    : null,
-                };
-
-                // Only assign blue square and send email if the user IS NOT a new user
-                // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
-                // All other new users will not receive a blue square or notification
-                let emailBody = '';
-                if (!isNewUser) {
-                  const status = await userProfile.findByIdAndUpdate(
-                    personId,
-                    {
-                      $push: {
-                        infringements: infringement,
-                      },
-                    },
-                    { new: true },
-                  );
-                  const administrativeContent = {
-                    startDate: moment
-                      .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
-                      .utc()
-                      .format('M-D-YYYY'),
-                    role: person.role,
-                    userTitle: person.jobTitle[0],
-                    historyInfringements,
-                  };
-                  if (person.role === 'Core Team' && timeRemaining > 0) {
-                    emailBody = getInfringementEmailBody(
-                      status.firstName,
-                      status.lastName,
-                      infringement,
-                      status.infringements.length,
-                      timeRemaining,
-                      coreTeamExtraHour,
-                      requestForTimeOffEmailBody,
-                      administrativeContent,
-                      weeklycommittedHours,
-                    );
-                  } else {
-                    emailBody = getInfringementEmailBody(
-                      status.firstName,
-                      status.lastName,
-                      infringement,
-                      status.infringements.length,
-                      undefined,
-                      null,
-                      requestForTimeOffEmailBody,
-                      administrativeContent,
-                    );
-                  }
-
-                  let emailsBCCs;
-                  /* eslint-disable array-callback-return */
-                  const blueSquareBCCs = await BlueSquareEmailAssignment.find()
-                    .populate('assignedTo')
-                    .exec();
-                  if (blueSquareBCCs.length > 0) {
-                    emailsBCCs = blueSquareBCCs.map((assignment) => {
-                      if (assignment.assignedTo.isActive === true) {
-                        return assignment.email;
-                      }
-                    });
-                  } else {
-                    emailsBCCs = null;
-                  }
-
-                  // Queue the email instead of sending immediately to prevent race conditions
-                  emailQueue.push({
-                    to: status.email,
-                    subject: 'New Infringement Assigned',
-                    body: emailBody,
-                    attachments: null,
-                    cc: DEFAULT_CC_EMAILS,
-                    replyTo: status.email,
-                    bcc: [...new Set([...emailsBCCs])],
-                  });
-                } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
-                  usersRequiringBlueSqNotification.push(personId);
-                }
-
-                const categories = await dashboardHelper.laborThisWeekByCategory(
-                  personId,
-                  pdtStartOfLastWeek,
-                  pdtEndOfLastWeek,
-                );
-
-                if (!Array.isArray(categories) || categories.length === 0) return;
-
-                await userProfile.findOneAndUpdate(
-                  { _id: personId, categoryTangibleHrs: { $exists: false } },
-                  { $set: { categoryTangibleHrs: [] } },
-                );
-
-                for (let j = 0; j < categories.length; j += 1) {
-                  const elem = categories[j];
-
-                  if (elem._id == null) {
-                    elem._id = 'Other';
-                  }
-
-                  const updateResult2 = await userProfile.findOneAndUpdate(
-                    { _id: personId, 'categoryTangibleHrs.category': elem._id },
-                    { $inc: { 'categoryTangibleHrs.$.hrs': elem.timeSpent_hrs } },
-                    { new: true },
-                  );
-
-                  if (!updateResult2) {
-                    await userProfile.findOneAndUpdate(
-                      {
-                        _id: personId,
-                        'categoryTangibleHrs.category': { $ne: elem._id },
-                      },
-                      {
-                        $addToSet: {
-                          categoryTangibleHrs: {
-                            category: elem._id,
-                            hrs: elem.timeSpent_hrs,
-                          },
-                        },
-                      },
-                    );
-                  }
-                }
-              }
-              if (cache.hasCache(`user-${personId}`)) {
-                cache.removeCache(`user-${personId}`);
-              }
-            } catch (err) {
-              logger.logException(err);
             }
-          }),
-        );
-
-        skip += batchSize;
+          }
+          if (cache.hasCache(`user-${personId}`)) {
+            cache.removeCache(`user-${personId}`);
+          }
+        } catch (err) {
+          logger.logException(err);
+        }
       }
 
-      for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.attachments, // 4th param: attachments
-          email.cc, // 5th param: cc
-          email.replyTo, // 6th param: replyTo
-          email.bcc, // 7th param: emailBccs
-        );
-      }
+      // for (const email of emailQueue) {
+      // await emailSender(
+      //   email.to,
+      //   email.subject,
+      //   email.body,
+      //   email.attachments, // 4th param: attachments
+      //   "bfire9989@gmail.com", // 5th param: cc
+      //   "sohail.u.sy@gmail.com", // 6th param: replyTo
+      //   "syedsohail601@gmail.com", // 7th param: emailBccs
+      //   // threading options for blue-square assignment
+      //   {
+      //     type: 'blue_square_assignment',
+      //     recipientUserId: String(personId),
+      //     weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+      //   },
+      // );
+      // }
 
-      await deleteOldTimeOffRequests();
+      // await deleteOldTimeOffRequests();
 
-      if (usersRequiringBlueSqNotification.length > 0) {
-        const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
-        await notificationService.createNotification(
-          senderId._id,
-          usersRequiringBlueSqNotification,
-          NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
-          true,
-          false,
-        );
-      }
+      // if (usersRequiringBlueSqNotification.length > 0) {
+      //   const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
+      //   await notificationService.createNotification(
+      //     senderId._id,
+      //     usersRequiringBlueSqNotification,
+      //     NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE,
+      //     true,
+      //     false,
+      //   );
+      // }
     } catch (err) {
       logger.logException(err);
     }
 
-    try {
-      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
-      for (let i = 0; i < inactiveUsers.length; i += 1) {
-        const user = inactiveUsers[i];
-        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
-      }
-    } catch (err) {
-      logger.logException(err);
-    }
+    // try {
+    //   const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
+    //   for (let i = 0; i < inactiveUsers.length; i += 1) {
+    //     const user = inactiveUsers[i];
+    //     await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+    //   }
+    // } catch (err) {
+    //   logger.logException(err);
+    // }
   };
 
   const missedSummaryTemplate = (firstname) =>
@@ -1023,7 +1028,7 @@ const userHelper = function () {
       // );
       // const users = [user1, user2, user3, user4];
       const users = await userProfile.find(
-        { firstName: 'Anthony', lastName: 'Weathers', isActive: true },
+        { firstName: 'Sohail', lastName: 'Admin', isActive: true },
         // '_id weeklycommittedHours weeklySummaries missedHours email firstName',
         '_id weeklycommittedHours weeklySummaries missedHours email firstName weeklySummaryOption weeklySummaryNotReq',
       );
@@ -1042,13 +1047,13 @@ const userHelper = function () {
           .filter((bcc) => bcc.assignedTo?.isActive) // in email document, it was asked to make all emails in emailBCC be CC'd, double check if jae wants them cc'd or bcc'd
           .filter(
             (bcc) =>
-              bcc.email === 'anthonyweathers115@gmail.com' ||
+              bcc.email === 'bfire9989@gmail.com' ||
               bcc.email === '123@pleb.com' ||
               bcc.email === '234@pleb.com',
           )
           .map((bcc) => bcc.email);
       } else {
-        emailsBCCs = ['caboose464@gmail.com'];
+        emailsBCCs = ['syedsohail601@gmail.com'];
       }
       console.log('emailsBCCs: ', emailsBCCs);
 
@@ -1091,6 +1096,7 @@ const userHelper = function () {
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
         const timeNotMet = timeSpent + weeklycommittedHours < weeklycommittedHours;
+        console.log('time not met: ', timeNotMet);
         // const timeNotMet = timeSpent + 0.17 < weeklycommittedHours;
         // const timeNotMet = timeSpent < weeklycommittedHours;
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
@@ -1102,6 +1108,7 @@ const userHelper = function () {
           endingDate: { $gte: utcEndMoment },
         });
         const hasTimeOffRequest = requestsForTimeOff.length > 0;
+        console.log('has time off request: ', hasTimeOffRequest);
         if (hasTimeOffRequest === false && timeNotMet === false && hasWeeklySummary === false) {
           // emailSender(
           //   user.email,
@@ -1111,16 +1118,27 @@ const userHelper = function () {
           //   ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'] // CC list
           //   'anthonyweathers115@gmail.com', // either will be Jae's email, or recipient as shown in reply video
           //   // [...new Set([...emailsBCCs])],
+          //   // threading options for blue-square assignment
+          //   // opts: {
+          //   //   type: 'blue_square_assignment',
+          //   //   recipientUserId: String(user._id),
+          //   //   weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+          //   // },
           // );
-          // emailSender(
-          //   'caboose464@gmail.com', // recipient
-          //   `Re: New Infringement Assigned`,
-          //   missedSummaryTemplate(user.firstName),
-          //   null,
-          //   'anthonyweathers115@gmail.com', // CC
-          //   'anthonysoftwaredeveloper@gmail.com', // replyTo
-          //   [...new Set([...emailsBCCs])], // BCC
-          // );
+          emailSender(
+            'sohail.u.sy@gmail.com', // recipient
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            missedSummaryTemplate(user.firstName),
+            null,
+            'bfire9989@gmail.com', // CC
+            'sohail.u.sy@gmail.com', // replyTo
+            [...new Set([...emailsBCCs])], // BCC
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
         }
       }
       return 'success';
@@ -1297,7 +1315,7 @@ const userHelper = function () {
       // const users = [user1, user2, user3, user4];
       const users = await userProfile.find(
         // { isActive: true},
-        { firstName: 'Anthony', lastName: 'Weathers', isActive: true },
+        { firstName: 'Sohail', lastName: 'Admin', isActive: true },
         '_id weeklycommittedHours missedHours email firstName lastName infringements startDate',
         // '_id weeklycommittedHours missedHours email firstName infringements startDate'
       );
@@ -1316,13 +1334,13 @@ const userHelper = function () {
           .filter((bcc) => bcc.assignedTo?.isActive)
           .filter(
             (bcc) =>
-              bcc.email === 'anthonyweathers115@gmail.com' ||
+              bcc.email === 'sohail.u.sy@gmail.com' ||
               bcc.email === '123@pleb.com' ||
               bcc.email === '234@pleb.com',
           )
           .map((bcc) => bcc.email);
       } else {
-        emailsBCCs = ['anthonyweathers115@gmail.com', 'caboose464@gmail.com'];
+        emailsBCCs = ['bfire9989@gmail.com', 'sohail.u.sy@gmail.com'];
       }
       console.log('emailsBCCs: ', emailsBCCs);
 
@@ -1338,9 +1356,9 @@ const userHelper = function () {
           pdtEndOfCurrentWeek,
         );
         // const { timeSpent_hrs: timeSpent } = results[0];
-        let { timeSpent_hrs: timeSpent } = results[0];
+        const { timeSpent_hrs: timeSpent } = results[0];
         // timeSpent *= 0.8;
-        timeSpent *= 0.65;
+        // timeSpent *= 0.65;
         console.log('timeSpent using results of laborthisweek for last week: ', timeSpent);
         // const timeSpent = 0.75*user.weeklycommittedHours;
         // timeSpent = 0.75*user.weeklycommittedHours;
@@ -1399,23 +1417,36 @@ const userHelper = function () {
           todayBlueSquare.length === 1
         ) {
           console.log('Entered > 85% but < weeklycommittedHours part');
-          // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("MISSED_HOURS_BY_<15%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-          // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName} ${user.lastName}`, WeeklyReminderEmailBody("MISSED_HOURS_BY_<15%", users[i].firstName), null, [...new Set([...emailsBCCs])], null);
+          // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("MISSED_HOURS_BY_<15%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+          // emailSender('syedsohail601@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("MISSED_HOURS_BY_<15%", users[i].firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
         } else if (
           timeSpent >= 0.65 * weeklycommittedHours &&
           timeSpent <= 0.849 * weeklycommittedHours
         ) {
           console.log('Entered > 65% but < 85% part');
-          // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("COMPLETED_HOURS_65%_84.9%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-          // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName} ${user.lastName}`, WeeklyReminderEmailBody("COMPLETED_HOURS_65%_84.9%", users[i].firstName), null, [...new Set([...emailsBCCs])], null);
+          // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("COMPLETED_HOURS_65%_84.9%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+          // emailSender('syedsohail601@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("COMPLETED_HOURS_65%_84.9%", users[i].firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
         } else if (
           timeSpent >= 0.25 * weeklycommittedHours &&
           timeSpent <= 0.649 * weeklycommittedHours &&
           numMonths + 3 > 2
         ) {
           console.log('Entered > 25% but < 65% part');
-          // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("COMPLETED_HOURS_25%_64.9%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-          // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName} ${user.lastName}`, WeeklyReminderEmailBody("COMPLETED_HOURS_25%_64.9%", user.firstName), null, [...new Set([...emailsBCCs])], null);
+          // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("COMPLETED_HOURS_25%_64.9%", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+          emailSender(
+            'syedsohail601@gmail.com',
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            WeeklyReminderEmailBody('COMPLETED_HOURS_25%_64.9%', user.firstName),
+            null,
+            null,
+            null,
+            [...new Set([...emailsBCCs])],
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
         }
       }
     } catch (error) {
@@ -1446,7 +1477,7 @@ const userHelper = function () {
       // const users = [user1, user2, user3, user4];
       const users = await userProfile.find(
         // { isActive: true},
-        { firstName: 'Anthony', lastName: 'Weathers', isActive: true },
+        { firstName: 'Sohail', lastName: 'Admin', isActive: true },
         // '_id missedHours email firstName infringements startDate',
         '_id weeklycommittedHours missedHours email firstName infringements startDate',
       );
@@ -1468,13 +1499,13 @@ const userHelper = function () {
           .filter((bcc) => bcc.assignedTo?.isActive)
           .filter(
             (bcc) =>
-              bcc.email === 'anthonyweathers115@gmail.com' ||
+              bcc.email === 'sohail.u.sy@gmail.com' ||
               bcc.email === '123@pleb.com' ||
               bcc.email === '234@pleb.com',
           )
           .map((bcc) => bcc.email);
       } else {
-        emailsBCCs = ['anthonyweathers115@gmail.com', 'caboose464@gmail.com'];
+        emailsBCCs = ['bfire9989@gmail.com', 'sohail.u.sy@gmail.com'];
       }
 
       // time off request
@@ -1579,8 +1610,8 @@ const userHelper = function () {
             numMonths < 1
           ) {
             console.log('Entered <1MON_ONE_BLUESQUARE part');
-            // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("<1MON_ONE_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-            // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("<1MON_ONE_BLUESQUARE", user.firstName), null, [...new Set([...emailsBCCs])], null);
+            // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<1MON_ONE_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+            // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<1MON_ONE_BLUESQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
           }
           // else if(bluesquareEmailCondition && users[i].infringements.length===2 && todayBlueSquare.length===1){
           else if (
@@ -1590,12 +1621,12 @@ const userHelper = function () {
           ) {
             if (numMonths < 1) {
               console.log('Entered <1MON_TWO_BLUESQUARE part');
-              // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("<1MON_TWO_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-              // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("<1MON_TWO_BLUESQUARE", user.firstName), null, [...new Set([...emailsBCCs])], null);
+              // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<1MON_TWO_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+              // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<1MON_TWO_BLUESQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
             } else if (numMonths < 2) {
               console.log('Entered <2MON_TWO_BLUESQUARE part');
-              // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("<2MON_TWO_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-              // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("<2MON_TWO_BLUESQUARE", user.firstName), null, [...new Set([...emailsBCCs])], null);
+              // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<2MON_TWO_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+              // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<2MON_TWO_BLUESQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
             }
           }
           // else if(bluesquareEmailCondition && users[i].infringements.length===3 && todayBlueSquare.length===1 && numMonths<2){
@@ -1606,8 +1637,8 @@ const userHelper = function () {
             numMonths < 2
           ) {
             console.log('Entered <2MON_THREE_BLUESQUARE part');
-            // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("<2MON_THREE_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-            // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("<2MON_THREE_BLUESQUARE", user.firstName), null, [...new Set([...emailsBCCs])], null);
+            // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<2MON_THREE_BLUESQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+            // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("<2MON_THREE_BLUESQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
           }
           // else if(users[i].infringements.length===4 && todayBlueSquare.length===1 && timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours){
           else if (
@@ -1616,16 +1647,16 @@ const userHelper = function () {
             !hasTimeOffRequest
           ) {
             console.log('Entered 4TH_BLUE_SQUARE part');
-            // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("4TH_BLUE_SQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-            // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("4TH_BLUE_SQUARE", user.firstName), null, [...new Set([...emailsBCCs])], 'caboose464@gmail.com');
+            // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("4TH_BLUE_SQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+            // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("4TH_BLUE_SQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
           } else if (hasTimeOffRequest && infringements.length < 4) {
             console.log('Entered SCHEDULED_TIME_OFF part');
-            // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("SCHEDULED_TIME_OFF", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-            // emailSender('anthonysoftwaredeveloper@gmail.com', `Re: New Infringement Assigned ${user.firstName}`, WeeklyReminderEmailBody("SCHEDULED_TIME_OFF", user.firstName), null, [...new Set([...emailsBCCs])], null);
+            // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("SCHEDULED_TIME_OFF", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+            // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("SCHEDULED_TIME_OFF", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
           } else if (hasTimeOffRequest && infringements.length === 4) {
             console.log('Entered 4th blue square and time off request mix case');
-            // emailSender(user.email, "Re: New Infringement Assigned", WeeklyReminderEmailBody("SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])]);
-            // emailSender('anthonysoftwaredeveloper@gmail.com', 'Re: New Infringement Assigned', WeeklyReminderEmailBody("SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE", user.firstName), null, [...new Set([...emailsBCCs])], null);
+            // emailSender(user.email,  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE", user.firstName), null, ['jae@onecommunityglobal.org', 'onecommunityglobal@gmail.com'], "jae@onecommunityglobal.org", [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
+            // emailSender('anthonysoftwaredeveloper@gmail.com',  `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`, WeeklyReminderEmailBody("SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE", user.firstName), null, null, null, [...new Set([...emailsBCCs])], { type: 'blue_square_assignment', recipientUserId: String(user._id), weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD') });
           }
         }
       }
