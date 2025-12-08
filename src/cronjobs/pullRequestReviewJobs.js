@@ -1,6 +1,5 @@
 // eslint-disable-next-line no-unused-vars
 const { CronJob } = require('cron');
-
 const {
   syncGitHubData,
   acquireTodayJob,
