@@ -1830,6 +1830,9 @@ const overviewReportHelper = function () {
       totalMentors: currentTotalMentors,
     } = await getMentorData(startDate, endDate);
 
+    // Calculate existing active mentors (active - new)
+    const currentExistingActive = currentActiveMentors - currentNewMentors;
+
     const mentorStats = {
       activeMentors: {
         count: currentActiveMentors,
@@ -1845,6 +1848,22 @@ const overviewReportHelper = function () {
           Math.round((currentDeactivatedMentors / currentTotalMentors) * 100) / 100,
       },
       totalMentors: { count: currentTotalMentors },
+      donutChartData: {
+        existingActive: {
+          count: currentExistingActive,
+          percentageOutOfTotal:
+            Math.round((currentExistingActive / currentTotalMentors) * 100) / 100,
+        },
+        newActive: {
+          count: currentNewMentors,
+          percentageOutOfTotal: Math.round((currentNewMentors / currentTotalMentors) * 100) / 100,
+        },
+        deactivated: {
+          count: currentDeactivatedMentors,
+          percentageOutOfTotal:
+            Math.round((currentDeactivatedMentors / currentTotalMentors) * 100) / 100,
+        },
+      },
     };
 
     if (comparisonStartDate && comparisonEndDate) {
@@ -1854,6 +1873,9 @@ const overviewReportHelper = function () {
         deactivatedMentors: comparisonDeactivatedMentors,
         totalMentors: comparisonTotalMentors,
       } = await getMentorData(comparisonStartDate, comparisonEndDate);
+
+      // Calculate comparison existing active mentors
+      const comparisonExistingActive = comparisonActiveMentors - comparisonNewMentors;
 
       mentorStats.activeMentors.comparisonPercentage = calculateGrowthPercentage(
         currentActiveMentors,
@@ -1870,6 +1892,18 @@ const overviewReportHelper = function () {
       mentorStats.totalMentors.comparisonPercentage = calculateGrowthPercentage(
         currentTotalMentors,
         comparisonTotalMentors,
+      );
+      mentorStats.donutChartData.existingActive.comparisonPercentage = calculateGrowthPercentage(
+        currentExistingActive,
+        comparisonExistingActive,
+      );
+      mentorStats.donutChartData.newActive.comparisonPercentage = calculateGrowthPercentage(
+        currentNewMentors,
+        comparisonNewMentors,
+      );
+      mentorStats.donutChartData.deactivated.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedMentors,
+        comparisonDeactivatedMentors,
       );
     }
 
