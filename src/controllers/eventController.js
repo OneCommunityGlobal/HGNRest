@@ -79,9 +79,31 @@ const createEvent = async (req, res) => {
   }
 };
 
+const getEventById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await Event.findById(id)
+      .populate('resources.userID', 'firstName lastName email profilePic')
+      .lean();
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    event.status = updateEventStatus(event);
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fetch event',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   getEvents,
   getEventLocations,
   getEventTypes,
   createEvent,
+  getEventById,
 };
