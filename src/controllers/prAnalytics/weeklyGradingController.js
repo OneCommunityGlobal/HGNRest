@@ -19,7 +19,7 @@ const validateGradedPr = (gradedPr) => {
     );
   }
 
-  const validGrades = ['Not approved', 'Low Quality', 'Sufficient', 'Exceptional'];
+  const validGrades = ['Unsatisfactory', 'Okay', 'Exceptional', 'No Correct Image'];
   if (!validGrades.includes(gradedPr.grade)) {
     throw new Error(
       `Invalid grade value: ${gradedPr.grade}. Must be one of: ${validGrades.join(', ')}`,
@@ -66,6 +66,62 @@ const mergeGradedPrs = (existingGradedPrs, newGradedPrs) => {
   return Array.from(existingGradedPrsMap.values());
 };
 
+// Create version history entry from existing entry
+const createVersionHistoryEntry = (existingEntry) => {
+  if (!existingEntry) return null;
+
+  return {
+    version: existingEntry.version || 1,
+    prsNeeded: existingEntry.prsNeeded,
+    prsReviewed: existingEntry.prsReviewed,
+    gradedPrs: existingEntry.gradedPrs,
+    updatedAt: existingEntry.updatedAt || existingEntry.createdAt,
+  };
+};
+
+// Build update data for saving grading
+const buildUpdateData = (params) => {
+  const {
+    teamCode,
+    gradingDate,
+    reviewer,
+    prsNeeded,
+    prsReviewed,
+    mergedGradedPrs,
+    newVersion,
+    versionHistoryEntry,
+  } = params;
+  const updateData = {
+    teamCode,
+    date: gradingDate,
+    reviewer,
+    prsNeeded,
+    prsReviewed,
+    gradedPrs: mergedGradedPrs,
+    version: newVersion,
+  };
+
+  if (versionHistoryEntry) {
+    updateData.$push = { versionHistory: versionHistoryEntry };
+  }
+
+  return updateData;
+};
+
+// Calculate next version number
+const calculateNextVersion = (existingEntry) => {
+  const currentVersion = existingEntry?.version || 0;
+  return currentVersion + 1;
+};
+
+// Save grading entry with versioning
+const saveGradingEntry = async (weeklyGradingModel, query, updateData) => {
+  await weeklyGradingModel.findOneAndUpdate(query, updateData, {
+    upsert: true,
+    new: true,
+  });
+};
+
 const weeklyGradingController = function (weeklyGradingModel) {
   // Process and save a single reviewer's grading
   const processReviewerGrading = async (grading, teamCode, gradingDate) => {
@@ -73,33 +129,24 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
     validateGradingEntry(grading);
 
-    const existingEntry = await weeklyGradingModel.findOne({
-      teamCode,
-      date: gradingDate,
-      reviewer,
-    });
+    const query = { teamCode, date: gradingDate, reviewer };
+    const existingEntry = await weeklyGradingModel.findOne(query);
 
     const mergedGradedPrs = mergeGradedPrs(existingEntry?.gradedPrs, gradedPrs);
+    const newVersion = calculateNextVersion(existingEntry);
+    const versionHistoryEntry = createVersionHistoryEntry(existingEntry);
+    const updateData = buildUpdateData({
+      teamCode,
+      gradingDate,
+      reviewer,
+      prsNeeded,
+      prsReviewed,
+      mergedGradedPrs,
+      newVersion,
+      versionHistoryEntry,
+    });
 
-    await weeklyGradingModel.findOneAndUpdate(
-      {
-        teamCode,
-        date: gradingDate,
-        reviewer,
-      },
-      {
-        teamCode,
-        date: gradingDate,
-        reviewer,
-        prsNeeded,
-        prsReviewed,
-        gradedPrs: mergedGradedPrs,
-      },
-      {
-        upsert: true,
-        new: true,
-      },
-    );
+    await saveGradingEntry(weeklyGradingModel, query, updateData);
   };
 
   const getWeeklyGrading = async (req, res) => {
