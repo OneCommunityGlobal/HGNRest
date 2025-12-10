@@ -1,3 +1,5 @@
+/* eslint-disable no-shadow */
+/* eslint-disable no-use-before-define */
 const logger = require('../../startup/logger');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {
