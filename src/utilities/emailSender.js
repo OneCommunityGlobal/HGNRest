@@ -119,14 +119,12 @@ const normalizeReferences = (refs) => {
 
 const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
   const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
-  console.log('isBsAssignment:', isBsAssignment);
   // Use messageId as the unique key to prevent overwrites of different emails with same subject
   const key = batch.messageId || `${batch.to}|${batch.subject}|${batch.meta?.type}|${Date.now()}`;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
       const moment = require('moment-timezone');
-      // const localDate = moment().tz('America/Los_Angeles').toDate(); // returns JS Date in LA time
       await sendEmail(batch);
 
       if (isBsAssignment) {
@@ -154,7 +152,6 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
           },
           { upsert: true, new: true },
         );
-        console.log('Blue Square assignment log created in EmailHistory');
       }
       return true;
     } catch (err) {
@@ -185,7 +182,6 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
           },
           { upsert: true, new: true },
         );
-        console.log('Failed Blue Square assignment log created in EmailHistory');
       }
     }
 
