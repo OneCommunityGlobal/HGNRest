@@ -999,29 +999,6 @@ const userHelper = function () {
           logger.logException(err);
         }
       }
-
-            if (!updateResult2) {
-              await userProfile.findOneAndUpdate(
-                {
-                  _id: personId,
-                  'categoryTangibleHrs.category': { $ne: elem._id },
-                },
-                {
-                  $addToSet: {
-                    categoryTangibleHrs: {
-                      category: elem._id,
-                      hrs: elem.timeSpent_hrs,
-                    },
-                  },
-                },
-              );
-            }
-          }
-        }
-        if (cache.hasCache(`user-${personId}`)) {
-          cache.removeCache(`user-${personId}`);
-        }
-      }
       emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
       for (const email of emailQueue) {
         await emailSender(
@@ -3528,7 +3505,6 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
-    checkTeamCodeMismatch,
     resendBlueSquareEmailsOnlyForLastWeek,
     completeHoursAndMissedSummary,
     weeklyBlueSquareReminderFunction,
