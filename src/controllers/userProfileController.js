@@ -2202,7 +2202,9 @@ const userProfileController = function (UserProfile, Project) {
         teamCode: { $ne: null },
       });
 
-      distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
+      distinctTeamCodes = distinctTeamCodes
+        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .filter((code) => code !== '');
 
       try {
         cache.removeCache('teamCodes');
