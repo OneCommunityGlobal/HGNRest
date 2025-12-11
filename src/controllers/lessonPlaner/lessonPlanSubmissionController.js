@@ -2,7 +2,7 @@ const LessonPlanSubmission = require('../../models/lessonPlanner/lessonPlanSubmi
 
 function isValidUrl(url) {
   try {
-    new URL(url);
+    const parsedUrl = new URL(url);
     return true;
   } catch {
     return false;
