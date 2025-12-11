@@ -1,11 +1,14 @@
+const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
+const { uploadToS3 } = require('../services/s3Service');
+const config = require('../config');
 
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
     const grouped = {};
 
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       // Add null checks to prevent undefined grouping
       const subjectKey = task.subject?.name || 'Unknown Subject';
       const colorKey = task.color_level || 'unknown';
@@ -14,7 +17,7 @@ const studentTaskController = function () {
       if (!grouped[subjectKey]) {
         grouped[subjectKey] = {
           subject: task.subject,
-          colorLevels: {}
+          colorLevels: {},
         };
       }
 
@@ -22,14 +25,14 @@ const studentTaskController = function () {
         grouped[subjectKey].colorLevels[colorKey] = {
           color_level: colorKey,
           difficulty_level: task.difficulty_level,
-          activityGroups: {}
+          activityGroups: {},
         };
       }
 
       if (!grouped[subjectKey].colorLevels[colorKey].activityGroups[activityKey]) {
         grouped[subjectKey].colorLevels[colorKey].activityGroups[activityKey] = {
           activity_group: activityKey,
-          tasks: []
+          tasks: [],
         };
       }
 
@@ -46,14 +49,14 @@ const studentTaskController = function () {
         totalTasks: 0,
         completedTasks: 0,
         progressPercent: 0,
-        statusBreakdown: {}
+        statusBreakdown: {},
       };
     }
 
     const statusCounts = {};
     let completedTasks = 0;
 
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       const { status } = task;
       statusCounts[status] = (statusCounts[status] || 0) + 1;
 
@@ -66,7 +69,7 @@ const studentTaskController = function () {
       totalTasks,
       completedTasks,
       progressPercent: Math.round((completedTasks / totalTasks) * 100),
-      statusBreakdown: statusCounts
+      statusBreakdown: statusCounts,
     };
   };
 
@@ -82,27 +85,27 @@ const studentTaskController = function () {
       const studentTasks = await EducationTask.aggregate([
         {
           $match: {
-            studentId: mongoose.Types.ObjectId(studentId)
-          }
+            studentId: mongoose.Types.ObjectId(studentId),
+          },
         },
         {
           $lookup: {
             from: 'lessonplans',
             localField: 'lessonPlanId',
             foreignField: '_id',
-            as: 'lessonPlan'
-          }
+            as: 'lessonPlan',
+          },
         },
         {
-          $unwind: '$lessonPlan'
+          $unwind: '$lessonPlan',
         },
         {
           $lookup: {
             from: 'atoms',
             localField: 'atomIds',
             foreignField: '_id',
-            as: 'atoms'
-          }
+            as: 'atoms',
+          },
         },
         {
           $addFields: {
@@ -113,24 +116,24 @@ const studentTaskController = function () {
               $map: {
                 input: '$atoms',
                 as: 'atom',
-                in: '$$atom.subjectId'
-              }
-            }
-          }
+                in: '$$atom.subjectId',
+              },
+            },
+          },
         },
         {
           $lookup: {
             from: 'subjects',
             localField: 'firstAtom.subjectId',
             foreignField: '_id',
-            as: 'subject'
-          }
+            as: 'subject',
+          },
         },
         {
           $unwind: {
             path: '$subject',
-            preserveNullAndEmptyArrays: true
-          }
+            preserveNullAndEmptyArrays: true,
+          },
         },
         {
           $addFields: {
@@ -139,18 +142,18 @@ const studentTaskController = function () {
               $cond: {
                 if: { $ne: ['$firstAtom.difficulty', null] },
                 then: '$firstAtom.difficulty',
-                else: '$firstAtom.color_level'
-              }
+                else: '$firstAtom.color_level',
+              },
             },
             difficulty_level: {
               $cond: {
                 if: { $ne: ['$firstAtom.difficulty', null] },
                 then: '$firstAtom.difficulty',
-                else: '$firstAtom.color_level'
-              }
+                else: '$firstAtom.color_level',
+              },
             },
-            activity_group: { $ifNull: ['$lessonPlan.activityGroup', 'Unassigned'] }
-          }
+            activity_group: { $ifNull: ['$lessonPlan.activityGroup', 'Unassigned'] },
+          },
         },
         {
           $project: {
@@ -171,13 +174,13 @@ const studentTaskController = function () {
             lessonPlan: {
               _id: '$lessonPlan._id',
               title: '$lessonPlan.title',
-              theme: '$lessonPlan.theme'
+              theme: '$lessonPlan.theme',
             },
             subject: {
               _id: '$subject._id',
               name: '$subject.name',
               description: '$subject.description',
-              color: '$subject.color'
+              color: '$subject.color',
             },
             color_level: 1,
             difficulty_level: 1,
@@ -188,20 +191,20 @@ const studentTaskController = function () {
                 $cond: {
                   if: { $ne: ['$firstAtom.difficulty', null] },
                   then: '$firstAtom.difficulty',
-                  else: '$firstAtom.color_level'
-                }
-              }
+                  else: '$firstAtom.color_level',
+                },
+              },
             },
-            activity_group: 1
-          }
+            activity_group: 1,
+          },
         },
         {
           $sort: {
             dueAt: 1,
             'subject.name': 1,
-            'atom.difficulty': 1
-          }
-        }
+            'atom.difficulty': 1,
+          },
+        },
       ]);
 
       const groupedTasks = groupTasks(studentTasks);
@@ -210,14 +213,13 @@ const studentTaskController = function () {
       return res.status(200).json({
         tasks: groupedTasks,
         progress: progressStats,
-        totalTasks: studentTasks.length
+        totalTasks: studentTasks.length,
       });
-
     } catch (error) {
       console.error('Error fetching student tasks:', error);
       return res.status(500).json({
         error: 'Internal server error',
-        details: error.message
+        details: error.message,
       });
     }
   };
@@ -246,10 +248,10 @@ const studentTaskController = function () {
       const updatedTask = await EducationTask.findOneAndUpdate(
         {
           _id: mongoose.Types.ObjectId(taskId),
-          studentId: mongoose.Types.ObjectId(studentId)
+          studentId: mongoose.Types.ObjectId(studentId),
         },
         updateData,
-        { new: true }
+        { new: true },
       )
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
@@ -261,21 +263,114 @@ const studentTaskController = function () {
 
       return res.status(200).json({
         message: 'Task progress updated successfully',
-        task: updatedTask
+        task: updatedTask,
       });
-
     } catch (error) {
       console.error('Error updating task progress:', error);
       return res.status(500).json({
         error: 'Internal server error',
-        details: error.message
+        details: error.message,
       });
+    }
+  };
+
+  const isValidURL = (url) => {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url); // throws if invalid
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const uploadFile = async (req, res) => {
+    try {
+      const { taskId } = req.params;
+
+      // Multer override the requestor id in the body, so I have to parse it again from the header
+      const authToken = req.header(config.REQUEST_AUTHKEY);
+      let payload = '';
+      let studentId = '';
+      try {
+        payload = jwt.verify(authToken, config.JWT_SECRET);
+        studentId = payload.userid;
+      } catch (error) {
+        res.status(401).send('Invalid token');
+        return;
+      }
+      if (!taskId) {
+        return res.status(400).json({ error: 'Task ID are required' });
+      }
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID are required' });
+      }
+      const task = await EducationTask.findOne({
+        _id: mongoose.Types.ObjectId(taskId),
+        studentId: mongoose.Types.ObjectId(studentId),
+      });
+
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      let uploadedUrl = null;
+      if (req.file) {
+        const { file } = req;
+        // if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+        // Validate file size (max 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+          return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
+        }
+
+        // Validate file type
+        const allowedMimeTypes = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+          'text/plain',
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return res
+            .status(400)
+            .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
+        }
+
+        const key = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
+        await uploadToS3(file, taskId, studentId, key);
+        uploadedUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+      } else if (req.body.url) {
+        if (!isValidURL(req.body.url)) {
+          return res.status(400).json({ error: 'Please enter a valid url' });
+        }
+        uploadedUrl = req.body.url;
+      } else {
+        return res.status(400).json({ error: 'A File or a link is required.' });
+      }
+
+      task.status = 'completed';
+      task.completedAt = Date.now();
+      task.uploadUrls.push(uploadedUrl);
+      await task.save();
+
+      return res.json({
+        message: 'File uploaded successfully!',
+        url: uploadedUrl,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error. Upload failed' });
     }
   };
 
   return {
     getStudentTasks,
-    updateTaskProgress
+    updateTaskProgress,
+    uploadFile,
   };
 };
 

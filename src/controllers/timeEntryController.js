@@ -194,6 +194,7 @@ const updateTaskLoggedHours = async (
     }
   } else {
     // Handle cases where only one task is involved
+    // eslint-disable-next-line no-lonely-if
     if (fromTaskId && !toTaskId) {
       // Remove hours from old task only
       await Task.findOneAndUpdate(
@@ -205,7 +206,7 @@ const updateTaskLoggedHours = async (
       // Add hours to new task only (your case!)
       const updatedTask = await Task.findOneAndUpdate(
         { _id: toTaskId },
-        { $inc: { hoursLogged: hoursToBeAdded } },  // Only add, don't subtract
+        { $inc: { hoursLogged: hoursToBeAdded } }, // Only add, don't subtract
         { new: true, session },
       );
       if (updatedTask.hoursLogged > updatedTask.estimatedHours && pendingEmailCollection) {
@@ -658,6 +659,7 @@ const timeEntrycontroller = function (TimeEntry) {
       wbsId: newWbsId,
       taskId: newTaskId,
       dateOfWork: newDateOfWork,
+      entryType,
     } = req.body;
 
     const newTotalSeconds = newHours * 3600 + newMinutes * 60;
@@ -898,6 +900,10 @@ const timeEntrycontroller = function (TimeEntry) {
       }
 
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
+      if (entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
+      }
       await session.commitTransaction();
       return res.status(200).send(timeEntry);
     } catch (err) {
@@ -960,6 +966,11 @@ const timeEntrycontroller = function (TimeEntry) {
         } else {
           updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
         }
+      }
+
+      if (timeEntry?.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
       }
 
       await timeEntry.remove({ session });
