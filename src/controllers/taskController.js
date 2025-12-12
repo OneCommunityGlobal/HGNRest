@@ -938,6 +938,34 @@ const taskController = function (Task) {
     }
   };
 
+  const deleteTaskById = async (req, res) => {
+    try {
+      const { taskId, userId } = req.params;
+
+      if (!taskId || !userId) {
+        return res.status(400).send({ error: 'taskId and userId are required' });
+      }
+
+      if (!(await hasPermission(req.body.requestor, 'deleteTask'))) {
+        return res.status(403).send({ error: 'Not authorized to delete tasks.' });
+      }
+      const task = await Task.findById(taskId);
+      if (!task) {
+        return res.status(404).send({ error: 'Task not found' });
+      }
+
+      task.resources = task.resources.filter((r) => r.userID.toString() !== userId);
+      await task.save();
+
+      return res.status(200).send({
+        message: 'Task removed from user successfully',
+      });
+    } catch (err) {
+      console.error('Error removing user from task:', err);
+      return res.status(500).send({ error: 'Internal server error' });
+    }
+  };
+
   const swap = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'swapTask'))) {
       res.status(403).send({ error: 'You are not authorized to create new projects.' });
@@ -1333,6 +1361,18 @@ const taskController = function (Task) {
     }
   };
 
+  const replicateTasks = async (req, res) => {
+    try {
+      // Stub to keep the route valid; frontend currently performs replication via addNewTask.
+      // Return 501 so callers know it’s intentionally not wired server-side yet.
+      return res.status(501).send({
+        error: 'Replicate Task is currently handled client-side via addNewTask (one per resource).',
+      });
+    } catch (err) {
+      return res.status(500).send({ error: 'Internal server error.', details: err.message });
+    }
+  };
+
   return {
     postTask,
     getTasks,
@@ -1342,6 +1382,7 @@ const taskController = function (Task) {
     deleteTask,
     getTaskById,
     updateTask,
+    deleteTaskById,
     importTask,
     fixTasks,
     updateAllParents,
@@ -1354,6 +1395,7 @@ const taskController = function (Task) {
     fixTaskOverrides,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    replicateTasks,
   };
 };
 

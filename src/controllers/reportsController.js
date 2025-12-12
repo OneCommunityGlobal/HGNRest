@@ -77,7 +77,6 @@ const reportsController = function () {
    */
   const getVolunteerStatsData = async (req, res) => {
     const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
-
     if (!startDate || !endDate) {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
     }
@@ -146,6 +145,7 @@ const reportsController = function () {
     try {
       const [
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
@@ -164,6 +164,12 @@ const reportsController = function () {
         totalSummariesSubmitted,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getMentorNumberStats(
           isoStartDate,
           isoEndDate,
           isoComparisonStartDate,
@@ -274,6 +280,7 @@ const reportsController = function () {
 
       res.status(200).send({
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
@@ -292,6 +299,7 @@ const reportsController = function () {
         totalSummariesSubmitted,
       });
     } catch (err) {
+      console.error('Backend Error in getVolunteerStatsData:', err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
