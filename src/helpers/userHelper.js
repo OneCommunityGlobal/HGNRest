@@ -1341,7 +1341,7 @@ const userHelper = function () {
         ),
         null,
         combinedCCList,
-        DEFAULT_REPLY_TO[0],
+        emailAddress,
         combinedBCCList,
         { type: 'blue_square_assignment' },
       );

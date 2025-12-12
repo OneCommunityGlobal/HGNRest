@@ -170,10 +170,17 @@ const reporthelper = function () {
       result.totalSeconds = [0, 0, 0, 0];
 
       if (!result.timeEntries || result.timeEntries.length === 0) return;
-
+      const isSingleWeekRequest = startWeekIndex === endWeekIndex;
       result.timeEntries.forEach((entry) => {
-        const index =
-          startWeekIndex === endWeekIndex ? 0 : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        let index;
+
+        if (isSingleWeekRequest) index = startWeekIndex;
+        else {
+          index =
+            startWeekIndex === endWeekIndex
+              ? 0
+              : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        }
 
         if (index >= 0 && index < 4) {
           result.totalSeconds[index] =
