@@ -52,6 +52,8 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       }
       const prevRemovedPermissions = document.permissionsRemoved;
       const prevAddedPermissions = document.permissionsAdded;
+      // currently, not fully functional, relying solely on prevRemoved/prevAdded works only if comparing current change
+      // to last change, changes 2 or more back are not being read right, because prev only uses previous document, not multiple
       permissionsRemoved = [
         ...removedPermissions.filter((item) => !prevRemovedPermissions.includes(item)), // saves new removed role defaults
         ...prevAddedPermissions.filter(
@@ -61,7 +63,7 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsAdded = [
         ...Permissions.filter((item) => !prevAddedPermissions.includes(item)), // saves new added permissions
         ...prevRemovedPermissions.filter(
-          (item) => removedPermissions.includes(item) && rolePermissions.includes(item),
+          (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
         ), // removed role permissions added back
       ];
     } else {

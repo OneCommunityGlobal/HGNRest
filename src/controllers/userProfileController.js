@@ -732,6 +732,7 @@ const userProfileController = function (UserProfile, Project) {
           'categoryTangibleHrs',
           'totalTangibleHrs',
           'timeEntryEditHistory',
+          'permissions',
         ];
 
         if (req.body.role !== record.role) {

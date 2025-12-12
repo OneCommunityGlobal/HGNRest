@@ -70,6 +70,21 @@ const routes = function (userProfile, project) {
         .isInt({ min: 0 })
         .withMessage('InfringementCount must be a non-negative integer')
         .toInt(),
+      // figure out how to push this permissions object without error
+      // permissions:
+      //   backPermissions: []
+      //   defaultPermissions: (108) ['seeBadges', 'assignBadges', 'createBadges', 'deleteBadges', 'updateBadges', 'createPopup', 'updatePopup', 'importTask', 'swapTask', 'updateNum', 'postTeam', 'deleteTeam', 'putTeam', 'assignTeamToUsers', 'putUserProfile', 'putUserProfileImportantInfo', 'changeUserStatus', 'updatePassword', 'deleteUserProfile', 'infringementAuthorizer', 'getAllInvInProjectWBS', 'postInvInProjectWBS', 'getAllInvInProject', 'postInvInProject', 'transferInvById', 'delInvById', 'unWasteInvById', 'getInvIdInfo', 'putInvById', 'getInvTypeById', 'putInvType', 'getAllInvType', 'postInvType', 'getUserProfiles', 'getWeeklySummaries', 'getTimeZoneAPIKey', 'checkLeadTeamOfXplus', 'getReports', 'totalValidWeeklySummaries', 'deadlineFollowUp', 'changeUserRehireableStatus', 'toggleInvisibility', 'seeQSC', 'addNewTitle', 'assignTitle', 'editTimeEntry', 'deleteTimeEntry', 'postProject', 'deleteProject', 'putProject', 'assignProjectToUsers', 'postWbs', 'deleteWbs', 'postTask', 'deleteTask', 'deleteDashboardTask', 'updateTask', 'seeTeams', 'resolveTask', 'suggestTask', 'putReviewStatus', 'postTimeEntry', 'toggleTangibleTime', 'editTimelogDate', 'manageTimeOffRequests', 'putUserProfilePermissions', 'editTeamCode', 'seeUsersInDashboard', 'postUserProfile', 'manageAdminLinks', 'editTimeEntryTime', 'editTimeEntryDescription', 'editTimeEntryDate', 'editTimeEntryToggleTangible', 'addInfringements', 'editInfringements', 'updateSummaryRequirements', 'deleteInfringements', 'resetPassword', 'requestBio', 'getProjectMembers', 'getVolunteerWeeklySummary', 'viewTrackingOverview', 'issueTrackingWarnings', 'issueBlueSquare', 'deleteWarning', 'addWarningTracker', 'deactivateWarningTracker', 'reactivateWarningTracker', 'deleteWarningTracker', 'editTitle', 'deleteTimeEntryOthers', 'deleteTimeEntryOwn', 'removeUserFromTask', 'highlightEligibleBios', 'canDeleteTask', 'viewTaskExtensionCount', 'accessHgnSkillsDashboard', 'manageFAQs', 'accessPRTeamDashboard', …]
+      //   frontPermissions: []
+      //   isAcknowledged: false
+      //   removedDefaultPermissions: []
+      //   [[Prototype]]: Object
+      body('permissions').customSanitizer((value) =>
+        value.map((permissions) => {
+          if (permissions === true || false) return permissions;
+          if (Array.isArray(permissions)) return permissions;
+          throw new ValidationError('permissions not valid');
+        }),
+      ),
       controller.putUserProfile,
     )
     .delete(controller.deleteUserProfile)
