@@ -19,6 +19,13 @@ const HTTP_STATUS_BAD_REQUEST = 400;
 const HTTP_STATUS_UNPROCESSABLE_ENTITY = 422;
 const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
 
+// Decimal precision for quantity calculations
+const DECIMAL_PRECISION = 4;
+
+// Time period constants (days)
+const DAYS_IN_WEEK = 7;
+const DAYS_IN_TWO_WEEKS = 14;
+
 // eslint-disable-next-line max-lines-per-function
 const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
@@ -203,10 +210,12 @@ const bmMaterialsController = function (BuildingMaterial) {
     let quantityWasted = +req.body.quantityWasted;
     const { material } = req.body;
     if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(DECIMAL_PRECISION);
     }
     if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
+        DECIMAL_PRECISION,
+      );
     }
 
     if (
@@ -224,9 +233,9 @@ const bmMaterialsController = function (BuildingMaterial) {
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
         +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(4));
-      newStockWasted = parseFloat(newStockWasted.toFixed(4));
-      newAvailable = parseFloat(newAvailable.toFixed(4));
+      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       BuildingMaterial.updateOne(
         { _id: req.body.material._id },
 
@@ -263,19 +272,23 @@ const bmMaterialsController = function (BuildingMaterial) {
       let quantityWasted = +payload.quantityWasted;
       const { material } = payload;
       if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(
+          DECIMAL_PRECISION,
+        );
       }
       if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
+          DECIMAL_PRECISION,
+        );
       }
 
       let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
         +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(4));
-      newStockWasted = parseFloat(newStockWasted.toFixed(4));
-      newAvailable = parseFloat(newAvailable.toFixed(4));
+      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       if (newAvailable < 0) {
         errorFlag = true;
         break;
@@ -401,9 +414,9 @@ const bmMaterialsController = function (BuildingMaterial) {
 
       const now = new Date();
       const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - DAYS_IN_WEEK);
       const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - DAYS_IN_TWO_WEEKS);
 
       const nowStr = now.toISOString().split('T')[0];
       const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
@@ -464,8 +477,13 @@ const bmMaterialsController = function (BuildingMaterial) {
         increaseOverLastWeek: usageIncreasePercent,
       });
     } catch (err) {
-      console.error('Error in bmGetMaterialSummaryByProject:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      logger.logException(err, 'bmGetMaterialSummaryByProject', {
+        method: req.method,
+        path: req.path,
+        params: req.params,
+        query: req.query,
+      });
+      res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
     }
   };
 
