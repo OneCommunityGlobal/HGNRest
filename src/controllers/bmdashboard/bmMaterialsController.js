@@ -1,5 +1,25 @@
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
+const { parseMultiSelectQueryParam } = require('../../utilities/queryParamParser');
+const {
+  parseAndNormalizeDateRangeUTC,
+  normalizeStartDate,
+} = require('../../utilities/materialCostCorrelationDateUtils');
+const {
+  getEarliestRelevantMaterialDate,
+  aggregateMaterialUsage,
+  aggregateMaterialCost,
+  buildCostCorrelationResponse,
+} = require('../../utilities/materialCostCorrelationHelpers');
 
+// HTTP status codes
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_UNPROCESSABLE_ENTITY = 422;
+const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
+
+// eslint-disable-next-line max-lines-per-function
 const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
@@ -366,6 +386,137 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
+  // eslint-disable-next-line max-lines-per-function
+  const bmGetMaterialCostCorrelation = async function (req, res) {
+    try {
+      // 1. Extract and parse query parameters
+      let projectIds;
+      let materialTypeIds;
+      try {
+        projectIds = parseMultiSelectQueryParam(req, 'projectId', true);
+        materialTypeIds = parseMultiSelectQueryParam(req, 'materialType', true);
+      } catch (error) {
+        if (error.type === 'OBJECTID_VALIDATION_ERROR') {
+          logger.logException(error, 'bmGetMaterialCostCorrelation - query parameter validation', {
+            method: req.method,
+            path: req.path,
+            query: req.query,
+          });
+          return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+        }
+        throw error;
+      }
+
+      // Extract date parameters as raw strings
+      const startDateInput = req.query.startDate;
+      const endDateInput = req.query.endDate;
+
+      // 2. Compute default start date if needed
+      let defaultStartDate;
+      if (!startDateInput || (typeof startDateInput === 'string' && startDateInput.trim() === '')) {
+        const earliestDate = await getEarliestRelevantMaterialDate(
+          projectIds,
+          materialTypeIds,
+          BuildingMaterial,
+        );
+        if (earliestDate) {
+          defaultStartDate = earliestDate;
+        } else {
+          // Fallback: today's start-of-day UTC
+          defaultStartDate = normalizeStartDate(new Date(), true);
+        }
+      }
+
+      // 3. Parse and normalize date range
+      let dateRangeMeta;
+      try {
+        dateRangeMeta = parseAndNormalizeDateRangeUTC(
+          startDateInput,
+          endDateInput,
+          defaultStartDate,
+          undefined,
+        );
+      } catch (error) {
+        logger.logException(error, 'bmGetMaterialCostCorrelation - date range parsing', {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+        });
+        if (error.type === 'DATE_PARSE_ERROR') {
+          return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
+        }
+        if (error.type === 'DATE_RANGE_ERROR') {
+          return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+        }
+        return res.status(400).json({ error: error.message });
+      }
+
+      const { effectiveStart, effectiveEnd } = dateRangeMeta;
+
+      // 4. Run aggregations in parallel
+      let usageData;
+      let costData;
+      try {
+        const filters = { projectIds, materialTypeIds };
+        const dateRange = { effectiveStart, effectiveEnd };
+
+        [usageData, costData] = await Promise.all([
+          aggregateMaterialUsage(BuildingMaterial, filters, dateRange),
+          aggregateMaterialCost(BuildingMaterial, filters, dateRange),
+        ]);
+      } catch (error) {
+        logger.logException(error, 'bmGetMaterialCostCorrelation - aggregation', {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+        });
+        return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+          error: 'Internal server error while aggregating material data',
+        });
+      }
+
+      // 5. Build response
+      let responseObject;
+      try {
+        const requestParams = {
+          projectIds,
+          materialTypeIds,
+          dateRangeMeta,
+        };
+        const models = {
+          BuildingProject,
+          BuildingInventoryType: invTypeBase,
+        };
+        responseObject = await buildCostCorrelationResponse(
+          usageData,
+          costData,
+          requestParams,
+          models,
+        );
+      } catch (error) {
+        logger.logException(error, 'bmGetMaterialCostCorrelation - response building', {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+        });
+        return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+          error: 'Internal server error while building response',
+        });
+      }
+
+      // 6. Send response
+      return res.status(200).json(responseObject);
+    } catch (error) {
+      // Global error handling wrapper
+      logger.logException(error, 'bmGetMaterialCostCorrelation - unexpected error', {
+        method: req.method,
+        path: req.path,
+        query: req.query,
+      });
+      return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ error: 'Internal server error' });
+    }
+  };
+
   return {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
@@ -373,6 +524,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     bmPurchaseMaterials,
     bmupdatePurchaseStatus,
     bmGetMaterialSummaryByProject,
+    bmGetMaterialCostCorrelation,
   };
 };
 
