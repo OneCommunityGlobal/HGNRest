@@ -163,81 +163,90 @@ const bmToolController = (BuildingTool, ToolType) => {
       return res.status(500).send({ errors, results });
     }
 
-    for (const type of typesArray) {
-      const toolName = type.toolName;
-      const toolCodes = type.toolCodes;
-      const codeMap = {};
-      toolCodes.forEach((obj) => {
-        codeMap[obj.value] = obj.label;
-      });
+    await Promise.all(
+      typesArray.map(async (type) => {
+        const { toolName } = type;
+        const { toolCodes } = type;
+        const codeMap = {};
+        toolCodes.forEach((obj) => {
+          codeMap[obj.value] = obj.label;
+        });
 
-      try {
-        const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
-        if (!toolTypeDoc) {
-          errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.` });
-          continue;
-        }
-        const availableItems = toolTypeDoc.available;
-        const usingItems = toolTypeDoc.using;
-
-        for (const toolItem of type.toolItems) {
-          const buildingToolDoc = await BuildingTool.findOne({
-            _id: mongoose.Types.ObjectId(toolItem),
+        try {
+          const toolTypeDoc = await ToolType.findOne({
+            _id: mongoose.Types.ObjectId(type.toolType),
           });
-          if (!buildingToolDoc) {
-            errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
-            continue;
+          if (!toolTypeDoc) {
+            errors.push({
+              message: `Tool type ${toolName} with id ${type.toolType} was not found.`,
+            });
+            return;
           }
+          const availableItems = toolTypeDoc.available;
+          const usingItems = toolTypeDoc.using;
 
-          if (action === 'Check Out' && availableItems.length > 0) {
-            const foundIndex = availableItems.indexOf(toolItem);
-            if (foundIndex >= 0) {
-              availableItems.splice(foundIndex, 1);
-              usingItems.push(toolItem);
-            } else {
-              errors.push({
-                message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
+          await Promise.all(
+            type.toolItems.map(async (toolItem) => {
+              const buildingToolDoc = await BuildingTool.findOne({
+                _id: mongoose.Types.ObjectId(toolItem),
               });
-              continue;
-            }
-          }
+              if (!buildingToolDoc) {
+                errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
+                return;
+              }
 
-          if (action === 'Check In' && usingItems.length > 0) {
-            const foundIndex = usingItems.indexOf(toolItem);
-            if (foundIndex >= 0) {
-              usingItems.splice(foundIndex, 1);
-              availableItems.push(toolItem);
-            } else {
-              errors.push({
-                message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
+              if (action === 'Check Out' && availableItems.length > 0) {
+                const foundIndex = availableItems.indexOf(toolItem);
+                if (foundIndex >= 0) {
+                  availableItems.splice(foundIndex, 1);
+                  usingItems.push(toolItem);
+                } else {
+                  errors.push({
+                    message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
+                  });
+                  return;
+                }
+              }
+
+              if (action === 'Check In' && usingItems.length > 0) {
+                const foundIndex = usingItems.indexOf(toolItem);
+                if (foundIndex >= 0) {
+                  usingItems.splice(foundIndex, 1);
+                  availableItems.push(toolItem);
+                } else {
+                  errors.push({
+                    message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
+                  });
+                  return;
+                }
+              }
+
+              const newRecord = {
+                date,
+                createdBy: requestor,
+                responsibleUser: buildingToolDoc.userResponsible,
+                type: action,
+              };
+
+              buildingToolDoc.logRecord.push(newRecord);
+              buildingToolDoc.save();
+              results.push({
+                message: `${action} successful for ${toolName} ${codeMap[toolItem]}`,
               });
-              continue;
-            }
-          }
+            }),
+          );
 
-          const newRecord = {
-            date: date,
-            createdBy: requestor,
-            responsibleUser: buildingToolDoc.userResponsible,
-            type: action,
-          };
-
-          buildingToolDoc.logRecord.push(newRecord);
-          buildingToolDoc.save();
-          results.push({ message: `${action} successful for ${toolName} ${codeMap[toolItem]}` });
+          await toolTypeDoc.save();
+        } catch (error) {
+          errors.push({ message: `Error for tool type ${type}: ${error.message}` });
         }
-
-        await toolTypeDoc.save();
-      } catch (error) {
-        errors.push({ message: `Error for tool type ${type}: ${error.message}` });
-      }
-    }
+      }),
+    );
 
     if (errors.length > 0) {
       return res.status(404).send({ errors, results });
-    } else {
-      return res.status(200).send({ errors, results });
     }
+    return res.status(200).send({ errors, results });
   };
 
   return {

@@ -5,14 +5,15 @@ const cache = require('../utilities/nodeCache');
 const Badge = require('../models/badge');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const badgeController = require('./badgeController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const UserProfile = require('../models/userProfile');
+const badgeController = require('./badgeController');
 
 const makeSut = () => {
-  const { postBadge, getAllBadges, assignBadges, deleteBadge } = badgeController(Badge);
+  const { postBadge, getAllBadges, assignBadges, assignBadgesToSingleUser, deleteBadge } =
+    badgeController(Badge);
 
-  return { postBadge, getAllBadges, assignBadges, deleteBadge };
+  return { postBadge, getAllBadges, assignBadges, assignBadgesToSingleUser, deleteBadge };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -345,18 +346,18 @@ describe('badeController module', () => {
 
   describe('assignBadges method', () => {
     test('Returns 403 if the user is not authorized', async () => {
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(false);
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'assignBadges');
       assertResMock(403, 'You are not authorized to assign badges.', response, mockRes);
     });
 
     test('Returns 500 if an error occurs in `findById`', async () => {
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
 
@@ -365,7 +366,7 @@ describe('badeController module', () => {
         .spyOn(UserProfile, 'findById')
         .mockRejectedValueOnce(new Error(errMsg));
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       assertResMock(500, `Internal Error: Badge Collection. ${errMsg}`, response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
@@ -373,13 +374,13 @@ describe('badeController module', () => {
     });
 
     test('Returns 400 if user is not found', async () => {
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
 
       const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(null);
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       assertResMock(400, 'Can not find the user to be assigned.', response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
@@ -389,7 +390,7 @@ describe('badeController module', () => {
     test('Returns 500 if an error occurs when saving edited user profile', async () => {
       const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
 
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
       const errMsg = 'Error when saving';
@@ -397,7 +398,7 @@ describe('badeController module', () => {
       const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(findObj);
       jest.spyOn(findObj, 'save').mockRejectedValueOnce(new Error(errMsg));
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       assertResMock(500, `Internal Error: Badge Collection. ${errMsg}`, response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
@@ -412,14 +413,14 @@ describe('badeController module', () => {
       const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
       const removeCacheMock = jest.spyOn(cacheObject, 'removeCache').mockReturnValueOnce(null);
 
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
       const findObj = { save: () => {} };
       const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(findObj);
       jest.spyOn(findObj, 'save').mockResolvedValueOnce({ _id: 'randomId' });
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       assertResMock(201, `randomId`, response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
@@ -436,14 +437,14 @@ describe('badeController module', () => {
     test('Returns 201 and if successful and user does not exist in cache', async () => {
       const { mockCache: hasCacheMock } = makeMockCache('hasCache', false);
 
-      const { assignBadges } = makeSut();
+      const { assignBadgesToSingleUser } = makeSut();
 
       const hasPermissionSpy = mockHasPermission(true);
       const findObj = { save: () => {} };
       const findByIdSpy = jest.spyOn(UserProfile, 'findById').mockResolvedValue(findObj);
       jest.spyOn(findObj, 'save').mockResolvedValueOnce({ _id: 'randomId' });
 
-      const response = await assignBadges(mockReq, mockRes);
+      const response = await assignBadgesToSingleUser(mockReq, mockRes);
 
       assertResMock(201, `randomId`, response, mockRes);
       expect(findByIdSpy).toHaveBeenCalledWith(mongoose.Types.ObjectId(mockReq.params.userId));
