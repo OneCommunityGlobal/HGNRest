@@ -379,6 +379,8 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
         $match: {
           'purchaseRecord.status': 'Approved',
           'purchaseRecord.date': {
+            $exists: true,
+            $ne: null,
             $gte: effectiveStart,
             $lte: effectiveEnd,
           },
@@ -473,86 +475,73 @@ function objectIdToString(id) {
 }
 
 /**
- * Build cost correlation response by merging usage and cost data,
- * enriching with project/material names, and computing derived values.
+ * Build lookup maps for project and material type names/units.
+ *
+ * @param {Set} projectIdSet - Set of project ID strings
+ * @param {Set} materialTypeIdSet - Set of material type ID strings
+ * @param {Object} BuildingProject - Mongoose model for projects
+ * @param {Object} BuildingInventoryType - Mongoose model for inventory types
+ * @returns {Promise<{projectMap: Map, materialTypeMap: Map}>} Maps for project and material type lookups
+ */
+async function buildLookupMaps(
+  projectIdSet,
+  materialTypeIdSet,
+  BuildingProject,
+  BuildingInventoryType,
+) {
+  const allUniqueProjectIds = convertStringsToObjectIds(Array.from(projectIdSet));
+  const allUniqueMaterialTypeIds = convertStringsToObjectIds(Array.from(materialTypeIdSet));
+
+  const projectMap = new Map();
+  const materialTypeMap = new Map();
+
+  try {
+    const [projects, materialTypes] = await Promise.all([
+      allUniqueProjectIds.length > 0
+        ? BuildingProject.find({ _id: { $in: allUniqueProjectIds } }).exec()
+        : Promise.resolve([]),
+      allUniqueMaterialTypeIds.length > 0
+        ? BuildingInventoryType.find({ _id: { $in: allUniqueMaterialTypeIds } }).exec()
+        : Promise.resolve([]),
+    ]);
+
+    projects.forEach((project) => {
+      const idStr = objectIdToString(project._id);
+      projectMap.set(idStr, project.name || idStr);
+    });
+
+    materialTypes.forEach((material) => {
+      const idStr = objectIdToString(material._id);
+      materialTypeMap.set(idStr, {
+        name: material.name || idStr,
+        unit: material.unit || '',
+      });
+    });
+  } catch (lookupError) {
+    logger.logException(lookupError, 'buildLookupMaps - lookup queries', {
+      projectIds: allUniqueProjectIds.length,
+      materialTypeIds: allUniqueMaterialTypeIds.length,
+    });
+  }
+
+  return { projectMap, materialTypeMap };
+}
+
+/**
+ * Merge usage and cost data by composite key.
  *
  * @param {Array} usageData - Array from aggregateMaterialUsage
  * @param {Array} costData - Array from aggregateMaterialCost
- * @param {Object} requestParams - Request parameters object
- * @param {string[]} requestParams.projectIds - Original requested project IDs
- * @param {string[]} requestParams.materialTypeIds - Original requested material type IDs
- * @param {Object} requestParams.dateRangeMeta - Object from date normalization function
- * @param {Object} models - Models object
- * @param {Object} models.BuildingProject - Mongoose model for projects
- * @param {Object} models.BuildingInventoryType - Mongoose model for inventory types (use invTypeBase)
- * @returns {Promise<Object>} Structured response object with meta and data
+ * @returns {Map} Merged data map keyed by projectId-materialTypeId
  */
-// eslint-disable-next-line max-lines-per-function
-async function buildCostCorrelationResponse(usageData, costData, requestParams, models) {
-  const { projectIds, materialTypeIds, dateRangeMeta } = requestParams;
-  const { BuildingProject, BuildingInventoryType } = models;
-  try {
-    // 1. Create lookup maps for performance
-    const projectIdSet = new Set();
-    const materialTypeIdSet = new Set();
+function mergeUsageAndCostData(usageData, costData) {
+  const mergedData = new Map();
 
-    // Collect unique project IDs from usage and cost data
-    [...usageData, ...costData].forEach((item) => {
-      if (item.projectId) {
-        projectIdSet.add(objectIdToString(item.projectId));
-      }
-      if (item.materialTypeId) {
-        materialTypeIdSet.add(objectIdToString(item.materialTypeId));
-      }
-    });
-
-    // Include explicitly requested IDs for completeness
-    projectIds.forEach((id) => projectIdSet.add(String(id)));
-    materialTypeIds.forEach((id) => materialTypeIdSet.add(String(id)));
-
-    const allUniqueProjectIds = convertStringsToObjectIds(Array.from(projectIdSet));
-    const allUniqueMaterialTypeIds = convertStringsToObjectIds(Array.from(materialTypeIdSet));
-
-    // Query project names and material type names/units in parallel
-    const projectMap = new Map();
-    const materialTypeMap = new Map();
-
-    try {
-      const [projects, materialTypes] = await Promise.all([
-        allUniqueProjectIds.length > 0
-          ? BuildingProject.find({ _id: { $in: allUniqueProjectIds } }).exec()
-          : Promise.resolve([]),
-        allUniqueMaterialTypeIds.length > 0
-          ? BuildingInventoryType.find({ _id: { $in: allUniqueMaterialTypeIds } }).exec()
-          : Promise.resolve([]),
-      ]);
-
-      // Build project name map
-      projects.forEach((project) => {
-        const idStr = objectIdToString(project._id);
-        projectMap.set(idStr, project.name || idStr);
-      });
-
-      // Build material type map (name and unit)
-      materialTypes.forEach((material) => {
-        const idStr = objectIdToString(material._id);
-        materialTypeMap.set(idStr, {
-          name: material.name || idStr,
-          unit: material.unit || '',
-        });
-      });
-    } catch (lookupError) {
-      logger.logException(lookupError, 'buildCostCorrelationResponse - lookup queries', {
-        projectIds: allUniqueProjectIds.length,
-        materialTypeIds: allUniqueMaterialTypeIds.length,
-      });
-      // Continue with empty maps - will use fallbacks
-    }
-
-    // 2. Merge usage and cost data by composite key
-    const mergedData = new Map();
-
+  // Process usage data
+  if (usageData && Array.isArray(usageData)) {
     usageData.forEach((item) => {
+      if (!item || !item.projectId || !item.materialTypeId) return;
+
       const projectIdStr = objectIdToString(item.projectId);
       const materialTypeIdStr = objectIdToString(item.materialTypeId);
       const key = `${projectIdStr}-${materialTypeIdStr}`;
@@ -567,8 +556,13 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
       }
       mergedData.get(key).quantityUsed = item.quantityUsed || 0;
     });
+  }
 
+  // Process cost data
+  if (costData && Array.isArray(costData)) {
     costData.forEach((item) => {
+      if (!item || !item.projectId || !item.materialTypeId) return;
+
       const projectIdStr = objectIdToString(item.projectId);
       const materialTypeIdStr = objectIdToString(item.materialTypeId);
       const key = `${projectIdStr}-${materialTypeIdStr}`;
@@ -581,63 +575,161 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
           totalCost: 0,
         });
       }
-      mergedData.get(key).totalCost = item.totalCost || 0;
+      const cost =
+        typeof item.totalCost === 'number' ? item.totalCost : parseFloat(item.totalCost) || 0;
+      mergedData.get(key).totalCost = cost;
     });
+  }
 
-    // 3. Group by project
-    const projectsMap = new Map();
+  return mergedData;
+}
 
-    mergedData.forEach((item) => {
-      const { projectId, materialTypeId, quantityUsed, totalCost } = item;
+/**
+ * Build projects map from merged data.
+ *
+ * @param {Map} mergedData - Merged usage and cost data
+ * @param {Map} projectMap - Project name lookup map
+ * @param {Map} materialTypeMap - Material type info lookup map
+ * @returns {Map} Projects map keyed by project ID
+ */
+function buildProjectsMap(mergedData, projectMap, materialTypeMap) {
+  const projectsMap = new Map();
 
-      if (!projectsMap.has(projectId)) {
-        projectsMap.set(projectId, {
-          projectId,
-          projectName: projectMap.get(projectId) || projectId,
-          totals: {
-            quantityUsed: 0,
-            totalCost: 0,
-            totalCostK: 0,
-            costPerUnit: null,
-          },
-          byMaterialType: [],
-        });
+  mergedData.forEach((item) => {
+    const { projectId, materialTypeId, quantityUsed, totalCost } = item;
+
+    if (!projectsMap.has(projectId)) {
+      projectsMap.set(projectId, {
+        projectId,
+        projectName: projectMap.get(projectId) || projectId,
+        totals: {
+          quantityUsed: 0,
+          totalCost: 0,
+          totalCostK: 0,
+          costPerUnit: null,
+        },
+        byMaterialType: [],
+      });
+    }
+
+    const project = projectsMap.get(projectId);
+    const materialInfo = materialTypeMap.get(materialTypeId) || {
+      name: materialTypeId,
+      unit: '',
+    };
+
+    const materialTotalCostK = calculateTotalCostK(totalCost);
+    const materialCostPerUnit = calculateCostPerUnit(totalCost, quantityUsed);
+
+    const materialTypeObj = {
+      materialTypeId,
+      materialTypeName: materialInfo.name,
+      unit: materialInfo.unit,
+      quantityUsed: quantityUsed || 0,
+      totalCost: totalCost || 0,
+      totalCostK: materialTotalCostK,
+      costPerUnit: materialCostPerUnit,
+    };
+
+    project.byMaterialType.push(materialTypeObj);
+    project.totals.quantityUsed += quantityUsed || 0;
+    project.totals.totalCost += totalCost || 0;
+  });
+
+  // Compute project-level totals
+  projectsMap.forEach((project) => {
+    const { quantityUsed, totalCost } = project.totals;
+    project.totals.totalCostK = calculateTotalCostK(totalCost);
+    project.totals.costPerUnit = calculateCostPerUnit(totalCost, quantityUsed);
+  });
+
+  return projectsMap;
+}
+
+/**
+ * Build meta object for response.
+ *
+ * @param {string[]} projectIds - Project IDs
+ * @param {string[]} materialTypeIds - Material type IDs
+ * @param {Object} dateRangeMeta - Date range metadata
+ * @returns {Object} Meta object
+ */
+function buildMetaObject(projectIds, materialTypeIds, dateRangeMeta) {
+  return {
+    request: {
+      projectIds: projectIds || [],
+      materialTypeIds: materialTypeIds || [],
+      startDateInput: dateRangeMeta?.originalInputs?.startDateInput,
+      endDateInput: dateRangeMeta?.originalInputs?.endDateInput,
+    },
+    range: {
+      effectiveStart: dateRangeMeta?.effectiveStart?.toISOString(),
+      effectiveEnd: dateRangeMeta?.effectiveEnd?.toISOString(),
+      endCappedToNowMinus5Min: dateRangeMeta?.endCappedToNowMinus5Min || false,
+      defaultsApplied: dateRangeMeta?.defaultsApplied || {
+        startDate: false,
+        endDate: false,
+      },
+    },
+    units: {
+      currency: 'USD',
+      costScale: {
+        raw: 1,
+        k: 1000,
+      },
+    },
+  };
+}
+
+/**
+ * Build cost correlation response by merging usage and cost data,
+ * enriching with project/material names, and computing derived values.
+ *
+ * @param {Array} usageData - Array from aggregateMaterialUsage
+ * @param {Array} costData - Array from aggregateMaterialCost
+ * @param {Object} requestParams - Request parameters object
+ * @param {string[]} requestParams.projectIds - Original requested project IDs
+ * @param {string[]} requestParams.materialTypeIds - Original requested material type IDs
+ * @param {Object} requestParams.dateRangeMeta - Object from date normalization function
+ * @param {Object} models - Models object
+ * @param {Object} models.BuildingProject - Mongoose model for projects
+ * @param {Object} models.BuildingInventoryType - Mongoose model for inventory types (use invTypeBase)
+ * @returns {Promise<Object>} Structured response object with meta and data
+ */
+async function buildCostCorrelationResponse(usageData, costData, requestParams, models) {
+  const { projectIds, materialTypeIds, dateRangeMeta } = requestParams;
+  const { BuildingProject, BuildingInventoryType } = models;
+  try {
+    // 1. Collect unique IDs from usage and cost data
+    const projectIdSet = new Set();
+    const materialTypeIdSet = new Set();
+
+    [...usageData, ...costData].forEach((item) => {
+      if (item?.projectId) {
+        projectIdSet.add(objectIdToString(item.projectId));
       }
-
-      const project = projectsMap.get(projectId);
-      const materialInfo = materialTypeMap.get(materialTypeId) || {
-        name: materialTypeId,
-        unit: '',
-      };
-
-      // Calculate material-level values
-      const materialTotalCostK = calculateTotalCostK(totalCost);
-      const materialCostPerUnit = calculateCostPerUnit(totalCost, quantityUsed);
-
-      // Create material type object
-      const materialTypeObj = {
-        materialTypeId,
-        materialTypeName: materialInfo.name,
-        unit: materialInfo.unit,
-        quantityUsed: quantityUsed || 0,
-        totalCost: totalCost || 0,
-        totalCostK: materialTotalCostK,
-        costPerUnit: materialCostPerUnit,
-      };
-
-      project.byMaterialType.push(materialTypeObj);
-
-      // Add to project totals
-      project.totals.quantityUsed += quantityUsed || 0;
-      project.totals.totalCost += totalCost || 0;
+      if (item?.materialTypeId) {
+        materialTypeIdSet.add(objectIdToString(item.materialTypeId));
+      }
     });
 
-    // 4. Compute project-level totals
-    projectsMap.forEach((project) => {
-      const { quantityUsed, totalCost } = project.totals;
-      project.totals.totalCostK = calculateTotalCostK(totalCost);
-      project.totals.costPerUnit = calculateCostPerUnit(totalCost, quantityUsed);
-    });
+    // Include explicitly requested IDs
+    projectIds.forEach((id) => projectIdSet.add(String(id)));
+    materialTypeIds.forEach((id) => materialTypeIdSet.add(String(id)));
+
+    // 2. Build lookup maps
+    const { projectMap, materialTypeMap } = await buildLookupMaps(
+      projectIdSet,
+      materialTypeIdSet,
+      BuildingProject,
+      BuildingInventoryType,
+    );
+
+    // 3. Merge usage and cost data
+    const mergedData = mergeUsageAndCostData(usageData, costData);
+
+    // 4. Build projects map
+    const projectsMap = buildProjectsMap(mergedData, projectMap, materialTypeMap);
 
     // 5. Handle projects with explicit selection but no data
     if (projectIds && projectIds.length > 0) {
@@ -659,40 +751,15 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
       });
     }
 
-    // 6. Sort projects by name
+    // 6. Sort and build response
     const projectsArray = Array.from(projectsMap.values()).sort((a, b) => {
       const nameA = (a.projectName || '').toLowerCase();
       const nameB = (b.projectName || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
 
-    // 7. Build meta object
-    const meta = {
-      request: {
-        projectIds: projectIds || [],
-        materialTypeIds: materialTypeIds || [],
-        startDateInput: dateRangeMeta?.originalInputs?.startDateInput,
-        endDateInput: dateRangeMeta?.originalInputs?.endDateInput,
-      },
-      range: {
-        effectiveStart: dateRangeMeta?.effectiveStart?.toISOString(),
-        effectiveEnd: dateRangeMeta?.effectiveEnd?.toISOString(),
-        endCappedToNowMinus5Min: dateRangeMeta?.endCappedToNowMinus5Min || false,
-        defaultsApplied: dateRangeMeta?.defaultsApplied || {
-          startDate: false,
-          endDate: false,
-        },
-      },
-      units: {
-        currency: 'USD',
-        costScale: {
-          raw: 1,
-          k: 1000,
-        },
-      },
-    };
+    const meta = buildMetaObject(projectIds, materialTypeIds, dateRangeMeta);
 
-    // 8. Assemble final response
     return {
       meta,
       data: projectsArray,
@@ -703,31 +770,9 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
       costDataLength: costData?.length,
     });
     // Return empty response structure on error
+    const meta = buildMetaObject(projectIds, materialTypeIds, dateRangeMeta);
     return {
-      meta: {
-        request: {
-          projectIds: projectIds || [],
-          materialTypeIds: materialTypeIds || [],
-          startDateInput: dateRangeMeta?.originalInputs?.startDateInput,
-          endDateInput: dateRangeMeta?.originalInputs?.endDateInput,
-        },
-        range: {
-          effectiveStart: dateRangeMeta?.effectiveStart?.toISOString(),
-          effectiveEnd: dateRangeMeta?.effectiveEnd?.toISOString(),
-          endCappedToNowMinus5Min: dateRangeMeta?.endCappedToNowMinus5Min || false,
-          defaultsApplied: dateRangeMeta?.defaultsApplied || {
-            startDate: false,
-            endDate: false,
-          },
-        },
-        units: {
-          currency: 'USD',
-          costScale: {
-            raw: 1,
-            k: COST_SCALE_K,
-          },
-        },
-      },
+      meta,
       data: [],
     };
   }
