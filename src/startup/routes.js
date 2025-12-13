@@ -327,6 +327,8 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+const studentReportRouter = require('../routes/studentReportRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -499,4 +501,6 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
   app.use('/api', materialCostRouter);
+
+  app.use('/api/educator/reports', studentReportRouter());
 };

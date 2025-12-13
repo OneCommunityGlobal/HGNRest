@@ -241,6 +241,10 @@ const permissionsRoles = [
       'totalValidWeeklySummaries',
     ],
   },
+  {
+    roleName: 'Educator',
+    permissions: ['viewStudentReports', 'exportStudentReports'],
+  },
 ];
 
 const createInitialPermissions = async () => {
