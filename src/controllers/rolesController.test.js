@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const RoleModel = require('../models/role');
 // const UserProfileModel = require('../models/userProfile');
 const {
