@@ -48,14 +48,14 @@ const anonymousApplicationSchema = new Schema({
     type: String,
     enum: [
       'job_listing',
-      'search_results', 
+      'search_results',
       'company_page',
       'social_media',
       'email_campaign',
       'referral_link',
       'advertisement',
       'direct_application',
-      'other'
+      'other',
     ],
     default: 'job_listing',
   },
@@ -84,10 +84,17 @@ anonymousApplicationSchema.index({ jobId: 1, submittedAt: 1 });
 anonymousApplicationSchema.index({ sessionId: 1, submittedAt: 1 });
 anonymousApplicationSchema.index({ applicationSource: 1, submittedAt: 1 });
 
-anonymousApplicationSchema.index({ 
-  submittedAt: 1 
-}, { 
-  expireAfterSeconds: 2592000 
-});
+anonymousApplicationSchema.index(
+  {
+    submittedAt: 1,
+  },
+  {
+    expireAfterSeconds: 2592000,
+  },
+);
 
-module.exports = mongoose.model('AnonymousApplication', anonymousApplicationSchema, 'anonymousApplications');
+module.exports = mongoose.model(
+  'AnonymousApplication',
+  anonymousApplicationSchema,
+  'anonymousApplications',
+);
