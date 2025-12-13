@@ -34,6 +34,9 @@ const reporthelper = function () {
       .subtract(endWeekIndex, 'week')
       .toDate();
 
+    const pstStartStr = moment(pstStart).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const pstEndStr = moment(pstEnd).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
     const results = await userProfile.aggregate([
       {
         $match: { isActive: true },
@@ -57,18 +60,8 @@ const reporthelper = function () {
               as: 'timeEntry',
               cond: {
                 $and: [
-                  {
-                    $gte: [
-                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
-                      pstStart,
-                    ],
-                  },
-                  {
-                    $lte: [
-                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
-                      pstEnd,
-                    ],
-                  },
+                  { $gte: ['$$timeEntry.dateOfWork', pstStartStr] },
+                  { $lte: ['$$timeEntry.dateOfWork', pstEndStr] },
                 ],
               },
             },
