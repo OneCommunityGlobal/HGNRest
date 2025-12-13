@@ -1,6 +1,43 @@
+// Mock utilities BEFORE requiring the controller
+// Note: Paths are relative to the controller file, not the test file
+jest.mock('../../../utilities/queryParamParser', () => ({
+  parseMultiSelectQueryParam: jest.fn(),
+}), { virtual: true });
+jest.mock('../../../utilities/materialCostCorrelationDateUtils', () => ({
+  parseAndNormalizeDateRangeUTC: jest.fn(),
+  normalizeStartDate: jest.fn(),
+}), { virtual: true });
+jest.mock('../../../utilities/materialCostCorrelationHelpers', () => ({
+  getEarliestRelevantMaterialDate: jest.fn(),
+  aggregateMaterialUsage: jest.fn(),
+  aggregateMaterialCost: jest.fn(),
+  buildCostCorrelationResponse: jest.fn(),
+}), { virtual: true });
+jest.mock('../../../startup/logger', () => ({
+  logException: jest.fn(),
+}), { virtual: true });
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({}), { virtual: true });
+jest.mock('../../../models/bmdashboard/buildingInventoryType', () => ({
+  invTypeBase: {},
+}), { virtual: true });
+
 const mongoose = require('mongoose');
 // const { MongoMemoryServer } = require('mongodb-memory-server'); Commenting this because it's never used
 const bmMaterialsController = require('../bmMaterialsController');
+
+// Get mocked functions - use paths relative to controller
+const { parseMultiSelectQueryParam: mockParseMultiSelectQueryParam } = require('../../../utilities/queryParamParser');
+const {
+  parseAndNormalizeDateRangeUTC: mockParseAndNormalizeDateRangeUTC,
+  normalizeStartDate: mockNormalizeStartDate,
+} = require('../../../utilities/materialCostCorrelationDateUtils');
+const {
+  getEarliestRelevantMaterialDate: mockGetEarliestRelevantMaterialDate,
+  aggregateMaterialUsage: mockAggregateMaterialUsage,
+  aggregateMaterialCost: mockAggregateMaterialCost,
+  buildCostCorrelationResponse: mockBuildCostCorrelationResponse,
+} = require('../../../utilities/materialCostCorrelationHelpers');
+const { logException: mockLogException } = require('../../../startup/logger');
 
 // Mock mongoose models
 const mockExec = jest.fn();
@@ -17,6 +54,10 @@ const mockFindOneAndUpdate = jest.fn();
 const mockUpdateOne = jest.fn();
 
 // Mock BuildingMaterial model
+const mockAggregate = jest.fn().mockReturnValue({
+  exec: jest.fn().mockResolvedValue([]),
+});
+
 const BuildingMaterial = {
   find: mockFind,
   findOne: mockFindOne,
@@ -25,6 +66,7 @@ const BuildingMaterial = {
   updateOne: mockUpdateOne,
   populate: mockPopulate,
   exec: mockExec,
+  aggregate: mockAggregate,
 };
 
 // Reset all mocks before each test
@@ -347,6 +389,594 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith(
         expect.stringContaining("can only be updated from 'Pending'"),
       );
+    });
+  });
+
+  describe('bmGetMaterialCostCorrelation', () => {
+    let mockReq;
+    let mockRes;
+    const FIXED_NOW = new Date('2024-01-15T12:30:45.123Z');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jest.useFakeTimers();
+      jest.setSystemTime(FIXED_NOW);
+
+      mockReq = {
+        method: 'GET',
+        path: '/api/bm/materials/cost-correlation',
+        query: {},
+      };
+
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+
+      // Default mock implementations
+      mockParseMultiSelectQueryParam.mockImplementation((req, param, requireObjectId) => {
+        if (param === 'projectId') {
+          return req.query && req.query.projectId ? [req.query.projectId] : [];
+        }
+        if (param === 'materialType') {
+          return req.query && req.query.materialType ? [req.query.materialType] : [];
+        }
+        return [];
+      });
+
+      mockParseAndNormalizeDateRangeUTC.mockResolvedValue({
+        effectiveStart: new Date('2024-01-01T00:00:00.000Z'),
+        effectiveEnd: new Date('2024-01-31T23:59:59.999Z'),
+        defaultsApplied: { startDate: false, endDate: false },
+        endCappedToNowMinus5Min: false,
+        originalInputs: { startDateInput: '2024-01-01', endDateInput: '2024-01-31' },
+      });
+
+      mockGetEarliestRelevantMaterialDate.mockResolvedValue(new Date('2024-01-01T00:00:00.000Z'));
+      mockNormalizeStartDate.mockImplementation((date) => {
+        const d = new Date(date);
+        d.setUTCHours(0, 0, 0, 0);
+        return d;
+      });
+
+      mockAggregateMaterialUsage.mockResolvedValue([
+        { projectId: 'project1', materialTypeId: 'material1', quantityUsed: 100 },
+      ]);
+
+      mockAggregateMaterialCost.mockResolvedValue([
+        { projectId: 'project1', materialTypeId: 'material1', totalCost: 5000 },
+      ]);
+
+      mockBuildCostCorrelationResponse.mockResolvedValue({
+        meta: {
+          request: { projectIds: [], materialTypeIds: [] },
+          range: { effectiveStart: '2024-01-01', effectiveEnd: '2024-01-31' },
+          units: { currency: 'USD', costScale: { raw: 1, k: 1000 } },
+        },
+        data: [],
+      });
+
+      mockLogException.mockClear();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    describe('Category 1: Successful Request Flow', () => {
+      it('should return 200 with correct response for complete flow with all parameters', async () => {
+        mockReq.query = {
+          projectId: '507f1f77bcf86cd799439011',
+          materialType: '507f1f77bcf86cd799439012',
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockParseMultiSelectQueryParam).toHaveBeenCalledWith(mockReq, 'projectId', true);
+        expect(mockParseMultiSelectQueryParam).toHaveBeenCalledWith(mockReq, 'materialType', true);
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalled();
+        expect(mockAggregateMaterialUsage).toHaveBeenCalled();
+        expect(mockAggregateMaterialCost).toHaveBeenCalled();
+        expect(mockBuildCostCorrelationResponse).toHaveBeenCalled();
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(mockRes.json).toHaveBeenCalled();
+      });
+
+      it('should compute default start date when not provided', async () => {
+        mockReq.query = {
+          projectId: '507f1f77bcf86cd799439011',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockGetEarliestRelevantMaterialDate).toHaveBeenCalled();
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalledWith(
+          undefined,
+          '2024-01-31',
+          expect.any(Date),
+          undefined,
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should use current date for end date when not provided', async () => {
+        mockReq.query = {
+          projectId: '507f1f77bcf86cd799439011',
+          startDate: '2024-01-01',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalledWith(
+          '2024-01-01',
+          undefined,
+          undefined,
+          undefined,
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should use both defaults when neither date provided', async () => {
+        mockReq.query = {
+          projectId: '507f1f77bcf86cd799439011',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockGetEarliestRelevantMaterialDate).toHaveBeenCalled();
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalled();
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should handle no filters (all projects/materials)', async () => {
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockAggregateMaterialUsage).toHaveBeenCalledWith(
+          BuildingMaterial,
+          { projectIds: [], materialTypeIds: [] },
+          expect.any(Object),
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+    });
+
+    describe('Category 2: Query Parameter Validation Errors', () => {
+      it('should return 400 for invalid projectId', async () => {
+        const error = {
+          type: 'OBJECTID_VALIDATION_ERROR',
+          message: 'Invalid ObjectId in projectId',
+          invalidValues: ['invalid-id'],
+        };
+        mockParseMultiSelectQueryParam.mockImplementationOnce(() => {
+          throw error;
+        });
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - query parameter validation',
+          expect.any(Object),
+        );
+      });
+
+      it('should return 400 for invalid materialType', async () => {
+        const error = {
+          type: 'OBJECTID_VALIDATION_ERROR',
+          message: 'Invalid ObjectId in materialType',
+          invalidValues: ['invalid-id'],
+        };
+        mockParseMultiSelectQueryParam
+          .mockReturnValueOnce([]) // projectId succeeds
+          .mockImplementationOnce(() => {
+            throw error;
+          });
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+      });
+
+      it('should handle empty but valid parameters', async () => {
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(mockAggregateMaterialUsage).toHaveBeenCalledWith(
+          BuildingMaterial,
+          { projectIds: [], materialTypeIds: [] },
+          expect.any(Object),
+        );
+      });
+    });
+
+    describe('Category 3: Date Parsing Errors', () => {
+      it('should return 422 for invalid start date format', async () => {
+        const error = {
+          type: 'DATE_PARSE_ERROR',
+          message: 'Invalid date format',
+          acceptedFormats: ['YYYY-MM-DD'],
+        };
+        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: 'invalid-date',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(422);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+        expect(mockLogException).toHaveBeenCalled();
+      });
+
+      it('should return 422 for invalid end date format', async () => {
+        const error = {
+          type: 'DATE_PARSE_ERROR',
+          message: 'Invalid date format',
+        };
+        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: 'invalid-date',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(422);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+      });
+
+      it('should return 400 for invalid date range (start after end)', async () => {
+        const error = {
+          type: 'DATE_RANGE_ERROR',
+          message: 'Start date must be less than or equal to end date',
+        };
+        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-31',
+          endDate: '2024-01-01',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+        expect(mockLogException).toHaveBeenCalled();
+      });
+    });
+
+    describe('Category 4: Aggregation Errors', () => {
+      it('should return 500 when aggregateMaterialUsage fails', async () => {
+        const error = new Error('Database error');
+        mockAggregateMaterialUsage.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+        expect(mockRes.json).toHaveBeenCalledWith({
+          error: 'Internal server error while aggregating material data',
+        });
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - aggregation',
+          expect.any(Object),
+        );
+      });
+
+      it('should return 500 when aggregateMaterialCost fails', async () => {
+        const error = new Error('Database error');
+        mockAggregateMaterialCost.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+        expect(mockRes.json).toHaveBeenCalledWith({
+          error: 'Internal server error while aggregating material data',
+        });
+      });
+
+      it('should handle both aggregations failing', async () => {
+        const error = new Error('Database error');
+        mockAggregateMaterialUsage.mockRejectedValueOnce(error);
+        mockAggregateMaterialCost.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+      });
+    });
+
+    describe('Category 5: Response Building Errors', () => {
+      it('should return 500 when buildCostCorrelationResponse fails', async () => {
+        const error = new Error('Response building error');
+        mockBuildCostCorrelationResponse.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+        expect(mockRes.json).toHaveBeenCalledWith({
+          error: 'Internal server error while building response',
+        });
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - response building',
+          expect.any(Object),
+        );
+      });
+    });
+
+    describe('Category 6: Default Date Computation', () => {
+      it('should use earliest date when found', async () => {
+        const earliestDate = new Date('2023-06-01T00:00:00.000Z');
+        mockGetEarliestRelevantMaterialDate.mockResolvedValueOnce(earliestDate);
+
+        mockReq.query = {
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockGetEarliestRelevantMaterialDate).toHaveBeenCalled();
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalledWith(
+          undefined,
+          '2024-01-31',
+          earliestDate,
+          undefined,
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should use today as fallback when no earliest date found', async () => {
+        mockGetEarliestRelevantMaterialDate.mockResolvedValueOnce(null);
+
+        mockReq.query = {
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockGetEarliestRelevantMaterialDate).toHaveBeenCalled();
+        expect(mockNormalizeStartDate).toHaveBeenCalled();
+        expect(mockParseAndNormalizeDateRangeUTC).toHaveBeenCalled();
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should handle earliest date computation error gracefully', async () => {
+        // When getEarliestRelevantMaterialDate throws, it's caught by the global catch block
+        const error = new Error('DB error');
+        mockGetEarliestRelevantMaterialDate.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        // Error should be caught by global catch and return 500
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - unexpected error',
+          expect.any(Object),
+        );
+      });
+    });
+
+    describe('Category 7: Parallel Aggregation Execution', () => {
+      it('should execute both aggregations in parallel', async () => {
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockAggregateMaterialUsage).toHaveBeenCalled();
+        expect(mockAggregateMaterialCost).toHaveBeenCalled();
+        // Both should be called with same filters and dateRange
+        const usageCall = mockAggregateMaterialUsage.mock.calls[0];
+        const costCall = mockAggregateMaterialCost.mock.calls[0];
+        expect(usageCall[1]).toEqual(costCall[1]); // filters
+        expect(usageCall[2]).toEqual(costCall[2]); // dateRange
+      });
+    });
+
+    describe('Category 8: Response Structure Validation', () => {
+      it('should return response with correct structure', async () => {
+        const mockResponse = {
+          meta: {
+            request: { projectIds: [], materialTypeIds: [] },
+            range: { effectiveStart: '2024-01-01', effectiveEnd: '2024-01-31' },
+            units: { currency: 'USD', costScale: { raw: 1, k: 1000 } },
+          },
+          data: [
+            {
+              projectId: 'project1',
+              projectName: 'Project 1',
+              totals: { quantityUsed: 100, totalCost: 5000, totalCostK: 5, costPerUnit: 50 },
+              byMaterialType: [],
+            },
+          ],
+        };
+        mockBuildCostCorrelationResponse.mockResolvedValueOnce(mockResponse);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.json).toHaveBeenCalledWith(mockResponse);
+        expect(mockResponse.meta).toBeDefined();
+        expect(Array.isArray(mockResponse.data)).toBe(true);
+      });
+    });
+
+    describe('Category 9: Edge Cases', () => {
+      it('should handle empty results gracefully', async () => {
+        mockAggregateMaterialUsage.mockResolvedValueOnce([]);
+        mockAggregateMaterialCost.mockResolvedValueOnce([]);
+        mockBuildCostCorrelationResponse.mockResolvedValueOnce({
+          meta: {},
+          data: [],
+        });
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(mockRes.json).toHaveBeenCalled();
+      });
+
+      it('should handle missing req.query gracefully', async () => {
+        mockReq.query = undefined;
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        // Should not throw, should handle gracefully
+        expect(mockParseMultiSelectQueryParam).toHaveBeenCalled();
+      });
+    });
+
+    describe('Category 10: Logging Verification', () => {
+      it('should log query parameter errors', async () => {
+        const error = {
+          type: 'OBJECTID_VALIDATION_ERROR',
+          message: 'Invalid ObjectId',
+        };
+        mockParseMultiSelectQueryParam.mockImplementationOnce(() => {
+          throw error;
+        });
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - query parameter validation',
+          expect.objectContaining({
+            method: 'GET',
+            path: '/api/bm/materials/cost-correlation',
+          }),
+        );
+      });
+
+      it('should log date parsing errors', async () => {
+        const error = {
+          type: 'DATE_PARSE_ERROR',
+          message: 'Invalid date',
+        };
+        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: 'invalid',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - date range parsing',
+          expect.any(Object),
+        );
+      });
+
+      it('should log aggregation errors', async () => {
+        const error = new Error('Aggregation error');
+        mockAggregateMaterialUsage.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - aggregation',
+          expect.any(Object),
+        );
+      });
+
+      it('should log response building errors', async () => {
+        const error = new Error('Response error');
+        mockBuildCostCorrelationResponse.mockRejectedValueOnce(error);
+
+        mockReq.query = {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - response building',
+          expect.any(Object),
+        );
+      });
+
+      it('should log unexpected errors', async () => {
+        const error = new Error('Unexpected error');
+        mockParseMultiSelectQueryParam.mockImplementationOnce(() => {
+          throw error;
+        });
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockLogException).toHaveBeenCalledWith(
+          error,
+          'bmGetMaterialCostCorrelation - unexpected error',
+          expect.any(Object),
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+      });
     });
   });
 });
