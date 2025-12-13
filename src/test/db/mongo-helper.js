@@ -2,6 +2,10 @@
 /* eslint-disable guard-for-in */
 /* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
+// eslint-disable-next-line import/no-extraneous-dependencies
+const { MongoMemoryServer } = require('mongodb-memory-server');
+
+let mongoServer;
 
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
@@ -15,7 +19,7 @@ module.exports.dbConnect = async () => {
     }
 
     // Try to use a real MongoDB connection if available, otherwise use a simple in-memory approach
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/test';
+    const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/test';
 
     console.log('Using MongoDB URI:', mongoUri);
 
@@ -41,15 +45,27 @@ module.exports.dbConnect = async () => {
 
     // If connection fails, try to create a minimal test environment
     console.log('Attempting to create minimal test environment...');
+    await mongoose.disconnect();
 
-    // Create a simple in-memory database simulation
-    const collections = {};
+    mongoServer = await MongoMemoryServer.create();
 
-    // Mock the database functions
-    mongoose.connection.collections = collections;
-    mongoose.connection.readyState = 1; // Mark as connected
+    const uri = mongoServer.getUri();
 
-    console.log('Created minimal test environment');
+    const mongooseOpts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 30000, // 30 seconds
+      socketTimeoutMS: 30000, // 30 seconds
+      connectTimeoutMS: 30000, // 30 seconds
+      maxPoolSize: 1,
+      minPoolSize: 0,
+    };
+
+    await mongoose.connect(uri, mongooseOpts, (err) => {
+      if (err) {
+        console.error(err);
+      }
+    });
   }
 };
 
@@ -70,19 +86,21 @@ module.exports.dbClearAll = async () => {
     const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
 
-    for (const key in collections) {
-      const collection = collections[key];
-      try {
-        if (collection && typeof collection.deleteMany === 'function') {
-          const result = await collection.deleteMany({});
-          console.log(`Cleared collection ${key}: ${result.deletedCount} documents`);
-        } else {
-          console.log(`Skipping collection ${key} (not a real collection)`);
+    await Promise.all(
+      Object.keys(collections).map(async (key) => {
+        const collection = collections[key];
+        try {
+          if (collection && typeof collection.deleteMany === 'function') {
+            const result = await collection.deleteMany({});
+            console.log(`Cleared collection ${key}: ${result.deletedCount} documents`);
+          } else {
+            console.log(`Skipping collection ${key} (not a real collection)`);
+          }
+        } catch (error) {
+          console.warn(`Failed to clear collection ${key}:`, error.message);
         }
-      } catch (error) {
-        console.warn(`Failed to clear collection ${key}:`, error.message);
-      }
-    }
+      }),
+    );
 
     console.log('All collections cleared successfully');
   } catch (error) {
@@ -94,19 +112,21 @@ module.exports.dbClearCollections = async (...collectionNames) => {
   try {
     console.log(`Clearing specific collections: ${collectionNames.join(', ')}`);
 
-    for (const collectionName of collectionNames) {
-      const collection = mongoose.connection.collections[collectionName];
-      if (collection && typeof collection.deleteMany === 'function') {
-        try {
-          const result = await collection.deleteMany({});
-          console.log(`Cleared collection ${collectionName}: ${result.deletedCount} documents`);
-        } catch (error) {
-          console.warn(`Failed to clear collection ${collectionName}:`, error.message);
+    await Promise.all(
+      collectionNames.map(async (collectionName) => {
+        const collection = mongoose.connection.collections[collectionName];
+        if (collection && typeof collection.deleteMany === 'function') {
+          try {
+            const result = await collection.deleteMany({});
+            console.log(`Cleared collection ${collectionName}: ${result.deletedCount} documents`);
+          } catch (error) {
+            console.warn(`Failed to clear collection ${collectionName}:`, error.message);
+          }
+        } else {
+          console.log(`Collection ${collectionName} not found or not a real collection`);
         }
-      } else {
-        console.log(`Collection ${collectionName} not found or not a real collection`);
-      }
-    }
+      }),
+    );
   } catch (error) {
     console.error('Error clearing specific collections:', error);
   }
