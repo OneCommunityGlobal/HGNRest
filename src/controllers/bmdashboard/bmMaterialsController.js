@@ -466,7 +466,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         if (error.type === 'DATE_RANGE_ERROR') {
           return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
         }
-        return res.status(400).json({ error: error.message });
+        return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
       }
 
       const { effectiveStart, effectiveEnd } = dateRangeMeta;
