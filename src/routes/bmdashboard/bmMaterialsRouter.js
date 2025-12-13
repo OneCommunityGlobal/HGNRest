@@ -10,6 +10,8 @@ const routes = function (buildingMaterial) {
     .get(controller.bmMaterialsList)
     .post(controller.bmPurchaseMaterials);
 
+  materialsRouter.route('/itemType/updateName').patch(controller.bmUpdateItemTypeName);
+
   materialsRouter.route('/updateMaterialRecord').post(controller.bmPostMaterialUpdateRecord);
 
   materialsRouter.route('/updateMaterialRecordBulk').post(controller.bmPostMaterialUpdateBulk);
