@@ -9,6 +9,159 @@ const mongoose = require('mongoose');
 const logger = require('../startup/logger');
 
 /**
+ * Resolve project names to ObjectIds by querying the BuildingProject model.
+ *
+ * @param {string[]} projectNames - Array of project names to resolve
+ * @param {Object} BuildingProject - Mongoose model for BuildingProject
+ * @returns {Promise<string[]>} Array of ObjectId strings
+ * @throws {Object} Structured error object with type 'NAME_RESOLUTION_ERROR' if names not found
+ */
+async function resolveProjectNamesToIds(projectNames, BuildingProject) {
+  if (!projectNames || projectNames.length === 0) {
+    return [];
+  }
+
+  try {
+    // Query projects by name (case-insensitive, exact match)
+    const projects = await BuildingProject.find({
+      name: { $in: projectNames },
+      isActive: true, // Only active projects
+    })
+      .select('_id name')
+      .exec();
+
+    // Create a map of name (lowercase) to ObjectId
+    const nameToIdMap = new Map();
+    projects.forEach((project) => {
+      if (project.name) {
+        nameToIdMap.set(project.name.toLowerCase(), project._id.toString());
+      }
+    });
+
+    // Check for missing names
+    const missingNames = [];
+    const resolvedIds = [];
+
+    projectNames.forEach((name) => {
+      const normalizedName = name.trim().toLowerCase();
+      const id = nameToIdMap.get(normalizedName);
+
+      if (id) {
+        resolvedIds.push(id);
+      } else {
+        missingNames.push(name);
+      }
+    });
+
+    // If any names were not found, throw error
+    if (missingNames.length > 0) {
+      const error = {
+        type: 'NAME_RESOLUTION_ERROR',
+        message: `The following project names were not found: ${missingNames.join(', ')}`,
+        missingNames,
+        paramName: 'projectName',
+      };
+      throw error;
+    }
+
+    return resolvedIds;
+  } catch (error) {
+    // Re-throw if it's already a structured error
+    if (error.type === 'NAME_RESOLUTION_ERROR') {
+      throw error;
+    }
+
+    // Wrap database errors
+    logger.logException(error, 'resolveProjectNamesToIds - database query', {
+      projectNamesCount: projectNames.length,
+    });
+
+    const dbError = {
+      type: 'NAME_RESOLUTION_ERROR',
+      message: 'Error resolving project names. Please try again or use projectId instead.',
+      paramName: 'projectName',
+    };
+    throw dbError;
+  }
+}
+
+/**
+ * Resolve material type names to ObjectIds by querying the BuildingInventoryType model.
+ *
+ * @param {string[]} materialNames - Array of material type names to resolve
+ * @param {Object} BuildingInventoryType - Mongoose model for BuildingInventoryType
+ * @returns {Promise<string[]>} Array of ObjectId strings
+ * @throws {Object} Structured error object with type 'NAME_RESOLUTION_ERROR' if names not found
+ */
+async function resolveMaterialNamesToIds(materialNames, BuildingInventoryType) {
+  if (!materialNames || materialNames.length === 0) {
+    return [];
+  }
+
+  try {
+    // Query material types by name (case-insensitive, exact match)
+    const materials = await BuildingInventoryType.find({
+      name: { $in: materialNames },
+    })
+      .select('_id name')
+      .exec();
+
+    // Create a map of name (lowercase) to ObjectId
+    const nameToIdMap = new Map();
+    materials.forEach((material) => {
+      if (material.name) {
+        nameToIdMap.set(material.name.toLowerCase(), material._id.toString());
+      }
+    });
+
+    // Check for missing names
+    const missingNames = [];
+    const resolvedIds = [];
+
+    materialNames.forEach((name) => {
+      const normalizedName = name.trim().toLowerCase();
+      const id = nameToIdMap.get(normalizedName);
+
+      if (id) {
+        resolvedIds.push(id);
+      } else {
+        missingNames.push(name);
+      }
+    });
+
+    // If any names were not found, throw error
+    if (missingNames.length > 0) {
+      const error = {
+        type: 'NAME_RESOLUTION_ERROR',
+        message: `The following material type names were not found: ${missingNames.join(', ')}`,
+        missingNames,
+        paramName: 'materialName',
+      };
+      throw error;
+    }
+
+    return resolvedIds;
+  } catch (error) {
+    // Re-throw if it's already a structured error
+    if (error.type === 'NAME_RESOLUTION_ERROR') {
+      throw error;
+    }
+
+    // Wrap database errors
+    logger.logException(error, 'resolveMaterialNamesToIds - database query', {
+      materialNamesCount: materialNames.length,
+    });
+
+    const dbError = {
+      type: 'NAME_RESOLUTION_ERROR',
+      message: 'Error resolving material type names. Please try again or use materialType instead.',
+      paramName: 'materialName',
+    };
+    throw dbError;
+  }
+}
+
+/**
  * Convert array of string IDs to ObjectIds.
  * Helper function to avoid duplication of ObjectId conversion pattern.
  *
@@ -590,4 +743,6 @@ module.exports = {
   calculateCostPerUnit, // Export for testing
   calculateTotalCostK, // Export for testing
   objectIdToString, // Export for testing
+  resolveProjectNamesToIds, // Export for name resolution
+  resolveMaterialNamesToIds, // Export for name resolution
 };
