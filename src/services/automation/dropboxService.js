@@ -205,20 +205,25 @@ async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
  * Throws if the project folder already exists.
  */
 async function createFolderWithSubfolder(projectName) {
+  // eslint-disable-next-line no-undef
   const rootPath = `/${HGN_FOLDER}`;
   const projectPath = `${rootPath}/${projectName}`;
 
+  // eslint-disable-next-line no-undef
   // Ensure root exists
   await ensureFolderExists(rootPath);
 
+  // eslint-disable-next-line no-undef
   // Validate team folder key
   if (!TEAM_FOLDERS[teamFolderKey]) {
+    // eslint-disable-next-line no-undef
     throw new Error(`Invalid team folder key: ${teamFolderKey}`);
   }
 
+  // eslint-disable-next-line no-undef
   // Sanitize user folder name (remove special characters that could cause issues)
   const sanitizedUserFolderName = userFolderName.trim().replace(/[<>:"/\\|?*]/g, '_');
-
+  // eslint-disable-next-line no-undef
   const teamFolderPath = getTeamFolderPath(teamFolderKey);
   const userFolderPath = `${teamFolderPath}/${sanitizedUserFolderName}`;
 

@@ -42,6 +42,11 @@ async function revokeAppAccess(userId, appName) {
     return appAccess;
 }
 
+async function getAppCredentials(userId, appName) {
+    const { credentials } = await getAppAccess(userId, appName);
+    return credentials;
+}
+
 async function getAppAccess(userId, appName) {
   const appAccess = await ApplicationAccess.findOne({ userId });
   const app = appAccess && appAccess.apps.find((a) => a.app === appName);
