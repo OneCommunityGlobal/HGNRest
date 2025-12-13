@@ -2390,7 +2390,6 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      // const requestor = req.body.requestor;
       const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
       if (!allowed) {
         return res.status(403).json({
