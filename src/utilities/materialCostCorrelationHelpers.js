@@ -9,6 +9,17 @@ const mongoose = require('mongoose');
 const logger = require('../startup/logger');
 
 /**
+ * Convert array of string IDs to ObjectIds.
+ * Helper function to avoid duplication of ObjectId conversion pattern.
+ *
+ * @param {string[]} idStrings - Array of ObjectId strings
+ * @returns {Object[]} Array of mongoose ObjectIds
+ */
+function convertStringsToObjectIds(idStrings) {
+  return idStrings.map((id) => new mongoose.Types.ObjectId(id));
+}
+
+/**
  * Build base match condition for filtering by project and material type.
  * Helper function to avoid duplication between usage and cost aggregations.
  *
@@ -20,12 +31,12 @@ function buildBaseMatchForMaterials(projectIds, materialTypeIds) {
   const baseMatch = {};
 
   if (projectIds && projectIds.length > 0) {
-    const projectObjectIds = projectIds.map((id) => new mongoose.Types.ObjectId(id));
+    const projectObjectIds = convertStringsToObjectIds(projectIds);
     baseMatch.project = { $in: projectObjectIds };
   }
 
   if (materialTypeIds && materialTypeIds.length > 0) {
-    const materialTypeObjectIds = materialTypeIds.map((id) => new mongoose.Types.ObjectId(id));
+    const materialTypeObjectIds = convertStringsToObjectIds(materialTypeIds);
     baseMatch.itemType = { $in: materialTypeObjectIds };
   }
 
@@ -346,12 +357,8 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
     projectIds.forEach((id) => projectIdSet.add(String(id)));
     materialTypeIds.forEach((id) => materialTypeIdSet.add(String(id)));
 
-    const allUniqueProjectIds = Array.from(projectIdSet).map(
-      (id) => new mongoose.Types.ObjectId(id),
-    );
-    const allUniqueMaterialTypeIds = Array.from(materialTypeIdSet).map(
-      (id) => new mongoose.Types.ObjectId(id),
-    );
+    const allUniqueProjectIds = convertStringsToObjectIds(Array.from(projectIdSet));
+    const allUniqueMaterialTypeIds = convertStringsToObjectIds(Array.from(materialTypeIdSet));
 
     // Query project names and material type names/units in parallel
     const projectMap = new Map();
