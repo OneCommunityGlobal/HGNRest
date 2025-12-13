@@ -68,10 +68,10 @@ async function inviteUser(req, res) {
 
 // Controller function to remove a user by email
 async function removeUser(req, res) {
-  const { targetUser } = req.body;
+  const { targetUser, requestor } = req.body;
 
-  if (!targetUser.email) {
-    return res.status(400).json({ message: 'Email is required' });
+  if (!targetUser?.targetUserId) {
+    return res.status(400).json({ message: 'User ID is required' });
   }
 
   if (!requestor) {
