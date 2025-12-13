@@ -12,6 +12,8 @@ const {
   aggregateMaterialUsage,
   aggregateMaterialCost,
   buildCostCorrelationResponse,
+  resolveProjectNamesToIds,
+  resolveMaterialNamesToIds,
 } = require('../../utilities/materialCostCorrelationHelpers');
 
 // HTTP status codes
@@ -404,23 +406,130 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
-  // eslint-disable-next-line max-lines-per-function
+  /**
+   * Compute default start date if startDateInput is not provided.
+   * Uses earliest relevant material date or falls back to today.
+   *
+   * @param {string|undefined} startDateInput - Start date input from query
+   * @param {string[]} projectIds - Project IDs for filtering
+   * @param {string[]} materialTypeIds - Material type IDs for filtering
+   * @returns {Promise<Date|undefined>} Default start date or undefined
+   */
+  const computeDefaultStartDate = async function (startDateInput, projectIds, materialTypeIds) {
+    if (startDateInput && typeof startDateInput === 'string' && startDateInput.trim() !== '') {
+      return undefined;
+    }
+
+    const earliestDate = await getEarliestRelevantMaterialDate(
+      projectIds,
+      materialTypeIds,
+      BuildingMaterial,
+    );
+
+    if (earliestDate) {
+      return earliestDate;
+    }
+
+    // Fallback: today's start-of-day UTC
+    return normalizeStartDate(new Date(), true);
+  };
+
+  /**
+   * Handle date range parsing errors and return appropriate HTTP response.
+   *
+   * @param {Object} error - Error object from date parsing
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @returns {Object|undefined} Response object if error handled, undefined otherwise
+   */
+  const handleDateRangeError = function (error, req, res) {
+    logger.logException(error, 'bmGetMaterialCostCorrelation - date range parsing', {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+    });
+
+    if (error.type === 'DATE_PARSE_ERROR') {
+      return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
+    }
+    if (error.type === 'DATE_RANGE_ERROR') {
+      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+    }
+    return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+  };
+
+  /**
+   * Handle query parameter validation errors and return appropriate HTTP response.
+   *
+   * @param {Object} error - Error object from parameter validation
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @returns {Object|undefined} Response object if error handled, undefined otherwise
+   */
+  const handleQueryParamError = function (error, req, res) {
+    if (error.type === 'OBJECTID_VALIDATION_ERROR' || error.type === 'NAME_RESOLUTION_ERROR') {
+      logger.logException(error, 'bmGetMaterialCostCorrelation - query parameter validation', {
+        method: req.method,
+        path: req.path,
+        query: req.query,
+      });
+      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+    }
+    return undefined;
+  };
+
+  /**
+   * Extract and resolve query parameters (IDs and names) to ObjectId arrays.
+   * Handles both ID-based and name-based parameters, resolving names to IDs.
+   *
+   * @param {Object} req - Express request object
+   * @returns {Promise<{projectIds: string[], materialTypeIds: string[]}>} Resolved ID arrays
+   * @throws {Object} Structured error objects for validation/resolution failures
+   */
+  const extractAndResolveQueryParams = async function (req) {
+    // Parse ID parameters (if provided)
+    const projectIdsFromParam = parseMultiSelectQueryParam(req, 'projectId', true);
+    const materialTypeIdsFromParam = parseMultiSelectQueryParam(req, 'materialType', true);
+
+    // Parse name parameters (if provided, no ObjectId validation)
+    const projectNames = parseMultiSelectQueryParam(req, 'projectName', false);
+    const materialNames = parseMultiSelectQueryParam(req, 'materialName', false);
+
+    let projectIds = projectIdsFromParam;
+    let materialTypeIds = materialTypeIdsFromParam;
+
+    // Resolve names to IDs if provided
+    if (projectNames.length > 0) {
+      const resolvedProjectIds = await resolveProjectNamesToIds(projectNames, BuildingProject);
+      projectIds = [...projectIdsFromParam, ...resolvedProjectIds];
+    }
+
+    if (materialNames.length > 0) {
+      const resolvedMaterialIds = await resolveMaterialNamesToIds(materialNames, invTypeBase);
+      materialTypeIds = [...materialTypeIdsFromParam, ...resolvedMaterialIds];
+    }
+
+    // Remove duplicates from combined arrays
+    return {
+      projectIds: [...new Set(projectIds)],
+      materialTypeIds: [...new Set(materialTypeIds)],
+    };
+  };
+
   const bmGetMaterialCostCorrelation = async function (req, res) {
     try {
-      // 1. Extract and parse query parameters
+      // 1. Extract and parse query parameters (IDs and names)
       let projectIds;
       let materialTypeIds;
+
       try {
-        projectIds = parseMultiSelectQueryParam(req, 'projectId', true);
-        materialTypeIds = parseMultiSelectQueryParam(req, 'materialType', true);
+        const resolvedParams = await extractAndResolveQueryParams(req);
+        projectIds = resolvedParams.projectIds;
+        materialTypeIds = resolvedParams.materialTypeIds;
       } catch (error) {
-        if (error.type === 'OBJECTID_VALIDATION_ERROR') {
-          logger.logException(error, 'bmGetMaterialCostCorrelation - query parameter validation', {
-            method: req.method,
-            path: req.path,
-            query: req.query,
-          });
-          return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+        const errorResponse = handleQueryParamError(error, req, res);
+        if (errorResponse) {
+          return errorResponse;
         }
         throw error;
       }
@@ -430,20 +539,11 @@ const bmMaterialsController = function (BuildingMaterial) {
       const endDateInput = req.query.endDate;
 
       // 2. Compute default start date if needed
-      let defaultStartDate;
-      if (!startDateInput || (typeof startDateInput === 'string' && startDateInput.trim() === '')) {
-        const earliestDate = await getEarliestRelevantMaterialDate(
-          projectIds,
-          materialTypeIds,
-          BuildingMaterial,
-        );
-        if (earliestDate) {
-          defaultStartDate = earliestDate;
-        } else {
-          // Fallback: today's start-of-day UTC
-          defaultStartDate = normalizeStartDate(new Date(), true);
-        }
-      }
+      const defaultStartDate = await computeDefaultStartDate(
+        startDateInput,
+        projectIds,
+        materialTypeIds,
+      );
 
       // 3. Parse and normalize date range
       let dateRangeMeta;
@@ -455,18 +555,7 @@ const bmMaterialsController = function (BuildingMaterial) {
           undefined,
         );
       } catch (error) {
-        logger.logException(error, 'bmGetMaterialCostCorrelation - date range parsing', {
-          method: req.method,
-          path: req.path,
-          query: req.query,
-        });
-        if (error.type === 'DATE_PARSE_ERROR') {
-          return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
-        }
-        if (error.type === 'DATE_RANGE_ERROR') {
-          return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
-        }
-        return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+        return handleDateRangeError(error, req, res);
       }
 
       const { effectiveStart, effectiveEnd } = dateRangeMeta;
