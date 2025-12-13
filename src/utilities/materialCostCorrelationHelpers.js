@@ -117,20 +117,19 @@ async function getEarliestRelevantMaterialDate(projectIds, materialTypeIds, Buil
  * Aggregates from updateRecord arrays.
  *
  * @param {Object} BuildingMaterial - Mongoose model
- * @param {string[]} projectIds - Array of project ObjectId strings (empty = all projects)
- * @param {string[]} materialTypeIds - Array of material type ObjectId strings (empty = all materials)
- * @param {Date} effectiveStart - UTC Date object for range start
- * @param {Date} effectiveEnd - UTC Date object for range end
+ * @param {Object} filters - Filter object with projectIds and materialTypeIds arrays
+ * @param {string[]} filters.projectIds - Array of project ObjectId strings (empty = all projects)
+ * @param {string[]} filters.materialTypeIds - Array of material type ObjectId strings (empty = all materials)
+ * @param {Object} dateRange - Date range object with effectiveStart and effectiveEnd
+ * @param {Date} dateRange.effectiveStart - UTC Date object for range start
+ * @param {Date} dateRange.effectiveEnd - UTC Date object for range end
  * @returns {Promise<Array>} Promise resolving to array of objects with projectId, materialTypeId, quantityUsed
  */
-async function aggregateMaterialUsage(
-  BuildingMaterial,
-  projectIds,
-  materialTypeIds,
-  effectiveStart,
-  effectiveEnd,
-) {
+async function aggregateMaterialUsage(BuildingMaterial, filters, dateRange) {
   try {
+    const { projectIds, materialTypeIds } = filters;
+    const { effectiveStart, effectiveEnd } = dateRange;
+
     // Build initial match stage
     const baseMatch = buildBaseMatchForMaterials(projectIds, materialTypeIds);
 
@@ -175,10 +174,10 @@ async function aggregateMaterialUsage(
     return results;
   } catch (error) {
     logger.logException(error, 'aggregateMaterialUsage', {
-      projectIds,
-      materialTypeIds,
-      effectiveStart: effectiveStart?.toISOString(),
-      effectiveEnd: effectiveEnd?.toISOString(),
+      projectIds: filters?.projectIds,
+      materialTypeIds: filters?.materialTypeIds,
+      effectiveStart: dateRange?.effectiveStart?.toISOString(),
+      effectiveEnd: dateRange?.effectiveEnd?.toISOString(),
     });
     return [];
   }
@@ -189,20 +188,19 @@ async function aggregateMaterialUsage(
  * Aggregates from purchaseRecord arrays.
  *
  * @param {Object} BuildingMaterial - Mongoose model
- * @param {string[]} projectIds - Array of project ObjectId strings (empty = all projects)
- * @param {string[]} materialTypeIds - Array of material type ObjectId strings (empty = all materials)
- * @param {Date} effectiveStart - UTC Date object for range start
- * @param {Date} effectiveEnd - UTC Date object for range end
+ * @param {Object} filters - Filter object with projectIds and materialTypeIds arrays
+ * @param {string[]} filters.projectIds - Array of project ObjectId strings (empty = all projects)
+ * @param {string[]} filters.materialTypeIds - Array of material type ObjectId strings (empty = all materials)
+ * @param {Object} dateRange - Date range object with effectiveStart and effectiveEnd
+ * @param {Date} dateRange.effectiveStart - UTC Date object for range start
+ * @param {Date} dateRange.effectiveEnd - UTC Date object for range end
  * @returns {Promise<Array>} Promise resolving to array of objects with projectId, materialTypeId, totalCost
  */
-async function aggregateMaterialCost(
-  BuildingMaterial,
-  projectIds,
-  materialTypeIds,
-  effectiveStart,
-  effectiveEnd,
-) {
+async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
   try {
+    const { projectIds, materialTypeIds } = filters;
+    const { effectiveStart, effectiveEnd } = dateRange;
+
     // Build initial match stage (reuse helper)
     const baseMatch = buildBaseMatchForMaterials(projectIds, materialTypeIds);
 
@@ -253,10 +251,10 @@ async function aggregateMaterialCost(
     return results;
   } catch (error) {
     logger.logException(error, 'aggregateMaterialCost', {
-      projectIds,
-      materialTypeIds,
-      effectiveStart: effectiveStart?.toISOString(),
-      effectiveEnd: effectiveEnd?.toISOString(),
+      projectIds: filters?.projectIds,
+      materialTypeIds: filters?.materialTypeIds,
+      effectiveStart: dateRange?.effectiveStart?.toISOString(),
+      effectiveEnd: dateRange?.effectiveEnd?.toISOString(),
     });
     return [];
   }
