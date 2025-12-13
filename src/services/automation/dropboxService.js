@@ -201,29 +201,27 @@ async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
 }
 
 /**
- * Creates a new project folder under HGN_FOLDER and a 'Week 1' subfolder.
- * Throws if the project folder already exists.
+ * Creates a new user folder under the specified Dropbox team folder and a 'Week 1' subfolder.
+ * Throws if the user folder already exists.
  */
-async function createFolderWithSubfolder(projectName) {
-  // eslint-disable-next-line no-undef
-  const rootPath = `/${HGN_FOLDER}`;
-  const projectPath = `${rootPath}/${projectName}`;
+async function createFolderWithSubfolder(userFolderName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
+  // Input validation
+  if (!userFolderName || typeof userFolderName !== 'string' || userFolderName.trim().length === 0) {
+    throw new Error('User folder name is required and must be a non-empty string');
+  }
 
-  // eslint-disable-next-line no-undef
-  // Ensure root exists
-  await ensureFolderExists(rootPath);
+  if (!teamFolderKey || typeof teamFolderKey !== 'string' || teamFolderKey.trim().length === 0) {
+    throw new Error('Team folder key is required and must be a non-empty string');
+  }
 
-  // eslint-disable-next-line no-undef
   // Validate team folder key
   if (!TEAM_FOLDERS[teamFolderKey]) {
-    // eslint-disable-next-line no-undef
     throw new Error(`Invalid team folder key: ${teamFolderKey}`);
   }
 
-  // eslint-disable-next-line no-undef
   // Sanitize user folder name (remove special characters that could cause issues)
   const sanitizedUserFolderName = userFolderName.trim().replace(/[<>:"/\\|?*]/g, '_');
-  // eslint-disable-next-line no-undef
+
   const teamFolderPath = getTeamFolderPath(teamFolderKey);
   const userFolderPath = `${teamFolderPath}/${sanitizedUserFolderName}`;
 
@@ -232,21 +230,21 @@ async function createFolderWithSubfolder(projectName) {
 
   // Check if user folder already exists
   try {
-    await dbx.filesGetMetadata({ path: projectPath });
-    throw new Error(`Folder '${projectPath}' already exists`);
+    await dbx.filesGetMetadata({ path: userFolderPath });
+    throw new Error(`User folder '${userFolderPath}' already exists`);
   } catch (err) {
     if (err.status === 409 && err.error?.error?.['.tag'] === 'path') {
-      // Not found, create
-      await dbx.filesCreateFolderV2({ path: projectPath });
-      await dbx.filesCreateFolderV2({ path: `${projectPath}/Week 1` });
-      return projectPath;
+      // Not found, create user folder and Week 1 subfolder
+      await dbx.filesCreateFolderV2({ path: userFolderPath });
+      await dbx.filesCreateFolderV2({ path: `${userFolderPath}/Week 1` });
+      return userFolderPath;
     }
     throw err;
   }
 }
 
 /**
- * Creates a project folder, shares it, and invites a user.
+ * Creates a user folder, shares it, and invites a user.
  * Throws if any step fails.
  */
 async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFAULT_TEAM_FOLDER) {
@@ -293,11 +291,11 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
 
   let userFolderPath;
   try {
-    // 1. Create project folders
-    folderPath = await createFolderWithSubfolder(projectName);
+    // 1. Create user folder and Week 1 subfolder
+    userFolderPath = await createFolderWithSubfolder(userFolderName, teamFolderKey);
 
     // 2. Initiate share
-    const shareResult = await dbx.sharingShareFolder({ path: folderPath });
+    const shareResult = await dbx.sharingShareFolder({ path: userFolderPath });
     let folderMeta;
 
     if (shareResult.result['.tag'] === 'async_job_id') {
@@ -316,11 +314,22 @@ async function createFolderAndInvite(email, userFolderName, teamFolderKey = DEFA
     // 3. Invite user
     const inviteResponse = await dbx.sharingAddFolderMember({
       shared_folder_id: sharedFolderId,
-      members: [{ member: { '.tag': 'email', email }, access_level: { '.tag': 'editor' } }],
+      members: [
+        { member: { '.tag': 'email', email: email.trim() }, access_level: { '.tag': 'editor' } },
+      ],
       quiet: false,
     });
 
-    return { inviteResponse, folderPath };
+    // Get the folder metadata to retrieve the folder_id
+    const folderMetadata = await dbx.filesGetMetadata({ path: userFolderPath });
+
+    return {
+      inviteResponse,
+      folderPath: userFolderPath,
+      sharedFolderId,
+      folderId: folderMetadata.result.id,
+      folderName: userFolderName,
+    };
   } catch (err) {
     // If it's already our custom error with proper properties, re-throw it
     if (err.name && err.statusCode) {
