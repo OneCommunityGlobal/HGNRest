@@ -24,7 +24,6 @@ const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
-
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -681,6 +680,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
         'isStartDateManuallyModified',
       ];
 
@@ -1874,6 +1874,7 @@ const userProfileController = function (UserProfile, Project) {
       const originalinfringements = record?.infringements ?? [];
       // record.infringements = originalinfringements.concat(req.body.blueSquare);
       record.infringements = originalinfringements.concat(newInfringement);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -1973,6 +1974,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
@@ -2056,7 +2058,9 @@ const userProfileController = function (UserProfile, Project) {
         teamCode: { $ne: null },
       });
 
-      distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
+      distinctTeamCodes = distinctTeamCodes
+        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .filter((code) => code !== '');
 
       try {
         cache.removeCache('teamCodes');

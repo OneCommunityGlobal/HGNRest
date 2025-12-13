@@ -297,7 +297,7 @@ const permissionsRoles = [
       'accessHgnSkillsDashboard',
       'manageFAQs',
       'manageHGNAccessSetup',
-      'setFinalDay'
+      'setFinalDay',
     ],
   },
 ];
