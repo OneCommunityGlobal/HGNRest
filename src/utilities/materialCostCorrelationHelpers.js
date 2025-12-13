@@ -586,4 +586,8 @@ module.exports = {
   aggregateMaterialCost,
   buildCostCorrelationResponse,
   buildBaseMatchForMaterials, // Export for testing/reuse
+  convertStringsToObjectIds, // Export for testing
+  calculateCostPerUnit, // Export for testing
+  calculateTotalCostK, // Export for testing
+  objectIdToString, // Export for testing
 };
