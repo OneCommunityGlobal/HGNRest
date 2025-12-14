@@ -35,7 +35,7 @@ const runTests = async () => {
   }
 
   const emailConfig = {
-    targetUserId: mongoose.Types.ObjectId(TARGET_USER_ID),
+    targetUserId: new mongoose.Types.ObjectId(TARGET_USER_ID),
     emailOverride: TESTER_EMAIL,
     ccOverride: [TESTER_CC], // Helper expects array
     bccOverride: [TESTER_BCC], // Helper expects array
@@ -63,7 +63,7 @@ const runTests = async () => {
     // await userHelper.weeklyBlueSquareReminderFunction(emailConfig);
     // console.log('   -> Done.\n');
 
-    // console.log('All tests completed successfully.');
+    console.log('All tests completed successfully.');
   } catch (error) {
     console.error('Error running tests:', error);
   } finally {

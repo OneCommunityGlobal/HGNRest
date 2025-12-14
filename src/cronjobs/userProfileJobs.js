@@ -15,7 +15,7 @@ const userProfileJobs = () => {
     async () => {
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        // await userhelper.getProfileImagesFromWebsite();
+        await userhelper.getProfileImagesFromWebsite();
         await userhelper.assignBlueSquareForTimeNotMet();
         await userhelper.applyMissedHourForCoreTeam();
         await userhelper.emailWeeklySummariesForAllUsers();

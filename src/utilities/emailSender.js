@@ -1,7 +1,7 @@
 // src/utilities/emailSender.js
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
-const crypto = require('crypto');
 const logger = require('../startup/logger');
 const EmailHistory = require('../models/emailHistory');
 const EmailThread = require('../models/emailThread');
@@ -347,27 +347,14 @@ const emailSender = (
         for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
           const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
 
-          // per-batch/message Message-ID with DB uniqueness check (up to 5 attempts)
-          let messageId = null;
-          const maxGenAttempts = 5;
-          for (let genAttempt = 0; genAttempt < maxGenAttempts; genAttempt += 1) {
-            messageId = generateMessageId();
-            // quick DB check to avoid extremely unlikely collisions
-            // if EmailHistory already contains this messageId, regenerate
-            // (this is defensive; collisions with crypto.randomUUID() are effectively impossible)
-            // eslint-disable-next-line no-await-in-loop
-            const exists = await EmailHistory.findOne({ messageId }).select('_id').lean();
-            if (!exists) break;
-            messageId = null; // try again
-          }
-
-          // If we somehow still have a collision, append pid-based suffix as a final fallback
-          if (!messageId) {
-            const fallbackId =
-              typeof crypto.randomUUID === 'function'
-                ? crypto.randomUUID()
-                : `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-            messageId = `<${fallbackId}-${process.pid}@${domain}>`;
+          // Generate per-batch/message Message-ID using UUID (collision probability is negligible)
+          let messageId;
+          if (typeof crypto.randomUUID === 'function') {
+            messageId = `<${crypto.randomUUID()}@${domain}>`;
+          } else {
+            // Fallback for environments without crypto.randomUUID
+            const fallbackId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+            messageId = `<${fallbackId}@${domain}>`;
           }
 
           // defaults for thread-related headers

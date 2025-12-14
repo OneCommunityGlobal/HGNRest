@@ -620,7 +620,10 @@ const userHelper = function () {
             pdtEndOfLastWeek,
           );
 
-          const { timeSpent_hrs: timeSpent } = results[0];
+          const timeSpent =
+            results && results[0] && typeof results[0].timeSpent_hrs === 'number'
+              ? results[0].timeSpent_hrs
+              : 0;
           const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
           const timeNotMet = timeSpent < weeklycommittedHours;
           const timeRemaining = weeklycommittedHours - timeSpent;
@@ -1076,7 +1079,6 @@ const userHelper = function () {
         : { isActive: true };
       const users = await userProfile.find(
         query,
-        // '_id weeklycommittedHours weeklySummaries missedHours email firstName',
         '_id weeklycommittedHours weeklySummaries missedHours email firstName weeklySummaryOption weeklySummaryNotReq',
       );
 
@@ -1101,7 +1103,7 @@ const userHelper = function () {
         const user = users[i];
         let hasWeeklySummary = false;
 
-        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length) {
+        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length > 1) {
           // processWeeklySummariesByUserId pushes the new empty summary to index 0,
           // so we verify index 1 to check the previous week's summary.
           // await processWeeklySummariesByUserId(personId);
@@ -1116,10 +1118,7 @@ const userHelper = function () {
         }
 
         const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
-        // .subtract(1, 'week');
-
         const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
-        // const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
         const results = await dashboardHelper.laborthisweek(
           user._id,
@@ -1127,10 +1126,11 @@ const userHelper = function () {
           pdtEndOfCurrentWeek,
         );
 
-        const { timeSpent_hrs: timeSpent } = results[0];
+        const timeSpent =
+          Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const timeNotMet = timeSpent + weeklycommittedHours < weeklycommittedHours;
+        const timeNotMet = timeSpent < weeklycommittedHours;
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
@@ -1166,7 +1166,8 @@ const userHelper = function () {
       }
       return 'success';
     } catch (err) {
-      console.log(err);
+      console.error(err);
+      return 'error';
     }
   };
 
@@ -1236,7 +1237,7 @@ const userHelper = function () {
         return `<div style="font-family: Arial, sans-serif;">
             Good Morning ${firstName},
             <div><br></div>
-            <>We noticed that you’ve received <strong>two blue squares</strong> within your first few weeks on the team, which is quite unusual. When this happens, we start to wonder whether this position is the right fit for you and if you still wish to continue volunteering with us.</>
+            <div>We noticed that you’ve received <strong>two blue squares</strong> within your first few weeks on the team, which is quite unusual. When this happens, we start to wonder whether this position is the right fit for you and if you still wish to continue volunteering with us.</div>
             <div><br></div>
             <div>Do you still feel this role aligns with your interests, availability, and energy? If so, what steps will you take to meet the requirements of being a One Community team member moving forward?</div>
             <div><br></div>
@@ -1290,7 +1291,7 @@ const userHelper = function () {
             <div><br></div>
             <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated. And as you may know, we allow a maximum of <strong>five</strong> blue squares.</div>
             <div><br></div>
-            <div>This is your <strong>fourth</strong> blue square, so we want to ensure you’re aware that you are nearing the limit. This means you won't be able to schedule any more time off, and you should take special care to not receive an additional blue square</div>
+            <div>This is your <strong>fourth</strong> blue square, so we want to ensure you’re aware that you are nearing the limit. This means you won't be able to schedule any more time off, and you should take special care to not receive an additional blue square.</div>
             <div><br></div>
             <div>We appreciate your contributions, please let us know if you have any concerns or need support in this.</div>
             <div><br></div>
@@ -1319,7 +1320,9 @@ const userHelper = function () {
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
+      const date = moment();
+      const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
 
       let emailsBCCs;
       /* eslint-disable array-callback-return */
@@ -1342,7 +1345,8 @@ const userHelper = function () {
           pdtStartOfCurrentWeek,
           pdtEndOfCurrentWeek,
         );
-        const { timeSpent_hrs: timeSpent } = results[0];
+        const timeSpent =
+          Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
         console.log('timeSpent using results of laborthisweek for last week: ', timeSpent);
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
@@ -1356,11 +1360,14 @@ const userHelper = function () {
         // If days into start month > days into current month, adjust numMonths calculation.
         const daysIntoOfStartMonth = startDate.diff(startOfMonth, 'days'); // if startDate is 14th, result is 13?
         const daysIntoOfCurrentMonth = currentDate.diff(currentMonthStart, 'days'); // currentDate is 7th, result is 6?
-        const numMonthsOriginal = currentMonthStart.diff(startOfMonth, 'months');
         const numMonths =
           daysIntoOfStartMonth > daysIntoOfCurrentMonth
             ? currentMonthStart.diff(startOfMonth, 'months') - 1
             : currentMonthStart.diff(startOfMonth, 'months');
+
+        const todayBlueSquare = user.infringements.filter(
+          (infringement) => infringement.date === todayDate,
+        );
 
         // Check conditions for sending blue square email
         // if(timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours && user.infringements.length<4 && todayBlueSquare.length===1){
@@ -1413,7 +1420,7 @@ const userHelper = function () {
         } else if (
           timeSpent >= 0.25 * weeklycommittedHours &&
           timeSpent <= 0.649 * weeklycommittedHours &&
-          numMonths + 3 > 2
+          numMonths >= 2
         ) {
           console.log('Entered > 25% but < 65% part');
           await emailSender(
@@ -1477,8 +1484,6 @@ const userHelper = function () {
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
-        const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
         const results = await dashboardHelper.laborthisweek(
           user._id,
           pdtStartOfLastWeek,
@@ -1495,7 +1500,6 @@ const userHelper = function () {
           const currentMonthStart = currentDate.clone().startOf('month');
           const daysIntoOfStartMonth = startDate.diff(startOfMonth, 'days');
           const daysIntoOfCurrentMonth = currentDate.diff(currentMonthStart, 'days');
-          const numMonthsOriginal = currentMonthStart.diff(startOfMonth, 'months');
           const numMonths =
             daysIntoOfStartMonth > daysIntoOfCurrentMonth
               ? currentMonthStart.diff(startOfMonth, 'months') - 1
@@ -1683,7 +1687,10 @@ const userHelper = function () {
         }
       }
     } catch (error) {
-      console.log(error);
+      logger.logException(
+        `Error in weeklyBlueSquareReminderFunction: ${error && error.stack ? error.stack : error}`,
+      );
+      return 'error';
     }
   };
 
