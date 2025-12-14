@@ -21,4 +21,18 @@ const buildingIssue = new Schema({
   // relatedLesson: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingNewLesson', required: true },
 });
 
+// Indexes for efficient querying and filtering
+// Single field index on projectId for project filtering
+buildingIssue.index({ projectId: 1 });
+
+// Single field index on issueType for issue type filtering
+buildingIssue.index({ issueType: 1 });
+
+// Single field index on issueDate for date range filtering
+buildingIssue.index({ issueDate: 1 });
+
+// Compound index on (projectId, issueType, issueDate) for optimal query performance
+// This index supports queries that filter by multiple criteria simultaneously
+buildingIssue.index({ projectId: 1, issueType: 1, issueDate: 1 });
+
 module.exports = mongoose.model('buildingIssue', buildingIssue, 'buildingIssues');
