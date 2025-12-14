@@ -1,26 +1,50 @@
 const LessonPlan = require('../../models/lessonPlan');
+const LessonPlanTemplate = require('../../models/lessonPlanTemplate');
+const Subject = require('../../models/subject');
+const Atom = require('../../models/atom');
+const LessonPlanDraft = require('../../models/lessonPlanDraft');
 
-exports.submitLessonPlanDraft = async (req, res) => {
+exports.lessonPlanDetails = async (req, res) => {
   try {
-    const { title, subject, gradeLevel, description, objectives, content } = req.body;
+    const lessonPlans = await LessonPlanTemplate.find().populate({
+      path: 'subjectTags',
+      select: 'name description atomIds',
+      populate: {
+        path: 'atomIds',
+        select: 'name description',
+      },
+    });
 
-    const draft = await LessonPlan.create({
-      title,
-      subject,
-      gradeLevel,
-      description,
-      objectives: objectives || [],
-      content: content || '',
-      createdBy: req.user._id,
-      status: 'draft',
-      collaborators: [],
+    if (!lessonPlans || lessonPlans.length === 0) {
+      return res.status(404).json({ message: 'No lesson plans found' });
+    }
+
+    return res.status(200).json(lessonPlans);
+  } catch (error) {
+    console.error('Error fetching lesson plans:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.saveLessonPlanDraft = async (req, res) => {
+  try {
+    const { templateId, selectedTopics, activities, educatorId } = req.body;
+
+    const draft = await LessonPlanDraft.create({
+      studentId: req.user._id,
+      educatorId,
+      templateId,
+      selectedTopics,
+      activities,
+      status: 'drafting',
     });
 
     return res.status(201).json({
-      message: 'Lesson plan draft submitted successfully.',
+      message: 'Draft saved successfully',
       draft,
     });
   } catch (error) {
+    console.error(error);
     return res.status(400).json({ message: error.message });
   }
 };

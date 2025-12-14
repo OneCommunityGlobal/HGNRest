@@ -18,7 +18,23 @@ const LessonPlanDraftSchema = new Schema({
   templateId: {
     type: Schema.Types.ObjectId,
     ref: 'LessonPlanTemplate',
+    required: true,
   },
+
+  selectedTopics: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'Atom',
+    },
+  ],
+
+  activities: [
+    {
+      description: String,
+      reason: String,
+      strategy: String,
+    },
+  ],
 
   status: {
     type: String,
@@ -26,17 +42,11 @@ const LessonPlanDraftSchema = new Schema({
     default: 'drafting',
   },
 
-  title: String,
-  description: String,
-
   lessonPlanId: {
     type: Schema.Types.ObjectId,
     ref: 'LessonPlan',
     default: null,
   },
-
-  submittedAt: Date,
-  approvedAt: Date,
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -46,4 +56,5 @@ LessonPlanDraftSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
+
 module.exports = mongoose.model('LessonPlanDraft', LessonPlanDraftSchema);

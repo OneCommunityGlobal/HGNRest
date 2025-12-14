@@ -7,25 +7,33 @@ const LessonPlanTemplateSchema = new Schema({
     type: String,
     required: true,
   },
-
-  ageBand: {
+  description: {
     type: String,
-    enum: ['EarlyYears', 'Primary', 'Middle', 'High'],
     required: true,
   },
 
-  subjectTags: [String],
+  ageBand: {
+    type: String,
+    required: true,
+  },
 
-  description: String,
-
-  bullets: [
-    {
-      title: String,
-      description: String,
-      suggestions: [String],
-    },
-  ],
-
+  duration: {
+    type: String,
+    required: true,
+  },
+  theme: {
+    type: String,
+    required: true,
+  },
+  level: {
+    type: String,
+    required: true,
+  },
+  subjectTags: {
+    type: [Schema.Types.ObjectId],
+    ref: 'Subject',
+    required: true,
+  },
   createdBy: {
     type: Schema.Types.ObjectId,
     ref: 'userProfile',
