@@ -1042,6 +1042,9 @@ const userProfileController = function (UserProfile, Project) {
     //   res.status(200).send(getData);
     //   return;
     // }
+    const ONE_YEAR_AGO = new Date();
+    ONE_YEAR_AGO.setFullYear(ONE_YEAR_AGO.getFullYear() - 1);
+
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -1072,6 +1075,7 @@ const userProfileController = function (UserProfile, Project) {
         },
         {
           path: 'infringements', // Populate infringements field
+          match: { date: { $gte: ONE_YEAR_AGO } },
           select: 'date description',
           options: {
             sort: {
