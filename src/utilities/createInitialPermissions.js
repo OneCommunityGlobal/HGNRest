@@ -107,6 +107,7 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'setFinalDay',
     ],
   },
   {
@@ -201,7 +202,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -296,6 +296,8 @@ const permissionsRoles = [
       'accessHgnSkillsDashboard',
       'manageFAQs',
       'manageHGNAccessSetup',
+      'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
     ],
   },
 ];
