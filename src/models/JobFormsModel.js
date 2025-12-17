@@ -7,13 +7,13 @@ const formSchema = new mongoose.Schema(
     questions: [
       {
         questionText: { type: String, required: true },
-        visible: { type: Boolean, required: true },
+        visible: { type: Boolean, required: true, default: true },
         questionType: {
           type: String,
           required: true,
-          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date'],
+          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date', 'file', 'email'],
         },
-        isRequired: { type: Boolean, default: false },
+        isRequired: { type: Boolean, default: true },
         options: [String],
       },
     ],
