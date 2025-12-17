@@ -191,13 +191,15 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
 
       const updated = await UserProfile.findByIdAndUpdate(
         studentId,
-        { $addToSet: { savedInterests: lessonPlanId } },
-        { new: true, select: 'savedInterests', runValidators: true },
-      ).populate({
-        path: 'savedInterests',
-        select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
-        populate: { path: 'author', select: 'firstName lastName' }
-      });
+        { $addToSet: { 'educationProfiles.student.savedInterests': lessonPlanId } },
+        { new: true, runValidators: false },
+      )
+        .select('educationProfiles.student.savedInterests firstName lastName')
+        .populate({
+          path: 'educationProfiles.student.savedInterests',
+          select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
+          populate: { path: 'author', select: 'firstName lastName' }
+        });
 
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Student profile not found' });
@@ -206,7 +208,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       return res.status(200).json({
         success: true,
         message: 'Lesson plan saved successfully',
-        data: updated.savedInterests,
+        data: updated.educationProfiles?.student?.savedInterests || [],
       });
     } catch (error) {
       console.error('Error saving student interest:', error);
@@ -234,13 +236,15 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
 
       const updated = await UserProfile.findByIdAndUpdate(
         studentId,
-        { $pull: { savedInterests: lessonPlanId } },
-        { new: true, select: 'savedInterests' },
-      ).populate({
-        path: 'savedInterests',
-        select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
-        populate: { path: 'author', select: 'firstName lastName' }
-      });
+        { $pull: { 'educationProfiles.student.savedInterests': lessonPlanId } },
+        { new: true },
+      )
+        .select('educationProfiles.student.savedInterests firstName lastName')
+        .populate({
+          path: 'educationProfiles.student.savedInterests',
+          select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
+          populate: { path: 'author', select: 'firstName lastName' }
+        });
 
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Student profile not found' });
@@ -249,7 +253,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       return res.status(200).json({
         success: true,
         message: 'Lesson plan removed successfully',
-        data: updated.savedInterests,
+        data: updated.educationProfiles?.student?.savedInterests || [],
       });
     } catch (error) {
       console.error('Error removing saved interest:', error);
@@ -270,9 +274,9 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       }
 
       const user = await UserProfile.findById(studentId)
-        .select('savedInterests firstName lastName')
+        .select('educationProfiles.student.savedInterests firstName lastName')
         .populate({
-          path: 'savedInterests',
+          path: 'educationProfiles.student.savedInterests',
           select: 'title description subjects difficulty tags thumbnail createdAt updatedAt savedCount views',
           populate: { path: 'author', select: 'firstName lastName profilePic' }
         })
@@ -282,12 +286,14 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
         return res.status(404).json({ success: false, error: 'Student profile not found' });
       }
 
+      const savedInterests = user.educationProfiles?.student?.savedInterests || [];
+
       return res.status(200).json({
         success: true,
-        data: user.savedInterests || [],
+        data: savedInterests,
         meta: {
           studentName: `${user.firstName} ${user.lastName}`,
-          count: (user.savedInterests || []).length,
+          count: savedInterests.length,
         },
       });
     } catch (error) {
@@ -304,13 +310,16 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
         return res.status(400).json({ success: false, error: 'studentId and lessonPlanId are required' });
       }
 
-      const user = await UserProfile.findById(studentId).select('savedInterests').lean();
+      const user = await UserProfile.findById(studentId)
+        .select('educationProfiles.student.savedInterests')
+        .lean();
       
       if (!user) {
         return res.status(404).json({ success: false, error: 'Student not found' });
       }
 
-      const isSaved = user.savedInterests?.some(id => id.toString() === lessonPlanId);
+      const savedInterests = user.educationProfiles?.student?.savedInterests || [];
+      const isSaved = savedInterests.some(id => id.toString() === lessonPlanId);
 
       return res.status(200).json({ success: true, isSaved });
     } catch (error) {
