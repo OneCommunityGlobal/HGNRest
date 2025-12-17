@@ -165,7 +165,6 @@ const auditIfProtectedAccountUpdated = async ({
 
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
-
   const forbidden = function (res, message) {
     res.status(403).send(message);
   };
@@ -508,7 +507,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       const setEndDate = dateObject;
       if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
         activeStatus = false;
-      } else if (moment().isBefore(moment(endDate).subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))) {
+      } else if (
+        moment().isBefore(moment(endDate).subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))
+      ) {
         emailThreeWeeksSent = true;
       }
     }
@@ -821,8 +822,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
    */
   const getUserProfileBasicInfo = async function (req, res) {
     const inputUserId = req.query.userId;
-    console.log('before logger');
-    logger.logInfo(`getUserProfileBasicInfo, { userId:${req.query.userId} }`);
+    logger.logInfo(
+      `getUserProfileBasicInfo, { userId:${req.query.userId}, source:${req.params?.source} }`,
+    );
+
     if (inputUserId) {
       try {
         const cacheKey = `user_${inputUserId}`;
@@ -846,23 +849,37 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     const { source } = req.params;
+    if (!source) {
+      return res.status(400).send({ error: 'Source parameter is required' });
+    }
+
     const permission = source === 'Report' ? 'getReports' : 'getUserProfiles';
-    if (!(await checkPermission(req, permission))) {
+    const userHasPermission = await checkPermission(req, permission);
+
+    if (!userHasPermission) {
       return res.status(403).send({ error: 'Unauthorized' });
     }
+
     try {
+      // Debug: Check total count first
+      const totalCount = await UserProfile.countDocuments({});
+      logger.logInfo(`getUserProfileBasicInfo - Total users in database: ${totalCount}`);
+
       const userProfiles = await UserProfile.find(
         {},
         '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
       )
         .sort({
           lastName: 1,
-        });
+        })
+        .lean();
 
+      logger.logInfo(`getUserProfileBasicInfo - Found ${userProfiles.length} user profiles`);
       res.status(200).json(userProfiles);
     } catch (error) {
       console.error('Error fetching user profiles:', error);
-      res.status(500).send({ error: 'Failed to fetch user profiles' });
+      logger.logError('Error fetching user profiles:', error);
+      res.status(500).send({ error: 'Failed to fetch user profiles', details: error.message });
     }
   };
 
@@ -934,7 +951,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     if (process.env.dbName === 'hgnData_dev') {
       if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
         try {
-          const isValid = await validateBetaCredentials(req.body.actualEmail, req.body.actualPassword);
+          const isValid = await validateBetaCredentials(
+            req.body.actualEmail,
+            req.body.actualPassword,
+          );
           if (!isValid) {
             throw new Error('Invalid credentials');
           }
