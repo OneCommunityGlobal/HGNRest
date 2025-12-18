@@ -579,7 +579,9 @@ describe('materialCostCorrelationHelpers', () => {
         );
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
-        expect(pipeline[3].$group.totalCost.$sum.$multiply).toEqual([
+        // Find the $group stage (Stage 4 in the pipeline, index 5)
+        const groupStage = pipeline.find((stage) => stage.$group);
+        expect(groupStage.$group.totalCost.$sum.$multiply).toEqual([
           '$purchaseRecord.unitPrice',
           '$purchaseRecord.quantity',
         ]);
@@ -612,10 +614,14 @@ describe('materialCostCorrelationHelpers', () => {
         );
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
-        expect(pipeline[2].$match['purchaseRecord.unitPrice'].$exists).toBe(true);
-        expect(pipeline[2].$match['purchaseRecord.unitPrice'].$type).toBe('number');
+        // Stage 3: filter for quantity validation
         expect(pipeline[2].$match['purchaseRecord.quantity'].$exists).toBe(true);
         expect(pipeline[2].$match['purchaseRecord.quantity'].$type).toBe('number');
+        // Stage 3.5: $addFields for unitPrice conversion (uses $toDouble)
+        expect(pipeline[3].$addFields['purchaseRecord.unitPrice']).toBeDefined();
+        // Stage 3.6: filter for unitPrice >= 0
+        expect(pipeline[4].$match['purchaseRecord.unitPrice'].$type).toBe('number');
+        expect(pipeline[4].$match['purchaseRecord.unitPrice'].$gte).toBe(0);
       });
     });
 
@@ -1261,9 +1267,10 @@ describe('materialCostCorrelationHelpers', () => {
 
         expect(result).toBeDefined();
         expect(result.data).toBeDefined();
+        // The logger is called from buildLookupMaps helper function
         expect(mockLogException).toHaveBeenCalledWith(
           error,
-          'buildCostCorrelationResponse - lookup queries',
+          'buildLookupMaps - lookup queries',
           expect.any(Object),
         );
       });
