@@ -448,7 +448,6 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
 
     return results;
   } catch (error) {
-    console.error(`[aggregateMaterialCost] ❌ Error:`, error.message);
     logger.logException(error, 'aggregateMaterialCost', {
       projectIds: filters?.projectIds,
       materialTypeIds: filters?.materialTypeIds,

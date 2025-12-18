@@ -443,12 +443,7 @@ const bmMaterialsController = function (BuildingMaterial) {
    * @returns {Object|undefined} Response object if error handled, undefined otherwise
    */
   const handleDateRangeError = function (error, req, res) {
-    logger.logException(error, 'bmGetMaterialCostCorrelation - date range parsing', {
-      method: req.method,
-      path: req.path,
-      query: req.query,
-    });
-
+    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
     if (error.type === 'DATE_PARSE_ERROR') {
       return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
     }
@@ -467,12 +462,8 @@ const bmMaterialsController = function (BuildingMaterial) {
    * @returns {Object|undefined} Response object if error handled, undefined otherwise
    */
   const handleQueryParamError = function (error, req, res) {
+    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
     if (error.type === 'OBJECTID_VALIDATION_ERROR' || error.type === 'NAME_RESOLUTION_ERROR') {
-      logger.logException(error, 'bmGetMaterialCostCorrelation - query parameter validation', {
-        method: req.method,
-        path: req.path,
-        query: req.query,
-      });
       return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
     }
     return undefined;
@@ -600,16 +591,6 @@ const bmMaterialsController = function (BuildingMaterial) {
           requestParams,
           models,
         );
-
-        // Response validation: Check if cost data is missing despite costData existing
-        if (
-          responseObject.data &&
-          responseObject.data.length > 0 &&
-          responseObject.data[0]?.totals?.totalCost === 0 &&
-          costData.length > 0
-        ) {
-          const costDataTotal = costData.reduce((sum, item) => sum + (item.totalCost || 0), 0);
-        }
       } catch (error) {
         logger.logException(error, 'bmGetMaterialCostCorrelation - response building', {
           method: req.method,
