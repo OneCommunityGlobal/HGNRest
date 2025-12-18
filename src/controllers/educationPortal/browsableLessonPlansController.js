@@ -263,7 +263,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
 
   const getStudentSavedInterests = async (req, res) => {
     try {
-      const studentId = req.query.studentId || req.headers['studentid'] || req.body.studentId;
+      const studentId = req.query.studentId || req.headers.studentid || req.body.studentId;
       
       if (!studentId) {
         return res.status(400).json({ success: false, error: 'studentId is required' });
