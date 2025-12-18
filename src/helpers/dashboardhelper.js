@@ -153,6 +153,25 @@ const dashboardhelper = function () {
     return output;
   };
 
+  function hasSubmittedSummaryThisWeek(weeklySummaries) {
+    // weeklySummaries can contain nulls based on your sample payload
+    if (!Array.isArray(weeklySummaries)) return false;
+
+    const start = moment().tz('America/Los_Angeles').startOf('week').toDate();
+    const end = moment().tz('America/Los_Angeles').endOf('week').toDate();
+
+    const wsThisWeek = weeklySummaries
+      .filter(Boolean) // remove nulls
+      .find((ws) => {
+        if (!ws?.dueDate) return false;
+        const due = new Date(ws.dueDate);
+        return due >= start && due <= end;
+      });
+
+    const summaryText = (wsThisWeek?.summary ?? '').trim();
+    return summaryText.length > 0;
+  }
+
   const getLeaderboard = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
     try {
@@ -266,10 +285,7 @@ const dashboardhelper = function () {
           role: teamMember.role,
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           isVisible: teamMember.isVisible,
-          hasSummary:
-            teamMember.weeklySummaries?.length > 0
-              ? teamMember.weeklySummaries[0].summary !== ''
-              : false,
+          hasSummary: hasSubmittedSummaryThisWeek(teamMember.weeklySummaries),
           weeklycommittedHours: teamMember.weeklycommittedHours,
           missedHours: teamMember.missedHours ?? 0,
           totaltangibletime_hrs:
