@@ -162,6 +162,7 @@ const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 
 const emailRouter = require('../routes/emailRouter')();
+const emailOutboxRouter = require('../routes/emailOutboxRouter');
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
@@ -302,6 +303,7 @@ const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPe
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
+const emailTemplateRouter = require('../routes/emailTemplateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
@@ -372,6 +374,7 @@ module.exports = function (app) {
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
+  app.use('/api', emailOutboxRouter);
   app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
@@ -404,6 +407,7 @@ module.exports = function (app) {
   app.use('/api/costs', costsRouter);
   app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
+  app.use('/api', emailTemplateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);

@@ -11,7 +11,7 @@ jest.mock('../utilities/emailSender');
 const makeSut = () => {
   const {
     sendEmail,
-    sendEmailToAll,
+    sendEmailToSubscribers,
     updateEmailSubscriptions,
     addNonHgnEmailSubscription,
     removeNonHgnEmailSubscription,
@@ -19,7 +19,7 @@ const makeSut = () => {
   } = emailController;
   return {
     sendEmail,
-    sendEmailToAll,
+    sendEmailToSubscribers,
     updateEmailSubscriptions,
     addNonHgnEmailSubscription,
     removeNonHgnEmailSubscription,
@@ -75,16 +75,20 @@ describe('updateEmailSubscriptions function', () => {
 
     const updateReq = {
       body: {
-        emailSubscriptions: ['subscription1', 'subscription2'],
+        emailSubscriptions: true,
         requestor: {
           email: 'test@example.com',
         },
       },
     };
 
-    const response = await updateEmailSubscriptions(updateReq, mockRes);
+    await updateEmailSubscriptions(updateReq, mockRes);
 
-    assertResMock(500, 'Error updating email subscriptions', response, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Error updating email subscriptions',
+    });
   });
 });
 
@@ -101,9 +105,13 @@ describe('confirmNonHgnEmailSubscription function', () => {
     const { confirmNonHgnEmailSubscription } = makeSut();
 
     const emptyReq = { body: {} };
-    const response = await confirmNonHgnEmailSubscription(emptyReq, mockRes);
+    await confirmNonHgnEmailSubscription(emptyReq, mockRes);
 
-    assertResMock(400, 'Invalid token', response, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Token is required',
+    });
   });
 
   test('should return 401 if token is invalid', async () => {
@@ -118,7 +126,8 @@ describe('confirmNonHgnEmailSubscription function', () => {
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({
-      errors: [{ msg: 'Token is not valid' }],
+      success: false,
+      message: 'Invalid or expired token',
     });
   });
 
@@ -129,9 +138,13 @@ describe('confirmNonHgnEmailSubscription function', () => {
     // Mocking jwt.verify to return a payload without email
     jwt.verify.mockReturnValue({});
 
-    const response = await confirmNonHgnEmailSubscription(validTokenReq, mockRes);
+    await confirmNonHgnEmailSubscription(validTokenReq, mockRes);
 
-    assertResMock(400, 'Invalid token', response, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Invalid token payload',
+    });
   });
 });
 
@@ -144,8 +157,12 @@ describe('removeNonHgnEmailSubscription function', () => {
     const { removeNonHgnEmailSubscription } = makeSut();
     const noEmailReq = { body: {} };
 
-    const response = await removeNonHgnEmailSubscription(noEmailReq, mockRes);
+    await removeNonHgnEmailSubscription(noEmailReq, mockRes);
 
-    assertResMock(400, 'Email is required', response, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Email is required',
+    });
   });
 });
