@@ -184,7 +184,10 @@ const materialCostRouter = require('../routes/materialCostRouter')();
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 

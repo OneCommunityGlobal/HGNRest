@@ -365,8 +365,25 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
     const { projectIds, materialTypeIds } = filters;
     const { effectiveStart, effectiveEnd } = dateRange;
 
-    // Build initial match stage (reuse helper)
-    const baseMatch = buildBaseMatchForMaterials(projectIds, materialTypeIds);
+    // Convert string IDs to ObjectIds
+    let projectObjectIds = [];
+    if (projectIds && projectIds.length > 0) {
+      projectObjectIds = convertStringsToObjectIds(projectIds);
+    }
+
+    let materialTypeObjectIds = [];
+    if (materialTypeIds && materialTypeIds.length > 0) {
+      materialTypeObjectIds = convertStringsToObjectIds(materialTypeIds);
+    }
+
+    // Build base match with ObjectIds
+    const baseMatch = {};
+    if (projectObjectIds.length > 0) {
+      baseMatch.project = { $in: projectObjectIds };
+    }
+    if (materialTypeObjectIds.length > 0) {
+      baseMatch.itemType = { $in: materialTypeObjectIds };
+    }
 
     // Create aggregation pipeline
     const pipeline = [
@@ -374,7 +391,7 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
       { $match: baseMatch },
       // Stage 2: Unwind purchaseRecord array
       { $unwind: '$purchaseRecord' },
-      // Stage 3: Filter purchaseRecords by status, date range, and ensure required fields exist
+      // Stage 3: Filter purchaseRecords by status and date range
       {
         $match: {
           'purchaseRecord.status': 'Approved',
@@ -384,8 +401,21 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
             $gte: effectiveStart,
             $lte: effectiveEnd,
           },
-          'purchaseRecord.unitPrice': { $exists: true, $ne: null, $type: 'number', $gte: 0 },
-          'purchaseRecord.quantity': { $exists: true, $ne: null, $type: 'number', $gte: 0 },
+          'purchaseRecord.quantity': { $exists: true, $ne: null, $type: 'number', $gt: 0 },
+        },
+      },
+      // Stage 3.5: Ensure unitPrice is a number (preserve existing, convert strings, default missing)
+      {
+        $addFields: {
+          'purchaseRecord.unitPrice': {
+            $toDouble: { $ifNull: ['$purchaseRecord.unitPrice', 0] },
+          },
+        },
+      },
+      // Stage 3.6: Filter to only include records with valid unitPrice (>= 0)
+      {
+        $match: {
+          'purchaseRecord.unitPrice': { $type: 'number', $gte: 0 },
         },
       },
       // Stage 4: Group by project and itemType, sum total cost
@@ -413,9 +443,12 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
       },
     ];
 
+    // Execute aggregation
     const results = await BuildingMaterial.aggregate(pipeline).exec();
+
     return results;
   } catch (error) {
+    console.error(`[aggregateMaterialCost] ❌ Error:`, error.message);
     logger.logException(error, 'aggregateMaterialCost', {
       projectIds: filters?.projectIds,
       materialTypeIds: filters?.materialTypeIds,
@@ -561,7 +594,9 @@ function mergeUsageAndCostData(usageData, costData) {
   // Process cost data
   if (costData && Array.isArray(costData)) {
     costData.forEach((item) => {
-      if (!item || !item.projectId || !item.materialTypeId) return;
+      if (!item || !item.projectId || !item.materialTypeId) {
+        return;
+      }
 
       const projectIdStr = objectIdToString(item.projectId);
       const materialTypeIdStr = objectIdToString(item.materialTypeId);
@@ -575,9 +610,16 @@ function mergeUsageAndCostData(usageData, costData) {
           totalCost: 0,
         });
       }
+
+      // Extract and validate cost value
       const cost =
-        typeof item.totalCost === 'number' ? item.totalCost : parseFloat(item.totalCost) || 0;
-      mergedData.get(key).totalCost = cost;
+        typeof item.totalCost === 'number' && !Number.isNaN(item.totalCost)
+          ? item.totalCost
+          : parseFloat(item.totalCost) || 0;
+
+      // Ensure we're setting a valid number
+      const existingEntry = mergedData.get(key);
+      existingEntry.totalCost = typeof cost === 'number' && !Number.isNaN(cost) ? cost : 0;
     });
   }
 
@@ -595,13 +637,22 @@ function mergeUsageAndCostData(usageData, costData) {
 function buildProjectsMap(mergedData, projectMap, materialTypeMap) {
   const projectsMap = new Map();
 
-  mergedData.forEach((item) => {
+  mergedData.forEach((item, key) => {
+    // Explicit validation: Ensure item is valid
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+
     const { projectId, materialTypeId, quantityUsed, totalCost } = item;
 
-    if (!projectsMap.has(projectId)) {
-      projectsMap.set(projectId, {
-        projectId,
-        projectName: projectMap.get(projectId) || projectId,
+    // Ensure projectId and materialTypeId are strings for consistent key matching
+    const projectIdStr = objectIdToString(projectId);
+    const materialTypeIdStr = objectIdToString(materialTypeId);
+
+    if (!projectsMap.has(projectIdStr)) {
+      projectsMap.set(projectIdStr, {
+        projectId: projectIdStr,
+        projectName: projectMap.get(projectIdStr) || projectIdStr,
         totals: {
           quantityUsed: 0,
           totalCost: 0,
@@ -612,28 +663,31 @@ function buildProjectsMap(mergedData, projectMap, materialTypeMap) {
       });
     }
 
-    const project = projectsMap.get(projectId);
-    const materialInfo = materialTypeMap.get(materialTypeId) || {
-      name: materialTypeId,
+    const project = projectsMap.get(projectIdStr);
+    const materialInfo = materialTypeMap.get(materialTypeIdStr) || {
+      name: materialTypeIdStr,
       unit: '',
     };
 
-    const materialTotalCostK = calculateTotalCostK(totalCost);
-    const materialCostPerUnit = calculateCostPerUnit(totalCost, quantityUsed);
+    // Ensure totalCost is a number before calculations
+    const safeTotalCost = typeof totalCost === 'number' && !Number.isNaN(totalCost) ? totalCost : 0;
+
+    const materialTotalCostK = calculateTotalCostK(safeTotalCost);
+    const materialCostPerUnit = calculateCostPerUnit(safeTotalCost, quantityUsed);
 
     const materialTypeObj = {
-      materialTypeId,
+      materialTypeId: materialTypeIdStr,
       materialTypeName: materialInfo.name,
       unit: materialInfo.unit,
       quantityUsed: quantityUsed || 0,
-      totalCost: totalCost || 0,
+      totalCost: safeTotalCost,
       totalCostK: materialTotalCostK,
       costPerUnit: materialCostPerUnit,
     };
 
     project.byMaterialType.push(materialTypeObj);
     project.totals.quantityUsed += quantityUsed || 0;
-    project.totals.totalCost += totalCost || 0;
+    project.totals.totalCost += safeTotalCost;
   });
 
   // Compute project-level totals

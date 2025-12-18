@@ -600,6 +600,16 @@ const bmMaterialsController = function (BuildingMaterial) {
           requestParams,
           models,
         );
+
+        // Response validation: Check if cost data is missing despite costData existing
+        if (
+          responseObject.data &&
+          responseObject.data.length > 0 &&
+          responseObject.data[0]?.totals?.totalCost === 0 &&
+          costData.length > 0
+        ) {
+          const costDataTotal = costData.reduce((sum, item) => sum + (item.totalCost || 0), 0);
+        }
       } catch (error) {
         logger.logException(error, 'bmGetMaterialCostCorrelation - response building', {
           method: req.method,
