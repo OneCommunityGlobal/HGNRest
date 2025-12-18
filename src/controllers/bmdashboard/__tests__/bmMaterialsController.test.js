@@ -1,32 +1,52 @@
 // Mock utilities BEFORE requiring the controller
 // Note: Paths are relative to the controller file, not the test file
-jest.mock('../../../utilities/queryParamParser', () => ({
-  parseMultiSelectQueryParam: jest.fn(),
-}), { virtual: true });
-jest.mock('../../../utilities/materialCostCorrelationDateUtils', () => ({
-  parseAndNormalizeDateRangeUTC: jest.fn(),
-  normalizeStartDate: jest.fn(),
-}), { virtual: true });
-jest.mock('../../../utilities/materialCostCorrelationHelpers', () => ({
-  getEarliestRelevantMaterialDate: jest.fn(),
-  aggregateMaterialUsage: jest.fn(),
-  aggregateMaterialCost: jest.fn(),
-  buildCostCorrelationResponse: jest.fn(),
-}), { virtual: true });
-jest.mock('../../../startup/logger', () => ({
-  logException: jest.fn(),
-}), { virtual: true });
+jest.mock(
+  '../../../utilities/queryParamParser',
+  () => ({
+    parseMultiSelectQueryParam: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock(
+  '../../../utilities/materialCostCorrelationDateUtils',
+  () => ({
+    parseAndNormalizeDateRangeUTC: jest.fn(),
+    normalizeStartDate: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock(
+  '../../../utilities/materialCostCorrelationHelpers',
+  () => ({
+    getEarliestRelevantMaterialDate: jest.fn(),
+    aggregateMaterialUsage: jest.fn(),
+    aggregateMaterialCost: jest.fn(),
+    buildCostCorrelationResponse: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock(
+  '../../../startup/logger',
+  () => ({
+    logException: jest.fn(),
+  }),
+  { virtual: true },
+);
 jest.mock('../../../models/bmdashboard/buildingProject', () => ({}), { virtual: true });
-jest.mock('../../../models/bmdashboard/buildingInventoryType', () => ({
-  invTypeBase: {},
-}), { virtual: true });
+jest.mock(
+  '../../../models/bmdashboard/buildingInventoryType',
+  () => ({
+    invTypeBase: {},
+  }),
+  { virtual: true },
+);
 
 const mongoose = require('mongoose');
-// const { MongoMemoryServer } = require('mongodb-memory-server'); Commenting this because it's never used
 const bmMaterialsController = require('../bmMaterialsController');
-
 // Get mocked functions - use paths relative to controller
-const { parseMultiSelectQueryParam: mockParseMultiSelectQueryParam } = require('../../../utilities/queryParamParser');
+const {
+  parseMultiSelectQueryParam: mockParseMultiSelectQueryParam,
+} = require('../../../utilities/queryParamParser');
 const {
   parseAndNormalizeDateRangeUTC: mockParseAndNormalizeDateRangeUTC,
   normalizeStartDate: mockNormalizeStartDate,
@@ -424,7 +444,7 @@ describe('bmMaterialsController', () => {
 
       mockRes = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
+        json: jest.fn().mockReturnThis(),
       };
 
       // Default mock implementations
@@ -577,11 +597,7 @@ describe('bmMaterialsController', () => {
 
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
-        expect(mockLogException).toHaveBeenCalledWith(
-          error,
-          'bmGetMaterialCostCorrelation - query parameter validation',
-          expect.any(Object),
-        );
+        // Validation errors are expected and not logged as exceptions
       });
 
       it('should return 400 for invalid materialType', async () => {
@@ -626,7 +642,10 @@ describe('bmMaterialsController', () => {
           message: 'Invalid date format',
           acceptedFormats: ['YYYY-MM-DD'],
         };
-        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+        // parseAndNormalizeDateRangeUTC is synchronous, so we use mockImplementationOnce to throw
+        mockParseAndNormalizeDateRangeUTC.mockImplementationOnce(() => {
+          throw error;
+        });
 
         mockReq.query = {
           startDate: 'invalid-date',
@@ -637,7 +656,7 @@ describe('bmMaterialsController', () => {
 
         expect(mockRes.status).toHaveBeenCalledWith(422);
         expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
-        expect(mockLogException).toHaveBeenCalled();
+        // Validation errors are expected and not logged as exceptions
       });
 
       it('should return 422 for invalid end date format', async () => {
@@ -645,7 +664,10 @@ describe('bmMaterialsController', () => {
           type: 'DATE_PARSE_ERROR',
           message: 'Invalid date format',
         };
-        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+        // parseAndNormalizeDateRangeUTC is synchronous, so we use mockImplementationOnce to throw
+        mockParseAndNormalizeDateRangeUTC.mockImplementationOnce(() => {
+          throw error;
+        });
 
         mockReq.query = {
           startDate: '2024-01-01',
@@ -663,7 +685,10 @@ describe('bmMaterialsController', () => {
           type: 'DATE_RANGE_ERROR',
           message: 'Start date must be less than or equal to end date',
         };
-        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+        // parseAndNormalizeDateRangeUTC is synchronous, so we use mockImplementationOnce to throw
+        mockParseAndNormalizeDateRangeUTC.mockImplementationOnce(() => {
+          throw error;
+        });
 
         mockReq.query = {
           startDate: '2024-01-31',
@@ -674,7 +699,7 @@ describe('bmMaterialsController', () => {
 
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
-        expect(mockLogException).toHaveBeenCalled();
+        // Validation errors are expected and not logged as exceptions
       });
     });
 
@@ -898,7 +923,7 @@ describe('bmMaterialsController', () => {
     });
 
     describe('Category 10: Logging Verification', () => {
-      it('should log query parameter errors', async () => {
+      it('should NOT log validation errors as exceptions (query param errors)', async () => {
         const error = {
           type: 'OBJECTID_VALIDATION_ERROR',
           message: 'Invalid ObjectId',
@@ -909,22 +934,20 @@ describe('bmMaterialsController', () => {
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
-        expect(mockLogException).toHaveBeenCalledWith(
-          error,
-          'bmGetMaterialCostCorrelation - query parameter validation',
-          expect.objectContaining({
-            method: 'GET',
-            path: '/api/bm/materials/cost-correlation',
-          }),
-        );
+        // Validation errors should NOT be logged as exceptions
+        expect(mockLogException).not.toHaveBeenCalled();
+        expect(mockRes.status).toHaveBeenCalledWith(400);
       });
 
-      it('should log date parsing errors', async () => {
+      it('should NOT log validation errors as exceptions (date errors)', async () => {
         const error = {
           type: 'DATE_PARSE_ERROR',
           message: 'Invalid date',
         };
-        mockParseAndNormalizeDateRangeUTC.mockRejectedValueOnce(error);
+        // parseAndNormalizeDateRangeUTC is synchronous, so we use mockImplementationOnce to throw
+        mockParseAndNormalizeDateRangeUTC.mockImplementationOnce(() => {
+          throw error;
+        });
 
         mockReq.query = {
           startDate: 'invalid',
@@ -932,11 +955,9 @@ describe('bmMaterialsController', () => {
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
-        expect(mockLogException).toHaveBeenCalledWith(
-          error,
-          'bmGetMaterialCostCorrelation - date range parsing',
-          expect.any(Object),
-        );
+        // Validation errors should NOT be logged as exceptions
+        expect(mockLogException).not.toHaveBeenCalled();
+        expect(mockRes.status).toHaveBeenCalledWith(422);
       });
 
       it('should log aggregation errors', async () => {
