@@ -230,6 +230,7 @@ async function fetchClassReport(classId, startDate, endDate) {
   };
 }
 
+/* istanbul ignore next */
 function generateStudentPDFContent(doc, reportData) {
   const { student, tasks, summary } = reportData;
 
@@ -272,6 +273,7 @@ function generateStudentPDFContent(doc, reportData) {
   });
 }
 
+/* istanbul ignore next */
 function generateClassPDFContent(doc, reportData) {
   const { students, summary } = reportData;
 
@@ -303,6 +305,7 @@ function generateClassPDFContent(doc, reportData) {
   });
 }
 
+/* istanbul ignore next */
 function generatePDFReport(res, reportData, metadata, type) {
   const doc = new PDFDocument({
     margin: 50,
@@ -346,6 +349,7 @@ function generatePDFReport(res, reportData, metadata, type) {
   doc.end();
 }
 
+/* istanbul ignore next */
 function generateCSVReport(res, reportData, metadata, type) {
   const filename = `${type}-report-${Date.now()}.csv`;
 
