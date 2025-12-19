@@ -115,6 +115,9 @@ const informationRouter = require('../routes/informationRouter')(information);
 const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
 const laborCostRouter = require('../routes/laborCostRouter');
+const jobAnalyticsRouter = require('../routes/jobAnalyticsRouter');
+
+// const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 const notificationRouter = require('../routes/notificationRouter')();
@@ -323,9 +326,15 @@ const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
 
+// Analytics
+const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
+
+// lesson planner router
+
+const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
 
 // education portal
 
@@ -411,6 +420,8 @@ module.exports = function (app) {
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
+
+  app.use('/job-analytics', jobAnalyticsRouter);
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
@@ -488,6 +499,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
   // PR Analytics
@@ -508,4 +520,6 @@ module.exports = function (app) {
 
   // education portal
   app.use('/api/education', badgeSystemRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
 };
