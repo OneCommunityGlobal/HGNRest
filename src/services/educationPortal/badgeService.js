@@ -1,15 +1,18 @@
 const epBadge = require('../../models/educationPortal/badgeModel');
 const studentBadges = require('../../models/educationPortal/studentBadgesModel');
 
+const DEFAULT_PAGE_LIMIT = 50;
+const DEFAULT_LEADERBOARD_LIMIT = 10;
+
 class BadgeService {
   /**
    * Get paginated badges with filtering
    */
-  async getAllBadges({ page = 1, limit = 50, category, is_active = true } = {}) {
+  static async getAllBadges({ page = 1, limit = DEFAULT_PAGE_LIMIT, category, isActive = true } = {}) {
     const query = {};
     
-    if (is_active !== undefined) {
-      query.is_active = is_active;
+    if (isActive !== undefined) {
+      query.is_active = isActive;
     }
     
     if (category) {
@@ -42,7 +45,7 @@ class BadgeService {
   /**
    * Get badge by ID
    */
-  async getBadgeById(badgeId) {
+  static async getBadgeById(badgeId) {
     const badge = await epBadge.findById(badgeId).lean();
     return badge;
   }
@@ -50,7 +53,7 @@ class BadgeService {
   /**
    * Create a new badge
    */
-  async createBadge(badgeData) {
+  static async createBadge(badgeData) {
     // Check for duplicate name
     const existingBadge = await epBadge.findOne({
       name: { $regex: new RegExp(`^${badgeData.name}$`, 'i') },
@@ -68,7 +71,7 @@ class BadgeService {
   /**
    * Update a badge
    */
-  async updateBadge(badgeId, updateData) {
+  static async updateBadge(badgeId, updateData) {
     // If name is being updated, check for duplicates
     if (updateData.name) {
       const existingBadge = await epBadge.findOne({
@@ -97,7 +100,7 @@ class BadgeService {
   /**
    * Soft delete a badge
    */
-  async deleteBadge(badgeId) {
+  static async deleteBadge(badgeId) {
     const badge = await epBadge.findByIdAndUpdate(
       badgeId,
       { $set: { is_active: false } },
@@ -114,7 +117,7 @@ class BadgeService {
   /**
    * Get student badges with pagination
    */
-  async getStudentBadges(studentId, { page = 1, limit = 50, reason } = {}) {
+  static async getStudentBadges(studentId, { page = 1, limit = DEFAULT_PAGE_LIMIT, reason } = {}) {
     const query = {
       student_id: studentId,
       is_revoked: false,
@@ -152,9 +155,9 @@ class BadgeService {
   /**
    * Award a badge to a student
    */
-  async awardBadge({ student_id, badge_id, reason = 'manual_award', awarded_by, metadata = {} }) {
+  static async awardBadge({ studentId, badgeId, reason = 'manual_award', awardedBy, metadata = {} }) {
     // Verify badge exists and is active
-    const badge = await epBadge.findOne({ _id: badge_id, is_active: true });
+    const badge = await epBadge.findOne({ _id: badgeId, is_active: true });
     if (!badge) {
       throw new Error('Badge not found or inactive');
     }
@@ -162,8 +165,8 @@ class BadgeService {
     // Check if student already has this badge (unless badge allows multiples)
     if (!badge.allow_multiple) {
       const existingBadge = await studentBadges.findOne({
-        student_id,
-        badge_id,
+        student_id: studentId,
+        badge_id: badgeId,
         is_revoked: false,
       });
 
@@ -172,11 +175,12 @@ class BadgeService {
       }
     }
 
-    const newBadge = new studentBadges({
-      student_id,
-      badge_id,
+    const NewStudentBadges = studentBadges;
+    const newBadge = new NewStudentBadges({
+      student_id: studentId,
+      badge_id: badgeId,
       reason,
-      awarded_by,
+      awarded_by: awardedBy,
       metadata,
     });
 
@@ -193,7 +197,7 @@ class BadgeService {
   /**
    * Revoke a student's badge
    */
-  async revokeBadge(studentBadgeId, revokeReason = null) {
+  static async revokeBadge(studentBadgeId, revokeReason = null) {
     const badge = await studentBadges.findByIdAndUpdate(
       studentBadgeId,
       {
@@ -216,7 +220,7 @@ class BadgeService {
   /**
    * Get badge statistics for a student
    */
-  async getStudentBadgeStats(studentId) {
+  static async getStudentBadgeStats(studentId) {
     const stats = await studentBadges.aggregate([
       {
         $match: {
@@ -261,20 +265,30 @@ class BadgeService {
   /**
    * Bulk award badges
    */
-  async bulkAwardBadges(awards) {
+  static async bulkAwardBadges(awards) {
     const results = {
       successful: [],
       failed: [],
     };
 
-    for (const award of awards) {
+    const awardPromises = awards.map(async (award) => {
       try {
         const badge = await this.awardBadge(award);
-        results.successful.push({ ...award, badge });
+        return { success: true, award, badge };
       } catch (error) {
-        results.failed.push({ ...award, error: error.message });
+        return { success: false, award, error: error.message };
       }
-    }
+    });
+
+    const awardResults = await Promise.all(awardPromises);
+
+    awardResults.forEach((result) => {
+      if (result.success) {
+        results.successful.push({ ...result.award, badge: result.badge });
+      } else {
+        results.failed.push({ ...result.award, error: result.error });
+      }
+    });
 
     return results;
   }
@@ -282,7 +296,7 @@ class BadgeService {
   /**
    * Get badge leaderboard
    */
-  async getBadgeLeaderboard({ limit = 10, category = null } = {}) {
+  static async getBadgeLeaderboard({ limit = DEFAULT_LEADERBOARD_LIMIT, category = null } = {}) {
     const matchStage = { is_revoked: false };
 
     const pipeline = [
@@ -340,32 +354,34 @@ class BadgeService {
  * Award badge automatically when capstone/lesson is completed
  * This should be called from your existing task grading service
  */
-async awardBadgeOnCompletion(studentId, completionType, metadata) {
-  try {
-    // Find the appropriate badge for this completion
-    const badge = await epBadge.findOne({
-      category: completionType, // 'capstone' or 'lesson_completion'
-      is_active: true,
-    });
+  static async awardBadgeOnCompletion(studentId, completionType, metadata) {
+    try {
+      // Find the appropriate badge for this completion
+      const badge = await epBadge.findOne({
+        category: completionType, // 'capstone' or 'lesson_completion'
+        is_active: true,
+      });
 
-    if (!badge) {
-      console.warn(`No badge found for completion type: ${completionType}`);
+      if (!badge) {
+        // eslint-disable-next-line no-console
+        console.warn(`No badge found for completion type: ${completionType}`);
+        return null;
+      }
+
+      // Award the badge
+      return await this.awardBadge({
+        studentId,
+        badgeId: badge._id,
+        reason: completionType === 'capstone' ? 'capstone_completion' : 'lesson_completion',
+        awardedBy: null, // Automatic award
+        metadata,
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error awarding badge on completion:', error);
       return null;
     }
-
-    // Award the badge
-    return await this.awardBadge({
-      student_id: studentId,
-      badge_id: badge._id,
-      reason: completionType === 'capstone' ? 'capstone_completion' : 'lesson_completion',
-      awarded_by: null, // Automatic award
-      metadata,
-    });
-  } catch (error) {
-    console.error('Error awarding badge on completion:', error);
-    return null;
   }
 }
-}
 
-module.exports = new BadgeService();
+module.exports = BadgeService;
