@@ -322,7 +322,7 @@ const userHelper = function () {
    *
    * @return {void}
    */
-  const emailWeeklySummariesForAllUsers = async (weekIndex = 1, allowedEmails = []) => {
+  const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
     /* eslint-disable no-undef */
     logger.logInfo(
@@ -334,30 +334,15 @@ const userHelper = function () {
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
-      let filteredResults = results;
-
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        const allowSet = new Set(allowedEmails.map((e) => e.toLowerCase()));
-        filteredResults = results.filter((r) => r?.email && allowSet.has(r.email.toLowerCase()));
-        console.log('[WeeklySummaries] filtered results:', filteredResults.length);
-      }
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
-      const findQuery = { getWeeklyReport: true };
-
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        findQuery.email = { $in: allowedEmails };
-      }
-
-      await userProfile.find(findQuery, { email: 1, teamCode: 1, _id: 0 }).then((rows) => {
-        mappedResults = rows.map((ele) => ele.email);
-
-        // IMPORTANT: don't add global emails during test mode, or it will still email them.
-        if (!Array.isArray(allowedEmails) || allowedEmails.length === 0) {
+      await userProfile
+        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
+        // eslint-disable-next-line no-shadow
+        .then((results) => {
+          mappedResults = results.map((ele) => ele.email);
           mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-        }
-
-        mappedResults = mappedResults.toString();
-      });
+          mappedResults = mappedResults.toString();
+        });
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -367,12 +352,12 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      filteredResults.sort((a, b) =>
+      results.sort((a, b) =>
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
       );
 
-      for (let i = 0; i < filteredResults.length; i += 1) {
-        const result = filteredResults[i];
+      for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
         const {
           firstName,
           lastName,
@@ -546,7 +531,7 @@ const userHelper = function () {
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
-  const assignBlueSquareForTimeNotMet = async (allowedEmails = []) => {
+  const assignBlueSquareForTimeNotMet = async () => {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
@@ -564,14 +549,9 @@ const userHelper = function () {
 
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
-      const query = { isActive: true };
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        query.email = { $in: allowedEmails };
-      }
-
       const users = await userProfile.find(
-        query,
-        '_id email weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+        { isActive: true },
+        '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -1030,33 +1010,22 @@ const userHelper = function () {
     }
 
     // processWeeklySummaries for nonActive users
-    // processWeeklySummaries for nonActive users
     try {
-      const inactiveQuery = { isActive: false };
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        inactiveQuery.email = { $in: allowedEmails };
-      }
-
-      const inactiveUsers = await userProfile.find(inactiveQuery, '_id');
+      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
       for (let i = 0; i < inactiveUsers.length; i += 1) {
-        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(inactiveUsers[i]._id), false);
+        const user = inactiveUsers[i];
+
+        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
       }
     } catch (err) {
       logger.logException(err);
     }
   };
 
-  const applyMissedHourForCoreTeam = async (allowedEmails = []) => {
+  const applyMissedHourForCoreTeam = async () => {
     try {
       const currentDate = moment().tz('America/Los_Angeles').format();
-      const matchStage = {
-        role: 'Core Team',
-        isActive: true,
-      };
 
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        matchStage.email = { $in: allowedEmails };
-      }
       logger.logInfo(
         `Job for applying missed hours for Core Team members starting at ${currentDate}`,
       );
@@ -1074,7 +1043,12 @@ const userHelper = function () {
         .format('YYYY-MM-DD');
 
       const missedHours = await userProfile.aggregate([
-        { $match: matchStage },
+        {
+          $match: {
+            role: 'Core Team',
+            isActive: true,
+          },
+        },
         {
           $lookup: {
             from: 'timeEntries',
@@ -2327,28 +2301,25 @@ const userHelper = function () {
     }
   };
 
-  const awardNewBadges = async (allowedEmails = []) => {
+  const awardNewBadges = async () => {
     try {
-      const query = { isActive: true };
-
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        query.email = { $in: allowedEmails };
-        console.log('[awardNewBadges] TEST MODE emails:', allowedEmails);
-      }
-
-      const users = await userProfile.find(query).populate('badgeCollection.badge');
-
-      console.log('[awardNewBadges] users to process:', users.length);
+      const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
 
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const { _id, badgeCollection, email } = user;
+        const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        console.log('[awardNewBadges] processing:', email);
-
+        // await updatePersonalMax(personId, user);
+        // await checkPersonalMax(personId, user, badgeCollection);
+        // await checkMostHrsWeek(personId, user, badgeCollection);
+        // await checkMinHoursMultiple(personId, user, badgeCollection);
         await checkTotalHrsInCat(personId, user, badgeCollection);
+        // await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        // await checkXHrsForXWeeks(personId, user, badgeCollection);
+        // await checkNoInfringementStreak(personId, user, badgeCollection);
 
+        // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
         }
@@ -2706,14 +2677,12 @@ const userHelper = function () {
     }
   };
 
-  const getProfileImagesFromWebsite = async (allowedEmails = []) => {
+  const getProfileImagesFromWebsite = async () => {
     try {
       // Fetch the webpage with retry logic
       const htmlText = await fetchWithRetry('https://www.onecommunityglobal.org/team');
-
       // Load HTML into Cheerio
       const $ = cheerio.load(htmlText);
-
       const imgData = [];
       $('img').each((i, img) => {
         imgData.push({
@@ -2724,15 +2693,8 @@ const userHelper = function () {
           data_src: $(img).attr('data-src'),
         });
       });
-
-      // ✅ minimal change: restrict users query by email allowlist if provided
-      const query = { isActive: true, bioPosted: 'posted' };
-      if (Array.isArray(allowedEmails) && allowedEmails.length > 0) {
-        query.email = { $in: allowedEmails };
-      }
-
       const users = await userProfile.find(
-        query,
+        { isActive: true, bioPosted: 'posted' },
         'firstName lastName email profilePic suggestedProfilePics',
       );
 
