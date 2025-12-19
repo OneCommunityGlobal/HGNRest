@@ -6,7 +6,7 @@ const TEST_EMAILS = ['sundarmachani@gmail.com', 'one.community@me.com', 'wadhwan
 
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    '45 16 * * *', // 6:45 PM CST == 4:45 PM PST (America/Los_Angeles)
+    '55 16 * * *', // 6:45 PM CST == 4:45 PM PST (America/Los_Angeles)
     async () => {
       console.log('[Scheduler] Triggered at', moment().tz('America/Los_Angeles').format());
 
