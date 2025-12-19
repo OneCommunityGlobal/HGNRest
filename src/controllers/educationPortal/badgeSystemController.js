@@ -1,7 +1,12 @@
 const badgeService = require('../../services/educationPortal/badgeService');
 
+const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_LEADERBOARD_SIZE = 10;
+const RADIX = 10;
+
 const badgeSystemController = function () {
   const handleError = (res, error, defaultMessage = 'An error occurred') => {
+    // eslint-disable-next-line no-console
     console.error('Badge Controller Error:', error);
     const statusCode = error.statusCode || (error.message.includes('not found') ? 404 : 500);
     
@@ -14,13 +19,13 @@ const badgeSystemController = function () {
 
   const getAllBadges = async (req, res) => {
     try {
-      const { page, limit, category, is_active } = req.query;
+      const { page, limit, category, is_active: isActiveQuery } = req.query;
 
       const result = await badgeService.getAllBadges({
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 50,
+        page: parseInt(page, RADIX) || 1,
+        limit: parseInt(limit, RADIX) || DEFAULT_PAGE_SIZE,
         category,
-        is_active: is_active !== undefined ? is_active === 'true' : true,
+        isActive: isActiveQuery !== undefined ? isActiveQuery === 'true' : true,
       });
 
       res.status(200).json({
@@ -34,16 +39,16 @@ const badgeSystemController = function () {
 
   const getBadgeById = async (req, res) => {
     try {
-      const badge_id = req.body.badge_id || req.query.badge_id;
+      const { badge_id: badgeId } = req.body.badge_id ? req.body : req.query;
       
-      if (!badge_id) {
+      if (!badgeId) {
         return res.status(400).json({
           success: false,
           message: 'Badge ID is required',
         });
       }
 
-      const badge = await badgeService.getBadgeById(badge_id);
+      const badge = await badgeService.getBadgeById(badgeId);
 
       if (!badge) {
         return res.status(404).json({
@@ -63,16 +68,28 @@ const badgeSystemController = function () {
 
   const createBadge = async (req, res) => {
     try {
+      const {
+        name,
+        description,
+        image_url: imageUrl,
+        category = 'achievement',
+        points = 0,
+        ranking = 0,
+        allow_multiple: allowMultiple = false,
+        criteria,
+        metadata,
+      } = req.body;
+
       const badgeData = {
-        name: req.body.name,
-        description: req.body.description,
-        image_url: req.body.image_url,
-        category: req.body.category || 'achievement',
-        points: req.body.points || 0,
-        ranking: req.body.ranking || 0,
-        allow_multiple: req.body.allow_multiple || false,
-        criteria: req.body.criteria,
-        metadata: req.body.metadata,
+        name,
+        description,
+        image_url: imageUrl,
+        category,
+        points,
+        ranking,
+        allow_multiple: allowMultiple,
+        criteria,
+        metadata,
       };
 
       const newBadge = await badgeService.createBadge(badgeData);
@@ -89,9 +106,9 @@ const badgeSystemController = function () {
 
   const updateBadge = async (req, res) => {
     try {
-      const badge_id = req.body.badge_id;
+      const { badge_id: badgeId } = req.body;
       
-      if (!badge_id) {
+      if (!badgeId) {
         return res.status(400).json({
           success: false,
           message: 'Badge ID is required',
@@ -118,7 +135,7 @@ const badgeSystemController = function () {
         }
       });
 
-      const updatedBadge = await badgeService.updateBadge(badge_id, updateData);
+      const updatedBadge = await badgeService.updateBadge(badgeId, updateData);
 
       res.status(200).json({
         success: true,
@@ -132,16 +149,16 @@ const badgeSystemController = function () {
 
   const deleteBadge = async (req, res) => {
     try {
-      const badge_id = req.body.badge_id;
+      const { badge_id: badgeId } = req.body;
       
-      if (!badge_id) {
+      if (!badgeId) {
         return res.status(400).json({
           success: false,
           message: 'Badge ID is required',
         });
       }
 
-      await badgeService.deleteBadge(badge_id);
+      await badgeService.deleteBadge(badgeId);
 
       res.status(200).json({
         success: true,
@@ -166,8 +183,8 @@ const badgeSystemController = function () {
       const { page, limit } = req.query;
 
       const result = await badgeService.getStudentBadges(studentId, {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 50,
+        page: parseInt(page, RADIX) || 1,
+        limit: parseInt(limit, RADIX) || DEFAULT_PAGE_SIZE,
       });
 
       res.status(200).json({
@@ -181,7 +198,7 @@ const badgeSystemController = function () {
 
   const getStudentBadgesByReason = async (req, res) => {
     try {
-      const reason = req.body.reason;
+      const { reason } = req.body;
       const studentId = req.headers.userid || req.headers.userId;
       
       if (!studentId) {
@@ -201,8 +218,8 @@ const badgeSystemController = function () {
       const { page, limit } = req.query;
 
       const result = await badgeService.getStudentBadges(studentId, {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 50,
+        page: parseInt(page, RADIX) || 1,
+        limit: parseInt(limit, RADIX) || DEFAULT_PAGE_SIZE,
         reason,
       });
 
@@ -217,15 +234,20 @@ const badgeSystemController = function () {
 
   const awardBadge = async (req, res) => {
     try {
-      
-      const { student_id, badge_id, reason, metadata } = req.body;
-      const awarded_by = req.body.requestor?.requestorId;
+      const {
+        student_id: studentId,
+        badge_id: badgeId,
+        reason,
+        metadata,
+        requestor,
+      } = req.body;
+      const awardedBy = requestor?.requestorId;
 
       const awardedBadge = await badgeService.awardBadge({
-        student_id,
-        badge_id,
+        studentId,
+        badgeId,
         reason: reason || 'manual_award',
-        awarded_by,
+        awardedBy,
         metadata,
       });
 
@@ -241,17 +263,19 @@ const badgeSystemController = function () {
 
   const revokeBadge = async (req, res) => {
     try {
-      const student_badge_id = req.body.student_badge_id;
-      const revoke_reason = req.body.revoke_reason;
+      const {
+        student_badge_id: studentBadgeId,
+        revoke_reason: revokeReason,
+      } = req.body;
       
-      if (!student_badge_id) {
+      if (!studentBadgeId) {
         return res.status(400).json({
           success: false,
           message: 'Student badge ID is required',
         });
       }
 
-      const revokedBadge = await badgeService.revokeBadge(student_badge_id, revoke_reason);
+      const revokedBadge = await badgeService.revokeBadge(studentBadgeId, revokeReason);
 
       res.status(200).json({
         success: true,
@@ -287,8 +311,8 @@ const badgeSystemController = function () {
 
   const bulkAwardBadges = async (req, res) => {
     try {
-      const { awards } = req.body;
-      const awarded_by = req.body.requestor?.requestorId;
+      const { awards, requestor } = req.body;
+      const awardedBy = requestor?.requestorId;
 
       if (!Array.isArray(awards) || awards.length === 0) {
         return res.status(400).json({
@@ -297,7 +321,7 @@ const badgeSystemController = function () {
         });
       }
 
-      const awardsWithAuthor = awards.map(award => ({ ...award, awarded_by }));
+      const awardsWithAuthor = awards.map(award => ({ ...award, awardedBy }));
 
       const results = await badgeService.bulkAwardBadges(awardsWithAuthor);
 
@@ -316,7 +340,7 @@ const badgeSystemController = function () {
       const { limit, category } = req.query;
 
       const leaderboard = await badgeService.getBadgeLeaderboard({
-        limit: parseInt(limit) || 10,
+        limit: parseInt(limit, RADIX) || DEFAULT_LEADERBOARD_SIZE,
         category,
       });
 
@@ -332,14 +356,15 @@ const badgeSystemController = function () {
   const awardBadgeAutomatically = async (studentId, badgeId, reason, metadata = {}) => {
     try {
       const awardedBadge = await badgeService.awardBadge({
-        student_id: studentId,
-        badge_id: badgeId,
+        studentId,
+        badgeId,
         reason,
-        awarded_by: 'system',
+        awardedBy: 'system',
         metadata,
       });
       return awardedBadge;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error awarding badge automatically:', error);
       return null;
     }
