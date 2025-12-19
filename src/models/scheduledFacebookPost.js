@@ -19,6 +19,11 @@ const ScheduledFacebookPostSchema = new Schema(
     postedAt: { type: Date },
     postId: { type: String },
     postType: { type: String },
+    postMethod: {
+      type: String,
+      enum: ['direct', 'scheduled'],
+      default: 'scheduled',
+    },
     lastError: { type: String },
     createdBy: {
       userId: { type: String },
