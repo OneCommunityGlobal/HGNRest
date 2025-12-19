@@ -1,12 +1,12 @@
 const PDFDocument = require('pdfkit');
 const { Parser } = require('json2csv');
-const stream = require('stream');
+const mongoose = require('mongoose');
 const EducationTask = require('../../models/educationTask');
 const UserProfile = require('../../models/userProfile');
 
 const REPORT_TYPES = ['student', 'class'];
 const REPORT_FORMATS = ['pdf', 'csv'];
-const MAX_RECORDS_PER_REPORT = 10000; // Prevent memory issues
+const MAX_RECORDS_PER_REPORT = 10000;
 const AUTHORIZED_ROLES = ['Administrator', 'Owner'];
 const AUTHORIZED_PERMISSIONS = ['educator', 'projectManagement'];
 
@@ -30,16 +30,16 @@ function validateReportRequest(query) {
     errors.push('classId is required for class reports');
   }
 
-  return errors;
-}
+  // Validate ObjectId format
+  if (type === 'student' && studentId && !mongoose.Types.ObjectId.isValid(studentId)) {
+    errors.push('Invalid studentId format');
+  }
 
-function hasReportPermission(user) {
-  return (
-    AUTHORIZED_ROLES.includes(user.role) ||
-    user.permissions?.frontPermissions?.some(perm => 
-      AUTHORIZED_PERMISSIONS.includes(perm)
-    )
-  );
+  if (type === 'class' && classId && !mongoose.Types.ObjectId.isValid(classId)) {
+    errors.push('Invalid classId format');
+  }
+
+  return errors;
 }
 
 function buildTaskQuery(type, params) {
@@ -47,29 +47,29 @@ function buildTaskQuery(type, params) {
   const query = {};
 
   if (type === 'student') {
-    query.assignedTo = studentId;
+    query.studentId = new mongoose.Types.ObjectId(studentId);
   } else {
-    query.classId = classId;
+    query.lessonPlanId = new mongoose.Types.ObjectId(classId);
   }
 
   if (startDate || endDate) {
-    query.createdAt = {};
-    if (startDate) query.createdAt.$gte = new Date(startDate);
-    if (endDate) query.createdAt.$lte = new Date(endDate);
+    query.assignedAt = {};
+    if (startDate) query.assignedAt.$gte = new Date(startDate);
+    if (endDate) query.assignedAt.$lte = new Date(endDate);
   }
 
   return query;
 }
 
 async function fetchStudentReport(studentId, startDate, endDate) {
+  
   const query = buildTaskQuery('student', { studentId, startDate, endDate });
 
   const [tasks, student] = await Promise.all([
     EducationTask.find(query)
-      .populate('assignedTo', 'firstName lastName email')
-      .populate('assignedBy', 'firstName lastName')
-      .select('taskName description status priority dueDate completedDate grade createdAt')
-      .sort({ createdAt: -1 })
+      .populate('studentId', 'firstName lastName email')
+      .select('type status grade dueAt completedAt feedback suggestedTotalHours loggedHours assignedAt')
+      .sort({ assignedAt: -1 })
       .limit(MAX_RECORDS_PER_REPORT)
       .lean(),
     UserProfile.findById(studentId)
@@ -77,31 +77,31 @@ async function fetchStudentReport(studentId, startDate, endDate) {
       .lean()
   ]);
 
-  if (!tasks || tasks.length === 0) {
-    return null;
-  }
-
   if (!student) {
     throw new Error('Student not found');
   }
 
+  if (!tasks || tasks.length === 0) {
+    return null;
+  }
+
   const taskData = tasks.map(task => ({
-    taskName: task.taskName,
-    description: task.description || '',
+    taskName: task.type || 'N/A',
+    type: task.type,
     status: task.status,
-    priority: task.priority || 'N/A',
-    dueDate: task.dueDate,
-    completedDate: task.completedDate,
-    grade: task.grade || 'N/A',
-    assignedBy: task.assignedBy 
-      ? `${task.assignedBy.firstName} ${task.assignedBy.lastName}` 
-      : 'N/A',
-    createdAt: task.createdAt
+    dueDate: task.dueAt,
+    completedDate: task.completedAt,
+    grade: task.grade || 'pending',
+    feedback: task.feedback || '',
+    suggestedHours: task.suggestedTotalHours || 0,
+    loggedHours: task.loggedHours || 0,
+    assignedAt: task.assignedAt
   }));
 
   const completed = tasks.filter(t => t.status === 'completed').length;
-  const inProgress = tasks.filter(t => t.status === 'in-progress').length;
-  const submitted = tasks.filter(t => t.status === 'submitted').length;
+  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const graded = tasks.filter(t => t.status === 'graded').length;
+  const assigned = tasks.filter(t => t.status === 'assigned').length;
 
   return {
     student: {
@@ -114,59 +114,64 @@ async function fetchStudentReport(studentId, startDate, endDate) {
       totalTasks: tasks.length,
       completed,
       inProgress,
-      submitted,
+      graded,
+      assigned,
       averageGrade: calculateAverageGrade(tasks)
     }
   };
 }
 
 async function fetchClassReport(classId, startDate, endDate) {
+  
   const query = buildTaskQuery('class', { classId, startDate, endDate });
 
   const tasks = await EducationTask.find(query)
-    .populate('assignedTo', 'firstName lastName email')
-    .populate('assignedBy', 'firstName lastName')
-    .select('taskName status grade assignedTo createdAt')
-    .sort({ createdAt: -1 })
+    .populate('studentId', 'firstName lastName email')
+    .select('type status grade studentId assignedAt')
+    .sort({ assignedAt: -1 })
     .limit(MAX_RECORDS_PER_REPORT)
     .lean();
+
 
   if (!tasks || tasks.length === 0) {
     return null;
   }
 
   const studentData = tasks.reduce((acc, task) => {
-    if (!task.assignedTo) return acc;
-    
-    const studentId = task.assignedTo._id.toString();
-    
+    if (!task.studentId) return acc;
+
+    const studentId = task.studentId._id.toString();
+
     if (!acc[studentId]) {
       acc[studentId] = {
-        student: task.assignedTo,
+        student: task.studentId,
         tasks: [],
         completed: 0,
         inProgress: 0,
-        submitted: 0
+        graded: 0,
+        assigned: 0
       };
     }
-    
+
     acc[studentId].tasks.push(task);
-    
+
     if (task.status === 'completed') acc[studentId].completed++;
-    else if (task.status === 'in-progress') acc[studentId].inProgress++;
-    else if (task.status === 'submitted') acc[studentId].submitted++;
-    
+    else if (task.status === 'in_progress') acc[studentId].inProgress++;
+    else if (task.status === 'graded') acc[studentId].graded++;
+    else if (task.status === 'assigned') acc[studentId].assigned++;
+
     return acc;
   }, {});
 
-  const students = Object.values(studentData).map(({ student, tasks, completed, inProgress, submitted }) => ({
+  const students = Object.values(studentData).map(({ student, tasks, completed, inProgress, graded, assigned }) => ({
     id: student._id,
     name: `${student.firstName} ${student.lastName}`,
     email: student.email,
     totalTasks: tasks.length,
     completed,
     inProgress,
-    submitted,
+    graded,
+    assigned,
     averageGrade: calculateAverageGrade(tasks)
   }));
 
@@ -175,7 +180,7 @@ async function fetchClassReport(classId, startDate, endDate) {
     const grade = parseFloat(s.averageGrade);
     return isNaN(grade) ? sum : sum + grade;
   }, 0);
-  
+
   const studentsWithGrades = students.filter(s => s.averageGrade !== 'N/A').length;
 
   return {
@@ -184,8 +189,8 @@ async function fetchClassReport(classId, startDate, endDate) {
     summary: {
       totalStudents: students.length,
       totalTasks: tasks.length,
-      averageCompletion: tasks.length > 0 
-        ? ((totalCompleted / tasks.length) * 100).toFixed(2) 
+      averageCompletion: tasks.length > 0
+        ? ((totalCompleted / tasks.length) * 100).toFixed(2)
         : '0.00',
       classAverageGrade: studentsWithGrades > 0
         ? (totalGrades / studentsWithGrades).toFixed(2)
@@ -195,42 +200,50 @@ async function fetchClassReport(classId, startDate, endDate) {
 }
 
 function calculateAverageGrade(tasks) {
-  const gradedTasks = tasks.filter(t => t.grade && !isNaN(t.grade));
+  const gradeMap = { 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0 };
   
+  const gradedTasks = tasks.filter(t => t.grade && t.grade !== 'pending' && gradeMap[t.grade] !== undefined);
+
   if (gradedTasks.length === 0) return 'N/A';
+
+  const sum = gradedTasks.reduce((acc, task) => acc + gradeMap[task.grade], 0);
+  const average = sum / gradedTasks.length;
   
-  const sum = gradedTasks.reduce((acc, task) => acc + parseFloat(task.grade), 0);
-  return (sum / gradedTasks.length).toFixed(2);
+  if (average >= 3.5) return 'A';
+  if (average >= 2.5) return 'B';
+  if (average >= 1.5) return 'C';
+  if (average >= 0.5) return 'D';
+  return 'F';
 }
 
 function generatePDFReport(res, reportData, metadata, type) {
-  const doc = new PDFDocument({ 
+  const doc = new PDFDocument({
     margin: 50,
     bufferPages: true,
-    compress: true 
+    compress: true
   });
-  
+
   const filename = `${type}-report-${Date.now()}.pdf`;
-  
+
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  
+
   doc.pipe(res);
 
   doc.fontSize(24).font('Helvetica-Bold').text('Performance Report', { align: 'center' });
   doc.moveDown();
-  
+
   doc.fontSize(10).font('Helvetica');
   doc.fillColor('#666666');
   doc.text(`Generated: ${new Date(metadata.generatedDate).toLocaleString()}`);
   doc.text(`Generated By: ${metadata.generatedBy}`);
   doc.text(`Report Type: ${type.charAt(0).toUpperCase() + type.slice(1)}`);
-  
+
   if (metadata.filters.startDate !== 'N/A' || metadata.filters.endDate !== 'N/A') {
     doc.text(`Date Range: ${metadata.filters.startDate} to ${metadata.filters.endDate}`);
   }
-  
+
   doc.moveDown();
   doc.fillColor('#000000');
 
@@ -257,24 +270,28 @@ function generateStudentPDFContent(doc, reportData) {
   doc.text(`Total Tasks: ${summary.totalTasks}`);
   doc.text(`Completed: ${summary.completed}`);
   doc.text(`In Progress: ${summary.inProgress}`);
-  doc.text(`Submitted: ${summary.submitted || 0}`);
+  doc.text(`Graded: ${summary.graded || 0}`);
+  doc.text(`Assigned: ${summary.assigned || 0}`);
   doc.text(`Average Grade: ${summary.averageGrade}`);
   doc.moveDown();
 
   doc.fontSize(14).font('Helvetica-Bold').text('Task Details');
   doc.moveDown(0.5);
-  
+
   tasks.forEach((task, index) => {
     if (doc.y > 700) {
       doc.addPage();
     }
-    
+
     doc.fontSize(11).font('Helvetica-Bold');
-    doc.text(`${index + 1}. ${task.taskName}`);
+    doc.text(`${index + 1}. ${task.taskName} (${task.type})`);
     doc.fontSize(10).font('Helvetica');
-    doc.text(`   Status: ${task.status} | Priority: ${task.priority} | Grade: ${task.grade}`);
+    doc.text(`   Status: ${task.status} | Grade: ${task.grade}`);
     doc.text(`   Due: ${task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A'} | Completed: ${task.completedDate ? new Date(task.completedDate).toLocaleDateString() : 'N/A'}`);
-    doc.text(`   Assigned By: ${task.assignedBy}`);
+    doc.text(`   Hours: ${task.loggedHours}/${task.suggestedHours}`);
+    if (task.feedback) {
+      doc.text(`   Feedback: ${task.feedback}`);
+    }
     doc.moveDown(0.5);
   });
 }
@@ -292,24 +309,25 @@ function generateClassPDFContent(doc, reportData) {
 
   doc.fontSize(14).font('Helvetica-Bold').text('Student Performance');
   doc.moveDown(0.5);
-  
+
   students.forEach((student, index) => {
     if (doc.y > 700) {
       doc.addPage();
     }
-    
+
     doc.fontSize(11).font('Helvetica-Bold');
     doc.text(`${index + 1}. ${student.name}`);
     doc.fontSize(10).font('Helvetica');
     doc.text(`   Email: ${student.email}`);
-    doc.text(`   Completed: ${student.completed}/${student.totalTasks} | In Progress: ${student.inProgress} | Average Grade: ${student.averageGrade}`);
+    doc.text(`   Tasks: ${student.completed}/${student.totalTasks} completed | ${student.inProgress} in progress | ${student.graded} graded | ${student.assigned} assigned`);
+    doc.text(`   Average Grade: ${student.averageGrade}`);
     doc.moveDown(0.5);
   });
 }
 
 function generateCSVReport(res, reportData, metadata, type) {
   const filename = `${type}-report-${Date.now()}.csv`;
-  
+
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -318,25 +336,25 @@ function generateCSVReport(res, reportData, metadata, type) {
 
   if (type === 'student') {
     fields = [
-      { label: 'Task Name', value: 'taskName' },
-      { label: 'Description', value: 'description' },
+      { label: 'Task Type', value: 'taskName' },
       { label: 'Status', value: 'status' },
-      { label: 'Priority', value: 'priority' },
       { label: 'Grade', value: 'grade' },
       { label: 'Due Date', value: 'dueDate' },
       { label: 'Completed Date', value: 'completedDate' },
-      { label: 'Assigned By', value: 'assignedBy' }
+      { label: 'Suggested Hours', value: 'suggestedHours' },
+      { label: 'Logged Hours', value: 'loggedHours' },
+      { label: 'Feedback', value: 'feedback' }
     ];
-    
+
     data = reportData.tasks.map(task => ({
       taskName: task.taskName,
-      description: task.description,
       status: task.status,
-      priority: task.priority,
       grade: task.grade,
       dueDate: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
       completedDate: task.completedDate ? new Date(task.completedDate).toLocaleDateString() : 'N/A',
-      assignedBy: task.assignedBy
+      suggestedHours: task.suggestedHours,
+      loggedHours: task.loggedHours,
+      feedback: task.feedback || ''
     }));
   } else {
     fields = [
@@ -345,30 +363,27 @@ function generateCSVReport(res, reportData, metadata, type) {
       { label: 'Total Tasks', value: 'totalTasks' },
       { label: 'Completed', value: 'completed' },
       { label: 'In Progress', value: 'inProgress' },
-      { label: 'Submitted', value: 'submitted' },
+      { label: 'Graded', value: 'graded' },
+      { label: 'Assigned', value: 'assigned' },
       { label: 'Average Grade', value: 'averageGrade' }
     ];
-    
-    data = reportData.students.map(student => ({
-      name: student.name,
-      email: student.email,
-      totalTasks: student.totalTasks,
-      completed: student.completed,
-      inProgress: student.inProgress,
-      submitted: student.submitted || 0,
-      averageGrade: student.averageGrade
-    }));
+
+    data = reportData.students;
   }
 
   try {
     const parser = new Parser({ fields });
     const csv = parser.parse(data);
-    
-    res.write('\ufeff');
-    res.send(csv);
+
+    // Add BOM for UTF-8 and send CSV in one response
+    const csvWithBOM = '\ufeff' + csv;
+    res.send(csvWithBOM);
   } catch (error) {
     console.error('CSV generation error:', error);
-    res.status(500).json({ error: 'Failed to generate CSV report' });
+    // Don't try to send another response if headers were already sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate CSV report' });
+    }
   }
 }
 
@@ -376,31 +391,12 @@ const downloadReportController = {
   exportReport: async (req, res) => {
     try {
       const { type, format, studentId, classId, startDate, endDate } = req.query;
-      
+
       const validationErrors = validateReportRequest(req.query);
       if (validationErrors.length > 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Validation failed',
-          details: validationErrors 
-        });
-      }
-
-      const requestorId = req.body.requestor?._id;
-      if (!requestorId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      const requestor = await UserProfile.findById(requestorId)
-        .select('firstName lastName role permissions')
-        .lean();
-      
-      if (!requestor) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      if (!hasReportPermission(requestor)) {
-        return res.status(403).json({ 
-          error: 'Access denied. Insufficient permissions to download reports.' 
+          details: validationErrors
         });
       }
 
@@ -413,20 +409,20 @@ const downloadReportController = {
         }
       } catch (fetchError) {
         console.error('Error fetching report data:', fetchError);
-        return res.status(400).json({ 
-          error: fetchError.message 
+        return res.status(400).json({
+          error: fetchError.message
         });
       }
 
       if (!reportData) {
-        return res.status(404).json({ 
-          error: 'No data found for the specified criteria' 
+        return res.status(404).json({
+          error: 'No data found for the specified criteria'
         });
       }
 
       const metadata = {
         generatedDate: new Date().toISOString(),
-        generatedBy: `${requestor.firstName} ${requestor.lastName}`,
+        generatedBy: 'System Administrator',
         reportType: type,
         filters: {
           studentId: studentId || 'N/A',
@@ -444,10 +440,12 @@ const downloadReportController = {
 
     } catch (error) {
       console.error('Error in exportReport controller:', error);
-      return res.status(500).json({ 
-        error: 'Failed to export report',
-        message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-      });
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Failed to export report',
+          message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+      }
     }
   }
 };
