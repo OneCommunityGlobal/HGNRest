@@ -10,13 +10,18 @@ let mongoServer;
 // Simplified MongoDB connection for CI environments
 module.exports.dbConnect = async () => {
   try {
-    console.log('=== Starting MongoDB Connection Process ===');
+    await mongoose.disconnect();
 
-    // Disconnect any existing connections
-    if (mongoose.connection.readyState !== 0) {
-      console.log('Disconnecting existing MongoDB connection...');
-      await mongoose.disconnect();
-    }
+    mongoServer = await MongoMemoryServer.create();
+
+    const uri = mongoServer.getUri();
+
+    const mongooseOpts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    };
+
+    await mongoose.connect(uri, mongooseOpts);
 
     // Try to use a real MongoDB connection if available, otherwise use a simple in-memory approach
     const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/test';
@@ -24,18 +29,18 @@ module.exports.dbConnect = async () => {
     console.log('Using MongoDB URI:', mongoUri);
 
     // Simple connection options
-    const mongooseOpts = {
+    const realMongoOpts = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000, // 30 seconds
-      socketTimeoutMS: 30000, // 30 seconds
-      connectTimeoutMS: 30000, // 30 seconds
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
       maxPoolSize: 1,
       minPoolSize: 0,
     };
 
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(mongoUri, mongooseOpts);
+    await mongoose.connect(mongoUri, realMongoOpts);
 
     console.log('MongoDB connection established successfully');
     console.log('=== MongoDB Connection Process Complete ===');
@@ -54,34 +59,28 @@ module.exports.dbConnect = async () => {
     const mongooseOpts = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000, // 30 seconds
-      socketTimeoutMS: 30000, // 30 seconds
-      connectTimeoutMS: 30000, // 30 seconds
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
       maxPoolSize: 1,
       minPoolSize: 0,
     };
 
-    await mongoose.connect(uri, mongooseOpts, (err) => {
-      if (err) {
-        console.error(err);
-      }
-    });
+    await mongoose.connect(uri, mongooseOpts);
   }
 };
 
 module.exports.dbDisconnect = async () => {
-  try {
-    console.log('Disconnecting MongoDB...');
-    await mongoose.disconnect();
-    console.log('MongoDB cleanup completed');
-  } catch (error) {
-    console.error('Error during MongoDB disconnect:', error);
+  await mongoose.disconnect();
+  if (mongoServer) {
+    await mongoServer.stop();
   }
 };
 
 module.exports.dbClearAll = async () => {
   try {
-    console.log('Clearing all MongoDB collections...');
+    // eslint-disable-next-line prefer-destructuring
+    // const collections = mongoose.connection.collections;
 
     const { collections } = mongoose.connection;
     console.log(`Found ${Object.keys(collections).length} collections to clear`);
