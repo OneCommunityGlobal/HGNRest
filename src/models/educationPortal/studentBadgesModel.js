@@ -4,7 +4,7 @@ const studentBadgesSchema = new mongoose.Schema(
   {
     student_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'userprofiles',
+      ref: 'userProfile',
       required: [true, 'Student ID is required'],
       index: true,
     },
@@ -21,7 +21,7 @@ const studentBadgesSchema = new mongoose.Schema(
     },
     awarded_by: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'userprofiles',
+      ref: 'userProfile',
       default: null,
       description: 'User who manually awarded the badge, null for automatic awards',
     },

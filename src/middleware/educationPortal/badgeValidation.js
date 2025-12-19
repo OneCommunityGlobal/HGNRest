@@ -58,7 +58,9 @@ const validateCreateBadge = [
 ];
 
 const validateUpdateBadge = [
-  param('badge_id')
+  body('badge_id')
+    .notEmpty()
+    .withMessage('Badge ID is required')
     .isMongoId()
     .withMessage('Invalid badge ID format'),
   
@@ -127,7 +129,9 @@ const validateAwardBadge = [
 ];
 
 const validateRevokeBadge = [
-  param('student_badge_id')
+  body('student_badge_id')
+    .notEmpty()
+    .withMessage('Student badge ID is required')
     .isMongoId()
     .withMessage('Invalid student badge ID format'),
   
@@ -165,9 +169,21 @@ const validateBadgeQuery = [
 ];
 
 const validateReason = [
-  param('reason')
+  body('reason')
+    .notEmpty()
+    .withMessage('Reason is required')
     .isIn(['capstone_completion', 'lesson_completion', 'manual_award', 'milestone'])
     .withMessage('Invalid reason parameter'),
+  
+  handleValidationErrors,
+];
+
+const validateDeleteBadge = [
+  body('badge_id')
+    .notEmpty()
+    .withMessage('Badge ID is required')
+    .isMongoId()
+    .withMessage('Invalid badge ID format'),
   
   handleValidationErrors,
 ];
@@ -179,4 +195,5 @@ module.exports = {
   validateRevokeBadge,
   validateBadgeQuery,
   validateReason,
+  validateDeleteBadge,
 };

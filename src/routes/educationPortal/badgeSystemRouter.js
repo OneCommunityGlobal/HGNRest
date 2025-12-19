@@ -7,10 +7,12 @@ const {
   validateRevokeBadge,
   validateBadgeQuery,
   validateReason,
+  validateDeleteBadge,
 } = require('../../middleware/educationPortal/badgeValidation');
 
 const router = express.Router();
 
+// Student badge routes
 router.get(
   '/student/badges',
   validateBadgeQuery,
@@ -22,13 +24,14 @@ router.get(
   badgeController.getStudentBadgeStats
 );
 
-router.get(
-  '/student/badges/reason/:reason',
+router.post(
+  '/student/badges/reason',
   validateReason,
   validateBadgeQuery,
   badgeController.getStudentBadgesByReason
 );
 
+// Badge CRUD routes
 router.post(
   '/badges',
   validateCreateBadge,
@@ -36,30 +39,8 @@ router.post(
 );
 
 router.get(
-  '/badges',
-  validateBadgeQuery,
-  badgeController.getAllBadges
-);
-
-router.get(
   '/badges/leaderboard',
   badgeController.getBadgeLeaderboard
-);
-
-router.get(
-  '/badges/:badge_id',
-  badgeController.getBadgeById
-);
-
-router.put(
-  '/badges/:badge_id',
-  validateUpdateBadge,
-  badgeController.updateBadge
-);
-
-router.delete(
-  '/badges/:badge_id',
-  badgeController.deleteBadge
 );
 
 router.post(
@@ -73,10 +54,33 @@ router.post(
   badgeController.bulkAwardBadges
 );
 
-router.delete(
-  '/badges/:student_badge_id/revoke',
+router.post(
+  '/badges/revoke',
   validateRevokeBadge,
   badgeController.revokeBadge
+);
+
+router.get(
+  '/badges',
+  validateBadgeQuery,
+  badgeController.getAllBadges
+);
+
+router.post(
+  '/badges/get',
+  badgeController.getBadgeById
+);
+
+router.put(
+  '/badges',
+  validateUpdateBadge,
+  badgeController.updateBadge
+);
+
+router.post(
+  '/badges/delete',
+  validateDeleteBadge,
+  badgeController.deleteBadge
 );
 
 module.exports = router;

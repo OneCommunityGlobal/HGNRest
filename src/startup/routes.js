@@ -329,7 +329,7 @@ const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter
 
 // education portal
 
-const epBadge = require('../models/educationPortal/epBadgeModel');
+const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 

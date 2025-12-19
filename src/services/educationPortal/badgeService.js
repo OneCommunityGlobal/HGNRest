@@ -1,4 +1,4 @@
-const epBadge = require('../../models/educationPortal/epBadgeModel');
+const epBadge = require('../../models/educationPortal/badgeModel');
 const studentBadges = require('../../models/educationPortal/studentBadgesModel');
 
 class BadgeService {
@@ -335,6 +335,37 @@ class BadgeService {
     const leaderboard = await studentBadges.aggregate(pipeline);
     return leaderboard;
   }
+
+  /**
+ * Award badge automatically when capstone/lesson is completed
+ * This should be called from your existing task grading service
+ */
+async awardBadgeOnCompletion(studentId, completionType, metadata) {
+  try {
+    // Find the appropriate badge for this completion
+    const badge = await epBadge.findOne({
+      category: completionType, // 'capstone' or 'lesson_completion'
+      is_active: true,
+    });
+
+    if (!badge) {
+      console.warn(`No badge found for completion type: ${completionType}`);
+      return null;
+    }
+
+    // Award the badge
+    return await this.awardBadge({
+      student_id: studentId,
+      badge_id: badge._id,
+      reason: completionType === 'capstone' ? 'capstone_completion' : 'lesson_completion',
+      awarded_by: null, // Automatic award
+      metadata,
+    });
+  } catch (error) {
+    console.error('Error awarding badge on completion:', error);
+    return null;
+  }
+}
 }
 
 module.exports = new BadgeService();
