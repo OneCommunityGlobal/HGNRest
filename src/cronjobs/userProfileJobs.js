@@ -2,22 +2,23 @@ const { CronJob } = require('cron');
 const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 
+const TEST_EMAILS = ['sundarmachani@gmail.com', 'one.community@me.com', 'wadhwanidiya23@gmail.com'];
+
 const userProfileJobs = () => {
   const allUserProfileJobs = new CronJob(
-    // '* * * * *', // Comment out for testing. Run Every minute.
-    '1 0 * * 0', // Every Sunday, 1 minute past midnight.
-
+    '40 16 * * *', // 6:40 PM CST == 4:40 PM PST (America/Los_Angeles)
     async () => {
-      const SUNDAY = 0; // will change back to 0 after fix
-      if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        await userhelper.getProfileImagesFromWebsite();
-        await userhelper.assignBlueSquareForTimeNotMet();
-        await userhelper.applyMissedHourForCoreTeam();
-        await userhelper.emailWeeklySummariesForAllUsers();
-        await userhelper.deleteBlueSquareAfterYear();
-        await userhelper.deleteExpiredTokens();
-      }
-      await userhelper.awardNewBadges();
+      console.log('[Scheduler] Triggered at', moment().tz('America/Los_Angeles').format());
+
+      await userhelper.getProfileImagesFromWebsite(TEST_EMAILS);
+      await userhelper.assignBlueSquareForTimeNotMet(TEST_EMAILS);
+      await userhelper.applyMissedHourForCoreTeam(TEST_EMAILS);
+      await userhelper.emailWeeklySummariesForAllUsers(1, TEST_EMAILS);
+
+      // await userhelper.deleteBlueSquareAfterYear();
+      // await userhelper.deleteExpiredTokens();
+
+      await userhelper.awardNewBadges(TEST_EMAILS);
     },
     null,
     false,
