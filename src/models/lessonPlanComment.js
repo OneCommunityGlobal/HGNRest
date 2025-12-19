@@ -25,6 +25,10 @@ const LessonPlanCommentSchema = new Schema({
     ref: 'LessonPlanDraftItem',
     default: null,
   },
+  label: {
+    type: String,
+    default: null,
+  },
 
   createdAt: { type: Date, default: Date.now },
 });

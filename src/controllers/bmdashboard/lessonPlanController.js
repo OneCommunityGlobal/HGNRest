@@ -3,6 +3,7 @@ const LessonPlanTemplate = require('../../models/lessonPlanTemplate');
 const Subject = require('../../models/subject');
 const Atom = require('../../models/atom');
 const LessonPlanDraft = require('../../models/lessonPlanDraft');
+const LessonPlanComment = require('../../models/lessonPlanComment');
 
 exports.lessonPlanDetails = async (req, res) => {
   try {
@@ -51,12 +52,48 @@ exports.saveLessonPlanDraft = async (req, res) => {
 
 exports.getPendingLessonPlanDrafts = async (req, res) => {
   try {
-    const drafts = await LessonPlan.find({ status: 'draft' })
+    const lessonPlans = await LessonPlan.find({ status: 'draft' })
       .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return res.status(200).json(drafts);
+    if (!lessonPlans.length) {
+      return res.status(200).json([]);
+    }
+
+    const lessonPlanIds = lessonPlans.map((lp) => lp._id);
+
+    const drafts = await LessonPlanDraft.find({
+      lessonPlanId: { $in: lessonPlanIds },
+    }).lean();
+
+    const draftIds = drafts.map((d) => d._id);
+
+    const comments = await LessonPlanComment.find({
+      draftId: { $in: draftIds },
+    })
+      .populate('userId', 'name email')
+      .populate('itemId')
+      .lean();
+
+    const commentsByLessonPlanId = {};
+
+    drafts.forEach((draft) => {
+      commentsByLessonPlanId[draft.lessonPlanId] = commentsByLessonPlanId[draft.lessonPlanId] || [];
+
+      comments
+        .filter((c) => c.draftId.toString() === draft._id.toString())
+        .forEach((c) => commentsByLessonPlanId[draft.lessonPlanId].push(c));
+    });
+
+    const response = lessonPlans.map((plan) => ({
+      ...plan,
+      comments: commentsByLessonPlanId[plan._id] || [],
+    }));
+
+    return res.status(200).json(response);
   } catch (error) {
+    console.error('Error fetching pending lesson plan drafts:', error);
     return res.status(500).json({ message: error.message });
   }
 };
