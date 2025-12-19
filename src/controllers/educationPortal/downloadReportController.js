@@ -332,7 +332,8 @@ function generateCSVReport(res, reportData, metadata, type) {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
-  let fields, data;
+  let fields;
+  let data;
 
   if (type === 'student') {
     fields = [
