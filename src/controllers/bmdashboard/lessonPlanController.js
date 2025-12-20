@@ -132,3 +132,24 @@ exports.approveOrModifyLessonPlanDraft = async (req, res) => {
     return res.status(400).json({ message: error.message });
   }
 };
+
+exports.saveComments = async (req, res) => {
+  try {
+    const { draftId, itemId, comment } = req.body;
+
+    const newComment = await LessonPlanComment.create({
+      userId: req.user._id,
+      draftId,
+      itemId,
+      comment,
+    });
+
+    return res.status(201).json({
+      message: 'Comment added successfully',
+      comment: newComment,
+    });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return res.status(400).json({ message: error.message });
+  }
+};

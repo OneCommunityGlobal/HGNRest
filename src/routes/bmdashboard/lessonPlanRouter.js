@@ -10,5 +10,6 @@ router.put(
   '/educator/lesson-plan-drafts/:draftId',
   lessonPlanController.approveOrModifyLessonPlanDraft,
 );
+router.post('/lesson-plan/save-comments', lessonPlanController.saveComments);
 
 module.exports = router;
