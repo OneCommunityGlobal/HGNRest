@@ -29,10 +29,14 @@ exports.lessonPlanDetails = async (req, res) => {
 
 exports.saveLessonPlanDraft = async (req, res) => {
   try {
-    const { templateId, selectedTopics, activities, educatorId } = req.body;
+    const { templateId, selectedTopics, activities, educatorId, userId } = req.body;
+
+    if (!userId) return res.status(400).json({ message: 'studentId missing' });
+
+    console.log('Payload:', req.body);
 
     const draft = await LessonPlanDraft.create({
-      studentId: req.user._id,
+      studentId: userId,
       educatorId,
       templateId,
       selectedTopics,

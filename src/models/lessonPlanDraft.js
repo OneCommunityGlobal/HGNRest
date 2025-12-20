@@ -21,18 +21,22 @@ const LessonPlanDraftSchema = new Schema({
     required: true,
   },
 
-  selectedTopics: [
-    {
-      type: Schema.Types.ObjectId,
-      ref: 'Atom',
-    },
-  ],
+  selectedTopics: {
+    type: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Atom',
+        required: true,
+      },
+    ],
+    validate: [(arr) => arr.length > 0, 'At least one topic is required'],
+  },
 
   activities: [
     {
-      description: String,
-      reason: String,
-      strategy: String,
+      description: { type: String, required: true },
+      reason: { type: String },
+      strategy: { type: String },
     },
   ],
 
