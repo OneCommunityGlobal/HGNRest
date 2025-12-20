@@ -3,7 +3,6 @@ const LessonPlanTemplate = require('../../models/lessonPlanTemplate');
 const Subject = require('../../models/subject');
 const Atom = require('../../models/atom');
 const LessonPlanDraft = require('../../models/lessonPlanDraft');
-const LessonPlanComment = require('../../models/lessonPlanComment');
 
 exports.lessonPlanDetails = async (req, res) => {
   try {
@@ -29,12 +28,9 @@ exports.lessonPlanDetails = async (req, res) => {
 
 exports.saveLessonPlanDraft = async (req, res) => {
   try {
-    const { templateId, selectedTopics, activities, educatorId, userId } = req.body;
+    const { templateId, selectedTopics, activities, educatorId, userId, comments } = req.body;
 
     if (!userId) return res.status(400).json({ message: 'studentId missing' });
-
-    console.log('Payload:', req.body);
-
     const draft = await LessonPlanDraft.create({
       studentId: userId,
       educatorId,
@@ -42,6 +38,7 @@ exports.saveLessonPlanDraft = async (req, res) => {
       selectedTopics,
       activities,
       status: 'drafting',
+      comments,
     });
 
     return res.status(201).json({
@@ -56,104 +53,54 @@ exports.saveLessonPlanDraft = async (req, res) => {
 
 exports.getPendingLessonPlanDrafts = async (req, res) => {
   try {
-    const lessonPlans = await LessonPlan.find({ status: 'draft' })
-      .populate('createdBy', 'name email')
+    const drafts = await LessonPlanDraft.find({
+      status: { $in: ['drafting', 'submitted_to_teacher', 'in_review'] },
+    })
+      .populate('studentId', 'name email')
+      .populate('educatorId', 'name email')
+      .populate('templateId', 'name description')
+      .populate('selectedTopics', 'name description')
       .sort({ createdAt: -1 })
       .lean();
 
-    if (!lessonPlans.length) {
-      return res.status(200).json([]);
-    }
-
-    const lessonPlanIds = lessonPlans.map((lp) => lp._id);
-
-    const drafts = await LessonPlanDraft.find({
-      lessonPlanId: { $in: lessonPlanIds },
-    }).lean();
-
-    const draftIds = drafts.map((d) => d._id);
-
-    const comments = await LessonPlanComment.find({
-      draftId: { $in: draftIds },
-    })
-      .populate('userId', 'name email')
-      .populate('itemId')
-      .lean();
-
-    const commentsByLessonPlanId = {};
-
-    drafts.forEach((draft) => {
-      commentsByLessonPlanId[draft.lessonPlanId] = commentsByLessonPlanId[draft.lessonPlanId] || [];
-
-      comments
-        .filter((c) => c.draftId.toString() === draft._id.toString())
-        .forEach((c) => commentsByLessonPlanId[draft.lessonPlanId].push(c));
-    });
-
-    const response = lessonPlans.map((plan) => ({
-      ...plan,
-      comments: commentsByLessonPlanId[plan._id] || [],
-    }));
-
-    return res.status(200).json(response);
+    return res.status(200).json(drafts);
   } catch (error) {
     console.error('Error fetching pending lesson plan drafts:', error);
     return res.status(500).json({ message: error.message });
   }
 };
 
-exports.approveOrModifyLessonPlanDraft = async (req, res) => {
+exports.updateLessonPlanDraftStatus = async (req, res) => {
   try {
     const { draftId } = req.params;
-    const updatePayload = req.body;
+    const { status } = req.body;
 
-    const updatedPlan = await LessonPlan.findByIdAndUpdate(
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+    const allowedStatuses = ['drafting', 'submitted_to_teacher', 'in_review', 'approved'];
+    if (!allowedStatuses.includes(status)) {
+      return res
+        .status(400)
+        .json({ message: `Invalid status. Allowed: ${allowedStatuses.join(', ')}` });
+    }
+
+    const updatedDraft = await LessonPlanDraft.findByIdAndUpdate(
       draftId,
-      {
-        ...updatePayload,
-        status: 'approved',
-        lastEditedBy: req.user._id,
-        $push: {
-          versionHistory: {
-            editedBy: req.user._id,
-            changes: JSON.stringify(updatePayload),
-            updatedAt: new Date(),
-          },
-        },
-      },
+      { status, updatedAt: new Date() },
       { new: true },
     );
 
-    if (!updatedPlan) {
+    if (!updatedDraft) {
       return res.status(404).json({ message: 'Lesson plan draft not found' });
     }
 
     return res.status(200).json({
-      message: 'Lesson plan approved and finalized successfully.',
-      plan: updatedPlan,
+      message: `Lesson plan draft status updated to "${status}" successfully.`,
+      draft: updatedDraft,
     });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
-  }
-};
-
-exports.saveComments = async (req, res) => {
-  try {
-    const { draftId, itemId, comment } = req.body;
-
-    const newComment = await LessonPlanComment.create({
-      userId: req.user._id,
-      draftId,
-      itemId,
-      comment,
-    });
-
-    return res.status(201).json({
-      message: 'Comment added successfully',
-      comment: newComment,
-    });
-  } catch (error) {
-    console.error('Error adding comment:', error);
-    return res.status(400).json({ message: error.message });
+    console.error('Error updating lesson plan draft status:', error);
+    return res.status(500).json({ message: error.message });
   }
 };
