@@ -1042,6 +1042,9 @@ const userProfileController = function (UserProfile, Project) {
     //   res.status(200).send(getData);
     //   return;
     // }
+    const ONE_YEAR_AGO = new Date();
+    ONE_YEAR_AGO.setFullYear(ONE_YEAR_AGO.getFullYear() - 1);
+
     UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
@@ -1072,6 +1075,7 @@ const userProfileController = function (UserProfile, Project) {
         },
         {
           path: 'infringements', // Populate infringements field
+          match: { date: { $gte: ONE_YEAR_AGO } },
           select: 'date description',
           options: {
             sort: {
@@ -1843,7 +1847,7 @@ const userProfileController = function (UserProfile, Project) {
       const newInfringement = {
         ...req.body.blueSquare,
         // date:validDate,
-        date: new Date(inputDate),
+        date: inputDate,
 
         // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
@@ -1897,6 +1901,7 @@ const userProfileController = function (UserProfile, Project) {
           );
           res.status(200).json({
             _id: record._id,
+            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache

@@ -1145,13 +1145,11 @@ const userHelper = function () {
   };
 
   const deleteBlueSquareAfterYear = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowLA = moment().tz('America/Los_Angeles');
 
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
-    );
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
+    const cutOffDate = nowLA.clone().subtract(1, 'year').toDate();
 
     try {
       const results = await userProfile.updateMany(
@@ -1159,16 +1157,17 @@ const userHelper = function () {
         {
           $pull: {
             infringements: {
-              date: {
-                $lte: cutOffDate,
-              },
+              date: { $lte: cutOffDate },
             },
           },
         },
       );
 
-      logger.logInfo(`Job deleting blue squares older than 1 year finished
-        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
+      logger.logInfo(
+        `Job deleting blue squares older than 1 year finished at ${moment()
+          .tz('America/Los_Angeles')
+          .format()} \nResult: ${JSON.stringify(results)}`,
+      );
     } catch (err) {
       logger.logException(err);
     }
