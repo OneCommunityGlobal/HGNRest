@@ -1035,35 +1035,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getUserById = function (req, res) {
+  const getUserById = (req, res) => {
     const userid = req.params.userId;
-    // if (cache.getCache(`user-${userid}`)) {
-    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
-    //   res.status(200).send(getData);
-    //   return;
-    // }
-    const ONE_YEAR_AGO = new Date();
-    ONE_YEAR_AGO.setFullYear(ONE_YEAR_AGO.getFullYear() - 1);
 
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+    return UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
           path: 'teams',
           select: '_id teamName',
-          options: {
-            sort: {
-              teamName: 1,
-            },
-          },
+          options: { sort: { teamName: 1 } },
         },
         {
           path: 'projects',
           select: '_id projectName category',
-          options: {
-            sort: {
-              projectName: 1,
-            },
-          },
+          options: { sort: { projectName: 1 } },
         },
         {
           path: 'badgeCollection',
@@ -1074,29 +1059,37 @@ const userProfileController = function (UserProfile, Project) {
           },
         },
         {
-          path: 'infringements', // Populate infringements field
-          match: { date: { $gte: ONE_YEAR_AGO } },
-          select: 'date description',
-          options: {
-            sort: {
-              date: -1, // Sort by date descending if needed
-            },
-          },
+          path: 'infringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
+        },
+        {
+          path: 'oldInfringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
         },
       ])
       .exec()
-      .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid user' });
-          return;
+      .then(async (user) => {
+        if (!user) {
+          return res.status(400).send({ error: 'This is not a valid user' });
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, {
-            strict: false,
-          });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
+
+        const current = Array.isArray(user.infringements) ? user.infringements : [];
+        const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
+
+        const infringements = [...old, ...current].sort((a, b) =>
+          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+        );
+
+        user.set('infringements', infringements, { strict: false });
+        user.set('oldInfringements', undefined, { strict: false });
+
+        const hours = await userHelper.getTangibleHoursReportedThisWeekByUserId(userid);
+        user.set('tangibleHoursReportedThisWeek', hours, { strict: false });
+
+        cache.setCache(`user-${userid}`, JSON.stringify(user));
+        return res.status(200).send(user);
       })
       .catch((error) => res.status(404).send(error));
   };
