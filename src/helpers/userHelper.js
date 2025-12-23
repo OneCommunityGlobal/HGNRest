@@ -534,8 +534,6 @@ const userHelper = function () {
   const assignBlueSquareForTimeNotMet = async () => {
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
-      moment.tz('America/Los_Angeles').startOf('day').toISOString();
-
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
       );
@@ -544,7 +542,6 @@ const userHelper = function () {
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
-
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
@@ -1015,6 +1012,7 @@ const userHelper = function () {
     }
   };
 
+  // Function to calculate carry-forward hours for Core Team
   const applyMissedHourForCoreTeam = async () => {
     try {
       const currentDate = moment().tz('America/Los_Angeles').format();
@@ -1136,6 +1134,20 @@ const userHelper = function () {
       logger.logException(err);
     }
   };
+
+  // Email body generator for Core Team notifications
+  const generateCoreTeamEmailBody = (
+    user,
+    infringement,
+    additionalHours,
+  ) => `<p>Dear ${user.firstName},</p>
+        <p>You have received a new blue square for not meeting the required hours.</p>
+        <p>Infringement details:</p>
+        <p>${infringement.description}</p>
+        <p>Additional hours for next week: ${additionalHours} hours.</p>
+        <p>Thank you for your continued dedication.</p>
+        <p>Best regards,</p>
+        <p>One Community</p>`;
 
   const deleteBlueSquareAfterYear = async () => {
     const nowLA = moment().tz('America/Los_Angeles');
