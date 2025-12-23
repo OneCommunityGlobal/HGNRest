@@ -124,36 +124,36 @@ const userProfileSchema = new Schema({
     default: [],
   },
   infringements: [
-  {
-    date: { type: String, required: true },
-    description: { type: String, required: true },
-    createdDate: { type: String },
+    {
+      date: { type: String, required: true },
+      description: { type: String, required: true },
+      createdDate: { type: String },
 
-    reason: {
-      type: String,
-      enum: [
-        'missingHours',
-        'missingSummary',
-        'missingBothHoursAndSummary',
-        'vacationTime',
-        'other',
-      ],
-      required: false,
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
+
+      ccdUsers: {
+        type: [
+          {
+            firstName: { type: String },
+            lastName: { type: String },
+            email: { type: String, required: true },
+          },
+        ],
+        default: [],
+      },
     },
-
-    ccdUsers: {
-      type: [
-        {
-          firstName: { type: String },
-          lastName: { type: String },
-          email: { type: String, required: true },
-        },
-      ],
-      default: [],
-    },
-  },
-],
-
+  ],
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -349,6 +349,12 @@ const userProfileSchema = new Schema({
           trim: true,
         },
       ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
+        },
+      ],
     },
     teacher: {
       subjects: [
@@ -394,7 +400,6 @@ const userProfileSchema = new Schema({
       ],
     },
   },
-
 });
 
 function clearUserCache(doc) {

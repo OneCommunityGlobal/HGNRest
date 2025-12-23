@@ -293,7 +293,7 @@ const userHelper = function () {
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
+        <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
         ${finalParagraph}
@@ -546,7 +546,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -566,10 +566,27 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
+
+      // fetch emailBCCs once - same for all users
+      let emailsBCCs;
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        // Keep only assignments with an active assignedTo and map to their email
+        emailsBCCs = blueSquareBCCs
+          .filter((assignment) => assignment.assignedTo && assignment.assignedTo.isActive === true)
+          .map((assignment) => assignment.email);
+      } else {
+        emailsBCCs = null;
+      }
+
+      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+
+      const emailQueue = [];
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-
-        const person = await userProfile.findById(user._id);
+        // avoid multiple db calls and fetch necessary data in first db call??
+        // const person = await userProfile.findById(user._id);
+        const person = user;
 
         const personId = mongoose.Types.ObjectId(user._id);
 
@@ -591,7 +608,10 @@ const userHelper = function () {
           pdtEndOfLastWeek,
         );
 
-        const { timeSpent_hrs: timeSpent } = results[0];
+        if (!Array.isArray(results) || results.length === 0) {
+          console.log(`⚠️ No laborThisWeek results for user ${personId}`);
+        }
+        const timeSpent = results?.[0]?.timeSpent_hrs ?? 0;
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
@@ -885,32 +905,15 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
-
-            let emailsBCCs;
-            /* eslint-disable array-callback-return */
-            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
-              .populate('assignedTo')
-              .exec();
-            if (blueSquareBCCs.length > 0) {
-              emailsBCCs = blueSquareBCCs.map((assignment) => {
-                if (assignment.assignedTo.isActive === true) {
-                  return assignment.email;
-                }
-              });
-            } else {
-              emailsBCCs = null;
-            }
-
-            emailSender(
-              status.email,
-              'New Infringement Assigned',
-              emailBody,
-              null,
-              DEFAULT_CC_EMAILS,
-              DEFAULT_REPLY_TO[0],
-              emailsBCCs,
-              { type: 'blue_square_assignment' },
-            );
+            emailQueue.push({
+              to: status.email,
+              subject: 'New Infringement Assigned',
+              body: emailBody,
+              cc: DEFAULT_CC_EMAILS,
+              replyTo: status.email,
+              bcc: emailsBCCs,
+              startDate: person.startDate,
+            });
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
@@ -964,6 +967,19 @@ const userHelper = function () {
         if (cache.hasCache(`user-${personId}`)) {
           cache.removeCache(`user-${personId}`);
         }
+      }
+      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      for (const email of emailQueue) {
+        await emailSender(
+          email.to,
+          email.subject,
+          email.body,
+          email.attachments ? email.attachments : null,
+          email.cc,
+          email.replyTo,
+          email.bcc,
+          { type: 'blue_square_assignment' },
+        );
       }
       // eslint-disable-next-line no-use-before-define
       await deleteOldTimeOffRequests();
@@ -1120,8 +1136,11 @@ const userHelper = function () {
   };
 
   // Email body generator for Core Team notifications
-  const generateCoreTeamEmailBody = (user, infringement, additionalHours) => {
-    return `<p>Dear ${user.firstName},</p>
+  const generateCoreTeamEmailBody = (
+    user,
+    infringement,
+    additionalHours,
+  ) => `<p>Dear ${user.firstName},</p>
         <p>You have received a new blue square for not meeting the required hours.</p>
         <p>Infringement details:</p>
         <p>${infringement.description}</p>
@@ -1129,16 +1148,13 @@ const userHelper = function () {
         <p>Thank you for your continued dedication.</p>
         <p>Best regards,</p>
         <p>One Community</p>`;
-  };
 
   const deleteBlueSquareAfterYear = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowLA = moment().tz('America/Los_Angeles');
 
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
-    );
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
+    const cutOffDate = nowLA.clone().subtract(1, 'year').toDate();
 
     try {
       const results = await userProfile.updateMany(
@@ -1146,16 +1162,17 @@ const userHelper = function () {
         {
           $pull: {
             infringements: {
-              date: {
-                $lte: cutOffDate,
-              },
+              date: { $lte: cutOffDate },
             },
           },
         },
       );
 
-      logger.logInfo(`Job deleting blue squares older than 1 year finished
-        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
+      logger.logInfo(
+        `Job deleting blue squares older than 1 year finished at ${moment()
+          .tz('America/Los_Angeles')
+          .format()} \nResult: ${JSON.stringify(results)}`,
+      );
     } catch (err) {
       logger.logException(err);
     }
@@ -1239,8 +1256,11 @@ const userHelper = function () {
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
+    console.log('ORIGINAL', original);
     if (original.length) {
-      historyInfringements = original
+      const sortedForHistory = [...original].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      historyInfringements = sortedForHistory
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -1296,7 +1316,7 @@ const userHelper = function () {
               enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
             }
           }
-          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(new Date(item.date)).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }
@@ -1332,7 +1352,7 @@ const userHelper = function () {
         ),
         null,
         combinedCCList,
-        DEFAULT_REPLY_TO[0],
+        emailAddress,
         combinedBCCList,
         { type: 'blue_square_assignment' },
       );
@@ -2564,9 +2584,12 @@ const userHelper = function () {
     if (typeof data === 'object' && data !== null) {
       const result = Object.keys(data).some((key) => {
         if (typeof data[key] === 'object') {
-          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          const found = searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          return Boolean(found); // always returns boolean
         }
+        return false; // MUST return boolean here
       });
+
       return result ? data : null;
     }
     return [];

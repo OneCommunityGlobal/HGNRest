@@ -21,11 +21,9 @@ const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
-
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
-
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -682,6 +680,7 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
         'isStartDateManuallyModified',
       ];
 
@@ -1036,32 +1035,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getUserById = function (req, res) {
+  const getUserById = (req, res) => {
     const userid = req.params.userId;
-    // if (cache.getCache(`user-${userid}`)) {
-    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
-    //   res.status(200).send(getData);
-    //   return;
-    // }
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+
+    return UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
           path: 'teams',
           select: '_id teamName',
-          options: {
-            sort: {
-              teamName: 1,
-            },
-          },
+          options: { sort: { teamName: 1 } },
         },
         {
           path: 'projects',
           select: '_id projectName category',
-          options: {
-            sort: {
-              projectName: 1,
-            },
-          },
+          options: { sort: { projectName: 1 } },
         },
         {
           path: 'badgeCollection',
@@ -1072,28 +1059,37 @@ const userProfileController = function (UserProfile, Project) {
           },
         },
         {
-          path: 'infringements', // Populate infringements field
-          select: 'date description',
-          options: {
-            sort: {
-              date: -1, // Sort by date descending if needed
-            },
-          },
+          path: 'infringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
+        },
+        {
+          path: 'oldInfringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
         },
       ])
       .exec()
-      .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid user' });
-          return;
+      .then(async (user) => {
+        if (!user) {
+          return res.status(400).send({ error: 'This is not a valid user' });
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, {
-            strict: false,
-          });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
+
+        const current = Array.isArray(user.infringements) ? user.infringements : [];
+        const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
+
+        const infringements = [...old, ...current].sort((a, b) =>
+          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+        );
+
+        user.set('infringements', infringements, { strict: false });
+        user.set('oldInfringements', undefined, { strict: false });
+
+        const hours = await userHelper.getTangibleHoursReportedThisWeekByUserId(userid);
+        user.set('tangibleHoursReportedThisWeek', hours, { strict: false });
+
+        cache.setCache(`user-${userid}`, JSON.stringify(user));
+        return res.status(200).send(user);
       })
       .catch((error) => res.status(404).send(error));
   };
@@ -1844,7 +1840,7 @@ const userProfileController = function (UserProfile, Project) {
       const newInfringement = {
         ...req.body.blueSquare,
         // date:validDate,
-        date: new Date(inputDate),
+        date: inputDate,
 
         // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
@@ -1875,6 +1871,7 @@ const userProfileController = function (UserProfile, Project) {
       const originalinfringements = record?.infringements ?? [];
       // record.infringements = originalinfringements.concat(req.body.blueSquare);
       record.infringements = originalinfringements.concat(newInfringement);
+      record.infringementCount += 1;
 
       record
         .save()
@@ -1897,6 +1894,7 @@ const userProfileController = function (UserProfile, Project) {
           );
           res.status(200).json({
             _id: record._id,
+            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache
@@ -1974,6 +1972,7 @@ const userProfileController = function (UserProfile, Project) {
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
@@ -2057,7 +2056,9 @@ const userProfileController = function (UserProfile, Project) {
         teamCode: { $ne: null },
       });
 
-      distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
+      distinctTeamCodes = distinctTeamCodes
+        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .filter((code) => code !== '');
 
       try {
         cache.removeCache('teamCodes');
@@ -2150,14 +2151,24 @@ const userProfileController = function (UserProfile, Project) {
   const updateUserInformation = async function (req, res) {
     try {
       const data = req.body;
-      data.map(async (e) => {
-        const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
-        await result.save();
-      });
-      res.status(200).send({ message: 'Update successful' });
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).send({ error: 'No updates provided' });
+      }
+
+      const ops = data.map(({ user_id, item, value }) => ({
+        updateOne: {
+          filter: { _id: user_id },
+          update: { $set: { [item]: value } },
+        },
+      }));
+
+      await UserProfile.bulkWrite(ops);
+
+      return res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      return res.status(500);
+      console.error('Error updating user information:', error);
+      return res.status(500).send({ error: 'Internal server error' });
     }
   };
 
@@ -2358,6 +2369,74 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
+  const setFinalDay = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { date } = req.body;
+
+      console.log('=== DEBUG setFinalDay ===');
+      console.log('req.body.requestor:', req.body.requestor);
+      console.log('req.body.requestor.role:', req.body.requestor?.role);
+      console.log('req.body.requestor.permissions:', req.body.requestor?.permissions);
+
+      // Check if user has permission to set final day
+      if (!req.body.requestor) {
+        console.log('No requestor found');
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      // const requestor = req.body.requestor;
+      const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Insufficient permissions.',
+        });
+      }
+
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      const finalDate = new Date(date);
+
+      if (finalDate < user.startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final day cannot be before start date',
+          startDate: user.startDate,
+        });
+      }
+
+      user.endDate = finalDate;
+      const updatedUser = await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Final day set successfully',
+        user: {
+          id: updatedUser._id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          endDate: updatedUser.endDate,
+          isActive: updatedUser.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Error setting final day:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  };
   return {
     searchUsersByName,
     postUserProfile,
@@ -2396,6 +2475,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    setFinalDay,
   };
 };
 
