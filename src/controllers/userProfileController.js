@@ -1092,7 +1092,6 @@ const userProfileController = function (UserProfile, Project) {
             continue;
           }
 
-          // Prefer the one with a later createdDate if available
           const a = inf.createdDate ? new Date(inf.createdDate).getTime() : 0;
           const b = existing.createdDate ? new Date(existing.createdDate).getTime() : 0;
 
@@ -1101,7 +1100,6 @@ const userProfileController = function (UserProfile, Project) {
             continue;
           }
 
-          // If createdDate missing/equal, prefer the one with "larger" _id (usually newer in Mongo)
           const ida = String(inf._id || '');
           const idb = String(existing._id || '');
           if (ida > idb) {
