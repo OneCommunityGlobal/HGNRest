@@ -2369,45 +2369,87 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const setFinalDay = async (req, res) => {
+  const updateFinalDay = async (req, res) => {
     try {
       const { userId } = req.params;
-      const { date } = req.body;
+      const { endDate, isSet } = req.body;
+      const { requestor } = req.body;
 
-      console.log('=== DEBUG setFinalDay ===');
-      console.log('req.body.requestor:', req.body.requestor);
-      console.log('req.body.requestor.role:', req.body.requestor?.role);
-      console.log('req.body.requestor.permissions:', req.body.requestor?.permissions);
-
-      // Check if user has permission to set final day
-      if (!req.body.requestor) {
-        console.log('No requestor found');
+      // 1️⃣ Auth check
+      if (!requestor) {
         return res.status(401).json({
           success: false,
           message: 'Authentication required',
         });
       }
 
-      // const requestor = req.body.requestor;
-      const allowed = await hasPermission(req.body.requestor, 'setFinalDay');
+      // 2️⃣ Permission check (ONLY setFinalDay)
+      const allowed = await hasPermission(requestor, 'setFinalDay');
       if (!allowed) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Insufficient permissions.',
+          message: 'Access denied. Missing setFinalDay permission.',
         });
+      }
+
+      // 3️⃣ Validate target user
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: 'Invalid userId' });
       }
 
       const user = await UserProfile.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found',
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      /**
+       * =========================
+       * REMOVE FINAL DAY
+       * =========================
+       * Payload:
+       * { isSet: "RemoveFinalDay" }
+       */
+      if (isSet === 'RemoveFinalDay') {
+        user.endDate = null;
+        user.isSet = false;
+
+        await user.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Final day removed successfully',
+          user: {
+            id: user._id,
+            endDate: null,
+            isSet: false,
+          },
         });
       }
 
-      const finalDate = new Date(date);
+      /**
+       * =========================
+       * SET FINAL DAY
+       * =========================
+       * Payload:
+       * {
+       *   endDate: "2025-12-27T07:59:59.999Z",
+       *   isSet: "FinalDay"
+       * }
+       */
+      if (!endDate || isSet !== 'FinalDay') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid payload for setting final day',
+        });
+      }
 
-      if (finalDate < user.startDate) {
+      const parsedEndDate = new Date(endDate);
+      if (Number.isNaN(parsedEndDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid endDate format' });
+      }
+
+      // 4️⃣ Business rule: final day must be >= start date
+      if (user.startDate && parsedEndDate < user.startDate) {
         return res.status(400).json({
           success: false,
           message: 'Final day cannot be before start date',
@@ -2415,28 +2457,30 @@ const userProfileController = function (UserProfile, Project) {
         });
       }
 
-      user.endDate = finalDate;
-      const updatedUser = await user.save();
+      user.endDate = parsedEndDate; // already UTC-safe
+      user.isSet = true;
 
-      res.status(200).json({
+      await user.save();
+
+      return res.status(200).json({
         success: true,
         message: 'Final day set successfully',
         user: {
-          id: updatedUser._id,
-          firstName: updatedUser.firstName,
-          lastName: updatedUser.lastName,
-          endDate: updatedUser.endDate,
-          isActive: updatedUser.isActive,
+          id: user._id,
+          endDate: user.endDate,
+          isSet: true,
+          isActive: user.isActive,
         },
       });
     } catch (error) {
-      console.error('Error setting final day:', error);
-      res.status(500).json({
+      console.error('Error in setFinalDay:', error);
+      return res.status(500).json({
         success: false,
         message: 'Server error',
       });
     }
   };
+
   return {
     searchUsersByName,
     postUserProfile,
@@ -2475,7 +2519,7 @@ const userProfileController = function (UserProfile, Project) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
-    setFinalDay,
+    updateFinalDay,
   };
 };
 
