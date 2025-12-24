@@ -39,6 +39,7 @@ const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
+const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
@@ -94,6 +95,12 @@ const costs = require('../models/costs');
 const tag = require('../models/tag');
 const educationTask = require('../models/educationTask');
 const injujrySeverity = require('../models/bmdashboard/injujrySeverity');
+
+const browsableLessonPlanModel = require('../models/educationPortal/browsableLessonPlanModel');
+const browsableLessonPlanRouter = require('../routes/educationPortal/browsableLessonPlanRouter')(
+  browsableLessonPlanModel,
+  userProfile,
+);
 
 const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing');
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
@@ -419,6 +426,7 @@ module.exports = function (app) {
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+  app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
@@ -513,4 +521,6 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/education', browsableLessonPlanRouter);
 };
