@@ -880,8 +880,8 @@ const userHelper = function () {
             );
             const administrativeContent = {
               startDate: moment(person.startDate).utc().format('M-D-YYYY'),
-              role: person.role,
-              userTitle: person.jobTitle[0],
+              role: status.role,
+              userTitle: status.jobTitle[0] ?? 'N/A',
               historyInfringements,
             };
             if (person.role === 'Core Team' && timeRemaining > 0) {
