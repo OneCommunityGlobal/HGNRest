@@ -1078,15 +1078,43 @@ const userProfileController = function (UserProfile, Project) {
         const current = Array.isArray(user.infringements) ? user.infringements : [];
         const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
 
-        const infringements = [...old, ...current].sort((a, b) =>
+        const combined = [...current, ...old];
+
+        // build date -> best record
+        const byDate = new Map();
+
+        for (const inf of combined) {
+          if (!inf?.date) continue;
+
+          const existing = byDate.get(inf.date);
+          if (!existing) {
+            byDate.set(inf.date, inf);
+            continue;
+          }
+
+          // Prefer the one with a later createdDate if available
+          const a = inf.createdDate ? new Date(inf.createdDate).getTime() : 0;
+          const b = existing.createdDate ? new Date(existing.createdDate).getTime() : 0;
+
+          if (a > b) {
+            byDate.set(inf.date, inf);
+            continue;
+          }
+
+          // If createdDate missing/equal, prefer the one with "larger" _id (usually newer in Mongo)
+          const ida = String(inf._id || '');
+          const idb = String(existing._id || '');
+          if (ida > idb) {
+            byDate.set(inf.date, inf);
+          }
+        }
+
+        const infringements = Array.from(byDate.values()).sort((a, b) =>
           a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
         );
 
         user.set('infringements', infringements, { strict: false });
         user.set('oldInfringements', undefined, { strict: false });
-
-        const hours = await userHelper.getTangibleHoursReportedThisWeekByUserId(userid);
-        user.set('tangibleHoursReportedThisWeek', hours, { strict: false });
 
         cache.setCache(`user-${userid}`, JSON.stringify(user));
         return res.status(200).send(user);
