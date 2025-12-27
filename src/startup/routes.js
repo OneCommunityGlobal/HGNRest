@@ -328,6 +328,10 @@ const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+// commuity portal
+
+const activityRouter = require('../routes/activityRouter');
+
 const applicationRoutes = require('../routes/applications');
 const announcementRouter = require('../routes/announcementRouter')();
 
@@ -501,6 +505,12 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('api', bmIssueRouter);
+  // community portal
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
+
+
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 

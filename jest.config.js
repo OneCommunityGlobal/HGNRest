@@ -35,15 +35,11 @@ module.exports = {
     'html', // HTML report in coverage/ folder
     'json', // JSON report for parsing
   ],
-  testTimeout: 60000, // 1 minute for CI environments
+  testTimeout: 15000,
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   transformIgnorePatterns: ['^.+\\.js$'],
   transform: {
     '^.+\\.js$': 'babel-jest',
   },
-  setupFilesAfterEnv: ['<rootDir>/src/test/setup.js'],
-  // Simple CI settings
-  maxWorkers: 1, // Run tests sequentially
-  forceExit: true, // Force exit after tests complete
 };
