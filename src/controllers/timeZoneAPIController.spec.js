@@ -68,9 +68,9 @@ const unsuccessfulFetchRequestInternalServerError = jest.fn(() =>
 );
 
 const { hasPermission } = require('../utilities/permissions');
-const timeZoneAPIController = require('./timeZoneAPIController');
 const ProfileInitialSetupToken = require('../models/profileInitialSetupToken');
 const { mockReq, mockRes, assertResMock } = require('../test');
+const timeZoneAPIController = require('./timeZoneAPIController');
 
 const flushPromises = () => new Promise(setImmediate);
 const makeSut = () => {

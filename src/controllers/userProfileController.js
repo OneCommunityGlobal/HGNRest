@@ -1,5 +1,4 @@
 const moment = require('moment-timezone');
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -13,21 +12,23 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 // const { authorizedUserSara, authorizedUserJae } = process.env;
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
+// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
-
 const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
-
 const config = require('../config');
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
+
+// Import reports controller to access cache invalidation function
+const reportsController = require('./reportsController')();
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -189,6 +190,7 @@ const userProfileController = function (UserProfile, Project) {
             createdDate: 1,
             endDate: 1,
             timeZone: 1,
+            bioPosted: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -240,7 +242,13 @@ const userProfileController = function (UserProfile, Project) {
   const getUserProfileBasicInfo = async function (req, res) {
     try {
       if (!(await checkPermission(req, 'getUserProfiles'))) {
-        return res.status(403).send({ error: 'Unauthorized' });
+        forbidden(res, 'You are not authorized to view all users');
+        return;
+      }
+      const ALL_USERS_KEY = 'allusers_v1';
+      const cachedAll = cache.getCache(ALL_USERS_KEY);
+      if (cachedAll) {
+        return res.status(200).json(JSON.parse(cachedAll));
       }
 
       const userProfiles = await UserProfile.find(
@@ -491,7 +499,7 @@ const userProfileController = function (UserProfile, Project) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(501).send(error);
+      res.status(400).send(error);
     }
   };
 
@@ -517,6 +525,55 @@ const userProfileController = function (UserProfile, Project) {
 
       // Update bioPosted
       const updatedUser = await userService.updateBioPostedStatus(userId, bioPosted);
+
+      // Verify the update was successful by fetching the user directly from DB
+      const verificationUser = await UserProfile.findById(userId, 'bioPosted firstName lastName');
+      console.log(
+        `Database verification - User: ${verificationUser.firstName} ${verificationUser.lastName}, bioPosted: ${verificationUser.bioPosted}`,
+      );
+
+      if (verificationUser.bioPosted !== bioPosted) {
+        console.error(
+          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
+        );
+        return res.status(500).json({ error: 'Failed to update bio status in database.' });
+      }
+
+      // Clear caches to ensure updated data is displayed
+      cache.removeCache(`user-${userId}`);
+
+      // Update or invalidate the allusers cache if it exists
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIndex = allUserData.findIndex((user) => user._id === userId);
+
+        if (userIndex !== -1) {
+          // Update the bioPosted field in the cache
+          allUserData[userIndex].bioPosted = bioPosted;
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        } else {
+          // If user not found in cache, invalidate entire cache to be safe
+          cache.removeCache('allusers');
+        }
+      }
+
+      // Clear weekly summaries caches since bio status affects the weekly summaries report
+      // Invalidate cache for each week (0-3) - this will also invalidate the 'all' cache
+      console.log('Invalidating weekly summaries cache for bio status update for user:', userId);
+      for (let week = 0; week <= 3; week += 1) {
+        console.log(`Invalidating cache for week: ${week}`);
+        reportsController.invalidateWeeklySummariesCache(week);
+      }
+      console.log('All weekly summaries caches invalidated');
+
+      // Force clear all potential cache keys
+      for (let week = 0; week <= 10; week += 1) {
+        cache.removeCache(`weeklySummaries_${week}`);
+      }
+      cache.removeCache('weeklySummaries_all');
+      cache.removeCache('weeklySummaries_null');
+      cache.removeCache('weeklySummaries_undefined');
+      console.log('Manual cache clearing completed');
 
       return res.status(200).json({
         message: `Bio status updated to "${bioPosted}" successfully.`,
@@ -623,6 +680,8 @@ const userProfileController = function (UserProfile, Project) {
         'isFirstTimelog',
         'isVisible',
         'bioPosted',
+        'infringementCount',
+        'isStartDateManuallyModified',
       ];
 
       commonFields.forEach((fieldName) => {
@@ -698,19 +757,26 @@ const userProfileController = function (UserProfile, Project) {
           record.teams = Array.from(new Set(req.body.teams));
         }
 
-        if (req.body.projects !== undefined) {
-          const newProjects = req.body.projects.map((project) => project._id.toString());
+        if (Array.isArray(req.body.projects)) {
+          const newProjects = req.body.projects
+            .map((project) => {
+              if (!project) return null;
 
-          // check if the projects have changed
+              const id = project._id || project.projectId || project;
+
+              if (!id) return null;
+              return id.toString();
+            })
+            .filter(Boolean);
+
+          const oldProjects = (record.projects || []).map((id) => id.toString());
+
           const projectsChanged =
-            !record.projects.every((id) => newProjects.includes(id.toString())) ||
-            !newProjects.every((id) => record.projects.map((p) => p.toString()).includes(id));
+            oldProjects.length !== newProjects.length ||
+            !oldProjects.every((id) => newProjects.includes(id)) ||
+            !newProjects.every((id) => oldProjects.includes(id));
 
           if (projectsChanged) {
-            // store the old projects for comparison
-            const oldProjects = record.projects.map((id) => id.toString());
-
-            // update the projects
             record.projects = newProjects.map((id) => mongoose.Types.ObjectId(id));
 
             const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
@@ -778,16 +844,16 @@ const userProfileController = function (UserProfile, Project) {
           record.weeklycommittedHoursHistory[0].dateChanged = record.startDate;
         }
 
-        if (
-          req.body.permissions !== undefined &&
-          (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
-        ) {
-          record.permissions = {
-            isAcknowledged: false, // used to inform the user
-            ...req.body.permissions,
-          };
-          await logUserPermissionChangeByAccount(req);
-        }
+        // if (
+        //   req.body.permissions !== undefined &&
+        //   (await hasPermission(req.body.requestor, 'putUserProfilePermissions'))
+        // ) {
+        //   record.permissions = {
+        //     isAcknowledged: false, // used to inform the user
+        //     ...req.body.permissions,
+        //   };
+        //   await logUserPermissionChangeByAccount(req);
+        // }
 
         if (req.body.endDate !== undefined) {
           if (yearMonthDayDateValidator(req.body.endDate)) {
@@ -969,32 +1035,20 @@ const userProfileController = function (UserProfile, Project) {
     }
   };
 
-  const getUserById = function (req, res) {
+  const getUserById = (req, res) => {
     const userid = req.params.userId;
-    // if (cache.getCache(`user-${userid}`)) {
-    //   const getData = JSON.parse(cache.getCache(`user-${userid}`));
-    //   res.status(200).send(getData);
-    //   return;
-    // }
-    UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
+
+    return UserProfile.findById(userid, '-password -refreshTokens -lastModifiedDate -__v')
       .populate([
         {
           path: 'teams',
           select: '_id teamName',
-          options: {
-            sort: {
-              teamName: 1,
-            },
-          },
+          options: { sort: { teamName: 1 } },
         },
         {
           path: 'projects',
           select: '_id projectName category',
-          options: {
-            sort: {
-              projectName: 1,
-            },
-          },
+          options: { sort: { projectName: 1 } },
         },
         {
           path: 'badgeCollection',
@@ -1005,28 +1059,63 @@ const userProfileController = function (UserProfile, Project) {
           },
         },
         {
-          path: 'infringements', // Populate infringements field
-          select: 'date description',
-          options: {
-            sort: {
-              date: -1, // Sort by date descending if needed
-            },
-          },
+          path: 'infringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
+        },
+        {
+          path: 'oldInfringements',
+          select: '_id date description createdDate',
+          options: { sort: { date: -1 } },
         },
       ])
       .exec()
-      .then((results) => {
-        if (!results) {
-          res.status(400).send({ error: 'This is not a valid user' });
-          return;
+      .then(async (user) => {
+        if (!user) {
+          return res.status(400).send({ error: 'This is not a valid user' });
         }
-        userHelper.getTangibleHoursReportedThisWeekByUserId(userid).then((hours) => {
-          results.set('tangibleHoursReportedThisWeek', hours, {
-            strict: false,
-          });
-          cache.setCache(`user-${userid}`, JSON.stringify(results));
-          res.status(200).send(results);
-        });
+
+        const current = Array.isArray(user.infringements) ? user.infringements : [];
+        const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
+
+        const combined = [...current, ...old];
+
+        // build date -> best record
+        const byDate = new Map();
+
+        for (const inf of combined) {
+          if (!inf?.date) continue;
+
+          const existing = byDate.get(inf.date);
+          if (!existing) {
+            byDate.set(inf.date, inf);
+            continue;
+          }
+
+          const a = inf.createdDate ? new Date(inf.createdDate).getTime() : 0;
+          const b = existing.createdDate ? new Date(existing.createdDate).getTime() : 0;
+
+          if (a > b) {
+            byDate.set(inf.date, inf);
+            continue;
+          }
+
+          const ida = String(inf._id || '');
+          const idb = String(existing._id || '');
+          if (ida > idb) {
+            byDate.set(inf.date, inf);
+          }
+        }
+
+        const infringements = Array.from(byDate.values()).sort((a, b) =>
+          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+        );
+
+        user.set('infringements', infringements, { strict: false });
+        user.set('oldInfringements', undefined, { strict: false });
+
+        cache.setCache(`user-${userid}`, JSON.stringify(user));
+        return res.status(200).send(user);
       })
       .catch((error) => res.status(404).send(error));
   };
@@ -1095,6 +1184,39 @@ const userProfileController = function (UserProfile, Project) {
         return user
           .save()
           .then(() => {
+            // If bioPosted was updated via this generic property route,
+            // update caches and invalidate weekly summaries to avoid stale data.
+            if (key === 'bioPosted') {
+              try {
+                // Update or invalidate the allusers cache
+                if (cache.hasCache('allusers')) {
+                  const allUserData = JSON.parse(cache.getCache('allusers'));
+                  const userIdx = allUserData.findIndex((u) => u._id === userId);
+                  if (userIdx !== -1) {
+                    allUserData[userIdx].bioPosted = value;
+                    cache.setCache('allusers', JSON.stringify(allUserData));
+                  } else {
+                    cache.removeCache('allusers');
+                  }
+                }
+
+                // Invalidate weekly summaries caches, as bioPosted is part of that response
+                for (let week = 0; week <= 3; week += 1) {
+                  reportsController.invalidateWeeklySummariesCache(week);
+                }
+                for (let week = 0; week <= 10; week += 1) {
+                  cache.removeCache(`weeklySummaries_${week}`);
+                }
+                cache.removeCache('weeklySummaries_all');
+                cache.removeCache('weeklySummaries_null');
+                cache.removeCache('weeklySummaries_undefined');
+              } catch (e) {
+                // non-blocking cache invalidation
+                // eslint-disable-next-line no-console
+                console.error('Error invalidating caches after bioPosted update:', e);
+              }
+            }
+
             res.status(200).send({ message: 'updated property' });
             auditIfProtectedAccountUpdated(
               req.body.requestor.requestorId,
@@ -1382,7 +1504,11 @@ const userProfileController = function (UserProfile, Project) {
               const userIdx = allUserData.findIndex((users) => users._id === userId);
               const userData = allUserData[userIdx];
               if (!status) {
-                userData.endDate = user.endDate.toISOString();
+                if (user.endDate) {
+                  userData.endDate = user.endDate.toISOString();
+                } else {
+                  userData.endDate = null;
+                }
               }
               userData.isActive = user.isActive;
               allUserData.splice(userIdx, 1, userData);
@@ -1410,10 +1536,12 @@ const userProfileController = function (UserProfile, Project) {
             });
           })
           .catch((error) => {
+            console.log(error);
             res.status(500).send(error);
           });
       })
       .catch((error) => {
+        console.log(error);
         res.status(500).send(error);
       });
   };
@@ -1714,6 +1842,7 @@ const userProfileController = function (UserProfile, Project) {
       res.status(403).send('You are not authorized to add blue square');
       return;
     }
+
     const userid = req.params.userId;
 
     cache.removeCache(`user-${userid}`);
@@ -1728,6 +1857,32 @@ const userProfileController = function (UserProfile, Project) {
         res.status(404).send('No valid records found');
         return;
       }
+      const inputDate = req.body.blueSquare.date;
+      const isValidDate = moment(inputDate, moment.ISO_8601, true).isValid();
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
+      const newInfringement = {
+        ...req.body.blueSquare,
+        // date:validDate,
+        date: inputDate,
+
+        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
+        // Handle reason - default to 'missingHours' if not provided
+        reason: [
+          'missingHours',
+          'missingTimeEntry',
+          'missingSummary',
+          'vacationTime',
+          'other',
+        ].includes(req.body.blueSquare.reason)
+          ? req.body.blueSquare.reason
+          : 'missingHours',
+        // Maintain backward compatibility
+      };
+      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
+
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
@@ -1740,11 +1895,18 @@ const userProfileController = function (UserProfile, Project) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      record.infringements = originalinfringements.concat(req.body.blueSquare);
+      // record.infringements = originalinfringements.concat(req.body.blueSquare);
+      record.infringements = originalinfringements.concat(newInfringement);
+      record.infringementCount += 1;
 
       record
         .save()
         .then(async (results) => {
+          console.log(
+            '✅ Infringements saved in DB:',
+            JSON.stringify(results.infringements, null, 2),
+          );
+
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
@@ -1758,6 +1920,7 @@ const userProfileController = function (UserProfile, Project) {
           );
           res.status(200).json({
             _id: record._id,
+            infringements: record.infringements,
           });
 
           // update alluser cache if we have cache
@@ -1776,7 +1939,7 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-    const { dateStamp, summary } = req.body;
+    const { dateStamp, summary, reasons } = req.body;
 
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
@@ -1790,6 +1953,9 @@ const userProfileController = function (UserProfile, Project) {
         if (blueSquare._id.equals(blueSquareId)) {
           blueSquare.date = dateStamp ?? blueSquare.date;
           blueSquare.description = summary ?? blueSquare.description;
+          if (Array.isArray(reasons)) {
+            blueSquare.reasons = reasons;
+          }
         }
         return blueSquare;
       });
@@ -1822,18 +1988,17 @@ const userProfileController = function (UserProfile, Project) {
       return;
     }
     const { userId, blueSquareId } = req.params;
-
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
         return;
       }
-
       const originalinfringements = record?.infringements ?? [];
 
       record.infringements = originalinfringements.filter(
         (infringement) => !infringement._id.equals(blueSquareId),
       );
+      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
       record
         .save()
@@ -1853,7 +2018,10 @@ const userProfileController = function (UserProfile, Project) {
             _id: record._id,
           });
         })
-        .catch((error) => res.status(400).send(error));
+
+        .catch((error) => {
+          res.status(400).send(error);
+        });
     });
   };
 
@@ -1914,7 +2082,9 @@ const userProfileController = function (UserProfile, Project) {
         teamCode: { $ne: null },
       });
 
-      distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== '');
+      distinctTeamCodes = distinctTeamCodes
+        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .filter((code) => code !== '');
 
       try {
         cache.removeCache('teamCodes');
@@ -1948,7 +2118,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user_id}`);
       return res.status(200).send({ message: 'Image Removed' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Error Removing Image' });
     }
   };
@@ -1965,7 +2134,6 @@ const userProfileController = function (UserProfile, Project) {
       cache.removeCache(`user-${user.user_id}`);
       return res.status(200).send({ message: 'Profile Updated' });
     } catch (err) {
-      console.log(err);
       return res.status(404).send({ message: 'Profile Update Failed' });
     }
   };
@@ -2009,15 +2177,117 @@ const userProfileController = function (UserProfile, Project) {
   const updateUserInformation = async function (req, res) {
     try {
       const data = req.body;
-      data.map(async (e) => {
-        const result = await UserProfile.findById(e.user_id);
-        result[e.item] = e.value;
-        await result.save();
-      });
-      res.status(200).send({ message: 'Update successful' });
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).send({ error: 'No updates provided' });
+      }
+
+      const ops = data.map(({ user_id, item, value }) => ({
+        updateOne: {
+          filter: { _id: user_id },
+          update: { $set: { [item]: value } },
+        },
+      }));
+
+      await UserProfile.bulkWrite(ops);
+
+      return res.status(200).send({ message: 'Update successful' });
     } catch (error) {
-      console.log(error);
-      return res.status(500);
+      console.error('Error updating user information:', error);
+      return res.status(500).send({ error: 'Internal server error' });
+    }
+  };
+
+  const getAllMembersSkillsAndContact = async function (req, res) {
+    try {
+      // Get user ID from requestor object added by middleware
+      if (!req.body.requestor || !req.body.requestor.requestorId) {
+        return res.status(401).send({ message: 'User not authenticated' });
+      }
+
+      const userId = req.body.requestor.requestorId;
+
+      // Get skill parameter
+      const skillName = req.params.skill;
+      if (!skillName) {
+        return res.status(400).send({ message: 'Skill parameter is required' });
+      }
+
+      // Get all form responses except for the current user
+      const formResponses = await HGNFormResponses.find({
+        user_id: { $ne: userId }, // Exclude current user
+      }).lean();
+
+      // Get user IDs from form responses
+      const userIds = formResponses.map((response) => response.user_id);
+
+      // Get user profiles to get privacy settings
+      const userProfiles = await UserProfile.find({
+        _id: { $in: userIds },
+      })
+        .select('_id email phoneNumber privacySettings')
+        .lean();
+
+      // Create a map of user profiles by ID for faster lookup
+      const profileMap = userProfiles.reduce((map, profile) => {
+        map[profile._id.toString()] = profile;
+        return map;
+      }, {});
+
+      // Map data with privacy considerations
+      const membersData = formResponses
+        .map((response) => {
+          const profile = profileMap[response.user_id];
+
+          if (!profile) {
+            return null;
+          }
+
+          let score = 0;
+
+          // Check for skill score in frontend or backend
+          if (response.frontend && response.frontend[skillName] !== undefined) {
+            score = parseInt(response.frontend[skillName], 10) || 0;
+          } else if (response.backend && response.backend[skillName] !== undefined) {
+            score = parseInt(response.backend[skillName], 10) || 0;
+          }
+
+          // Apply privacy settings
+          const email = profile.privacySettings?.email === false ? null : profile.email;
+
+          // Get phone number with privacy consideration
+          let phoneNumber = null;
+          if (profile.privacySettings?.phoneNumber !== false) {
+            if (profile.phoneNumber && profile.phoneNumber.length > 0) {
+              const [firstPhoneNumber] = profile.phoneNumber;
+              phoneNumber = firstPhoneNumber;
+            }
+          }
+
+          return {
+            name: response.userInfo.name,
+            email,
+            phoneNumber,
+            slack: response.userInfo.slack,
+            rating: `${score} / 10`,
+          };
+        })
+        .filter((item) => item !== null);
+
+      // Sort by skill score (highest first)
+      const sortedData = [...membersData].sort((a, b) => {
+        const scoreA = parseInt(a.rating.split(' / ')[0], 10);
+        const scoreB = parseInt(b.rating.split(' / ')[0], 10);
+        return scoreB - scoreA;
+      });
+
+      return res.status(200).send(sortedData);
+    } catch (error) {
+      console.error('Error in getAllMembersSkillsAndContact:', error);
+      return res.status(500).send({
+        message: 'Failed to retrieve members',
+        error: error.message,
+      });
     }
   };
 
@@ -2045,35 +2315,72 @@ const userProfileController = function (UserProfile, Project) {
 
       const updatedUsersInfo = await Promise.all(
         usersToUpdate.map(async (user) => {
-          user.teamCode = newTeamCode;
-          let { teamCodeWarning } = user;
+          // if (!user || !user._id || !newTeamCode) {
+          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
+          //   return null;
+          // }
+          // user.teamCode = newTeamCode;
+          // let { teamCodeWarning } = user;
+          let teamCodeWarning = user.teamCodeWarning ?? false;
 
           if (warningUsers && warningUsers.includes(user._id.toString())) {
             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
           }
 
+          // return {
+          //   updateOne: {
+          //     // filter: { _id: user._id },
+          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
+          //     update: {
+          //       $set: {
+          //         teamCode: newTeamCode,
+          //         // teamCodeWarning: teamCodeWarning ?? false,
+          //         teamCodeWarning,
+          //       },
+          //     },
+          //   },
+          //   userInfo: {
+          //     userId: user._id,
+          //     teamCodeWarning,
+          //   },
+          // };
           return {
-            updateOne: {
-              filter: { _id: user._id },
-              update: {
-                $set: {
-                  teamCode: newTeamCode,
-                  teamCodeWarning,
-                },
-              },
-            },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id,
+            teamCodeWarning,
           };
         }),
       );
 
+      // Filter out null entries
+      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
+      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
 
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
       // 2. Execute all updates at once
+      // if (bulkOps.length > 0) {
+      //   await UserProfile.bulkWrite(bulkOps);
+      // } else {
+      //   console.warn('Invalid bulkOps detected. Aborting write.');
+      // }
+
+      // ✅ Build the proper bulkWrite payload
+      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+        updateOne: {
+          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
+          update: {
+            $set: {
+              teamCode: newTeamCode,
+              teamCodeWarning,
+            },
+          },
+        },
+      }));
+
+      // // ✅ Log structure
+      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
+
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
@@ -2085,6 +2392,118 @@ const userProfileController = function (UserProfile, Project) {
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
+  const updateFinalDay = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { endDate, isSet } = req.body;
+      const { requestor } = req.body;
+
+      // 1️⃣ Auth check
+      if (!requestor) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      // 2️⃣ Permission check (ONLY setFinalDay)
+      const allowed = await hasPermission(requestor, 'setFinalDay');
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Missing setFinalDay permission.',
+        });
+      }
+
+      // 3️⃣ Validate target user
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: 'Invalid userId' });
+      }
+
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      /**
+       * =========================
+       * REMOVE FINAL DAY
+       * =========================
+       * Payload:
+       * { isSet: "RemoveFinalDay" }
+       */
+      if (isSet === 'RemoveFinalDay') {
+        user.endDate = null;
+        user.isSet = false;
+
+        await user.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Final day removed successfully',
+          user: {
+            id: user._id,
+            endDate: null,
+            isSet: false,
+          },
+        });
+      }
+
+      /**
+       * =========================
+       * SET FINAL DAY
+       * =========================
+       * Payload:
+       * {
+       *   endDate: "2025-12-27T07:59:59.999Z",
+       *   isSet: "FinalDay"
+       * }
+       */
+      if (!endDate || isSet !== 'FinalDay') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid payload for setting final day',
+        });
+      }
+
+      const parsedEndDate = new Date(endDate);
+      if (Number.isNaN(parsedEndDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid endDate format' });
+      }
+
+      // 4️⃣ Business rule: final day must be >= start date
+      if (user.startDate && parsedEndDate < user.startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final day cannot be before start date',
+          startDate: user.startDate,
+        });
+      }
+
+      user.endDate = parsedEndDate; // already UTC-safe
+      user.isSet = true;
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Final day set successfully',
+        user: {
+          id: user._id,
+          endDate: user.endDate,
+          isSet: true,
+          isActive: user.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Error in setFinalDay:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
     }
   };
 
@@ -2124,7 +2543,9 @@ const userProfileController = function (UserProfile, Project) {
     getUserByAutocomplete,
     getUserProfileBasicInfo,
     updateUserInformation,
+    getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    updateFinalDay,
   };
 };
 
