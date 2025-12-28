@@ -532,6 +532,8 @@ const userHelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
   const assignBlueSquareForTimeNotMet = async () => {
+    const t0 = Date.now();
+    console.log('[BlueSquare] start');
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
@@ -586,6 +588,11 @@ const userHelper = function () {
 
       const emailQueue = [];
       for (let i = 0; i < users.length; i += 1) {
+        if (i % 50 === 0) {
+          console.log(
+            `[BlueSquare] processed ${i}/${users.length} users in ${(Date.now() - t0) / 1000}s`,
+          );
+        }
         const user = users[i];
         // avoid multiple db calls and fetch necessary data in first db call??
         // const person = await userProfile.findById(user._id);
@@ -881,7 +888,7 @@ const userHelper = function () {
             const administrativeContent = {
               startDate: moment(person.startDate).utc().format('M-D-YYYY'),
               role: status.role,
-              userTitle: status.jobTitle[0] ?? 'N/A',
+              userTitle: status.jobTitle?.[0] ?? 'N/A',
               historyInfringements,
             };
             if (person.role === 'Core Team' && timeRemaining > 0) {
