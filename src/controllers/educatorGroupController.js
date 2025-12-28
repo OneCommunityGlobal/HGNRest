@@ -2,11 +2,13 @@ const StudentGroup = require('../models/studentGroup');
 const StudentGroupMember = require('../models/studentGroupMember');
 const UserProfile = require('../models/userProfile');
 
+/**
+ * Get all students (for educator selection UI)
+ */
 exports.getAllStudents = async (req, res) => {
   try {
-    // Fetch all users with role 'student'
     const students = await UserProfile.find({ role: 'student' })
-      .select('_id firstName lastName email')
+      .select('_id firstName lastName')
       .sort({ firstName: 1 });
 
     res.status(200).json(students);
@@ -16,67 +18,57 @@ exports.getAllStudents = async (req, res) => {
   }
 };
 
+/**
+ * Create a new student group (educator-owned)
+ */
 exports.createGroup = async (req, res) => {
   try {
-    const { name, description, studentIds = [] } = req.body;
+    const { description, studentIds = [] } = req.body;
+    const educatorId = req.user;
 
-    if (!name) {
-      return res.status(400).json({ error: 'Group name is required.' });
-    }
+    // Create group
+    const group = await StudentGroup.create({
+      educator_id: educatorId,
+      description,
+    });
 
-    // Create the group itself
-    const group = await StudentGroup.create({ name, description });
-
-    // If there are students, insert them into StudentGroupMember
+    // Add members if provided
     if (Array.isArray(studentIds) && studentIds.length > 0) {
-      const docs = studentIds.map((id) => ({
-        groupId: group._id,
-        studentId: id,
+      const members = studentIds.map((studentId) => ({
+        group_id: group._id,
+        student_id: studentId,
       }));
 
-      try {
-        const inserted = await StudentGroupMember.insertMany(docs, { ordered: false });
-        console.log(`Added ${inserted.length} members to group ${group.name}`);
-      } catch (insertErr) {
-        console.warn('Some members may already exist or failed to insert:', insertErr.message);
-      }
-    } else {
-      console.log('No studentIds provided — created empty group.');
+      await StudentGroupMember.insertMany(members, { ordered: false }).catch(() => {});
     }
 
-    // Return created group (optionally include members)
-    const populatedGroup = await StudentGroup.findById(group._id).populate({
-      path: 'members',
-      populate: { path: 'studentId', select: 'firstName lastName email' },
-    });
+    // Populate educator so virtual `name` works
+    const populatedGroup = await StudentGroup.findById(group._id).populate(
+      'educator_id',
+      'firstName lastName',
+    );
 
     res.status(201).json({
       message: 'Group created successfully',
-      group: populatedGroup || group,
+      group: populatedGroup,
     });
-  } catch (err) {
-    console.error('Error creating group:', err);
-    res.status(400).json({ error: err.message });
+  } catch (error) {
+    console.error('Error creating group:', error);
+    res.status(400).json({ error: error.message });
   }
 };
 
-exports.addMembers = async (req, res) => {
-  const { groupId } = req.params;
-  const { studentIds } = req.body;
-
-  const docs = studentIds.map((id) => ({ groupId, studentId: id }));
-  await StudentGroupMember.insertMany(docs, { ordered: false }).catch(() => {});
-  res.status(201).json({ added: studentIds.length });
-};
-
+/**
+ * Get all groups for logged-in educator
+ */
 exports.getGroups = async (req, res) => {
   try {
-    // Fetch all groups from the database
-    const groups = await StudentGroup.find({})
-      .populate('members', 'firstName lastName email') // optional
-      .sort({ createdAt: -1 }); // newest first (optional)
+    const educatorId = req.user;
 
-    // Send JSON response
+    const groups = await StudentGroup.find({ educator_id: educatorId })
+      .populate('educator_id', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
     res.status(200).json(groups);
   } catch (error) {
     console.error('Error fetching groups:', error);
@@ -84,39 +76,145 @@ exports.getGroups = async (req, res) => {
   }
 };
 
+/**
+ * Get members of a specific group
+ */
 exports.getGroupMembers = async (req, res) => {
   try {
     const { groupId } = req.params;
-    console.log('Incoming GET /groups/:groupId/members, groupId =', groupId);
-    if (!groupId) {
-      return res.status(400).json({ error: 'Missing groupId parameter' });
+    const educatorId = req.user;
+
+    // Ownership check
+    const group = await StudentGroup.findOne({
+      _id: groupId,
+      educator_id: educatorId,
+    });
+
+    if (!group) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
     }
-    const members = await StudentGroupMember.find({ groupId }).populate(
-      'studentId',
-      'firstName lastName email',
+
+    const members = await StudentGroupMember.find({ group_id: groupId }).populate(
+      'student_id',
+      'firstName lastName',
     );
+
     res.status(200).json(members);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+  } catch (error) {
+    console.error('Error fetching group members:', error);
+    res.status(400).json({ error: error.message });
   }
 };
 
-exports.updateGroup = async (req, res) => {
-  const { groupId } = req.params;
-  const group = await StudentGroup.findByIdAndUpdate(groupId, req.body, { new: true });
-  res.json(group);
+/**
+ * Add students to a group
+ */
+exports.addMembers = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { studentIds } = req.body;
+    const educatorId = req.user;
+
+    const group = await StudentGroup.findOne({
+      _id: groupId,
+      educator_id: educatorId,
+    });
+
+    if (!group) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
+    }
+
+    const members = studentIds.map((studentId) => ({
+      group_id: groupId,
+      student_id: studentId,
+    }));
+
+    await StudentGroupMember.insertMany(members, { ordered: false }).catch(() => {});
+    res.status(201).json({ added: studentIds.length });
+  } catch (error) {
+    console.error('Error adding members:', error);
+    res.status(400).json({ error: error.message });
+  }
 };
 
-exports.deleteGroup = async (req, res) => {
-  const { groupId } = req.params;
-  await StudentGroup.findByIdAndDelete(groupId);
-  await StudentGroupMember.deleteMany({ groupId });
-  res.status(204).send();
-};
-
+/**
+ * Remove students from a group
+ */
 exports.removeMembers = async (req, res) => {
-  const { groupId } = req.params;
-  const { studentIds } = req.body;
-  await StudentGroupMember.deleteMany({ groupId, studentId: { $in: studentIds } });
-  res.status(200).json({ removed: studentIds.length });
+  try {
+    const { groupId } = req.params;
+    const { studentIds } = req.body;
+    const educatorId = req.user;
+
+    const group = await StudentGroup.findOne({
+      _id: groupId,
+      educator_id: educatorId,
+    });
+
+    if (!group) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
+    }
+
+    await StudentGroupMember.deleteMany({
+      group_id: groupId,
+      student_id: { $in: studentIds },
+    });
+
+    res.status(200).json({ removed: studentIds.length });
+  } catch (error) {
+    console.error('Error removing members:', error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+/**
+ * Delete a group and its members
+ */
+exports.deleteGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const educatorId = req.user;
+
+    const group = await StudentGroup.findOneAndDelete({
+      _id: groupId,
+      educator_id: educatorId,
+    });
+
+    if (!group) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
+    }
+
+    await StudentGroupMember.deleteMany({ group_id: groupId });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting group:', error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+/**
+ * Update group details (e.g., description)
+ */
+exports.updateGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { description } = req.body;
+    const educatorId = req.user;
+
+    // Ensure educator owns this group
+    const group = await StudentGroup.findOneAndUpdate(
+      { _id: groupId, educator_id: educatorId },
+      { description },
+      { new: true },
+    );
+
+    if (!group) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
+    }
+
+    res.status(200).json(group);
+  } catch (error) {
+    console.error('Error updating group:', error);
+    res.status(400).json({ error: error.message });
+  }
 };
