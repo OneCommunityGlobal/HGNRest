@@ -7,6 +7,7 @@ const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/socialPostScheduler')();
 
 require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');

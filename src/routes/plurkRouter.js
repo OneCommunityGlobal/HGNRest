@@ -1,100 +1,113 @@
 /* eslint-disable quotes */
 const express = require('express');
-const { OAuth } = require('oauth');
+const cheerio = require('cheerio');
+const ScheduledPost = require('../models/scheduledPostSchema');
 
 const router = express.Router();
 
-// --- Require these from environment ---
-const { PLURK_CONSUMER_KEY, PLURK_CONSUMER_SECRET, PLURK_TOKEN, PLURK_TOKEN_SECRET } = process.env;
+function extractTextAndImgUrl(htmlString) {
+  const $ = cheerio.load(htmlString);
 
-// Quick sanity check so we fail fast on misconfig
-function requireEnv(name) {
-  if (!process.env[name] || !String(process.env[name]).trim()) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
+  const textContent = $('body').text().replace(/\+/g, '').trim();
+  const urlSrcs = [];
+  const base64Srcs = [];
+
+  $('img').each((i, img) => {
+    const src = $(img).attr('src');
+    if (src) {
+      if (src.startsWith('data:image')) {
+        base64Srcs.push(src);
+      } else {
+        urlSrcs.push(src);
+      }
+    }
+  });
+
+  return { textContent, urlSrcs, base64Srcs };
 }
-['PLURK_CONSUMER_KEY', 'PLURK_CONSUMER_SECRET', 'PLURK_TOKEN', 'PLURK_TOKEN_SECRET'].forEach(
-  requireEnv,
-);
 
-// OAuth 1.0a client
-const oauth = new OAuth(
-  'https://www.plurk.com/OAuth/request_token',
-  'https://www.plurk.com/OAuth/access_token',
-  PLURK_CONSUMER_KEY,
-  PLURK_CONSUMER_SECRET,
-  '1.0a',
-  null,
-  'HMAC-SHA1',
-  32,
-  {
-    Accept: '*/*',
-    Connection: 'close',
-    'User-Agent': 'Node authentication',
-    'Content-Type': 'application/x-www-form-urlencoded',
-  },
-);
+const { postToPlurk } = require('../controllers/plurkController');
 
-router.post('/postToPlurk', (req, res) => {
+router.post('/postToPlurk', async (req, res) => {
   console.log('Received request to /postToPlurk', req.body);
 
   try {
     const content = (req.body?.content || '').trim();
-
-    if (!content) {
-      return res.status(400).json({ error: 'Plurk content cannot be empty.' });
+    const result = await postToPlurk(content);
+    return res.json({
+      plurk_id: result.plurk_id,
+      posted: result.posted,
+      qualifier: result.qualifier,
+    });
+  } catch (err) {
+    if (
+      err.message === 'Plurk content cannot be empty.' ||
+      err.message === 'Plurk content must be 360 chars or less.'
+    ) {
+      return res.status(400).json({ error: err.message });
     }
-    if (content.length > 360) {
-      return res.status(400).json({ error: 'Plurk content must be 360 chars or less.' });
+    if (err.statusCode) {
+      return res
+        .status(err.statusCode)
+        .json({ error: err.data || err.message || 'Plurk API failed' });
     }
-
-    const url = 'https://www.plurk.com/APP/Timeline/plurkAdd';
-    const params = {
-      content,
-      qualifier: ':',
-      lang: 'en',
-    };
-
-    oauth.post(
-      url,
-      PLURK_TOKEN,
-      PLURK_TOKEN_SECRET,
-      params,
-      'application/x-www-form-urlencoded',
-      (err, data) => {
-        if (err) {
-          console.error('Plurk API Error Details:', {
-            statusCode: err.statusCode,
-            data: err.data,
-            message: err.message,
-            requestUrl: url,
-            hasToken: !!PLURK_TOKEN,
-            hasTokenSecret: !!PLURK_TOKEN_SECRET,
-            requestBody: params,
-            headers: err.headers,
-          });
-          return res
-            .status(err.statusCode || 500)
-            .json({ error: err.data || err.message || 'Plurk API failed' });
-        }
-
-        try {
-          const parsed = JSON.parse(data);
-          console.log('Plurk posted successfully:', parsed);
-          return res.json({
-            plurk_id: parsed.plurk_id,
-            posted: parsed.posted,
-            qualifier: parsed.qualifier,
-          });
-        } catch (parseErr) {
-          console.error('Plurk parse error:', parseErr);
-          return res.status(502).json({ error: 'Invalid Plurk response' });
-        }
-      },
-    );
-  } catch (e) {
-    console.error('Plurk route error:', e);
+    console.error('Plurk route error:', err);
     return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/schedulePost', async (req, res) => {
+  console.log('Received request to /schedulePost', req.body);
+  try {
+    const { textContent, urlSrcs, base64Srcs } = extractTextAndImgUrl(req.body.EmailContent);
+    const scheduledDate = req.body.ScheduleDate;
+    const scheduledTime = req.body.ScheduleTime;
+
+    if (!scheduledDate || !scheduledTime) {
+      return res
+        .status(400)
+        .json({ error: 'Missing required parameters: scheduledDate or scheduledTime' });
+    }
+
+    const platform = 'plurk';
+    const newScheduledPost = new ScheduledPost({
+      textContent,
+      urlSrcs,
+      base64Srcs,
+      scheduledDate,
+      scheduledTime,
+      platform,
+      status: 'scheduled',
+    });
+
+    const savedPost = await newScheduledPost.save();
+    console.log('Scheduled Plurk post saved:', savedPost);
+    return res.status(200).json({ success: true, scheduledPost: savedPost });
+  } catch (error) {
+    console.error('Plurk schedule error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/deleteSchedulePost', async (req, res) => {
+  console.log('Received request to /deleteSchedulePost', req.body);
+  const { _id } = req.body;
+
+  if (!_id) {
+    return res.status(400).json({ error: 'Missing required parameter: _id' });
+  }
+
+  try {
+    const deletedPost = await ScheduledPost.findOneAndDelete({ _id });
+
+    if (!deletedPost) {
+      return res.status(404).json({ error: 'Post not found or already deleted' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Plurk delete schedule error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
