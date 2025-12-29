@@ -1,8 +1,8 @@
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
-const userProfileController = require('./userProfileController');
 const userProfile = require('../models/userProfile');
 const projectModel = require('../models/project');
+const userProfileController = require('./userProfileController');
 
 const controller = userProfileController(userProfile, projectModel);
 const { getAllTeamCodeHelper } = controller;
@@ -13,12 +13,19 @@ const titlecontroller = function (Title) {
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
   async function checkTeamCodeExists(teamCode) {
     try {
-      if (cache.getCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes.includes(teamCode);
+      const normalizedCode = (teamCode || '').trim().toUpperCase();
+      if (!normalizedCode) return false;
+
+      let teamCodes;
+
+      const cached = cache.getCache('teamCodes');
+      if (cached) {
+        teamCodes = JSON.parse(cached);
+      } else {
+        teamCodes = await getAllTeamCodeHelper();
       }
-      const teamCodes = await getAllTeamCodeHelper();
-      return teamCodes.includes(teamCode);
+
+      return teamCodes.some((code) => (code || '').trim().toUpperCase() === normalizedCode);
     } catch (error) {
       console.error('Error checking if team code exists:', error);
       throw error;
