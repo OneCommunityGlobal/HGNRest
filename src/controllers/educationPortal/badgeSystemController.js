@@ -9,7 +9,7 @@ const badgeSystemController = function () {
     // eslint-disable-next-line no-console
     console.error('Badge Controller Error:', error);
     const statusCode = error.statusCode || (error.message.includes('not found') ? 404 : 500);
-    
+
     res.status(statusCode).json({
       success: false,
       message: error.message || defaultMessage,
@@ -40,7 +40,7 @@ const badgeSystemController = function () {
   const getBadgeById = async (req, res) => {
     try {
       const { badge_id: badgeId } = req.body.badge_id ? req.body : req.query;
-      
+
       if (!badgeId) {
         return res.status(400).json({
           success: false,
@@ -107,7 +107,7 @@ const badgeSystemController = function () {
   const updateBadge = async (req, res) => {
     try {
       const { badge_id: badgeId } = req.body;
-      
+
       if (!badgeId) {
         return res.status(400).json({
           success: false,
@@ -129,7 +129,7 @@ const badgeSystemController = function () {
         'metadata',
       ];
 
-      allowedFields.forEach(field => {
+      allowedFields.forEach((field) => {
         if (req.body[field] !== undefined) {
           updateData[field] = req.body[field];
         }
@@ -150,7 +150,7 @@ const badgeSystemController = function () {
   const deleteBadge = async (req, res) => {
     try {
       const { badge_id: badgeId } = req.body;
-      
+
       if (!badgeId) {
         return res.status(400).json({
           success: false,
@@ -172,7 +172,7 @@ const badgeSystemController = function () {
   const getStudentBadges = async (req, res) => {
     try {
       const studentId = req.headers.userid || req.headers.userId;
-      
+
       if (!studentId) {
         return res.status(400).json({
           success: false,
@@ -200,7 +200,7 @@ const badgeSystemController = function () {
     try {
       const { reason } = req.body;
       const studentId = req.headers.userid || req.headers.userId;
-      
+
       if (!studentId) {
         return res.status(400).json({
           success: false,
@@ -234,13 +234,7 @@ const badgeSystemController = function () {
 
   const awardBadge = async (req, res) => {
     try {
-      const {
-        student_id: studentId,
-        badge_id: badgeId,
-        reason,
-        metadata,
-        requestor,
-      } = req.body;
+      const { student_id: studentId, badge_id: badgeId, reason, metadata, requestor } = req.body;
       const awardedBy = requestor?.requestorId;
 
       const awardedBadge = await badgeService.awardBadge({
@@ -263,11 +257,8 @@ const badgeSystemController = function () {
 
   const revokeBadge = async (req, res) => {
     try {
-      const {
-        student_badge_id: studentBadgeId,
-        revoke_reason: revokeReason,
-      } = req.body;
-      
+      const { student_badge_id: studentBadgeId, revoke_reason: revokeReason } = req.body;
+
       if (!studentBadgeId) {
         return res.status(400).json({
           success: false,
@@ -290,7 +281,7 @@ const badgeSystemController = function () {
   const getStudentBadgeStats = async (req, res) => {
     try {
       const studentId = req.headers.userid || req.headers.userId;
-      
+
       if (!studentId) {
         return res.status(400).json({
           success: false,
@@ -321,7 +312,7 @@ const badgeSystemController = function () {
         });
       }
 
-      const awardsWithAuthor = awards.map(award => ({ ...award, awardedBy }));
+      const awardsWithAuthor = awards.map((award) => ({ ...award, awardedBy }));
 
       const results = await badgeService.bulkAwardBadges(awardsWithAuthor);
 

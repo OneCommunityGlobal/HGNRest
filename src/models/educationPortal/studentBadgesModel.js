@@ -57,7 +57,7 @@ const studentBadgesSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 studentBadgesSchema.index({ student_id: 1, badge_id: 1, is_revoked: 1 });
@@ -72,31 +72,31 @@ studentBadgesSchema.index(
     unique: true,
     partialFilterExpression: { is_revoked: false },
     name: 'unique_active_badge_per_student',
-  }
+  },
 );
 
-studentBadgesSchema.pre('save', function(next) {
+studentBadgesSchema.pre('save', function (next) {
   if (this.isModified('is_revoked') && this.is_revoked && !this.revoked_at) {
     this.revoked_at = new Date();
   }
   next();
 });
 
-studentBadgesSchema.methods.revoke = function(reason) {
+studentBadgesSchema.methods.revoke = function (reason) {
   this.is_revoked = true;
   this.revoked_at = new Date();
   this.revoke_reason = reason;
   return this.save();
 };
 
-studentBadgesSchema.statics.getActiveByStudent = function(studentId) {
+studentBadgesSchema.statics.getActiveByStudent = function (studentId) {
   return this.find({ student_id: studentId, is_revoked: false })
     .populate('badge_id')
     .populate('awarded_by', 'firstname lastname')
     .sort({ awarded_at: -1 });
 };
 
-studentBadgesSchema.statics.getByReason = function(studentId, reason) {
+studentBadgesSchema.statics.getByReason = function (studentId, reason) {
   return this.find({ student_id: studentId, reason, is_revoked: false })
     .populate('badge_id')
     .sort({ awarded_at: -1 });

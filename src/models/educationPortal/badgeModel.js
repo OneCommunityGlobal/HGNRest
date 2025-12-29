@@ -21,7 +21,7 @@ const epBadgeSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Image URL is required'],
       validate: {
-        validator: function(v) {
+        validator(v) {
           return /^https?:\/\/.+/.test(v);
         },
         message: 'Image URL must be a valid HTTP/HTTPS URL',
@@ -70,7 +70,7 @@ const epBadgeSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // Indexes for performance
@@ -87,7 +87,7 @@ epBadgeSchema.virtual('awardedCount', {
 });
 
 // Pre-save middleware
-epBadgeSchema.pre('save', function(next) {
+epBadgeSchema.pre('save', function (next) {
   if (this.isModified('name')) {
     this.name = this.name.trim();
   }
@@ -95,18 +95,18 @@ epBadgeSchema.pre('save', function(next) {
 });
 
 // Instance methods
-epBadgeSchema.methods.toPublic = function() {
+epBadgeSchema.methods.toPublic = function () {
   const obj = this.toObject();
   delete obj.__v;
   return obj;
 };
 
 // Static methods
-epBadgeSchema.statics.findActive = function() {
+epBadgeSchema.statics.findActive = function () {
   return this.find({ is_active: true });
 };
 
-epBadgeSchema.statics.findByCategory = function(category) {
+epBadgeSchema.statics.findByCategory = function (category) {
   return this.find({ category, is_active: true });
 };
 

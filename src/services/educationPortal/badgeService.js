@@ -8,13 +8,18 @@ class BadgeService {
   /**
    * Get paginated badges with filtering
    */
-  static async getAllBadges({ page = 1, limit = DEFAULT_PAGE_LIMIT, category, isActive = true } = {}) {
+  static async getAllBadges({
+    page = 1,
+    limit = DEFAULT_PAGE_LIMIT,
+    category,
+    isActive = true,
+  } = {}) {
     const query = {};
-    
+
     if (isActive !== undefined) {
       query.is_active = isActive;
     }
-    
+
     if (category) {
       query.category = category;
     }
@@ -22,12 +27,7 @@ class BadgeService {
     const skip = (page - 1) * limit;
 
     const [badges, total] = await Promise.all([
-      epBadge
-        .find(query)
-        .sort({ ranking: 1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      epBadge.find(query).sort({ ranking: 1, createdAt: -1 }).skip(skip).limit(limit).lean(),
       epBadge.countDocuments(query),
     ]);
 
@@ -87,7 +87,7 @@ class BadgeService {
     const badge = await epBadge.findByIdAndUpdate(
       badgeId,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!badge) {
@@ -104,7 +104,7 @@ class BadgeService {
     const badge = await epBadge.findByIdAndUpdate(
       badgeId,
       { $set: { is_active: false } },
-      { new: true }
+      { new: true },
     );
 
     if (!badge) {
@@ -155,7 +155,13 @@ class BadgeService {
   /**
    * Award a badge to a student
    */
-  static async awardBadge({ studentId, badgeId, reason = 'manual_award', awardedBy, metadata = {} }) {
+  static async awardBadge({
+    studentId,
+    badgeId,
+    reason = 'manual_award',
+    awardedBy,
+    metadata = {},
+  }) {
     // Verify badge exists and is active
     const badge = await epBadge.findOne({ _id: badgeId, is_active: true });
     if (!badge) {
@@ -185,7 +191,7 @@ class BadgeService {
     });
 
     await newBadge.save();
-    
+
     await newBadge.populate([
       { path: 'badge_id', select: 'name description image_url category points' },
       { path: 'awarded_by', select: 'firstname lastname' },
@@ -207,7 +213,7 @@ class BadgeService {
           revoke_reason: revokeReason,
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!badge) {
@@ -343,7 +349,7 @@ class BadgeService {
           'student.firstname': 1,
           'student.lastname': 1,
         },
-      }
+      },
     );
 
     const leaderboard = await studentBadges.aggregate(pipeline);
@@ -351,9 +357,9 @@ class BadgeService {
   }
 
   /**
- * Award badge automatically when capstone/lesson is completed
- * This should be called from your existing task grading service
- */
+   * Award badge automatically when capstone/lesson is completed
+   * This should be called from your existing task grading service
+   */
   static async awardBadgeOnCompletion(studentId, completionType, metadata) {
     try {
       // Find the appropriate badge for this completion
