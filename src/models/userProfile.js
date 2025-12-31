@@ -350,6 +350,12 @@ const userProfileSchema = new Schema({
           trim: true,
         },
       ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
+        },
+      ],
     },
     teacher: {
       subjects: [

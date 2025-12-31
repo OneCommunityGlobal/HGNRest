@@ -14,7 +14,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const ext = require('path').extname(file.originalname).toLowerCase();
     if (!allowedTypes.includes(ext)) {
-      return cb(new Error('Unsupported file type. Allowed: ' + allowedTypes.join(', ')), false);
+      return cb(new Error(`Unsupported file type. Allowed: ${allowedTypes.join(', ')}`), false);
     }
     cb(null, true);
   },
