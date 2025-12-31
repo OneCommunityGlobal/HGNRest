@@ -18,12 +18,13 @@ const findLatestRelatedLog = (userId) =>
 //
 
 const logUserPermissionChangeByAccount = async (req, user) => {
-  const { permissions, requestor } = req.body;
+  const { permissions, requestor, reason } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
     let permissionsAdded = [];
     let permissionsRemoved = [];
+    let roleChanged = false;
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
     const removedPermissions = permissions.removedDefaultPermissions; // removed default permissions
@@ -45,24 +46,24 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       const docRemovedRolePermissions = Array.isArray(document.removedRolePermissions)
         ? document.removedRolePermissions
         : [];
+      roleChanged = reason.includes('Role Changed');
       const docSavedChanges = [...docPermissions, docRemovedRolePermissions];
-      // no new changes in permissions list from last update
-      if (JSON.stringify(docSavedChanges.sort()) === JSON.stringify(changedPermissions.sort())) {
+      // no new changes in permissions list from last update and no role change
+      if (
+        JSON.stringify(docSavedChanges.sort()) === JSON.stringify(changedPermissions.sort()) &&
+        !roleChanged
+      ) {
         return;
       }
-      const prevRemovedPermissions = document.permissionsRemoved;
-      const prevAddedPermissions = document.permissionsAdded;
-      // currently, not fully functional, relying solely on prevRemoved/prevAdded works only if comparing current change
-      // to last change, changes 2 or more back are not being read right, because prev only uses previous document, not multiple
       permissionsRemoved = [
-        ...removedPermissions.filter((item) => !prevRemovedPermissions.includes(item)), // saves new removed role defaults
-        ...prevAddedPermissions.filter(
+        ...removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item)), // saves new removed role defaults
+        ...docPermissions.filter(
           (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
         ), // removed user added permissions
       ];
       permissionsAdded = [
-        ...Permissions.filter((item) => !prevAddedPermissions.includes(item)), // saves new added permissions
-        ...prevRemovedPermissions.filter(
+        ...Permissions.filter((item) => !docPermissions.includes(item)), // saves new added permissions
+        ...docRemovedRolePermissions.filter(
           (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
         ), // removed role permissions added back
       ];
@@ -71,8 +72,8 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsRemoved = removedPermissions; // adds removed default permissions to permissionsRemoved for inital log
     }
 
-    // no permission added nor removed
-    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
+    // no permission added nor removed nor role change
+    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0 && !roleChanged) {
       return;
     }
 
@@ -86,6 +87,7 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsRemoved,
       requestorRole: requestor.role,
       requestorEmail: requestorEmailId.email,
+      reason,
     });
 
     await logEntry.save();
