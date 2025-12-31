@@ -1,16 +1,13 @@
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config');
-
 const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
-
 const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
 
 const { webhookTest } = webhookController(Bids);
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');
-  console.log('Paypal-Auth-Algo:', authHeader);
   if (!authHeader) {
     return res.status(501).json({ error: 'Missing PayPal-Auth-Algo header' });
   }
@@ -67,6 +64,16 @@ module.exports = function (app) {
       return;
     }
     if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public analytics tracking endpoints (no auth required)
+    if (
+      (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
+      req.method === 'POST'
+    ) {
       next();
       return;
     }

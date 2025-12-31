@@ -7,7 +7,8 @@ const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
-
+require('./cronjobs/pullRequestReviewJobs')();
+require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
 
@@ -26,7 +27,7 @@ initSocket(server);
 
 // Start the actual server
 server.listen(port, () => {
-  console.log(`🚀 Server is listening on http://localhost:${port}`);
+  // Server started
 });
 
 const timerService = TimerWebsockets();
