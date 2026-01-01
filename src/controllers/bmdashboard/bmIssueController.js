@@ -126,7 +126,7 @@ const bmIssueController = function (BuildingIssue) {
       }
 
       let issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate')
+        .select('issueTitle issueDate _id')
         .populate('projectId')
         .lean();
 
@@ -142,21 +142,32 @@ const bmIssueController = function (BuildingIssue) {
             : `${months} month${months > 1 ? 's' : ''}`;
 
         return {
-          issueName: issue.issueTitle[0],
+          issueName: issue.issueTitle && issue.issueTitle.length > 0 ? issue.issueTitle[0] : null,
           durationOpen: durationText,
           durationInMonths,
+          issueId: issue._id.toString(), // Include unique ID for consistent naming
+          projectId: issue.projectId?._id?.toString() || issue.projectId?.toString(), // Include projectId for per-project numbering
+          projectName: issue.projectId?.name || null, // Include project name to distinguish issues
         };
       });
 
-      const topIssues = issues
+      // Sort by duration and return all issues (not limited to top 7)
+      const sortedIssues = issues
         .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .slice(0, 7)
-        .map(({ issueName, durationInMonths }) => ({
+        .map(({ issueName, durationInMonths, issueId, projectId, projectName }) => ({
           issueName,
           durationOpen: durationInMonths, // send number only
+          issueId, // Include ID so frontend can generate consistent names
+          projectId, // Include projectId for per-project numbering
+          projectName, // Include project name to distinguish issues
         }));
 
-      res.json(topIssues);
+      // Debug: Verify all issues are being returned
+      console.log(
+        `[getLongestOpenIssues] Total issues found: ${issues.length}, Returning: ${sortedIssues.length} issues`,
+      );
+
+      res.json(sortedIssues);
     } catch (error) {
       console.error('Error fetching longest open issues:', error);
       res.status(500).json({ message: 'Error fetching longest open issues' });
