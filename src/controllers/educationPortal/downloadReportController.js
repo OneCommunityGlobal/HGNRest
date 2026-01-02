@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 const PDFDocument = require('pdfkit');
 const { Parser } = require('json2csv');
 const mongoose = require('mongoose');

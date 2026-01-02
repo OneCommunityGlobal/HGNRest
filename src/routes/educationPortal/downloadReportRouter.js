@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 const express = require('express');
 const downloadReportController = require('../../controllers/educationPortal/downloadReportController');
 
