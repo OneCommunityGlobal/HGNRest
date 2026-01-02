@@ -305,6 +305,7 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+const toolReplacementRoutes = require('../routes/toolReplacementRoutes');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -356,6 +357,7 @@ module.exports = function (app) {
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
+  app.use('/api', toolReplacementRoutes);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/issues', bmIssuesRouter);
