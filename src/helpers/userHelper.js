@@ -865,7 +865,8 @@ const userHelper = function () {
           }
 
           const infringement = {
-            date: moment().utc().format('YYYY-MM-DD'),
+            // Use LA local date so the stored date matches the scheduler's intended business timezone
+            date: moment().tz('America/Los_Angeles').startOf('day').format('YYYY-MM-DD'),
             description,
             createdDate: hasTimeOffRequest
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
@@ -1149,8 +1150,7 @@ const userHelper = function () {
 
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = nowLA.clone().subtract(1, 'year').toDate();
-
+    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
     try {
       const results = await userProfile.updateMany(
         {},
