@@ -1,33 +1,70 @@
 const axios = require('axios');
 const moment = require('moment-timezone');
 const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
+const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
 
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
-const defaultPageId = process.env.FACEBOOK_PAGE_ID;
-const pageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 const PST_TIMEZONE = 'America/Los_Angeles';
 
+// Fallback to env vars if no OAuth connection exists (backward compatibility)
+const fallbackPageId = process.env.FACEBOOK_PAGE_ID;
+const fallbackPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+/**
+ * Gets the active Facebook connection credentials.
+ * Falls back to environment variables if no OAuth connection exists.
+ */
+const getCredentials = async () => {
+  // Try to get OAuth-based connection first
+  const connection = await FacebookConnection.getActiveConnection();
+
+  if (connection && connection.pageAccessToken) {
+    return {
+      pageId: connection.pageId,
+      pageAccessToken: connection.pageAccessToken,
+      source: 'oauth',
+      pageName: connection.pageName,
+    };
+  }
+
+  // Fall back to environment variables
+  if (fallbackPageAccessToken && fallbackPageId) {
+    return {
+      pageId: fallbackPageId,
+      pageAccessToken: fallbackPageAccessToken,
+      source: 'env',
+      pageName: null,
+    };
+  }
+
+  return null;
+};
+
 const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
-  if (!pageAccessToken) {
-    const error = new Error('FACEBOOK_PAGE_ACCESS_TOKEN is not configured on the server.');
+  const credentials = await getCredentials();
+
+  if (!credentials) {
+    const error = new Error(
+      'Facebook is not connected. Please connect a Facebook Page in settings, or configure FACEBOOK_PAGE_ACCESS_TOKEN.',
+    );
     error.status = 500;
     throw error;
   }
 
-  const targetPageId = pageId || defaultPageId;
+  const targetPageId = pageId || credentials.pageId;
+  const { pageAccessToken } = credentials;
 
-  // Debug (non-secret) logging to help diagnose config issues
   console.log(
-    '[FacebookPost] targetPageId:',
-    targetPageId || '(none)',
-    'tokenSet:',
-    Boolean(pageAccessToken),
+    '[FacebookPost] Using credentials from:',
+    credentials.source,
+    'pageId:',
+    targetPageId,
   );
 
   if (!targetPageId) {
     const error = new Error(
-      'No Facebook page id provided. Supply pageId in the request or set FACEBOOK_PAGE_ID.',
+      'No Facebook page id provided. Supply pageId in the request or connect a Page via OAuth.',
     );
     error.status = 400;
     throw error;
@@ -51,7 +88,7 @@ const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
   if (isPhotoPost) payload.url = imageUrl;
 
   try {
-    console.log('[FacebookPost] endpoint:', endpoint, 'graphBaseUrl:', graphBaseUrl);
+    console.log('[FacebookPost] endpoint:', endpoint);
     const response = await axios.post(endpoint, payload);
     return {
       postId: response.data.id,
@@ -60,7 +97,7 @@ const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
   } catch (error) {
     const fbError = error.response?.data?.error;
     console.error('[FacebookPost] error response:', fbError || error.message);
-    const err = new Error(fbError || error.message);
+    const err = new Error(fbError?.message || error.message);
     err.status = error.response?.status || 500;
     err.details = fbError || error.message;
     throw err;
@@ -69,7 +106,6 @@ const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
 
 /**
  * Saves a direct post to MongoDB for history tracking.
- * Called after successful publish to Facebook.
  */
 const saveDirectPostToHistory = async ({
   message,
@@ -81,11 +117,12 @@ const saveDirectPostToHistory = async ({
   createdBy,
 }) => {
   try {
+    const credentials = await getCredentials();
     const directPost = new ScheduledFacebookPost({
       message,
       link,
       imageUrl,
-      pageId,
+      pageId: pageId || credentials?.pageId,
       scheduledFor: new Date(),
       timezone: PST_TIMEZONE,
       status: 'sent',
@@ -98,14 +135,12 @@ const saveDirectPostToHistory = async ({
     await directPost.save();
     console.log('[FacebookPost] Direct post saved to history:', directPost._id);
   } catch (error) {
-    // Don't fail the request if history save fails
     console.error('[FacebookPost] Failed to save direct post to history:', error.message);
   }
 };
 
 /**
  * Posts content to a Facebook Page using the Graph API.
- * Now also saves to MongoDB for history tracking.
  */
 const postToFacebook = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
@@ -120,12 +155,12 @@ const postToFacebook = async (req, res) => {
   try {
     const result = await publishToFacebook({ message, link, imageUrl, pageId });
 
-    // Save to MongoDB for history tracking
+    const credentials = await getCredentials();
     await saveDirectPostToHistory({
       message,
       link,
       imageUrl,
-      pageId: pageId || defaultPageId,
+      pageId: pageId || credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
       createdBy: req.body.requestor
@@ -169,18 +204,15 @@ const scheduleFacebookPost = async (req, res) => {
     return;
   }
 
-  if (!pageAccessToken) {
-    res.status(500).send({ error: 'FACEBOOK_PAGE_ACCESS_TOKEN is not configured on the server.' });
-    return;
-  }
-
-  const targetPageId = pageId || defaultPageId;
-  if (!targetPageId) {
-    res.status(400).send({
-      error: 'No Facebook page id provided. Supply pageId in the request or set FACEBOOK_PAGE_ID.',
+  const credentials = await getCredentials();
+  if (!credentials) {
+    res.status(500).send({
+      error: 'Facebook is not connected. Please connect a Facebook Page in settings.',
     });
     return;
   }
+
+  const targetPageId = pageId || credentials.pageId;
 
   const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
 
@@ -219,10 +251,6 @@ const scheduleFacebookPost = async (req, res) => {
   }
 };
 
-/**
- * Fetches scheduled posts (pending/sending) for display in the UI.
- * Optionally filters by status and supports pagination.
- */
 const getScheduledPosts = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
@@ -261,13 +289,6 @@ const getScheduledPosts = async (req, res) => {
   }
 };
 
-/**
- * Fetches post history combining:
- * 1. Sent/failed posts from MongoDB (both direct and scheduled)
- * 2. Posts from Facebook Graph API (all posts on the page)
- *
- * Supports filtering by status (sent/failed) and postMethod (direct/scheduled)
- */
 const getPostHistory = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
@@ -277,7 +298,8 @@ const getPostHistory = async (req, res) => {
   }
 
   const { limit = 25, source = 'all', pageId, status, postMethod } = req.query;
-  const targetPageId = pageId || defaultPageId;
+  const credentials = await getCredentials();
+  const targetPageId = pageId || credentials?.pageId;
 
   try {
     const results = { mongoDbPosts: [], facebookPosts: [], combined: [] };
@@ -286,14 +308,12 @@ const getPostHistory = async (req, res) => {
     if (source === 'all' || source === 'mongodb') {
       const mongoQuery = {};
 
-      // Filter by status
       if (status && (status === 'sent' || status === 'failed')) {
         mongoQuery.status = status;
       } else {
         mongoQuery.status = { $in: ['sent', 'failed'] };
       }
 
-      // Filter by postMethod
       if (postMethod && (postMethod === 'direct' || postMethod === 'scheduled')) {
         mongoQuery.postMethod = postMethod;
       }
@@ -310,13 +330,12 @@ const getPostHistory = async (req, res) => {
     }
 
     // 2. Fetch posts from Facebook Graph API
-    // Note: Requires app to be in Live mode OR have Page Public Content Access feature
-    if ((source === 'all' || source === 'facebook') && pageAccessToken && targetPageId) {
+    if ((source === 'all' || source === 'facebook') && credentials && targetPageId) {
       try {
         const fbEndpoint = `${graphBaseUrl}/${targetPageId}/feed`;
         const fbResponse = await axios.get(fbEndpoint, {
           params: {
-            access_token: pageAccessToken,
+            access_token: credentials.pageAccessToken,
             fields:
               'id,message,created_time,permalink_url,full_picture,type,shares,reactions.summary(true),comments.summary(true)',
             limit: parseInt(limit, 10),
@@ -337,24 +356,21 @@ const getPostHistory = async (req, res) => {
         }));
       } catch (fbError) {
         const fbErrorData = fbError.response?.data?.error;
-        console.warn(
-          '[FacebookPost] Graph API error (non-fatal):',
-          fbErrorData?.message || fbError.message,
-        );
+        console.warn('[FacebookPost] Graph API error:', fbErrorData?.message || fbError.message);
 
-        // Provide user-friendly message based on error code
         if (fbErrorData?.code === 10) {
           results.facebookApiError =
-            'Facebook API access requires app to be in Live mode. Showing scheduled posts from database only.';
+            'Facebook API access requires app to be in Live mode. Showing database posts only.';
         } else if (fbErrorData?.code === 190) {
-          results.facebookApiError = 'Facebook access token expired. Please generate a new token.';
+          results.facebookApiError =
+            'Facebook access token expired. Please reconnect your Facebook Page.';
         } else {
           results.facebookApiError = fbErrorData?.message || fbError.message;
         }
       }
     }
 
-    // 3. Combine and sort by date (newest first)
+    // 3. Combine and sort
     const mongoMapped = results.mongoDbPosts.map((p) => ({
       _id: p._id,
       postId: p.postId,
@@ -376,9 +392,8 @@ const getPostHistory = async (req, res) => {
     res.status(200).send({
       success: true,
       posts: results.combined,
-      mongoDbPosts: results.mongoDbPosts,
-      facebookPosts: results.facebookPosts,
       facebookApiError: results.facebookApiError,
+      credentialsSource: credentials?.source || 'none',
     });
   } catch (error) {
     console.error('[FacebookPost] getPostHistory error:', error.message);
@@ -386,9 +401,6 @@ const getPostHistory = async (req, res) => {
   }
 };
 
-/**
- * Cancels (deletes) a pending scheduled post.
- */
 const cancelScheduledPost = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
@@ -428,9 +440,6 @@ const cancelScheduledPost = async (req, res) => {
   }
 };
 
-/**
- * Updates a pending scheduled post (message, scheduledFor, link, imageUrl).
- */
 const updateScheduledPost = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
@@ -462,7 +471,6 @@ const updateScheduledPost = async (req, res) => {
       return;
     }
 
-    // Validate new scheduledFor if provided
     if (scheduledFor) {
       const targetTimezone = timezone || post.timezone || PST_TIMEZONE;
       const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
@@ -502,4 +510,5 @@ module.exports = {
   getPostHistory,
   cancelScheduledPost,
   updateScheduledPost,
+  getCredentials,
 };
