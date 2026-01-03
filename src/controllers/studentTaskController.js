@@ -1,5 +1,8 @@
+const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
+const { uploadToS3 } = require('../services/s3Service');
+const config = require('../config');
 
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
@@ -271,9 +274,103 @@ const studentTaskController = function () {
     }
   };
 
+  const isValidURL = (url) => {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url); // throws if invalid
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const uploadFile = async (req, res) => {
+    try {
+      const { taskId } = req.params;
+
+      // Multer override the requestor id in the body, so I have to parse it again from the header
+      const authToken = req.header(config.REQUEST_AUTHKEY);
+      let payload = '';
+      let studentId = '';
+      try {
+        payload = jwt.verify(authToken, config.JWT_SECRET);
+        studentId = payload.userid;
+      } catch (error) {
+        res.status(401).send('Invalid token');
+        return;
+      }
+      if (!taskId) {
+        return res.status(400).json({ error: 'Task ID are required' });
+      }
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID are required' });
+      }
+      const task = await EducationTask.findOne({
+        _id: mongoose.Types.ObjectId(taskId),
+        studentId: mongoose.Types.ObjectId(studentId),
+      });
+
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      let uploadedUrl = null;
+      if (req.file) {
+        const { file } = req;
+        // if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+        // Validate file size (max 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+          return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
+        }
+
+        // Validate file type
+        const allowedMimeTypes = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+          'text/plain',
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return res
+            .status(400)
+            .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
+        }
+
+        const key = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
+        await uploadToS3(file, taskId, studentId, key);
+        uploadedUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+      } else if (req.body.url) {
+        if (!isValidURL(req.body.url)) {
+          return res.status(400).json({ error: 'Please enter a valid url' });
+        }
+        uploadedUrl = req.body.url;
+      } else {
+        return res.status(400).json({ error: 'A File or a link is required.' });
+      }
+
+      task.status = 'completed';
+      task.completedAt = Date.now();
+      task.uploadUrls.push(uploadedUrl);
+      await task.save();
+
+      return res.json({
+        message: 'File uploaded successfully!',
+        url: uploadedUrl,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error. Upload failed' });
+    }
+  };
+
   return {
     getStudentTasks,
     updateTaskProgress,
+    uploadFile,
   };
 };
 

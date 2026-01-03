@@ -153,7 +153,7 @@ const userProfileSchema = new Schema({
       },
     },
   ],
-
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -347,6 +347,12 @@ const userProfileSchema = new Schema({
         {
           type: String,
           trim: true,
+        },
+      ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
         },
       ],
     },

@@ -12,6 +12,7 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
  * @route   GET /api/student/profile
  * @access  Private (Student)
  */
+// eslint-disable-next-line max-lines-per-function
 const getStudentProfile = async (req, res) => {
   // Assuming studentId is on req.user from an auth middleware
   const studentId = req.body.requestor.requestorId;

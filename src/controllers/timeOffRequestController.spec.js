@@ -8,10 +8,10 @@ const moment = require('moment-timezone');
 const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
-const timeOffRequestController = require('./timeOffRequestController');
 const TimeOffRequest = require('../models/timeOffRequest');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
+const timeOffRequestController = require('./timeOffRequestController');
 
 const flushPromises = () => new Promise(setImmediate);
 
