@@ -3,6 +3,7 @@ const UserProfile = require('../models/userProfile');
 const EducationTask = require('../models/educationTask');
 const Atom = require('../models/atom');
 const LessonPlan = require('../models/lessonPlan');
+const Subject = require('../models/subject');
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -310,53 +311,53 @@ const getSubjectTasks = async (req, res) => {
   const studentId = req.body.requestor.requestorId;
   const { id: subjectId } = req.params;
 
-  console.log(studentId);
-  console.log(subjectId);
-
   if (!isValidObjectId(studentId) || !isValidObjectId(subjectId)) {
     return res.status(400).send({ error: 'Invalid ID provided for student or subject.' });
   }
 
   try {
+    // 1. Fetch Subject Details First
+    // This ensures we can return the subject name/color even if no tasks exist.
+    const subject = await Subject.findById(subjectId).select('name color iconUrl');
+
+    if (!subject) {
+      return res.status(404).json({ error: 'Subject not found.' });
+    }
+
+    const responsePayload = {
+      subject: {
+        id: subject._id,
+        name: subject.name,
+        color: subject.color || '#E0E0E0',
+        iconUrl: subject.iconUrl,
+      },
+      tasks: [],
+    };
+
+    // 2. Gatekeeper: Active Lesson Plan Check
     const now = new Date();
     const activePlans = await LessonPlan.find({
       startDate: { $lte: now },
       endDate: { $gte: now },
     }).select('_id');
 
-    console.log(activePlans);
-
-    const activePlanIds = activePlans.map((plan) => plan._id);
-
-    if (activePlanIds.length === 0) {
-      return res.status(200).json([]);
+    if (activePlans.length === 0) {
+      // Return payload with empty tasks, but valid subject info if no active plan
+      return res.status(200).json(responsePayload);
     }
 
+    // 3. Find Atoms for this Subject
     const atomsInSubject = await Atom.find({ subjectId }).select('_id');
     const atomIds = atomsInSubject.map((atom) => atom._id);
 
-    console.log(atomsInSubject);
-    console.log(atomIds);
-
     if (atomIds.length === 0) {
-      return res.status(200).json([]);
+      return res.status(200).json(responsePayload);
     }
 
-    const queryConditions = {
-      studentId: new mongoose.Types.ObjectId(studentId),
-      lessonPlanId: { $in: activePlanIds },
-      atomIds: { $in: atomIds },
-    };
-    console.log(
-      'Query Conditions for EducationTask.find:',
-      JSON.stringify(queryConditions, null, 2),
-    );
-    const rawTasks = await EducationTask.find(queryConditions);
-    console.log('Raw Tasks Found:', rawTasks);
-
+    // 4. Find Tasks (Filtering by Atom IDs and Student)
+    // CRITICAL FIX: Removed lessonPlanId filter to show all history for the subject
     const tasks = await EducationTask.find({
-      studentId: new mongoose.Types.ObjectId(studentId), // Explicitly cast to ObjectId
-      lessonPlanId: { $in: activePlanIds },
+      studentId: new mongoose.Types.ObjectId(studentId),
       atomIds: { $in: atomIds },
     })
       .populate({
@@ -365,11 +366,10 @@ const getSubjectTasks = async (req, res) => {
       })
       .sort({ dueAt: 1 });
 
-    console.log('Final Tasks Result:', tasks);
-
-    res.status(200).json(tasks);
+    responsePayload.tasks = tasks;
+    res.status(200).json(responsePayload);
   } catch (err) {
-    console.error('Error in getSubjectTasks:', err.message);
+    console.error('Error in getSubjectTasks:', err);
     res.status(500).send({ error: 'Server Error' });
   }
 };
