@@ -1,186 +1,70 @@
-const wishlistsController = function (Wishlist) {
-  //  Helper: check ownership
-  const checkOwnership = (wishlistItem, requestor, res) => {
-    // Allow admins to bypass ownership check
-    if (requestor.role === 'admin') return true;
+const Wishlist = require('../../models/lbdashboard/wishlists');
+const Listing = require('../../models/lbdashboard/listings');
 
-    // Check both addedBy and createdBy
-    const ownsWishlist =
-      wishlistItem.addedBy.toString() === requestor.requestorId.toString() ||
-      wishlistItem.createdBy.toString() === requestor.requestorId.toString();
-
-    if (!ownsWishlist) {
-      res.status(403).json({ message: 'Forbidden: You do not own this wishlist' });
-      return false;
-    }
-    return true;
-  };
-
-  //  Get wishlist by ID
-  const getWishlistById = async (req, res) => {
+const wishlistController = {
+  getWishlist: async (req, res) => {
     try {
-      const wishlistId = req.headers.id;
-      if (!wishlistId)
-        return res.status(400).json({ message: 'Wishlist ID or createdBy is required in headers' });
+      const { userId } = req.query;
+      if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-      // Try to find by _id first
-      let wishlistItem = await Wishlist.findById(wishlistId);
+      const wishlist = await Wishlist.findOne({ userId }).populate(
+        'listingId',
+        'title images description price',
+      );
 
-      // If not found, try by createdBy
-      if (!wishlistItem) {
-        wishlistItem = await Wishlist.findOne({ createdBy: wishlistId });
-      }
-
-      if (!wishlistItem) return res.status(404).json({ message: 'Wishlist not found' });
-
-      //  Authorization check
-      if (!checkOwnership(wishlistItem, req.body.requestor, res)) return;
-
-      res.status(200).json(wishlistItem);
+      res.status(200).json(wishlist || { listingId: [] });
     } catch (error) {
-      res.status(500).json({ message: 'Error retrieving wishlist', error: error.message });
+      console.error(error);
+      res.status(500).json({ message: 'Error fetching wishlist' });
     }
-  };
+  },
 
-  //  Create wishlist
-  const createWishlist = async (req, res) => {
+  addToWishlist: async (req, res) => {
     try {
-      const { wishlistListings, createdBy } = req.body;
-      const { requestorId } = req.body.requestor;
-
-      if (!createdBy) {
-        return res.status(400).json({ message: 'createdBy is required' });
-      }
-
-      //  Check if this user already created a wishlist for this same createdBy
-      const wishlistItem = await Wishlist.findOne({
-        createdBy,
-        addedBy: requestorId,
-      });
-
-      if (wishlistItem) {
-        return res.status(409).json({ message: 'Wishlist already exists for this user' });
-      }
-
-      //  Otherwise, create a new wishlist
-      const newWishlist = new Wishlist({
-        wishlistListings,
-        createdBy,
-        addedBy: requestorId, // Ownership from JWT
-      });
-
-      const savedWishlist = await newWishlist.save();
-      res.status(201).json(savedWishlist);
-    } catch (error) {
-      res.status(500).json({ message: 'Error creating wishlist', error: error.message });
-    }
-  };
-
-  //  Add listing
-  const addListingToWishlist = async (req, res) => {
-    try {
-      const wishlistId = req.headers.id;
+      const { userId } = req.body;
       const { listingId } = req.body;
+      if (!userId || !listingId)
+        return res.status(400).json({ message: 'userId and listingId required' });
 
-      if (!wishlistId || !listingId)
-        return res.status(400).json({ message: 'Wishlist ID and listing ID are required' });
+      const listingExists = await Listing.findById(listingId);
+      if (!listingExists) return res.status(404).json({ message: 'Listing not found' });
 
-      const wishlistItem = await Wishlist.findById(wishlistId);
-      if (!wishlistItem) return res.status(404).json({ message: 'Wishlist not found' });
+      let wishlist = await Wishlist.findOne({ userId });
+      if (!wishlist) wishlist = new Wishlist({ userId, listingId: [listingId] });
+      else if (wishlist.listingId.some((id) => id.toString() === listingId))
+        return res.status(409).json({ message: 'Listing already in wishlist' });
+      else wishlist.listingId.push(listingId);
 
-      if (!checkOwnership(wishlistItem, req.body.requestor, res)) return;
-
-      if (wishlistItem.wishlistListings.includes(listingId))
-        return res.status(400).json({ message: 'Listing already exists in wishlist' });
-
-      wishlistItem.wishlistListings.push(listingId);
-      const updatedWishlist = await wishlistItem.save();
-      res.status(200).json(updatedWishlist);
+      await wishlist.save();
+      res.status(200).json(wishlist);
     } catch (error) {
-      res.status(500).json({ message: 'Error adding listing', error: error.message });
+      console.error(error);
+      res.status(500).json({ message: 'Error adding to wishlist' });
     }
-  };
+  },
 
-  //  Remove listing
-  const removeListingFromWishlist = async (req, res) => {
+  removeFromWishlist: async (req, res) => {
     try {
-      const wishlistId = req.headers.id;
-      const { listingId } = req.body;
+      const { userId } = req.body;
+      const { listingId } = req.params;
+      if (!userId || !listingId)
+        return res.status(400).json({ message: 'userId and listingId required' });
 
-      if (!wishlistId || !listingId)
-        return res.status(400).json({ message: 'Wishlist ID and listing ID are required' });
+      const wishlist = await Wishlist.findOne({ userId });
+      if (!wishlist) return res.status(404).json({ message: 'Wishlist not found' });
 
-      const wishlistItem = await Wishlist.findById(wishlistId);
-      if (!wishlistItem) return res.status(404).json({ message: 'Wishlist not found' });
+      if (!wishlist.listingId.some((id) => id.toString() === listingId))
+        return res.status(404).json({ message: 'Listing not in wishlist' });
 
-      if (!checkOwnership(wishlistItem, req.body.requestor, res)) return;
+      wishlist.listingId = wishlist.listingId.filter((id) => id.toString() !== listingId);
+      await wishlist.save();
 
-      const listingIndex = wishlistItem.wishlistListings.indexOf(listingId);
-      if (listingIndex === -1)
-        return res.status(404).json({ message: 'Listing not found in wishlist' });
-
-      wishlistItem.wishlistListings.splice(listingIndex, 1);
-      const updatedWishlist = await wishlistItem.save();
-      res.status(200).json(updatedWishlist);
+      res.status(200).json({ message: 'Listing removed from wishlist' });
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: 'Error removing listing from wishlist', error: error.message });
+      console.error(error);
+      res.status(500).json({ message: 'Error removing from wishlist' });
     }
-  };
-
-  //  Get wishlist(s) by createdBy or logged-in user
-  const getUserWishlist = async (req, res) => {
-    try {
-      const { requestorId } = req.body.requestor;
-
-      const userWishlist = await Wishlist.find({
-        $or: [{ addedBy: requestorId }, { createdBy: requestorId }],
-      });
-
-      if (!userWishlist.length)
-        return res.status(404).json({ message: 'No wishlist found for this user' });
-
-      res.status(200).json(userWishlist);
-    } catch (error) {
-      res.status(500).json({ message: 'Error retrieving user wishlist', error: error.message });
-    }
-  };
-
-  //  Delete entire wishlist by ID
-  const deleteWishlist = async (req, res) => {
-    try {
-      const wishlistId = req.headers.id;
-      if (!wishlistId) {
-        return res.status(400).json({ message: 'Wishlist ID is required in headers' });
-      }
-
-      // Find the wishlist
-      const wishlistItem = await Wishlist.findById(wishlistId);
-      if (!wishlistItem) {
-        return res.status(404).json({ message: 'Wishlist not found' });
-      }
-
-      //  Authorization: only allow owner or admin to delete
-      if (!checkOwnership(wishlistItem, req.body.requestor, res)) return;
-
-      // Delete the wishlist
-      await Wishlist.findByIdAndDelete(wishlistId);
-
-      res.status(200).json({ message: 'Wishlist deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ message: 'Error deleting wishlist', error: error.message });
-    }
-  };
-
-  return {
-    getWishlistById,
-    createWishlist,
-    addListingToWishlist,
-    removeListingFromWishlist,
-    getUserWishlist,
-    deleteWishlist,
-  };
+  },
 };
 
-module.exports = wishlistsController;
+module.exports = wishlistController;
