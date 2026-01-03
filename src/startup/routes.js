@@ -543,4 +543,8 @@ module.exports = function (app) {
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
+
+  app.use('/api', materialCostRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
 };
