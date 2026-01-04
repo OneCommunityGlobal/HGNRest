@@ -499,20 +499,29 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   // Helper functions for changeUserStatus
   const calculateUserStatusFromEndDate = (endDate, status) => {
+    const COMPANY_TZ = 'America/Los_Angeles';
     let activeStatus = status;
     let emailThreeWeeksSent = false;
-    if (endDate && status) {
-      const dateObject = new Date(endDate);
-      dateObject.setHours(dateObject.getHours() + HOURS_TO_ADD_FOR_END_DATE);
-      const setEndDate = dateObject;
-      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
-        activeStatus = false;
-      } else if (
-        moment().isBefore(moment(endDate).subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))
-      ) {
-        emailThreeWeeksSent = true;
-      }
+
+    if (!endDate || !status) {
+      return { activeStatus, emailThreeWeeksSent };
     }
+
+    const todayPst = moment.tz(COMPANY_TZ).startOf('day');
+    const endDayPst = moment(endDate).tz(COMPANY_TZ).startOf('day');
+
+    // If today is AFTER the final day → deactivate
+    if (todayPst.isAfter(endDayPst)) {
+      activeStatus = false;
+    }
+
+    // Email logic (still PST-based)
+    if (
+      todayPst.isSameOrAfter(endDayPst.clone().subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))
+    ) {
+      emailThreeWeeksSent = true;
+    }
+
     return { activeStatus, emailThreeWeeksSent };
   };
 
@@ -1642,6 +1651,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const changeUserStatus = async function (req, res) {
+    console.log('Change user status called');
     const { userId } = req.params;
     const status = req.body.status === 'Active';
     const activationDate = req.body.reactivationDate;
