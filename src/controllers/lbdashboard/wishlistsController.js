@@ -1,18 +1,38 @@
 const Wishlist = require('../../models/lbdashboard/wishlists');
 const Listing = require('../../models/lbdashboard/listings');
+const Village = require('../../models/lbdashboard/villages');
 
 const wishlistController = {
   getWishlist: async (req, res) => {
     try {
       const { userId } = req.query;
       if (!userId) return res.status(400).json({ message: 'userId is required' });
-
       const wishlist = await Wishlist.findOne({ userId }).populate(
         'listingId',
-        'title images description price',
+        'title images description price amenities village',
       );
 
-      res.status(200).json(wishlist || { listingId: [] });
+      if (!wishlist) return res.status(200).json({ listingId: [] });
+
+      const listingsWithVillageAmenities = await Promise.all(
+        wishlist.listingId.map(async (listing) => {
+          let villageAmenities = [];
+          if (listing.village) {
+            const village = await Village.findOne({ name: listing.village }).select('amenities');
+            if (village) villageAmenities = village.amenities;
+          }
+
+          return {
+            ...listing.toObject(),
+            villageAmenities,
+          };
+        }),
+      );
+
+      res.status(200).json({
+        ...wishlist.toObject(),
+        listingId: listingsWithVillageAmenities,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: 'Error fetching wishlist' });
