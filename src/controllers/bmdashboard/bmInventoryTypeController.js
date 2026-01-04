@@ -1,6 +1,5 @@
 const fs = require('fs');
 const fsPromises = require('fs/promises');
-
 const path = require('path');
 
 const filename = 'BuildingUnits.json';
@@ -583,15 +582,56 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     const { type, invtypeId } = req.params;
 
     try {
-      // delete invType with given id
-      const deletedResult = await InvType.findByIdAndDelete(invtypeId);
-      if (!deletedResult) {
-        res.status(404).json({ error: 'invTypeId does not exist' });
-        return;
+      let deletedResult;
+      let updatedList;
+
+      // Handle different types with their respective models
+      if (type === 'Equipments') {
+        deletedResult = await EquipType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await EquipType.find();
+      } else if (type === 'Materials') {
+        deletedResult = await MatType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await MatType.find();
+      } else if (type === 'Consumables') {
+        deletedResult = await ConsType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ConsType.find();
+      } else if (type === 'Tools') {
+        deletedResult = await ToolType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ToolType.find();
+      } else if (type === 'Reusables') {
+        deletedResult = await ReusType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ReusType.find();
+      } else {
+        // Fallback to InvType for unknown types
+        deletedResult = await InvType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await InvType.find({ category: type });
       }
 
       // send the updated list
-      const updatedList = await InvType.find({ category: type });
       res.status(200).json(updatedList);
     } catch (error) {
       res.status(500).send(error);
