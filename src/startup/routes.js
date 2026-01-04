@@ -253,7 +253,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingMaterialModel,
   buildingToolModel,
 );
-
+const bookingRouter = require('../routes/lbdashboard/bookingsRouter');
 const toolAvailability = require('../models/bmdashboard/toolAvailability');
 const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
   toolAvailability,
@@ -342,6 +342,14 @@ const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter
 // lesson planner router
 
 const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
+
+// education portal
+
+const epBadge = require('../models/educationPortal/badgeModel');
+const studentBadges = require('../models/educationPortal/studentBadgesModel');
+const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
+
+const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -489,6 +497,7 @@ module.exports = function (app) {
   app.use('/api/lb', lbUserPrefRouter);
 
   app.use('/api/financials', bmFinancialRouter);
+  app.use('/api/lbdashboard/bookings', bookingRouter);
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
@@ -501,6 +510,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
@@ -519,6 +530,9 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
   app.use('/api', materialCostRouter);
+
+  // education portal
+  app.use('/api/education', badgeSystemRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
