@@ -329,6 +329,8 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+const BitwardenRouter = require('../routes/bitwardenRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -502,4 +504,5 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
   app.use('/api', materialCostRouter);
+  app.use('/api/bitwarden', BitwardenRouter);
 };
