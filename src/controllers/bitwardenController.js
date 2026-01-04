@@ -2,6 +2,7 @@ const { BitwardenClient, DeviceType } = require('@bitwarden/sdk-napi');
 const { LogLevel } = require('@bitwarden/sdk-napi/binding');
 
 const bitwardenController = () => {
+  
   const authenticate = async (req, res) => {
     try {
       const settings = {
@@ -38,6 +39,7 @@ const bitwardenController = () => {
         success: false,
         message: 'Failed to connect with access token',
       });
+
     } catch (error) {
       return res.status(500).json({
         success: false,

@@ -1,8 +1,8 @@
 const PullRequestSyncMetadata = require('../models/pullRequestSyncMetadata');
 const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
-const createGitHubClient = require('./githubPRHelper');
 const { RateLimitedError } = require('../utilities/errorHandling/customError');
+const createGitHubClient = require('./githubPRHelper');
 
 function getLastSunday(today = new Date()) {
   const dayOfWeek = today.getUTCDay();

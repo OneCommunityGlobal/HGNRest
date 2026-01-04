@@ -532,6 +532,8 @@ const userHelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
   const assignBlueSquareForTimeNotMet = async () => {
+    const t0 = Date.now();
+    console.log('[BlueSquare] start');
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
@@ -586,6 +588,11 @@ const userHelper = function () {
 
       const emailQueue = [];
       for (let i = 0; i < users.length; i += 1) {
+        if (i % 50 === 0) {
+          console.log(
+            `[BlueSquare] processed ${i}/${users.length} users in ${(Date.now() - t0) / 1000}s`,
+          );
+        }
         const user = users[i];
         // avoid multiple db calls and fetch necessary data in first db call??
         // const person = await userProfile.findById(user._id);
@@ -858,7 +865,8 @@ const userHelper = function () {
           }
 
           const infringement = {
-            date: moment().utc().format('YYYY-MM-DD'),
+            // Use LA local date so the stored date matches the scheduler's intended business timezone
+            date: moment().tz('America/Los_Angeles').startOf('day').format('YYYY-MM-DD'),
             description,
             createdDate: hasTimeOffRequest
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
@@ -880,8 +888,8 @@ const userHelper = function () {
             );
             const administrativeContent = {
               startDate: moment(person.startDate).utc().format('M-D-YYYY'),
-              role: person.role,
-              userTitle: person.jobTitle[0],
+              role: status.role,
+              userTitle: status.jobTitle?.[0] ?? 'N/A',
               historyInfringements,
             };
             if (person.role === 'Core Team' && timeRemaining > 0) {
@@ -1138,30 +1146,28 @@ const userHelper = function () {
   };
 
   const deleteBlueSquareAfterYear = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowLA = moment().tz('America/Los_Angeles');
 
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
-    );
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
-
+    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
     try {
       const results = await userProfile.updateMany(
         {},
         {
           $pull: {
             infringements: {
-              date: {
-                $lte: cutOffDate,
-              },
+              date: { $lte: cutOffDate },
             },
           },
         },
       );
 
-      logger.logInfo(`Job deleting blue squares older than 1 year finished
-        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
+      logger.logInfo(
+        `Job deleting blue squares older than 1 year finished at ${moment()
+          .tz('America/Los_Angeles')
+          .format()} \nResult: ${JSON.stringify(results)}`,
+      );
     } catch (err) {
       logger.logException(err);
     }
@@ -1341,7 +1347,7 @@ const userHelper = function () {
         ),
         null,
         combinedCCList,
-        DEFAULT_REPLY_TO[0],
+        emailAddress,
         combinedBCCList,
         { type: 'blue_square_assignment' },
       );

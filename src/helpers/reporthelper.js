@@ -34,6 +34,9 @@ const reporthelper = function () {
       .subtract(endWeekIndex, 'week')
       .toDate();
 
+    const pstStartStr = moment(pstStart).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const pstEndStr = moment(pstEnd).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
     const results = await userProfile.aggregate([
       {
         $match: { isActive: true },
@@ -57,18 +60,8 @@ const reporthelper = function () {
               as: 'timeEntry',
               cond: {
                 $and: [
-                  {
-                    $gte: [
-                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
-                      pstStart,
-                    ],
-                  },
-                  {
-                    $lte: [
-                      { $dateFromString: { dateString: '$$timeEntry.dateOfWork', onError: null } },
-                      pstEnd,
-                    ],
-                  },
+                  { $gte: ['$$timeEntry.dateOfWork', pstStartStr] },
+                  { $lte: ['$$timeEntry.dateOfWork', pstEndStr] },
                 ],
               },
             },
@@ -170,10 +163,17 @@ const reporthelper = function () {
       result.totalSeconds = [0, 0, 0, 0];
 
       if (!result.timeEntries || result.timeEntries.length === 0) return;
-
+      const isSingleWeekRequest = startWeekIndex === endWeekIndex;
       result.timeEntries.forEach((entry) => {
-        const index =
-          startWeekIndex === endWeekIndex ? 0 : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        let index;
+
+        if (isSingleWeekRequest) index = startWeekIndex;
+        else {
+          index =
+            startWeekIndex === endWeekIndex
+              ? 0
+              : absoluteDifferenceInWeeks(entry.dateOfWork, pstEnd);
+        }
 
         if (index >= 0 && index < 4) {
           result.totalSeconds[index] =

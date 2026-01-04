@@ -1,9 +1,7 @@
 const NodeCache = require('node-cache');
-
 const PullRequest = require('../models/pullRequest');
 const PullRequestReview = require('../models/pullRequestReview');
 const PullRequestSyncMetadata = require('../models/pullRequestSyncMetadata');
-
 const {
   parseDurationValue,
   isStaleData,
