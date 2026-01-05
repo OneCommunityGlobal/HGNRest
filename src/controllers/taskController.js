@@ -878,41 +878,48 @@ const taskController = function (Task) {
         });
       });
 
-    // Prevent changing createdBy via updates
-    if ('createdBy' in req.body) {
-      delete req.body.createdBy;
-    }
-
-    Task.findOneAndUpdate(
-      { _id: taskId },
-      { ...req.body, modifiedDatetime: Date.now() },
-      { new: true, runValidators: true },
-    )
-      .then(async (updatedTask) => {
-        try {
-          if (
-            oldTask &&
-            user &&
-            typeof TaskChangeTracker !== 'undefined' &&
-            TaskChangeTracker.logChanges
-          ) {
-            await TaskChangeTracker.logChanges(
-              taskId,
-              oldTask.toObject(),
-              updatedTask.toObject(),
-              user,
-              req,
-            );
-          }
-        } catch (logError) {
-          console.warn('Warning: Could not log task changes:', logError.message);
-        }
-      } catch (logError) {
-        console.warn('Warning: Could not log task changes:', logError.message);
-        // Continue without logging - don't fail the update
+      // Prevent changing createdBy via updates
+      if ('createdBy' in req.body) {
+        delete req.body.createdBy;
       }
 
-      res.status(201).send(updatedTask);
+      Task.findOneAndUpdate(
+        { _id: taskId },
+        { ...req.body, modifiedDatetime: Date.now() },
+        { new: true, runValidators: true },
+      )
+        .then(async (updatedTask) => {
+          try {
+            if (
+              oldTask &&
+              user &&
+              typeof TaskChangeTracker !== 'undefined' &&
+              TaskChangeTracker.logChanges
+            ) {
+              await TaskChangeTracker.logChanges(
+                taskId,
+                oldTask.toObject(),
+                updatedTask.toObject(),
+                user,
+                req,
+              );
+            }
+          } catch (logError) {
+            console.warn('Warning: Could not log task changes:', logError.message);
+            // Continue without logging - don't fail the update
+          }
+
+          res.status(201).send(updatedTask);
+        })
+        .catch((error) => {
+          // Check if it's a specific error that should return 404
+          if (error && error.error === 'No valid records found') {
+            return res.status(404).send(error);
+          }
+
+          logger.logException(error);
+          res.status(500).send({ error: error.message });
+        });
     } catch (error) {
       // Check if it's a specific error that should return 404
       if (error && error.error === 'No valid records found') {
