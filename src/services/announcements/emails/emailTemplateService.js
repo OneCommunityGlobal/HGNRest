@@ -512,6 +512,25 @@ class EmailTemplateService {
     // Get template variables
     const templateVariables = template.variables || [];
 
+    // Helper function to extract YouTube ID
+    // Helper function to extract YouTube ID
+    const extractYouTubeId = (url) => {
+      if (!url || typeof url !== 'string') return null;
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+        /youtube\.com\/v\/([^&\s?]+)/,
+      ];
+
+      // Use array iteration instead of for...of loop
+      const matchResult = patterns.reduce((result, pattern) => {
+        if (result) return result;
+        const match = url.match(pattern);
+        return match && match[1] ? match[1] : null;
+      }, null);
+
+      return matchResult;
+    };
+
     // Replace variables in subject and HTML
     templateVariables.forEach((variable) => {
       if (!variable || !variable.name) return;
@@ -544,6 +563,38 @@ class EmailTemplateService {
             value.match(/src=["']([^"']+)["']/i) || value.match(/https?:\/\/[^\s]+/i);
           if (imageMatch) {
             processedValue = imageMatch[1] || imageMatch[0];
+          }
+        }
+
+        // Wrap image URL in <img> tag for better display
+        if (processedValue) {
+          processedValue = `<img src="${processedValue}" alt="${varName}" style="max-width: 100%; height: auto; display: block; margin: 10px 0; border-radius: 4px;">`;
+        }
+      }
+
+      // Handle video variables
+      if (variable.type === 'video') {
+        if (processedValue) {
+          // Check if it's a YouTube URL
+          const youtubeId = extractYouTubeId(processedValue);
+          if (youtubeId) {
+            // Create YouTube link with button
+            processedValue = `<div style="margin: 10px 0;">
+              <a href="${processedValue}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 10px 20px; background-color: #FF0000; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ▶ Watch Video on YouTube
+              </a>
+              <br>
+              <small style="color: #666; display: block; margin-top: 5px;">${processedValue}</small>
+            </div>`;
+          } else {
+            // For direct video URLs, create a generic video link
+            processedValue = `<div style="margin: 10px 0;">
+              <a href="${processedValue}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 10px 20px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ▶ Watch Video
+              </a>
+              <br>
+              <small style="color: #666; display: block; margin-top: 5px;">${processedValue}</small>
+            </div>`;
           }
         }
       }
@@ -675,12 +726,29 @@ class EmailTemplateService {
       ],
       allowedAttributes: {
         a: ['href', 'title', 'target', 'rel'],
-        img: ['src', 'alt', 'title'],
+        img: ['src', 'alt', 'title', 'style'],
+        div: ['style'],
+        span: ['style'],
         '*': ['style', 'class'],
       },
       allowedSchemes: ['http', 'https', 'mailto'],
       allowedSchemesByTag: {
         img: ['http', 'https', 'data'],
+      },
+      allowedStyles: {
+        '*': {
+          color: [/^#(0x)?[0-9a-f]+$/i, /^rgb\(/],
+          'text-align': [/^left$/, /^right$/, /^center$/],
+          'font-size': [/^\d+(?:px|em|%)$/],
+          'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(/],
+          padding: [/^\d+(?:px|em|%)$/],
+          margin: [/^\d+(?:px|em|%)$/],
+          display: [/^block$/, /^inline$/, /^inline-block$/],
+          'max-width': [/^\d+(?:px|em|%)$/],
+          width: [/^\d+(?:px|em|%)$/],
+          height: [/^auto$/, /^\d+(?:px|em|%)$/],
+          'border-radius': [/^\d+(?:px|em|%)$/],
+        },
       },
       ...options,
     };
