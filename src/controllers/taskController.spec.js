@@ -23,6 +23,7 @@ const taskController = require('./taskController');
 const Task = require('../models/task');
 const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
+const TaskChangeTracker = require('../middleware/taskChangeTracker');
 const WBS = require('../models/wbs');
 const FollowUp = require('../models/followUp');
 
@@ -740,15 +741,31 @@ describe('Unit Tests for taskController.js', () => {
         taskId: 456,
       };
 
-      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValue({ toObject: () => ({ ...mockedTask }) });
       const taskFindOneAndUpdateSpy = jest
         .spyOn(Task, 'findOneAndUpdate')
-        .mockResolvedValueOnce(true);
+        .mockResolvedValueOnce({ toObject: () => ({ ...mockedTask }) });
       const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
       const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
 
+      // Ensure a valid user is returned so TaskChangeTracker.logChanges runs
+      jest.spyOn(UserProfile, 'findById').mockImplementation(() => ({
+        maxTimeMS: jest.fn().mockResolvedValue({
+          _id: 'u1',
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@example.com',
+        }),
+      }));
+      const logSpy = jest.spyOn(TaskChangeTracker, 'logChanges').mockResolvedValue([]);
+
       const response = await updateTask(mockReq, mockRes);
       await flushPromises();
+
+      // Ensure change logging was attempted
+      expect(logSpy).toHaveBeenCalled();
 
       // assertResMock(201, null, response, mockRes);
       expect(mockRes.status).toBeCalledWith(201);
@@ -770,12 +787,24 @@ describe('Unit Tests for taskController.js', () => {
         taskId: 456,
       };
 
-      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValue({ toObject: () => ({ ...mockedTask }) });
       const taskFindOneAndUpdateSpy = jest
         .spyOn(Task, 'findOneAndUpdate')
         .mockRejectedValueOnce(error);
       const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
       const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      // Ensure a valid user is returned so the user fetch doesn't block the code path
+      jest.spyOn(UserProfile, 'findById').mockImplementation(() => ({
+        maxTimeMS: jest.fn().mockResolvedValue({
+          _id: 'u1',
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@example.com',
+        }),
+      }));
 
       const response = await updateTask(mockReq, mockRes);
       await flushPromises();

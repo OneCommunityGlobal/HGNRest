@@ -821,6 +821,16 @@ const taskController = function (Task) {
       });
     });
 
+    // Also update the project modifiedDatetime (keep parity with updateTaskStatus)
+    Task.findById(taskId).then((currentTask) => {
+      WBS.findById(currentTask.wbsId).then((currentwbs) => {
+        Project.findById(currentwbs.projectId).then((currentProject) => {
+          currentProject.modifiedDatetime = Date.now();
+          return currentProject.save();
+        });
+      });
+    });
+
     try {
       // IF CATEGORY IS BEING UPDATED, UPDATE BOTH FLAGS
       if (req.body.category !== undefined) {
@@ -890,6 +900,12 @@ const taskController = function (Task) {
       )
         .then(async (updatedTask) => {
           try {
+            console.log('DEBUG: logging check', {
+              hasOldTask: !!oldTask,
+              hasUser: !!user,
+              taskChangeTrackerType: typeof TaskChangeTracker,
+              hasLogFn: !!TaskChangeTracker && !!TaskChangeTracker.logChanges,
+            });
             if (
               oldTask &&
               user &&
