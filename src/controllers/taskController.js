@@ -813,23 +813,8 @@ const taskController = function (Task) {
       console.warn('Warning: Could not fetch user for change tracking:', userError.message);
     }
 
-    // Updating a task will update the modifiedDateandTime of project and wbs
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
-
-    // Also update the project modifiedDatetime (keep parity with updateTaskStatus)
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
-    });
+    // WBS/Project modifiedDatetime updates are handled after the task update completes (below) so
+    // callers and tests can observe the calls synchronously in the update flow.
 
     try {
       // IF CATEGORY IS BEING UPDATED, UPDATE BOTH FLAGS
@@ -880,13 +865,7 @@ const taskController = function (Task) {
         }
       }
 
-      // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
-      Task.findById(taskId).then((currentTask) => {
-        WBS.findById(currentTask.wbsId).then((currentwbs) => {
-          currentwbs.modifiedDatetime = Date.now();
-          return currentwbs.save();
-        });
-      });
+      // WBS/Project modifiedDatetime update is handled after the update completes (see below)
 
       // Prevent changing createdBy via updates
       if ('createdBy' in req.body) {
@@ -899,24 +878,49 @@ const taskController = function (Task) {
         { new: true, runValidators: true },
       )
         .then(async (updatedTask) => {
+          // Ensure WBS and Project modifiedDatetime are updated and awaited so tests observe the calls
           try {
-            console.log('DEBUG: logging check', {
-              hasOldTask: !!oldTask,
-              hasUser: !!user,
-              taskChangeTrackerType: typeof TaskChangeTracker,
-              hasLogFn: !!TaskChangeTracker && !!TaskChangeTracker.logChanges,
-            });
+            const updatedObj =
+              updatedTask && typeof updatedTask.toObject === 'function'
+                ? updatedTask.toObject()
+                : updatedTask;
+            const wbsIdToUse =
+              updatedObj?.wbsId || updatedObj?.wbs || (oldTask && (oldTask.wbsId || oldTask.wbs));
+            if (wbsIdToUse) {
+              const currentwbs = await WBS.findById(wbsIdToUse);
+              if (currentwbs) {
+                currentwbs.modifiedDatetime = Date.now();
+                await currentwbs.save();
+                const currentProject = await Project.findById(currentwbs.projectId);
+                if (currentProject) {
+                  currentProject.modifiedDatetime = Date.now();
+                  await currentProject.save();
+                }
+              }
+            }
+          } catch (err) {
+            logger.logException(err);
+          }
+
+          console.log('DEBUG: logging check', {
+            hasOldTask: !!oldTask,
+            hasUser: !!user,
+            taskChangeTrackerType: typeof TaskChangeTracker,
+            hasLogFn: !!TaskChangeTracker && !!TaskChangeTracker.logChanges,
+          });
+
+          try {
+            const safeUser = user || { _id: null, firstName: 'Unknown', lastName: '', email: '' };
             if (
               oldTask &&
-              user &&
               typeof TaskChangeTracker !== 'undefined' &&
               TaskChangeTracker.logChanges
             ) {
               await TaskChangeTracker.logChanges(
                 taskId,
-                oldTask.toObject(),
-                updatedTask.toObject(),
-                user,
+                oldTask.toObject ? oldTask.toObject() : oldTask,
+                updatedTask.toObject ? updatedTask.toObject() : updatedTask,
+                safeUser,
                 req,
               );
             }

@@ -812,8 +812,9 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(404, error, response, mockRes);
       expect(taskFindByIdSpy).toHaveBeenCalled();
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
-      expect(wbsFindByIdSpy).toHaveBeenCalled();
-      expect(projectFindByIdSpy).toHaveBeenCalled();
+      // When the update fails we should not have updated the WBS or Project modifiedDatetime
+      expect(wbsFindByIdSpy).not.toHaveBeenCalled();
+      expect(projectFindByIdSpy).not.toHaveBeenCalled();
     });
   });
 
