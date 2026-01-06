@@ -32,6 +32,7 @@ const createForm = async (req, res) => {
   // add to the database
   try {
     const form = await Form.create({ user, duration, facilities, materials, date });
+    console.log('Successfully made a new form');
     res.status(200).json(form);
   } catch (error) {
     res.status(400).json({ error: error.message });
