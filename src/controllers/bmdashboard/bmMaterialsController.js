@@ -74,12 +74,14 @@ const bmMaterialsController = function (BuildingMaterial) {
           itemType: matTypeId,
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
+          stockBought: quantity,
         };
         BuildingMaterial.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
+      doc.stockBought += quantity;
       BuildingMaterial.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
@@ -97,10 +99,10 @@ const bmMaterialsController = function (BuildingMaterial) {
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
     const { material } = req.body;
-    if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
+    if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
       quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
     }
-    if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
+    if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
       quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
     }
 
@@ -152,15 +154,15 @@ const bmMaterialsController = function (BuildingMaterial) {
     const materialUpdates = req.body.upadateMaterials;
     let errorFlag = false;
     const updateRecordsToBeAdded = [];
-    for (let i = 0; i < materialUpdates.length; i++) {
+    for (let i = 0; i < materialUpdates.length; i += 1) {
       const payload = materialUpdates[i];
       let quantityUsed = +payload.quantityUsed;
       let quantityWasted = +payload.quantityWasted;
       const { material } = payload;
-      if (payload.QtyUsedLogUnit == 'percent' && quantityWasted >= 0) {
+      if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
         quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
       }
-      if (payload.QtyWastedLogUnit == 'percent' && quantityUsed >= 0) {
+      if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
         quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
       }
 
@@ -247,14 +249,120 @@ const bmMaterialsController = function (BuildingMaterial) {
       if (status === 'Approved') {
         updateObject.$inc = { stockBought: quantity };
       }
+
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
         { 'purchaseRecord._id': purchaseId },
         updateObject,
         { new: true },
       );
+
+      if (!updatedMaterial) {
+        return res.status(500).send('Failed to apply purchase status update to material.');
+      }
+
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
-      res.status(500).send(error.message);
+      res.status(500).send(error);
+    }
+  };
+
+  const bmGetMaterialSummaryByProject = async function (req, res) {
+    const { projectId } = req.params;
+    const { materialType, increaseOverLastWeek } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'Invalid projectId' });
+    }
+
+    try {
+      const query = {
+        project: mongoose.Types.ObjectId(projectId),
+      };
+
+      if (materialType) {
+        if (mongoose.Types.ObjectId.isValid(materialType)) {
+          query.itemType = mongoose.Types.ObjectId(materialType);
+        } else {
+          return res.status(400).json({ error: 'Invalid materialId' });
+        }
+      }
+
+      const materials = await BuildingMaterial.find(query);
+
+      let totalAvailable = 0;
+      let totalUsed = 0;
+      let totalWasted = 0;
+
+      let usedLastWeek = 0;
+      let usedThisWeek = 0;
+
+      const now = new Date();
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      const nowStr = now.toISOString().split('T')[0];
+      const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
+      const twoWeeksAgoStr = twoWeeksAgo.toISOString().split('T')[0];
+
+      const toDateOnlyStr = (date) => new Date(date).toISOString().split('T')[0];
+
+      // If increaseOverLastWeek=true, filter materials based on usage activity in the last 7 days
+      let filteredMaterials = materials;
+      if (increaseOverLastWeek === 'true') {
+        filteredMaterials = materials.filter((mat) => {
+          let lastWeek = 0;
+          let thisWeek = 0;
+
+          (mat.updateRecord || []).forEach((record) => {
+            const recordDateStr = toDateOnlyStr(record.date);
+            if (recordDateStr >= oneWeekAgoStr && recordDateStr <= nowStr) {
+              thisWeek += record.quantityUsed || 0;
+            } else if (recordDateStr >= twoWeeksAgoStr && recordDateStr < oneWeekAgoStr) {
+              lastWeek += record.quantityUsed || 0;
+            }
+          });
+
+          return thisWeek > lastWeek;
+        });
+      }
+
+      // Aggregate material data and calculate usage values
+      filteredMaterials.forEach((mat) => {
+        totalAvailable += mat.stockAvailable || 0;
+        totalUsed += mat.stockUsed || 0;
+        totalWasted += mat.stockWasted || 0;
+
+        const updates = mat.updateRecord || [];
+        updates.forEach((record) => {
+          const recordDate = new Date(record.date);
+          const recordDateOnly = toDateOnlyStr(recordDate);
+          if (recordDateOnly >= oneWeekAgoStr && recordDateOnly <= nowStr) {
+            usedThisWeek += record.quantityUsed || 0;
+          } else if (recordDateOnly >= twoWeeksAgoStr && recordDateOnly < oneWeekAgoStr) {
+            usedLastWeek += record.quantityUsed || 0;
+          }
+        });
+      });
+      // console.log(usedThisWeek, usedLastWeek);
+
+      // Calculate usage increase percentage
+      let usageIncreasePercent = 0;
+      if (usedLastWeek > 0) {
+        usageIncreasePercent = ((usedThisWeek - usedLastWeek) / usedLastWeek) * 100;
+        usageIncreasePercent = parseFloat(usageIncreasePercent.toFixed(2));
+      }
+
+      res.status(200).json({
+        availableMaterials: totalAvailable,
+        usedMaterials: totalUsed,
+        wastedMaterials: totalWasted,
+        increaseOverLastWeek: usageIncreasePercent,
+      });
+    } catch (err) {
+      console.error('Error in bmGetMaterialSummaryByProject:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   };
 
@@ -264,6 +372,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     bmPostMaterialUpdateBulk,
     bmPurchaseMaterials,
     bmupdatePurchaseStatus,
+    bmGetMaterialSummaryByProject,
   };
 };
 

@@ -1,23 +1,38 @@
 /* eslint-disable quotes */
-require('dotenv').load();
+require('dotenv').config();
+const http = require('http');
 require('./jobs/dailyMessageEmailNotification');
 const { app, logger } = require('./app');
 const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/pullRequestReviewJobs')();
+require('./jobs/analyticsAggregation').scheduleDaily();
+require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;
 
-const server = app.listen(port, () => {
-  logger.logInfo(`Started server on port ${port}`);
+// Create HTTP server for both Express and Socket.IO
+const server = http.createServer(app);
+logger.logInfo(`Started server on port ${port}`);
+
+// Initialize socket.io
+// require('./sockets/BiddingService/connServer')(server);
+// // 👈 this is important
+const { initSocket } = require('./sockets/BiddingService/connServer');
+
+initSocket(server);
+
+// Start the actual server
+server.listen(port, () => {
+  // Server started
 });
 
 const timerService = TimerWebsockets();
 const messagingService = MessagingWebSocket();
 
 websocketRouter(server, [timerService, messagingService]);
-
 
 module.exports = server;

@@ -3,7 +3,7 @@
  * It will create a new field called "members"
  * and it will populate it with users' created Date ny default
  */
-require('dotenv').load();
+require('dotenv').config();
 
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
@@ -31,15 +31,12 @@ const addMembersField = async () => {
   await Promise.all(updateOperations).catch((error) => logger.logException(error));
 };
 
-const deleteMembersField = async () => {
-  await Teams.updateMany({}, { $unset: { members: '' } }).catch((err) => console.error(err));
-};
+// const deleteMembersField = async () => {
+//  await Teams.updateMany({}, { $unset: { members: '' } }).catch((err) => console.error(err));
+// };
 
 const run = () => {
-  console.log('Loading... This may take a few minutes!');
-  const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${
-    process.env.dbName
-  }?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
+  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
     .connect(uri, {
@@ -52,7 +49,6 @@ const run = () => {
     .catch((err) => logger.logException(err))
     .finally(() => {
       mongoose.connection.close();
-      console.log('Done! ✅');
     });
 };
 
