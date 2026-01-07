@@ -531,9 +531,10 @@ const userHelper = function () {
    *  2 ) Determine whether there's been an infringement for the time not met for last week.
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
-
   /* eslint-disable no-unused-vars */
   const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
+    const t0 = Date.now();
+    console.log('[BlueSquare] start');
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
@@ -587,6 +588,7 @@ const userHelper = function () {
       console.log('Email BCCs for blue square assignment:', emailsBCCs);
 
       const emailQueue = [];
+      let processedCount = 0;
       // Use a cursor to stream users one-by-one to avoid loading large batches into memory
       // If targetUserId is provided (testing), use that; otherwise use all active users (production)
       const query = emailConfig.targetUserId
@@ -599,6 +601,13 @@ const userHelper = function () {
       // Sequential processing reduces memory pressure and avoids creating hundreds of concurrent promises.
       // eslint-disable-next-line no-restricted-syntax
       for await (const user of cursor) {
+        processedCount += 1;
+        if (processedCount % 50 === 0) {
+          console.log(
+            `[BlueSquare] processed ${processedCount} users in ${(Date.now() - t0) / 1000}s`,
+          );
+        }
+
         try {
           const person = await userProfile.findById(user._id);
           const personId = mongoose.Types.ObjectId(user._id);
@@ -861,15 +870,13 @@ const userHelper = function () {
             }
 
             const infringement = {
-              date: moment().utc().format('YYYY-MM-DD'),
+              // Use LA local date so the stored date matches the scheduler's intended business timezone
+              date: moment().tz('America/Los_Angeles').startOf('day').format('YYYY-MM-DD'),
               description,
               createdDate: hasTimeOffRequest
-                ? moment
-                    .tz(new Date(requestForTimeOff.createdAt).toISOString(), 'America/Los_Angeles')
-                    .format('YYYY-MM-DD')
+                ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
                 : null,
             };
-
             // Only assign blue square and send email if the user IS NOT a new user
             // Otherwise, display notification to users if new user && met the time requirement && weekly summary not submitted
             // All other new users will not receive a blue square or notification
@@ -885,12 +892,9 @@ const userHelper = function () {
                 { new: true },
               );
               const administrativeContent = {
-                startDate: moment
-                  .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
-                  .utc()
-                  .format('M-D-YYYY'),
-                role: person.role,
-                userTitle: person.jobTitle[0],
+                startDate: moment(person.startDate).utc().format('M-D-YYYY'),
+                role: status.role,
+                userTitle: status.jobTitle?.[0] ?? 'N/A',
                 historyInfringements,
               };
               if (person.role === 'Core Team' && timeRemaining > 0) {
@@ -917,7 +921,6 @@ const userHelper = function () {
                   administrativeContent,
                 );
               }
-
               let emailsBCCs;
               /* eslint-disable array-callback-return */
               const blueSquareBCCs = await BlueSquareEmailAssignment.find()
@@ -1131,6 +1134,8 @@ const userHelper = function () {
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
         const timeNotMet = timeSpent < weeklycommittedHours;
+        console.log('timeSpent: ', timeSpent);
+        console.log('weeklycommittedHours: ', weeklycommittedHours);
 
         const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
         const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
@@ -1817,30 +1822,28 @@ const userHelper = function () {
   };
 
   const deleteBlueSquareAfterYear = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowLA = moment().tz('America/Los_Angeles');
 
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
-    );
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
-
+    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
     try {
       const results = await userProfile.updateMany(
         {},
         {
           $pull: {
             infringements: {
-              date: {
-                $lte: cutOffDate,
-              },
+              date: { $lte: cutOffDate },
             },
           },
         },
       );
 
-      logger.logInfo(`Job deleting blue squares older than 1 year finished
-        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
+      logger.logInfo(
+        `Job deleting blue squares older than 1 year finished at ${moment()
+          .tz('America/Los_Angeles')
+          .format()} \nResult: ${JSON.stringify(results)}`,
+      );
     } catch (err) {
       logger.logException(err);
     }
@@ -2020,7 +2023,7 @@ const userHelper = function () {
         ),
         null,
         combinedCCList,
-        DEFAULT_REPLY_TO[0],
+        emailAddress,
         combinedBCCList,
         { type: 'blue_square_assignment' },
       );
