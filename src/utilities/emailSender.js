@@ -52,7 +52,7 @@ const sendEmail = async (mailOptions) => {
     };
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
-      logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
+      logger.logInfo(`Local emails - not attempting to send!`);
     }
     return result;
   } catch (error) {

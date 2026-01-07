@@ -10,6 +10,7 @@ const emailSender = require('../utilities/emailSender');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 const cacheModule = require('../utilities/nodeCache');
+const { COMPANY_TZ } = require('../constants/company');
 
 const cacheUtil = cacheModule();
 
@@ -545,7 +546,7 @@ const timeEntrycontroller = function (TimeEntry) {
     const pendingEmailCollection = [];
     try {
       const timeEntry = new TimeEntry();
-      const now = moment().utc().toISOString();
+      const now = new Date();
 
       timeEntry.personId = req.body.personId;
       timeEntry.projectId = req.body.projectId;
@@ -563,6 +564,22 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.entryType = req.body.entryType;
 
       const userprofile = await UserProfile.findById(timeEntry.personId);
+
+      if (!userprofile) {
+        await session.abortTransaction();
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      if (!userprofile.isActive && userprofile.deactivatedAt) {
+        const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
+
+        if (moment().isAfter(cutoff)) {
+          await session.abortTransaction();
+          return res.status(403).send({
+            error: 'User is deactivated and can no longer log time',
+          });
+        }
+      }
 
       if (userprofile) {
         // if the time entry is tangible, update the tangible hours in the user profile
@@ -601,6 +618,7 @@ const timeEntrycontroller = function (TimeEntry) {
         userprofile.isFirstTimelog = false;
         userprofile.startDate = now;
       }
+      userprofile.lastActivityAt = new Date();
 
       await timeEntry.save({ session });
       if (userprofile) {
@@ -996,49 +1014,51 @@ const timeEntrycontroller = function (TimeEntry) {
    * Get time entries for a specified period
    */
   const getTimeEntriesForSpecifiedPeriod = async function (req, res) {
-    if (
-      !req.params ||
-      !req.params.fromdate ||
-      !req.params.todate ||
-      !req.params.userId ||
-      !moment(req.params.fromdate).isValid() ||
-      !moment(req.params.toDate).isValid()
-    ) {
-      res.status(400).send({ error: 'Invalid request' });
-      return;
+    const { fromdate, todate, userId } = req.params;
+
+    if (!fromdate || !todate || !userId) {
+      return res.status(400).send({ error: 'Missing required parameters' });
     }
 
-    const fromdate = moment(req.params.fromdate).tz('America/Los_Angeles').format('YYYY-MM-DD');
-    const todate = moment(req.params.todate).tz('America/Los_Angeles').format('YYYY-MM-DD');
-    const { userId } = req.params;
+    const fromMoment = moment(fromdate, moment.ISO_8601, true);
+    const toMoment = moment(todate, moment.ISO_8601, true);
+
+    if (!fromMoment.isValid() || !toMoment.isValid()) {
+      return res.status(400).send({ error: 'Invalid date format', fromdate, todate });
+    }
+
+    const fromDateStr = fromMoment.tz(COMPANY_TZ).format('YYYY-MM-DD');
+    const toDateStr = toMoment.tz(COMPANY_TZ).format('YYYY-MM-DD');
 
     try {
       const timeEntries = await TimeEntry.find({
         entryType: { $in: ['default', 'person', null] },
         personId: userId,
-        dateOfWork: { $gte: fromdate, $lte: todate },
+        dateOfWork: { $gte: fromDateStr, $lte: toDateStr },
         // include the time entries for the archived projects
       }).sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
           timeEntry = { ...timeEntry.toObject() };
+
           const { projectId, taskId } = timeEntry;
+
           if (!taskId) await updateTaskIdInTimeEntry(projectId, timeEntry); // if no taskId, then it might be old time entry data that didn't separate projectId with taskId
+
           if (timeEntry.taskId) {
             const task = await Task.findById(timeEntry.taskId);
-            if (task) {
-              timeEntry.taskName = task.taskName;
-            }
+            if (task) timeEntry.taskName = task.taskName;
           }
+
           if (timeEntry.projectId) {
             const project = await Project.findById(timeEntry.projectId);
-            if (project) {
-              timeEntry.projectName = project.projectName;
-            }
+            if (project) timeEntry.projectName = project.projectName;
           }
+
           const hours = Math.floor(timeEntry.totalSeconds / 3600);
           const minutes = Math.floor((timeEntry.totalSeconds % 3600) / 60);
+
           Object.assign(timeEntry, { hours, minutes, totalSeconds: undefined });
           return timeEntry;
         }),
