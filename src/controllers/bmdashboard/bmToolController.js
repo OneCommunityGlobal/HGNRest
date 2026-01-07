@@ -249,11 +249,33 @@ const bmToolController = (BuildingTool, ToolType) => {
     return res.status(200).send({ errors, results });
   };
 
+  const updateToolById = async (req, res) => {
+    const { toolId } = req.params;
+    const { condition } = req.body;
+
+    try {
+      const updatedTool = await BuildingTool.findByIdAndUpdate(
+        toolId,
+        { $set: { condition } },
+        { new: true },
+      );
+
+      if (!updatedTool) {
+        return res.status(404).send({ message: 'Tool not found.' });
+      }
+
+      res.status(200).send(updatedTool);
+    } catch (error) {
+      res.status(500).send({ message: 'Error updating tool', error: error.message });
+    }
+  };
+
   return {
     fetchAllTools,
     fetchSingleTool,
     bmPurchaseTools,
     bmLogTools,
+    updateToolById,
   };
 };
 
