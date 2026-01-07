@@ -14,10 +14,20 @@ class PermissionService {
     return permissions && typeof permissions === 'object';
   }
 
-  static async checkUpdateAuthorization(requestor, userId) {
+  static async checkUpdateAuthorization(requestor, userId, UserProfile) {
     const hasUpdatePermission = await hasPermission(requestor, 'putUserProfilePermissions');
     if (!hasUpdatePermission) {
       return { authorized: false, error: 'You are not authorized to update user permissions' };
+    }
+
+    // Special case: Owners with addDeleteEditOwners permission can update other Owners' permissions
+    const hasAddDeleteEditOwnersPermission = await hasPermission(requestor, 'addDeleteEditOwners');
+    if (hasAddDeleteEditOwnersPermission) {
+      const targetUser = await UserProfile.findById(userId).select('role').lean();
+      if (targetUser && targetUser.role === 'Owner') {
+        // Allow Owner with addDeleteEditOwners permission to update other Owners' permissions
+        return { authorized: true };
+      }
     }
 
     const canEditProtectedAccount = await canRequestorUpdateUser(requestor.requestorId, userId);
@@ -90,8 +100,12 @@ class PermissionService {
       throw new Error('Invalid permissions data');
     }
 
-    // Check authorization
-    const authResult = await PermissionService.checkUpdateAuthorization(req.body.requestor, userId);
+    // Check authorization - pass UserProfile model to checkUpdateAuthorization
+    const authResult = await PermissionService.checkUpdateAuthorization(
+      req.body.requestor,
+      userId,
+      this.UserProfile,
+    );
     if (!authResult.authorized) {
       const error = new Error(authResult.error);
       error.statusCode = 403;
