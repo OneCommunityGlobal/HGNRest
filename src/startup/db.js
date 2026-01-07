@@ -3,16 +3,14 @@ const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
 const logger = require('./logger');
 require('dotenv').config();
-
 mongoose.Promise = Promise;
-
 const afterConnect = async () => {
   try {
     const user = await userProfile.findOne({
       firstName: { $regex: process.env.TIME_ARCHIVE_FIRST_NAME, $options: 'i' },
       lastName: { $regex: process.env.TIME_ARCHIVE_LAST_NAME, $options: 'i' },
     });
-
+    console.log('connected to mongodb');
     await initialPermissions();
     if (!user) {
       userProfile
@@ -32,9 +30,9 @@ const afterConnect = async () => {
     throw new Error(error);
   }
 };
-
 module.exports = function () {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const uri = `mongodb+srv://${process.env.DB_USER}:${encodeURIComponent(process.env.DB_PASSWORD)}@${process.env.DB_CLUSTER}/${process.env.DB_NAME}?retryWrites=true&w=majority&appName=${process.env.DB_APP_NAME}`;
+  console.log('mongo url' + uri);
   mongoose
     .connect(uri, {
       useNewUrlParser: true,

@@ -1,40 +1,41 @@
 const mongoose = require('mongoose');
-// const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const bmIssueController = function (BuildingIssue) {
+  /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
     try {
-      BuildingIssue.find()
-        .populate()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+      const issues = await BuildingIssue.find().populate();
+      res.status(200).json(issues);
+    } catch (error) {
+      res.status(500).json(error);
     }
   };
 
+  /* -------------------- ISSUE CHART (MULTI-YEAR) -------------------- */
   const bmGetIssueChart = async (req, res) => {
     try {
       const { issueType, year } = req.query;
-      const matchQuery = {}; // Initialize an empty match query object
+      const matchQuery = {};
 
-      // Apply filters if provided
-      if (issueType) {
-        matchQuery.issueType = issueType;
-      }
+      if (issueType) matchQuery.issueType = issueType;
+
       if (year) {
-        const startDate = new Date(`${year}-01-01T00:00:00Z`);
-        const endDate = new Date(`${year}-12-31T23:59:59Z`);
-        matchQuery.issueDate = { $gte: startDate, $lte: endDate }; // Filter based on issueDate
+        matchQuery.issueDate = {
+          $gte: new Date(`${year}-01-01T00:00:00Z`),
+          $lte: new Date(`${year}-12-31T23:59:59Z`),
+        };
       }
 
-      const aggregationPipeline = [
-        { $match: matchQuery }, // Match the filtered data
+      const pipeline = [
+        { $match: matchQuery },
         {
           $group: {
-            _id: { issueType: '$issueType', year: { $year: '$issueDate' } },
-            count: { $sum: 1 }, // Properly count occurrences
+            _id: {
+              issueType: '$issueType',
+              year: { $year: '$issueDate' },
+            },
+            count: { $sum: 1 },
           },
         },
         {
@@ -48,122 +49,136 @@ const bmIssueController = function (BuildingIssue) {
             },
           },
         },
-        { $sort: { _id: 1 } }, // Sort by issueType
+        { $sort: { _id: 1 } },
       ];
 
-      const issues = await mongoose.model('buildingIssue').aggregate(aggregationPipeline); // Execute aggregation pipeline
+      const data = await mongoose
+        .model('buildingIssue')
+        .aggregate(pipeline);
 
-      // Format the result
-      const result = issues.reduce((acc, item) => {
-        const issueTypeKey = item._id;
-        acc[issueTypeKey] = {};
-        item.years.forEach((yearData) => {
-          acc[issueType][yearData.year] = yearData.count;
+      const result = data.reduce((acc, item) => {
+        acc[item._id] = {};
+        item.years.forEach(y => {
+          acc[item._id][y.year] = y.count;
         });
         return acc;
       }, {});
 
-      res.status(200).json(result); // Return the formatted result
+      res.status(200).json(result);
     } catch (error) {
-      console.error('Error fetching issues:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   };
 
+  /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      BuildingIssue.create(req.body)
-        .then((result) => res.status(201).send(result))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+      const issue = await BuildingIssue.create(req.body);
+      res.status(201).json(issue);
+    } catch (error) {
+      res.status(500).json(error);
     }
   };
 
+  /* -------------------- LONGEST OPEN ISSUES (FINAL) -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
       const { dates, projects } = req.query;
-      // dates = '2021-10-01,2023-11-03';
-      // projects = '654946c8bc5772e8caf7e963';
       const query = { status: 'open' };
       let filteredProjectIds = [];
 
-      // Parse project filter if provided
+      /* ---- project filter ---- */
       if (projects) {
-        filteredProjectIds = projects.split(',').map((id) => id.trim());
+        filteredProjectIds = projects.split(',').map(id => id.trim());
       }
 
-      // Apply date filtering logic
+      /* ---- date filter ---- */
       if (dates) {
-        const [startDateStr, endDateStr] = dates.split(',').map((d) => d.trim());
-        const startDate = new Date(startDateStr);
-        const endDate = new Date(endDateStr);
+        const [start, end] = dates.split(',').map(d => d.trim());
 
         const matchingProjects = await BuildingProject.find({
-          dateCreated: { $gte: startDate, $lte: endDate },
+          dateCreated: { $gte: new Date(start), $lte: new Date(end) },
           isActive: true,
         })
           .select('_id')
           .lean();
 
-        const dateFilteredIds = matchingProjects.map((p) => p._id.toString());
+        const dateIds = matchingProjects.map(p => p._id.toString());
 
-        if (filteredProjectIds.length > 0) {
-          // Intersection of project filters
-          filteredProjectIds = filteredProjectIds.filter((id) => dateFilteredIds.includes(id));
-        } else {
-          filteredProjectIds = dateFilteredIds;
-        }
+        filteredProjectIds = filteredProjectIds.length
+          ? filteredProjectIds.filter(id => dateIds.includes(id))
+          : dateIds;
       }
 
-      // If no matching project IDs, return early
       if (dates && filteredProjectIds.length === 0) {
-        return res.json([]); // No results to return
+        return res.json([]);
       }
 
-      if (filteredProjectIds.length > 0) {
+      if (filteredProjectIds.length) {
         query.projectId = { $in: filteredProjectIds };
       }
 
-      let issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate')
-        .populate('projectId')
+      /* ---- fetch issues ---- */
+      const issues = await BuildingIssue.find(query)
+        .select('issueTitle issueDate projectId')
+        .populate({
+          path: 'projectId',
+          select: 'projectName name',
+        })
         .lean();
 
-      issues = issues.map((issue) => {
-        const durationInMonths = Math.ceil(
-          (new Date() - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24 * 30.44),
-        );
-        const years = Math.floor(durationInMonths / 12);
-        const months = durationInMonths % 12;
-        const durationText =
-          years > 0
-            ? `${years} year${years > 1 ? 's' : ''} ${months} month${months > 1 ? 's' : ''}`
-            : `${months} month${months > 1 ? 's' : ''}`;
+      /* ---- group by issue + project ---- */
+      const grouped = {};
 
-        return {
-          issueName: issue.issueTitle[0],
-          durationOpen: durationText,
-          durationInMonths,
-        };
+      issues.forEach(issue => {
+        if (!issue.issueDate || !issue.projectId) return;
+
+        const issueName = Array.isArray(issue.issueTitle)
+          ? issue.issueTitle[0]
+          : issue.issueTitle || 'Unknown Issue';
+
+        const projectId = issue.projectId._id.toString();
+        const projectName =
+          issue.projectId.projectName ||
+          issue.projectId.name ||
+          'Unknown Project';
+
+        const durationOpen = Math.ceil(
+          (Date.now() - new Date(issue.issueDate)) /
+            (1000 * 60 * 60 * 24 * 30.44),
+        );
+
+        if (!grouped[issueName]) grouped[issueName] = {};
+        if (!grouped[issueName][projectId]) {
+          grouped[issueName][projectId] = {
+            projectId,
+            projectName,
+            durationOpen,
+          };
+        }
       });
 
-      const topIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .slice(0, 7)
-        .map(({ issueName, durationInMonths }) => ({
+      /* ---- final response ---- */
+      const response = Object.entries(grouped)
+        .map(([issueName, projects]) => ({
           issueName,
-          durationOpen: durationInMonths, // send number only
-        }));
+          projects: Object.values(projects),
+        }))
+        .slice(0, 7);
 
-      res.json(topIssues);
+      res.json(response);
     } catch (error) {
       console.error('Error fetching longest open issues:', error);
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
   };
 
-  return { bmGetIssue, bmPostIssue, bmGetIssueChart, getLongestOpenIssues };
+  return {
+    bmGetIssue,
+    bmPostIssue,
+    bmGetIssueChart,
+    getLongestOpenIssues,
+  };
 };
 
 module.exports = bmIssueController;
