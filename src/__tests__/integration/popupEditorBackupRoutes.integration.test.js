@@ -34,7 +34,6 @@ describe('PopupEditorBackups tests', () => {
           agent.put(`/api/popupEditorBackup/randomId`).send(reqBody).expect(401),
           agent.delete('/api/popupEditorBackup/randomId').send(reqBody).expect(401),
         ]);
-
         console.log('✓ All 401 tests passed');
       } catch (error) {
         console.error('❌ 401 tests failed:', error.message);

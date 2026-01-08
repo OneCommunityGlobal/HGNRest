@@ -631,7 +631,11 @@ const profileInitialSetupController = function (
         )
           .then((result) => {
             const { email } = result;
+            console.log(email);
+            LOGGER.logInfo(email);
             const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+            console.log(link);
+            LOGGER.logInfo(link);
             sendEmailWithAcknowledgment(
               email,
               'Invitation Link Refreshed: Complete Your One Community Profile Setup',
