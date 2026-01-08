@@ -1558,10 +1558,25 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Check if MongoDB connection is ready before attempting to start a session
+    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    if (mongoose.connection.readyState !== 1) {
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
+      logger.logInfo(
+        `Recalculation task ${taskId} skipped: MongoDB connection not ready (state: ${mongoose.connection.readyState})`,
+      );
+      return;
+    }
 
+    let session;
     try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1579,7 +1594,9 @@ const timeEntrycontroller = function (TimeEntry) {
         recalculationTask.completionTime = new Date().toISOString();
       }
     } catch (err) {
-      await session.abortTransaction();
+      if (session) {
+        await session.abortTransaction();
+      }
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
         recalculationTask.status = 'Failed';
@@ -1588,7 +1605,9 @@ const timeEntrycontroller = function (TimeEntry) {
 
       logger.logException(err);
     } finally {
-      session.endSession();
+      if (session) {
+        session.endSession();
+      }
     }
   };
 
