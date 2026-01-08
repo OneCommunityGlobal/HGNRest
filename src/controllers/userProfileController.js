@@ -1713,21 +1713,22 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       // DEACTIVATION
       // =========================
       if (isDeactivating) {
+        user.isActive = false;
         user.deactivatedAt = new Date();
 
-        // If a reactivationDate is provided, treat this as PAUSE.
         if (reactivationDate) {
           console.log(`Received reactivationDate before parsing ${userId}: ${reactivationDate}`);
           const parsedReactivationDate = moment
             .tz(reactivationDate, COMPANY_TZ)
             .startOf('day')
             .toDate();
+
           if (Number.isNaN(parsedReactivationDate.getTime())) {
             return res.status(400).send({ error: 'Invalid reactivationDate format' });
           }
+
           console.log(`Setting reactivationDate for user ${userId} to ${parsedReactivationDate}`);
 
-          user.isActive = false;
           user.reactivationDate = parsedReactivationDate;
           user.inactiveReason = 'Paused';
 
