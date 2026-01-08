@@ -1609,7 +1609,7 @@ const timeEntrycontroller = function (TimeEntry) {
       taskId,
     });
 
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV !== 'test') {
       setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
     }
   };
