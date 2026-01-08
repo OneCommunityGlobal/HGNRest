@@ -7,7 +7,7 @@ const MaterialUsage = require('../models/materialUsage');
  * @access  Private
  */
 const getMaterialUtilization = async (req, res) => {
-  const { start, end, projects } = req.query;
+  const { start, end, projects, materials } = req.query;
 
   // --- 1. Validation ---
   if (!start || !end) {
@@ -57,6 +57,16 @@ const getMaterialUtilization = async (req, res) => {
     }
   }
 
+  if (materials && Array.isArray(materials) && materials.length > 0) {
+    try {
+      // Convert material string IDs to ObjectIds
+      const materialObjectIds = materials.map((id) => new mongoose.Types.ObjectId(id));
+      matchStage.materialId = { $in: materialObjectIds };
+    } catch (error) {
+      return res.status(400).json({ success: false, message: 'Invalid material ID format.' });
+    }
+  }
+
   // --- 3. Aggregation Pipeline ---
   try {
     const aggregationPipeline = [
@@ -89,6 +99,7 @@ const getMaterialUtilization = async (req, res) => {
           project: 1,
           used: 1,
           unused: 1,
+          totalHandled: 1,
           // Use $cond to prevent division by zero if totalHandled is 0
           usedPct: {
             $cond: {
@@ -108,6 +119,7 @@ const getMaterialUtilization = async (req, res) => {
       {
         $project: {
           project: 1,
+          totalHandled: 1,
           used: 1,
           unused: 1,
           usedPct: 1,
