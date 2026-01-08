@@ -1538,6 +1538,18 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
+    // Check if mongoose connection is ready before attempting session operations
+    // readyState: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    if (mongoose.connection.readyState !== 1) {
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
+      // Silently return - this is expected during test teardown
+      return;
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
