@@ -50,12 +50,26 @@ const cache = function () {
     cacheStore.ttl(key, ttl);
   }
 
+  function clearByPrefix(prefix) {
+    try {
+      const keys = cacheStore.keys();
+      keys.forEach((key) => {
+        if (key.startsWith(prefix)) {
+          cacheStore.del(key);
+        }
+      });
+    } catch (error) {
+      logger.logException(error);
+    }
+  }
+
   return {
     setCache,
     getCache,
     removeCache,
     hasCache,
     setKeyTimeToLive,
+    clearByPrefix,
   };
 };
 
