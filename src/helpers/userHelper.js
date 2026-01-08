@@ -35,10 +35,13 @@ const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const Timer = require('../models/timer');
+const { COMPANY_TZ } = require('../constants/company');
 
-const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jaesabol@onecommunityglobal.org'];
+const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
-const DEFAULT_REPLY_TO = ['onecommunityglobal@gmail.com'];
+const DEFAULT_REPLY_TO = ['jae@onecommunityglobal.org'];
+
+const WEEKS_BEFORE_FINAL_EMAIL = 3;
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -62,6 +65,50 @@ const userHelper = function () {
       _id: 0,
     });
   };
+
+  async function getCurrentTeamCode(teamId) {
+    // Ensure teamId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+
+    // Fetch the current team code of the given teamId from active users
+    const result = await userProfile.aggregate([
+      {
+        $match: {
+          teams: mongoose.Types.ObjectId(teamId),
+          isActive: true,
+        },
+      },
+      { $limit: 1 },
+      { $project: { teamCode: 1 } },
+    ]);
+
+    // Return the teamCode if found
+    return result.length > 0 ? result[0].teamCode : null;
+  }
+
+  async function checkTeamCodeMismatch(user) {
+    try {
+      // no user or no teams → nothing to compare
+      if (!user || !user.teams.length) {
+        return false;
+      }
+
+      // looks like they always checked the first (latest) team
+      const latestTeamId = user.teams[0];
+
+      // this was in your diff: getCurrentTeamCode(latestTeamId)
+      const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
+      if (!teamCodeFromFirstActive) {
+        return false;
+      }
+
+      // mismatch if user's stored teamCode != that team's current code
+      return teamCodeFromFirstActive !== user.teamCode;
+    } catch (error) {
+      logger.logException(error);
+      return false;
+    }
+  }
 
   const getTeamMembersForBadge = async function (user) {
     try {
@@ -249,7 +296,7 @@ const userHelper = function () {
     // add administrative content
     const text = `Dear <b>${firstName} ${lastName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
-        <p><b>Date Assigned:</b> ${moment(infringement.date).format('M-D-YYYY')}</p>\
+        <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
         ${finalParagraph}
@@ -488,6 +535,8 @@ const userHelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
   const assignBlueSquareForTimeNotMet = async () => {
+    const t0 = Date.now();
+    console.log('[BlueSquare] start');
     try {
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
       moment.tz('America/Los_Angeles').startOf('day').toISOString();
@@ -505,7 +554,7 @@ const userHelper = function () {
 
       const users = await userProfile.find(
         { isActive: true },
-        '_id weeklycommittedHours weeklySummaries missedHours',
+        '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
       const usersRequiringBlueSqNotification = [];
       // this part is supposed to be a for, so it'll be slower when sending emails, so the emails will not be
@@ -525,10 +574,32 @@ const userHelper = function () {
           // save updated records in batch (mongoose updateMany) and do asyc email sending
         2. Wrap the operation in one transaction to ensure the atomicity of the operation.
       */
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
 
-        const person = await userProfile.findById(user._id);
+      // fetch emailBCCs once - same for all users
+      let emailsBCCs;
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        // Keep only assignments with an active assignedTo and map to their email
+        emailsBCCs = blueSquareBCCs
+          .filter((assignment) => assignment.assignedTo && assignment.assignedTo.isActive === true)
+          .map((assignment) => assignment.email);
+      } else {
+        emailsBCCs = null;
+      }
+
+      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+
+      const emailQueue = [];
+      for (let i = 0; i < users.length; i += 1) {
+        if (i % 50 === 0) {
+          console.log(
+            `[BlueSquare] processed ${i}/${users.length} users in ${(Date.now() - t0) / 1000}s`,
+          );
+        }
+        const user = users[i];
+        // avoid multiple db calls and fetch necessary data in first db call??
+        // const person = await userProfile.findById(user._id);
+        const person = user;
 
         const personId = mongoose.Types.ObjectId(user._id);
 
@@ -550,7 +621,10 @@ const userHelper = function () {
           pdtEndOfLastWeek,
         );
 
-        const { timeSpent_hrs: timeSpent } = results[0];
+        if (!Array.isArray(results) || results.length === 0) {
+          console.log(`⚠️ No laborThisWeek results for user ${personId}`);
+        }
+        const timeSpent = results?.[0]?.timeSpent_hrs ?? 0;
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
 
@@ -794,7 +868,8 @@ const userHelper = function () {
           }
 
           const infringement = {
-            date: moment().utc().format('YYYY-MM-DD'),
+            // Use LA local date so the stored date matches the scheduler's intended business timezone
+            date: moment().tz('America/Los_Angeles').startOf('day').format('YYYY-MM-DD'),
             description,
             createdDate: hasTimeOffRequest
               ? moment(requestForTimeOff.createdAt).format('YYYY-MM-DD')
@@ -816,8 +891,8 @@ const userHelper = function () {
             );
             const administrativeContent = {
               startDate: moment(person.startDate).utc().format('M-D-YYYY'),
-              role: person.role,
-              userTitle: person.jobTitle[0],
+              role: status.role,
+              userTitle: status.jobTitle?.[0] ?? 'N/A',
               historyInfringements,
             };
             if (person.role === 'Core Team' && timeRemaining > 0) {
@@ -844,32 +919,15 @@ const userHelper = function () {
                 administrativeContent,
               );
             }
-
-            let emailsBCCs;
-            /* eslint-disable array-callback-return */
-            const blueSquareBCCs = await BlueSquareEmailAssignment.find()
-              .populate('assignedTo')
-              .exec();
-            if (blueSquareBCCs.length > 0) {
-              emailsBCCs = blueSquareBCCs.map((assignment) => {
-                if (assignment.assignedTo.isActive === true) {
-                  return assignment.email;
-                }
-              });
-            } else {
-              emailsBCCs = null;
-            }
-
-            emailSender(
-              status.email,
-              'New Infringement Assigned',
-              emailBody,
-              null,
-              DEFAULT_CC_EMAILS,
-              DEFAULT_REPLY_TO[0],
-              emailsBCCs,
-              { type: 'blue_square_assignment' },
-            );
+            emailQueue.push({
+              to: status.email,
+              subject: 'New Infringement Assigned',
+              body: emailBody,
+              cc: DEFAULT_CC_EMAILS,
+              replyTo: status.email,
+              bcc: emailsBCCs,
+              startDate: person.startDate,
+            });
           } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
             usersRequiringBlueSqNotification.push(personId);
           }
@@ -923,6 +981,19 @@ const userHelper = function () {
         if (cache.hasCache(`user-${personId}`)) {
           cache.removeCache(`user-${personId}`);
         }
+      }
+      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      for (const email of emailQueue) {
+        await emailSender(
+          email.to,
+          email.subject,
+          email.body,
+          email.attachments ? email.attachments : null,
+          email.cc,
+          email.replyTo,
+          email.bcc,
+          { type: 'blue_square_assignment' },
+        );
       }
       // eslint-disable-next-line no-use-before-define
       await deleteOldTimeOffRequests();
@@ -1078,92 +1149,91 @@ const userHelper = function () {
   };
 
   const deleteBlueSquareAfterYear = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowLA = moment().tz('America/Los_Angeles');
 
-    logger.logInfo(
-      `Job for deleting blue squares older than 1 year starting at ${currentFormattedDate}`,
-    );
+    logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
-    const cutOffDate = moment().subtract(1, 'year').format('YYYY-MM-DD');
-
+    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
     try {
       const results = await userProfile.updateMany(
         {},
         {
           $pull: {
             infringements: {
-              date: {
-                $lte: cutOffDate,
-              },
+              date: { $lte: cutOffDate },
             },
           },
         },
       );
 
-      logger.logInfo(`Job deleting blue squares older than 1 year finished
-        at ${moment().tz('America/Los_Angeles').format()} \nReulst: ${JSON.stringify(results)}`);
+      logger.logInfo(
+        `Job deleting blue squares older than 1 year finished at ${moment()
+          .tz('America/Los_Angeles')
+          .format()} \nResult: ${JSON.stringify(results)}`,
+      );
     } catch (err) {
       logger.logException(err);
     }
   };
 
   const reActivateUser = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const nowPst = moment().tz(COMPANY_TZ);
 
     logger.logInfo(
-      `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`,
+      `Job for activating users based on scheduled re-activation date starting at ${nowPst.format()}`,
     );
 
     try {
       const users = await userProfile.find(
-        { isActive: false, reactivationDate: { $exists: true } },
-        '_id isActive reactivationDate',
+        {
+          isActive: false,
+          reactivationDate: { $exists: true, $ne: null },
+        },
+        '_id isActive reactivationDate deactivatedAt email firstName lastName',
       );
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
-        if (canActivate) {
-          // Use '!' to invert the boolean value for testing
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $set: {
-                isActive: true,
-              },
-              $unset: {
-                endDate: user.endDate,
-              },
+
+      for (const user of users) {
+        const canActivate = moment(nowPst).isAfter(moment(user.reactivationDate).tz(COMPANY_TZ));
+
+        if (!canActivate) continue;
+
+        await userProfile.findByIdAndUpdate(
+          user._id,
+          {
+            $set: {
+              isActive: true,
+              reactivationDate: null,
             },
-            { new: true },
-          );
-          logger.logInfo(
-            `User with id: ${user._id} was re-acticated at ${moment()
-              .tz('America/Los_Angeles')
-              .format()}.`,
-          );
-          const id = user._id;
-          const person = await userProfile.findById(id);
+            $unset: {
+              deactivatedAt: '',
+              inactiveReason: '',
+            },
+          },
+          { new: true },
+        );
 
-          const endDate = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
+        logger.logInfo(`User with id: ${user._id} was re-activated at ${nowPst.format()}.`);
 
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
+        const pausedOn = user.deactivatedAt
+          ? moment(user.deactivatedAt).tz('America/Los_Angeles').format('YYYY-MM-DD')
+          : 'an earlier date';
 
-          const emailBody = `<p> Hi Admin! </p>
+        const subject = `IMPORTANT: ${user.firstName} ${user.lastName} has been re-activated in the Highest Good Network`;
 
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has been made active again in the Highest Good Network application after being paused on ${endDate}.</p>
+        const emailBody = `
+        <p>Hi Admin,</p>
+        <p>
+          ${user.firstName} ${user.lastName} has been re-activated in the Highest Good Network
+          after being paused on ${pausedOn}.
+        </p>
+        <p>Email: ${user.email}</p>
+        <p>Thanks,<br/>The HGN System</p>
+      `;
 
-          <p>If you need to communicate anything with them, this is their email from the system: ${person.email}.</p>
-
-          <p> Thanks! </p>
-
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
-        }
+        emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, user.email);
       }
     } catch (err) {
-      logger.logException(err);
+      logger.logException(err, 'Unexpected error in reActivateUser');
     }
   };
 
@@ -1185,8 +1255,11 @@ const userHelper = function () {
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
+    console.log('ORIGINAL', original);
     if (original.length) {
-      historyInfringements = original
+      const sortedForHistory = [...original].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      historyInfringements = sortedForHistory
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -1242,7 +1315,7 @@ const userHelper = function () {
               enhancedDescription = `<span style="color: blue;"><b>${item.description}</b></span>`;
             }
           }
-          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(item.date).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
+          return `<p>${index + 1}. Date: <span style="color: blue;"><b>${moment(new Date(item.date)).format('M-D-YYYY')}</b></span>, Description: ${enhancedDescription}</p>`;
         })
         .join('');
     }
@@ -1278,7 +1351,7 @@ const userHelper = function () {
         ),
         null,
         combinedCCList,
-        DEFAULT_REPLY_TO[0],
+        emailAddress,
         combinedBCCList,
         { type: 'blue_square_assignment' },
       );
@@ -2358,93 +2431,6 @@ const userHelper = function () {
     }
   };
 
-  const deActivateUser = async () => {
-    try {
-      const emailReceivers = await userProfile.find(
-        { isActive: true, role: { $in: ['Owner'] } },
-        '_id isActive role email',
-      );
-      const recipients = emailReceivers.map((receiver) => receiver.email);
-      const users = await userProfile.find(
-        { isActive: true, endDate: { $exists: true } },
-        '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
-      );
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const { endDate, finalEmailThreeWeeksSent } = user;
-        endDate.setHours(endDate.getHours() + 7);
-        // notify reminder set final day before 2 weeks
-        if (
-          finalEmailThreeWeeksSent &&
-          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
-          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
-        ) {
-          const id = user._id;
-          const person = await userProfile.findById(id);
-          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
-          person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-              managementEmails.forEach((management) => {
-                recipients.push(management.email);
-              });
-            }
-          });
-          sendDeactivateEmailBody(
-            person.firstName,
-            person.lastName,
-            lastDay,
-            person.email,
-            recipients,
-            person.isSet,
-            person.reactivationDate,
-            false,
-            true,
-          );
-        } else if (moment().isAfter(moment(endDate).add(1, 'days'))) {
-          try {
-            await userProfile.findByIdAndUpdate(
-              user._id,
-              user.set({
-                isActive: false,
-              }),
-              { new: true },
-            );
-          } catch (err) {
-            // Log the error and continue to the next user
-            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
-            continue;
-          }
-          const id = user._id;
-          const person = await userProfile.findById(id);
-          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
-          person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-              managementEmails.forEach((management) => {
-                recipients.push(management.email);
-              });
-            }
-          });
-          sendDeactivateEmailBody(
-            person.firstName,
-            person.lastName,
-            lastDay,
-            person.email,
-            recipients,
-            person.isSet,
-            person.reactivationDate,
-            undefined,
-          );
-        }
-      }
-    } catch (err) {
-      logger.logException(err, 'Unexpected error in deActivateUser');
-    }
-  };
-
   // Update by Shengwei/Peter PR767:
   /**
    *  Delete all tokens used in new user setup from database that in cancelled, expired, or used status.
@@ -2510,9 +2496,12 @@ const userHelper = function () {
     if (typeof data === 'object' && data !== null) {
       const result = Object.keys(data).some((key) => {
         if (typeof data[key] === 'object') {
-          return searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          const found = searchForTermsInFields(data[key], lowerCaseTerm1, lowerCaseTerm2);
+          return Boolean(found); // always returns boolean
         }
+        return false; // MUST return boolean here
       });
+
       return result ? data : null;
     }
     return [];
@@ -2749,18 +2738,175 @@ const userHelper = function () {
     }
   };
 
+  const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network.
+    </p>
+    <p>
+      Please confirm all work has been wrapped up until they return on
+      <strong>${moment(reactivationDate).format('M-D-YYYY')}</strong>.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(email, subject, emailBody, null, recipients, email);
+  };
+
+  const sendUserSeparatedEmail = ({ firstName, lastName, email, recipients, endDate }) => {
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network.
+    </p>
+    <p>
+      Please confirm all work has been wrapped up and nothing further is needed.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(email, subject, emailBody, null, recipients, email);
+  };
+
+  const sendUserActivatedEmail = ({ firstName, lastName, email, recipients }) => {
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been activated in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      ${firstName} ${lastName} has been re-activated in the Highest Good Network.
+    </p>
+    <p>Email: ${email}</p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(email, subject, emailBody, null, recipients, email);
+  };
+
+  async function finalizeUserEndDates() {
+    const now = moment.tz('2026-01-07T00:02:00', COMPANY_TZ);
+
+    const users = await userProfile.find({
+      deactivatedAt: { $ne: null },
+      endDate: { $in: [null, undefined] },
+    });
+
+    console.log('Found', users.length, 'users to process for finalizing end dates.');
+
+    for (const user of users) {
+      if (user.isSet || user.endDate) {
+        console.log(
+          'Skipping user',
+          user._id,
+          'because isSet is',
+          user.isSet,
+          'and endDate is',
+          user.endDate,
+        );
+        continue; // Skip users who already have endDate set
+      }
+
+      if (now.isSameOrBefore(moment(user.deactivatedAt).tz(COMPANY_TZ).endOf('day'))) {
+        console.log(
+          'Skipping user',
+          user._id,
+          'because deactivatedAt is in the future:',
+          user.deactivatedAt,
+        );
+        continue; // Skip users whose deactivatedAt is in the future
+      }
+
+      const effectiveFinalMoment = getEffectiveFinalDay(user);
+      console.log('Effective final moment for user', user._id, 'is', effectiveFinalMoment);
+      if (!effectiveFinalMoment) continue; // Skip if we can't determine an effective final day
+
+      user.endDate = effectiveFinalMoment.toDate();
+      user.isActive = false;
+
+      if (
+        !user.finalEmailThreeWeeksSent &&
+        now.isSameOrAfter(
+          moment(effectiveFinalMoment).subtract(WEEKS_BEFORE_FINAL_EMAIL, 'weeks').startOf('day'),
+        )
+      ) {
+        await sendThreeWeekFinalDayEmail({
+          to: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          endDate: user.endDate,
+        });
+        user.finalEmailThreeWeeksSent = true;
+      }
+
+      await user.save();
+    }
+  }
+
+  function getEffectiveFinalDay(user) {
+    console.log('Calculating effective final day for user:', user._id);
+    if (user.isSet && user.endDate) {
+      console.log('User has isSet true and endDate:', user.endDate);
+      return moment(user.endDate).tz(COMPANY_TZ);
+    }
+
+    if (!user.lastActivityAt) {
+      console.log('User has no lastActivityAt, using deactivatedAt:', user.deactivatedAt);
+      return moment(user.deactivatedAt).tz(COMPANY_TZ);
+    }
+
+    console.log('Using lastActivityAt as effective final day:', user.lastActivityAt);
+    return moment(user.lastActivityAt).tz(COMPANY_TZ);
+  }
+
+  const sendThreeWeekFinalDayEmail = async ({ to, firstName, lastName, endDate }) => {
+    const subject = `IMPORTANT: Upcoming final day for ${firstName} ${lastName} in the Highest Good Network`;
+
+    const formattedEndDate = moment(endDate).tz('America/Los_Angeles').format('M-D-YYYY');
+
+    const emailBody = `
+    <p>Management,</p>
+
+    <p>
+      Please note that the final day for <strong>${firstName} ${lastName}</strong>
+      in the Highest Good Network is set for <strong>${formattedEndDate}</strong>.
+    </p>
+
+    <p>
+      This is a reminder sent approximately three weeks in advance.
+      Please begin wrapping up any remaining work and transitions with this individual.
+    </p>
+
+    <p>
+      An additional reminder will be sent closer to the final date.
+    </p>
+
+    <p>With gratitude,<br/>One Community</p>
+  `;
+
+    // SAFETY: do not crash cron if email fails
+    try {
+      await emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, to, to);
+    } catch (err) {
+      logger.logException(err, 'Failed to send 3-week final day email');
+    }
+  };
+
   return {
     changeBadgeCount,
     getUserName,
     getTeamMembers,
+    checkTeamCodeMismatch,
     getTeamManagementEmail,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     reActivateUser,
-    sendDeactivateEmailBody,
-    deActivateUser,
     notifyInfringements,
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
@@ -2770,6 +2916,10 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
+    sendUserPausedEmail,
+    sendUserSeparatedEmail,
+    sendUserActivatedEmail,
+    finalizeUserEndDates,
   };
 };
 

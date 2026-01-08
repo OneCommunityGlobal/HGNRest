@@ -1,6 +1,5 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
-
 const userhelper = require('../helpers/userHelper')();
 
 const userProfileJobs = () => {
@@ -30,8 +29,8 @@ const userProfileJobs = () => {
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
-      await userhelper.deActivateUser();
       await userhelper.reActivateUser();
+      await userhelper.finalizeUserEndDates();
     },
     null,
     false,
