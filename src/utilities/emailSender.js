@@ -1,6 +1,8 @@
+// src/utilities/emailSender.js
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
+const EmailHistory = require('../models/emailHistory');
 
 const config = {
   email: process.env.REACT_APP_EMAIL,
@@ -33,16 +35,24 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async (mailOptions) => {
   try {
-    const { token } = await OAuth2Client.getAccessToken();
+    const accessTokenResp = await OAuth2Client.getAccessToken();
+    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+
+    if (!token) {
+      throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    }
 
     mailOptions.auth = {
+      type: 'OAuth2', // include type
       user: config.email,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
       refreshToken: config.refreshToken,
       accessToken: token,
     };
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
-      logger.logInfo(`Email sent: ${JSON.stringify(result)}`);
+      logger.logInfo(`Local emails - not attempting to send!`);
     }
     return result;
   } catch (error) {
@@ -55,30 +65,96 @@ const sendEmail = async (mailOptions) => {
 const queue = [];
 let isProcessing = false;
 
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const normalize = (field) => {
+  if (!field) {
+    return [];
+  }
+  if (Array.isArray(field)) {
+    return field;
+  }
+  return String(field).split(',');
+};
+
+const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
+  const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
+  const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await sendEmail(batch);
+
+      if (isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'SENT',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+      }
+      return true;
+    } catch (err) {
+      logger.logException(err, `Batch to ${batch.to || '(empty)'} attempt ${attempt}`);
+
+      if (attempt === retries && isBsAssignment) {
+        await EmailHistory.findOneAndUpdate(
+          { uniqueKey: key },
+          {
+            $set: {
+              to: normalize(batch.to),
+              cc: normalize(batch.cc),
+              bcc: normalize(batch.bcc),
+              subject: batch.subject,
+              message: batch.html,
+              status: 'FAILED',
+              updatedAt: new Date(),
+            },
+            $inc: { attempts: 1 },
+          },
+          { upsert: true, new: true },
+        );
+      }
+    }
+
+    if (attempt < retries) await sleep(baseDelay * attempt); // backoff
+  }
+  return false;
+};
+
+const worker = async () => {
+  while (true) {
+    // atomically pull next batch
+    const batch = queue.shift();
+    if (!batch) break; // queue drained for this worker
+
+    await sendWithRetry(batch);
+    if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
+  }
+};
+
 const processQueue = async () => {
   if (isProcessing || queue.length === 0) return;
 
   isProcessing = true;
 
-  const processBatch = async () => {
-    if (queue.length === 0) {
-      isProcessing = false;
-      return;
-    }
-
-    const batch = queue.shift();
-    try {
-      await sendEmail(batch);
-    } catch (error) {
-      logger.logException(error, 'Failed to send email batch');
-    }
-    setTimeout(processBatch, config.rateLimitDelay);
-  };
-
-  const concurrentProcesses = Array(config.concurrency).fill().map(processBatch);
-
   try {
-    await Promise.all(concurrentProcesses);
+    const n = Math.max(1, Number(config.concurrency) || 1);
+    const workers = Array.from({ length: n }, () => worker());
+    await Promise.all(workers); // drain-until-empty with N workers
   } finally {
     isProcessing = false;
   }
@@ -95,6 +171,7 @@ const processQueue = async () => {
  * @param {string[]|null} [cc=null] - Optional array of CC (carbon copy) email addresses.
  * @param {string|null} [replyTo=null] - Optional reply-to email address.
  * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
+ * @param {Object} [opts={}] - Optional settings object.
  *
  * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
  *
@@ -122,24 +199,35 @@ const emailSender = (
   cc = null,
   replyTo = null,
   emailBccs = null,
+  opts = {},
 ) => {
-  if (!process.env.sendEmail) return;
+  const type = opts.type || 'general';
+  const isReset = type === 'password_reset';
+
+  if (
+    !process.env.sendEmail ||
+    (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
+  ) {
+    return Promise.resolve('EMAIL_SENDING_DISABLED');
+  }
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-    for (let i = 0; i < recipients.length; i += config.batchSize) {
+    for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
       const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
       queue.push({
         from: config.email,
-        to: batchRecipients ? batchRecipients.join(',') : [], // <-- use 'to' instead of 'bcc'
-        bcc: emailBccs ? emailBccs.join(',') : [],
+        to: batchRecipients.length ? batchRecipients.join(',') : '',
+        bcc: emailBccs ? emailBccs.join(',') : '',
         subject,
         html: message,
         attachments,
         cc,
         replyTo,
+        meta: { type },
       });
     }
+
     setImmediate(async () => {
       try {
         await processQueue();

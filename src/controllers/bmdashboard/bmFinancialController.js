@@ -1,11 +1,31 @@
-const mongoose = require('mongoose');
+/* eslint-disable no-shadow */
+/* eslint-disable no-use-before-define */
 const logger = require('../../startup/logger');
 
 const bmFinancialController = function (BuildingProject, BuildingMaterial, BuildingTool) {
-  // Helper functions defined at the top to avoid "used before defined" errors
-  const calculateMaterialsCost = async (BuildingMaterialModel, projectId) => {
+  const mongoose = require('mongoose');
+
+  const calculateLaborCost = async (projectId, hourlyRate = 25) => {
     try {
-      const materials = await BuildingMaterialModel.find({ project: projectId });
+      const project = await BuildingProject.findById(projectId);
+      if (!project || !Array.isArray(project.members)) {
+        return 0;
+      }
+      let totalLaborCost = 0;
+      project.members.forEach((member) => {
+        const hoursWorked = member.hours || 0;
+        totalLaborCost += hoursWorked * hourlyRate;
+      });
+      return totalLaborCost;
+    } catch (err) {
+      console.error('Error calculating labor cost:', err);
+      throw err;
+    }
+  };
+
+  const calculateMaterialsCost = async (projectId) => {
+    try {
+      const materials = await BuildingMaterial.find({ project: projectId });
       let totalCost = 0;
 
       if (!materials.length) {
@@ -31,9 +51,9 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
     }
   };
 
-  const calculateToolsCost = async (BuildingToolModel, projectId) => {
+  const calculateToolsCost = async (projectId) => {
     try {
-      const tools = await BuildingToolModel.find({ project: projectId });
+      const tools = await BuildingTool.find({ project: projectId });
       let totalCost = 0;
 
       if (!tools.length) {
@@ -59,69 +79,6 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
     } catch (err) {
       console.error('Error calculating tools cost:', err);
       throw err;
-    }
-  };
-
-  const calculateLaborCost = async (BuildingProjectModel, projectId, hourlyRate = 25) => {
-    try {
-      const project = await BuildingProjectModel.findById(projectId);
-      if (!project || !Array.isArray(project.members)) {
-        return 0;
-      }
-      let totalLaborCost = 0;
-      project.members.forEach((member) => {
-        const hoursWorked = member.hours || 0;
-        totalLaborCost += hoursWorked * hourlyRate;
-      });
-      return totalLaborCost;
-    } catch (err) {
-      console.error('Error calculating labor cost:', err);
-      throw err;
-    }
-  };
-
-  const getTotalProjectCost = async (req, res) => {
-    try {
-      const project = await BuildingProject.findById(req.params.projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
-      const { _id: projectId } = project;
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, projectId);
-      const toolsCost = await calculateToolsCost(BuildingTool, projectId);
-      const laboorCost = await calculateLaborCost(BuildingProject, projectId);
-
-      const totalCost = materialsCost + toolsCost + laboorCost;
-      res.status(200).json({
-        totalCost,
-      });
-    } catch (error) {
-      logger.logException(`Error fetching project cost: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  };
-
-  const getCostBreakdown = async (req, res) => {
-    try {
-      const project = await BuildingProject.findById(req.params.projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
-      const { _id: projectId } = project;
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, projectId);
-      const toolsCost = await calculateToolsCost(BuildingTool, projectId);
-      const laboorCost = await calculateLaborCost(BuildingProject, projectId);
-
-      res.status(200).json({
-        materialsCost,
-        equipmentCost: toolsCost,
-        laborCost: laboorCost,
-      });
-    } catch (error) {
-      logger.logException(`Error fetching project cost breakdown: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
     }
   };
 
@@ -180,7 +137,7 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
       const thisMonthToolCost = calculateCost(toolDocs, thisMonthStart);
       const lastMonthToolCost = calculateCost(toolDocs, lastMonthStart);
 
-      const thisMonthLaborCost = await calculateLaborCost(BuildingProject, projectObjectId);
+      const thisMonthLaborCost = await calculateLaborCost(projectObjectId);
       const lastMonthLaborCost = thisMonthLaborCost; // Replace with actual last month logic if available
 
       const calcMoMChange = (current, previous) => {
@@ -212,31 +169,32 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
       const results = await Promise.all(
         projects.map(async (project) => {
-          const { _id: projectId } = project;
           let materialsCost = 0;
           let toolsCost = 0;
           let laborCost = 0;
 
           try {
-            materialsCost = await calculateMaterialsCost(BuildingMaterial, projectId);
+            materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
           } catch (error) {
-            logger.logException(`Materials cost error for project ${projectId}: ${error.message}`);
+            logger.logException(
+              `Materials cost error for project ${project._id}: ${error.message}`,
+            );
           }
 
           try {
-            toolsCost = await calculateToolsCost(BuildingTool, projectId);
+            toolsCost = await calculateToolsCost(project._id);
           } catch (error) {
-            logger.logException(`Tools cost error for project ${projectId}: ${error.message}`);
+            logger.logException(`Tools cost error for project ${project._id}: ${error.message}`);
           }
 
           try {
-            laborCost = await calculateLaborCost(BuildingProject, projectId);
+            laborCost = await calculateLaborCost(project._id);
           } catch (error) {
-            logger.logException(`Labor cost error for project ${projectId}: ${error.message}`);
+            logger.logException(`Labor cost error for project ${project._id}: ${error.message}`);
           }
 
           return {
-            projectId,
+            projectId: project._id,
             totalCost: materialsCost + toolsCost + laborCost,
             materialCost: materialsCost,
             laborCost,
@@ -262,14 +220,13 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
       const results = await Promise.all(
         projects.map(async (project) => {
-          const { _id: projectId } = project;
-          const materialsCost = await calculateMaterialsCost(BuildingMaterial, projectId);
-          const toolsCost = await calculateToolsCost(BuildingTool, projectId);
-          const laborCost = await calculateLaborCost(BuildingProject, projectId);
+          const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+          const toolsCost = await calculateToolsCost(project._id);
+          const laborCost = await calculateLaborCost(project._id);
           const totalCost = materialsCost + toolsCost + laborCost;
 
           return {
-            projectId,
+            projectId: project._id,
             totalCost,
             materialCost: materialsCost,
             laborCost,
@@ -281,6 +238,49 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
       res.status(200).json(results);
     } catch (err) {
       logger.logException(`Error fetching financial data by date range: ${err.message}`);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+
+  const getTotalProjectCost = async (req, res) => {
+    try {
+      const project = await BuildingProject.findById(req.params.projectId);
+      if (!project) {
+        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        return res.status(404).json({ message: 'Project not found' });
+      }
+      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const toolsCost = await calculateToolsCost(project._id);
+      const laboorCost = await calculateLaborCost(project._id);
+
+      const totalCost = materialsCost + toolsCost + laboorCost;
+      res.status(200).json({
+        totalCost,
+      });
+    } catch (error) {
+      logger.logException(`Error fetching project cost: ${error.message}`);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+
+  const getCostBreakdown = async (req, res) => {
+    try {
+      const project = await BuildingProject.findById(req.params.projectId);
+      if (!project) {
+        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        return res.status(404).json({ message: 'Project not found' });
+      }
+      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const toolsCost = await calculateToolsCost(project._id);
+      const laboorCost = await calculateLaborCost(project._id);
+
+      res.status(200).json({
+        materialsCost,
+        equipmentCost: toolsCost,
+        laborCost: laboorCost,
+      });
+    } catch (error) {
+      logger.logException(`Error fetching project cost breakdown: ${error.message}`);
       res.status(500).json({ message: 'Internal server error' });
     }
   };

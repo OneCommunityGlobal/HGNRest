@@ -4,6 +4,13 @@ const { hasPermission } = require('../utilities/permissions');
 
 const hgnFormController = function () {
   const submitFormResponse = async function (req, res) {
+    const { userInfo, general, frontend, backend, followUp, user_id } = req.body;
+
+    if (!userInfo || !general || !frontend || !backend || !followUp || !user_id) {
+      return res
+        .status(400)
+        .json({ error: 'All fields (userInfo, general, frontend, backend) are required' });
+    }
     try {
       const formResponse = new FormResponse(req.body);
       await formResponse.save();

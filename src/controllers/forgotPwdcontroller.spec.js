@@ -3,10 +3,10 @@ const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const UserProfile = require('../models/userProfile');
 
-jest.mock('../utilities/emailSender', () => ({
-  sendEmail: jest.fn(),
-}));
-const { sendEmail } = require('../utilities/emailSender');
+jest.mock('../utilities/emailSender', () => jest.fn());
+const emailSender = require('../utilities/emailSender');
+
+emailSender.mockResolvedValue('Success');
 
 jest.mock('../helpers/dashboardhelper');
 const dashboardHelperClosure = require('../helpers/dashboardhelper');
@@ -51,7 +51,7 @@ const makeSut = () => {
 const flushPromises = async () => new Promise(setImmediate);
 
 describe('Dashboard Controller tests', () => {
-  beforeAll(() => { });
+  beforeAll(() => {});
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -246,15 +246,6 @@ describe('Dashboard Controller tests', () => {
 
       await flushPromises();
 
-      // expect(mockUser.set).toHaveBeenCalledWith({ resetPwd: temporaryPassword });
-      // expect(mockUser.save).toHaveBeenCalled();
-      // expect(emailSender.sendEmail).toHaveBeenCalledWith(
-      //   mockUser.email,
-      //   'Account Password change',
-      //   expectedEmailMessage,
-      //   null,
-      //   null
-      // );
       assertResMock(500, new Error(errorMessage), response, mockRes);
     });
 
@@ -452,7 +443,7 @@ describe('Dashboard Controller tests', () => {
 
   describe('sendBugReport Tests', () => {
     test('Returns 200 if the bug report email is sent', async () => {
-      sendEmail.mockResolvedValueOnce('Success');
+      emailSender.mockResolvedValueOnce('Success');
 
       const mockRequest = {
         ...mockReq,
@@ -479,7 +470,7 @@ describe('Dashboard Controller tests', () => {
     });
 
     test('Returns 500 if the email fails to send', async () => {
-      sendEmail.mockImplementation(() => {
+      emailSender.mockImplementation(() => {
         throw new Error('Failed to send email');
       });
 
@@ -510,7 +501,7 @@ describe('Dashboard Controller tests', () => {
 
   describe('sendMakeSuggestion Tests', () => {
     test('Returns 500 if the suggestion email fails to send', async () => {
-      sendEmail.mockImplementation(() => {
+      emailSender.mockImplementation(() => {
         throw new Error('Failed to send email');
       });
 
@@ -536,7 +527,7 @@ describe('Dashboard Controller tests', () => {
     });
 
     test('Returns 200 if the suggestion email is sent successfully', async () => {
-      sendEmail.mockResolvedValueOnce('Success');
+      emailSender.mockResolvedValueOnce('Success');
 
       const mockRequest = {
         ...mockReq,

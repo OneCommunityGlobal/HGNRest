@@ -3,7 +3,6 @@ const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const escapeRegex = require('../utilities/escapeRegex');
 
-
 function getEmailMessageForForgotPassword(user, ranPwd) {
   const message = `<b> Hello ${user.firstName} ${user.lastName},</b>
     <p>Congratulations on successfully completing the Highest Good Network 3-question Change My Password Challenge. Your reward is this NEW PASSWORD! </p>
@@ -44,6 +43,9 @@ const forgotPwdController = function (userProfile) {
           getEmailMessageForForgotPassword(user, ranPwd),
           null,
           null,
+          null,
+          null,
+          { type: 'password_reset' },
         );
 
         logger.logInfo(`New password ${ranPwd} was generated for ${user._id}`);
@@ -123,9 +125,9 @@ const forgotPwdController = function (userProfile) {
         }
       } else if (action === 'delete') {
         if (suggestion) {
-          suggestionData.suggestion = suggestionData.suggestion.filter(s => s !== newField);
+          suggestionData.suggestion = suggestionData.suggestion.filter((s) => s !== newField);
         } else {
-          suggestionData.field = suggestionData.field.filter(f => f !== newField);
+          suggestionData.field = suggestionData.field.filter((f) => f !== newField);
         }
       }
 
@@ -136,14 +138,13 @@ const forgotPwdController = function (userProfile) {
     }
   };
 
-  return { forgotPwd, sendBugReport, sendMakeSuggestion, getSuggestionOption, editSuggestionOption };
+  return {
+    forgotPwd,
+    sendBugReport,
+    sendMakeSuggestion,
+    getSuggestionOption,
+    editSuggestionOption,
+  };
 };
 
 module.exports = forgotPwdController;
-// module.exports = (UserProfile) => ({
-//   forgotPwd,
-//   sendBugReport,
-//   sendMakeSuggestion,
-//   getSuggestionOption,
-//   editSuggestionOption,
-// });

@@ -1,5 +1,3 @@
-const mongoose = require('mongoose');
-
 // Utility to aid in testing
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
@@ -19,7 +17,6 @@ const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 
 // controller to test
-const taskController = require('./taskController');
 
 // MongoDB Model imports
 const Task = require('../models/task');
@@ -27,6 +24,7 @@ const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const WBS = require('../models/wbs');
 const FollowUp = require('../models/followUp');
+const taskController = require('./taskController');
 
 const makeSut = () => {
   const {
@@ -241,10 +239,7 @@ describe('Unit Tests for taskController.js', () => {
     });
 
     test.each([
-      [
-        { taskName: undefined, isActive: true },
-        'Task Name, Active status are mandatory fields',
-      ],
+      [{ taskName: undefined, isActive: true }, 'Task Name, Active status are mandatory fields'],
       [
         { taskName: 'some task name', isActive: undefined },
         'Task Name, Active status are mandatory fields',
