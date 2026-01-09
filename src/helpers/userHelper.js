@@ -2792,7 +2792,7 @@ const userHelper = function () {
   };
 
   async function finalizeUserEndDates() {
-    const now = moment.tz('2026-01-07T00:02:00', COMPANY_TZ);
+    const now = moment.tz(COMPANY_TZ);
 
     const users = await userProfile.find({
       deactivatedAt: { $ne: null },
@@ -2845,6 +2845,24 @@ const userHelper = function () {
         });
         user.finalEmailThreeWeeksSent = true;
       }
+
+      await user.save();
+    }
+
+    const manualFinalUsers = await userProfile.find({
+      isSet: true,
+      endDate: { $ne: null },
+      isActive: true,
+    });
+
+    for (const user of manualFinalUsers) {
+      const endMoment = moment(user.endDate).tz(COMPANY_TZ);
+      if (now.isSameOrAfter(endMoment)) {
+        console.log(`Deactivating user ${user._id} due to passed manual final day`);
+      }
+      user.isActive = false;
+      user.deactivatedAt = endMoment.toDate();
+      user.inactiveReason = 'ManualDeactivation';
 
       await user.save();
     }
