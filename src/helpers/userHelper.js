@@ -1203,6 +1203,9 @@ const userHelper = function () {
             $set: {
               isActive: true,
               reactivationDate: null,
+              endDate: null,
+              isSet: false,
+              finalEmailThreeWeeksSent: false,
             },
             $unset: {
               deactivatedAt: '',

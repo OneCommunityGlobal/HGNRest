@@ -223,7 +223,7 @@ const userProfileSchema = new Schema({
   // differentiate between paused and separated accounts for better reporting and handling in the future
   inactiveReason: {
     type: String,
-    enum: ['Paused', 'Separated'],
+    enum: ['Paused', 'Separated', 'ManualDeactivation'],
     default: null,
   },
   resetPwd: { type: String },
