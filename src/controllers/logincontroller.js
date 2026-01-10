@@ -71,7 +71,6 @@ const logincontroller = function () {
         }
       }
     } catch (err) {
-      console.log(err);
       res.json(err);
     }
   };
