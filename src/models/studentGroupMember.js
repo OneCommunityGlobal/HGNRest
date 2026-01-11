@@ -12,7 +12,7 @@ const StudentGroupMemberSchema = new Schema(
     },
     student_id: {
       type: Schema.Types.ObjectId,
-      ref: 'userProfiles',
+      ref: 'userProfile',
       required: true,
       index: true,
     },
