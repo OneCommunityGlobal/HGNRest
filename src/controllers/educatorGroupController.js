@@ -26,20 +26,15 @@ exports.getAllStudents = async (req, res) => {
 exports.createGroup = async (req, res) => {
   try {
     const currentUser = req.body.requestor;
-
-    if (!currentUser || !currentUser.requestorId) {
+    if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-
     if (currentUser.role !== 'Administrator') {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
     const { name, description, studentIds = [] } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'Group name is required' });
-    }
+    if (!name) return res.status(400).json({ error: 'Group name is required' });
 
     const group = await StudentGroup.create({
       educator_id: currentUser.requestorId,
@@ -47,11 +42,16 @@ exports.createGroup = async (req, res) => {
       description,
     });
 
-    if (Array.isArray(studentIds) && studentIds.length > 0) {
-      const members = studentIds.map((studentId) => ({
+    // Filter out invalid IDs and convert to ObjectId
+    const members = studentIds
+      .filter((id) => id)
+      .map((studentId) => ({
         group_id: group._id,
-        student_id: studentId,
+        student_id: mongoose.Types.ObjectId(studentId),
       }));
+
+    if (members.length > 0) {
+      // Use ordered: false to continue inserting even if duplicates exist
       await StudentGroupMember.insertMany(members, { ordered: false });
     }
 
@@ -61,7 +61,6 @@ exports.createGroup = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
-
 /**
  * Get all groups for logged-in educator
  */
@@ -116,7 +115,7 @@ exports.getGroupMembers = async (req, res) => {
 };
 
 /**
- * Add students to a group
+ * Add multiple students to a group safely
  */
 exports.addMembers = async (req, res) => {
   try {
@@ -124,27 +123,42 @@ exports.addMembers = async (req, res) => {
     const { groupId } = req.params;
     const { studentIds = [] } = req.body;
 
-    if (!currentUser || !currentUser.requestorId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!currentUser?.requestorId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!studentIds.length) return res.status(400).json({ error: 'No students provided' });
 
+    // Find the group and verify ownership
     const group = await StudentGroup.findOne({
       _id: groupId,
       educator_id: currentUser.requestorId,
     });
+    if (!group) return res.status(403).json({ error: 'Unauthorized access to group' });
 
-    if (!group) {
-      return res.status(403).json({ error: 'Unauthorized access to group' });
+    // Filter valid ObjectIds
+    const validIds = studentIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (!validIds.length) return res.status(400).json({ error: 'No valid student IDs provided' });
+
+    // Get existing members of the group
+    const existingMembers = await StudentGroupMember.find({ group_id: groupId }).select(
+      'student_id',
+    );
+    const existingIds = existingMembers.map((m) => m.student_id.toString());
+
+    // Filter out students already in the group
+    const newMembers = validIds
+      .filter((id) => !existingIds.includes(id))
+      .map((id) => ({
+        group_id: mongoose.Types.ObjectId(groupId),
+        student_id: mongoose.Types.ObjectId(id),
+      }));
+
+    if (!newMembers.length) {
+      return res.status(400).json({ error: 'All students are already in the group' });
     }
 
-    const members = studentIds.map((studentId) => ({
-      group_id: groupId,
-      student_id: studentId,
-    }));
+    // Insert only the new students
+    await StudentGroupMember.insertMany(newMembers);
 
-    await StudentGroupMember.insertMany(members, { ordered: false });
-
-    res.status(201).json({ added: members.length });
+    res.status(201).json({ added: newMembers.length });
   } catch (err) {
     console.error('ADD MEMBERS ERROR:', err);
     res.status(400).json({ error: err.message });
@@ -152,7 +166,7 @@ exports.addMembers = async (req, res) => {
 };
 
 /**
- * Remove students from a group
+ * Remove multiple students from a group safely
  */
 exports.removeMembers = async (req, res) => {
   try {
@@ -160,29 +174,23 @@ exports.removeMembers = async (req, res) => {
     const { groupId } = req.params;
     const { studentIds = [] } = req.body;
 
-    if (!currentUser || !currentUser.requestorId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!currentUser?.requestorId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!studentIds.length)
+      return res.status(400).json({ error: 'No students provided for removal' });
 
     const group = await StudentGroup.findOne({
       _id: groupId,
       educator_id: currentUser.requestorId,
     });
+    if (!group) return res.status(403).json({ error: 'Unauthorized access to group' });
 
-    if (!group) {
-      return res.status(403).json({ error: 'Unauthorized access to group' });
-    }
-
-    if (!studentIds.length) {
-      return res.status(400).json({ error: 'No students provided for removal' });
-    }
-
-    // Convert strings to ObjectId
-    const studentObjectIds = studentIds.map((id) => mongoose.Types.ObjectId(id));
+    const objectIds = studentIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => mongoose.Types.ObjectId(id));
 
     const result = await StudentGroupMember.deleteMany({
       group_id: mongoose.Types.ObjectId(groupId),
-      student_id: { $in: studentObjectIds },
+      student_id: { $in: objectIds },
     });
 
     res.status(200).json({ removed: result.deletedCount });
@@ -191,7 +199,6 @@ exports.removeMembers = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
-
 /**
  * Update group details
  */
