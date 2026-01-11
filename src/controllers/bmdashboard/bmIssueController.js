@@ -1,6 +1,78 @@
 const mongoose = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
+const MS_PER_MINUTE = 60 * 1000;
+const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
+const AVG_DAYS_PER_MONTH = 30.44;
+const MAX_LONGEST_OPEN_ISSUES = 7;
+
+const getProjectFilterIds = (projectsParam) =>
+  projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
+
+const filterProjectIdsByDates = async (datesParam, currentProjectIds) => {
+  if (!datesParam) {
+    return currentProjectIds;
+  }
+
+  const [start, end] = datesParam.split(',').map((d) => d.trim());
+  const matchingProjects = await BuildingProject.find({
+    dateCreated: { $gte: new Date(start), $lte: new Date(end) },
+    isActive: true,
+  })
+    .select('_id')
+    .lean();
+
+  const dateIds = matchingProjects.map((p) => p._id.toString());
+  if (currentProjectIds.length === 0) {
+    return dateIds;
+  }
+
+  return currentProjectIds.filter((id) => dateIds.includes(id));
+};
+
+const getDurationOpenMonths = (issueDate) =>
+  Math.ceil(
+    (Date.now() - new Date(issueDate)) /
+      (MS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY * AVG_DAYS_PER_MONTH),
+  );
+
+const buildGroupedIssues = (issues) => {
+  const grouped = {};
+
+  issues.forEach((issue) => {
+    if (!issue.issueDate || !issue.projectId) return;
+
+    const issueName = Array.isArray(issue.issueTitle)
+      ? issue.issueTitle[0]
+      : issue.issueTitle || 'Unknown Issue';
+
+    const projectId = issue.projectId._id.toString();
+    const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
+
+    const durationOpen = getDurationOpenMonths(issue.issueDate);
+
+    if (!grouped[issueName]) grouped[issueName] = {};
+    if (!grouped[issueName][projectId]) {
+      grouped[issueName][projectId] = {
+        projectId,
+        projectName,
+        durationOpen,
+      };
+    }
+  });
+
+  return grouped;
+};
+
+const buildLongestOpenResponse = (grouped) =>
+  Object.entries(grouped)
+    .map(([issueName, projectsById]) => ({
+      issueName,
+      projects: Object.values(projectsById),
+    }))
+    .slice(0, MAX_LONGEST_OPEN_ISSUES);
+
 const bmIssueController = function (BuildingIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
@@ -52,13 +124,11 @@ const bmIssueController = function (BuildingIssue) {
         { $sort: { _id: 1 } },
       ];
 
-      const data = await mongoose
-        .model('buildingIssue')
-        .aggregate(pipeline);
+      const data = await mongoose.model('buildingIssue').aggregate(pipeline);
 
       const result = data.reduce((acc, item) => {
         acc[item._id] = {};
-        item.years.forEach(y => {
+        item.years.forEach((y) => {
           acc[item._id][y.year] = y.count;
         });
         return acc;
@@ -85,30 +155,10 @@ const bmIssueController = function (BuildingIssue) {
     try {
       const { dates, projects } = req.query;
       const query = { status: 'open' };
-      let filteredProjectIds = [];
-
-      /* ---- project filter ---- */
-      if (projects) {
-        filteredProjectIds = projects.split(',').map(id => id.trim());
-      }
+      let filteredProjectIds = getProjectFilterIds(projects);
 
       /* ---- date filter ---- */
-      if (dates) {
-        const [start, end] = dates.split(',').map(d => d.trim());
-
-        const matchingProjects = await BuildingProject.find({
-          dateCreated: { $gte: new Date(start), $lte: new Date(end) },
-          isActive: true,
-        })
-          .select('_id')
-          .lean();
-
-        const dateIds = matchingProjects.map(p => p._id.toString());
-
-        filteredProjectIds = filteredProjectIds.length
-          ? filteredProjectIds.filter(id => dateIds.includes(id))
-          : dateIds;
-      }
+      filteredProjectIds = await filterProjectIdsByDates(dates, filteredProjectIds);
 
       if (dates && filteredProjectIds.length === 0) {
         return res.json([]);
@@ -128,47 +178,11 @@ const bmIssueController = function (BuildingIssue) {
         .lean();
 
       /* ---- group by issue + project ---- */
-      const grouped = {};
-
-      issues.forEach(issue => {
-        if (!issue.issueDate || !issue.projectId) return;
-
-        const issueName = Array.isArray(issue.issueTitle)
-          ? issue.issueTitle[0]
-          : issue.issueTitle || 'Unknown Issue';
-
-        const projectId = issue.projectId._id.toString();
-        const projectName =
-          issue.projectId.projectName ||
-          issue.projectId.name ||
-          'Unknown Project';
-
-        const durationOpen = Math.ceil(
-          (Date.now() - new Date(issue.issueDate)) /
-            (1000 * 60 * 60 * 24 * 30.44),
-        );
-
-        if (!grouped[issueName]) grouped[issueName] = {};
-        if (!grouped[issueName][projectId]) {
-          grouped[issueName][projectId] = {
-            projectId,
-            projectName,
-            durationOpen,
-          };
-        }
-      });
-
-      /* ---- final response ---- */
-      const response = Object.entries(grouped)
-        .map(([issueName, projects]) => ({
-          issueName,
-          projects: Object.values(projects),
-        }))
-        .slice(0, 7);
+      const grouped = buildGroupedIssues(issues);
+      const response = buildLongestOpenResponse(grouped);
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching longest open issues:', error);
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
   };
