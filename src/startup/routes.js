@@ -116,6 +116,7 @@ const badgeRouter = require('../routes/badgeRouter')(badge);
 const dashboardRouter = require('../routes/dashboardRouter')(weeklySummaryAIPrompt);
 const timeEntryRouter = require('../routes/timeentryRouter')(timeEntry);
 const projectStatusRouter = require('../routes/projectStatusRouter')(projectStatus);
+const projectsGlobalDistributionRouter = require('../routes/projectsGlobalDistributionRouter');
 const timelogTrackingRouter = require('../routes/timelogTrackingRouter')();
 const projectRouter = require('../routes/projectRouter')(project);
 const informationRouter = require('../routes/informationRouter')(information);
@@ -259,6 +260,8 @@ const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRo
   toolAvailability,
 );
 
+const downloadReportRouter = require('../routes/educationPortal/downloadReportRouter');
+
 const projectCostTracking = require('../models/bmdashboard/projectCostTracking');
 const projectCostTrackingRouter = require('../routes/bmdashboard/projectCostTrackingRouter')(
   projectCostTracking,
@@ -349,6 +352,8 @@ const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 
+const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -412,6 +417,7 @@ module.exports = function (app) {
   app.use('/api/job-notification-list/', jobNotificationListRouter);
 
   app.use('/api/projects', projectStatusRouter);
+  app.use('/api', projectsGlobalDistributionRouter);
 
   app.use('/api/hgnHelp', communityRouter());
   app.use('/api/costs', costsRouter);
@@ -508,6 +514,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
@@ -533,4 +541,6 @@ module.exports = function (app) {
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
   app.use('/api/education', browsableLessonPlanRouter);
+
+  app.use('/api/educator/reports', downloadReportRouter);
 };
