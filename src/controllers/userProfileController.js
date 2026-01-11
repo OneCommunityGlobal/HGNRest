@@ -30,6 +30,7 @@ const authorizedUserJae = `jae@onecommunityglobal.org`;
 
 // Import reports controller to access cache invalidation function
 const reportsController = require('./reportsController')();
+const { COMPANY_TZ } = require('../constants/company');
 
 // Constants for magic numbers
 const SEARCH_RESULT_LIMIT = 10;
@@ -580,41 +581,62 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const handleUserStatusSave = async ({
     user,
     userId,
-    status,
-    endDate,
+    isActivating,
+    isDeactivating,
     recipients,
-    isSet,
-    activationDate,
-    emailThreeWeeksSent,
     req,
   }) => {
     const isUserInCache = cache.hasCache('allusers');
     let allUserData;
     let userIdx;
+
     if (isUserInCache) {
       allUserData = JSON.parse(cache.getCache('allusers'));
-      userIdx = allUserData.findIndex((users) => users._id === userId);
+      userIdx = allUserData.findIndex((u) => u._id === userId);
     }
 
     updateUserStatusAndCache({
       user,
       userId,
-      status,
+      status: user.isActive,
       isUserInCache,
       allUserData,
       userIdx,
     });
 
-    userHelper.sendDeactivateEmailBody(
-      user.firstName,
-      user.lastName,
-      endDate,
-      user.email,
-      recipients,
-      isSet,
-      activationDate,
-      emailThreeWeeksSent,
-    );
+    // =========================
+    // LIFECYCLE EMAILS ONLY
+    // =========================
+
+    if (isActivating) {
+      userHelper.sendUserActivatedEmail({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        recipients,
+      });
+    }
+
+    if (isDeactivating) {
+      if (user.inactiveReason === 'Paused') {
+        userHelper.sendUserPausedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          reactivationDate: user.reactivationDate,
+          recipients,
+        });
+      }
+
+      if (user.inactiveReason === 'Separated') {
+        userHelper.sendUserSeparatedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+        });
+      }
+    }
 
     auditIfProtectedAccountUpdated({
       requestorId: req.body.requestor.requestorId,
@@ -1643,78 +1665,119 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
-    const status = req.body.status === 'Active';
-    const activationDate = req.body.reactivationDate;
-    const { endDate } = req.body;
-    const isSet = req.body.isSet === 'FinalDay';
+    const { reactivationDate } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).send({
-        error: 'Bad Request',
-      });
-      return;
-    }
+    try {
+      const isActivating = req.body.status === 'Active';
+      const isDeactivating = req.body.status === 'Inactive';
 
-    const authResult = await checkChangeUserStatusAuthorization(req, userId);
-    if (!authResult.authorized) {
-      res.status(403).send('You are not authorized to change user status');
-      return;
-    }
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).send({ error: 'Bad Request' });
+      }
 
-    const { activeStatus, emailThreeWeeksSent } = calculateUserStatusFromEndDate(endDate, status);
-    cache.removeCache(`user-${userId}`);
-    const recipients = await getEmailRecipientsForStatusChange(userId);
+      // Validate status input early
+      if (!isActivating && !isDeactivating) {
+        return res.status(400).send({ error: 'Invalid status. Must be "Active" or "Inactive".' });
+      }
 
-    UserProfile.findById(
-      userId,
-      'isActive email firstName lastName finalEmailThreeWeeksSent teams teamCode',
-    )
-      .then(async (user) => {
-        const wasInactive = !user.isActive;
-        user.set({
-          isActive: activeStatus,
-          reactivationDate: activationDate,
-          endDate,
-          isSet,
-          finalEmailThreeWeeksSent: emailThreeWeeksSent,
-        });
+      const authResult = await checkChangeUserStatusAuthorization(req, userId);
+      if (!authResult.authorized) {
+        return res.status(403).send('You are not authorized to change user status');
+      }
 
-        if (!activeStatus) {
-          user.teamCodeWarning = false;
-        } else if (wasInactive) {
-          const mismatch = await userHelper.checkTeamCodeMismatch(user);
-          if (mismatch) {
-            user.teamCodeWarning = true;
+      cache.removeCache(`user-${userId}`);
+      const recipients = await getEmailRecipientsForStatusChange(userId);
+
+      const user = await UserProfile.findById(
+        userId,
+        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent deactivatedAt reactivationDate inactiveReason',
+      );
+
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      const wasInactive = !user.isActive;
+
+      // =========================
+      // ACTIVATION
+      // =========================
+      if (isActivating) {
+        user.isActive = true;
+        user.deactivatedAt = null;
+        user.reactivationDate = null;
+        user.inactiveReason = undefined;
+
+        // 🔑 required lifecycle reset
+        console.log(
+          `Activating user ${userId}: resetting endDate, isSet, and finalEmailThreeWeeksSent`,
+        );
+        user.endDate = null;
+        user.isSet = false;
+        user.finalEmailThreeWeeksSent = false;
+      }
+
+      // =========================
+      // DEACTIVATION
+      // =========================
+      if (isDeactivating) {
+        user.deactivatedAt = new Date();
+
+        // If a reactivationDate is provided, treat this as PAUSE.
+        if (reactivationDate) {
+          console.log(`Received reactivationDate before parsing ${userId}: ${reactivationDate}`);
+          const parsedReactivationDate = moment
+            .tz(reactivationDate, COMPANY_TZ)
+            .startOf('day')
+            .toDate();
+          if (Number.isNaN(parsedReactivationDate.getTime())) {
+            return res.status(400).send({ error: 'Invalid reactivationDate format' });
           }
-        }
+          console.log(`Setting reactivationDate for user ${userId} to ${parsedReactivationDate}`);
 
-        user
-          .save()
-          .then(async () => {
-            await handleUserStatusSave({
-              user,
-              userId,
-              status,
-              endDate,
-              recipients,
-              isSet,
-              activationDate,
-              emailThreeWeeksSent,
-              req,
-            });
-            res.status(200).send({
-              message: 'status updated',
-            });
-          })
-          .catch((error) => {
-            console.log(error);
-            res.status(500).send(error);
-          });
-      })
-      .catch((error) => {
-        console.log(error);
-        res.status(500).send(error);
+          user.isActive = false;
+          user.reactivationDate = parsedReactivationDate;
+          user.inactiveReason = 'Paused';
+
+          // Safety: paused users must not have a final day
+          user.endDate = null;
+          user.isSet = false;
+          user.finalEmailThreeWeeksSent = false;
+        } else {
+          // Otherwise treat as SEPARATION (endDate will be finalized by cron).
+          user.reactivationDate = null;
+          user.inactiveReason = 'Separated';
+        }
+      }
+
+      // =========================
+      // TEAM CODE WARNING LOGIC
+      // =========================
+      if (!user.isActive) {
+        user.teamCodeWarning = false;
+      } else if (wasInactive) {
+        const mismatch = await userHelper.checkTeamCodeMismatch(user);
+        if (mismatch) {
+          user.teamCodeWarning = true;
+        }
+      }
+
+      await user.save();
+
+      await handleUserStatusSave({
+        user,
+        userId,
+        isActivating,
+        isDeactivating,
+        recipients,
+        req,
       });
+
+      return res.status(200).send({ message: 'status updated' });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).send(error);
+    }
   };
 
   const changeUserRehireableStatus = async function (req, res) {
@@ -2658,6 +2721,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       user.endDate = parsedEndDate; // already UTC-safe
       user.isSet = true;
+      user.inactiveReason = 'ManualDeactivation';
 
       await user.save();
 
