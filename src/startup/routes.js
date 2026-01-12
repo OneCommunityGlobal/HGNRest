@@ -470,7 +470,6 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
-  app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -495,7 +494,6 @@ module.exports = function (app) {
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
-  // lb dashboard
   app.use('/api/bm', bmIssueRouter);
   app.use('/api', eventRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
