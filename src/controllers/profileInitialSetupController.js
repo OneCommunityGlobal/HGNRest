@@ -108,7 +108,10 @@ function informManagerMessage(user) {
 }
 
 const sendEmailWithAcknowledgment = (email, subject, message) => {
-  const p = emailSender(email, subject, message, null, null, null, null);
+  const p = emailSender(email, subject, message, null, null, null, null, {
+    priority: 'high',
+    type: 'general',
+  });
   return p && typeof p.then === 'function' ? p : Promise.resolve('EMAIL_SENDING_DISABLED');
 };
 
