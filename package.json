@@ -22,7 +22,7 @@
     "test:ci": "npm test -- --coverage",
     "lint": "eslint ./src --ext .js,.jsx",
     "lint:fix": "eslint ./src --ext .js,.jsx --fix",
-    "build": "babel src -d dist",
+    "build": "babel src -d dist && mkdir -p dist/data && cp -r src/data/* dist/data/ 2>/dev/null || true",
     "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
