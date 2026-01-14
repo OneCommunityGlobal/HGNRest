@@ -305,6 +305,8 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 // summary dashboard routes
 const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
+const laborHoursDistributionRouter =
+  require('../routes/summaryDashboard/laborHoursDistributionRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -504,6 +506,7 @@ module.exports = function (app) {
 
   // summary dashboard
   app.use('/api/suppliers', supplierPerformanceRouter);
+  app.use('/api/labor-hours', laborHoursDistributionRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
