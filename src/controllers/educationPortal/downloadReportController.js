@@ -78,7 +78,7 @@ function buildTaskQuery(type, params) {
 
 function calculateAverageGrade(taskList) {
   const gradedTasks = taskList.filter(
-    t => t.grade && t.grade !== 'pending' && GRADE_MAP[t.grade] !== undefined,
+    (t) => t.grade && t.grade !== 'pending' && GRADE_MAP[t.grade] !== undefined,
   );
 
   if (gradedTasks.length === 0) return 'N/A';
@@ -99,7 +99,9 @@ async function fetchStudentReport(studentId, startDate, endDate) {
   const [tasks, student] = await Promise.all([
     EducationTask.find(query)
       .populate('studentId', 'firstName lastName email')
-      .select('type status grade dueAt completedAt feedback suggestedTotalHours loggedHours assignedAt')
+      .select(
+        'type status grade dueAt completedAt feedback suggestedTotalHours loggedHours assignedAt',
+      )
       .sort({ assignedAt: -1 })
       .limit(MAX_RECORDS_PER_REPORT)
       .lean(),
@@ -114,7 +116,7 @@ async function fetchStudentReport(studentId, startDate, endDate) {
     return null;
   }
 
-  const taskData = tasks.map(task => ({
+  const taskData = tasks.map((task) => ({
     taskName: task.type || 'N/A',
     type: task.type,
     status: task.status,
@@ -127,10 +129,10 @@ async function fetchStudentReport(studentId, startDate, endDate) {
     assignedAt: task.assignedAt,
   }));
 
-  const completed = tasks.filter(t => t.status === 'completed').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-  const graded = tasks.filter(t => t.status === 'graded').length;
-  const assigned = tasks.filter(t => t.status === 'assigned').length;
+  const completed = tasks.filter((t) => t.status === 'completed').length;
+  const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
+  const graded = tasks.filter((t) => t.status === 'graded').length;
+  const assigned = tasks.filter((t) => t.status === 'assigned').length;
 
   return {
     student: {
@@ -215,7 +217,7 @@ async function fetchClassReport(classId, startDate, endDate) {
     return Number.isNaN(grade) ? sum : sum + grade;
   }, 0);
 
-  const studentsWithGrades = students.filter(s => s.averageGrade !== 'N/A').length;
+  const studentsWithGrades = students.filter((s) => s.averageGrade !== 'N/A').length;
 
   return {
     classId,
@@ -373,14 +375,12 @@ function generateCSVReport(res, reportData, metadata, type) {
       { label: 'Feedback', value: 'feedback' },
     ];
 
-    data = reportData.tasks.map(task => ({
+    data = reportData.tasks.map((task) => ({
       taskName: task.taskName,
       status: task.status,
       grade: task.grade,
       dueDate: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
-      completedDate: task.completedDate
-        ? new Date(task.completedDate).toLocaleDateString()
-        : 'N/A',
+      completedDate: task.completedDate ? new Date(task.completedDate).toLocaleDateString() : 'N/A',
       suggestedHours: task.suggestedHours,
       loggedHours: task.loggedHours,
       feedback: task.feedback || '',
