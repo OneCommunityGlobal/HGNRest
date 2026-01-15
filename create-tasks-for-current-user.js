@@ -18,7 +18,8 @@ async function createTasksForCurrentUser() {
 
     console.log('✅ Connected to MongoDB');
 
-    const currentUserId = '68645a7c48658d005501e2f9';
+    // add your user id here to create tasks for that user
+    const currentUserId = '';
 
     // Get existing data
     const subjects = await Subject.find({});

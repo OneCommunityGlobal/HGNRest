@@ -3,7 +3,6 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
-
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
@@ -166,10 +165,15 @@ const profileInitialSetupController = function (
       session.endSession();
 
       try {
-        await sendEmailWithAcknowledgment(
+        await emailSender(
           email,
           'NEEDED: Complete your One Community profile setup',
           sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
         );
         return res.status(200).send({ sent: true });
       } catch (emailError) {
