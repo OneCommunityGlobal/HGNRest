@@ -4,9 +4,12 @@ const { Schema } = mongoose;
 
 const ScheduledFacebookPostSchema = new Schema(
   {
-    message: { type: String, required: true },
+    message: { type: String, default: '' },
     link: { type: String },
     imageUrl: { type: String },
+    imageData: { type: Buffer, default: null },
+    imageMimeType: { type: String, default: null },
+    imageOriginalName: { type: String, default: null },
     pageId: { type: String },
     scheduledFor: { type: Date, required: true },
     timezone: { type: String, default: 'America/Los_Angeles' },
