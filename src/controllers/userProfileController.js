@@ -1707,6 +1707,14 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         user.deactivatedAt = null;
         user.reactivationDate = null;
         user.inactiveReason = undefined;
+
+        // 🔑 required lifecycle reset
+        console.log(
+          `Activating user ${userId}: resetting endDate, isSet, and finalEmailThreeWeeksSent`,
+        );
+        user.endDate = null;
+        user.isSet = false;
+        user.finalEmailThreeWeeksSent = false;
       }
 
       // =========================
@@ -2713,6 +2721,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       user.endDate = parsedEndDate; // already UTC-safe
       user.isSet = true;
+      user.inactiveReason = 'ManualDeactivation';
 
       await user.save();
 
