@@ -31,6 +31,7 @@ const routes = function (project) {
   projectRouter
     .route('/projects/:projectId/users/search/:query')
     .get(controller.searchProjectMembers);
+
   return projectRouter;
 };
 

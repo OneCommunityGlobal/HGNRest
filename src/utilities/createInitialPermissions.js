@@ -203,7 +203,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -300,6 +299,7 @@ const permissionsRoles = [
       'manageFAQs',
       'manageHGNAccessSetup',
       'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
     ],
   },
 ];

@@ -25,6 +25,8 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/task/updateAllParents/:wbsId/').put(controller.updateAllParents);
 
+  taskRouter.route('/task/deleteTask/:taskId/:userId').delete(controller.deleteTaskById);
+
   taskRouter.route('/tasks/swap/').put(controller.swap);
 
   taskRouter.route('/tasks/update/num').put(controller.updateNum);
