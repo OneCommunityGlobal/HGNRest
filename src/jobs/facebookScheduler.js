@@ -14,7 +14,6 @@ const processNextScheduledPost = async () => {
   let nextPost;
 
   try {
-    // Check if we have valid credentials before processing
     const credentials = await getCredentials();
     if (!credentials) {
       return false;
@@ -30,10 +29,14 @@ const processNextScheduledPost = async () => {
 
     console.log('[FacebookScheduler] Processing post:', nextPost._id);
 
+    const hasStoredImage = nextPost.imageData && nextPost.imageMimeType;
+
     const result = await publishToFacebook({
-      message: nextPost.message,
+      message: nextPost.message || undefined,
       link: nextPost.link,
-      imageUrl: nextPost.imageUrl,
+      imageUrl: hasStoredImage ? undefined : nextPost.imageUrl,
+      imageBuffer: hasStoredImage ? nextPost.imageData : undefined,
+      imageMimeType: hasStoredImage ? nextPost.imageMimeType : undefined,
       pageId: nextPost.pageId,
     });
 
@@ -43,6 +46,7 @@ const processNextScheduledPost = async () => {
     nextPost.postType = result.postType;
     nextPost.attempts += 1;
     nextPost.lastError = null;
+    nextPost.imageData = null;
     await nextPost.save();
 
     console.log(
@@ -57,7 +61,6 @@ const processNextScheduledPost = async () => {
 
     if (nextPost) {
       try {
-        // Ensure lastError is a string
         let errorMessage = 'Unknown error';
         if (typeof error.details === 'string') {
           errorMessage = error.details;
@@ -78,14 +81,13 @@ const processNextScheduledPost = async () => {
       }
     }
 
-    // Log to Sentry if available
     if (logger && typeof logger.logException === 'function') {
       logger.logException(error, 'facebookScheduler.process', {
         scheduledId: nextPost?._id?.toString(),
       });
     }
 
-    return true; // Return true to continue processing other posts
+    return true;
   }
 };
 
@@ -119,13 +121,11 @@ const checkCredentialsStatus = async () => {
 const startFacebookScheduler = () => {
   console.log('[FacebookScheduler] Starting cron job...');
 
-  // Initial credential check
   checkCredentialsStatus();
 
   cron.schedule(
     '* * * * *',
     async () => {
-      // Periodic credential status check
       await checkCredentialsStatus();
 
       let processedCount = 0;

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const moment = require('moment-timezone');
+const FormData = require('form-data');
 const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
@@ -7,16 +8,10 @@ const { hasPermission } = require('../utilities/permissions');
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const PST_TIMEZONE = 'America/Los_Angeles';
 
-// Fallback to env vars if no OAuth connection exists (backward compatibility)
 const fallbackPageId = process.env.FACEBOOK_PAGE_ID;
 const fallbackPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
-/**
- * Gets the active Facebook connection credentials.
- * Falls back to environment variables if no OAuth connection exists.
- */
 const getCredentials = async () => {
-  // Try to get OAuth-based connection first
   const connection = await FacebookConnection.getActiveConnection();
 
   if (connection && connection.pageAccessToken) {
@@ -28,7 +23,6 @@ const getCredentials = async () => {
     };
   }
 
-  // Fall back to environment variables
   if (fallbackPageAccessToken && fallbackPageId) {
     return {
       pageId: fallbackPageId,
@@ -41,7 +35,14 @@ const getCredentials = async () => {
   return null;
 };
 
-const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
+const publishToFacebook = async ({
+  message,
+  link,
+  imageUrl,
+  imageBuffer,
+  imageMimeType,
+  pageId,
+}) => {
   const credentials = await getCredentials();
 
   if (!credentials) {
@@ -70,26 +71,58 @@ const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
     throw error;
   }
 
-  if (!message && !link && !imageUrl) {
-    const error = new Error('message, link, or imageUrl is required to create a Facebook post.');
+  if (!message && !link && !imageUrl && !imageBuffer) {
+    const error = new Error(
+      'message, link, imageUrl, or image file is required to create a Facebook post.',
+    );
     error.status = 400;
     throw error;
   }
 
-  const isPhotoPost = Boolean(imageUrl);
+  const isDirectUpload = Boolean(imageBuffer);
+  const isPhotoPost = isDirectUpload || Boolean(imageUrl);
   const endpoint = `${graphBaseUrl}/${targetPageId}/${isPhotoPost ? 'photos' : 'feed'}`;
 
-  const payload = {
-    access_token: pageAccessToken,
-  };
-
-  if (message) payload.message = message;
-  if (link) payload.link = link;
-  if (isPhotoPost) payload.url = imageUrl;
-
   try {
-    console.log('[FacebookPost] endpoint:', endpoint);
-    const response = await axios.post(endpoint, payload);
+    let response;
+
+    if (isDirectUpload) {
+      const formData = new FormData();
+      formData.append('access_token', pageAccessToken);
+      if (message) formData.append('message', message);
+
+      const extMap = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+      };
+      const ext = extMap[imageMimeType] || 'jpg';
+
+      formData.append('source', imageBuffer, {
+        filename: `upload.${ext}`,
+        contentType: imageMimeType || 'image/jpeg',
+      });
+
+      console.log('[FacebookPost] Uploading image file to:', endpoint);
+      response = await axios.post(endpoint, formData, {
+        headers: formData.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+    } else {
+      const payload = {
+        access_token: pageAccessToken,
+      };
+
+      if (message) payload.message = message;
+      if (link) payload.link = link;
+      if (imageUrl) payload.url = imageUrl;
+
+      console.log('[FacebookPost] endpoint:', endpoint);
+      response = await axios.post(endpoint, payload);
+    }
+
     return {
       postId: response.data.id,
       postType: isPhotoPost ? 'photo' : 'feed',
@@ -104,9 +137,6 @@ const publishToFacebook = async ({ message, link, imageUrl, pageId }) => {
   }
 };
 
-/**
- * Saves a direct post to MongoDB for history tracking.
- */
 const saveDirectPostToHistory = async ({
   message,
   link,
@@ -139,9 +169,6 @@ const saveDirectPostToHistory = async ({
   }
 };
 
-/**
- * Posts content to a Facebook Page using the Graph API.
- */
 const postToFacebook = async (req, res) => {
   const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
@@ -177,6 +204,72 @@ const postToFacebook = async (req, res) => {
       ...result,
     });
   } catch (error) {
+    res.status(error.status || 500).send({
+      error: 'Failed to post to Facebook',
+      details: error.details || error.message,
+    });
+  }
+};
+
+const postToFacebookWithImage = async (req, res) => {
+  let requestor;
+  try {
+    requestor = req.body.requestor ? JSON.parse(req.body.requestor) : null;
+  } catch {
+    requestor = req.body.requestor;
+  }
+
+  const canPost = await hasPermission(requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  if (!canPost && !canSendEmails) {
+    res.status(403).send({ error: 'You are not authorized to post to Facebook.' });
+    return;
+  }
+
+  const { message, link, pageId } = req.body;
+  const imageFile = req.file;
+
+  if (!imageFile) {
+    res
+      .status(400)
+      .send({
+        error: 'No image file provided. Use the regular post endpoint for URL-based images.',
+      });
+    return;
+  }
+
+  try {
+    const result = await publishToFacebook({
+      message,
+      link,
+      imageBuffer: imageFile.buffer,
+      imageMimeType: imageFile.mimetype,
+      pageId,
+    });
+
+    const credentials = await getCredentials();
+    await saveDirectPostToHistory({
+      message,
+      link,
+      imageUrl: `(uploaded: ${imageFile.originalname})`,
+      pageId: pageId || credentials?.pageId,
+      postId: result.postId,
+      postType: result.postType,
+      createdBy: requestor
+        ? {
+            userId: requestor.requestorId,
+            role: requestor.role,
+            permissions: requestor.permissions,
+          }
+        : undefined,
+    });
+
+    res.status(200).send({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('[FacebookPost] postToFacebookWithImage error:', error.message);
     res.status(error.status || 500).send({
       error: 'Failed to post to Facebook',
       details: error.details || error.message,
@@ -247,6 +340,93 @@ const scheduleFacebookPost = async (req, res) => {
     res.status(201).send({ success: true, scheduledPost });
   } catch (error) {
     console.error('[FacebookPost] schedule error:', error.message);
+    res.status(500).send({ error: 'Failed to schedule Facebook post', details: error.message });
+  }
+};
+
+/**
+ * Schedules a Facebook post with direct image file upload.
+ * Stores the image in MongoDB until posting time.
+ */
+const scheduleFacebookPostWithImage = async (req, res) => {
+  // Parse requestor from form-data
+  let requestor;
+  try {
+    requestor = req.body.requestor ? JSON.parse(req.body.requestor) : null;
+  } catch {
+    requestor = req.body.requestor;
+  }
+
+  const canPost = await hasPermission(requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  if (!canPost && !canSendEmails) {
+    res.status(403).send({ error: 'You are not authorized to schedule Facebook posts.' });
+    return;
+  }
+
+  const { message, link, scheduledFor, timezone } = req.body;
+  const imageFile = req.file;
+
+  // Validate: need either message or image
+  if (!message?.trim() && !imageFile) {
+    res.status(400).send({ error: 'Message or image is required to schedule a Facebook post.' });
+    return;
+  }
+
+  const targetTimezone = timezone || PST_TIMEZONE;
+  if (!moment.tz.zone(targetTimezone)) {
+    res.status(400).send({ error: 'Invalid timezone provided.' });
+    return;
+  }
+
+  const credentials = await getCredentials();
+  if (!credentials) {
+    res.status(500).send({
+      error: 'Facebook is not connected. Please connect a Facebook Page in settings.',
+    });
+    return;
+  }
+
+  const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
+
+  if (!scheduledMoment.isValid()) {
+    res.status(400).send({ error: 'Invalid scheduledFor date/time provided.' });
+    return;
+  }
+
+  if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
+    res.status(400).send({ error: 'Scheduled time must be in the future (PST).' });
+    return;
+  }
+
+  try {
+    const scheduledPost = new ScheduledFacebookPost({
+      message: message?.trim() || '',
+      link: link?.trim() || undefined,
+      pageId: credentials.pageId,
+      scheduledFor: scheduledMoment.toDate(),
+      timezone: targetTimezone,
+      imageData: imageFile?.buffer || null,
+      imageMimeType: imageFile?.mimetype || null,
+      imageOriginalName: imageFile?.originalname || null,
+      createdBy: requestor
+        ? {
+            userId: requestor.requestorId,
+            role: requestor.role,
+            permissions: requestor.permissions,
+          }
+        : undefined,
+    });
+
+    await scheduledPost.save();
+
+    const responsePost = scheduledPost.toObject();
+    delete responsePost.imageData;
+    responsePost.hasImage = Boolean(imageFile);
+
+    res.status(201).send({ success: true, scheduledPost: responsePost });
+  } catch (error) {
+    console.error('[FacebookPost] schedule with image error:', error.message);
     res.status(500).send({ error: 'Failed to schedule Facebook post', details: error.message });
   }
 };
@@ -505,7 +685,9 @@ const updateScheduledPost = async (req, res) => {
 module.exports = {
   publishToFacebook,
   postToFacebook,
+  postToFacebookWithImage,
   scheduleFacebookPost,
+  scheduleFacebookPostWithImage,
   getScheduledPosts,
   getPostHistory,
   cancelScheduledPost,
