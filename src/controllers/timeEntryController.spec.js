@@ -164,7 +164,11 @@ describe('TimeEntryController', () => {
       const res = { status: jest.fn().mockReturnThis(), send: jest.fn() };
       await controller.getTimeEntriesForSpecifiedPeriod(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.send).toHaveBeenCalledWith({ error: 'Invalid request' });
+      expect(res.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Invalid date format',
+        }),
+      );
     });
 
     it('should return time entries for a specified period', async () => {
