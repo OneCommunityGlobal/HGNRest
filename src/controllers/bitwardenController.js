@@ -2,7 +2,6 @@ const { BitwardenClient, DeviceType } = require('@bitwarden/sdk-napi');
 const { LogLevel } = require('@bitwarden/sdk-napi/binding');
 
 const bitwardenController = () => {
-  
   const authenticate = async (req, res) => {
     try {
       const settings = {
@@ -26,12 +25,15 @@ const bitwardenController = () => {
 
       const secrets = await client.secrets().list(organizationId);
 
-      // const specificSecret = await client.secrets().get(secretId);
+      const secretValues = await Promise.all(
+        secrets.data.map(({ id }) => client.secrets().get(id)),
+      );
 
       if (secrets.data) {
         return res.status(200).json({
           success: true,
           message: `Retrieved secrets from Bitwarden`,
+          data: secretValues,
         });
       }
 
@@ -39,11 +41,10 @@ const bitwardenController = () => {
         success: false,
         message: 'Failed to connect with access token',
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
-        message: error.message || 'Failed testig endpoint',
+        message: error.message || 'Failed Bitwarden authentication',
       });
     }
   };

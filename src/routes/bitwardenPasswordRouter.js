@@ -5,7 +5,6 @@ const routes = () => {
   const bitwardenPasswordRouter = express.Router();
 
   // Auth endpoints
-  bitwardenPasswordRouter.route('/test').get(controller.test);
   bitwardenPasswordRouter.route('/vault/retrieve').get(controller.vaultItemRetrival);
 
   return bitwardenPasswordRouter;

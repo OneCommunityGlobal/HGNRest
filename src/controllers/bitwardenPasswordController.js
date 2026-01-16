@@ -1,23 +1,8 @@
 const { execSync } = require('child_process');
 
 const bitwardenPasswordController = () => {
-  const test = async (req, res) => {
-    try {
-      return res.status(404).json({
-        success: false,
-        message: 'Failed to connect with access token',
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Failed testig endpoint',
-      });
-    }
-  };
-
   const vaultItemRetrival = async (req, res) => {
     if (!process.env.BW_CLIENTID || !process.env.BW_CLIENTSECRET) {
-      console.error('Error: BW_CLIENTID and BW_CLIENTSECRET environment variables must be set.');
       return res.status(500).json({
         success: false,
         message: 'BW_CLIENTID and BW_CLIENTSECRET environment variables must be set.',
@@ -31,7 +16,6 @@ const bitwardenPasswordController = () => {
         encoding: 'utf-8',
       }).trim();
       if (!sessionKey) {
-        console.log('Bitwarden unlock failed: No session key returned.');
         return res.status(400).json({
           success: false,
           message: 'Bitwarden unlock failed: No session key returned.',
@@ -63,7 +47,6 @@ const bitwardenPasswordController = () => {
         loginDetails,
       });
     } catch (err) {
-      console.error('Error:', err.stderr ? err.stderr.toString() : err.message);
       return res.status(500).json({
         success: false,
         message: err.message,
@@ -72,7 +55,6 @@ const bitwardenPasswordController = () => {
   };
 
   return {
-    test,
     vaultItemRetrival,
   };
 };
