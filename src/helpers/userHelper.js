@@ -709,8 +709,8 @@ const userHelper = function () {
             await userProfile.findByIdAndUpdate(
               personId,
               {
-                $push: {
-                  oldInfringements: { $each: oldInfringements, $slice: -10 },
+                $set: {
+                  oldInfringements: oldInfringements.slice(-10),
                 },
               },
               { new: true },
