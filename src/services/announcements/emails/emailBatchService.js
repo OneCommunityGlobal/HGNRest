@@ -439,9 +439,9 @@ class EmailBatchService {
   /**
    * Determine the parent Email status from child EmailBatch statuses.
    * Rules:
-   * - All SENT => SENT
-   * - All FAILED => FAILED
-   * - Mixed (some SENT and some FAILED) => PROCESSED
+   * - All SENT => SENT (all batches succeeded)
+   * - All FAILED => FAILED (all batches failed)
+   * - Mixed (some SENT and some FAILED, but ALL batches completed) => PROCESSED
    * - Otherwise (PENDING or SENDING batches) => SENDING (still in progress)
    * @param {string|ObjectId} emailId - Parent Email ObjectId.
    * @returns {Promise<string>} Derived status constant from EMAIL_CONFIG.EMAIL_STATUSES.
@@ -472,22 +472,30 @@ class EmailBatchService {
     const sent = statusMap[EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT] || 0;
     const failed = statusMap[EMAIL_CONFIG.EMAIL_BATCH_STATUSES.FAILED] || 0;
 
-    // All sent = SENT
-    if (sent > 0 && pending === 0 && sending === 0 && failed === 0) {
+    // Still processing (pending or sending batches) = keep SENDING status
+    // This check must come FIRST to avoid returning final states when still processing
+    if (pending > 0 || sending > 0) {
+      return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
+    }
+
+    // All batches completed - determine final status
+    // All sent = SENT (all batches succeeded)
+    if (sent > 0 && failed === 0) {
       return EMAIL_CONFIG.EMAIL_STATUSES.SENT;
     }
 
-    // All failed = FAILED
-    if (failed > 0 && pending === 0 && sending === 0 && sent === 0) {
+    // All failed = FAILED (all batches failed)
+    if (failed > 0 && sent === 0) {
       return EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
     }
 
     // Mixed results (some sent, some failed) = PROCESSED
-    if (sent > 0 || failed > 0) {
+    // All batches have completed (no pending or sending), but results are mixed
+    if (sent > 0 && failed > 0) {
       return EMAIL_CONFIG.EMAIL_STATUSES.PROCESSED;
     }
 
-    // Still processing (pending or sending batches) = keep SENDING status
+    // Fallback: Should not reach here, but keep SENDING status
     return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
   }
 

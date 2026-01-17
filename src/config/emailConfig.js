@@ -39,7 +39,7 @@ const EMAIL_CONFIG = {
   },
 
   // Template variable types
-  TEMPLATE_VARIABLE_TYPES: ['text', 'url', 'number', 'textarea', 'image'],
+  TEMPLATE_VARIABLE_TYPES: ['text', 'number', 'image'],
 
   // Announcement service runtime knobs
   ANNOUNCEMENTS: {
@@ -47,6 +47,7 @@ const EMAIL_CONFIG = {
     CONCURRENCY: 3, // concurrent SMTP batches processed simultaneously
     BATCH_STAGGER_START_MS: 100, // Delay between starting batches within a concurrent chunk (staggered start for rate limiting)
     DELAY_BETWEEN_CHUNKS_MS: 1000, // Delay after a chunk of batches completes before starting the next chunk
+    MAX_QUEUE_SIZE: 100, // Maximum emails in processing queue to prevent memory leak
   },
 
   // Email configuration

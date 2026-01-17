@@ -33,7 +33,6 @@ const emailTemplateSchema = new mongoose.Schema(
         type: {
           type: String,
           enum: EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES,
-          default: 'text',
         },
       },
     ],

@@ -642,8 +642,14 @@ const addNonHgnEmailSubscription = async (req, res) => {
     await newEmailList.save();
 
     // Send confirmation email
+    if (!jwtSecret) {
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error. JWT_SECRET is not set.',
+      });
+    }
     const payload = { email: normalizedEmail };
-    const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' }); // Fixed: was '360' (invalid)
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' });
 
     // Get frontend URL from request origin
     const getFrontendUrl = () => {
@@ -731,6 +737,13 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
     const { token } = req.body;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ success: false, message: 'Token is required' });
+    }
+
+    if (!jwtSecret) {
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error. JWT_SECRET is not set.',
+      });
     }
 
     let payload = {};

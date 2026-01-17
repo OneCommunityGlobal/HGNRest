@@ -30,7 +30,7 @@ const getAllEmailTemplates = async (req, res) => {
       });
     }
 
-    const { search, sortBy, includeEmailContent } = req.query;
+    const { search, sortBy, sortOrder, includeEmailContent } = req.query;
 
     const query = {};
     const sort = {};
@@ -42,7 +42,9 @@ const getAllEmailTemplates = async (req, res) => {
 
     // Build sort object
     if (sortBy) {
-      sort[sortBy] = 1;
+      // Use sortOrder if provided (asc = 1, desc = -1), otherwise default to ascending
+      const order = sortOrder === 'desc' ? -1 : 1;
+      sort[sortBy] = order;
     } else {
       sort.created_at = -1;
     }
@@ -170,8 +172,16 @@ const createEmailTemplate = async (req, res) => {
       success: false,
       message: error.message || 'Error creating email template',
     };
-    if (error.errors && Array.isArray(error.errors)) {
+    // Always include detailed errors array if available
+    if (error.errors && Array.isArray(error.errors) && error.errors.length > 0) {
       response.errors = error.errors;
+      // If message is vague, enhance it with error count
+      if (
+        response.message === 'Invalid template data' ||
+        response.message === 'Error creating email template'
+      ) {
+        response.message = `Validation failed: ${error.errors.length} error(s) found`;
+      }
     }
     return res.status(statusCode).json(response);
   }
@@ -226,8 +236,16 @@ const updateEmailTemplate = async (req, res) => {
       success: false,
       message: error.message || 'Error updating email template',
     };
-    if (error.errors && Array.isArray(error.errors)) {
+    // Always include detailed errors array if available
+    if (error.errors && Array.isArray(error.errors) && error.errors.length > 0) {
       response.errors = error.errors;
+      // If message is vague, enhance it with error count
+      if (
+        response.message === 'Invalid template data' ||
+        response.message === 'Error updating email template'
+      ) {
+        response.message = `Validation failed: ${error.errors.length} error(s) found`;
+      }
     }
     return res.status(statusCode).json(response);
   }

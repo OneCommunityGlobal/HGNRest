@@ -19,6 +19,7 @@ class EmailProcessor {
     this.emailQueue = []; // In-memory queue for emails to process
     this.isProcessingQueue = false; // Flag to prevent multiple queue processors
     this.currentlyProcessingEmailId = null; // Track which email is currently being processed
+    this.maxQueueSize = EMAIL_CONFIG.ANNOUNCEMENTS.MAX_QUEUE_SIZE || 100; // Max queue size to prevent memory leak
   }
 
   /**
@@ -38,7 +39,8 @@ class EmailProcessor {
 
     const emailIdStr = emailId.toString();
 
-    // Skip if already in queue or currently processing
+    // Atomic check and add: Skip if already in queue or currently processing
+    // Use includes check first for early return
     if (
       this.emailQueue.includes(emailIdStr) ||
       this.currentlyProcessingEmailId === emailIdStr ||
@@ -48,14 +50,27 @@ class EmailProcessor {
       return;
     }
 
-    // Add to queue
+    // Check queue size to prevent memory leak
+    if (this.emailQueue.length >= this.maxQueueSize) {
+      // logger.logException(
+      //   new Error(`Email queue is full (${this.maxQueueSize}). Rejecting new email.`),
+      //   'EmailProcessor.queueEmail - Queue overflow',
+      // );
+      // Remove oldest entries if queue is full (FIFO - keep newest)
+      const removeCount = Math.floor(this.maxQueueSize * 0.1); // Remove 10% of old entries
+      this.emailQueue.splice(0, removeCount);
+      // logger.logInfo(`Removed ${removeCount} old entries from queue to make room`);
+    }
+
+    // Add to queue (atomic operation - push is atomic in single-threaded JS)
     this.emailQueue.push(emailIdStr);
     // logger.logInfo(`Email ${emailIdStr} added to queue. Queue length: ${this.emailQueue.length}`);
 
     // Start queue processor if not already running
     if (!this.isProcessingQueue) {
       setImmediate(() => {
-        this.processQueue().catch(() => {
+        // eslint-disable-next-line no-unused-vars
+        this.processQueue().catch((error) => {
           // logger.logException(error, 'Error in queue processor');
           // Reset flag so queue can restart on next email addition
           this.isProcessingQueue = false;
@@ -70,13 +85,17 @@ class EmailProcessor {
    * - Once an email is done, processes the next one
    * - Continues until queue is empty
    * - Database connection is ensured at startup (server.js waits for DB connection)
+   * - Uses atomic check-and-set pattern to prevent race conditions
    * @returns {Promise<void>}
    */
   async processQueue() {
+    // Atomic check-and-set: if already processing, return immediately
+    // In single-threaded Node.js, this is safe because the check and set happen synchronously
     if (this.isProcessingQueue) {
       return; // Already processing
     }
 
+    // Set flag synchronously before any async operations to prevent race conditions
     this.isProcessingQueue = true;
     // logger.logInfo('Email queue processor started');
 
@@ -134,12 +153,15 @@ class EmailProcessor {
 
     const emailIdStr = emailId.toString();
 
-    // Prevent concurrent processing of the same email
+    // Atomic check-and-add to prevent race condition: prevent concurrent processing of the same email
+    // Check first, then add atomically (in single-threaded JS, this is safe between async operations)
     if (this.processingBatches.has(emailIdStr)) {
       // logger.logInfo(`Email ${emailIdStr} is already being processed, skipping`);
       return EMAIL_CONFIG.EMAIL_STATUSES.SENDING;
     }
 
+    // Add to processing set BEFORE any async operations to prevent race conditions
+    // This ensures no other processEmail call can start while this one is initializing
     this.processingBatches.add(emailIdStr);
 
     try {
@@ -212,13 +234,22 @@ class EmailProcessor {
         // logger.logException(resetError, `Error resetting batches for email ${emailIdStr}`);
       }
 
-      // Mark email as failed on error
+      // Sync parent Email status based on actual batch states (not just mark as FAILED)
+      // This ensures status accurately reflects batches that may have succeeded before the error
       try {
-        await EmailService.markEmailCompleted(emailIdStr, EMAIL_CONFIG.EMAIL_STATUSES.FAILED);
+        const updatedEmail = await EmailBatchService.syncParentEmailStatus(emailIdStr);
+        const finalStatus = updatedEmail ? updatedEmail.status : EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
+        return finalStatus;
       } catch (updateError) {
-        // logger.logException(updateError, 'Error updating Email status to failed');
+        // If sync fails, fall back to marking as FAILED
+        // logger.logException(updateError, 'Error syncing Email status after error');
+        try {
+          await EmailService.markEmailCompleted(emailIdStr, EMAIL_CONFIG.EMAIL_STATUSES.FAILED);
+        } catch (markError) {
+          // logger.logException(markError, 'Error updating Email status to failed');
+        }
+        return EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
       }
-      return EMAIL_CONFIG.EMAIL_STATUSES.FAILED;
     } finally {
       this.processingBatches.delete(emailIdStr);
     }

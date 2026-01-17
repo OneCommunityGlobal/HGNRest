@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Email = require('../../../models/email');
+const EmailBatch = require('../../../models/emailBatch');
 const { EMAIL_CONFIG } = require('../../../config/emailConfig');
 const { ensureHtmlWithinLimit } = require('../../../utilities/emailValidators');
 
@@ -244,7 +245,8 @@ class EmailService {
 
   /**
    * Get all Emails ordered by creation date descending.
-   * @returns {Promise<Array>} Array of Email objects (lean, with createdBy populated).
+   * Includes aggregated recipient counts from EmailBatch items.
+   * @returns {Promise<Array>} Array of Email objects (lean, with createdBy populated and recipient counts).
    */
   static async getAllEmails() {
     const emails = await Email.find()
@@ -252,7 +254,60 @@ class EmailService {
       .populate('createdBy', 'firstName lastName email')
       .lean();
 
-    return emails;
+    // Aggregate recipient counts and batch counts from EmailBatch for each email
+    const emailsWithCounts = await Promise.all(
+      emails.map(async (email) => {
+        // Get total recipients count (sum of all recipients across all batches)
+        const totalRecipientsAggregation = await EmailBatch.aggregate([
+          { $match: { emailId: email._id } },
+          {
+            $group: {
+              _id: null,
+              totalRecipients: {
+                $sum: { $size: { $ifNull: ['$recipients', []] } },
+              },
+            },
+          },
+        ]);
+
+        // Count batches by status (for sentEmails and failedEmails)
+        const batchCountsByStatus = await EmailBatch.aggregate([
+          { $match: { emailId: email._id } },
+          {
+            $group: {
+              _id: '$status',
+              batchCount: { $sum: 1 },
+            },
+          },
+        ]);
+
+        // Calculate totals
+        const totalEmails =
+          totalRecipientsAggregation.length > 0
+            ? totalRecipientsAggregation[0].totalRecipients || 0
+            : 0;
+
+        let sentEmails = 0; // Batch count
+        let failedEmails = 0; // Batch count
+
+        batchCountsByStatus.forEach((result) => {
+          if (result._id === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.SENT) {
+            sentEmails = result.batchCount || 0;
+          } else if (result._id === EMAIL_CONFIG.EMAIL_BATCH_STATUSES.FAILED) {
+            failedEmails = result.batchCount || 0;
+          }
+        });
+
+        return {
+          ...email,
+          totalEmails, // Total recipients
+          sentEmails, // Count of SENT batches
+          failedEmails, // Count of FAILED batches
+        };
+      }),
+    );
+
+    return emailsWithCounts;
   }
 
   /**

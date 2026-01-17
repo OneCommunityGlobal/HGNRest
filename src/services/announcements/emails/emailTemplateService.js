@@ -44,9 +44,12 @@ class EmailTemplateService {
         variableNames.add(varName.toLowerCase());
       }
 
-      if (variable.type && !EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES.includes(variable.type)) {
+      // Validate type - type is required and must be one of: text, number, image
+      if (!variable.type) {
+        errors.push(`Variable ${index + 1}: type is required`);
+      } else if (!EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES.includes(variable.type)) {
         errors.push(
-          `Variable ${index + 1}: type must be one of: ${EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES.join(', ')}`,
+          `Variable ${index + 1}: type '${variable.type}' is invalid. Type must be one of: ${EMAIL_CONFIG.TEMPLATE_VARIABLE_TYPES.join(', ')}`,
         );
       }
     });
@@ -214,7 +217,12 @@ class EmailTemplateService {
     // Validate template data
     const validation = this.validateTemplateData(templateData);
     if (!validation.isValid) {
-      const error = new Error('Invalid template data');
+      // Create descriptive error message from validation errors
+      const errorCount = validation.errors.length;
+      const errorMessage =
+        errorCount === 1 ? validation.errors[0] : `Validation failed: ${errorCount} error(s) found`;
+
+      const error = new Error(errorMessage);
       error.errors = validation.errors;
       error.statusCode = 400;
       throw error;
@@ -356,7 +364,12 @@ class EmailTemplateService {
     // Validate template data
     const validation = this.validateTemplateData(templateData);
     if (!validation.isValid) {
-      const error = new Error('Invalid template data');
+      // Create descriptive error message from validation errors
+      const errorCount = validation.errors.length;
+      const errorMessage =
+        errorCount === 1 ? validation.errors[0] : `Validation failed: ${errorCount} error(s) found`;
+
+      const error = new Error(errorMessage);
       error.errors = validation.errors;
       error.statusCode = 400;
       throw error;

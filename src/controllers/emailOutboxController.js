@@ -10,6 +10,11 @@ const { hasPermission } = require('../utilities/permissions');
  */
 const getEmails = async (req, res) => {
   try {
+    // Requestor validation
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
     // Permission check - viewing emails requires sendEmails permission
     const canViewEmails = await hasPermission(req.body.requestor, 'sendEmails');
     if (!canViewEmails) {
@@ -41,6 +46,11 @@ const getEmails = async (req, res) => {
  */
 const getEmailDetails = async (req, res) => {
   try {
+    // Requestor validation
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
+
     // Permission check - viewing email details requires sendEmails permission
     const canViewEmails = await hasPermission(req.body.requestor, 'sendEmails');
     if (!canViewEmails) {
