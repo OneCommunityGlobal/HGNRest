@@ -591,7 +591,7 @@ const updateEmailSubscriptions = async (req, res) => {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
-      message: error.message || 'Error updating email subscriptions',
+      message: 'Error updating email subscriptions',
     });
   }
 };

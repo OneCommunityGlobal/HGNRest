@@ -11,9 +11,26 @@ const { google } = require('googleapis');
 class EmailSendingService {
   /**
    * Initialize Gmail OAuth2 transport configuration and validate required env vars.
-   * Throws during construction if configuration is incomplete to fail fast.
+   * Uses lazy initialization - only initializes when first used (not at module load).
+   * Throws during initialization if configuration is incomplete to fail fast.
    */
   constructor() {
+    this._initialized = false;
+    this.config = null;
+    this.OAuth2Client = null;
+    this.transporter = null;
+  }
+
+  /**
+   * Initialize the service if not already initialized.
+   * Lazy initialization allows tests to run without email config.
+   * @private
+   */
+  _initialize() {
+    if (this._initialized) {
+      return;
+    }
+
     this.config = {
       email: process.env.ANNOUNCEMENT_EMAIL,
       clientId: process.env.ANNOUNCEMENT_EMAIL_CLIENT_ID,
@@ -46,6 +63,8 @@ class EmailSendingService {
         clientSecret: this.config.clientSecret,
       },
     });
+
+    this._initialized = true;
   }
 
   /**
@@ -55,6 +74,7 @@ class EmailSendingService {
    * @throws {Error} If token refresh fails
    */
   async getAccessToken() {
+    this._initialize();
     const accessTokenResp = await this.OAuth2Client.getAccessToken();
     let token;
 
@@ -82,6 +102,7 @@ class EmailSendingService {
    * @returns {Promise<{success: boolean, response?: Object, error?: Error}>}
    */
   async sendEmail(mailOptions) {
+    this._initialize();
     // Validation
     if (!mailOptions) {
       const error = new Error('INVALID_MAIL_OPTIONS: mailOptions is required');
