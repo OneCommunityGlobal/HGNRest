@@ -1,5 +1,6 @@
 const ActivityLog = require('../models/activityLog');
 const UserProfile = require('../models/userProfile');
+const { hasPermission } = require('../utils/permissions');
 
 const activityLogController = function () {
   async function fetchSupportDailyLog(req, res) {
