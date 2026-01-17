@@ -39,7 +39,7 @@ const EMAIL_CONFIG = {
   },
 
   // Template variable types
-  TEMPLATE_VARIABLE_TYPES: ['text', 'number', 'image'],
+  TEMPLATE_VARIABLE_TYPES: ['text', 'number', 'image', 'url', 'textarea'],
 
   // Announcement service runtime knobs
   ANNOUNCEMENTS: {
