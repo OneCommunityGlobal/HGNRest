@@ -9,7 +9,7 @@ const activityLogController = function () {
 
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
 
-      if (requestor.role !== 'support') {
+      if (await hasPermission(requestor, 'fetchSupportDailyLog') {
         return res
           .status(403)
           .json({ error: 'Forbidden: Only support role can access this endpoint' });
