@@ -308,6 +308,23 @@ const emailSender = (
     return Promise.resolve('EMAIL_SENDING_DISABLED');
   }
 
+  if (opts.priority === 'high') {
+    const to = Array.isArray(recipients) ? recipients.join(',') : recipients;
+
+    return sendEmail({
+      from: config.email,
+      to,
+      bcc: emailBccs ? emailBccs.join(',') : '',
+      subject,
+      html: message,
+      attachments,
+      cc,
+      replyTo,
+      // optional: tag it so you can find it in logs
+      headers: { 'X-Email-Priority': 'high', ...(opts.headers || {}) },
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
 
