@@ -6,6 +6,7 @@ const { insertDefaultFAQs } = require('../models/faqs');
 const logger = require('./logger');
 require('dotenv').config();
 
+mongoose.set('strictQuery', true); // Suppress deprecation warning, prepare for Mongoose 7
 mongoose.Promise = Promise;
 
 const afterConnect = async () => {
