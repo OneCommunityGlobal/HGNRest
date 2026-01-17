@@ -10,14 +10,12 @@ const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const logger = require('../startup/logger');
-
 const {
   insertNewUser,
   removeConnection,
   broadcastToSameUser,
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
-
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
 /**
@@ -97,8 +95,15 @@ export default () => {
         ws.send(JSON.stringify({ heartbeat: 'pong' }));
         return;
       }
-      const resp = await handleMessage(msg, clients, msg.userId ?? userId);
-      broadcastToSameUser(connections, userId, resp);
+      const result = await handleMessage(msg, clients, msg.userId ?? userId);
+      broadcastToSameUser(connections, userId, result.timerResponse);
+      if (result.timelogEvent) {
+        const timelogEventMessage = JSON.stringify({
+          type: 'TIMELOG_EVENT',
+          data: result.timelogEvent,
+        });
+        broadcastToSameUser(connections, userId, timelogEventMessage);
+      }
     });
 
     /**

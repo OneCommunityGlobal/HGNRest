@@ -9,6 +9,7 @@ const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').d
 const emailProcessor = require('./services/announcements/emails/emailProcessor');
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 
@@ -36,7 +37,7 @@ initSocket(server);
 
 // Start the actual server
 server.listen(port, () => {
-  console.log(`🚀 Server is listening on http://localhost:${port}`);
+  // Server started
 });
 
 const timerService = TimerWebsockets();

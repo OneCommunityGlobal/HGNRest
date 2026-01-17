@@ -128,6 +128,19 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
+
       ccdUsers: {
         type: [
           {
@@ -140,6 +153,7 @@ const userProfileSchema = new Schema({
       },
     },
   ],
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -203,6 +217,15 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
+  // used for deactivation/reactivation of accounts, tracking last activity, and updating endDate when account is deactivated
+  lastActivityAt: { type: Date, required: false, index: true },
+  deactivatedAt: { type: Date, required: false, index: true },
+  // differentiate between paused and separated accounts for better reporting and handling in the future
+  inactiveReason: {
+    type: String,
+    enum: ['Paused', 'Separated', 'ManualDeactivation'],
+    default: null,
+  },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
@@ -298,6 +321,7 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -332,6 +356,12 @@ const userProfileSchema = new Schema({
         {
           type: String,
           trim: true,
+        },
+      ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
         },
       ],
     },
