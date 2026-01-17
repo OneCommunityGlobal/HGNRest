@@ -13,10 +13,11 @@ const mongoose = require('mongoose');
 const Task = require('./src/models/task');
 const WBS = require('./src/models/wbs');
 const Project = require('./src/models/project');
+const encodeMongoPassword = require('./src/utilities/mongoPasswordEncoder');
 require('dotenv').config();
 
 // Connect to MongoDB
-const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+const uri = `mongodb+srv://${process.env.user}:${encodeMongoPassword(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
 mongoose.connect(uri, {
   useNewUrlParser: true,

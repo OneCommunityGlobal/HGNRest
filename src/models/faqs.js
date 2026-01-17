@@ -140,7 +140,9 @@ const insertDefaultFAQs = async () => {
   }
 };
 
-// Ensure the FAQs are inserted into the database when the model is first loaded
-insertDefaultFAQs();
-
+// Export the FAQ model as the default export
 module.exports = FAQ;
+
+// Export the function to be called after connection is established
+// Note: This must come AFTER module.exports = FAQ to avoid being overwritten
+module.exports.insertDefaultFAQs = insertDefaultFAQs;

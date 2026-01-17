@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
 const Teams = require('../models/team');
+const encodeMongoPassword = require('./mongoPasswordEncoder');
 
 const addMembersField = async () => {
   await Teams.updateMany({}, { $set: { members: [] } }).catch((error) =>
@@ -36,7 +37,7 @@ const addMembersField = async () => {
 // };
 
 const run = () => {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const uri = `mongodb+srv://${process.env.user}:${encodeMongoPassword(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
     .connect(uri, {

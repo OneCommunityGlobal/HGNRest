@@ -8,6 +8,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
 const userProfile = require('../models/userProfile');
+const encodeMongoPassword = require('./mongoPasswordEncoder');
 
 mongoose.Promise = Promise;
 
@@ -80,7 +81,7 @@ const checkNewField = async () => {
 
 const run = function () {
   //   console.log('connect db');
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const uri = `mongodb+srv://${process.env.user}:${encodeMongoPassword(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
     .connect(uri, {

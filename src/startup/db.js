@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
+const encodeMongoPassword = require('../utilities/mongoPasswordEncoder');
+const { insertDefaultFAQs } = require('../models/faqs');
 const logger = require('./logger');
 require('dotenv').config();
 
@@ -14,6 +16,7 @@ const afterConnect = async () => {
     });
 
     await initialPermissions();
+    await insertDefaultFAQs();
     if (!user) {
       userProfile
         .create({
@@ -34,13 +37,51 @@ const afterConnect = async () => {
 };
 
 module.exports = function () {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
-  mongoose
-    .connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      useFindAndModify: false,
-    })
-    .then(afterConnect)
-    .catch((err) => logger.logException(err));
+  try {
+    const encodedPassword = encodeMongoPassword(process.env.password);
+    const { user } = process.env;
+    const { cluster } = process.env;
+    const { dbName } = process.env;
+    const { appName } = process.env;
+
+    // Validate all required environment variables are present
+    if (!user || !encodedPassword || !cluster || !dbName) {
+      throw new Error(
+        `Missing required MongoDB environment variables: user=${!!user}, password=${!!encodedPassword}, cluster=${!!cluster}, dbName=${!!dbName}`,
+      );
+    }
+
+    // Construct URI with proper encoding for all components
+    // Try without appName first to isolate the issue
+    const uri = `mongodb+srv://${user}:${encodedPassword}@${cluster}/${dbName}?retryWrites=true&w=majority${appName ? `&appName=${encodeURIComponent(appName)}` : ''}`;
+
+    // Log the actual URI (password masked for security)
+    const maskedUri = uri.replace(/:[^@]+@/, ':***@');
+    logger.logInfo(`MongoDB URI (masked): ${maskedUri}`);
+
+    // Try to parse the URI as a URL to catch any obvious issues
+    try {
+      const testUrl = new URL(uri);
+      logger.logInfo(
+        `URI validation: PASSED (username=${testUrl.username}, hostname=${testUrl.hostname})`,
+      );
+    } catch (urlError) {
+      logger.logException(new Error(`URI validation failed: ${urlError.message}`));
+    }
+
+    mongoose
+      .connect(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        useFindAndModify: false,
+      })
+      .then(afterConnect)
+      .catch((err) => {
+        logger.logException(
+          new Error(`MongoDB connection error: ${err.message}. URI (masked): ${maskedUri}`),
+        );
+      });
+  } catch (error) {
+    logger.logException(error);
+  }
 };
