@@ -19,11 +19,7 @@ require('dotenv').config();
 // Connect to MongoDB
 const uri = `mongodb+srv://${process.env.user}:${encodeMongoPassword(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
-mongoose.connect(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  useFindAndModify: false,
-});
+mongoose.connect(uri);
 
 const db = mongoose.connection;
 

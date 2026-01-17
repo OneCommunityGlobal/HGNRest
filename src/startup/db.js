@@ -52,34 +52,19 @@ module.exports = function () {
     }
 
     // Construct URI with proper encoding for all components
-    // Try without appName first to isolate the issue
     const uri = `mongodb+srv://${user}:${encodedPassword}@${cluster}/${dbName}?retryWrites=true&w=majority${appName ? `&appName=${encodeURIComponent(appName)}` : ''}`;
-
-    // Log the actual URI (password masked for security)
-    const maskedUri = uri.replace(/:[^@]+@/, ':***@');
-    logger.logInfo(`MongoDB URI (masked): ${maskedUri}`);
-
-    // Try to parse the URI as a URL to catch any obvious issues
-    try {
-      const testUrl = new URL(uri);
-      logger.logInfo(
-        `URI validation: PASSED (username=${testUrl.username}, hostname=${testUrl.hostname})`,
-      );
-    } catch (urlError) {
-      logger.logException(new Error(`URI validation failed: ${urlError.message}`));
-    }
 
     mongoose
       .connect(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        useFindAndModify: false,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
       })
-      .then(afterConnect)
+      .then(() => {
+        logger.logInfo('✅ MongoDB connected successfully');
+        return afterConnect();
+      })
       .catch((err) => {
-        logger.logException(
-          new Error(`MongoDB connection error: ${err.message}. URI (masked): ${maskedUri}`),
-        );
+        logger.logException(new Error(`❌ MongoDB connection failed: ${err.message}`));
       });
   } catch (error) {
     logger.logException(error);

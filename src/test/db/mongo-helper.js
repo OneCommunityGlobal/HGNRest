@@ -25,8 +25,6 @@ module.exports.dbConnect = async () => {
 
     // Simple connection options
     const mongooseOpts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 30000, // 30 seconds
       socketTimeoutMS: 30000, // 30 seconds
       connectTimeoutMS: 30000, // 30 seconds
@@ -52,8 +50,6 @@ module.exports.dbConnect = async () => {
     const uri = mongoServer.getUri();
 
     const mongooseOpts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 30000, // 30 seconds
       socketTimeoutMS: 30000, // 30 seconds
       connectTimeoutMS: 30000, // 30 seconds
@@ -61,11 +57,7 @@ module.exports.dbConnect = async () => {
       minPoolSize: 0,
     };
 
-    await mongoose.connect(uri, mongooseOpts, (err) => {
-      if (err) {
-        console.error(err);
-      }
-    });
+    await mongoose.connect(uri, mongooseOpts);
   }
 };
 

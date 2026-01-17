@@ -40,11 +40,7 @@ const run = () => {
   const uri = `mongodb+srv://${process.env.user}:${encodeMongoPassword(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
-    .connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      useFindAndModify: false,
-    })
+    .connect(uri)
     // .then(deleteMembersField)
     .then(addMembersField)
     .catch((err) => logger.logException(err))
