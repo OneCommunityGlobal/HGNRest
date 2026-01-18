@@ -224,7 +224,7 @@ const userProfileSchema = new Schema({
   inactiveReason: {
     type: String,
     enum: ['Paused', 'Separated', 'ManualDeactivation'],
-    default: null,
+    default: undefined,
   },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
