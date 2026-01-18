@@ -43,21 +43,7 @@ class EmailBatchService {
       throw error;
     }
 
-    // Validate recipient count limit (only enforce when enforceRecipientLimit is true)
-    // Default to true to enforce limit for specific recipient requests
-    const enforceRecipientLimit = config.enforceRecipientLimit !== false;
-    if (
-      enforceRecipientLimit &&
-      normalizedRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST
-    ) {
-      const error = new Error(
-        `A maximum of ${EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // Validate email format for all recipients
+    // Validate email format for all recipients FIRST
     const invalidRecipients = normalizedRecipients.filter(
       (recipient) => !isValidEmailAddress(recipient.email),
     );
@@ -68,11 +54,37 @@ class EmailBatchService {
       throw error;
     }
 
+    // Filter to only valid recipients
+    const validRecipients = normalizedRecipients.filter((recipient) =>
+      isValidEmailAddress(recipient.email),
+    );
+
+    // Check if we have any valid recipients AFTER filtering
+    if (validRecipients.length === 0) {
+      const error = new Error('No valid recipients after validation');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Validate recipient count limit (only enforce when enforceRecipientLimit is true)
+    // Default to true to enforce limit for specific recipient requests
+    const enforceRecipientLimit = config.enforceRecipientLimit !== false;
+    if (
+      enforceRecipientLimit &&
+      validRecipients.length > EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST
+    ) {
+      const error = new Error(
+        `A maximum of ${EMAIL_CONFIG.LIMITS.MAX_RECIPIENTS_PER_REQUEST} recipients are allowed per request`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
     // Chunk recipients into EmailBatch items
     const emailBatchItems = [];
 
-    for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
-      const recipientChunk = normalizedRecipients.slice(i, i + batchSize);
+    for (let i = 0; i < validRecipients.length; i += batchSize) {
+      const recipientChunk = validRecipients.slice(i, i + batchSize);
 
       const emailBatchItem = {
         emailId, // emailId is now the ObjectId directly

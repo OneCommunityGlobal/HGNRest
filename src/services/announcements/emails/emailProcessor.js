@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
+const { EMAIL_CONFIG } = require('../../../config/emailConfig');
 const EmailService = require('./emailService');
 const EmailBatchService = require('./emailBatchService');
 const emailSendingService = require('./emailSendingService');
-const { EMAIL_CONFIG } = require('../../../config/emailConfig');
 // const logger = require('../../../startup/logger');
 
 class EmailProcessor {
@@ -34,7 +34,7 @@ class EmailProcessor {
   queueEmail(emailId) {
     if (!emailId || !mongoose.Types.ObjectId.isValid(emailId)) {
       // logger.logException(new Error('Invalid emailId'), 'EmailProcessor.queueEmail');
-      return;
+      return false; // Return false to indicate failure
     }
 
     const emailIdStr = emailId.toString();
@@ -47,19 +47,16 @@ class EmailProcessor {
       this.processingBatches.has(emailIdStr)
     ) {
       // logger.logInfo(`Email ${emailIdStr} is already queued or being processed, skipping`);
-      return;
+      return true; // Already queued, consider this success
     }
 
-    // Check queue size to prevent memory leak
-    if (this.emailQueue.length >= this.maxQueueSize) {
+    // Check queue size to prevent memory leak - REJECT instead of dropping old emails
+    if (this.emailQueue.length > this.maxQueueSize) {
       // logger.logException(
-      //   new Error(`Email queue is full (${this.maxQueueSize}). Rejecting new email.`),
+      //   new Error(`Email queue is full (${this.maxQueueSize}). Rejecting new email ${emailIdStr}.`),
       //   'EmailProcessor.queueEmail - Queue overflow',
       // );
-      // Remove oldest entries if queue is full (FIFO - keep newest)
-      const removeCount = Math.floor(this.maxQueueSize * 0.1); // Remove 10% of old entries
-      this.emailQueue.splice(0, removeCount);
-      // logger.logInfo(`Removed ${removeCount} old entries from queue to make room`);
+      return false; // Return false to signal queue is full
     }
 
     // Add to queue (atomic operation - push is atomic in single-threaded JS)
@@ -67,6 +64,7 @@ class EmailProcessor {
     // logger.logInfo(`Email ${emailIdStr} added to queue. Queue length: ${this.emailQueue.length}`);
 
     // Start queue processor if not already running
+    // Check flag and start processor synchronously to prevent race condition
     if (!this.isProcessingQueue) {
       setImmediate(() => {
         // eslint-disable-next-line no-unused-vars
@@ -77,6 +75,8 @@ class EmailProcessor {
         });
       });
     }
+
+    return true; // Successfully queued
   }
 
   /**
@@ -89,13 +89,14 @@ class EmailProcessor {
    * @returns {Promise<void>}
    */
   async processQueue() {
-    // Atomic check-and-set: if already processing, return immediately
-    // In single-threaded Node.js, this is safe because the check and set happen synchronously
+    // Atomic check-and-set using synchronous operations
+    // This must be done synchronously before ANY async operations to prevent race conditions
+    // In Node.js event loop, synchronous code is atomic
     if (this.isProcessingQueue) {
       return; // Already processing
     }
 
-    // Set flag synchronously before any async operations to prevent race conditions
+    // Set flag IMMEDIATELY and synchronously to prevent race conditions
     this.isProcessingQueue = true;
     // logger.logInfo('Email queue processor started');
 
@@ -469,66 +470,127 @@ class EmailProcessor {
   }
 
   /**
-   * Process pending and stuck emails on system startup.
-   * - Called only after database connection is established (server.js uses mongoose.connection.once('connected'))
+   * Reset batches that are stuck in SENDING status during runtime.
+   * - Identifies batches that have been in SENDING status for more than 20 minutes
+   * - Resets them to PENDING so they can be retried
+   * - Called by cron job to handle runtime failures (not just startup)
+   * @returns {Promise<number>} Number of batches reset
+   */
+  static async resetStuckRuntimeBatches() {
+    try {
+      const STUCK_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+      const timeoutThreshold = new Date(Date.now() - STUCK_TIMEOUT_MS);
+
+      // Find batches stuck in SENDING status for more than 15 minutes
+      const EmailBatch = require('../../../models/emailBatch');
+      const emailConfig = require('../../../config/emailConfig').EMAIL_CONFIG;
+
+      const stuckBatches = await EmailBatch.find({
+        status: emailConfig.EMAIL_BATCH_STATUSES.SENDING,
+        lastAttemptedAt: { $lt: timeoutThreshold },
+      });
+
+      if (stuckBatches.length === 0) {
+        return 0;
+      }
+
+      // logger.logInfo(
+      //   `Found ${stuckBatches.length} batches stuck in SENDING status for >15 minutes, resetting...`,
+      // );
+
+      let resetCount = 0;
+      await Promise.allSettled(
+        stuckBatches.map(async (batch) => {
+          try {
+            await EmailBatchService.resetEmailBatchForRetry(batch._id);
+            resetCount += 1;
+            // logger.logInfo(`Reset runtime stuck batch ${batch._id} to PENDING`);
+          } catch (error) {
+            // logger.logException(error, `Error resetting runtime stuck batch ${batch._id}`);
+          }
+        }),
+      );
+
+      return resetCount;
+    } catch (error) {
+      // logger.logException(error, 'Error in resetStuckRuntimeBatches');
+      return 0;
+    }
+  }
+
+  /**
+   * Process pending and stuck emails on system startup OR via cron job.
+   * - Called after database connection is established (server.js)
+   * - Called periodically by cron job (every 10 minutes)
    * - Resets stuck emails (SENDING status) to PENDING
    * - Resets stuck batches (SENDING status) to PENDING
+   * - Resets runtime stuck batches (SENDING > 20 minutes)
    * - Queues all PENDING emails for processing
    * @returns {Promise<void>}
    */
   async processPendingAndStuckEmails() {
-    try {
-      // logger.logInfo('Starting startup processing of pending and stuck emails...');
+    // logger.logInfo('Starting processing of pending and stuck emails...');
 
-      // Step 1: Reset stuck emails to PENDING
-      const stuckEmails = await EmailService.getStuckEmails();
-      if (stuckEmails.length > 0) {
-        // logger.logInfo(`Found ${stuckEmails.length} stuck emails, resetting to PENDING...`);
-        await Promise.allSettled(
-          stuckEmails.map(async (email) => {
-            try {
-              await EmailService.resetStuckEmail(email._id);
-              // logger.logInfo(`Reset stuck email ${email._id} to PENDING`);
-            } catch (error) {
-              // logger.logException(error, `Error resetting stuck email ${email._id}`);
-            }
-          }),
-        );
-      }
-
-      // Step 2: Reset stuck batches to PENDING
-      const stuckBatches = await EmailBatchService.getStuckBatches();
-      if (stuckBatches.length > 0) {
-        // logger.logInfo(`Found ${stuckBatches.length} stuck batches, resetting to PENDING...`);
-        await Promise.allSettled(
-          stuckBatches.map(async (batch) => {
-            try {
-              await EmailBatchService.resetEmailBatchForRetry(batch._id);
-              // logger.logInfo(`Reset stuck batch ${batch._id} to PENDING`);
-            } catch (error) {
-              // logger.logException(error, `Error resetting stuck batch ${batch._id}`);
-            }
-          }),
-        );
-      }
-
-      // Step 3: Queue all PENDING emails for processing
-      const pendingEmails = await EmailService.getPendingEmails();
-      if (pendingEmails.length > 0) {
-        // logger.logInfo(`Found ${pendingEmails.length} pending emails, adding to queue...`);
-        // Queue all emails (non-blocking, sequential processing)
-        pendingEmails.forEach((email) => {
-          this.queueEmail(email._id);
-        });
-        // logger.logInfo(`Queued ${pendingEmails.length} pending emails for processing`);
-      } else {
-        // logger.logInfo('No pending emails found on startup');
-      }
-
-      // logger.logInfo('Startup processing of pending and stuck emails completed');
-    } catch (error) {
-      // logger.logException(error, 'Error during startup processing of pending and stuck emails');
+    // Step 1: Reset stuck emails to PENDING
+    const stuckEmails = await EmailService.getStuckEmails();
+    if (stuckEmails.length > 0) {
+      // logger.logInfo(`Found ${stuckEmails.length} stuck emails, resetting to PENDING...`);
+      await Promise.allSettled(
+        stuckEmails.map(async (email) => {
+          try {
+            await EmailService.resetStuckEmail(email._id);
+            // logger.logInfo(`Reset stuck email ${email._id} to PENDING`);
+          } catch (error) {
+            // logger.logException(error, `Error resetting stuck email ${email._id}`);
+          }
+        }),
+      );
     }
+
+    // Step 2: Reset stuck batches to PENDING (from server restart)
+    const stuckBatches = await EmailBatchService.getStuckBatches();
+    if (stuckBatches.length > 0) {
+      // logger.logInfo(`Found ${stuckBatches.length} stuck batches, resetting to PENDING...`);
+      await Promise.allSettled(
+        stuckBatches.map(async (batch) => {
+          try {
+            await EmailBatchService.resetEmailBatchForRetry(batch._id);
+            // logger.logInfo(`Reset stuck batch ${batch._id} to PENDING`);
+          } catch (error) {
+            // logger.logException(error, `Error resetting stuck batch ${batch._id}`);
+          }
+        }),
+      );
+    }
+
+    // Step 3: Reset runtime stuck batches (SENDING > 20 minutes)
+    const runtimeResetCount = await EmailProcessor.resetStuckRuntimeBatches();
+    if (runtimeResetCount > 0) {
+      // logger.logInfo(`Reset ${runtimeResetCount} runtime stuck batches`);
+    }
+
+    // Step 4: Queue all PENDING emails for processing
+    const pendingEmails = await EmailService.getPendingEmails();
+    if (pendingEmails.length > 0) {
+      // logger.logInfo(`Found ${pendingEmails.length} pending emails, adding to queue...`);
+      // Queue all emails (non-blocking, sequential processing)
+      pendingEmails.forEach((email) => {
+        this.queueEmail(email._id);
+      });
+      // logger.logInfo(`Queued ${pendingEmails.length} pending emails for processing`);
+    } else {
+      // logger.logInfo('No pending emails found');
+    }
+
+    // logger.logInfo('Processing of pending and stuck emails completed');
+
+    // Return statistics for user feedback
+    return {
+      stuckEmailsReset: stuckEmails.length,
+      stuckBatchesReset: stuckBatches.length,
+      runtimeStuckBatchesReset: runtimeResetCount,
+      pendingEmailsQueued: pendingEmails.length,
+    };
   }
 }
 

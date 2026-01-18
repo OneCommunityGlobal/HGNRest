@@ -41,6 +41,18 @@ const sendEmail = async (req, res) => {
   try {
     const { to, subject, html } = req.body;
 
+    // Validate subject and html are not empty after trim
+    if (!subject || typeof subject !== 'string' || !subject.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Subject is required and cannot be empty' });
+    }
+    if (!html || typeof html !== 'string' || !html.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'HTML content is required and cannot be empty' });
+    }
+
     // Validate that all template variables have been replaced (business rule)
     const unmatchedVariablesHtml = EmailTemplateService.getUnreplacedVariables(html);
     const unmatchedVariablesSubject = EmailTemplateService.getUnreplacedVariables(subject);
@@ -62,11 +74,16 @@ const sendEmail = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Requestor not found' });
     }
 
-    // Normalize recipients once for service and response
+    // Normalize and deduplicate recipients (case-insensitive)
     const recipientsArray = normalizeRecipientsToArray(to);
+    const uniqueRecipients = [
+      ...new Set(recipientsArray.map((email) => email.toLowerCase().trim())),
+    ];
+    const recipientObjects = uniqueRecipients.map((emailAddr) => ({ email: emailAddr }));
 
     // Create email and batches in transaction (validation happens in services)
-    const email = await withTransaction(async (session) => {
+    // Queue email INSIDE transaction to ensure rollback on queue failure
+    const _email = await withTransaction(async (session) => {
       // Create parent Email (validates subject, htmlContent, createdBy)
       const createdEmail = await EmailService.createEmail(
         {
@@ -79,7 +96,6 @@ const sendEmail = async (req, res) => {
 
       // Create EmailBatch items with all recipients (validates recipients, counts, email format)
       // Enforce recipient limit for specific recipient requests
-      const recipientObjects = recipientsArray.map((emailAddr) => ({ email: emailAddr }));
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
         recipientObjects,
@@ -90,15 +106,23 @@ const sendEmail = async (req, res) => {
         session,
       );
 
+      // Queue email BEFORE committing transaction
+      // If queue is full or queueing fails, transaction will rollback
+      const queued = emailProcessor.queueEmail(createdEmail._id);
+      if (!queued) {
+        const error = new Error(
+          'Email queue is currently full. Please try again in a few moments or contact support if this persists.',
+        );
+        error.statusCode = 503; // Service Unavailable
+        throw error;
+      }
+
       return createdEmail;
     });
 
-    // Add email to queue for processing (non-blocking, sequential processing)
-    emailProcessor.queueEmail(email._id);
-
     return res.status(200).json({
       success: true,
-      message: `Email created successfully for ${recipientsArray.length} recipient(s) and will be processed shortly`,
+      message: `Email queued for processing (${uniqueRecipients.length} recipient(s))`,
     });
   } catch (error) {
     // logger.logException(error, 'Error creating email');
@@ -138,6 +162,18 @@ const sendEmailToSubscribers = async (req, res) => {
   try {
     const { subject, html } = req.body;
 
+    // Validate subject and html are not empty after trim
+    if (!subject || typeof subject !== 'string' || !subject.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Subject is required and cannot be empty' });
+    }
+    if (!html || typeof html !== 'string' || !html.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'HTML content is required and cannot be empty' });
+    }
+
     // Validate that all template variables have been replaced (business rule)
     const unmatchedVariablesHtml = EmailTemplateService.getUnreplacedVariables(html);
     const unmatchedVariablesSubject = EmailTemplateService.getUnreplacedVariables(subject);
@@ -173,13 +209,24 @@ const sendEmailToSubscribers = async (req, res) => {
       emailSubscriptions: true,
     });
 
-    const totalRecipients = users.length + emailSubscribers.length;
-    if (totalRecipients === 0) {
+    // Collect all recipients and deduplicate (case-insensitive)
+    const allRecipientEmails = [
+      ...users.map((hgnUser) => hgnUser.email),
+      ...emailSubscribers.map((subscriber) => subscriber.email),
+    ];
+
+    const uniqueRecipients = [
+      ...new Set(allRecipientEmails.map((email) => email.toLowerCase().trim())),
+    ];
+    const recipientObjects = uniqueRecipients.map((emailAddr) => ({ email: emailAddr }));
+
+    if (uniqueRecipients.length === 0) {
       return res.status(400).json({ success: false, message: 'No recipients found' });
     }
 
     // Create email and batches in transaction (validation happens in services)
-    const email = await withTransaction(async (session) => {
+    // Queue email INSIDE transaction to ensure rollback on queue failure
+    const _email = await withTransaction(async (session) => {
       // Create parent Email (validates subject, htmlContent, createdBy)
       const createdEmail = await EmailService.createEmail(
         {
@@ -190,17 +237,11 @@ const sendEmailToSubscribers = async (req, res) => {
         session,
       );
 
-      // Collect all recipients into single array
-      const allRecipients = [
-        ...users.map((hgnUser) => ({ email: hgnUser.email })),
-        ...emailSubscribers.map((subscriber) => ({ email: subscriber.email })),
-      ];
-
       // Create EmailBatch items with all recipients (validates recipients, counts, email format)
       // Skip recipient limit for broadcast to all subscribers
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
-        allRecipients,
+        recipientObjects,
         {
           emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
           enforceRecipientLimit: false, // Skip limit for broadcast
@@ -208,15 +249,22 @@ const sendEmailToSubscribers = async (req, res) => {
         session,
       );
 
+      // Queue email BEFORE committing transaction
+      const queued = emailProcessor.queueEmail(createdEmail._id);
+      if (!queued) {
+        const error = new Error(
+          'Email queue is currently full. Please try again in a few moments or contact support if this persists.',
+        );
+        error.statusCode = 503;
+        throw error;
+      }
+
       return createdEmail;
     });
 
-    // Add email to queue for processing (non-blocking, sequential processing)
-    emailProcessor.queueEmail(email._id);
-
     return res.status(200).json({
       success: true,
-      message: `Broadcast email created successfully for ${totalRecipients} recipient(s) and will be processed shortly`,
+      message: `Broadcast email queued for processing (${uniqueRecipients.length} recipient(s))`,
     });
   } catch (error) {
     // logger.logException(error, 'Error creating broadcast email');
@@ -302,9 +350,9 @@ const resendEmail = async (req, res) => {
       });
 
       allRecipients = [
-        ...users.map((hgnUser) => ({ email: hgnUser.email })),
-        ...emailSubscribers.map((subscriber) => ({ email: subscriber.email })),
-      ];
+        ...users.map((hgnUser) => hgnUser.email),
+        ...emailSubscribers.map((subscriber) => subscriber.email),
+      ].map((email) => ({ email }));
     } else if (recipientOption === 'specific') {
       // Use provided specific recipients
       if (
@@ -320,7 +368,7 @@ const resendEmail = async (req, res) => {
 
       // Normalize recipients (validation happens in service)
       const recipientsArray = normalizeRecipientsToArray(specificRecipients);
-      allRecipients = recipientsArray.map((email) => ({ email }));
+      allRecipients = recipientsArray.map((email) => ({ email: email.toLowerCase().trim() }));
     } else if (recipientOption === 'same') {
       // Get recipients from original email's EmailBatch items
       const emailBatchItems = await EmailBatchService.getBatchesForEmail(emailId);
@@ -335,23 +383,21 @@ const resendEmail = async (req, res) => {
         .filter((batch) => batch.recipients && Array.isArray(batch.recipients))
         .flatMap((batch) => batch.recipients);
       allRecipients.push(...batchRecipients);
-
-      // Deduplicate recipients by email
-      const seenEmails = new Set();
-      allRecipients = allRecipients.filter((recipient) => {
-        if (!recipient || !recipient.email || seenEmails.has(recipient.email)) {
-          return false;
-        }
-        seenEmails.add(recipient.email);
-        return true;
-      });
     }
 
-    if (allRecipients.length === 0) {
+    // Deduplicate all recipients (case-insensitive)
+    const allRecipientEmails = allRecipients.map((r) => r.email).filter(Boolean);
+    const uniqueRecipients = [
+      ...new Set(allRecipientEmails.map((email) => email.toLowerCase().trim())),
+    ];
+    const recipientObjects = uniqueRecipients.map((emailAddr) => ({ email: emailAddr }));
+
+    if (uniqueRecipients.length === 0) {
       return res.status(400).json({ success: false, message: 'No recipients found' });
     }
 
     // Create email and batches in transaction
+    // Queue email INSIDE transaction to ensure rollback on queue failure
     const newEmail = await withTransaction(async (session) => {
       // Create new Email (copy) - validation happens in service
       const createdEmail = await EmailService.createEmail(
@@ -368,7 +414,7 @@ const resendEmail = async (req, res) => {
       const shouldEnforceLimit = recipientOption === 'specific';
       await EmailBatchService.createEmailBatches(
         createdEmail._id,
-        allRecipients,
+        recipientObjects,
         {
           emailType: EMAIL_CONFIG.EMAIL_TYPES.BCC,
           enforceRecipientLimit: shouldEnforceLimit,
@@ -376,18 +422,25 @@ const resendEmail = async (req, res) => {
         session,
       );
 
+      // Queue email BEFORE committing transaction
+      const queued = emailProcessor.queueEmail(createdEmail._id);
+      if (!queued) {
+        const error = new Error(
+          'Email queue is currently full. Please try again in a few moments or contact support if this persists.',
+        );
+        error.statusCode = 503;
+        throw error;
+      }
+
       return createdEmail;
     });
 
-    // Add email to queue for processing (non-blocking, sequential processing)
-    emailProcessor.queueEmail(newEmail._id);
-
     return res.status(200).json({
       success: true,
-      message: `Email created for resend successfully to ${allRecipients.length} recipient(s) and will be processed shortly`,
+      message: `Email queued for resend (${uniqueRecipients.length} recipient(s))`,
       data: {
         emailId: newEmail._id,
-        recipientCount: allRecipients.length,
+        recipientCount: uniqueRecipients.length,
       },
     });
   } catch (error) {
@@ -484,7 +537,14 @@ const retryEmail = async (req, res) => {
     // );
 
     // Add email to queue for processing (non-blocking, sequential processing)
-    emailProcessor.queueEmail(emailId);
+    const queued = emailProcessor.queueEmail(emailId);
+    if (!queued) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'Email queue is currently full. Your email has been reset to PENDING and will be processed automatically when the server restarts, or you can use the "Process Pending Emails" button to retry manually.',
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -513,35 +573,54 @@ const retryEmail = async (req, res) => {
  * @param {import('express').Response} res
  */
 const processPendingAndStuckEmails = async (req, res) => {
-  // Requestor is required for permission check
-  if (!req?.body?.requestor?.requestorId) {
-    return res.status(401).json({ success: false, message: 'Missing requestor' });
-  }
-
-  // Permission check - processing emails requires sendEmails permission
-  const canProcessEmails = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canProcessEmails) {
-    return res
-      .status(403)
-      .json({ success: false, message: 'You are not authorized to process emails.' });
-  }
-
   try {
-    // logger.logInfo('Manual trigger: Starting processing of pending and stuck emails...');
+    // Requestor is required for permission check
+    if (!req?.body?.requestor?.requestorId) {
+      return res.status(401).json({ success: false, message: 'Missing requestor' });
+    }
 
-    // Trigger the processor to handle pending and stuck emails
-    await emailProcessor.processPendingAndStuckEmails();
+    // Permission check - processing stuck emails requires sendEmails permission
+    const canProcessEmails = await hasPermission(req.body.requestor, 'sendEmails');
+    if (!canProcessEmails) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You are not authorized to process emails.' });
+    }
+
+    // Trigger processing and get statistics
+    const stats = await emailProcessor.processPendingAndStuckEmails();
+
+    // Build user-friendly message
+    const parts = [];
+    if (stats.stuckEmailsReset > 0) {
+      parts.push(`${stats.stuckEmailsReset} stuck email(s) reset`);
+    }
+    if (stats.stuckBatchesReset > 0) {
+      parts.push(`${stats.stuckBatchesReset} stuck batch(es) reset`);
+    }
+    if (stats.runtimeStuckBatchesReset > 0) {
+      parts.push(`${stats.runtimeStuckBatchesReset} timeout batch(es) reset`);
+    }
+    if (stats.pendingEmailsQueued > 0) {
+      parts.push(`${stats.pendingEmailsQueued} pending email(s) queued`);
+    }
+
+    const message =
+      parts.length > 0
+        ? `Recovery complete: ${parts.join(', ')}`
+        : 'No stuck or pending emails found - all clear!';
 
     return res.status(200).json({
       success: true,
-      message: 'Processing of pending and stuck emails triggered successfully',
+      message,
+      data: stats,
     });
   } catch (error) {
-    // logger.logException(error, 'Error triggering processing of pending and stuck emails');
+    // logger.logException(error, 'Error processing pending and stuck emails');
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
-      message: error.message || 'Error triggering processing of pending and stuck emails',
+      message: error.message || 'Error processing pending and stuck emails',
     });
   }
 };
