@@ -2219,46 +2219,58 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const deleteInfringements = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
-      res.status(403).send('You are not authorized to delete blue square');
-      return;
-    }
-    const { userId, blueSquareId } = req.params;
-    UserProfile.findById(userId, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
+    try {
+      if (!(await hasPermission(req.body.requestor, 'deleteInfringements'))) {
+        return res.status(403).send('You are not authorized to delete blue square');
       }
-      const originalinfringements = record?.infringements ?? [];
 
-      record.infringements = originalinfringements.filter(
-        (infringement) => !infringement._id.equals(blueSquareId),
+      const { userId } = req.params;
+      const blueSquareId = req.params.blueSquareId || req.params.infringementId || req.params.id;
+
+      if (!userId || !blueSquareId) {
+        return res.status(400).send('Missing userId or blueSquareId');
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).send(`Invalid userId: ${userId}`);
+      }
+      if (!mongoose.Types.ObjectId.isValid(blueSquareId)) {
+        return res.status(400).send(`Invalid blueSquareId: ${blueSquareId}`);
+      }
+
+      const updated = await UserProfile.findOneAndUpdate(
+        { _id: userId },
+        {
+          $pull: {
+            infringements: { _id: blueSquareId },
+            oldInfringements: { _id: blueSquareId },
+          },
+        },
+        { new: true },
       );
-      record.infringementCount = Math.max(0, record.infringementCount - 1); // incase a blue square is deleted when count is already 0
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-          });
-        })
+      if (!updated) {
+        return res.status(404).send('No valid records found');
+      }
 
-        .catch((error) => {
-          res.status(400).send(error);
-        });
-    });
+      const stillThere =
+        (updated.infringements || []).some((x) => String(x._id) === String(blueSquareId)) ||
+        (updated.oldInfringements || []).some((x) => String(x._id) === String(blueSquareId));
+
+      if (stillThere) {
+        return res.status(500).send('Delete did not persist (still present after update)');
+      }
+
+      updated.infringementCount = Math.max(0, (updated.infringements || []).length);
+      await updated.save();
+
+      return res.status(200).json({ _id: updated._id, deleted: blueSquareId });
+    } catch (error) {
+      return res.status(500).json({
+        message: error?.message || 'Unknown error',
+        name: error?.name,
+      });
+    }
   };
 
   const getProjectsByPerson = async function (req, res) {

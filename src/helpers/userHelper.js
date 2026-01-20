@@ -706,15 +706,21 @@ const userHelper = function () {
           }
           let historyInfringements = 'No Previous Infringements.';
           if (oldInfringements.length) {
-            await userProfile.findByIdAndUpdate(
-              personId,
-              {
-                $push: {
-                  oldInfringements: { $each: oldInfringements, $slice: -10 },
-                },
-              },
-              { new: true },
-            );
+            const merged = [...(person.oldInfringements || []), ...oldInfringements];
+            // dedupe by date|description
+            const seen = new Set();
+            const deduped = [];
+            for (const x of merged) {
+              const key = `${x.date || ''}|${x.description || ''}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                deduped.push(x);
+              }
+            }
+
+            await userProfile.findByIdAndUpdate(personId, {
+              $set: { oldInfringements: deduped.slice(-10) },
+            });
 
             historyInfringements = oldInfringements
               .map((item, index) => {
