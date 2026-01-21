@@ -8,6 +8,7 @@ const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').d
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
+require('./cronjobs/mediumPostScheduler')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
