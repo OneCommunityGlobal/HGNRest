@@ -56,7 +56,7 @@ const bmToolController = (BuildingTool, ToolType) => {
   const fetchSingleTool = async (req, res) => {
     const { toolId } = req.params;
     try {
-      BuildingTool.findById(toolId)
+      const tool = await BuildingTool.findById(toolId)
         .populate([
           {
             path: 'itemType',
@@ -98,11 +98,10 @@ const bmToolController = (BuildingTool, ToolType) => {
             ],
           },
         ])
-        .exec()
-        .then((tool) => res.status(200).send(tool))
-        .catch((error) => res.status(500).send(error));
+        .exec();
+      res.status(200).send(tool);
     } catch (err) {
-      res.json(err);
+      res.status(500).send(err);
     }
   };
 
@@ -134,19 +133,15 @@ const bmToolController = (BuildingTool, ToolType) => {
           purchaseRecord: [newPurchaseRecord],
         };
 
-        BuildingTool.create(newDoc)
-          .then(() => res.status(201).send())
-          .catch((error) => res.status(500).send(error));
-        return;
+        await BuildingTool.create(newDoc);
+        return res.status(201).send();
       }
 
-      BuildingTool.findOneAndUpdate(
+      await BuildingTool.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
-      )
-        .exec()
-        .then(() => res.status(201).send())
-        .catch((error) => res.status(500).send(error));
+      );
+      res.status(201).send();
     } catch (error) {
       res.status(500).send(error);
     }
@@ -229,7 +224,7 @@ const bmToolController = (BuildingTool, ToolType) => {
               };
 
               buildingToolDoc.logRecord.push(newRecord);
-              buildingToolDoc.save();
+              await buildingToolDoc.save();
               results.push({
                 message: `${action} successful for ${toolName} ${codeMap[toolItem]}`,
               });
@@ -251,22 +246,57 @@ const bmToolController = (BuildingTool, ToolType) => {
 
   const updateToolById = async (req, res) => {
     const { toolId } = req.params;
-    const { condition } = req.body;
+    const { name, status, condition } = req.body;
+    const requestorId = req.body.requestor?.requestorId || '6868351899da83323cc7a695';
 
     try {
-      const updatedTool = await BuildingTool.findByIdAndUpdate(
+      const newUpdateEntry = {
+        date: new Date(),
+        createdBy: requestorId,
+        condition,
+      };
+
+      const tool = await BuildingTool.findByIdAndUpdate(
         toolId,
-        { $set: { condition } },
+        {
+          $set: { condition },
+          $push: { updateRecord: newUpdateEntry },
+        },
         { new: true },
       );
 
-      if (!updatedTool) {
-        return res.status(404).send({ message: 'Tool not found.' });
+      if (!tool) return res.status(404).send({ message: 'Tool not found.' });
+
+      if (tool.itemType) {
+        const typeId = tool.itemType._id ? tool.itemType._id : tool.itemType;
+        const typeObjectId = mongoose.Types.ObjectId(typeId);
+        const toolObjectId = mongoose.Types.ObjectId(toolId);
+
+        const collection = mongoose.connection.collection('buildingInventoryTypes');
+
+        if (name) {
+          await collection.updateOne({ _id: typeObjectId }, { $set: { name } });
+        }
+
+        await collection.updateOne(
+          { _id: typeObjectId },
+          { $pull: { using: toolObjectId, available: toolObjectId } },
+        );
+
+        if (status === 'Using') {
+          await collection.updateOne({ _id: typeObjectId }, { $addToSet: { using: toolObjectId } });
+        } else if (status === 'Available') {
+          await collection.updateOne(
+            { _id: typeObjectId },
+            { $addToSet: { available: toolObjectId } },
+          );
+        }
       }
 
-      res.status(200).send(updatedTool);
+      res.status(200).send({ message: 'Tool updated successfully', tool });
     } catch (error) {
-      res.status(500).send({ message: 'Error updating tool', error: error.message });
+      console.error('Backend Error:', error);
+      res.status(500).send({ message: 'Internal Error', error: error.message });
     }
   };
 
