@@ -354,6 +354,9 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+// Actual Cost
+const actualCostRouter = require('../routes/actualCostRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -514,6 +517,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api', actualCostRouter);
 
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
