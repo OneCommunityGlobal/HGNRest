@@ -496,6 +496,8 @@ module.exports = function (app) {
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api', eventRouter);
+  const eventPopularityRouter = require('../routes/eventPopularityRouter');
+  app.use('/api', eventPopularityRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
