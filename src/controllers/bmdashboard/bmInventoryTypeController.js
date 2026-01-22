@@ -359,35 +359,58 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
-  const updateNameAndUnit = async (req, res) => {
+  // update only the name field by ObjectId
+  const updateInventoryName = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-      const { name, unit } = req.body;
+      const { name } = req.body;
 
-      const updateData = {};
-
-      if (name) {
-        updateData.name = name;
+      if (!name) {
+        return res.status(400).json({ error: 'name is required' });
       }
 
-      if (unit) {
-        updateData.unit = unit;
-      }
-
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
-        new: true,
-        runValidators: true,
-      });
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { name },
+        { new: true, runValidators: true },
+      );
 
       if (!updatedInvType) {
-        return res.status(404).json({ error: 'invType Material not found check Id' });
+        return res.status(404).json({ error: 'Inventory type not found, check Id' });
       }
 
-      res.status(200).json(updatedInvType);
+      return res.status(200).json(updatedInvType);
     } catch (error) {
-      res.status(500).send(error);
+      return res.status(500).send(error);
     }
   };
+
+  // update only the unit field by ObjectId
+  const updateInventoryUnit = async (req, res) => {
+    try {
+      const { invtypeId } = req.params;
+      const { unit } = req.body;
+
+      if (!unit) {
+        return res.status(400).json({ error: 'unit is required' });
+      }
+
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { unit },
+        { new: true, runValidators: true },
+      );
+
+      if (!updatedInvType) {
+        return res.status(404).json({ error: 'Inventory type not found, check Id' });
+      }
+
+      return res.status(200).json(updatedInvType);
+    } catch (error) {
+      return res.status(500).send(error);
+    }
+  };
+
   return {
     fetchMaterialTypes,
     fetchConsumableTypes,
@@ -396,7 +419,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addEquipmentType,
     fetchEquipmentTypes,
     fetchSingleInventoryType,
-    updateNameAndUnit,
+    updateInventoryName,
+    updateInventoryUnit,
     addMaterialType,
     addConsumableType,
     addToolType,

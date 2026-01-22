@@ -36,10 +36,24 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
   // Combined routes for getting a single inventory type and updating its name and unit of measurement
   inventoryTypeRouter
     .route('/invtypes/material/:invtypeId')
-    .get(controller.fetchSingleInventoryType)
-    .put(controller.updateNameAndUnit);
+    .get(controller.fetchSingleInventoryType);
 
   inventoryTypeRouter.route('/inventoryUnits').get(controller.fetchInvUnitsFromJson);
+
+  // get a single inventory type (material) by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId')
+    .get(controller.fetchSingleInventoryType);
+
+  // update only the name by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId/name')
+    .put(controller.updateInventoryName);
+
+  // update only the unit by id
+  inventoryTypeRouter
+    .route('/invtypes/material/:invtypeId/unit')
+    .put(controller.updateInventoryUnit);
 
   return inventoryTypeRouter;
 };
