@@ -11,6 +11,10 @@ const inventoryController = function (Item, ItemType, projects) {
     if (!(await helper.hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
+    // // Capture sorting from query parameter (use 'modified' for sorting by the last edit)
+    // const sortBy = req.query.sortBy || 'wasted'; // Default is to sort by 'wasted'
+    // const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1; // Default to ascending order
+    
     // use req.params.projectId and wbsId
     // Run a mongo query on the Item model to find all items with both the project and wbs
     // sort the mongo query so that the Wasted false items are listed first
@@ -36,6 +40,7 @@ const inventoryController = function (Item, ItemType, projects) {
       })
       .sort({
         wasted: 1,
+        // [sortBy === 'modified' ? 'notes.modified' : sortBy]: sortOrder,
       })
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send(error));
@@ -166,6 +171,8 @@ const inventoryController = function (Item, ItemType, projects) {
     if (!(await hasPermission(req.body.requestor, 'getAllInvInProject'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
+
+
     // same as getAllInvInProjectWBS but just using only the project to find the items of inventory
     // this time the list of objects returned should be sorted first by wbs(with null which means unassigned wbs being first)
     // then inside each wbs have it sorted by the wasted with false being before true
@@ -188,7 +195,10 @@ const inventoryController = function (Item, ItemType, projects) {
         select: '_id name description imageUrl quantifier',
       })
       .sort({
-        wasted: 1,
+        modifiedDatetime: -1,  // First, sort by most recent modification date (descending order)
+        'wbs.wbsName': 1,      // Then, sort by WBS name (ascending order), null WBS comes first
+        wasted: 1,             // Sort wasted with false first
+        // wasted: 1,
       })
       .then((results) => res.status(200).send(results))
       .catch((error) => res.status(404).send(error));
