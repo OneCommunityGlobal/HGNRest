@@ -354,6 +354,9 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+// Kitchen and Inventory portal routes
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -543,4 +546,7 @@ module.exports = function (app) {
   app.use('/api/education', browsableLessonPlanRouter);
 
   app.use('/api/educator/reports', downloadReportRouter);
+
+  // Kitchen and Inventory portal routes
+  app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
 };
