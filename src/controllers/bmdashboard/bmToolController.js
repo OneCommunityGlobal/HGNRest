@@ -56,7 +56,7 @@ const bmToolController = (BuildingTool, ToolType) => {
   const fetchSingleTool = async (req, res) => {
     const { toolId } = req.params;
     try {
-      const tool = await BuildingTool.findById(toolId)
+      BuildingTool.findById(toolId)
         .populate([
           {
             path: 'itemType',
@@ -98,10 +98,11 @@ const bmToolController = (BuildingTool, ToolType) => {
             ],
           },
         ])
-        .exec();
-      res.status(200).send(tool);
+        .exec()
+        .then((tool) => res.status(200).send(tool))
+        .catch((error) => res.status(500).send(error));
     } catch (err) {
-      res.status(500).send(err);
+      res.json(err);
     }
   };
 
@@ -133,15 +134,19 @@ const bmToolController = (BuildingTool, ToolType) => {
           purchaseRecord: [newPurchaseRecord],
         };
 
-        await BuildingTool.create(newDoc);
-        return res.status(201).send();
+        BuildingTool.create(newDoc)
+          .then(() => res.status(201).send())
+          .catch((error) => res.status(500).send(error));
+        return;
       }
 
-      await BuildingTool.findOneAndUpdate(
+      BuildingTool.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
-      );
-      res.status(201).send();
+      )
+        .exec()
+        .then(() => res.status(201).send())
+        .catch((error) => res.status(500).send(error));
     } catch (error) {
       res.status(500).send(error);
     }
@@ -224,7 +229,7 @@ const bmToolController = (BuildingTool, ToolType) => {
               };
 
               buildingToolDoc.logRecord.push(newRecord);
-              await buildingToolDoc.save();
+              buildingToolDoc.save();
               results.push({
                 message: `${action} successful for ${toolName} ${codeMap[toolItem]}`,
               });
@@ -244,12 +249,14 @@ const bmToolController = (BuildingTool, ToolType) => {
     return res.status(200).send({ errors, results });
   };
 
+  // --- UPDATED FIX FOR EDIT TOOL FEATURE ---
   const updateToolById = async (req, res) => {
     const { toolId } = req.params;
     const { name, status, condition } = req.body;
     const requestorId = req.body.requestor?.requestorId || '6868351899da83323cc7a695';
 
     try {
+      // 1. Update the Tool Item (Condition + Log)
       const newUpdateEntry = {
         date: new Date(),
         createdBy: requestorId,
@@ -267,22 +274,31 @@ const bmToolController = (BuildingTool, ToolType) => {
 
       if (!tool) return res.status(404).send({ message: 'Tool not found.' });
 
+      // 2. Update the Parent Tool Type in 'buildinginventorytypes'
       if (tool.itemType) {
+        // Resolve the parent ID
         const typeId = tool.itemType._id ? tool.itemType._id : tool.itemType;
         const typeObjectId = mongoose.Types.ObjectId(typeId);
         const toolObjectId = mongoose.Types.ObjectId(toolId);
 
-        const collection = mongoose.connection.collection('buildingInventoryTypes');
+        // ACCESS RAW COLLECTION DIRECTLY to bypass Model naming mismatch
+        // (Fixes the bug where updating ToolType updated 0 documents)
+        // Get the collection name dynamically from the model if possible, or fallback
+        const collectionName = ToolType.collection.name || 'buildingInventoryTypes';
+        const collection = mongoose.connection.collection(collectionName);
 
+        // A. Update Name if provided
         if (name) {
           await collection.updateOne({ _id: typeObjectId }, { $set: { name } });
         }
 
+        // B. Atomic Swap: Remove from BOTH arrays
         await collection.updateOne(
           { _id: typeObjectId },
           { $pull: { using: toolObjectId, available: toolObjectId } },
         );
 
+        // C. Add to the CORRECT array
         if (status === 'Using') {
           await collection.updateOne({ _id: typeObjectId }, { $addToSet: { using: toolObjectId } });
         } else if (status === 'Available') {
