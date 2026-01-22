@@ -8,26 +8,55 @@ const updateEventStatus = (event) => {
   return event.status;
 };
 
+function getMonthRangeAround(inputDate) {
+  const date = new Date(inputDate);
+
+  // Get the first day of 2 months ago
+  const startDate = new Date(date.getFullYear(), date.getMonth() - 2, 1);
+
+  // Get the last day of 2 months from now
+  const endDate = new Date(date.getFullYear(), date.getMonth() + 3, 0);
+
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+  };
+}
+
 const getEvents = async (req, res) => {
-  const { page = 1, limit = 9, type = '', location = '', sortBy = 'date' } = req.query;
+  const { page = 1, limit, type = '', location = '', sortBy = 'date', date } = req.query;
 
   try {
     const validSortFields = ['date', 'title', 'type', 'location', 'currentAttendees'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
 
     const query = { isActive: true };
+
+    if (date) {
+      const { startDate, endDate } = getMonthRangeAround(date);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
     if (type) query.type = type;
     if (location) query.location = location;
 
     const pageNumber = Math.max(1, Number(page));
-    const limitNumber = Math.max(1, Number(limit));
-
     const totalEvents = await Event.countDocuments(query);
-    let events = await Event.find(query)
-      .populate('resources.userID')
-      .sort({ [sortField]: 1 })
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+
+    let events;
+    let limitNumber;
+    if (limit) {
+      limitNumber = Math.max(1, Number(limit));
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort({ [sortField]: 1 })
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber);
+    } else {
+      limitNumber = 'unlimited';
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort({ [sortField]: 1 });
+    }
 
     events = events.map((event) => {
       event.status = updateEventStatus(event);
@@ -70,7 +99,10 @@ const createEvent = async (req, res) => {
   try {
     const newEvent = new Event(req.body);
     const savedEvent = await newEvent.save();
-    res.status(201).json(savedEvent);
+    res.status(201).json({
+      status: 'success',
+      message: 'Event details saved successfully',
+    });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to create event',
