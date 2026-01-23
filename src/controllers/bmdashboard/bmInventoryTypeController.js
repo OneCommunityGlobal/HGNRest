@@ -8,7 +8,15 @@ const filepath = path.join(rootPath, filename);
 const { readFile } = fs;
 const { writeFile } = fs;
 
-function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
+function bmInventoryTypeController(
+  InvType,
+  MatType,
+  ConsType,
+  ReusType,
+  ToolType,
+  EquipType,
+  invTypeHistory,
+) {
   async function fetchMaterialTypes(req, res) {
     try {
       MatType.find()
@@ -362,30 +370,93 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   const updateNameAndUnit = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-      const { name, unit } = req.body;
+      const {
+        name,
+        unit,
+        requestor: { requestorId },
+      } = req.body;
 
+      // 1. Fetch existing document
+      const invType = await MatType.findById(invtypeId);
+      if (!invType) {
+        return res.status(404).send('invType Material not found check Id');
+      }
+
+      // 2. Name uniqueness check
+      if (name && name !== invType.name) {
+        const existingInvType = await MatType.findOne({
+          name,
+          _id: { $ne: invtypeId },
+        });
+
+        if (existingInvType) {
+          return res.status(404).send('Material name already exists');
+        }
+      }
+
+      const historyDocs = [];
       const updateData = {};
 
-      if (name) {
+      // 3. Track name change
+      if (name && name !== invType.name) {
+        historyDocs.push({
+          invtypeId,
+          field: 'name',
+          oldValue: invType.name,
+          newValue: name,
+          editedBy: requestorId,
+        });
         updateData.name = name;
       }
 
-      if (unit) {
+      // 4. Track unit change
+      if (unit && unit !== invType.unit) {
+        historyDocs.push({
+          invtypeId,
+          field: 'unit',
+          oldValue: invType.unit,
+          newValue: unit,
+          editedBy: requestorId,
+        });
         updateData.unit = unit;
       }
 
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
+      // 5. Save history (if any)
+      if (historyDocs.length > 0) {
+        await invTypeHistory.insertMany(historyDocs);
+      }
+
+      // 6. Update main document
+      const updatedInvType = await MatType.findByIdAndUpdate(invtypeId, updateData, {
         new: true,
         runValidators: true,
       });
 
-      if (!updatedInvType) {
-        return res.status(404).json({ error: 'invType Material not found check Id' });
-      }
-
       res.status(200).json(updatedInvType);
     } catch (error) {
+      console.error(error);
       res.status(500).send(error);
+    }
+  };
+
+  const fetchInvTypeHistory = async (req, res) => {
+    try {
+      const { invtypeId } = req.params;
+
+      if (!invtypeId || !invtypeId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ message: 'Invalid inventory type id' });
+      }
+
+      const history = await invTypeHistory
+        .find({ invtypeId })
+        .populate('editedBy', '_id firstName lastName email')
+        .sort({ editedAt: -1 })
+        .lean();
+
+      res.status(200).json(history);
+    } catch (error) {
+      console.error('Fetch history error:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory history' });
     }
   };
   return {
@@ -402,6 +473,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addToolType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    fetchInvTypeHistory,
   };
 }
 
