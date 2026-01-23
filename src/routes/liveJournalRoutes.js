@@ -1,4 +1,4 @@
-import { Router } from 'express';
+const express = require('express');
 import multer from 'multer';
 import { 
   createPost, 
@@ -10,7 +10,7 @@ import {
   getPostHistory 
 } from '../controllers/liveJournalPostController';
 
-const router = Router();
+const router = express.Router()
 
 // Configure Multer to store file in memory
 const storage = multer.memoryStorage();
