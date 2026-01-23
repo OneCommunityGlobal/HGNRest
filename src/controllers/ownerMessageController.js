@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 const mongoose = require('mongoose');
 const helper = require('../utilities/permissions');
 const OwnerMessageLog = require('../models/ownerMessageLog');
@@ -8,24 +9,28 @@ const ownerMessageController = function (OwnerMessage) {
     session,
     actionType,
     oldMessage,
-    oldStandardMessage,
-    ownerMessage,
+    newMessage,
+    isStandard,
     requestorId,
-    requestorRole,
   ) {
     // Fetch requestor profile
     const requestor = await UserProfile.findById(requestorId);
     // Log the update action
+    let action = 'Update message';
+    if (actionType === 'UPDATE') {
+      if (isStandard) {
+        action = 'Update standard message';
+      }
+    } else {
+      action = 'Delete message';
+    }
     await OwnerMessageLog.create(
       [
         {
           oldMessage,
-          newMessage: ownerMessage.message,
-          oldStandardMessage,
-          newStandardMessage: ownerMessage.standardMessage,
-          action: actionType,
+          newMessage,
+          action,
           requestorId,
-          requestorRole,
           requestorEmail: requestor.email,
           requestorName: `${requestor.firstName} ${requestor.lastName}`,
         },
@@ -62,10 +67,9 @@ const ownerMessageController = function (OwnerMessage) {
       const results = await OwnerMessage.find({}).session(session);
       const ownerMessage = results[0];
       // Save old messages for logging
-      const oldMessage = ownerMessage.message;
-      const oldStandardMessage = ownerMessage.standardMessage;
-
+      let oldMessage = ownerMessage.message;
       if (isStandard) {
+        oldMessage = ownerMessage.standardMessage;
         ownerMessage.standardMessage = newMessage;
         ownerMessage.message = '';
       } else {
@@ -78,10 +82,9 @@ const ownerMessageController = function (OwnerMessage) {
         session,
         'UPDATE',
         oldMessage,
-        oldStandardMessage,
-        ownerMessage,
+        newMessage,
+        isStandard,
         req.body.requestor.requestorId,
-        req.body.requestor.role,
       );
 
       await session.commitTransaction();
@@ -117,10 +120,9 @@ const ownerMessageController = function (OwnerMessage) {
         session,
         'DELETE',
         oldMessage,
-        ownerMessage.standardMessage,
-        ownerMessage,
+        '',
+        false,
         req.body.requestor.requestorId,
-        req.body.requestor.role,
       );
       await session.commitTransaction();
 
