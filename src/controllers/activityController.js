@@ -1,7 +1,4 @@
-/* eslint-disable no-await-in-loop */
-/* eslint-disable no-restricted-syntax */
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
 const Subject = require('../models/subject');
@@ -69,6 +66,7 @@ const activityController = function () {
 
       // Validate atom task templates
       if (atomTaskTemplates && atomTaskTemplates.length > 0) {
+        // eslint-disable-next-line no-restricted-syntax
         for (const template of atomTaskTemplates) {
           // Validate subject exists
           const subject = await Subject.findById(template.subjectId);
@@ -129,6 +127,7 @@ const activityController = function () {
 
       // Validate atom task templates if provided
       if (atomTaskTemplates && atomTaskTemplates.length > 0) {
+        // eslint-disable-next-line no-restricted-syntax
         for (const template of atomTaskTemplates) {
           // Validate subject exists
           const subject = await Subject.findById(template.subjectId);

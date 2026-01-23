@@ -1,3 +1,5 @@
+/* eslint-disable import/order */
+/* eslint-disable no-magic-numbers */
 /* eslint-disable quotes */
 require('dotenv').config();
 const http = require('http');
@@ -7,6 +9,7 @@ const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
+require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 const websocketRouter = require('./websockets/webSocketRouter');
