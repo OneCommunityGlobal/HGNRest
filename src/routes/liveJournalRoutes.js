@@ -1,20 +1,20 @@
 const express = require('express');
-import multer from 'multer';
-import { 
-  createPost, 
-  schedulePost, 
-  getScheduledPosts, 
-  updateScheduledPost, 
-  deleteScheduledPost, 
-  postScheduledNow, 
-  getPostHistory 
-} from '../controllers/liveJournalPostController';
+const multer = require('multer');
+const {
+  createPost,
+  schedulePost,
+  getScheduledPosts,
+  updateScheduledPost,
+  deleteScheduledPost,
+  postScheduledNow,
+  getPostHistory
+} = require('../controllers/liveJournalPostController');
 
-const router = express.Router()
+const router = express.Router();
 
 // Configure Multer to store file in memory
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB
 });
@@ -30,4 +30,4 @@ router.delete('/schedule/:id', deleteScheduledPost);
 router.post('/post-scheduled/:id', postScheduledNow);
 router.get('/history', getPostHistory);
 
-export default router;
+module.exports = router;
