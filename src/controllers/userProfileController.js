@@ -1,3 +1,9 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-continue */
+/* eslint-disable no-magic-numbers */
+/* eslint-disable max-lines-per-function */
+/* eslint-disable complexity */
 /* eslint-disable no-console */
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
@@ -10,6 +16,7 @@ const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+// eslint-disable-next-line no-unused-vars
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
@@ -790,6 +797,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             createdDate: 1,
             endDate: 1,
             timeZone: 1,
+            filterColor: 1,
             bioPosted: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
@@ -889,7 +897,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const userProfiles = await UserProfile.find(
         {},
-        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic filterColor', // Include profilePic
       )
         .sort({
           lastName: 1,
@@ -1034,7 +1042,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(400).send(error);
+      res.status(501).send(error);
     }
   };
 
@@ -1120,7 +1128,65 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const putUserProfile = async function (req, res) {
+    console.log('➡️ PUT /userprofile triggered');
+    console.log('UserID:', req.params.userId);
+    console.log('Incoming body keys:', Object.keys(req.body));
+    console.log('🟩 PUT /userProfile called with:', req.params.userId);
+    console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
     const userid = req.params.userId;
+
+    // keeping this block for future use
+    if (req.body.filterColor !== undefined && req.body.requestor) {
+      // && req.body.requestor
+      // if (req.body.filterColor !== undefined) {
+      try {
+        const record = await UserProfile.findById(userid);
+        if (!Array.isArray(record.summarySubmissionDates)) {
+          record.summarySubmissionDates = [];
+        } else {
+          record.summarySubmissionDates = record.summarySubmissionDates.filter((d) => {
+            const dateObj = new Date(d);
+            return !Number.isNaN(dateObj.getTime());
+          });
+        }
+        if (!record) return res.status(404).json({ error: 'User not found' });
+
+        // ✅ Always overwrite filterColor, even for Owner
+        record.filterColor = req.body.filterColor;
+        record.lastModifiedDate = Date.now();
+        console.log('Record found:', record ? record._id : null);
+        console.log('Setting filterColor:', req.body.filterColor);
+        console.log('🟩 PUT /userProfile success for:', req.params.userId);
+        await record.save();
+
+        // clear caches as usual
+        [
+          'weeklySummaries_0',
+          'weeklySummaries_1',
+          'weeklySummaries_3',
+          'weeklySummaries_all',
+          'weeklySummariesReport',
+          `weeklySummaries_user_${userid}`,
+          'allusers',
+          `user-${userid}`,
+        ].forEach((key) => cache.removeCache(key));
+        cache.clearByPrefix('weeklySummaries');
+
+        console.log('✅ Forced filterColor update:', record.filterColor);
+
+        return res.status(200).json({
+          _id: record._id,
+          filterColor: record.filterColor,
+          // teamCode: record.teamCode,
+          // role: record.role,
+        });
+      } catch (err) {
+        console.error('❌ Failed filterColor update (catch):', err.stack || err);
+        console.error('❌ Failed filterColor update:', err);
+        return res.status(500).json({ error: 'Failed to update filterColor' });
+      }
+    }
+
     const authResult = await checkPutUserProfileAuthorization(req, userid);
 
     if (!authResult.authorized) {
@@ -1147,6 +1213,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return;
       }
 
+      // if (req.body.filterColor !== undefined) {
+      //   record.filterColor = req.body.filterColor;
+      //   record.lastModifiedDate = Date.now();
+      // }
       const {
         originalRecord,
         originalinfringements,
@@ -1171,34 +1241,63 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             results.jobTitle[0],
             results.weeklycommittedHours,
           );
-          res.status(200).json({
-            _id: record._id,
-          });
 
-          if (isUserInCache) {
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
+          console.log('✅ Saved filterColor in DB:', results.filterColor);
+          [
+            'weeklySummaries_0',
+            'weeklySummaries_1',
+            'weeklySummaries_3',
+            'weeklySummaries_all',
+            'weeklySummariesReport',
+            `weeklySummaries_user_${userid}`,
+            'allusers',
+            `user-${userid}`,
+          ].forEach((key) => cache.removeCache(key));
+
+          cache.clearByPrefix('weeklySummaries');
+          // ✅ Ensures updated filterColor goes to cache
+          if (cache.hasCache('allusers')) {
+            // eslint-disable-next-line no-const-assign
+            allUserData = JSON.parse(cache.getCache('allusers'));
+            const idx = allUserData.findIndex((u) => u._id === userid);
+            if (idx !== -1) {
+              allUserData[idx].filterColor = results.filterColor;
+              cache.setCache('allusers', JSON.stringify(allUserData));
+            }
           }
 
           auditIfProtectedAccountUpdated({
             requestorId: req.body.requestor.requestorId,
             updatedRecordEmail: originalRecord.email,
             originalRecord,
-            updatedRecord: record,
+            updatedRecord: record, // or resutls
             updateDiffPaths: updatedDiff,
             actionPerformed: 'update',
           });
+          console.log('Backend: Save successful for user:', userid);
+          // ✅ Send back the updated record with filterColor
+          res.status(200).json({
+            _id: results._id,
+            filterColor: results.filterColor,
+          });
         })
         .catch((error) => {
-          if (error.name === 'ValidationError' && error.errors.lastName) {
+          console.error('❌ Backend: record.save() FAILED:', error);
+          // *******************************************
+          // Keep existing error handling
+          if (error.name === 'ValidationError') {
+            // More specific check
             const errors = Object.values(error.errors).map((er) => er.message);
             return res.status(400).json({
-              message: 'Validation Error',
+              message: 'Validation Error during save', // More specific message
               error: errors,
             });
           }
-          console.error('Failed to save record:', error);
-          return res.status(400).json({ error: 'Failed to save record.' });
+          console.error('❌ Failed to save record(generic catch)::', error);
+          return res.status(500).json({
+            message: 'Internal server error during save.',
+            error: error.message || 'Unknown save error',
+          });
         });
     });
   };
@@ -1387,105 +1486,215 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const updateOneProperty = async function (req, res) {
+  // const updateOneProperty = async function (req, res) {
+  //   const { userId } = req.params;
+  //   const { key, value } = req.body;
+
+  //   const canEditProtectedAccount = await canRequestorUpdateUser(
+  //     req.body.requestor.requestorId,
+  //     userId,
+  //   );
+
+  //   if (!canEditProtectedAccount) {
+  //     logger.logInfo(
+  //       `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+  //     );
+  //     res.status(403).send('You are not authorized to update this user');
+  //     return;
+  //   }
+
+  //   if (key === 'teamCode') {
+  //     const canEditTeamCode =
+  //       req.body.requestor.role === 'Owner' ||
+  //       req.body.requestor.role === 'Administrator' ||
+  //       req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
+
+  //     if (!canEditTeamCode) {
+  //       res.status(403).send('You are not authorized to edit team code.');
+  //       return;
+  //     }
+  //   }
+
+  //   // remove user from cache, it should be loaded next time
+  //   cache.removeCache(`user-${userId}`);
+  //   if (!key || value === undefined) {
+  //     return res.status(400).send({ error: 'Missing property or value' });
+  //   }
+
+  //   return UserProfile.findById(userId)
+  //     .then((user) => {
+  //       let originalRecord = null;
+  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+  //         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+  //       }
+  //       user.set({
+  //         [key]: value,
+  //       });
+  //       let updatedDiff = null;
+  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+  //         updatedDiff = user.modifiedPaths();
+  //       }
+  //       return user
+  //         .save()
+  //         .then(() => {
+  //           // If bioPosted was updated via this generic property route,
+  //           // update caches and invalidate weekly summaries to avoid stale data.
+  //           if (key === 'bioPosted') {
+  //             try {
+  //               // Update or invalidate the allusers cache
+  //               if (cache.hasCache('allusers')) {
+  //                 const allUserData = JSON.parse(cache.getCache('allusers'));
+  //                 const userIdx = allUserData.findIndex((u) => u._id === userId);
+  //                 if (userIdx !== -1) {
+  //                   allUserData[userIdx].bioPosted = value;
+  //                   cache.setCache('allusers', JSON.stringify(allUserData));
+  //                 } else {
+  //                   cache.removeCache('allusers');
+  //                 }
+  //               }
+
+  //               // Invalidate weekly summaries caches, as bioPosted is part of that response
+  //               for (let week = 0; week <= 3; week += 1) {
+  //                 reportsController.invalidateWeeklySummariesCache(week);
+  //               }
+  //               for (let week = 0; week <= 10; week += 1) {
+  //                 cache.removeCache(`weeklySummaries_${week}`);
+  //               }
+  //               cache.removeCache('weeklySummaries_all');
+  //               cache.removeCache('weeklySummaries_null');
+  //               cache.removeCache('weeklySummaries_undefined');
+  //             } catch (e) {
+  //               // non-blocking cache invalidation
+  //               // eslint-disable-next-line no-console
+  //               console.error('Error invalidating caches after bioPosted update:', e);
+  //             }
+  //           }
+
+  //           res.status(200).send({ message: 'updated property' });
+  //           auditIfProtectedAccountUpdated(
+  //             req.body.requestor.requestorId,
+  //             originalRecord.email,
+  //             originalRecord,
+  //             user,
+  //             updatedDiff,
+  //             'update',
+  //           );
+  //         })
+  //         .catch((error) => res.status(500).send(error));
+  //     })
+  //     .catch((error) => res.status(500).send(error));
+  // };
+  const updateOneProperty = async (req, res) => {
     const { userId } = req.params;
-    const { key, value } = req.body;
+    const { key, value, requestor } = req.body;
 
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
-
-    if (!canEditProtectedAccount) {
-      logger.logInfo(
-        `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
-      );
-      res.status(403).send('You are not authorized to update this user');
-      return;
-    }
-
-    if (key === 'teamCode') {
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      if (!canEditTeamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
-      }
-    }
-
-    // remove user from cache, it should be loaded next time
+    // remove user from cache so it reloads next time
     cache.removeCache(`user-${userId}`);
+
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
     }
 
-    return UserProfile.findById(userId)
-      .then((user) => {
-        let originalRecord = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+    try {
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Keep original record for protected accounts
+      let originalRecord = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+        originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+      }
+
+      // ✅ Normalize filterColor (YOUR LOGIC – CRITICAL)
+      let payloadValue = value;
+      if (key === 'filterColor') {
+        if (Array.isArray(value)) {
+          payloadValue = value.map((c) => c.trim()).filter(Boolean);
+        } else if (typeof value === 'string') {
+          payloadValue = value
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
+        } else {
+          payloadValue = [];
         }
-        user.set({
-          [key]: value,
+        console.log('🛠 filterColor normalized to:', payloadValue);
+      }
+
+      user.set({ [key]: payloadValue });
+
+      let updatedDiff = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+        updatedDiff = user.modifiedPaths();
+      }
+
+      await user.save();
+
+      console.log(`✅ Saved ${key} in DB:`, user[key]);
+
+      // ================================
+      // CACHE INVALIDATION (MERGED)
+      // ================================
+      try {
+        cache.removeCache(`user-${userId}`);
+        cache.removeCache('allusers');
+        cache.removeCache('teamCodes');
+
+        cache.clearByPrefix('weeklySummaries');
+        cache.removeCache('weeklySummaries_all');
+        cache.removeCache('weeklySummaries_null');
+        cache.removeCache('weeklySummaries_undefined');
+      } catch (e) {
+        console.error('Cache clearing error:', e);
+      }
+
+      // Patch allusers cache if present
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const idx = allUserData.findIndex((u) => u._id === userId);
+        if (idx !== -1) {
+          allUserData[idx][key] = user[key];
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      // Special case: bioPosted invalidates weekly summaries
+      if (key === 'bioPosted') {
+        try {
+          for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_INVALIDATION; week += 1) {
+            reportsController.invalidateWeeklySummariesCache(week);
+          }
+        } catch (e) {
+          console.error('Error invalidating weekly summaries after bioPosted:', e);
+        }
+      }
+
+      // Respond
+      res.status(200).json({
+        _id: user._id,
+        [key]: user[key],
+      });
+
+      // ================================
+      // AUDIT (DEV BRANCH – PRESERVED)
+      // ================================
+      if (originalRecord) {
+        auditIfProtectedAccountUpdated({
+          requestorId: requestor?.requestorId,
+          updatedRecordEmail: originalRecord.email,
+          originalRecord,
+          updatedRecord: user,
+          updateDiffPaths: updatedDiff,
+          actionPerformed: 'update',
         });
-        let updatedDiff = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          updatedDiff = user.modifiedPaths();
-        }
-        return user
-          .save()
-          .then(() => {
-            // If bioPosted was updated via this generic property route,
-            // update caches and invalidate weekly summaries to avoid stale data.
-            if (key === 'bioPosted') {
-              try {
-                // Update or invalidate the allusers cache
-                if (cache.hasCache('allusers')) {
-                  const allUserData = JSON.parse(cache.getCache('allusers'));
-                  const userIdx = allUserData.findIndex((u) => u._id === userId);
-                  if (userIdx !== -1) {
-                    allUserData[userIdx].bioPosted = value;
-                    cache.setCache('allusers', JSON.stringify(allUserData));
-                  } else {
-                    cache.removeCache('allusers');
-                  }
-                }
-
-                // Invalidate weekly summaries caches, as bioPosted is part of that response
-                for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_INVALIDATION; week += 1) {
-                  reportsController.invalidateWeeklySummariesCache(week);
-                }
-                for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_CLEAR; week += 1) {
-                  cache.removeCache(`weeklySummaries_${week}`);
-                }
-                cache.removeCache('weeklySummaries_all');
-                cache.removeCache('weeklySummaries_null');
-                cache.removeCache('weeklySummaries_undefined');
-              } catch (e) {
-                // non-blocking cache invalidation
-                // eslint-disable-next-line no-console
-                console.error('Error invalidating caches after bioPosted update:', e);
-              }
-            }
-
-            res.status(200).send({ message: 'updated property' });
-            auditIfProtectedAccountUpdated({
-              requestorId: req.body.requestor.requestorId,
-              updatedRecordEmail: originalRecord.email,
-              originalRecord,
-              updatedRecord: user,
-              updateDiffPaths: updatedDiff,
-              actionPerformed: 'update',
-            });
-          })
-          .catch((error) => res.status(500).send(error));
-      })
-      .catch((error) => res.status(500).send(error));
+      }
+    } catch (err) {
+      console.error(`❌ Failed to update property ${key}:`, err);
+      return res.status(500).json({ error: 'Failed to update user property' });
+    }
   };
-
   const updateAllMembersTeamCode = async (req, res) => {
     const canEditTeamCode = await hasPermission(req.body.requestor, 'editTeamCode');
     if (!canEditTeamCode) {
@@ -2347,6 +2556,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  // const getAllTeamCodeHelper = async function () {
+  //   let distinctTeamCodes = await UserProfile.distinct("teamCode", {
+  //     teamCode: { $ne: null },
+  //   });
+  //   distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== "");
+  //   console.log("Team codes found:", distinctTeamCodes);
+  //   return distinctTeamCodes;
+  // };
+
   const getAllTeamCode = async function (req, res) {
     try {
       const distinctTeamCodes = await getAllTeamCodeHelper();
@@ -2563,72 +2781,35 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const updatedUsersInfo = await Promise.all(
         usersToUpdate.map(async (user) => {
-          // if (!user || !user._id || !newTeamCode) {
-          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
-          //   return null;
-          // }
-          // user.teamCode = newTeamCode;
-          // let { teamCodeWarning } = user;
-          let teamCodeWarning = user.teamCodeWarning ?? false;
+          user.teamCode = newTeamCode;
+          let { teamCodeWarning } = user;
 
           if (warningUsers && warningUsers.includes(user._id.toString())) {
             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
           }
 
-          // return {
-          //   updateOne: {
-          //     // filter: { _id: user._id },
-          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
-          //     update: {
-          //       $set: {
-          //         teamCode: newTeamCode,
-          //         // teamCodeWarning: teamCodeWarning ?? false,
-          //         teamCodeWarning,
-          //       },
-          //     },
-          //   },
-          //   userInfo: {
-          //     userId: user._id,
-          //     teamCodeWarning,
-          //   },
-          // };
           return {
-            userId: user._id,
-            teamCodeWarning,
+            updateOne: {
+              filter: { _id: user._id },
+              update: {
+                $set: {
+                  teamCode: newTeamCode,
+                  teamCodeWarning,
+                },
+              },
+            },
+            userInfo: {
+              userId: user._id,
+              teamCodeWarning,
+            },
           };
         }),
       );
 
-      // Filter out null entries
-      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
       // Then split into bulkOps and result set
-      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
-      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
 
-      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
       // 2. Execute all updates at once
-      // if (bulkOps.length > 0) {
-      //   await UserProfile.bulkWrite(bulkOps);
-      // } else {
-      //   console.warn('Invalid bulkOps detected. Aborting write.');
-      // }
-
-      // ✅ Build the proper bulkWrite payload
-      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
-        updateOne: {
-          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
-          update: {
-            $set: {
-              teamCode: newTeamCode,
-              teamCodeWarning,
-            },
-          },
-        },
-      }));
-
-      // // ✅ Log structure
-      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
-
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
