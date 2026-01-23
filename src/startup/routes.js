@@ -170,6 +170,7 @@ const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
 
 const emailRouter = require('../routes/emailRouter')();
+const facebookRouter = require('../routes/facebookRouter')();
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
@@ -391,6 +392,7 @@ module.exports = function (app) {
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailRouter);
+  app.use('/api', facebookRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);

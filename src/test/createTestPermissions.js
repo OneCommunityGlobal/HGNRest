@@ -43,6 +43,7 @@ const permissionsRoles = [
       'editTimeEntryToggleTangible',
       'deleteTimeEntry',
       'postTimeEntry',
+      'postFacebookContent',
       // User Profile
       'putRole',
       'postUserProfile',
@@ -203,6 +204,7 @@ const permissionsRoles = [
       'editTimeEntryToggleTangible',
       'deleteTimeEntry',
       'postTimeEntry',
+      'postFacebookContent',
       'sendEmails',
       'sendEmailToAll',
       'updatePassword',
