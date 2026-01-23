@@ -52,5 +52,5 @@ const dashboardMetricsSchema = new Schema(
 module.exports = mongoose.model(
   'SummaryDashboardMetrics',
   dashboardMetricsSchema,
-  'dashboardMetrics',
+  'summaryDashboardMetrics',
 );
