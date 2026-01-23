@@ -218,6 +218,15 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
+  // used for deactivation/reactivation of accounts, tracking last activity, and updating endDate when account is deactivated
+  lastActivityAt: { type: Date, required: false, index: true },
+  deactivatedAt: { type: Date, required: false, index: true },
+  // differentiate between paused and separated accounts for better reporting and handling in the future
+  inactiveReason: {
+    type: String,
+    enum: ['Paused', 'Separated', 'ManualDeactivation'],
+    default: undefined,
+  },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
@@ -368,6 +377,12 @@ const userProfileSchema = new Schema({
         {
           type: String,
           trim: true,
+        },
+      ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
         },
       ],
     },

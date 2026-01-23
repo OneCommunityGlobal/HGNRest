@@ -171,10 +171,15 @@ const profileInitialSetupController = function (
       session.endSession();
 
       try {
-        await sendEmailWithAcknowledgment(
+        await emailSender(
           email,
           'NEEDED: Complete your One Community profile setup',
           sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
         );
         return res.status(200).send({ sent: true });
       } catch (emailError) {
