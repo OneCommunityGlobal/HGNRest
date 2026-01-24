@@ -35,19 +35,6 @@ const getCredentials = async () => {
   return null;
 };
 
-// Helper function to parse requestor from query or body
-const getRequestor = (req) => {
-  if (req.body?.requestor) return req.body.requestor;
-  if (req.query?.requestor) {
-    try {
-      return JSON.parse(req.query.requestor);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
-
 const publishToFacebook = async ({
   message,
   link,
@@ -243,9 +230,11 @@ const postToFacebookWithImage = async (req, res) => {
   const imageFile = req.file;
 
   if (!imageFile) {
-    res.status(400).send({
-      error: 'No image file provided. Use the regular post endpoint for URL-based images.',
-    });
+    res
+      .status(400)
+      .send({
+        error: 'No image file provided. Use the regular post endpoint for URL-based images.',
+      });
     return;
   }
 
@@ -443,9 +432,8 @@ const scheduleFacebookPostWithImage = async (req, res) => {
 };
 
 const getScheduledPosts = async (req, res) => {
-  const requestor = getRequestor(req);
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view scheduled posts.' });
     return;
@@ -482,9 +470,8 @@ const getScheduledPosts = async (req, res) => {
 };
 
 const getPostHistory = async (req, res) => {
-  const requestor = getRequestor(req);
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view post history.' });
     return;
