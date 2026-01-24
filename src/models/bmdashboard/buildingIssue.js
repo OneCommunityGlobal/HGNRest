@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 
 const buildingIssue = new Schema({
   createdDate: { type: Date, required: true, default: Date.now() },
-  issueDate: { type: String, required: true },
+  issueDate: { type: Date, required: true },
   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
   staffInvolved: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }],
   issueTitle: [{ type: String, required: true, maxLength: 50 }],
