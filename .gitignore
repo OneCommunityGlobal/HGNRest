@@ -9,6 +9,7 @@
 /bower_components
 
 # misc
+/scripts
 /.sass-cache
 /connect.lock
 /coverage/*
@@ -25,3 +26,6 @@ testem.log
 
 # OS specific
 .DS_Store
+
+# Documentation
+/docs
