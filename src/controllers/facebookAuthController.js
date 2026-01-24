@@ -32,6 +32,20 @@ const getConnectionStatus = async (req, res) => {
     }
 
     // Check if token is expired or expiring soon (within 7 days)
+    if (!connection.tokenExpiresAt) {
+      // Page token doesn't expire
+      return res.status(200).json({
+        connected: true,
+        pageId: connection.pageId,
+        pageName: connection.pageName,
+        connectedAt: connection.createdAt,
+        connectedBy: connection.connectedBy?.name || 'Unknown',
+        tokenStatus: 'valid',
+        tokenExpiresAt: null, // Doesn't expire
+        lastVerifiedAt: connection.lastVerifiedAt,
+        lastError: connection.lastError,
+      });
+    }
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const isExpired = connection.tokenExpiresAt && connection.tokenExpiresAt < now;
@@ -197,8 +211,7 @@ const connectPage = async (req, res) => {
       pageName: verifiedPageName,
       pageAccessToken,
       // Page tokens derived from long-lived user tokens don't expire
-      // but we'll set a far-future date for safety
-      tokenExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+      tokenExpiresAt: null,
       userAccessToken: userToken?.token,
       userTokenExpiresAt: userToken?.expiresAt,
       userId: userToken?.userId,
