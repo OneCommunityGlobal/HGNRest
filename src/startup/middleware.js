@@ -1,5 +1,8 @@
+/* eslint-disable complexity */
+/* eslint-disable no-magic-numbers */
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const express = require('express');
 const config = require('../config');
 const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
 const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
@@ -25,6 +28,10 @@ function socketMiddleware(socket, next) {
 }
 */
 module.exports = function (app) {
+  // Increase request size limit for image uploads
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
   app.all('*', (req, res, next) => {
     const openPaths = ['/api/lb/myWebhooks'];
 
