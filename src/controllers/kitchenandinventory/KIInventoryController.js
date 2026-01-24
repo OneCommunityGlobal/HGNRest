@@ -62,8 +62,28 @@ const KIInventoryController = () => {
       res.status(400).json({ message: 'Something went wrong while fetching items.' });
     }
   };
+  const getPreservedStock = async (req, res) => {
+    const oneyearFromNow = new Date();
+    oneyearFromNow.setFullYear(oneyearFromNow.getFullYear() + 1);
+    try {
+      const items = await KIInventoryItem.find(
+        { category: 'INGREDIENT', expiryDate: { $gte: oneyearFromNow } },
+        { __v: 0 },
+      )
+        .lean()
+        .sort({ presentQuantity: -1 });
+      res.status(200).json({ message: 'Preserved stock items fetched successfully.', data: items });
+    } catch (err) {
+      res
+        .status(400)
+        .json({ message: 'Something went wrong while fetching preserved stock items.' });
+    }
+  };
   const updateOnUsage = async (req, res) => {
-    const { itemId, usedQuantity } = req.body; // Need to implement validation for usedQuantity
+    const { itemId, usedQuantity } = req.body;
+    if (usedQuantity <= 0) {
+      return res.status(400).json({ message: 'Used quantity must be greater than zero.' });
+    }
     try {
       const item = await KIInventoryItem.findById(itemId);
       if (!item) {
@@ -87,6 +107,12 @@ const KIInventoryController = () => {
   };
   const updateStoredQuantity = async (req, res) => {
     const { itemId, addedQuantity, newExpiry } = req.body;
+    if (addedQuantity <= 0) {
+      return res.status(400).json({ message: 'Added quantity must be greater than zero.' });
+    }
+    if (newExpiry && new Date(newExpiry) < new Date()) {
+      return res.status(400).json({ message: 'New expiry date must be a future date.' });
+    }
     try {
       const item = await KIInventoryItem.findById(itemId);
       if (!item) {
@@ -109,6 +135,33 @@ const KIInventoryController = () => {
       res.status(400).json({ message: err.message });
     }
   };
-  return { addItem, getItems, getItemsByCategory, updateOnUsage, updateStoredQuantity };
+  const updateNextHarvest = async (req, res) => {
+    const { itemId, lastHarvestSuccess, nextHarvestDate, nextHarvestQuantity } = req.body;
+    try {
+      const item = await KIInventoryItem.findById(itemId);
+      if (!item) {
+        return res.status(404).json({ message: 'Item not found.' });
+      }
+      if (lastHarvestSuccess) {
+        item.lastHarvestDate = item.nextHarvestDate;
+      }
+      item.nextHarvestDate = nextHarvestDate;
+      item.nextHarvestQuantity = nextHarvestQuantity;
+      item.updatedAt = new Date();
+      await item.save();
+      res.status(200).json({ message: 'Next harvest details updated successfully.', data: item });
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  };
+  return {
+    addItem,
+    getItems,
+    getItemsByCategory,
+    getPreservedStock,
+    updateOnUsage,
+    updateStoredQuantity,
+    updateNextHarvest,
+  };
 };
 module.exports = KIInventoryController;
