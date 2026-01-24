@@ -1,5 +1,12 @@
 const CandidateOPTStatus = require('../models/CandidateOPTStatus');
 
+const isValidDate = (date) => {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) return false;
+  const parsedDate = new Date(date);
+  return !Number.isNaN(parsedDate.getTime());
+};
+
 module.exports = () => ({
   getOPTStatusBreakdown: async (req, res, next) => {
     try {
@@ -10,6 +17,11 @@ module.exports = () => ({
       let end;
 
       if (startDate) {
+        if (!isValidDate(startDate)) {
+          return res.status(400).json({
+            message: 'Invalid startDate. Use ISO format (YYYY-MM-DD).',
+          });
+        }
         start = new Date(startDate);
         if (Number.isNaN(start.getTime())) {
           return res.status(400).json({
@@ -19,6 +31,11 @@ module.exports = () => ({
       }
 
       if (endDate) {
+        if (!isValidDate(endDate)) {
+          return res.status(400).json({
+            message: 'Invalid endDate. Use ISO format (YYYY-MM-DD).',
+          });
+        }
         end = new Date(endDate);
         if (Number.isNaN(end.getTime())) {
           return res.status(400).json({
@@ -30,6 +47,12 @@ module.exports = () => ({
       if (start && end && start > end) {
         return res.status(400).json({
           message: 'startDate cannot be greater than endDate.',
+        });
+      }
+
+      if (startDate && endDate && start.toDateString() === end.toDateString()) {
+        return res.status(400).json({
+          message: 'startDate and endDate cannot be the same.',
         });
       }
 
