@@ -37,7 +37,7 @@ server.listen(port, () => {
 
 const timerService = TimerWebsockets();
 const messagingService = MessagingWebSocket();
-app.use('/api/livejournal', liveJournalRoutes);
+// app.use('/api/livejournal', liveJournalRoutes);
 websocketRouter(server, [timerService, messagingService]);
 
 module.exports = server;
