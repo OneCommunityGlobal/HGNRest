@@ -20,6 +20,15 @@ const reportsController = function () {
     cacheUtil.removeCache('weeklySummaries_all');
   };
 
+  // helper to safely get requestor object to avoid undefined property access in hasPermission
+  const safeRequestorFromReq = (req) => {
+    // If your tests or app may set req.user instead of req.body.requestor adapt here
+    if (req && req.body && req.body.requestor) return req.body.requestor;
+    if (req && req.user) return req.user;
+    // provide minimal shape so hasPermission won't throw when reading requestorId
+    return { requestorId: null };
+  };
+
   /**
    * Aggregates the trend data for volunteer count
    * Parameters:
@@ -68,25 +77,75 @@ const reportsController = function () {
    */
   const getVolunteerStatsData = async (req, res) => {
     const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
-
     if (!startDate || !endDate) {
       return res.status(400).send({ msg: 'Please provide a start and end date' });
+    }
+
+    // Validate date format and validity
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!dateRegex.test(startDate)) {
+      return res.status(400).send({
+        msg: 'Invalid startDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (!dateRegex.test(endDate)) {
+      return res.status(400).send({
+        msg: 'Invalid endDate format. Please use YYYY-MM-DD format',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
+    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+
+    // Check if dates are valid
+    if (Number.isNaN(isoStartDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid startDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
+    }
+
+    if (Number.isNaN(isoEndDate.getTime())) {
+      return res.status(400).send({
+        msg: 'Invalid endDate. Please provide a valid date',
+        error: 'Invalid date parameters',
+      });
     }
 
     let isoComparisonStartDate;
     let isoComparisonEndDate;
 
     if (comparisonStartDate && comparisonEndDate) {
+      if (!dateRegex.test(comparisonStartDate) || !dateRegex.test(comparisonEndDate)) {
+        return res.status(400).send({
+          msg: 'Invalid comparison date format. Please use YYYY-MM-DD format',
+          error: 'Invalid date parameters',
+        });
+      }
+
       isoComparisonStartDate = new Date(comparisonStartDate);
       isoComparisonEndDate = new Date(comparisonEndDate);
-    }
 
-    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
-    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+      // Validate comparison dates if provided
+      if (
+        Number.isNaN(isoComparisonStartDate.getTime()) ||
+        Number.isNaN(isoComparisonEndDate.getTime())
+      ) {
+        return res.status(400).send({
+          msg: 'Invalid comparison dates. Please provide valid dates',
+          error: 'Invalid date parameters',
+        });
+      }
+    }
 
     try {
       const [
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
@@ -105,6 +164,12 @@ const reportsController = function () {
         totalSummariesSubmitted,
       ] = await Promise.all([
         overviewReportHelper.getVolunteerNumberStats(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
+        overviewReportHelper.getMentorNumberStats(
           isoStartDate,
           isoEndDate,
           isoComparisonStartDate,
@@ -187,8 +252,35 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
       ]);
+
+      // Check for validation errors in functions that use date parameters
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error in volunteerHoursStats:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (workDistributionStats && workDistributionStats.error) {
+        console.log('Date validation error in workDistributionStats:', workDistributionStats.error);
+        return res.status(400).json({
+          msg: workDistributionStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
+      if (totalHoursWorked && totalHoursWorked.error) {
+        console.log('Date validation error in totalHoursWorked:', totalHoursWorked.error);
+        return res.status(400).json({
+          msg: totalHoursWorked.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).send({
         volunteerNumberStats,
+        mentorNumberStats,
         volunteerHoursStats,
         totalHoursWorked,
         tasksStats,
@@ -207,16 +299,26 @@ const reportsController = function () {
         totalSummariesSubmitted,
       });
     } catch (err) {
-      console.log(err);
+      console.error('Backend Error in getVolunteerStatsData:', err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
 
   const getWeeklySummaries = async function (req, res) {
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+    // Use safe requestor to avoid hasPermission reading properties off undefined
+    const requestor = safeRequestorFromReq(req);
+
+    try {
+      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      if (!allowed) {
+        return res.status(403).send('You are not authorized to view all users');
+      }
+    } catch (permErr) {
+      // If permission utility itself throws, handle gracefully and deny access
+      console.error('Permission check failed:', permErr);
+      return res.status(403).send('You are not authorized to view all users');
     }
+
     // Extract forceRefresh parameter
     const forceRefresh = req.query.forceRefresh === 'true';
     // Extract week parameter (0 = This Week, 1 = Last Week, etc.)
@@ -229,16 +331,18 @@ const reportsController = function () {
     // Check if we have cached data and aren't forcing a refresh
     if (!forceRefresh && cacheUtil.hasCache(cacheKey)) {
       // console.log(`Cache hit for ${cacheKey}, serving from cache`);
-      return res.status(200).send(cacheUtil.getCache(cacheKey));
-    }
-    // if (forceRefresh) {
-    //   console.log(`Force refresh requested for ${cacheKey}, bypassing cache`);
-    // } else {
-    //   console.log(`Cache miss for ${cacheKey}, fetching from database`);
-    // }
-    if (!(await hasPermission(req.body.requestor, 'getWeeklySummaries'))) {
-      res.status(403).send('You are not authorized to view all users');
-      return;
+      const cached = cacheUtil.getCache(cacheKey);
+      const etag = require('crypto').createHash('md5').update(JSON.stringify(cached)).digest('hex');
+      const ifNoneMatch = req.headers['if-none-match'];
+
+      // Force browser to revalidate with server and avoid serving stale content from browser cache
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+      res.set('ETag', etag);
+
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
+      }
+      return res.status(200).send(cached);
     }
 
     // Determine cache duration based on week
@@ -265,15 +369,24 @@ const reportsController = function () {
         summaries = reporthelper.formatSummaries(results);
       }
 
-      // Cache the results
-      cacheUtil.setCache(cacheKey, summaries);
-      cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      if (!forceRefresh) {
+        cacheUtil.setCache(cacheKey, summaries);
+        cacheUtil.setKeyTimeToLive(cacheKey, cacheTTL);
+      }
 
-      res.set('Cache-Control', `public, max-age=${cacheTTL}`);
-      res.set(
-        'ETag',
-        require('crypto').createHash('md5').update(JSON.stringify(summaries)).digest('hex'),
-      );
+      // Force browser to revalidate and avoid stale content while keeping server-side cache intact
+      res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+
+      const etag = require('crypto')
+        .createHash('md5')
+        .update(JSON.stringify(summaries))
+        .digest('hex');
+      res.set('ETag', etag);
+
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return res.status(304).end();
+      }
 
       res.status(200).send(summaries);
     } catch (error) {
@@ -361,10 +474,20 @@ const reportsController = function () {
         lastWeekStartDate,
         lastWeekEndDate,
       );
+
+      // Check if the helper function returned an error
+      if (volunteerHoursStats && volunteerHoursStats.error) {
+        console.log('Date validation error:', volunteerHoursStats.error);
+        return res.status(400).json({
+          msg: volunteerHoursStats.error,
+          error: 'Invalid date parameters',
+        });
+      }
+
       res.status(200).json(volunteerHoursStats);
     } catch (error) {
       console.log(error);
-      res.status(404).send(error);
+      res.status(500).json({ msg: 'Error occurred while fetching data. Please try again!' });
     }
   };
 
@@ -502,11 +625,9 @@ const reportsController = function () {
           res.status(200).send(results);
         })
         .catch((error) => {
-          console.log('error:', error); // need to delete later *
           res.status(404).send({ error });
         });
     } catch (err) {
-      console.log('error:', err); // need to delete later *
       res.status(404).send(err);
     }
   };
@@ -530,7 +651,6 @@ const reportsController = function () {
       UserProfile.updateOne({ _id: id }, { $set: { getWeeklyReport: false } })
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
@@ -539,7 +659,6 @@ const reportsController = function () {
           });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -569,14 +688,12 @@ const reportsController = function () {
       )
         .then((record) => {
           if (!record) {
-            console.log("'No valid records found'");
             res.status(404).send('No valid records found');
             return;
           }
           res.status(200).send({ message: 'updated user record with getWeeklyReport true' });
         })
         .catch((err) => {
-          console.log('error in catch block last:', err);
           res.status(404).send(err);
         });
     } catch (error) {
@@ -605,8 +722,23 @@ const reportsController = function () {
       );
       res.status(200).send({ teamsWithActiveMembers });
     } catch (err) {
-      console.log(err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const getReportTeamCodes = async (req, res) => {
+    try {
+      // const minActive = Number(req.query.activeMembersMinimum ?? 1);
+      const minActive = Number.isFinite(Number(req.query.activeMembersMinimum))
+        ? Number(req.query.activeMembersMinimum)
+        : 1;
+
+      const codes = await overviewReportHelper.getCurrentTeamCodes(minActive);
+
+      return res.status(200).send({ teamCodes: codes });
+    } catch (err) {
+      console.error('getReportTeamCodes error:', err);
+      return res.status(500).send({ msg: 'Failed to fetch report team codes' });
     }
   };
 
@@ -623,6 +755,7 @@ const reportsController = function () {
     getVolunteerStatsData,
     getVolunteerTrends,
     getTeamsWithActiveMembers,
+    getReportTeamCodes,
     invalidateWeeklySummariesCache,
   };
 };
