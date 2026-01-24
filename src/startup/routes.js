@@ -357,6 +357,8 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+const activityLogRouter = require('../routes/activityLogRouter')();
+
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -539,9 +541,12 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  
   app.use('/api', materialCostRouter);
 
   // education portal
+  app.use('/api/', activityLogRouter);
+  
   app.use('/api/education', badgeSystemRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
