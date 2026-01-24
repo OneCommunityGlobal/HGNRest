@@ -33,6 +33,10 @@ module.exports = function (app) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.all('*', (req, res, next) => {
+    // 🔹 Allow unauthenticated access for Mastodon test APIs
+    if (req.originalUrl.startsWith('/api/mastodon')) {
+      return next();
+    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
