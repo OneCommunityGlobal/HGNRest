@@ -39,7 +39,6 @@ const {
   // eslint-disable-next-line no-unused-vars
   mongoHelper: { dbConnect, dbDisconnect, dbClearCollections, dbClearAll },
 } = require('../../test');
-
 const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 

@@ -366,6 +366,137 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
+  const bmGetMaterialStockOutRisk = async function (req, res) {
+    try {
+      const { projectIds } = req.query || {};
+      const query = {};
+
+      if (projectIds && projectIds !== 'all' && typeof projectIds === 'string') {
+        const projectIdArray = projectIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0);
+
+        if (projectIdArray.length > 0) {
+          const validProjectIds = projectIdArray
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            .map((id) => mongoose.Types.ObjectId(id));
+
+          if (validProjectIds.length > 0) {
+            query.project = { $in: validProjectIds };
+          } else {
+            return res.status(400).json({
+              error: 'Invalid project IDs provided',
+              details: 'All provided project IDs are invalid',
+            });
+          }
+        }
+      }
+
+      const materials = await BuildingMaterial.find(query)
+        .populate('project', '_id name')
+        .populate('itemType', '_id name unit')
+        .lean()
+        .exec();
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const daysInPeriod = 30;
+      const SENTINEL_NO_USAGE_DATA = 999;
+
+      const stockOutRiskData = [];
+
+      for (const material of materials) {
+        if (
+          !material ||
+          typeof material.stockAvailable !== 'number' ||
+          material.stockAvailable <= 0 ||
+          !material.project ||
+          !material.itemType ||
+          !material.project._id ||
+          !material.itemType._id
+        ) {
+          continue;
+        }
+
+        const updateRecords = Array.isArray(material.updateRecord) ? material.updateRecord : [];
+        let totalUsage = 0;
+        const usageByDate = {};
+
+        for (const record of updateRecords) {
+          if (!record || !record.date) continue;
+
+          const recordDate = new Date(record.date);
+          if (Number.isNaN(recordDate.getTime())) continue;
+          if (recordDate < thirtyDaysAgo || recordDate > now) continue;
+
+          const dateKey = recordDate.toISOString().split('T')[0];
+          const quantityUsed = parseFloat(record.quantityUsed) || 0;
+
+          if (quantityUsed > 0) {
+            if (!usageByDate[dateKey]) {
+              usageByDate[dateKey] = 0;
+            }
+            usageByDate[dateKey] += quantityUsed;
+            totalUsage += quantityUsed;
+          }
+        }
+
+        let averageDailyUsage = 0;
+
+        if (totalUsage > 0) {
+          averageDailyUsage = totalUsage / daysInPeriod;
+        } else if (material.stockUsed > 0) {
+          averageDailyUsage = parseFloat(material.stockUsed) / daysInPeriod;
+        }
+
+        let daysUntilStockOut = 0;
+        if (averageDailyUsage > 0) {
+          daysUntilStockOut = Math.floor(material.stockAvailable / averageDailyUsage);
+        } else {
+          daysUntilStockOut = SENTINEL_NO_USAGE_DATA;
+        }
+
+        if (daysUntilStockOut >= 0 && daysUntilStockOut < SENTINEL_NO_USAGE_DATA) {
+          stockOutRiskData.push({
+            materialName: material.itemType.name || 'Unknown Material',
+            materialId: material.itemType._id.toString(),
+            projectId: material.project._id.toString(),
+            projectName: material.project.name || 'Unknown Project',
+            stockAvailable: parseFloat(material.stockAvailable.toFixed(2)),
+            averageDailyUsage: parseFloat(averageDailyUsage.toFixed(2)),
+            daysUntilStockOut: Math.max(0, daysUntilStockOut),
+            unit: material.itemType.unit || '',
+          });
+        }
+      }
+
+      stockOutRiskData.sort((a, b) => {
+        const daysA = Number(a.daysUntilStockOut) || 0;
+        const daysB = Number(b.daysUntilStockOut) || 0;
+        return daysA - daysB;
+      });
+
+      res.status(200).json(stockOutRiskData);
+    } catch (err) {
+      let statusCode = 500;
+      let errorMessage = 'Internal Server Error';
+
+      if (err.name === 'CastError' || err.name === 'ValidationError') {
+        statusCode = 400;
+        errorMessage = 'Invalid request parameters';
+      } else if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+        statusCode = 503;
+        errorMessage = 'Database error';
+      }
+
+      res.status(statusCode).json({
+        error: errorMessage,
+      });
+    }
+  };
+
   return {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
@@ -373,6 +504,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     bmPurchaseMaterials,
     bmupdatePurchaseStatus,
     bmGetMaterialSummaryByProject,
+    bmGetMaterialStockOutRisk,
   };
 };
 
