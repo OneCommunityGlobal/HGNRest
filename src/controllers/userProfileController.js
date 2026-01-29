@@ -30,21 +30,23 @@ const objectUtils = require('../utilities/objectUtils');
 const config = require('../config');
 // eslint-disable-next-line import/order
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
-// const { authorizedUserSara, authorizedUserJae } = process.env;
+
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 // Import reports controller to access cache invalidation function
 const reportsController = require('./reportsController')();
-const { COMPANY_TZ } = require('../constants/company');
 
 // Constants for magic numbers
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
-const HOURS_TO_ADD_FOR_END_DATE = 7;
-const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
+const { COMPANY_TZ } = require('../constants/company');
+const {
+  InactiveReason,
+  UserStatusOperations,
+  LifecycleStatus,
+} = require('../constants/userProfile');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -505,60 +507,17 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
-  // Helper functions for changeUserStatus
-  const calculateUserStatusFromEndDate = (endDate, status) => {
-    let activeStatus = status;
-    let emailThreeWeeksSent = false;
-    if (endDate && status) {
-      const dateObject = new Date(endDate);
-      dateObject.setHours(dateObject.getHours() + HOURS_TO_ADD_FOR_END_DATE);
-      const setEndDate = dateObject;
-      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
-        activeStatus = false;
-      } else if (
-        moment().isBefore(moment(endDate).subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))
-      ) {
-        emailThreeWeeksSent = true;
-      }
-    }
-    return { activeStatus, emailThreeWeeksSent };
-  };
-
-  const getEmailRecipientsForStatusChange = async (userId) => {
-    const emailReceivers = await UserProfile.find(
-      { isActive: true, role: { $in: ['Owner'] } },
-      '_id isActive role email',
-    );
-    const recipients = emailReceivers.map((receiver) => receiver.email);
-
-    try {
-      const findUser = await UserProfile.findById(userId, 'teams');
-      findUser.teams.map(async (teamId) => {
-        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-          managementEmails.forEach((management) => {
-            recipients.push(management.email);
-          });
-        }
-      });
-    } catch (err) {
-      logger.logException(err, 'Unexpected error in finding menagement team');
-    }
-    return recipients;
-  };
-
   const checkChangeUserStatusAuthorization = async (req, userId) => {
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
+    const { requestor } = req.body;
 
-    if (
-      !((await hasPermission(req.body.requestor, 'changeUserStatus')) && canEditProtectedAccount)
-    ) {
-      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+    const canEditProtectedAccount = await canRequestorUpdateUser(requestor.requestorId, userId);
+
+    const hasChangeStatusPermission = await hasPermission(requestor, 'changeUserStatus');
+    const hasFinalDayPermission = await hasPermission(requestor, 'setFinalDay');
+    if (!(hasChangeStatusPermission && hasFinalDayPermission && canEditProtectedAccount)) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(requestor.email)) {
         logger.logInfo(
-          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+          `Unauthorized attempt to change protected user status. Requestor: ${requestor.requestorId} Target: ${userId}`,
         );
       }
       return { authorized: false };
@@ -588,8 +547,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const handleUserStatusSave = async ({
     user,
     userId,
-    isActivating,
-    isDeactivating,
+    action,
+    previousLifecycleStatus,
+    lifecycleContext,
     recipients,
     req,
   }) => {
@@ -614,18 +574,51 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     // =========================
     // LIFECYCLE EMAILS ONLY
     // =========================
+    switch (action) {
+      case UserStatusOperations.ACTIVATE:
+        switch (previousLifecycleStatus) {
+          case LifecycleStatus.PAUSE_TO_ACTIVE:
+            userHelper.sendUserResumedEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              pausedOn: lifecycleContext.pausedOn,
+            });
+            break;
 
-    if (isActivating) {
-      userHelper.sendUserActivatedEmail({
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        recipients,
-      });
-    }
+          case LifecycleStatus.SEPARATED_TO_ACTIVE:
+            userHelper.sendUserReactivatedAfterSeparation({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              previousEndDate: lifecycleContext.previousEndDate,
+            });
+            break;
 
-    if (isDeactivating) {
-      if (user.inactiveReason === 'Paused') {
+          case LifecycleStatus.SCHEDULED_SEPARATION_TO_ACTIVE:
+            userHelper.sendUserCancelledSeparationEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              previousEndDate: lifecycleContext.previousEndDate,
+            });
+            break;
+
+          default:
+            userHelper.sendUserActivatedEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+            });
+            break;
+        }
+        break;
+
+      case UserStatusOperations.PAUSE:
         userHelper.sendUserPausedEmail({
           firstName: user.firstName,
           lastName: user.lastName,
@@ -633,16 +626,30 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           reactivationDate: user.reactivationDate,
           recipients,
         });
-      }
+        break;
 
-      if (user.inactiveReason === 'Separated') {
+      case UserStatusOperations.DEACTIVATE:
         userHelper.sendUserSeparatedEmail({
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
           recipients,
+          endDate: user.endDate,
         });
-      }
+        break;
+
+      case UserStatusOperations.SCHEDULE_DEACTIVATION:
+        userHelper.sendUserScheduledSeparationEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          endDate: user.endDate,
+          recipients,
+        });
+        break;
+
+      default:
+        throw new Error('Invalid user status action');
     }
 
     auditIfProtectedAccountUpdated({
@@ -796,6 +803,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             startDate: 1,
             createdDate: 1,
             endDate: 1,
+            lastActivityAt: 1,
+            deactivatedAt: 1,
             timeZone: 1,
             filterColor: 1,
             bioPosted: 1,
@@ -1872,21 +1881,26 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getPreviousLifecycleStatus = (user) => {
+    if (user.reactivationDate) {
+      return LifecycleStatus.PAUSE_TO_ACTIVE;
+    }
+    if (user.endDate && user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION) {
+      return LifecycleStatus.SCHEDULED_SEPARATION_TO_ACTIVE;
+    }
+    if (!user.isActive) {
+      return LifecycleStatus.SEPARATED_TO_ACTIVE;
+    }
+    return null;
+  };
+
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
-    const { reactivationDate } = req.body;
+    const { action, endDate, reactivationDate } = req.body;
 
     try {
-      const isActivating = req.body.status === 'Active';
-      const isDeactivating = req.body.status === 'Inactive';
-
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).send({ error: 'Bad Request' });
-      }
-
-      // Validate status input early
-      if (!isActivating && !isDeactivating) {
-        return res.status(400).send({ error: 'Invalid status. Must be "Active" or "Inactive".' });
       }
 
       const authResult = await checkChangeUserStatusAuthorization(req, userId);
@@ -1895,11 +1909,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       cache.removeCache(`user-${userId}`);
-      const recipients = await getEmailRecipientsForStatusChange(userId);
+      const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
 
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent deactivatedAt reactivationDate inactiveReason',
+        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason',
       );
 
       if (!user) {
@@ -1907,56 +1921,74 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       const wasInactive = !user.isActive;
+      const previousLifecycleStatus = getPreviousLifecycleStatus(user);
+      const lifecycleContext = {
+        pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
+        previousEndDate:
+          user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
+          user.inactiveReason === InactiveReason.SEPARATED
+            ? user.endDate
+            : null,
+      };
 
-      // =========================
-      // ACTIVATION
-      // =========================
-      if (isActivating) {
-        user.isActive = true;
-        user.deactivatedAt = null;
-        user.reactivationDate = null;
-        user.inactiveReason = undefined;
-
-        // 🔑 required lifecycle reset
-        console.log(
-          `Activating user ${userId}: resetting endDate, isSet, and finalEmailThreeWeeksSent`,
-        );
-        user.endDate = null;
-        user.isSet = false;
-        user.finalEmailThreeWeeksSent = false;
-      }
-
-      // =========================
-      // DEACTIVATION
-      // =========================
-      if (isDeactivating) {
-        user.deactivatedAt = new Date();
-
-        // If a reactivationDate is provided, treat this as PAUSE.
-        if (reactivationDate) {
-          console.log(`Received reactivationDate before parsing ${userId}: ${reactivationDate}`);
-          const parsedReactivationDate = moment
-            .tz(reactivationDate, COMPANY_TZ)
-            .startOf('day')
-            .toDate();
-          if (Number.isNaN(parsedReactivationDate.getTime())) {
-            return res.status(400).send({ error: 'Invalid reactivationDate format' });
-          }
-          console.log(`Setting reactivationDate for user ${userId} to ${parsedReactivationDate}`);
-
-          user.isActive = false;
-          user.reactivationDate = parsedReactivationDate;
-          user.inactiveReason = 'Paused';
-
-          // Safety: paused users must not have a final day
+      switch (action) {
+        case UserStatusOperations.ACTIVATE: {
+          user.isActive = true;
+          user.inactiveReason = undefined;
+          user.deactivatedAt = null;
+          user.reactivationDate = null;
           user.endDate = null;
           user.isSet = false;
           user.finalEmailThreeWeeksSent = false;
-        } else {
-          // Otherwise treat as SEPARATION (endDate will be finalized by cron).
-          user.reactivationDate = null;
-          user.inactiveReason = 'Separated';
+          break;
         }
+
+        case UserStatusOperations.DEACTIVATE: {
+          if (!endDate) {
+            return res.status(400).send({ error: 'End date is required for deactivation' });
+          }
+          user.isActive = false;
+          user.inactiveReason = InactiveReason.SEPARATED;
+          user.endDate = moment(endDate).tz(COMPANY_TZ).endOf('day').toISOString();
+          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
+          user.reactivationDate = null;
+          user.isSet = true;
+          break;
+        }
+
+        case UserStatusOperations.SCHEDULE_DEACTIVATION: {
+          if (!endDate) {
+            return res
+              .status(400)
+              .send({ error: 'End date is required for scheduled deactivation' });
+          }
+          user.isActive = true;
+          user.inactiveReason = InactiveReason.SCHEDULED_SEPARATION;
+          user.endDate = moment(endDate).tz(COMPANY_TZ).endOf('day').toISOString();
+          user.deactivatedAt = null;
+          user.reactivationDate = null;
+          user.isSet = true;
+          break;
+        }
+
+        case UserStatusOperations.PAUSE: {
+          if (!reactivationDate) {
+            return res.status(400).send({ error: 'Reactivation date is required for pause' });
+          }
+          user.isActive = false;
+          user.inactiveReason = InactiveReason.PAUSED;
+          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
+          user.reactivationDate = moment(reactivationDate)
+            .tz(COMPANY_TZ)
+            .startOf('day')
+            .toISOString();
+          user.endDate = null;
+          user.isSet = false;
+          break;
+        }
+
+        default:
+          return res.status(400).send({ error: 'Invalid action' });
       }
 
       // =========================
@@ -1970,14 +2002,14 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           user.teamCodeWarning = true;
         }
       }
-
       await user.save();
 
       await handleUserStatusSave({
         user,
         userId,
-        isActivating,
-        isDeactivating,
+        action,
+        previousLifecycleStatus,
+        lifecycleContext,
         recipients,
         req,
       });
@@ -2824,119 +2856,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
-  const updateFinalDay = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { endDate, isSet } = req.body;
-      const { requestor } = req.body;
-
-      // 1️⃣ Auth check
-      if (!requestor) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required',
-        });
-      }
-
-      // 2️⃣ Permission check (ONLY setFinalDay)
-      const allowed = await hasPermission(requestor, 'setFinalDay');
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. Missing setFinalDay permission.',
-        });
-      }
-
-      // 3️⃣ Validate target user
-      if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ message: 'Invalid userId' });
-      }
-
-      const user = await UserProfile.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      /**
-       * =========================
-       * REMOVE FINAL DAY
-       * =========================
-       * Payload:
-       * { isSet: "RemoveFinalDay" }
-       */
-      if (isSet === 'RemoveFinalDay') {
-        user.endDate = null;
-        user.isSet = false;
-
-        await user.save();
-
-        return res.status(200).json({
-          success: true,
-          message: 'Final day removed successfully',
-          user: {
-            id: user._id,
-            endDate: null,
-            isSet: false,
-          },
-        });
-      }
-
-      /**
-       * =========================
-       * SET FINAL DAY
-       * =========================
-       * Payload:
-       * {
-       *   endDate: "2025-12-27T07:59:59.999Z",
-       *   isSet: "FinalDay"
-       * }
-       */
-      if (!endDate || isSet !== 'FinalDay') {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid payload for setting final day',
-        });
-      }
-
-      const parsedEndDate = new Date(endDate);
-      if (Number.isNaN(parsedEndDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid endDate format' });
-      }
-
-      // 4️⃣ Business rule: final day must be >= start date
-      if (user.startDate && parsedEndDate < user.startDate) {
-        return res.status(400).json({
-          success: false,
-          message: 'Final day cannot be before start date',
-          startDate: user.startDate,
-        });
-      }
-
-      user.endDate = parsedEndDate; // already UTC-safe
-      user.isSet = true;
-      user.inactiveReason = 'ManualDeactivation';
-
-      await user.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Final day set successfully',
-        user: {
-          id: user._id,
-          endDate: user.endDate,
-          isSet: true,
-          isActive: user.isActive,
-        },
-      });
-    } catch (error) {
-      console.error('Error in setFinalDay:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-      });
-    }
-  };
-
   return {
     searchUsersByName,
     postUserProfile,
@@ -2975,7 +2894,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
-    updateFinalDay,
   };
 };
 

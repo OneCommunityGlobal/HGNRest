@@ -303,6 +303,8 @@ const emailSender = (
   const type = opts.type || 'general';
   const isReset = type === 'password_reset';
 
+  console.log('Sending email - subject:', subject, 'message:', message);
+
   if (
     !process.env.sendEmail ||
     (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
