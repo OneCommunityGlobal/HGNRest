@@ -18,4 +18,6 @@ const ownerMessageLog = new Schema(
   { timestamps: true },
 );
 
+ownerMessageLog.index({ createdAt: -1 });
+
 module.exports = mongoose.model('OwnerMessageLog', ownerMessageLog);
