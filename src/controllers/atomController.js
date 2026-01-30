@@ -1,4 +1,3 @@
-// const mongoose = require('mongoose');
 const Atom = require('../models/atom');
 const Subject = require('../models/subject');
 

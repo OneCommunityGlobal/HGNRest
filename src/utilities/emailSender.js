@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 // src/utilities/emailSender.js
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
@@ -191,6 +192,7 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 };
 
 const worker = async () => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     // atomically pull next batch item: { batch, resolve, reject }
     const item = queue.shift();
