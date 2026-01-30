@@ -1133,72 +1133,35 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     console.log('Incoming body keys:', Object.keys(req.body));
     console.log('🟩 PUT /userProfile called with:', req.params.userId);
     console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
+
     const userid = req.params.userId;
 
-    // keeping this block for future use
-    if (req.body.filterColor !== undefined && req.body.requestor) {
-      // && req.body.requestor
-      // if (req.body.filterColor !== undefined) {
-      try {
-        const record = await UserProfile.findById(userid);
-        if (!Array.isArray(record.summarySubmissionDates)) {
-          record.summarySubmissionDates = [];
-        } else {
-          record.summarySubmissionDates = record.summarySubmissionDates.filter((d) => {
-            const dateObj = new Date(d);
-            return !Number.isNaN(dateObj.getTime());
-          });
-        }
-        if (!record) return res.status(404).json({ error: 'User not found' });
-
-        // ✅ Always overwrite filterColor, even for Owner
-        record.filterColor = req.body.filterColor;
-        record.lastModifiedDate = Date.now();
-        console.log('Record found:', record ? record._id : null);
-        console.log('Setting filterColor:', req.body.filterColor);
-        console.log('🟩 PUT /userProfile success for:', req.params.userId);
-        await record.save();
-
-        // clear caches as usual
-        [
-          'weeklySummaries_0',
-          'weeklySummaries_1',
-          'weeklySummaries_3',
-          'weeklySummaries_all',
-          'weeklySummariesReport',
-          `weeklySummaries_user_${userid}`,
-          'allusers',
-          `user-${userid}`,
-        ].forEach((key) => cache.removeCache(key));
-        cache.clearByPrefix('weeklySummaries');
-
-        console.log('✅ Forced filterColor update:', record.filterColor);
-
-        return res.status(200).json({
-          _id: record._id,
-          filterColor: record.filterColor,
-          // teamCode: record.teamCode,
-          // role: record.role,
-        });
-      } catch (err) {
-        console.error('❌ Failed filterColor update (catch):', err.stack || err);
-        console.error('❌ Failed filterColor update:', err);
-        return res.status(500).json({ error: 'Failed to update filterColor' });
-      }
-    }
-
     const authResult = await checkPutUserProfileAuthorization(req, userid);
-
     if (!authResult.authorized) {
-      res.status(403).send(authResult.message);
-      return;
+      return res.status(403).send(authResult.message);
     }
 
     cache.removeCache(`user-${userid}`);
-    UserProfile.findById(userid, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
+
+    try {
+      const record = await UserProfile.findById(userid);
+      if (!record) {
+        return res.status(404).send('No valid records found');
+      }
+
+      if (!Array.isArray(record.summarySubmissionDates)) {
+        record.summarySubmissionDates = [];
+      } else {
+        record.summarySubmissionDates = record.summarySubmissionDates.filter((d) => {
+          const dateObj = new Date(d);
+          return !Number.isNaN(dateObj.getTime());
+        });
+      }
+
+      if (req.body.filterColor !== undefined) {
+        record.filterColor = req.body.filterColor;
+        record.lastModifiedDate = Date.now();
+        console.log('Setting filterColor:', req.body.filterColor);
       }
 
       const updateResult = await handleUserProfileUpdate(
@@ -1208,98 +1171,95 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         authResult.canManageAdminLinks,
       );
 
-      if (updateResult.error) {
-        res.status(updateResult.status).send(updateResult.error);
-        return;
+      if (updateResult?.error) {
+        return res.status(updateResult.status).send(updateResult.error);
       }
 
-      // if (req.body.filterColor !== undefined) {
-      //   record.filterColor = req.body.filterColor;
-      //   record.lastModifiedDate = Date.now();
-      // }
       const {
         originalRecord,
         originalinfringements,
         isUserInCache,
-        allUserData,
-        userData,
-        userIdx,
+        allUserData: allUserDataFromUpdate,
         updatedDiff,
-      } = updateResult;
+      } = updateResult || {};
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
+      const results = await record.save();
 
-          console.log('✅ Saved filterColor in DB:', results.filterColor);
-          [
-            'weeklySummaries_0',
-            'weeklySummaries_1',
-            'weeklySummaries_3',
-            'weeklySummaries_all',
-            'weeklySummariesReport',
-            `weeklySummaries_user_${userid}`,
-            'allusers',
-            `user-${userid}`,
-          ].forEach((key) => cache.removeCache(key));
+      await userHelper.notifyInfringements(
+        originalinfringements || (record.infringements ? record.infringements : []),
+        results.infringements,
+        results.firstName,
+        results.lastName,
+        results.email,
+        results.role,
+        results.startDate,
+        results.jobTitle?.[0],
+        results.weeklycommittedHours,
+      );
 
-          cache.clearByPrefix('weeklySummaries');
-          // ✅ Ensures updated filterColor goes to cache
-          if (cache.hasCache('allusers')) {
-            // eslint-disable-next-line no-const-assign
-            allUserData = JSON.parse(cache.getCache('allusers'));
-            const idx = allUserData.findIndex((u) => u._id === userid);
-            if (idx !== -1) {
-              allUserData[idx].filterColor = results.filterColor;
-              cache.setCache('allusers', JSON.stringify(allUserData));
-            }
+      console.log('✅ Saved filterColor in DB:', results.filterColor);
+      console.log('Backend: Save successful for user:', userid);
+
+      [
+        'weeklySummaries_0',
+        'weeklySummaries_1',
+        'weeklySummaries_3',
+        'weeklySummaries_all',
+        'weeklySummariesReport',
+        `weeklySummaries_user_${userid}`,
+        'allusers',
+        `user-${userid}`,
+      ].forEach((key) => cache.removeCache(key));
+      cache.clearByPrefix('weeklySummaries');
+
+      if (cache.hasCache('allusers')) {
+        try {
+          const allUsers = JSON.parse(cache.getCache('allusers'));
+          const idx = allUsers.findIndex((u) => u._id === userid);
+          if (idx !== -1) {
+            allUsers[idx].filterColor = results.filterColor;
+            allUsers[idx].projects = results.projects;
+            allUsers[idx].teams = results.teams;
+            cache.setCache('allusers', JSON.stringify(allUsers));
           }
+        } catch (e) {
+          console.error('❌ Failed to update allusers cache:', e);
+        }
+      }
 
-          auditIfProtectedAccountUpdated({
-            requestorId: req.body.requestor.requestorId,
-            updatedRecordEmail: originalRecord.email,
-            originalRecord,
-            updatedRecord: record, // or resutls
-            updateDiffPaths: updatedDiff,
-            actionPerformed: 'update',
-          });
-          console.log('Backend: Save successful for user:', userid);
-          // ✅ Send back the updated record with filterColor
-          res.status(200).json({
-            _id: results._id,
-            filterColor: results.filterColor,
-          });
-        })
-        .catch((error) => {
-          console.error('❌ Backend: record.save() FAILED:', error);
-          // *******************************************
-          // Keep existing error handling
-          if (error.name === 'ValidationError') {
-            // More specific check
-            const errors = Object.values(error.errors).map((er) => er.message);
-            return res.status(400).json({
-              message: 'Validation Error during save', // More specific message
-              error: errors,
-            });
-          }
-          console.error('❌ Failed to save record(generic catch)::', error);
-          return res.status(500).json({
-            message: 'Internal server error during save.',
-            error: error.message || 'Unknown save error',
-          });
+      if (req.body?.requestor?.requestorId) {
+        auditIfProtectedAccountUpdated({
+          requestorId: req.body.requestor.requestorId,
+          updatedRecordEmail: originalRecord?.email || record.email,
+          originalRecord,
+          updatedRecord: record, // or results
+          updateDiffPaths: updatedDiff,
+          actionPerformed: 'update',
         });
-    });
+      }
+
+      return res.status(200).json({
+        _id: results._id,
+        filterColor: results.filterColor,
+        projects: results.projects,
+        teams: results.teams,
+      });
+    } catch (error) {
+      console.error('❌ Backend: putUserProfile FAILED:', error);
+
+      if (error?.name === 'ValidationError') {
+        const errors = Object.values(error.errors || {}).map((er) => er.message);
+        return res.status(400).json({
+          message: 'Validation Error during save',
+          error: errors,
+        });
+      }
+
+      return res.status(500).json({
+        message: 'Internal server error during save.',
+        error: error.message || 'Unknown save error',
+      });
+    }
   };
 
   const deleteUserProfile = async function (req, res) {
