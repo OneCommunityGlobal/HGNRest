@@ -1,9 +1,20 @@
+// Mock the BuildingProject model - define mock functions BEFORE jest.mock
+const mockBuildingProjectFind = jest.fn();
+
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({
+  find: mockBuildingProjectFind,
+}));
+
+// Require controller AFTER the mock is set up
 const bmIssueController = require('../bmIssueController');
 
 // Mocking the BuildingIssue Model
 const mockBuildingIssue = {
   find: jest.fn(),
   create: jest.fn(),
+  aggregate: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
 };
 
 describe('Building Issue Controller', () => {
@@ -14,7 +25,11 @@ describe('Building Issue Controller', () => {
   beforeEach(() => {
     controller = bmIssueController(mockBuildingIssue);
 
-    req = { body: {} };
+    req = {
+      body: {},
+      query: {},
+      params: {},
+    };
     res = {
       status: jest.fn().mockReturnThis(),
       send: jest.fn(),
@@ -22,8 +37,351 @@ describe('Building Issue Controller', () => {
     };
 
     jest.clearAllMocks();
+    mockBuildingProjectFind.mockClear();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // ==================== bmGetOpenIssue Tests ====================
+  describe('bmGetOpenIssue', () => {
+    it('should fetch all open issues when no filters provided', async () => {
+      const mockIssues = [
+        { _id: '1', status: 'open', issueTitle: ['Issue 1'] },
+        { _id: '2', status: 'open', issueTitle: ['Issue 2'] },
+      ];
+      mockBuildingIssue.find.mockResolvedValue(mockIssues);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(mockBuildingIssue.find).toHaveBeenCalledWith({ status: 'open' });
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
+    });
+
+    it('should return empty array when no issues found', async () => {
+      mockBuildingIssue.find.mockResolvedValue(null);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should filter by projectIds when provided', async () => {
+      const validId1 = '507f1f77bcf86cd799439011';
+      const validId2 = '507f1f77bcf86cd799439012';
+      req.query.projectIds = `${validId1},${validId2}`;
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.status).toBe('open');
+      expect(callArgs.projectId.$in).toHaveLength(2);
+    });
+
+    it('should ignore invalid projectIds', async () => {
+      req.query.projectIds = 'invalid-id,507f1f77bcf86cd799439011';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toHaveLength(1);
+    });
+
+    it('should not add projectId filter when all projectIds are invalid', async () => {
+      req.query.projectIds = 'invalid-id1,invalid-id2';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId).toBeUndefined();
+    });
+
+    it('should filter by startDate and endDate when both provided', async () => {
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should filter by startDate only when endDate not provided', async () => {
+      req.query.startDate = '2024-01-01';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.createdDate.$lte).toBeUndefined();
+    });
+
+    it('should filter by endDate only when startDate not provided', async () => {
+      req.query.endDate = '2024-12-31';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.createdDate.$gte).toBeUndefined();
+    });
+
+    it('should filter by tag when provided', async () => {
+      req.query.tag = 'In-person';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.tag).toBe('In-person');
+    });
+
+    it('should combine all filters when provided', async () => {
+      req.query.projectIds = '507f1f77bcf86cd799439011';
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      req.query.tag = 'Virtual';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.status).toBe('open');
+      expect(callArgs.projectId.$in).toHaveLength(1);
+      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.tag).toBe('Virtual');
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Database error');
+      mockBuildingIssue.find.mockRejectedValue(error);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    });
+  });
+
+  // ==================== getUniqueProjectIds Tests ====================
+  describe('getUniqueProjectIds', () => {
+    it('should fetch unique project IDs with names successfully', async () => {
+      const mockAggregateResults = [
+        { _id: '507f1f77bcf86cd799439011', projectName: 'Project A' },
+        { _id: '507f1f77bcf86cd799439012', projectName: 'Project B' },
+      ];
+      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
+
+      await controller.getUniqueProjectIds(req, res);
+
+      expect(mockBuildingIssue.aggregate).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith([
+        { projectId: '507f1f77bcf86cd799439011', projectName: 'Project A' },
+        { projectId: '507f1f77bcf86cd799439012', projectName: 'Project B' },
+      ]);
+    });
+
+    it('should return "Unknown Project" when project name is null', async () => {
+      const mockAggregateResults = [{ _id: '507f1f77bcf86cd799439011', projectName: null }];
+      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
+
+      await controller.getUniqueProjectIds(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([
+        { projectId: '507f1f77bcf86cd799439011', projectName: 'Unknown Project' },
+      ]);
+    });
+
+    it('should return "Unknown Project" when projectName is undefined', async () => {
+      const mockAggregateResults = [{ _id: '507f1f77bcf86cd799439011' }];
+      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
+
+      await controller.getUniqueProjectIds(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([
+        { projectId: '507f1f77bcf86cd799439011', projectName: 'Unknown Project' },
+      ]);
+    });
+
+    it('should return empty array when no projects found', async () => {
+      mockBuildingIssue.aggregate.mockResolvedValue([]);
+
+      await controller.getUniqueProjectIds(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Aggregation error');
+      mockBuildingIssue.aggregate.mockRejectedValue(error);
+
+      await controller.getUniqueProjectIds(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    });
+  });
+
+  // ==================== bmUpdateIssue Tests ====================
+  describe('bmUpdateIssue', () => {
+    it('should update an issue successfully', async () => {
+      const mockUpdatedIssue = {
+        _id: '507f1f77bcf86cd799439011',
+        issueTitle: ['Updated Title'],
+        status: 'closed',
+      };
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { issueTitle: ['Updated Title'], status: 'closed' };
+
+      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(mockUpdatedIssue);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(mockBuildingIssue.findByIdAndUpdate).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+        { $set: { issueTitle: ['Updated Title'], status: 'closed' } },
+        { new: true },
+      );
+      expect(res.json).toHaveBeenCalledWith(mockUpdatedIssue);
+    });
+
+    it('should return 400 when update data is null', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = null;
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid update data.' });
+    });
+
+    it('should return 400 when update data is not an object', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = 'not an object';
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid update data.' });
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { status: 'closed' };
+
+      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(null);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found.' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      const error = new Error('Database error');
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { status: 'closed' };
+
+      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
+        then: jest.fn(() => ({
+          catch: jest.fn((reject) => reject(error)),
+        })),
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+
+    it('should handle thrown errors in try-catch', async () => {
+      const error = new Error('Unexpected error');
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { status: 'closed' };
+
+      mockBuildingIssue.findByIdAndUpdate.mockImplementation(() => {
+        throw error;
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({ error: 'Unexpected error' });
+    });
+  });
+
+  // ==================== bmDeleteIssue Tests ====================
+  describe('bmDeleteIssue', () => {
+    it('should delete an issue successfully', async () => {
+      const mockDeletedIssue = { _id: '507f1f77bcf86cd799439011' };
+      req.params.id = '507f1f77bcf86cd799439011';
+
+      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(mockDeletedIssue);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmDeleteIssue(req, res);
+
+      expect(mockBuildingIssue.findByIdAndDelete).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue deleted successfully.' });
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+
+      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(null);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmDeleteIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found.' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      const error = new Error('Database error');
+      req.params.id = '507f1f77bcf86cd799439011';
+
+      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
+        then: jest.fn(() => ({
+          catch: jest.fn((reject) => reject(error)),
+        })),
+      });
+
+      await controller.bmDeleteIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmGetIssue Tests ====================
   describe('bmGetIssue', () => {
     it('should fetch all issues successfully', async () => {
       const mockIssues = [{ _id: '1', name: 'Issue 1' }];
@@ -54,15 +412,30 @@ describe('Building Issue Controller', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.send).toHaveBeenCalledWith(error);
     });
+
+    it('should handle thrown errors in try-catch', async () => {
+      const error = new Error('Unexpected error');
+      mockBuildingIssue.find.mockImplementation(() => {
+        throw error;
+      });
+
+      await controller.bmGetIssue(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(error);
+    });
   });
 
+  // ==================== bmPostIssue Tests ====================
   describe('bmPostIssue', () => {
     it('should create a new issue successfully', async () => {
       const mockNewIssue = { _id: '123', name: 'New Issue' };
       req.body = mockNewIssue;
 
       mockBuildingIssue.create.mockReturnValue({
-        then: jest.fn((resolve) => resolve(mockNewIssue)),
+        then: jest.fn((resolve) => {
+          resolve(mockNewIssue);
+          return { catch: jest.fn() };
+        }),
         catch: jest.fn(),
       });
 
@@ -76,7 +449,9 @@ describe('Building Issue Controller', () => {
     it('should handle errors when creating a new issue', async () => {
       const error = new Error('Creation error');
       mockBuildingIssue.create.mockReturnValue({
-        then: jest.fn().mockImplementation(() => Promise.reject(error)),
+        then: jest.fn(() => ({
+          catch: jest.fn((reject) => reject(error)),
+        })),
         catch: jest.fn((reject) => reject(error)),
       });
 
@@ -85,6 +460,290 @@ describe('Building Issue Controller', () => {
       expect(mockBuildingIssue.create).toHaveBeenCalledWith(req.body);
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.send).toHaveBeenCalledWith(error);
+    });
+
+    it('should handle thrown errors in try-catch', async () => {
+      const error = new Error('Unexpected error');
+      mockBuildingIssue.create.mockImplementation(() => {
+        throw error;
+      });
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(error);
+    });
+  });
+
+  // ==================== bmGetIssueChart Tests ====================
+  describe('bmGetIssueChart', () => {
+    it('should fetch issue chart data without filters', async () => {
+      const mockAggregateResults = [
+        { _id: 'Safety', years: [{ year: 2024, count: 5 }] },
+        { _id: 'Labor', years: [{ year: 2024, count: 3 }] },
+      ];
+      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
+
+      await controller.bmGetIssueChart(req, res);
+
+      expect(mockBuildingIssue.aggregate).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        Safety: { 2024: 5 },
+        Labor: { 2024: 3 },
+      });
+    });
+
+    it('should filter by issueType when provided', async () => {
+      req.query.issueType = 'Safety';
+      mockBuildingIssue.aggregate.mockResolvedValue([]);
+
+      await controller.bmGetIssueChart(req, res);
+
+      const aggregationPipeline = mockBuildingIssue.aggregate.mock.calls[0][0];
+      expect(aggregationPipeline[0].$match.issueType).toBe('Safety');
+    });
+
+    it('should filter by year when provided', async () => {
+      req.query.year = '2024';
+      mockBuildingIssue.aggregate.mockResolvedValue([]);
+
+      await controller.bmGetIssueChart(req, res);
+
+      const aggregationPipeline = mockBuildingIssue.aggregate.mock.calls[0][0];
+      expect(aggregationPipeline[0].$match.issueDate.$gte).toBeInstanceOf(Date);
+      expect(aggregationPipeline[0].$match.issueDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should combine issueType and year filters', async () => {
+      req.query.issueType = 'Safety';
+      req.query.year = '2024';
+      mockBuildingIssue.aggregate.mockResolvedValue([]);
+
+      await controller.bmGetIssueChart(req, res);
+
+      const aggregationPipeline = mockBuildingIssue.aggregate.mock.calls[0][0];
+      expect(aggregationPipeline[0].$match.issueType).toBe('Safety');
+      expect(aggregationPipeline[0].$match.issueDate).toBeDefined();
+    });
+
+    it('should return empty object when no data found', async () => {
+      mockBuildingIssue.aggregate.mockResolvedValue([]);
+
+      await controller.bmGetIssueChart(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({});
+    });
+
+    it('should handle multiple years for same issue type', async () => {
+      const mockAggregateResults = [
+        {
+          _id: 'Safety',
+          years: [
+            { year: 2023, count: 3 },
+            { year: 2024, count: 5 },
+          ],
+        },
+      ];
+      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
+
+      await controller.bmGetIssueChart(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        Safety: { 2023: 3, 2024: 5 },
+      });
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Aggregation error');
+      mockBuildingIssue.aggregate.mockRejectedValue(error);
+
+      await controller.bmGetIssueChart(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Server error', error });
+    });
+  });
+
+  // ==================== getLongestOpenIssues Tests ====================
+  describe('getLongestOpenIssues', () => {
+    const mockProjectId = '507f1f77bcf86cd799439011';
+    const mockIssueDate = new Date('2022-01-15');
+
+    beforeEach(() => {
+      // Setup default mock for chained methods
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+    });
+
+    it('should fetch longest open issues without filters', async () => {
+      const mockIssues = [
+        {
+          issueTitle: ['Old Issue'],
+          issueDate: mockIssueDate,
+          projectId: { _id: mockProjectId },
+        },
+      ];
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(mockBuildingIssue.find).toHaveBeenCalledWith({ status: 'open' });
+      expect(res.json).toHaveBeenCalled();
+      const result = res.json.mock.calls[0][0];
+      expect(result).toHaveLength(1);
+      expect(result[0].issueName).toBe('Old Issue');
+      expect(result[0].durationOpen).toBeGreaterThan(0);
+    });
+
+    it('should filter by projects when provided', async () => {
+      req.query.projects = mockProjectId;
+      const mockIssues = [];
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(mockProjectId);
+    });
+
+    it('should filter by dates and return matching projects', async () => {
+      req.query.dates = '2022-01-01,2024-12-31';
+
+      const mockProjects = [{ _id: mockProjectId }];
+      const selectMock = jest.fn().mockReturnThis();
+      const leanMock = jest.fn().mockResolvedValue(mockProjects);
+      mockBuildingProjectFind.mockReturnValue({
+        select: selectMock,
+        lean: leanMock,
+      });
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(mockBuildingProjectFind).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalled();
+    });
+
+    it('should return empty array when dates provided but no matching projects', async () => {
+      req.query.dates = '2022-01-01,2024-12-31';
+
+      const selectMock = jest.fn().mockReturnThis();
+      const leanMock = jest.fn().mockResolvedValue([]);
+      mockBuildingProjectFind.mockReturnValue({
+        select: selectMock,
+        lean: leanMock,
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should intersect project filters when both dates and projects provided', async () => {
+      const anotherProjectId = '507f1f77bcf86cd799439012';
+      req.query.dates = '2022-01-01,2024-12-31';
+      req.query.projects = `${mockProjectId},${anotherProjectId}`;
+
+      const mockProjects = [{ _id: mockProjectId }];
+      const selectMock = jest.fn().mockReturnThis();
+      const leanMock = jest.fn().mockResolvedValue(mockProjects);
+      mockBuildingProjectFind.mockReturnValue({
+        select: selectMock,
+        lean: leanMock,
+      });
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(mockBuildingProjectFind).toHaveBeenCalled();
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      // Should only include mockProjectId since it's the intersection
+      expect(callArgs.projectId.$in).toContain(mockProjectId);
+    });
+
+    it('should return top 7 issues sorted by duration', async () => {
+      const mockIssues = Array.from({ length: 10 }, (_, i) => ({
+        issueTitle: [`Issue ${i + 1}`],
+        issueDate: new Date(Date.now() - (i + 1) * 30 * 24 * 60 * 60 * 1000),
+        projectId: { _id: mockProjectId },
+      }));
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      const result = res.json.mock.calls[0][0];
+      expect(result).toHaveLength(7);
+      // Ensure sorted by duration (descending)
+      for (let i = 1; i < result.length; i += 1) {
+        expect(result[i - 1].durationOpen).toBeGreaterThanOrEqual(result[i].durationOpen);
+      }
+    });
+
+    it('should format duration correctly for months', async () => {
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+      const mockIssues = [
+        {
+          issueTitle: ['Recent Issue'],
+          issueDate: twoMonthsAgo,
+          projectId: { _id: mockProjectId },
+        },
+      ];
+
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      const result = res.json.mock.calls[0][0];
+      expect(result[0].durationOpen).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Database error');
+      mockBuildingIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(error),
+      });
+
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching longest open issues' });
     });
   });
 });
