@@ -321,7 +321,7 @@ const projectMaterialRouter = require('../routes/projectMaterialroutes');
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
-const educationTaskRouter = require('../routes/educationTaskRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');const educationTaskRouter = require('../routes/educationTaskRouter');
 const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
@@ -335,7 +335,7 @@ const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRo
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
-const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const announcementRouter = require('../routes/announcementRouter')();
 
@@ -552,4 +552,6 @@ module.exports = function (app) {
   app.use('/api/education', browsableLessonPlanRouter);
 
   app.use('/api/educator/reports', downloadReportRouter);
+
+  app.use('/api/analytics', analyticsRouter);
 };
