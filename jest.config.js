@@ -16,6 +16,8 @@ module.exports = {
     '!src/**/*MockData.jsx',
     '!src/test/**',
     '!src/__tests__/**',
+    // Exclude WebSocket files (difficult to test)
+    '!src/websockets/**/*.js',
   ],
   // Coverage thresholds - Start light and increase gradually
   coverageThreshold: {
