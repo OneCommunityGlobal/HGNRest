@@ -84,6 +84,8 @@ const bmConsumableController = function (BuildingConsumable) {
       quantityWasted,
       qtyUsedLogUnit,
       qtyWastedLogUnit,
+      reasonWastage,
+      usedBy,
       stockAvailable,
       consumable,
     } = req.body;
@@ -130,6 +132,8 @@ const bmConsumableController = function (BuildingConsumable) {
             createdBy: req.body.requestor.requestorId,
             quantityUsed: unitsUsed,
             quantityWasted: unitsWasted,
+            reasonWastage, // New field
+            usedBy, // New field
           },
         },
       },

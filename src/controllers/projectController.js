@@ -91,13 +91,13 @@ const projectController = function (Project) {
         },
       });
       if (projectWithRepeatedName.length > 0) {
-        res
+        return res
           .status(400)
           .send(
             `Project Name must be unique. Another project with name ${req.body.projectName} already exists. Please note that project names are case insensitive.`,
           );
-        return;
       }
+
       const _project = new Project();
       const now = new Date();
       _project.projectName = req.body.projectName;
@@ -105,10 +105,10 @@ const projectController = function (Project) {
       _project.isActive = true;
       _project.createdDatetime = now;
       _project.modifiedDatetime = now;
+
       const savedProject = await _project.save();
       return res.status(200).send(savedProject);
     } catch (error) {
-      logger.logException(error);
       res.status(400).send('Error creating project. Please try again.');
     }
   };
@@ -133,13 +133,124 @@ const projectController = function (Project) {
       const targetProject = await Project.findById(projectId);
       if (!targetProject) {
         res.status(400).send('No valid records found');
+        await session.abortTransaction();
         return;
       }
+
+      // STORE ORIGINAL CATEGORY BEFORE UPDATE
+      const originalCategory = targetProject.category;
+      logger.logInfo(
+        `[Category Cascade] Project ${projectId} update started. Original category: ${originalCategory}, New category: ${category}`,
+      );
+
       targetProject.projectName = projectName;
       targetProject.category = category;
       targetProject.isActive = isActive;
       targetProject.modifiedDatetime = Date.now();
+
+      // IF CATEGORY CHANGED, CASCADE TO NON-OVERRIDDEN TASKS
+      if (category && originalCategory !== category) {
+        logger.logInfo(
+          `[Category Cascade] Category changed from "${originalCategory}" to "${category}". Starting cascade...`,
+        );
+
+        // Get all WBS for this project
+        const projectWBSIds = await wbs.find({ projectId }, '_id', { session });
+        const wbsIds = projectWBSIds.map((w) => w._id);
+
+        logger.logInfo(`[Category Cascade] Found ${wbsIds.length} WBS for project ${projectId}`);
+        logger.logInfo(`[Category Cascade] WBS IDs: ${JSON.stringify(wbsIds)}`);
+
+        if (wbsIds.length > 0) {
+          // First, let's see ALL tasks for these WBS
+          const allTasks = await task.find(
+            { wbsId: { $in: wbsIds } },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+              wbsId: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] Total tasks found in WBS: ${allTasks.length}`);
+          allTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}, WBS: ${t.wbsId}`,
+            );
+          });
+
+          // Count tasks by lock status (this is what determines cascade behavior)
+          const lockedTrue = allTasks.filter((t) => t.categoryLocked === true).length;
+          const lockedFalse = allTasks.filter((t) => t.categoryLocked === false).length;
+          const lockedUndefined = allTasks.filter((t) => t.categoryLocked === undefined).length;
+
+          logger.logInfo(
+            `[Category Cascade] Lock stats - Locked: ${lockedTrue}, Unlocked: ${lockedFalse}, Undefined: ${lockedUndefined}`,
+          );
+
+          // Update all tasks that are NOT locked (categoryLocked = false or undefined)
+          // Also update categoryOverride to false since they now match project category
+          const updateResult = await task.updateMany(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [
+                { categoryLocked: { $exists: false } }, // Old tasks without the field
+                { categoryLocked: false }, // Tasks explicitly unlocked
+              ],
+            },
+            {
+              category,
+              categoryOverride: false, // These tasks now match project category
+              modifiedDatetime: Date.now(),
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] updateMany result: ${JSON.stringify(updateResult)}`);
+          logger.logInfo(
+            `[Category Cascade] Updated ${updateResult.modifiedCount} tasks with new category "${category}"`,
+          );
+          logger.logInfo(
+            `[Category Cascade] Matched ${updateResult.matchedCount} tasks (unlocked), Modified ${updateResult.modifiedCount} tasks`,
+          );
+
+          // Verify the update by checking tasks again
+          const updatedTasks = await task.find(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [{ categoryLocked: { $exists: false } }, { categoryLocked: false }],
+            },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(
+            `[Category Cascade] After update verification - ${updatedTasks.length} unlocked tasks:`,
+          );
+          updatedTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category NOW: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}`,
+            );
+          });
+        } else {
+          logger.logInfo(`[Category Cascade] No WBS found, skipping task updates`);
+        }
+      } else {
+        logger.logInfo(
+          `[Category Cascade] Category unchanged or empty, skipping cascade. Category: "${category}", Original: "${originalCategory}"`,
+        );
+      }
+
       if (isArchived) {
+        logger.logInfo(`[Category Cascade] Project ${projectId} is being archived`);
         targetProject.isArchived = isArchived;
         // deactivate wbs within target project
         await wbs.updateMany({ projectId }, { isActive: false }, { session });
@@ -159,8 +270,10 @@ const projectController = function (Project) {
         // deactivate timeentry for affected tasks
         await timeentry.updateMany({ projectId }, { isActive: false }, { session });
       }
+
       await targetProject.save({ session });
       await session.commitTransaction();
+      logger.logInfo(`[Category Cascade] Project ${projectId} update completed successfully`);
       res.status(200).send(targetProject);
     } catch (error) {
       await session.abortTransaction();
@@ -272,36 +385,124 @@ const projectController = function (Project) {
       });
   };
 
+  /**
+   * Get project members with profile pictures
+   * @route GET /api/project/:projectId/users
+   * @returns {Array} Users with profilePic field - can be slow for large lists
+   * @see getprojectMembershipSummary for faster alternative without profile pics
+   */
   const getprojectMembership = async function (req, res) {
+    try {
+      // GETs usually have no body; prefer req.user populated by your auth middleware.
+      const requestor =
+        (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
+
+      // Allow users who can fetch members OR who can create/update/suggest tasks
+      const canGet =
+        (await helper.hasPermission(requestor, 'getProjectMembers')) ||
+        (await helper.hasPermission(requestor, 'postTask')) ||
+        (await helper.hasPermission(requestor, 'updateTask')) ||
+        (await helper.hasPermission(requestor, 'suggestTask'));
+
+      if (!canGet) {
+        return res.status(403).send('You are not authorized to perform this operation');
+      }
+
+      const { projectId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).send('Invalid request');
+      }
+
+      const results = await userProfile
+        .find(
+          { projects: projectId },
+          { firstName: 1, lastName: 1, profilePic: 1, _id: 1, isActive: 1 },
+        )
+        .sort({ firstName: 1, lastName: 1 });
+
+      return res.status(200).send(results);
+    } catch (error) {
+      logger?.logException?.(error);
+      return res.status(500).send('Error fetching project members');
+    }
+  };
+
+  /**
+   * Get project members summary (fast version)
+   * @route GET /api/project/:projectId/users/summary
+   * @returns {Array} Users without profilePic field - optimized for large lists
+   * @performance 2-5 seconds vs 2+ minutes for full endpoint
+   */
+  const getprojectMembershipSummary = async function (req, res) {
+    // Check permissions - same as full endpoint
     if (!(await helper.hasPermission(req.body.requestor, 'getProjectMembers'))) {
       res.status(403).send('You are not authorized to perform this operation');
       return;
     }
+
     const { projectId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       res.status(400).send('Invalid request');
       return;
     }
+
     userProfile
       .find(
-        { projects: projectId, isActive: true },
-        { firstName: 1, lastName: 1, profilePic: 1 },
+        { projects: projectId },
+        { firstName: 1, lastName: 1, isActive: 1 }, // Excludes profilePic for performance
       )
+
       .then((results) => {
-        console.log(results);
-        res.status(200).send(results);
+        res.status(200).json(results);
       })
       .catch((error) => {
+        console.error('Summary query error:', error);
         res.status(500).send(error);
       });
   };
-  
+
+  function escapeRegExp(str) {
+    return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+  const searchProjectMembers = async function (req, res) {
+    const { projectId, query } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).send('Invalid project ID');
+    }
+    // Sanitize user input and escape special characters
+    const sanitizedQuery = escapeRegExp(query.trim());
+    // case-insensitive search
+    const searchRegex = new RegExp(sanitizedQuery, 'i');
+
+    try {
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+      const canGetId = getProjMembers || postTask || updateTask || suggestTask;
+
+      const results = await userProfile
+        .find({
+          projects: projectId,
+          $or: [{ firstName: { $regex: searchRegex } }, { lastName: { $regex: searchRegex } }],
+        })
+        .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
+        .sort({ firstName: 1, lastName: 1 })
+        .limit(30);
+      res.status(200).send(results);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   const getProjectsWithActiveUserCounts = async function (req, res) {
     try {
       const projects = await Project.find({ isArchived: { $ne: true } }, '_id');
-  
-      const projectIds = projects.map(project => project._id);
-  
+
+      const projectIds = projects.map((project) => project._id);
+
       const userCounts = await userProfile.aggregate([
         { $match: { projects: { $in: projectIds }, isActive: true } },
         { $unwind: '$projects' },
@@ -313,12 +514,12 @@ const projectController = function (Project) {
           },
         },
       ]);
-  
+
       const result = userCounts.reduce((acc, curr) => {
         acc[curr._id.toString()] = curr.activeUserCount;
         return acc;
       }, {});
-  
+
       res.status(200).send(result);
     } catch (error) {
       console.error(error);
@@ -335,6 +536,8 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    getprojectMembershipSummary,
+    searchProjectMembers,
     getProjectsWithActiveUserCounts,
   };
 };
