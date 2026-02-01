@@ -1,10 +1,9 @@
 const express = require('express');
 
-const routes = function (materialLossModel) {
+const routes = function () {
   const router = express.Router();
-  const controller = require('../controllers/materialLossController')(materialLossModel);
 
-  router.route('/loss-tracking').get(controller.getMaterialLossData);
+  router.route('/loss-tracking').get((req, res) => res.json({ message: 'Get material loss data' }));
 
   return router;
 };

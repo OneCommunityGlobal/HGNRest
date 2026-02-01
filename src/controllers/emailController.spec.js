@@ -46,7 +46,7 @@ describe('emailController Controller Unit tests', () => {
     //       html: '<p>Test Body</p>',
     //     },
     //   };
-    //   const response = await sendEmail(mockReq, mockRes);
+    //   const response = await sendEmail(mockReqLocal, mockRes);
     //   assertResMock(200, 'Email sent successfully', response, mockRes);
     // });
   });
@@ -60,7 +60,7 @@ describe('emailController Controller Unit tests', () => {
   //       html: '<p>Test Body</p>',
   //     },
   //   };
-  //   const response = await sendEmail(mockReq, mockRes);
+  //   const response = await sendEmail(mockReqLocal, mockRes);
   //   assertResMock(200, 'Email sent successfully', response, mockRes);
   // });
 });

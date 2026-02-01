@@ -674,7 +674,7 @@ const dashboardhelper = function () {
 
       return users;
     } catch (error) {
-      console.error('Error saving feedback:', error);
+      console.error('Error getting names from profiles:', error);
       return { message: 'Internal server error' };
     }
   };
