@@ -1,26 +1,10 @@
 const express = require('express');
+const wishlistController = require('../../controllers/lbdashboard/wishlistsController');
 
-const routes = function (wishlist) {
-  const wishlistRouter = express.Router();
-  const controller = require('../../controllers/lbdashboard/wishlistsController')(wishlist);
+const wishlistRouter = express.Router();
 
-  // Route to create a new wishlist
-  wishlistRouter.route('/wishlist').post(controller.createWishlist);
+wishlistRouter.get('/wishlist', wishlistController.getWishlist);
+wishlistRouter.post('/wishlist/add', wishlistController.addToWishlist);
+wishlistRouter.delete('/wishlist/remove/:listingId', wishlistController.removeFromWishlist);
 
-  // Route to get a single wishlist by ID
-  wishlistRouter.route('/wishlist').get(controller.getWishlistById);
-
-  // Route to add a listing to a user's wishlist
-  wishlistRouter.route('/wishlist/add').post(controller.addListingToWishlist);
-
-  // Route to remove a listing to a user's wishlist
-  wishlistRouter.route('/wishlist/remove').post(controller.removeListingFromWishlist);
-
-  // Route to retrieve a user's wishlist
-  wishlistRouter.route('/wishlist/user').get(controller.getUserWishlist);
-  // Route to delete a wishlist by ID
-  wishlistRouter.route('/wishlist/delete').delete(controller.deleteWishlist);
-  return wishlistRouter;
-};
-
-module.exports = routes;
+module.exports = wishlistRouter;
