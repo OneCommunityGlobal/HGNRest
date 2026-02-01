@@ -16,14 +16,7 @@ const hgnFormController = function () {
         .json({ error: 'All fields (userInfo, general, frontend, backend) are required' });
     }
     try {
-      const formResponse = new FormResponse({
-        userInfo,
-        general,
-        frontend,
-        backend,
-        followUp,
-        user_id,
-      });
+      const formResponse = new FormResponse(req.body);
       await formResponse.save();
       res.status(201).json(formResponse);
     } catch (err) {
