@@ -1,15 +1,13 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
-// const AbortController = require("abort-controller");
+const AbortController = require('abort-controller');
 const sharp = require('sharp');
 
-// global.AbortController = AbortController;
+global.AbortController = AbortController;
 
 const saveImagestoAzureBlobStorage = async (images, title) => {
   let imageUrls = [];
   if (images) {
     const imageArray = Array.isArray(images) ? images : [images];
-    console.log('In Azure Method', title);
-    console.log(images);
     let baseName;
     if (title) {
       baseName = title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -65,7 +63,6 @@ const fetchImagesFromAzureBlobStorage = async (imageUrls) => {
         const blobName = url.split('/').pop();
         const blockBlobClient = containerClient.getBlockBlobClient(blobName);
         let imageBuffer;
-        console.log(url);
         if (blockBlobClient) {
           const downloadResponse = await blockBlobClient.download();
           imageBuffer = await streamToBuffer(downloadResponse.readableStreamBody);
@@ -82,7 +79,31 @@ const fetchImagesFromAzureBlobStorage = async (imageUrls) => {
   return images.filter((img) => img !== null);
 };
 
+const uploadFileToAzureBlobStorage = async (file, blobName) => {
+  if (!file) {
+    throw new Error('File is required');
+  }
+  if (!blobName) {
+    throw new Error('Blob name is required');
+  }
+
+  const blobServiceClient = BlobServiceClient.fromConnectionString(
+    process.env.AZURE_STORAGE_CONNECTION_STRING,
+  );
+  const containerClient = blobServiceClient.getContainerClient(
+    process.env.AZURE_STORAGE_CONTAINER_NAME,
+  );
+
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  await blockBlobClient.uploadData(file.buffer, {
+    blobHTTPHeaders: { blobContentType: file.mimetype },
+  });
+
+  return blockBlobClient.url;
+};
+
 module.exports = {
   saveImagestoAzureBlobStorage,
   fetchImagesFromAzureBlobStorage,
+  uploadFileToAzureBlobStorage,
 };

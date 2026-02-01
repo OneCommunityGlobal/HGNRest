@@ -18,7 +18,8 @@ const routes = function (wishlist) {
 
   // Route to retrieve a user's wishlist
   wishlistRouter.route('/wishlist/user').get(controller.getUserWishlist);
-
+  // Route to delete a wishlist by ID
+  wishlistRouter.route('/wishlist/delete').delete(controller.deleteWishlist);
   return wishlistRouter;
 };
 
