@@ -140,12 +140,14 @@ const bmToolController = (BuildingTool, ToolType) => {
           purchaseRecord: [newPurchaseRecord],
         };
 
+        // eslint-disable-next-line no-await-in-loop
         BuildingTool.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
 
+      // eslint-disable-next-line no-await-in-loop
       BuildingTool.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },

@@ -1,6 +1,6 @@
 /* eslint-disable no-shadow */
 const PopUpEditor = require('../models/popupEditor');
-const { mockReq, mockRes, assertResMock } = require('../test');
+const { mockRes, assertResMock } = require('../test');
 
 jest.mock('../utilities/permissions');
 
@@ -28,6 +28,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const { getAllPopupEditors } = makeSut();
       const mockPopupEditors = [{ popupName: 'popup', popupContent: 'content' }];
       jest.spyOn(PopUpEditor, 'find').mockResolvedValue(mockPopupEditors);
+      const mockReq = {};
       const response = await getAllPopupEditors(mockReq, mockRes);
       assertResMock(200, mockPopupEditors, response, mockRes);
     });
@@ -37,6 +38,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const error = new Error('Test Error');
 
       jest.spyOn(PopUpEditor, 'find').mockRejectedValue(error);
+      const mockReq = {};
       const response = await getAllPopupEditors(mockReq, mockRes);
       await flushPromises();
 
@@ -49,6 +51,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const { getPopupEditorById } = makeSut();
       const mockPopupEditor = { popupName: 'popup', popupContent: 'content' };
       jest.spyOn(PopUpEditor, 'findById').mockResolvedValue(mockPopupEditor);
+      const mockReq = { params: { id: 'testId' } };
       const response = await getPopupEditorById(mockReq, mockRes);
       assertResMock(200, mockPopupEditor, response, mockRes);
     });
@@ -58,6 +61,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const error = new Error('Test Error');
 
       jest.spyOn(PopUpEditor, 'findById').mockRejectedValue(error);
+      const mockReq = { params: { id: 'testId' } };
       const response = await getPopupEditorById(mockReq, mockRes);
       await flushPromises();
 
@@ -69,6 +73,10 @@ describe('popupEditorController Controller Unit tests', () => {
     test(`Should return 403 if user is not authorized`, async () => {
       const { createPopupEditor } = makeSut();
       mockHasPermission(false);
+      const mockReq = {
+        body: { popupName: 'popup', popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+      };
       const response = await createPopupEditor(mockReq, mockRes);
       assertResMock(
         403,
@@ -81,6 +89,10 @@ describe('popupEditorController Controller Unit tests', () => {
     test(`Should return 400 if popupName or popupContent is missing`, async () => {
       const { createPopupEditor } = makeSut();
       mockHasPermission(true);
+      const mockReq = {
+        body: { popupName: '', popupContent: '' },
+        requestor: { requestorId: 'testId' },
+      };
       const response = await createPopupEditor(mockReq, mockRes);
       assertResMock(
         400,
@@ -93,12 +105,16 @@ describe('popupEditorController Controller Unit tests', () => {
     test(`Should return 201 and popup editor on success`, async () => {
       const { createPopupEditor } = makeSut();
       mockHasPermission(true);
-      mockReq.body = { popupName: 'popup', popupContent: 'content' };
-      const mockPopupEditor = { save: jest.fn().mockResolvedValue(mockReq.body) };
+      // const mockReq = { body: { popupName: 'popup', popupContent: 'content' } };
+      const mockPopupEditor = { save: jest.fn().mockResolvedValue({ popupContent: 'content' }) };
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
+      const mockReq = {
+        body: { popupName: 'popup', popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+      };
       const response = await createPopupEditor(mockReq, mockRes);
       expect(mockPopupEditor.save).toHaveBeenCalled();
-      assertResMock(201, mockReq.body, response, mockRes);
+      assertResMock(201, { popupContent: 'content' }, response, mockRes);
     });
 
     test(`Should return 500 on error`, async () => {
@@ -107,6 +123,10 @@ describe('popupEditorController Controller Unit tests', () => {
       const error = new Error('Test Error');
 
       jest.spyOn(PopUpEditor.prototype, 'save').mockRejectedValue(error);
+      const mockReq = {
+        body: { popupName: 'popup', popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+      };
       const response = await createPopupEditor(mockReq, mockRes);
       await flushPromises();
 
@@ -117,6 +137,11 @@ describe('popupEditorController Controller Unit tests', () => {
     test(`Should return 403 if user is not authorized`, async () => {
       const { updatePopupEditor } = makeSut();
       mockHasPermission(false);
+      const mockReq = {
+        body: { popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+        params: { id: 'testId' },
+      };
       const response = await updatePopupEditor(mockReq, mockRes);
       assertResMock(
         403,
@@ -128,7 +153,7 @@ describe('popupEditorController Controller Unit tests', () => {
 
     test(`Should return 400 if popupContent is missing`, async () => {
       const { updatePopupEditor } = makeSut();
-      mockReq.body = {};
+      const mockReq = { body: {}, requestor: { requestorId: 'testId' }, params: { id: 'testId' } };
       mockHasPermission(true);
       const response = await updatePopupEditor(mockReq, mockRes);
       assertResMock(400, { error: 'popupContent is mandatory field' }, response, mockRes);
@@ -137,27 +162,37 @@ describe('popupEditorController Controller Unit tests', () => {
     test(`Should return 201 and popup editor on success`, async () => {
       const { updatePopupEditor } = makeSut();
       mockHasPermission(true);
-      mockReq.body = { popupContent: 'content' };
-      const mockPopupEditor = { save: jest.fn().mockResolvedValue(mockReq.body) };
+      // const mockReq = { body: { popupContent: 'content' } };
+      const mockPopupEditor = { save: jest.fn().mockResolvedValue({ popupContent: 'content' }) };
       jest
         .spyOn(PopUpEditor, 'findById')
         .mockImplementationOnce((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
+      const mockReq = {
+        body: { popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+        params: { id: 'testId' },
+      };
       const response = await updatePopupEditor(mockReq, mockRes);
       expect(mockPopupEditor.save).toHaveBeenCalled();
-      assertResMock(201, mockReq.body, response, mockRes);
+      assertResMock(201, { popupContent: 'content' }, response, mockRes);
     });
 
     test('Should return 500 on popupEditor save error', async () => {
       const { updatePopupEditor } = makeSut();
       mockHasPermission(true);
       const err = new Error('Test Error');
-      mockReq.body = { popupContent: 'content' };
+      // const mockReq = { body: { popupContent: 'content' } };
       const mockPopupEditor = { save: jest.fn().mockRejectedValue(err) };
       jest
         .spyOn(PopUpEditor, 'findById')
         .mockImplementation((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
+      const mockReq = {
+        body: { popupContent: 'content' },
+        requestor: { requestorId: 'testId' },
+        params: { id: 'testId' },
+      };
       const response = await updatePopupEditor(mockReq, mockRes);
       await flushPromises();
       assertResMock(500, { err }, response, mockRes);
