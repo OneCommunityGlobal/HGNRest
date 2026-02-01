@@ -10,7 +10,6 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
-const fs = require('fs');
 const cheerio = require('cheerio');
 const axios = require('axios');
 const sharp = require('sharp');
@@ -20,9 +19,6 @@ const _ = require('lodash');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
-const myTeam = require('./helperModels/myTeam');
-const dashboardHelper = require('./dashboardhelper')();
-const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
@@ -33,15 +29,16 @@ const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
-const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
-const Timer = require('../models/timer');
 const { COMPANY_TZ } = require('../constants/company');
+const { InactiveReason } = require('../constants/userProfile');
+const reportHelper = require('./reporthelper')();
+const dashboardHelper = require('./dashboardhelper')();
+const myTeam = require('./helperModels/myTeam');
 
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
-const DEFAULT_REPLY_TO = ['jae@onecommunityglobal.org'];
 
-const WEEKS_BEFORE_FINAL_EMAIL = 3;
+const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -1858,7 +1855,7 @@ const userHelper = function () {
     }
   };
 
-  const reActivateUser = async () => {
+  const reactivateUser = async () => {
     const nowPst = moment().tz(COMPANY_TZ);
 
     logger.logInfo(
@@ -1870,14 +1867,30 @@ const userHelper = function () {
         {
           isActive: false,
           reactivationDate: { $exists: true, $ne: null },
+          inactiveReason: InactiveReason.PAUSED,
         },
         '_id isActive reactivationDate deactivatedAt email firstName lastName',
       );
 
+      console.log(`Found ${users.length} users to check for re-activation.`);
+
       for (const user of users) {
-        const canActivate = moment(nowPst).isAfter(moment(user.reactivationDate).tz(COMPANY_TZ));
+        const canActivate = moment(nowPst).isSameOrAfter(
+          moment(user.reactivationDate).tz(COMPANY_TZ),
+        );
 
         if (!canActivate) continue;
+
+        const pausedOn = user.deactivatedAt ? user.deactivatedAt : 'an earlier date';
+        const recipients = await getEmailRecipientsForStatusChange(user._id);
+
+        sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
 
         await userProfile.findByIdAndUpdate(
           user._id,
@@ -1898,27 +1911,9 @@ const userHelper = function () {
         );
 
         logger.logInfo(`User with id: ${user._id} was re-activated at ${nowPst.format()}.`);
-
-        const pausedOn = user.deactivatedAt
-          ? moment(user.deactivatedAt).tz('America/Los_Angeles').format('YYYY-MM-DD')
-          : 'an earlier date';
-
-        const subject = `IMPORTANT: ${user.firstName} ${user.lastName} has been re-activated in the Highest Good Network`;
-
-        const emailBody = `
-        <p>Hi Admin,</p>
-        <p>
-          ${user.firstName} ${user.lastName} has been re-activated in the Highest Good Network
-          after being paused on ${pausedOn}.
-        </p>
-        <p>Email: ${user.email}</p>
-        <p>Thanks,<br/>The HGN System</p>
-      `;
-
-        emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, user.email);
       }
     } catch (err) {
-      logger.logException(err, 'Unexpected error in reActivateUser');
+      logger.logException(err, 'Unexpected error in reactivateUser');
     }
   };
 
@@ -3041,81 +3036,6 @@ const userHelper = function () {
       });
   };
 
-  const sendDeactivateEmailBody = function (
-    firstName,
-    lastName,
-    endDate,
-    email,
-    recipients,
-    isSet,
-    reactivationDate,
-    sendThreeWeeks,
-    followup,
-  ) {
-    let subject;
-    let emailBody;
-    recipients.push('onecommunityglobal@gmail.com');
-    recipients = recipients.toString();
-    if (reactivationDate) {
-      subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
-      emailBody = `<p>Management, </p>
-
-      <p>Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
-
-      <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
-      emailSender(email, subject, emailBody, null, recipients, email);
-    } else if (endDate && isSet && sendThreeWeeks) {
-      const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
-      const emailBody = `<p>Management, </p>
-
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p>This is more than 3 weeks from now, but you should still start confirming all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
-
-      <p>An additional reminder email will be sent in their final 2 weeks.</p>
-
-      <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
-      emailSender(email, subject, emailBody, null, recipients, email);
-    } else if (endDate && isSet && followup) {
-      subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
-      emailBody = `<p>Management, </p>
-
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p> This is coming up soon. For a smooth transition, please confirm all your work is wrapped up with this individual and nothing further will be needed on their part after this date. </p>
-
-      <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
-      emailSender(email, subject, emailBody, null, recipients, email);
-    } else if (endDate && isSet) {
-      subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
-      emailBody = `<p>Management, </p>
-
-      <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p> For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
-
-      <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
-      emailSender(email, subject, emailBody, null, recipients, email);
-    } else if (endDate) {
-      subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
-      emailBody = `<p>Management, </p>
-
-      <p>Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
-      <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
-
-      <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
-      emailSender(email, subject, emailBody, null, recipients, email);
-    }
-  };
-
   // Update by Shengwei/Peter PR767:
   /**
    *  Delete all tokens used in new user setup from database that in cancelled, expired, or used status.
@@ -3420,6 +3340,10 @@ const userHelper = function () {
   };
 
   const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
+    const returnDate = moment(reactivationDate)
+      .tz(COMPANY_TZ)
+      .add(1, 'day') // adding a day to make it clear they return on the day of reactivation
+      .format('M-D-YYYY');
     const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
 
     const emailBody = `
@@ -3429,29 +3353,30 @@ const userHelper = function () {
     </p>
     <p>
       Please confirm all work has been wrapped up until they return on
-      <strong>${moment(reactivationDate).format('M-D-YYYY')}</strong>.
+      <strong>${returnDate}</strong>.
     </p>
     <p>With Gratitude,<br/>One Community</p>
   `;
 
-    emailSender(email, subject, emailBody, null, recipients, email);
+    emailSender(recipients, subject, emailBody, null, email);
   };
 
   const sendUserSeparatedEmail = ({ firstName, lastName, email, recipients, endDate }) => {
+    const formattedFinalDay = moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY');
     const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
 
     const emailBody = `
     <p>Management,</p>
     <p>
-      Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network.
+      Please note that ${firstName} ${lastName} has been DEACTIVATED and made inactive in the Highest Good Network from ${formattedFinalDay} onwards.
     </p>
     <p>
-      Please confirm all work has been wrapped up and nothing further is needed.
+      Please confirm all work has been wrapped up and nothing further is required.
     </p>
     <p>With Gratitude,<br/>One Community</p>
   `;
 
-    emailSender(email, subject, emailBody, null, recipients, email);
+    emailSender(recipients, subject, emailBody, null, email);
   };
 
   const sendUserActivatedEmail = ({ firstName, lastName, email, recipients }) => {
@@ -3460,112 +3385,215 @@ const userHelper = function () {
     const emailBody = `
     <p>Management,</p>
     <p>
-      ${firstName} ${lastName} has been re-activated in the Highest Good Network.
+      ${firstName} ${lastName} has been activated in the Highest Good Network.
     </p>
     <p>Email: ${email}</p>
     <p>With Gratitude,<br/>One Community</p>
   `;
 
-    emailSender(email, subject, emailBody, null, recipients, email);
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserScheduledSeparationEmail = ({
+    firstName,
+    lastName,
+    email,
+    endDate,
+    recipients,
+  }) => {
+    const formattedFinalDay = endDate ? moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY') : 'N/A';
+    const subject = `IMPORTANT: ${firstName} ${lastName} has a FINAL DAY scheduled in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has a FINAL DAY scheduled in the Highest Good Network.
+    </p>
+    <p>
+      The final day is set for <strong>${formattedFinalDay}</strong>, and they have until the end of this day to continue logging hours.
+    </p>
+    <p>
+      Please begin wrapping up any remaining work as they will be deactivated the following day.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserResumedEmail = ({ firstName, lastName, email, recipients, pausedOn }) => {
+    const formattedPausedOn = pausedOn
+      ? moment(pausedOn).tz(COMPANY_TZ).format('M-D-YYYY')
+      : 'an earlier date';
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been RESUMED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName}, who was previously PAUSED in the Highest Good Network on 
+      ${formattedPausedOn}, has now been RESUMED and is active again.
+    </p>
+    <p>
+      ${firstName} ${lastName} will remain active until they are deactivated, paused again,
+      or a final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserReactivatedAfterSeparation = ({
+    firstName,
+    lastName,
+    email,
+    recipients,
+    previousEndDate,
+  }) => {
+    const formattedPreviousEndDate = moment(previousEndDate).tz(COMPANY_TZ).format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been REACTIVATED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName}, who was previously DEACTIVATED from the Highest Good Network on 
+      ${formattedPreviousEndDate}, has now been REACTIVATED.
+    </p>
+    <p>
+      ${firstName} ${lastName} is currently active and will remain so until they are deactivated,
+      paused, or a final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserCancelledSeparationEmail = ({
+    firstName,
+    lastName,
+    email,
+    recipients,
+    previousEndDate,
+  }) => {
+    const formattedPreviousEndDate = moment(previousEndDate).tz(COMPANY_TZ).format('M-D-YYYY');
+    const subject = `IMPORTANT: Final Day has been CANCELLED for ${firstName} ${lastName}`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that the previously scheduled FINAL DAY for ${firstName} ${lastName}
+      in the Highest Good Network as ${formattedPreviousEndDate} has now been REMOVED.
+    </p>
+    <p>
+      ${firstName} ${lastName} is currently active and will remain so until they are
+      deactivated, paused, or a new final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
   };
 
   async function finalizeUserEndDates() {
     const now = moment.tz(COMPANY_TZ);
 
+    // 1) Only users who are scheduled for separation (still active)
     const users = await userProfile.find({
-      deactivatedAt: { $ne: null },
-      endDate: { $in: [null, undefined] },
+      isActive: true,
+      endDate: { $ne: null },
+      inactiveReason: InactiveReason.SCHEDULED_SEPARATION,
+      // Safety: should not be a paused user
+      reactivationDate: { $in: [null, undefined] },
     });
 
-    console.log('Found', users.length, 'users to process for finalizing end dates.');
+    console.log('Found', users.length, 'scheduled-separation users to process.');
 
     for (const user of users) {
-      if (user.isSet || user.endDate) {
-        console.log(
-          'Skipping user',
-          user._id,
-          'because isSet is',
-          user.isSet,
-          'and endDate is',
-          user.endDate,
-        );
-        continue; // Skip users who already have endDate set
-      }
+      const scheduledEndMoment = moment(user.endDate).tz(COMPANY_TZ).endOf('day');
+      const recipients = await getEmailRecipientsForStatusChange(user._id);
 
-      if (now.isSameOrBefore(moment(user.deactivatedAt).tz(COMPANY_TZ).endOf('day'))) {
-        console.log(
-          'Skipping user',
-          user._id,
-          'because deactivatedAt is in the future:',
-          user.deactivatedAt,
-        );
-        continue; // Skip users whose deactivatedAt is in the future
-      }
-
-      const effectiveFinalMoment = getEffectiveFinalDay(user);
-      console.log('Effective final moment for user', user._id, 'is', effectiveFinalMoment);
-      if (!effectiveFinalMoment) continue; // Skip if we can't determine an effective final day
-
-      user.endDate = effectiveFinalMoment.toDate();
-      user.isActive = false;
-
+      // 2) 3-week email logic (trigger window starts at start of day, 3 weeks before endDate)
       if (
         !user.finalEmailThreeWeeksSent &&
         now.isSameOrAfter(
-          moment(effectiveFinalMoment).subtract(WEEKS_BEFORE_FINAL_EMAIL, 'weeks').startOf('day'),
-        )
+          moment(scheduledEndMoment)
+            .subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks')
+            .startOf('day'),
+        ) &&
+        now.isBefore(scheduledEndMoment) // only while still pending
       ) {
         await sendThreeWeekFinalDayEmail({
-          to: user.email,
+          email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          endDate: user.endDate,
+          endDate: user.endDate, // IMPORTANT: email references scheduled endDate
+          recipients,
         });
+
         user.finalEmailThreeWeeksSent = true;
+        await user.save();
       }
 
-      await user.save();
-    }
+      // 3) If endDate hasn't passed yet, skip finalization
+      if (now.isBefore(scheduledEndMoment)) continue;
 
-    const manualFinalUsers = await userProfile.find({
-      isSet: true,
-      endDate: { $ne: null },
-      isActive: true,
-    });
+      // 4) Finalize separation
+      if (user.deactivatedAt) continue; // safety check
 
-    for (const user of manualFinalUsers) {
-      const endMoment = moment(user.endDate).tz(COMPANY_TZ);
-      if (now.isSameOrAfter(endMoment)) {
-        console.log(`Deactivating user ${user._id} due to passed manual final day`);
-      }
+      user.deactivatedAt = now.toDate();
       user.isActive = false;
-      user.deactivatedAt = endMoment.toDate();
-      user.inactiveReason = 'ManualDeactivation';
-
+      user.inactiveReason = InactiveReason.SEPARATED;
+      user.endDate = resolveEffectiveEndDate(user).toDate();
+      sendUserSeparatedEmail({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        recipients,
+        endDate: user.endDate,
+      });
       await user.save();
     }
   }
 
-  function getEffectiveFinalDay(user) {
-    console.log('Calculating effective final day for user:', user._id);
-    if (user.isSet && user.endDate) {
-      console.log('User has isSet true and endDate:', user.endDate);
+  function resolveEffectiveEndDate(user) {
+    // 1) endDate + lastActivityAt → earlier of the two
+    if (user?.endDate && user?.lastActivityAt) {
+      return moment.min(
+        moment(user.endDate).tz(COMPANY_TZ),
+        moment(user.lastActivityAt).tz(COMPANY_TZ),
+      );
+    }
+
+    // 2) no lastActivityAt → use createdDate (normalized to COMPANY_TZ)
+    if (!user?.lastActivityAt && user?.createdDate) {
+      return moment.tz(user.createdDate, 'YYYY-MM-DD', COMPANY_TZ).startOf('day');
+    }
+
+    // 3) only endDate present
+    if (user?.endDate) {
       return moment(user.endDate).tz(COMPANY_TZ);
     }
 
-    if (!user.lastActivityAt) {
-      console.log('User has no lastActivityAt, using deactivatedAt:', user.deactivatedAt);
-      return moment(user.deactivatedAt).tz(COMPANY_TZ);
+    // 4) only lastActivityAt present
+    if (user?.lastActivityAt) {
+      return moment(user.lastActivityAt).tz(COMPANY_TZ);
     }
 
-    console.log('Using lastActivityAt as effective final day:', user.lastActivityAt);
-    return moment(user.lastActivityAt).tz(COMPANY_TZ);
+    // 5) fallback → now
+    return moment().tz(COMPANY_TZ);
   }
 
-  const sendThreeWeekFinalDayEmail = async ({ to, firstName, lastName, endDate }) => {
+  const sendThreeWeekFinalDayEmail = async ({
+    email,
+    firstName,
+    lastName,
+    endDate,
+    recipients,
+  }) => {
     const subject = `IMPORTANT: Upcoming final day for ${firstName} ${lastName} in the Highest Good Network`;
 
-    const formattedEndDate = moment(endDate).tz('America/Los_Angeles').format('M-D-YYYY');
+    const formattedEndDate = moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY');
 
     const emailBody = `
     <p>Management,</p>
@@ -3581,18 +3609,39 @@ const userHelper = function () {
     </p>
 
     <p>
-      An additional reminder will be sent closer to the final date.
+      Please note that they will be actively able to log hours until the end of their final day.
     </p>
 
     <p>With gratitude,<br/>One Community</p>
   `;
-
-    // SAFETY: do not crash cron if email fails
     try {
-      await emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, to, to);
+      await emailSender(recipients, subject, emailBody, null, email, email);
     } catch (err) {
       logger.logException(err, 'Failed to send 3-week final day email');
     }
+  };
+
+  const getEmailRecipientsForStatusChange = async (userId) => {
+    const emailReceivers = await userProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await userProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+    return recipients;
   };
 
   return {
@@ -3605,7 +3654,7 @@ const userHelper = function () {
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
-    reActivateUser,
+    reactivateUser,
     notifyInfringements,
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
@@ -3622,7 +3671,12 @@ const userHelper = function () {
     sendUserPausedEmail,
     sendUserSeparatedEmail,
     sendUserActivatedEmail,
+    sendUserScheduledSeparationEmail,
+    sendUserResumedEmail,
+    sendUserReactivatedAfterSeparation,
+    sendUserCancelledSeparationEmail,
     finalizeUserEndDates,
+    getEmailRecipientsForStatusChange,
   };
 };
 
