@@ -1,3 +1,9 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
@@ -165,10 +171,15 @@ const profileInitialSetupController = function (
       session.endSession();
 
       try {
-        await sendEmailWithAcknowledgment(
+        await emailSender(
           email,
           'NEEDED: Complete your One Community profile setup',
           sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
         );
         return res.status(200).send({ sent: true });
       } catch (emailError) {

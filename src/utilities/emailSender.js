@@ -1,8 +1,11 @@
+/* eslint-disable no-await-in-loop */
 // src/utilities/emailSender.js
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const logger = require('../startup/logger');
 const EmailHistory = require('../models/emailHistory');
+const EmailThread = require('../models/emailThread');
 
 const config = {
   email: process.env.REACT_APP_EMAIL,
@@ -50,6 +53,32 @@ const sendEmail = async (mailOptions) => {
       refreshToken: config.refreshToken,
       accessToken: token,
     };
+    // Ensure threading headers are included in the outgoing mail options
+    // Nodemailer accepts messageId, inReplyTo, and references as top-level options
+    // and will include any headers provided in mailOptions.headers.
+    try {
+      if (mailOptions.messageId) {
+        // set Message-ID both as option and header (header key uses 'Message-ID')
+        mailOptions.headers = { ...mailOptions.headers, 'Message-ID': mailOptions.messageId };
+      }
+
+      if (mailOptions.inReplyTo) {
+        mailOptions.headers = { ...mailOptions.headers, 'In-Reply-To': mailOptions.inReplyTo };
+      }
+
+      if (mailOptions.references) {
+        // normalize references to a space-separated string per RFC
+        const refs = Array.isArray(mailOptions.references)
+          ? mailOptions.references.join(' ')
+          : String(mailOptions.references);
+        mailOptions.references = refs;
+        mailOptions.headers = { ...mailOptions.headers, References: refs };
+      }
+    } catch (hdrErr) {
+      // header construction should never block sending; log and continue
+      logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
+    }
+
     const result = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Local emails - not attempting to send!`);
@@ -80,12 +109,23 @@ const normalize = (field) => {
   return String(field).split(',');
 };
 
+const normalizeReferences = (refs) => {
+  if (!refs) return [];
+  if (Array.isArray(refs)) return refs;
+  return String(refs)
+    .split(' ')
+    .map((s) => s.trim())
+    .filter(Boolean);
+};
+
 const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
   const isBsAssignment = batch.meta?.type === 'blue_square_assignment';
-  const key = `${batch.to}|${batch.subject}|${batch.meta?.type}`;
+  // Use messageId as the unique key to prevent overwrites of different emails with same subject
+  const key = batch.messageId || `${batch.to}|${batch.subject}|${batch.meta?.type}|${Date.now()}`;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
+      const moment = require('moment-timezone');
       await sendEmail(batch);
 
       if (isBsAssignment) {
@@ -99,7 +139,15 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
               subject: batch.subject,
               message: batch.html,
               status: 'SENT',
-              updatedAt: new Date(),
+              // Threading / RFC fields
+              messageId: batch.messageId || null,
+              threadRootMessageId: batch.meta?.threadRootMessageId || batch.inReplyTo || null,
+              references: normalizeReferences(batch.references),
+              recipientUserId: batch.meta?.recipientUserId || null,
+              weekStart: batch.meta?.weekStart || null,
+              emailType: batch.meta?.type || null,
+              sentAt: moment().tz('America/Los_Angeles').toDate(),
+              updatedAt: moment().tz('America/Los_Angeles').toDate(),
             },
             $inc: { attempts: 1 },
           },
@@ -109,6 +157,7 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
       return true;
     } catch (err) {
       logger.logException(err, `Batch to ${batch.to || '(empty)'} attempt ${attempt}`);
+      const moment = require('moment-timezone');
 
       if (attempt === retries && isBsAssignment) {
         await EmailHistory.findOneAndUpdate(
@@ -121,7 +170,14 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
               subject: batch.subject,
               message: batch.html,
               status: 'FAILED',
-              updatedAt: new Date(),
+              // include message/thread info for debugging even on failure
+              messageId: batch.messageId || null,
+              threadRootMessageId: batch.meta?.threadRootMessageId || batch.inReplyTo || null,
+              references: normalizeReferences(batch.references),
+              recipientUserId: batch.meta?.recipientUserId || null,
+              weekStart: batch.meta?.weekStart || null,
+              emailType: batch.meta?.type || null,
+              updatedAt: moment().tz('America/Los_Angeles').toDate(),
             },
             $inc: { attempts: 1 },
           },
@@ -136,12 +192,29 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 };
 
 const worker = async () => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
-    // atomically pull next batch
-    const batch = queue.shift();
-    if (!batch) break; // queue drained for this worker
+    // atomically pull next batch item: { batch, resolve, reject }
+    const item = queue.shift();
+    if (!item) break; // queue drained for this worker
 
-    await sendWithRetry(batch);
+    const { batch, resolve, reject } = item;
+    try {
+      const success = await sendWithRetry(batch);
+      if (success) {
+        resolve('Email processed successfully');
+      } else {
+        // If retries exhausted without success (sendWithRetry returns false), we still resolve but maybe with a warning?
+        // Or we can reject. Given existing logic returns false on failure but doesn't throw,
+        // we'll resolve with a failure message or reject depending on preference.
+        // The original code didn't throw on queue failure, just logged.
+        // We'll reject to let the caller know it failed.
+        reject(new Error('Email failed to send after retries'));
+      }
+    } catch (err) {
+      reject(err);
+    }
+
     if (config.rateLimitDelay) await sleep(config.rateLimitDelay); // pacing
   }
 };
@@ -172,12 +245,18 @@ const processQueue = async () => {
  * @param {string|null} [replyTo=null] - Optional reply-to email address.
  * @param {string[]|null} [emailBccs=null] - Optional array of BCC (blind carbon copy) email addresses.
  * @param {Object} [opts={}] - Optional settings object.
+ *   @param {string} [opts.type='general'] - Email type/category (e.g., 'blue_square_assignment', 'password_reset', 'weekly_summary').
+ *   @param {string} [opts.threadKey] - Unique thread identifier for email threading (e.g., 'blue_square:507f1f77bcf86cd799439011:2025-11-16').
+ *                                      Computed from opts.recipientUserId + opts.weekStart if not provided.
+ *   @param {string} [opts.recipientUserId] - User ID (MongoDB ObjectId string) of the primary recipient. Used for per-user thread scoping and EmailHistory logging.
+ *   @param {string} [opts.weekStart] - ISO week start date (YYYY-MM-DD, e.g., '2025-11-16'). Used for thread scoping and EmailHistory logging.
  *
  * @returns {Promise<string>} A promise that resolves when the email queue has been processed successfully or rejects on error.
  *
  * @throws {Error} Will reject the promise if there is an error processing the email queue.
  *
  * @example
+ * // Basic usage (non-threaded)
  * emailSender(
  *   ['user@example.com'],
  *   'Welcome!',
@@ -186,6 +265,26 @@ const processQueue = async () => {
  *   ['cc@example.com'],
  *   'noreply@example.com',
  *   ['bcc@example.com']
+ * )
+ * .then(console.log)
+ * .catch(console.error);
+ *
+ * @example
+ * // With threading (blue-square notification)
+ * emailSender(
+ *   ['user@example.com'],
+ *   'You have been assigned a Blue Square',
+ *   '<p>You received a blue square...</p>',
+ *   null,
+ *   null,
+ *   'noreply@example.com',
+ *   null,
+ *   {
+ *     type: 'blue_square_assignment',
+ *     recipientUserId: '507f1f77bcf86cd799439011',
+ *     weekStart: '2025-11-16'
+ *     // threadKey will be auto-computed as 'blue_square:507f1f77bcf86cd799439011:2025-11-16'
+ *   }
  * )
  * .then(console.log)
  * .catch(console.error);
@@ -211,31 +310,176 @@ const emailSender = (
     return Promise.resolve('EMAIL_SENDING_DISABLED');
   }
 
+  if (opts.priority === 'high') {
+    const to = Array.isArray(recipients) ? recipients.join(',') : recipients;
+
+    return sendEmail({
+      from: config.email,
+      to,
+      bcc: emailBccs ? emailBccs.join(',') : '',
+      subject,
+      html: message,
+      attachments,
+      cc,
+      replyTo,
+      // optional: tag it so you can find it in logs
+      headers: { 'X-Email-Priority': 'high', ...(opts.headers || {}) },
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-    for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
-      const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
-      queue.push({
-        from: config.email,
-        to: batchRecipients.length ? batchRecipients.join(',') : '',
-        bcc: emailBccs ? emailBccs.join(',') : '',
-        subject,
-        html: message,
-        attachments,
-        cc,
-        replyTo,
-        meta: { type },
-      });
-    }
 
-    setImmediate(async () => {
-      try {
-        await processQueue();
-        resolve('Emails processed successfully');
-      } catch (error) {
-        reject(error);
+    // Extract thread options: compute threadKey if not provided
+    const threadKey =
+      opts.threadKey ||
+      (opts.recipientUserId && opts.weekStart
+        ? `${type}:${opts.recipientUserId}:${opts.weekStart}`
+        : null);
+
+    // Helper to generate RFC-like Message-ID using timestamp + random bytes
+    const domain =
+      config.email && config.email.includes('@')
+        ? config.email.split('@')[1]
+        : 'onecommunityglobal.org';
+
+    const generateMessageId = () => {
+      // Prefer standard UUIDv4 when available
+      if (typeof crypto.randomUUID === 'function') {
+        return `<${crypto.randomUUID()}@${domain}>`;
       }
-    });
+
+      // Fallback: timestamp + more entropy
+      const rand = crypto.randomBytes(12).toString('hex');
+      return `<msg-${Date.now()}-${rand}@${domain}>`;
+    };
+
+    // Prepare and push batches asynchronously so we can perform atomic thread upserts
+    (async () => {
+      const moment = require('moment-timezone');
+      try {
+        // We'll collect all batch promises to wait for them if needed,
+        // but emailSender is designed to return a single Promise that resolves when ALL batches
+        // for this call are processed.
+        const batchPromises = [];
+
+        for (let i = 0; i < recipientsArray.length; i += config.batchSize) {
+          const batchRecipients = recipientsArray.slice(i, i + config.batchSize);
+
+          // Generate per-batch/message Message-ID using UUID (collision probability is negligible)
+          let messageId;
+          if (typeof crypto.randomUUID === 'function') {
+            messageId = `<${crypto.randomUUID()}@${domain}>`;
+          } else {
+            // Fallback for environments without crypto.randomUUID
+            const fallbackId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+            messageId = `<${fallbackId}@${domain}>`;
+          }
+
+          // defaults for thread-related headers
+          let threadRootMessageId = null;
+          let inReplyTo = null;
+          let references = [];
+
+          if (threadKey) {
+            // Use the messageId as the candidate thread root when inserting a new thread.
+            const candidateRoot = messageId;
+
+            // Attempt atomic upsert. Use rawResult to detect whether an insert occurred.
+            const setOnInsert = {
+              threadRootMessageId: candidateRoot,
+              weekStart: opts.weekStart || '',
+              emailType: type,
+              recipientUserId: opts.recipientUserId || null,
+              createdAt: moment().tz('America/Los_Angeles').toDate(),
+              createdBy: 'system',
+            };
+
+            try {
+              const res = await EmailThread.findOneAndUpdate(
+                { threadKey },
+                { $setOnInsert: setOnInsert },
+                { upsert: true, new: true, rawResult: true },
+              );
+
+              // res.value is the document; res.lastErrorObject indicates upsert
+              const doc = res.value;
+              const upserted =
+                res.lastErrorObject &&
+                (res.lastErrorObject.upserted || res.lastErrorObject.updatedExisting === false);
+
+              threadRootMessageId = doc.threadRootMessageId;
+
+              if (upserted) {
+                // This send created the thread root. For root message, do not set In-Reply-To.
+                inReplyTo = null;
+                references = [];
+              } else {
+                // Thread existed already; reply to the thread root
+                inReplyTo = threadRootMessageId;
+                references = [threadRootMessageId];
+              }
+            } catch (err) {
+              // If a duplicate-key or race occurs, fallback to reading the existing thread
+              logger.logException(err, `EmailThread upsert failed for threadKey=${threadKey}`);
+              const existing = await EmailThread.findOne({ threadKey }).lean();
+              if (existing) {
+                threadRootMessageId = existing.threadRootMessageId;
+                inReplyTo = threadRootMessageId;
+                references = [threadRootMessageId];
+              } else {
+                // As a last resort, treat this message as non-threaded
+                threadRootMessageId = null;
+                inReplyTo = null;
+                references = [];
+              }
+            }
+          }
+
+          // Create a deferred promise for this batch
+          const batchPromise = new Promise((batchResolve, batchReject) => {
+            // push batch with threading metadata AND promise callbacks for downstream steps
+            queue.push({
+              batch: {
+                from: config.email,
+                to: batchRecipients.length ? batchRecipients.join(',') : '',
+                bcc: emailBccs ? emailBccs.join(',') : '',
+                subject,
+                html: message,
+                attachments,
+                cc,
+                replyTo,
+                messageId,
+                inReplyTo,
+                references,
+                meta: {
+                  type,
+                  threadKey,
+                  recipientUserId: opts.recipientUserId || null,
+                  weekStart: opts.weekStart || null,
+                  threadRootMessageId,
+                },
+              },
+              resolve: batchResolve,
+              reject: batchReject,
+            });
+          });
+          batchPromises.push(batchPromise);
+        }
+
+        // after preparing batches, kick off processing
+        // We don't await processQueue here because we want to return the promise that waits for the batches
+        setImmediate(() => {
+          processQueue().catch((err) => console.error('Queue processing error:', err));
+        });
+
+        // Wait for all batches to complete
+        await Promise.all(batchPromises);
+        resolve('Emails processed successfully');
+      } catch (prepErr) {
+        reject(prepErr);
+      }
+    })();
   });
 };
 

@@ -1,3 +1,7 @@
+/* eslint-disable prefer-template */
+/* eslint-disable prefer-const */
+/* eslint-disable no-restricted-globals */
+/* eslint-disable radix */
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');

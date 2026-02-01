@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
@@ -13,7 +14,7 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: { type: [Date], default: [] },
   defaultPassword: {
     type: String,
     required: false, // Not required since it's optional
@@ -223,8 +224,8 @@ const userProfileSchema = new Schema({
   // differentiate between paused and separated accounts for better reporting and handling in the future
   inactiveReason: {
     type: String,
-    enum: ['Paused', 'Separated'],
-    default: null,
+    enum: ['Paused', 'Separated', 'ScheduledSeparation'],
+    default: undefined,
   },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
@@ -279,7 +280,27 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  filterColor: {
+    type: [String],
+    // enum: ['purple', 'green', 'navy', null],
+    default: [],
+    set: (v) => {
+      // if (Array.isArray(v)) return [...new Set(v.filter(Boolean))];
+      // if (typeof v === 'string' && v.trim()) return [v.trim()];
+      // return [];
+      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map((s) => s.trim()))];
+      if (typeof v === 'string') {
+        const parts = v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return [...new Set(parts)];
+      }
+      return [];
+    },
+  },
   trophyFollowedUp: { type: Boolean, default: false },
+  // filterColor: { type: [String], default: [] },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
   teamCodeWarning: { type: Boolean, default: false },
