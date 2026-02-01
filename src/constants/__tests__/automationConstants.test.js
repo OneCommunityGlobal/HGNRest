@@ -1,20 +1,44 @@
-const constants = require('../automationConstants');
+const automationConstants = require('../automationConstants');
 
 describe('automationConstants', () => {
-  it('should export dropboxConfig with accessToken property', () => {
-    expect(constants.dropboxConfig).toBeDefined();
-    expect(constants.dropboxConfig).toHaveProperty('accessToken');
+  describe('dropboxConfig', () => {
+    it('should export dropboxConfig object', () => {
+      expect(automationConstants.dropboxConfig).toBeDefined();
+      expect(typeof automationConstants.dropboxConfig).toBe('object');
+    });
+
+    it('should have accessToken property', () => {
+      expect(automationConstants.dropboxConfig).toHaveProperty('accessToken');
+    });
   });
 
-  it('should export sentryConfig with sentryApiToken and organizationSlug properties', () => {
-    expect(constants.sentryConfig).toBeDefined();
-    expect(constants.sentryConfig).toHaveProperty('sentryApiToken');
-    expect(constants.sentryConfig).toHaveProperty('organizationSlug');
+  describe('sentryConfig', () => {
+    it('should export sentryConfig object', () => {
+      expect(automationConstants.sentryConfig).toBeDefined();
+      expect(typeof automationConstants.sentryConfig).toBe('object');
+    });
+
+    it('should have sentryApiToken property', () => {
+      expect(automationConstants.sentryConfig).toHaveProperty('sentryApiToken');
+    });
+
+    it('should have organizationSlug property', () => {
+      expect(automationConstants.sentryConfig).toHaveProperty('organizationSlug');
+    });
   });
 
-  it('should export githubConfig with GITHUB_TOKEN and ORG_NAME properties', () => {
-    expect(constants.githubConfig).toBeDefined();
-    expect(constants.githubConfig).toHaveProperty('GITHUB_TOKEN');
-    expect(constants.githubConfig).toHaveProperty('ORG_NAME');
+  describe('githubConfig', () => {
+    it('should export githubConfig object', () => {
+      expect(automationConstants.githubConfig).toBeDefined();
+      expect(typeof automationConstants.githubConfig).toBe('object');
+    });
+
+    it('should have GITHUB_TOKEN property', () => {
+      expect(automationConstants.githubConfig).toHaveProperty('GITHUB_TOKEN');
+    });
+
+    it('should have ORG_NAME property', () => {
+      expect(automationConstants.githubConfig).toHaveProperty('ORG_NAME');
+    });
   });
 });

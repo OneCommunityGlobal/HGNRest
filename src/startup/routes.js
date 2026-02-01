@@ -421,18 +421,12 @@ module.exports = function (app) {
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
-  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
 
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
-
-  app.use('/api/hgnHelp', communityRouter());
-  app.use('/api/costs', costsRouter);
-  app.use('/api', hoursPledgedRoutes);
-  app.use('/api', templateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
@@ -468,36 +462,21 @@ module.exports = function (app) {
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
-  app.use('/api/dropbox', dropboxRouter);
-  app.use('/api/github', githubRouter);
-  app.use('/api/sentry', sentryRouter);
-  app.use('/api/slack', slackRouter);
-  app.use('/api/livejournal', liveJournalRoutes);
-  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
   app.use('/api', costBreakdownRouter);
-  app.use('/api', bmProjectRiskProfileRouter);
-  app.use('/api/bm', bmIssueRouter);
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
-
-  app.use('/api', toolAvailabilityRouter);
-  app.use('/api', projectCostTrackingRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm', bmIssueRouter);
-
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
+  app.use('/api', projectCostTrackingRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
-
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -540,23 +519,4 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
-  app.use('/api/lb', listingAvailablityRouter);
-  // lb dashboard
-  app.use('/api/lb', bidTermsRouter);
-  app.use('/api/lb', bidsRouter);
-  app.use('/api/lb', paymentsRouter);
-  app.use('/api/lb', webhookRouter);
-  app.use('/api/lb', bidNotificationsRouter);
-  app.use('/api/lb', bidDeadlinesRouter);
-  app.use('/api/lb', SMSRouter);
-  app.use('/api', materialCostRouter);
-
-  // education portal
-  app.use('/api/education', badgeSystemRouter);
-
-  app.use('/api/lp', lessonPlanSubmissionRouter);
-
-  app.use('/api/education', browsableLessonPlanRouter);
-
-  app.use('/api/educator/reports', downloadReportRouter);
 };
