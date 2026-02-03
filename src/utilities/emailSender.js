@@ -78,8 +78,11 @@ const sendEmail = async (mailOptions) => {
       // header construction should never block sending; log and continue
       logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
     }
-
+    logger.logInfo(
+      `[sendEmail] about to send to=${mailOptions.to} subject="${mailOptions.subject}"`,
+    );
     const result = await transporter.sendMail(mailOptions);
+    logger.logInfo(`[sendEmail] sent messageId=${result?.messageId} response=${result?.response}`);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Local emails - not attempting to send!`);
     }
