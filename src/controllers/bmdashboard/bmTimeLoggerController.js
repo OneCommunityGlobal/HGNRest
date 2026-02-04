@@ -1,4 +1,4 @@
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 // const Task = require('../../models/task');
 
@@ -11,10 +11,18 @@ const bmTimeLoggerController = function (bmTimeLog) {
 
       const now = new Date();
 
+      // Convert to ObjectId for proper MongoDB query
+      const projectObjectId = mongoose.Types.ObjectId.isValid(projectId)
+        ? new mongoose.Types.ObjectId(projectId)
+        : projectId;
+      const memberObjectId = mongoose.Types.ObjectId.isValid(memberId)
+        ? new mongoose.Types.ObjectId(memberId)
+        : memberId;
+
       // Check if there's already an ongoing time log for this project and member
       const existingTimeLog = await bmTimeLog.findOne({
-        project: projectId,
-        member: memberId,
+        project: projectObjectId,
+        member: memberObjectId,
         status: { $in: ['ongoing', 'paused'] },
       });
 
@@ -45,8 +53,8 @@ const bmTimeLoggerController = function (bmTimeLog) {
       } else {
         // Create a new time log
         timeLog = await bmTimeLog.create({
-          project: projectId,
-          member: memberId,
+          project: projectObjectId,
+          member: memberObjectId,
           task: task || 'Default Task',
           status: 'ongoing',
           currentIntervalStarted: now,
@@ -222,31 +230,64 @@ const bmTimeLoggerController = function (bmTimeLog) {
   const getProjectTimeLogs = async (req, res) => {
     try {
       const { projectId, memberId } = req.params;
-      const matchStage = { project: projectId };
-      if (memberId) {
-        matchStage.member = memberId;
+
+      // Convert projectId to ObjectId for proper MongoDB query
+      const projectObjectId = mongoose.Types.ObjectId.isValid(projectId)
+        ? new mongoose.Types.ObjectId(projectId)
+        : projectId;
+
+      const matchStage = { project: projectObjectId };
+      // Only filter by member if memberId is provided and it's not undefined
+      if (memberId && memberId !== 'logs' && mongoose.Types.ObjectId.isValid(memberId)) {
+        matchStage.member = new mongoose.Types.ObjectId(memberId);
       }
 
       const timeLogs = await bmTimeLog.aggregate([
         { $match: matchStage },
+        // Convert member to ObjectId safely (handles both string and ObjectId)
+        {
+          $addFields: {
+            memberObjectId: {
+              $cond: {
+                if: { $eq: [{ $type: '$member' }, 'string'] },
+                then: {
+                  $convert: {
+                    input: '$member',
+                    to: 'objectId',
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+                else: '$member',
+              },
+            },
+          },
+        },
         {
           $lookup: {
-            from: 'users',
-            localField: 'member',
+            from: 'userProfiles',
+            localField: 'memberObjectId',
             foreignField: '_id',
             as: 'member',
           },
         },
-        { $unwind: '$member' },
+        { $unwind: { path: '$member', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             _id: 1,
             project: 1,
-            member: { firstName: '$member.firstName', lastName: '$member.lastName' },
+            member: {
+              _id: { $ifNull: ['$member._id', null] },
+              firstName: { $ifNull: ['$member.firstName', 'Unknown'] },
+              lastName: { $ifNull: ['$member.lastName', 'User'] },
+              role: { $ifNull: ['$member.role', 'N/A'] },
+            },
             intervals: 1,
             status: 1,
             totalElapsedTime: 1,
             createdAt: 1,
+            updatedAt: 1,
+            task: 1,
           },
         },
         { $sort: { createdAt: -1 } },

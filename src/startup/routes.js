@@ -42,6 +42,7 @@ const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
 
 // Title
 const title = require('../models/title');
@@ -124,6 +125,7 @@ const teamRouter = require('../routes/teamRouter')(team);
 const jobsRouter = require('../routes/jobsRouter');
 const laborCostRouter = require('../routes/laborCostRouter');
 const jobAnalyticsRouter = require('../routes/jobAnalyticsRouter');
+const liveJournalPost = require('../models/liveJournalPost');
 
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
@@ -276,6 +278,7 @@ const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
   PRReviewInsights,
   userProfile,
 );
+const weeklyGradingRouter = require('../routes/prAnalytics/weeklyGradingRouter')(WeeklyGrading);
 
 const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
@@ -289,7 +292,7 @@ const dropboxRouter = require('../routes/automation/dropboxRouter');
 const githubRouter = require('../routes/automation/githubRouter');
 const sentryRouter = require('../routes/automation/sentryRouter');
 const slackRouter = require('../routes/automation/slackRouter');
-
+const liveJournalRoutes = require('../routes/liveJournalRoutes');
 //lbdashboard_bidoverview
 
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
@@ -319,6 +322,8 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 
 const tagRouter = require('../routes/tagRouter')(tag);
 const educationTaskRouter = require('../routes/educationTaskRouter');
+const educatorRouter = require('../routes/educatorRouter');
+const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 // lbdashboard
@@ -414,7 +419,6 @@ module.exports = function (app) {
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
-  app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
@@ -422,15 +426,12 @@ module.exports = function (app) {
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
 
-  app.use('/api/hgnHelp', communityRouter());
-  app.use('/api/costs', costsRouter);
-  app.use('/api', hoursPledgedRoutes);
-  app.use('/api', templateRouter);
-
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
   app.use('/api/education-tasks', educationTaskRouter);
-  app.use('/api/educator', intermediateTaskRouter);
+  app.use('/api/educator', educatorRouter);
+  app.use('/api/atoms', atomRouter);
+  app.use('/api/intermediate-tasks', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
 
@@ -459,34 +460,22 @@ module.exports = function (app) {
   app.use('/api/sentry', sentryRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
-  app.use('/api/dropbox', dropboxRouter);
-  app.use('/api/github', githubRouter);
-  app.use('/api/sentry', sentryRouter);
-  app.use('/api/slack', slackRouter);
-  app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api', bmProjectRiskProfileRouter);
-
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
-
-  app.use('/api', toolAvailabilityRouter);
-  app.use('/api', projectCostTrackingRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
   app.use('/api/bm', bmIssueRouter);
-
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
-
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmInjuryRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -524,6 +513,7 @@ module.exports = function (app) {
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
+  app.use('/api', weeklyGradingRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
