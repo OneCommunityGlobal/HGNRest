@@ -29,3 +29,10 @@ testem.log
 
 # Documentation
 /docs
+.DS_Storescripts/
+.env
+patch-mongo.js
+skip-db.js
+stub-db.js
+stub-db-strong.js
+scripts/
