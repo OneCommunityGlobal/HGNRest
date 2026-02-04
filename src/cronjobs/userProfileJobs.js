@@ -64,7 +64,7 @@ const userProfileJobs = () => {
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
-      await userhelper.reActivateUser();
+      await userhelper.reactivateUser();
       await userhelper.finalizeUserEndDates();
     },
     null,

@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
-const { uploadToS3 } = require('../services/s3Service');
+const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const config = require('../config');
 
 const studentTaskController = function () {
@@ -340,9 +340,8 @@ const studentTaskController = function () {
             .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
         }
 
-        const key = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
-        await uploadToS3(file, taskId, studentId, key);
-        uploadedUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+        const blobName = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
+        uploadedUrl = await uploadFileToAzureBlobStorage(file, blobName);
       } else if (req.body.url) {
         if (!isValidURL(req.body.url)) {
           return res.status(400).json({ error: 'Please enter a valid url' });
