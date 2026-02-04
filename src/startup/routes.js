@@ -170,6 +170,7 @@ const taskEditSuggestionRouter = require('../routes/taskEditSuggestionRouter')(t
 const roleRouter = require('../routes/roleRouter')(role);
 const rolePresetRouter = require('../routes/rolePresetRouter')(rolePreset);
 const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage);
+const ownerMessageLogRouter = require('../routes/ownerMessageLogRouter')();
 
 const emailRouter = require('../routes/emailRouter')();
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
@@ -390,6 +391,7 @@ module.exports = function (app) {
   app.use('/api', roleRouter);
   app.use('/api', rolePresetRouter);
   app.use('/api', ownerMessageRouter);
+  app.use('/api', ownerMessageLogRouter);
   app.use('/api', profileInitialSetupRouter);
   app.use('/api', reasonRouter);
   app.use('/api', informationRouter);
