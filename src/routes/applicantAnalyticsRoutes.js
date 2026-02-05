@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('express'); //
 
 const router = express.Router();
 const Applicant = require('../models/jobApplicants');
@@ -14,7 +14,7 @@ const {
   trackApplication,
   getInteractionSummary,
   getConversionMetrics,
-  triggerAggregation
+  triggerAggregation,
 } = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
 
 router.get('/experience-breakdown', getExperienceBreakdown);

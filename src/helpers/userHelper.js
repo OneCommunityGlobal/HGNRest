@@ -20,9 +20,6 @@ const sharp = require('sharp');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
-const myTeam = require('./helperModels/myTeam');
-const dashboardHelper = require('./dashboardhelper')();
-const reportHelper = require('./reporthelper')();
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
@@ -34,10 +31,8 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
-
-// added to all user profiles manually, replaced with infringementCCList now!
-const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
-const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
+const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -458,7 +453,7 @@ const userHelper = function () {
    * @param {ObjectId} personId This is mongoose.Types.ObjectId object.
    */
   const processWeeklySummariesByUserId = function (personId) {
-    userProfile
+    return userProfile
       .findByIdAndUpdate(personId, {
         $push: {
           weeklySummaries: {
@@ -475,6 +470,15 @@ const userHelper = function () {
       })
       .catch((error) => logger.logException(error));
   };
+
+  const sortInfringementsNewestFirst = (arr = []) =>
+    [...arr].sort((a, b) => {
+      const dateDiff = new Date(b.date || 0) - new Date(a.date || 0);
+      if (dateDiff !== 0) return dateDiff;
+
+      // Tie breaker → createdDate
+      return new Date(b.createdDate || 0) - new Date(a.createdDate || 0);
+    });
 
   /**
    * This function is called by a cron job to do 3 things to all active users:
@@ -507,14 +511,12 @@ const userHelper = function () {
        * - Added batch processing for assigning blue squares to users to ensure scalability and prevent MongoDB timeouts.
        * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
        */
-      const emailQueue = [];
       const batchSize = 500;
       let skip = 0;
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const users = await userProfile
           .find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours')
-          .sort({ createdDate: 1 }) // Ensure oldest-to-newest order
           .skip(skip)
           .limit(batchSize);
 
@@ -601,20 +603,12 @@ const userHelper = function () {
               }
 
               const cutOffDate = moment().subtract(1, 'year');
-
-              const oldInfringements = [];
-              for (let k = 0; k < updateResult?.infringements.length; k += 1) {
-                if (
-                  updateResult?.infringements &&
-                  moment(new Date(updateResult.infringements[k].date).toISOString()).diff(
-                    cutOffDate,
-                  ) >= 0
-                ) {
-                  oldInfringements.push(updateResult.infringements[k]);
-                } else {
-                  break;
-                }
-              }
+              const sortedInfringements = sortInfringementsNewestFirst(
+                updateResult?.infringements || [],
+              );
+              const oldInfringements = sortedInfringements.filter((inf) =>
+                moment(inf.date).isSameOrAfter(cutOffDate),
+              );
               let historyInfringements = 'No Previous Infringements.';
               if (oldInfringements.length) {
                 await userProfile.findByIdAndUpdate(
@@ -816,6 +810,7 @@ const userHelper = function () {
                     },
                     { new: true },
                   );
+
                   const administrativeContent = {
                     startDate: moment
                       .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
@@ -865,17 +860,15 @@ const userHelper = function () {
                     emailsBCCs = null;
                   }
 
-                  // Queue the email instead of sending immediately to prevent race conditions
-                  emailQueue.push({
-                    to: status.email,
-                    subject: 'New Infringement Assigned',
-                    body: emailBody,
-                    attachments: null,
-                    cc: DEFAULT_CC_EMAILS,
-                    replyTo: status.email,
-                    bcc: [...new Set([...emailsBCCs])],
-                    startDate: person.startDate,
-                  });
+                  emailSender(
+                    status.email,
+                    'New Infringement Assigned',
+                    emailBody,
+                    null,
+                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    status.email,
+                    [...new Set([...emailsBCCs])],
+                  );
                 } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
                   usersRequiringBlueSqNotification.push(personId);
                 }
@@ -936,21 +929,6 @@ const userHelper = function () {
         skip += batchSize;
       }
 
-      // Sort emailQueue by startDate descending (latest first) to ensure consistent email order
-      emailQueue.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
-      for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.attachments, // 4th param: attachments
-          email.cc, // 5th param: cc
-          email.replyTo, // 6th param: replyTo
-          email.bcc, // 7th param: emailBccs
-        );
-      }
-
       await deleteOldTimeOffRequests();
 
       if (usersRequiringBlueSqNotification.length > 0) {
@@ -975,6 +953,656 @@ const userHelper = function () {
       }
     } catch (err) {
       logger.logException(err);
+    }
+  };
+
+  const missedSummaryTemplate = (firstname) =>
+    `<div style="font-family: Arial, sans-serif;">
+      Dear ${firstname},
+      <div><br></div>
+      <div>When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for “Last Week”.</div>
+      <div><br></div>
+      <div>If you also forgot to submit your weekly media files, be sure to fix that too.</div>
+      <div><br></div>
+      <div><strong>Reply all</strong> to this email once you’ve done this, so I know to review what you’ve submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I’ll remove this blue square.</div>
+      <div><br></div>
+      <div>With Gratitude,</div>
+      <div><br></div>
+      <div>One Community</div>
+    </div>`;
+  // <div>
+  //   <div>With Gratitude,</div>
+  //   <div><br></div>
+  //   <div>Jae Sabol</div>
+  //   <div>310.755.4693</div>
+  //   <div>Zoom: <a href="https://www.tinyurl.com/zoomoc">www.tinyurl.com/zoomoc</a></div>
+  //   <div>Primary Email: <a href="mailto:jae@onecommunityglobal.org">jae@onecommunityglobal.org</a></div>
+  //   <div>Google Email: <a href="mailto:onecommunityglobal@gmail.com">onecommunityglobal@gmail.com</a></div>
+  //   <div>Timezone: Los Angeles, CA - Pacific Time</div>
+  // </div>
+  // function to send emails to those users who have completed hours but not submitted their summary
+  const completeHoursAndMissedSummary = async (emailConfig = {}) => {
+    try {
+      // If targetUserId is provided (testing), use that; otherwise use all active users (production)
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
+      const users = await userProfile.find(
+        query,
+        '_id weeklycommittedHours weeklySummaries missedHours email firstName weeklySummaryOption weeklySummaryNotReq',
+      );
+
+      const pdtStartOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week');
+
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
+      let emailsBCCs;
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        emailsBCCs = blueSquareBCCs
+          .filter((bcc) => bcc.assignedTo?.isActive)
+          .map((bcc) => bcc.email);
+      } else {
+        emailsBCCs = DEFAULT_BCC_EMAILS;
+      }
+
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        let hasWeeklySummary = false;
+
+        if (Array.isArray(user.weeklySummaries) && user.weeklySummaries.length > 1) {
+          // processWeeklySummariesByUserId pushes the new empty summary to index 0,
+          // so we verify index 1 to check the previous week's summary.
+          // await processWeeklySummariesByUserId(personId);
+          const { summary } = user.weeklySummaries[1];
+          if (summary) {
+            hasWeeklySummary = true;
+          }
+        }
+
+        if (user?.weeklySummaryOption === 'Not Required' || user?.weeklySummaryNotReq) {
+          hasWeeklySummary = true;
+        }
+
+        const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
+        const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
+
+        const results = await dashboardHelper.laborthisweek(
+          user._id,
+          pdtStartOfCurrentWeek,
+          pdtEndOfCurrentWeek,
+        );
+
+        const timeSpent =
+          Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
+
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+        const timeNotMet = timeSpent < weeklycommittedHours;
+        console.log('timeSpent: ', timeSpent);
+        console.log('weeklycommittedHours: ', weeklycommittedHours);
+
+        const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+        const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+        const requestsForTimeOff = await timeOffRequest.find({
+          requestFor: user._id,
+          startingDate: { $lte: utcStartMoment },
+          endingDate: { $gte: utcEndMoment },
+        });
+        const hasTimeOffRequest = requestsForTimeOff.length > 0;
+        console.log('hasTimeOffRequest: ', hasTimeOffRequest);
+        console.log('timeNotMet: ', timeNotMet);
+        console.log('hasWeeklySummary: ', hasWeeklySummary);
+        if (hasTimeOffRequest === false && timeNotMet === false && hasWeeklySummary === false) {
+          await emailSender(
+            emailConfig.emailOverride || user.email,
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            missedSummaryTemplate(user.firstName),
+            null,
+            emailConfig.ccOverride || [
+              'jae@onecommunityglobal.org',
+              'onecommunityglobal@gmail.com',
+            ], // CC list
+            'jae@onecommunityglobal.org', // replyTo
+            emailConfig.bccOverride || [...new Set([...emailsBCCs])], // BCC
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
+        }
+      }
+      return 'success';
+    } catch (err) {
+      console.error(err);
+      return 'error';
+    }
+  };
+
+  const WeeklyReminderEmailBody = (templateNo, firstName) => {
+    switch (templateNo) {
+      case 'MISSED_HOURS_BY_<15%':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>You completed close enough to your total hours for us to remove this blue square. Please be sure to complete the minimum or more of your hours from now on though.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case 'COMPLETED_HOURS_65%_84.9%':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>We’re checking in to see if everything is ok with you. You completed most but not all of your hours this last week. Is everything ok?</div>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case 'COMPLETED_HOURS_25%_64.9%':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>This email is checking in to see if everything is ok with you. You completed some but not all of your hours this last week. Is everything ok? Is there a reason you didn’t use the blue square scheduler on your Profile Page to schedule the week off?</div>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case '<1MON_ONE_BLUESQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>It’s very unusual for someone to get a blue square in their first few weeks on the team. This email is to check in with you to see if everything is ok and if you are still wanting to volunteer with us.</div>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case '<2MON_TWO_BLUESQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>We noticed that you’ve received <strong>two blue squares</strong> within your first couple of months on the team, which is somewhat unusual. We’re reaching out to check in, understand what happened, and see if this role still aligns with your interests, availability, and energy.</div>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know.</div>
+            <div><br></div>
+            <div>Looking forward to your response.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case '<1MON_TWO_BLUESQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>We noticed that you’ve received <strong>two blue squares</strong> within your first few weeks on the team, which is quite unusual. When this happens, we start to wonder whether this position is the right fit for you and if you still wish to continue volunteering with us.</div>
+            <div><br></div>
+            <div>Do you still feel this role aligns with your interests, availability, and energy? If so, what steps will you take to meet the requirements of being a One Community team member moving forward?</div>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know your thoughts.</div>
+            <div><br></div>
+            <div>Looking forward to your response.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case '<2MON_THREE_BLUESQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>It’s very unusual for people to get 3 blue squares in less than 2 months on the team. We’re writing to check in with you to see if A) everything is OK and B) if you still have the time and desire to continue with us?</p>
+            <div><br></div>
+            <div>Please <strong>reply all</strong> to let us know what happened and your desire/intent for continuing.</div>
+            <div><br></div>
+            <div>Looking forward to your response.</div>
+            <div><br></div>
+            <div>Sincerely,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case '4TH_BLUE_SQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>We wanted to reach out because you’ve received <strong>four blue squares</strong>. As you may know, we allow a maximum of <strong>five</strong>, so we want to ensure you’re aware that you are nearing the limit.</div>
+            <div><br></div>
+            <div>We appreciate your contributions and hope to see you avoiding any further blue squares. Please let us know if you have any concerns or need support in this.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case 'SCHEDULED_TIME_OFF':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      case 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE':
+        return `<div style="font-family: Arial, sans-serif;">
+            Good Morning ${firstName},
+            <div><br></div>
+            <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated. And as you may know, we allow a maximum of <strong>five</strong> blue squares.</div>
+            <div><br></div>
+            <div>This is your <strong>fourth</strong> blue square, so we want to ensure you’re aware that you are nearing the limit. This means you won't be able to schedule any more time off, and you should take special care to not receive an additional blue square.</div>
+            <div><br></div>
+            <div>We appreciate your contributions, please let us know if you have any concerns or need support in this.</div>
+            <div><br></div>
+            <div>With Gratitude,</div>
+            <div><br></div>
+            <div>One Community</div>
+          </div>`;
+      default:
+        console.error(`Unknown email template: ${templateNo}`);
+        return null;
+    }
+  };
+
+  const inCompleteHoursEmailFunction = async (emailConfig = {}) => {
+    try {
+      // If targetUserId is provided (testing), use that; otherwise use all active users (production)
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
+      const users = await userProfile.find(
+        query,
+        '_id weeklycommittedHours missedHours email firstName infringements startDate',
+      );
+
+      const pdtStartOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week');
+
+      const date = moment();
+      const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+      let emailsBCCs;
+      /* eslint-disable array-callback-return */
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        emailsBCCs = blueSquareBCCs
+          .filter((bcc) => bcc.assignedTo?.isActive)
+          .map((bcc) => bcc.email);
+      } else {
+        emailsBCCs = DEFAULT_BCC_EMAILS;
+      }
+      console.log('emailsBCCs: ', emailsBCCs);
+
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
+        const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
+        const results = await dashboardHelper.laborthisweek(
+          user._id,
+          pdtStartOfCurrentWeek,
+          pdtEndOfCurrentWeek,
+        );
+        const timeSpent =
+          Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
+        console.log('timeSpent using results of laborthisweek for last week: ', timeSpent);
+
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+
+        // Convert startDate from UTC to Los Angeles time before calculating weeks and months
+        const currentDate = moment().tz('America/Los_Angeles');
+        const startDate = moment(user.startDate).tz('America/Los_Angeles');
+        const startOfMonth = startDate.clone().startOf('month');
+        const currentMonthStart = currentDate.clone().startOf('month');
+        // Logic to handle edge cases where a user starts late in a month.
+        // If days into start month > days into current month, adjust numMonths calculation.
+        const daysIntoOfStartMonth = startDate.diff(startOfMonth, 'days'); // if startDate is 14th, result is 13?
+        const daysIntoOfCurrentMonth = currentDate.diff(currentMonthStart, 'days'); // currentDate is 7th, result is 6?
+        const numMonths =
+          daysIntoOfStartMonth > daysIntoOfCurrentMonth
+            ? currentMonthStart.diff(startOfMonth, 'months') - 1
+            : currentMonthStart.diff(startOfMonth, 'months');
+
+        const todayBlueSquare = user.infringements.filter(
+          (infringement) => infringement.date === todayDate,
+        );
+
+        // Check conditions for sending blue square email
+        // if(timeSpent>=0.85*weeklycommittedHours && timeSpent<weeklycommittedHours && user.infringements.length<4 && todayBlueSquare.length===1){
+        if (
+          timeSpent >= 0.85 * weeklycommittedHours &&
+          timeSpent < weeklycommittedHours &&
+          user.infringements.length < 4 &&
+          todayBlueSquare.length === 1
+        ) {
+          console.log('Entered > 85% but < weeklycommittedHours part');
+          await emailSender(
+            emailConfig.emailOverride || user.email,
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            WeeklyReminderEmailBody('MISSED_HOURS_BY_<15%', user.firstName),
+            null,
+            emailConfig.ccOverride || [
+              'jae@onecommunityglobal.org',
+              'onecommunityglobal@gmail.com',
+            ],
+            'jae@onecommunityglobal.org',
+            emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
+        } else if (
+          timeSpent >= 0.65 * weeklycommittedHours &&
+          timeSpent <= 0.849 * weeklycommittedHours
+        ) {
+          console.log('Entered > 65% but < 85% part');
+          await emailSender(
+            emailConfig.emailOverride || user.email,
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            WeeklyReminderEmailBody('COMPLETED_HOURS_65%_84.9%', user.firstName),
+            null,
+            emailConfig.ccOverride || [
+              'jae@onecommunityglobal.org',
+              'onecommunityglobal@gmail.com',
+            ],
+            'jae@onecommunityglobal.org',
+            emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
+        } else if (
+          timeSpent >= 0.25 * weeklycommittedHours &&
+          timeSpent <= 0.649 * weeklycommittedHours &&
+          numMonths >= 2
+        ) {
+          console.log('Entered > 25% but < 65% part');
+          await emailSender(
+            emailConfig.emailOverride || user.email,
+            `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+            WeeklyReminderEmailBody('COMPLETED_HOURS_25%_64.9%', user.firstName),
+            null,
+            emailConfig.ccOverride || [
+              'jae@onecommunityglobal.org',
+              'onecommunityglobal@gmail.com',
+            ],
+            'jae@onecommunityglobal.org',
+            emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+            {
+              type: 'blue_square_assignment',
+              recipientUserId: String(user._id),
+              weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+            },
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error in inCompleteHoursEmailFunction:', error);
+    }
+  };
+
+  const weeklyBlueSquareReminderFunction = async (emailConfig = {}) => {
+    try {
+      // If targetUserId is provided (testing), use that; otherwise use all active users (production)
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
+      const users = await userProfile.find(
+        query,
+        '_id weeklycommittedHours missedHours email firstName infringements startDate',
+      );
+
+      const pdtStartOfLastWeek = moment()
+        .tz('America/Los_Angeles')
+        .startOf('week')
+        .subtract(1, 'week');
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
+      const date = moment();
+      const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+      // blue square email BCC's
+      let emailsBCCs;
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      if (blueSquareBCCs.length > 0) {
+        emailsBCCs = blueSquareBCCs
+          .filter((bcc) => bcc.assignedTo?.isActive)
+          .map((bcc) => bcc.email);
+      } else {
+        emailsBCCs = DEFAULT_BCC_EMAILS;
+      }
+
+      // time off request
+      const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
+      const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
+
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        const results = await dashboardHelper.laborthisweek(
+          user._id,
+          pdtStartOfLastWeek,
+          pdtEndOfLastWeek,
+        );
+        // Ensure results exist and contain time data
+        if (results && results[0]) {
+          const { timeSpent_hrs: timeSpent } = results[0];
+          console.log('Time spent: ', timeSpent);
+
+          const currentDate = moment().tz('America/Los_Angeles');
+          const startDate = moment(user.startDate).tz('America/Los_Angeles');
+          const startOfMonth = startDate.clone().startOf('month');
+          const currentMonthStart = currentDate.clone().startOf('month');
+          const daysIntoOfStartMonth = startDate.diff(startOfMonth, 'days');
+          const daysIntoOfCurrentMonth = currentDate.diff(currentMonthStart, 'days');
+          const numMonths =
+            daysIntoOfStartMonth > daysIntoOfCurrentMonth
+              ? currentMonthStart.diff(startOfMonth, 'months') - 1
+              : currentMonthStart.diff(startOfMonth, 'months');
+
+          const requestsForTimeOff = await timeOffRequest.find({
+            requestFor: user._id,
+            startingDate: { $lte: utcStartMoment },
+            endingDate: { $gte: utcEndMoment },
+          });
+          const hasTimeOffRequest = requestsForTimeOff.length > 0;
+
+          const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+          const timeCondition1 =
+            timeSpent >= 0.85 * weeklycommittedHours && timeSpent < weeklycommittedHours;
+          const timeCondition2 =
+            timeSpent >= 0.65 * weeklycommittedHours && timeSpent <= 0.849 * weeklycommittedHours;
+          const bluesquareEmailCondition =
+            hasTimeOffRequest === false && !(timeCondition1 || timeCondition2);
+          console.log(
+            'hasTimeOffRequest: ',
+            hasTimeOffRequest,
+            'timeCondition1: ',
+            timeCondition1,
+            'timeCondition2: ',
+            timeCondition2,
+          );
+          const todayBlueSquare = users[i].infringements.filter(
+            (infringement) => infringement.date === todayDate,
+          );
+          if (
+            bluesquareEmailCondition &&
+            users[i].infringements.length === 1 &&
+            todayBlueSquare.length === 1 &&
+            numMonths < 1
+          ) {
+            console.log('Entered <1MON_ONE_BLUESQUARE part');
+            await emailSender(
+              emailConfig.emailOverride || user.email,
+              `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+              WeeklyReminderEmailBody('<1MON_ONE_BLUESQUARE', user.firstName),
+              null,
+              emailConfig.ccOverride || [
+                'jae@onecommunityglobal.org',
+                'onecommunityglobal@gmail.com',
+              ],
+              'jae@onecommunityglobal.org',
+              emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+              {
+                type: 'blue_square_assignment',
+                recipientUserId: String(user._id),
+                weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              },
+            );
+          } else if (
+            bluesquareEmailCondition &&
+            users[i].infringements.length === 2 &&
+            todayBlueSquare.length === 1
+          ) {
+            if (numMonths < 1) {
+              console.log('Entered <1MON_TWO_BLUESQUARE part');
+              await emailSender(
+                emailConfig.emailOverride || user.email,
+                `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+                WeeklyReminderEmailBody('<1MON_TWO_BLUESQUARE', user.firstName),
+                null,
+                emailConfig.ccOverride || [
+                  'jae@onecommunityglobal.org',
+                  'onecommunityglobal@gmail.com',
+                ],
+                'jae@onecommunityglobal.org',
+                emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+                {
+                  type: 'blue_square_assignment',
+                  recipientUserId: String(user._id),
+                  weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+                },
+              );
+            } else if (numMonths < 2) {
+              console.log('Entered <2MON_TWO_BLUESQUARE part');
+              await emailSender(
+                emailConfig.emailOverride || user.email,
+                `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+                WeeklyReminderEmailBody('<2MON_TWO_BLUESQUARE', user.firstName),
+                null,
+                emailConfig.ccOverride || [
+                  'jae@onecommunityglobal.org',
+                  'onecommunityglobal@gmail.com',
+                ],
+                'jae@onecommunityglobal.org',
+                emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+                {
+                  type: 'blue_square_assignment',
+                  recipientUserId: String(user._id),
+                  weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+                },
+              );
+            }
+          } else if (
+            bluesquareEmailCondition &&
+            users[i].infringements.length === 3 &&
+            todayBlueSquare.length === 1 &&
+            numMonths < 2
+          ) {
+            console.log('Entered <2MON_THREE_BLUESQUARE part');
+            await emailSender(
+              emailConfig.emailOverride || user.email,
+              `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+              WeeklyReminderEmailBody('<2MON_THREE_BLUESQUARE', user.firstName),
+              null,
+              emailConfig.ccOverride || [
+                'jae@onecommunityglobal.org',
+                'onecommunityglobal@gmail.com',
+              ],
+              'jae@onecommunityglobal.org',
+              emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+              {
+                type: 'blue_square_assignment',
+                recipientUserId: String(user._id),
+                weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              },
+            );
+          } else if (
+            users[i].infringements.length === 4 &&
+            todayBlueSquare.length === 1 &&
+            !hasTimeOffRequest
+          ) {
+            console.log('Entered 4TH_BLUE_SQUARE part');
+            await emailSender(
+              emailConfig.emailOverride || user.email,
+              `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+              WeeklyReminderEmailBody('4TH_BLUE_SQUARE', user.firstName),
+              null,
+              emailConfig.ccOverride || [
+                'jae@onecommunityglobal.org',
+                'onecommunityglobal@gmail.com',
+              ],
+              'jae@onecommunityglobal.org',
+              emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+              {
+                type: 'blue_square_assignment',
+                recipientUserId: String(user._id),
+                weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              },
+            );
+          } else if (hasTimeOffRequest && users[i].infringements.length < 4) {
+            console.log('Entered SCHEDULED_TIME_OFF part');
+            await emailSender(
+              emailConfig.emailOverride || user.email,
+              `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+              WeeklyReminderEmailBody('SCHEDULED_TIME_OFF', user.firstName),
+              null,
+              emailConfig.ccOverride || [
+                'jae@onecommunityglobal.org',
+                'onecommunityglobal@gmail.com',
+              ],
+              'jae@onecommunityglobal.org',
+              emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+              {
+                type: 'blue_square_assignment',
+                recipientUserId: String(user._id),
+                weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              },
+            );
+          } else if (hasTimeOffRequest && users[i].infringements.length === 4) {
+            console.log('Entered 4th blue square and time off request mix case');
+            await emailSender(
+              emailConfig.emailOverride || user.email,
+              `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
+              WeeklyReminderEmailBody('SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE', user.firstName),
+              null,
+              emailConfig.ccOverride || [
+                'jae@onecommunityglobal.org',
+                'onecommunityglobal@gmail.com',
+              ],
+              'jae@onecommunityglobal.org',
+              emailConfig.bccOverride || [...new Set([...emailsBCCs])],
+              {
+                type: 'blue_square_assignment',
+                recipientUserId: String(user._id),
+                weekStart: moment(pdtStartOfLastWeek).format('YYYY-MM-DD'),
+              },
+            );
+          }
+        }
+      }
+    } catch (error) {
+      logger.logException(
+        `Error in weeklyBlueSquareReminderFunction: ${error && error.stack ? error.stack : error}`,
+      );
+      return 'error';
     }
   };
 
@@ -1130,7 +1758,7 @@ const userHelper = function () {
     }
   };
 
-  const reActivateUser = async () => {
+  const reactivateUser = async () => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
     logger.logInfo(
@@ -1199,8 +1827,6 @@ const userHelper = function () {
     role,
     startDate,
     jobTitle,
-    weeklycommittedHours,
-    infringementCCList,
   ) => {
     if (!current) return;
     const newOriginal = original.toObject();
@@ -1209,7 +1835,8 @@ const userHelper = function () {
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
     if (original.length) {
-      historyInfringements = original
+      const sortedOriginal = sortInfringementsNewestFirst(original);
+      historyInfringements = sortedOriginal
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -1281,10 +1908,6 @@ const userHelper = function () {
 
     const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
     const bccEmails = assignments.map((a) => a.email);
-
-    const combinedCCList = [...new Set([...(infringementCCList || []), ...DEFAULT_CC_EMAILS])];
-    const combinedBCCList = [...new Set([...(bccEmails || []), ...DEFAULT_BCC_EMAILS])];
-
     newInfringements.forEach(async (element) => {
       emailSender(
         emailAddress,
@@ -1300,11 +1923,15 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        combinedCCList,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
         emailAddress,
-        // Don't change this is to BCC!
-        combinedBCCList,
-        { type: 'blue_square_assignment' },
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
+        null,
+        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        emailAddress,
+        // Don't change this is to CC!
+        [...new Set([...bccEmails])],
       );
     });
   };
@@ -2216,38 +2843,6 @@ const userHelper = function () {
       });
   };
 
-  const getTangibleHoursReportedLastWeekByUserId = function (personId) {
-    const userId = mongoose.Types.ObjectId(personId);
-
-    const pdtstart = moment()
-      .tz('America/Los_Angeles')
-      .startOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
-    const pdtend = moment()
-      .tz('America/Los_Angeles')
-      .endOf('week')
-      .subtract(1, 'week')
-      .format('YYYY-MM-DD');
-
-    return timeEntries
-      .find(
-        {
-          personId: userId,
-          dateOfWork: { $gte: pdtstart, $lte: pdtend },
-          isTangible: true,
-        },
-        'totalSeconds',
-      )
-      .then((results) => {
-        const totalTangibleWeeklySeconds = results.reduce(
-          (acc, { totalSeconds }) => acc + totalSeconds,
-          0,
-        );
-        return (totalTangibleWeeklySeconds / 3600).toFixed(2);
-      });
-  };
-
   const sendDeactivateEmailBody = function (
     firstName,
     lastName,
@@ -2658,35 +3253,34 @@ const userHelper = function () {
       const startOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
-        .subtract(1, 'week')
-        .toDate();
-      const endOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .subtract(1, 'week')
-        .toDate();
+        .subtract(1, 'week');
+      const pdtEndOfLastWeek = moment(pdtStartOfLastWeek).endOf('week');
 
-      const usersWithInfringements = await userProfile.find({
-        infringements: {
-          $elemMatch: {
-            date: {
-              $gte: moment(startOfLastWeek).format('YYYY-MM-DD'),
-              $lte: moment(endOfLastWeek).format('YYYY-MM-DD'),
-            },
+      const users = await userProfile.find(
+        {
+          isActive: true,
+          'infringements.date': {
+            $gte: pdtStartOfLastWeek.toDate(),
+            $lte: pdtEndOfLastWeek.toDate(),
           },
         },
-        isActive: true,
-      });
+        '_id weeklyComittedHours weeklySummaries missedHours firstName email weeklySummaryOption weeklySummaryNotReq infringements startDate role jobTitle',
+      );
 
-      for (const user of usersWithInfringements) {
+      for (const user of users) {
         const infringement = user.infringements.find((inf) =>
-          moment(inf.date).isBetween(startOfLastWeek, endOfLastWeek, null, '[]'),
+          moment(inf.date).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, null, '[]'),
         );
         if (!infringement) continue;
 
-        // Get tangible hours logged for last week using timeEntries collection
-        const hoursLogged = parseFloat(await getTangibleHoursReportedLastWeekByUserId(user._id));
-        console.log('hoursLogged', hoursLogged);
+        // Fetch weekly logs for this user
+        const timeLogs = await TimeLog.find({
+          userId: user._id,
+          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
+        });
+
+        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
+        const hoursLogged = totalSeconds / 3600;
         const weeklycommittedHours = user.weeklyComittedHours || 0;
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
@@ -2731,7 +3325,7 @@ const userHelper = function () {
           '[RESEND] Blue Square Notification',
           emailBody,
           null,
-          DEFAULT_CC_EMAILS,
+          ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
           user.email,
           [...new Set(emailsBCCs)],
         );
@@ -2753,7 +3347,7 @@ const userHelper = function () {
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
-    reActivateUser,
+    reactivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
@@ -2762,7 +3356,6 @@ const userHelper = function () {
     awardNewBadges,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
-    getTangibleHoursReportedLastWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
