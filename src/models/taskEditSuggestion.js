@@ -13,11 +13,13 @@ const TaskEditSuggestion = new Schema({
   taskId: { type: Schema.Types.ObjectId, ref: 'task', required: true },
   wbsId: { type: mongoose.SchemaTypes.ObjectId, ref: 'wbs', required: true },
   projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'projects', required: true },
-  projectMembers: [{
-    _id: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-  }],
+  projectMembers: [
+    {
+      _id: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String, required: true },
+    },
+  ],
   oldTask: {
     _id: { type: mongoose.SchemaTypes.ObjectId, ref: 'tasks', required: true },
     taskName: { type: String, required: true },
@@ -25,7 +27,7 @@ const TaskEditSuggestion = new Schema({
     resources: [
       {
         name: { type: String, required: true },
-        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
         profilePic: { type: String },
         completedTask: { type: Boolean, default: false },
       },
@@ -50,7 +52,7 @@ const TaskEditSuggestion = new Schema({
     resources: [
       {
         name: { type: String, required: true },
-        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
         profilePic: { type: String },
         completedTask: { type: Boolean, default: false },
       },
