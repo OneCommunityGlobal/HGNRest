@@ -1331,6 +1331,51 @@ const taskController = function (Task) {
     }
   };
 
+  const getResolvedTasks = async (req, res) => {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'taskId',
+          select: 'taskName num resources projectId',
+          populate: {
+            path: 'resources.userID',
+            model: 'userProfile',
+            select: 'email',
+          },
+        })
+        .populate('userId', 'firstName lastName email')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      res.status(200).json({
+        tasks: changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching resolved tasks:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   // New endpoint to get change logs for a user across all tasks
   const getUserTaskChangeLogs = async (req, res) => {
     try {
@@ -1398,6 +1443,7 @@ const taskController = function (Task) {
     fixTaskOverrides,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    getResolvedTasks,
     replicateTasks,
   };
 };

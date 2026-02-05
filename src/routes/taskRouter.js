@@ -41,6 +41,7 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/tasks/replicate/:id').post(controller.replicateTasks);
   taskRouter.route('/tasks/fix-overrides/:wbsId').post(controller.fixTaskOverrides);
+  taskRouter.route('/tasks/resolved').get(controller.getResolvedTasks);
 
   // New routes for task change logs
   taskRouter.route('/task/:taskId/changeLogs').get(controller.getTaskChangeLogs);
