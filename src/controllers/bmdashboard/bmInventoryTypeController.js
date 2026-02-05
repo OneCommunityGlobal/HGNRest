@@ -373,31 +373,40 @@ function bmInventoryTypeController(
       const {
         name,
         unit,
+        type,
         requestor: { requestorId },
       } = req.body;
 
-      // 1. Fetch existing document
-      const invType = await MatType.findById(invtypeId);
-      if (!invType) {
-        return res.status(404).send('invType Material not found check Id');
+      // Selection of Collection depending on Type
+      let CollectionName = InvType;
+      if (type === 'Material') {
+        CollectionName = MatType;
+      } else if (type === 'Consumable') {
+        CollectionName = ConsType;
       }
 
-      // 2. Name uniqueness check
+      // Fetch existing document
+      const invType = await CollectionName.findById(invtypeId);
+      if (!invType) {
+        return res.status(404).send(`invType ${type} not found check Id`);
+      }
+
+      // Name uniqueness check
       if (name && name !== invType.name) {
-        const existingInvType = await MatType.findOne({
+        const existingInvType = await CollectionName.findOne({
           name,
           _id: { $ne: invtypeId },
         });
 
         if (existingInvType) {
-          return res.status(404).send('Material name already exists');
+          return res.status(404).send(`${type} name already exists`);
         }
       }
 
       const historyDocs = [];
       const updateData = {};
 
-      // 3. Track name change
+      // Track name change
       if (name && name !== invType.name) {
         historyDocs.push({
           invtypeId,
@@ -409,7 +418,7 @@ function bmInventoryTypeController(
         updateData.name = name;
       }
 
-      // 4. Track unit change
+      // Track unit change
       if (unit && unit !== invType.unit) {
         historyDocs.push({
           invtypeId,
@@ -421,13 +430,13 @@ function bmInventoryTypeController(
         updateData.unit = unit;
       }
 
-      // 5. Save history (if any)
+      //  Save history (if any)
       if (historyDocs.length > 0) {
         await invTypeHistory.insertMany(historyDocs);
       }
 
-      // 6. Update main document
-      const updatedInvType = await MatType.findByIdAndUpdate(invtypeId, updateData, {
+      // Update main document
+      const updatedInvType = await CollectionName.findByIdAndUpdate(invtypeId, updateData, {
         new: true,
         runValidators: true,
       });
