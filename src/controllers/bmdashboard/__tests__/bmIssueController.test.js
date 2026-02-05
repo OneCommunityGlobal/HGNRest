@@ -109,8 +109,11 @@ describe('Building Issue Controller', () => {
       await controller.bmGetOpenIssue(req, res);
 
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
-      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
-      expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.$and).toBeDefined();
+      expect(callArgs.$and[0].createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.$and[1].$or).toBeDefined();
+      expect(callArgs.$and[1].$or).toContainEqual({ status: 'open' });
+      expect(callArgs.$and[1].$or[1].closedDate.$gte).toBeInstanceOf(Date);
     });
 
     it('should filter by startDate only when endDate not provided', async () => {
@@ -120,8 +123,9 @@ describe('Building Issue Controller', () => {
       await controller.bmGetOpenIssue(req, res);
 
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
-      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
-      expect(callArgs.createdDate.$lte).toBeUndefined();
+      expect(callArgs.$or).toBeDefined();
+      expect(callArgs.$or).toContainEqual({ status: 'open' });
+      expect(callArgs.$or[1].closedDate.$gte).toBeInstanceOf(Date);
     });
 
     it('should filter by endDate only when startDate not provided', async () => {
@@ -132,7 +136,77 @@ describe('Building Issue Controller', () => {
 
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
       expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
-      expect(callArgs.createdDate.$gte).toBeUndefined();
+    });
+
+    it('should show issue created before range and still open', async () => {
+      req.query.startDate = '2024-06-01';
+      req.query.endDate = '2024-06-30';
+      const mockIssues = [
+        {
+          _id: '1',
+          createdDate: new Date('2024-01-01'),
+          status: 'open',
+          closedDate: null,
+        },
+      ];
+      mockBuildingIssue.find.mockResolvedValue(mockIssues);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.$and).toBeDefined();
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
+    });
+
+    it('should show issue created before range and closed during range', async () => {
+      req.query.startDate = '2024-06-01';
+      req.query.endDate = '2024-06-30';
+      const mockIssues = [
+        {
+          _id: '2',
+          createdDate: new Date('2024-01-01'),
+          status: 'closed',
+          closedDate: new Date('2024-06-15'),
+        },
+      ];
+      mockBuildingIssue.find.mockResolvedValue(mockIssues);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.$and[1].$or[1].closedDate.$gte).toBeInstanceOf(Date);
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
+    });
+
+    it('should NOT show issue closed before range', async () => {
+      req.query.startDate = '2024-06-01';
+      req.query.endDate = '2024-06-30';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.$and[1].$or[1].closedDate.$gte).toBeInstanceOf(Date);
+    });
+
+    it('should show issue created during range regardless of closed status', async () => {
+      req.query.startDate = '2024-06-01';
+      req.query.endDate = '2024-06-30';
+      const mockIssues = [
+        {
+          _id: '3',
+          createdDate: new Date('2024-06-15'),
+          status: 'closed',
+          closedDate: new Date('2024-07-01'),
+        },
+      ];
+      mockBuildingIssue.find.mockResolvedValue(mockIssues);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.$and[0].createdDate.$lte).toBeInstanceOf(Date);
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
     });
 
     it('should filter by tag when provided', async () => {
@@ -155,10 +229,10 @@ describe('Building Issue Controller', () => {
       await controller.bmGetOpenIssue(req, res);
 
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
-      expect(callArgs.status).toBe('open');
       expect(callArgs.projectId.$in).toHaveLength(1);
-      expect(callArgs.createdDate.$gte).toBeInstanceOf(Date);
-      expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.$and).toBeDefined();
+      expect(callArgs.$and[0].createdDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.$and[1].$or).toBeDefined();
       expect(callArgs.tag).toBe('Virtual');
     });
 
@@ -252,11 +326,12 @@ describe('Building Issue Controller', () => {
 
       await controller.bmUpdateIssue(req, res);
 
-      expect(mockBuildingIssue.findByIdAndUpdate).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
-        { $set: { issueTitle: ['Updated Title'], status: 'closed' } },
-        { new: true },
-      );
+      const callArgs = mockBuildingIssue.findByIdAndUpdate.mock.calls[0];
+      expect(callArgs[0]).toBe('507f1f77bcf86cd799439011');
+      expect(callArgs[1].$set.issueTitle).toEqual(['Updated Title']);
+      expect(callArgs[1].$set.status).toBe('closed');
+      expect(callArgs[1].$set.closedDate).toBeInstanceOf(Date);
+      expect(callArgs[2]).toEqual({ new: true });
       expect(res.json).toHaveBeenCalledWith(mockUpdatedIssue);
     });
 
@@ -326,6 +401,54 @@ describe('Building Issue Controller', () => {
       await controller.bmUpdateIssue(req, res);
 
       expect(res.json).toHaveBeenCalledWith({ error: 'Unexpected error' });
+    });
+
+    it('should set closedDate when closing an issue', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { status: 'closed' };
+
+      const mockUpdatedIssue = {
+        _id: '507f1f77bcf86cd799439011',
+        status: 'closed',
+        closedDate: new Date(),
+      };
+
+      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(mockUpdatedIssue);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      const callArgs = mockBuildingIssue.findByIdAndUpdate.mock.calls[0][1];
+      expect(callArgs.$set.closedDate).toBeInstanceOf(Date);
+      expect(callArgs.$set.status).toBe('closed');
+    });
+
+    it('should clear closedDate when reopening an issue', async () => {
+      req.params.id = '507f1f77bcf86cd799439011';
+      req.body = { status: 'open' };
+
+      const mockUpdatedIssue = {
+        _id: '507f1f77bcf86cd799439011',
+        status: 'open',
+        closedDate: null,
+      };
+
+      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
+        then: jest.fn((resolve) => {
+          resolve(mockUpdatedIssue);
+          return { catch: jest.fn() };
+        }),
+      });
+
+      await controller.bmUpdateIssue(req, res);
+
+      const callArgs = mockBuildingIssue.findByIdAndUpdate.mock.calls[0][1];
+      expect(callArgs.$set.closedDate).toBeNull();
+      expect(callArgs.$set.status).toBe('open');
     });
   });
 
