@@ -32,6 +32,7 @@ const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -470,6 +471,15 @@ const userHelper = function () {
       .catch((error) => logger.logException(error));
   };
 
+  const sortInfringementsNewestFirst = (arr = []) =>
+    [...arr].sort((a, b) => {
+      const dateDiff = new Date(b.date || 0) - new Date(a.date || 0);
+      if (dateDiff !== 0) return dateDiff;
+
+      // Tie breaker → createdDate
+      return new Date(b.createdDate || 0) - new Date(a.createdDate || 0);
+    });
+
   /**
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
@@ -501,7 +511,6 @@ const userHelper = function () {
        * - Added batch processing for assigning blue squares to users to ensure scalability and prevent MongoDB timeouts.
        * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
        */
-      const emailQueue = [];
       const batchSize = 500;
       let skip = 0;
       // eslint-disable-next-line no-constant-condition
@@ -594,20 +603,12 @@ const userHelper = function () {
               }
 
               const cutOffDate = moment().subtract(1, 'year');
-
-              const oldInfringements = [];
-              for (let k = 0; k < updateResult?.infringements.length; k += 1) {
-                if (
-                  updateResult?.infringements &&
-                  moment(new Date(updateResult.infringements[k].date).toISOString()).diff(
-                    cutOffDate,
-                  ) >= 0
-                ) {
-                  oldInfringements.push(updateResult.infringements[k]);
-                } else {
-                  break;
-                }
-              }
+              const sortedInfringements = sortInfringementsNewestFirst(
+                updateResult?.infringements || [],
+              );
+              const oldInfringements = sortedInfringements.filter((inf) =>
+                moment(inf.date).isSameOrAfter(cutOffDate),
+              );
               let historyInfringements = 'No Previous Infringements.';
               if (oldInfringements.length) {
                 await userProfile.findByIdAndUpdate(
@@ -809,6 +810,7 @@ const userHelper = function () {
                     },
                     { new: true },
                   );
+
                   const administrativeContent = {
                     startDate: moment
                       .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
@@ -925,18 +927,6 @@ const userHelper = function () {
         );
 
         skip += batchSize;
-      }
-
-      for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.bcc,
-          email.from,
-          email.replyTo,
-          email.attachments,
-        );
       }
 
       await deleteOldTimeOffRequests();
@@ -1768,7 +1758,7 @@ const userHelper = function () {
     }
   };
 
-  const reActivateUser = async () => {
+  const reactivateUser = async () => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
     logger.logInfo(
@@ -1845,7 +1835,8 @@ const userHelper = function () {
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
     if (original.length) {
-      historyInfringements = original
+      const sortedOriginal = sortInfringementsNewestFirst(original);
+      historyInfringements = sortedOriginal
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -3356,7 +3347,7 @@ const userHelper = function () {
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
-    reActivateUser,
+    reactivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,

@@ -1455,104 +1455,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       .catch((error) => res.status(404).send(error));
   };
 
-  // const updateOneProperty = async function (req, res) {
-  //   const { userId } = req.params;
-  //   const { key, value } = req.body;
-
-  //   const canEditProtectedAccount = await canRequestorUpdateUser(
-  //     req.body.requestor.requestorId,
-  //     userId,
-  //   );
-
-  //   if (!canEditProtectedAccount) {
-  //     logger.logInfo(
-  //       `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
-  //     );
-  //     res.status(403).send('You are not authorized to update this user');
-  //     return;
-  //   }
-
-  //   if (key === 'teamCode') {
-  //     const canEditTeamCode =
-  //       req.body.requestor.role === 'Owner' ||
-  //       req.body.requestor.role === 'Administrator' ||
-  //       req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-  //     if (!canEditTeamCode) {
-  //       res.status(403).send('You are not authorized to edit team code.');
-  //       return;
-  //     }
-  //   }
-
-  //   // remove user from cache, it should be loaded next time
-  //   cache.removeCache(`user-${userId}`);
-  //   if (!key || value === undefined) {
-  //     return res.status(400).send({ error: 'Missing property or value' });
-  //   }
-
-  //   return UserProfile.findById(userId)
-  //     .then((user) => {
-  //       let originalRecord = null;
-  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-  //         originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
-  //       }
-  //       user.set({
-  //         [key]: value,
-  //       });
-  //       let updatedDiff = null;
-  //       if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-  //         updatedDiff = user.modifiedPaths();
-  //       }
-  //       return user
-  //         .save()
-  //         .then(() => {
-  //           // If bioPosted was updated via this generic property route,
-  //           // update caches and invalidate weekly summaries to avoid stale data.
-  //           if (key === 'bioPosted') {
-  //             try {
-  //               // Update or invalidate the allusers cache
-  //               if (cache.hasCache('allusers')) {
-  //                 const allUserData = JSON.parse(cache.getCache('allusers'));
-  //                 const userIdx = allUserData.findIndex((u) => u._id === userId);
-  //                 if (userIdx !== -1) {
-  //                   allUserData[userIdx].bioPosted = value;
-  //                   cache.setCache('allusers', JSON.stringify(allUserData));
-  //                 } else {
-  //                   cache.removeCache('allusers');
-  //                 }
-  //               }
-
-  //               // Invalidate weekly summaries caches, as bioPosted is part of that response
-  //               for (let week = 0; week <= 3; week += 1) {
-  //                 reportsController.invalidateWeeklySummariesCache(week);
-  //               }
-  //               for (let week = 0; week <= 10; week += 1) {
-  //                 cache.removeCache(`weeklySummaries_${week}`);
-  //               }
-  //               cache.removeCache('weeklySummaries_all');
-  //               cache.removeCache('weeklySummaries_null');
-  //               cache.removeCache('weeklySummaries_undefined');
-  //             } catch (e) {
-  //               // non-blocking cache invalidation
-  //               // eslint-disable-next-line no-console
-  //               console.error('Error invalidating caches after bioPosted update:', e);
-  //             }
-  //           }
-
-  //           res.status(200).send({ message: 'updated property' });
-  //           auditIfProtectedAccountUpdated(
-  //             req.body.requestor.requestorId,
-  //             originalRecord.email,
-  //             originalRecord,
-  //             user,
-  //             updatedDiff,
-  //             'update',
-  //           );
-  //         })
-  //         .catch((error) => res.status(500).send(error));
-  //     })
-  //     .catch((error) => res.status(500).send(error));
-  // };
   const updateOneProperty = async (req, res) => {
     const { userId } = req.params;
     const { key, value, requestor } = req.body;
@@ -2299,13 +2201,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
-      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
       const newInfringement = {
         ...req.body.blueSquare,
-        // date:validDate,
         date: inputDate,
 
-        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
         reason: [
           'missingHours',
@@ -2318,7 +2217,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           : 'missingHours',
         // Maintain backward compatibility
       };
-      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -2336,14 +2234,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       record.infringements = originalinfringements.concat(newInfringement);
       record.infringementCount += 1;
 
+      console.log('Original infringements:', originalinfringements);
+      console.log('Record infringements:', record.infringements);
+
       record
         .save()
         .then(async (results) => {
-          console.log(
-            '✅ Infringements saved in DB:',
-            JSON.stringify(results.infringements, null, 2),
-          );
-
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
