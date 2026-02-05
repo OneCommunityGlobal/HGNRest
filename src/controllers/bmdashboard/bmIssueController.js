@@ -1,4 +1,5 @@
 const { ObjectId } = require('mongoose').Types;
+const { endOfDay } = require('date-fns');
 
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
@@ -8,7 +9,8 @@ const bmIssueController = function (buildingIssue) {
     try {
       const { projectIds, startDate, endDate, tag } = req.query;
 
-      const query = { status: 'open' }; // Always filter for open issues
+      // Build base query - NO STATUS FILTER YET
+      const query = {};
 
       // Handle projectIds if provided
       if (projectIds) {
@@ -21,16 +23,38 @@ const bmIssueController = function (buildingIssue) {
         }
       }
 
-      // Build date filter
-      if (startDate && endDate) {
-        query.createdDate = {
-          $gte: new Date(startDate),
-          $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-        };
-      } else if (startDate) {
-        query.createdDate = { $gte: new Date(startDate) };
-      } else if (endDate) {
-        query.createdDate = { $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) };
+      // Build date filter for "open during range"
+      if (startDate || endDate) {
+        if (startDate && endDate) {
+          const start = new Date(startDate);
+          const end = endOfDay(new Date(endDate));
+
+          // Issue is "open during range" if:
+          // 1. Created before or during the range (createdDate <= endDate)
+          // 2. AND either:
+          //    a. Still open (status = 'open'), OR
+          //    b. Closed during or after the range (closedDate >= startDate)
+
+          query.$and = [
+            { createdDate: { $lte: end } },
+            {
+              $or: [{ status: 'open' }, { closedDate: { $gte: start } }],
+            },
+          ];
+        } else if (startDate) {
+          const start = new Date(startDate);
+          // Show all issues that are:
+          // - Still open, OR
+          // - Closed on or after startDate
+          query.$or = [{ status: 'open' }, { closedDate: { $gte: start } }];
+        } else if (endDate) {
+          const end = endOfDay(new Date(endDate));
+          // Show all issues created before or on endDate
+          query.createdDate = { $lte: end };
+        }
+      } else {
+        // No date filter: only show currently open issues (original behavior)
+        query.status = 'open';
       }
 
       // Add tag filter if provided
@@ -38,7 +62,7 @@ const bmIssueController = function (buildingIssue) {
         query.tag = tag;
       }
 
-      // Fetch open issues
+      // Fetch issues
       const results = await buildingIssue.find(query);
       return res.json(results || []);
     } catch (error) {
@@ -107,10 +131,21 @@ const bmIssueController = function (buildingIssue) {
   // Update an existing issue
   const bmUpdateIssue = async (req, res) => {
     try {
-      const updates = req.body;
-
-      if (!updates || typeof updates !== 'object') {
+      if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ message: 'Invalid update data.' });
+      }
+
+      // Create a copy to avoid mutating req.body
+      const updates = { ...req.body };
+
+      // If closing an issue, set closedDate
+      if (updates.status === 'closed') {
+        updates.closedDate = new Date();
+      }
+
+      // If reopening a closed issue, clear closedDate
+      if (updates.status === 'open') {
+        updates.closedDate = null;
       }
 
       buildingIssue

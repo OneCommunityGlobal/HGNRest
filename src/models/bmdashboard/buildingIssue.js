@@ -5,6 +5,7 @@ const { Schema } = mongoose;
 const buildingIssue = new Schema({
   createdDate: { type: Date, required: true, default: Date.now() },
   issueDate: { type: Date, required: true },
+  closedDate: { type: Date, default: null },
   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
   staffInvolved: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' }],
   issueTitle: [{ type: String, required: true, maxLength: 50 }],
