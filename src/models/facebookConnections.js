@@ -9,7 +9,7 @@ const { Schema } = mongoose;
 const FacebookConnectionSchema = new Schema(
   {
     // Page details
-    pageId: { type: String, required: true, unique: true },
+    pageId: { type: String, required: true },
     pageName: { type: String },
     pageAccessToken: { type: String, required: true },
 
@@ -46,8 +46,14 @@ const FacebookConnectionSchema = new Schema(
   { timestamps: true },
 );
 
+// Unique active connection per pageId, allow multiple inactive records
+FacebookConnectionSchema.index(
+  { pageId: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } },
+);
+
 // Index for quick lookup of active connection
-FacebookConnectionSchema.index({ isActive: 1, pageId: 1 });
+FacebookConnectionSchema.index({ isActive: 1, createdAt: -1 });
 
 /**
  * Static method to get the active connection (if any)

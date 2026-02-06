@@ -11,6 +11,25 @@ const PST_TIMEZONE = 'America/Los_Angeles';
 const fallbackPageId = process.env.FACEBOOK_PAGE_ID;
 const fallbackPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
+/**
+ * Extracts requestor from request - handles both body (POST) and query (GET)
+ */
+const getRequestor = (req) => {
+  if (req.body?.requestor) {
+    return req.body.requestor;
+  }
+
+  if (req.query?.requestor) {
+    try {
+      return JSON.parse(req.query.requestor);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
 const getCredentials = async () => {
   const connection = await FacebookConnection.getActiveConnection();
 
@@ -230,11 +249,9 @@ const postToFacebookWithImage = async (req, res) => {
   const imageFile = req.file;
 
   if (!imageFile) {
-    res
-      .status(400)
-      .send({
-        error: 'No image file provided. Use the regular post endpoint for URL-based images.',
-      });
+    res.status(400).send({
+      error: 'No image file provided. Use the regular post endpoint for URL-based images.',
+    });
     return;
   }
 
@@ -432,8 +449,9 @@ const scheduleFacebookPostWithImage = async (req, res) => {
 };
 
 const getScheduledPosts = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
+  const requestor = getRequestor(req);
+  const canPost = await hasPermission(requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(requestor, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view scheduled posts.' });
     return;
@@ -470,8 +488,9 @@ const getScheduledPosts = async (req, res) => {
 };
 
 const getPostHistory = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
+  const requestor = getRequestor(req);
+  const canPost = await hasPermission(requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(requestor, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view post history.' });
     return;

@@ -2,6 +2,22 @@ const axios = require('axios');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
 
+console.log('[FacebookAuth] ===== CONTROLLER LOADED =====');
+
+const dropOldIndex = async () => {
+  try {
+    await FacebookConnection.collection.dropIndex('pageId_1');
+    console.log('[FacebookAuth] Dropped old pageId_1 index');
+  } catch (err) {
+    // Index might not exist, that's fine
+    if (err.code !== 27) {
+      // 27 = index not found
+      console.log('[FacebookAuth] Index drop note:', err.message);
+    }
+  }
+};
+dropOldIndex();
+
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const appId = process.env.FACEBOOK_APP_ID;
 const appSecret = process.env.FACEBOOK_APP_SECRET;
@@ -31,18 +47,18 @@ const getConnectionStatus = async (req, res) => {
       });
     }
 
-    // Check if token is expired or expiring soon (within 7 days)
-    const now = new Date();
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const isExpired = connection.tokenExpiresAt && connection.tokenExpiresAt < now;
-    const isExpiringSoon =
-      connection.tokenExpiresAt && connection.tokenExpiresAt < sevenDaysFromNow;
-
+    // Page tokens derived from long-lived user tokens don't actually expire
+    // Only mark as expired if we've verified the token doesn't work
     let tokenStatus = 'valid';
-    if (isExpired) {
-      tokenStatus = 'expired';
-    } else if (isExpiringSoon) {
-      tokenStatus = 'expiring_soon';
+    if (connection.lastError) {
+      const errorLower = connection.lastError.toLowerCase();
+      if (
+        errorLower.includes('expired') ||
+        errorLower.includes('invalid') ||
+        errorLower.includes('session')
+      ) {
+        tokenStatus = 'expired';
+      }
     }
 
     return res.status(200).json({
@@ -52,7 +68,6 @@ const getConnectionStatus = async (req, res) => {
       connectedAt: connection.createdAt,
       connectedBy: connection.connectedBy?.name || 'Unknown',
       tokenStatus,
-      tokenExpiresAt: connection.tokenExpiresAt,
       lastVerifiedAt: connection.lastVerifiedAt,
       lastError: connection.lastError,
     });
@@ -159,6 +174,7 @@ const handleAuthCallback = async (req, res) => {
  * Saves the selected Page connection to database
  */
 const connectPage = async (req, res) => {
+  console.log('[FacebookAuth] ===== CONNECT PAGE V2 =====');
   const { requestor } = req.body;
 
   if (!(await canManageConnection(requestor))) {
@@ -184,21 +200,45 @@ const connectPage = async (req, res) => {
 
     const verifiedPageName = verifyResponse.data.name || pageName;
 
-    // Deactivate any existing connections
-    await FacebookConnection.deactivateAll({
-      odUserId: requestor?.requestorId,
-      name: requestor?.name || 'Unknown',
-      role: requestor?.role,
-    });
+    // DEBUG: Check what exists before delete
+    const existingBefore = await FacebookConnection.find({ pageId });
+    console.log(
+      '[FacebookAuth] DEBUG: Found',
+      existingBefore.length,
+      'existing records for pageId:',
+      pageId,
+    );
 
-    // Create new connection
+    // Delete ALL existing records for this pageId to avoid duplicate key error
+    // This is simpler than fighting with indexes
+    const deleteResult = await FacebookConnection.deleteMany({ pageId });
+    console.log('[FacebookAuth] DEBUG: deleteMany result:', JSON.stringify(deleteResult));
+
+    // DEBUG: Check what exists after delete
+    const existingAfter = await FacebookConnection.find({ pageId });
+    console.log('[FacebookAuth] DEBUG: After delete, found', existingAfter.length, 'records');
+
+    // Also deactivate any other active connections (different pages)
+    await FacebookConnection.updateMany(
+      { pageId: { $ne: pageId }, isActive: true },
+      {
+        isActive: false,
+        disconnectedBy: {
+          odUserId: requestor?.requestorId,
+          name: requestor?.name || 'Unknown',
+          role: requestor?.role,
+          disconnectedAt: new Date(),
+        },
+      },
+    );
+
+    console.log('[FacebookAuth] DEBUG: About to create new connection...');
+
+    // Create fresh connection
     const connection = new FacebookConnection({
       pageId,
       pageName: verifiedPageName,
       pageAccessToken,
-      // Page tokens derived from long-lived user tokens don't expire
-      // but we'll set a far-future date for safety
-      tokenExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
       userAccessToken: userToken?.token,
       userTokenExpiresAt: userToken?.expiresAt,
       userId: userToken?.userId,
@@ -213,6 +253,7 @@ const connectPage = async (req, res) => {
     });
 
     await connection.save();
+    console.log('[FacebookAuth] DEBUG: Save successful!');
 
     console.log('[FacebookAuth] Page connected successfully:', pageId, verifiedPageName);
 
