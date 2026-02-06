@@ -6,13 +6,13 @@ const seedDir = __dirname; // assuming this file lives in src/seeders
 
 const scripts = [
   'seedBadge.js',
-  'seedProject.js',
   'seedSubject.js',
+  'seedProject.js',
   'seedAtom.js',
   'seedUserProfile.js',
+  'seedWbs.js',
   'seedApplicationAccess.js',
   'seedTeams.js',
-  'seedWbs.js',
   'seedTask.js',
   'seedLessonPlan.js',
   'seedProgress.js',
@@ -39,8 +39,10 @@ function runScript(file) {
 
 (async () => {
   try {
-    // Run each script one by one
-    await Promise.all(scripts.map((script) => runScript(script)));
+    // Run each script sequentially to handle dependencies
+    for (const script of scripts) {
+      await runScript(script);
+    }
 
     console.log('\n🎉 All seed scripts completed successfully');
     process.exit(0);
