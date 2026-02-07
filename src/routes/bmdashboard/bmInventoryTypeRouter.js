@@ -40,6 +40,13 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .put(controller.updateNameAndUnit);
 
   inventoryTypeRouter.route('/inventoryUnits').get(controller.fetchInvUnitsFromJson);
+  // Route for deleting an inventory type by ID
+  inventoryTypeRouter.delete('/invtypes/:id', controller.deleteInvType);
+  inventoryTypeRouter.delete('/invtypes/material/:id', controller.deleteMaterialType);
+  inventoryTypeRouter.delete('/invtypes/consumable/:id', controller.deleteConsumableType);
+  inventoryTypeRouter.delete('/invtypes/reusable/:id', controller.deleteReusableType);
+  inventoryTypeRouter.delete('/invtypes/tool/:id', controller.deleteToolType);
+  inventoryTypeRouter.delete('/invtypes/equipment/:id', controller.deleteEquipmentType);
 
   return inventoryTypeRouter;
 };
