@@ -9,9 +9,7 @@ const dropOldIndex = async () => {
     await FacebookConnection.collection.dropIndex('pageId_1');
     console.log('[FacebookAuth] Dropped old pageId_1 index');
   } catch (err) {
-    // Index might not exist, that's fine
     if (err.code !== 27) {
-      // 27 = index not found
       console.log('[FacebookAuth] Index drop note:', err.message);
     }
   }
@@ -21,6 +19,25 @@ dropOldIndex();
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const appId = process.env.FACEBOOK_APP_ID;
 const appSecret = process.env.FACEBOOK_APP_SECRET;
+
+// ---- Server-side token holding store ----
+// Tokens from OAuth callback are held here (keyed by nonce) until
+// the user selects a page. Entries auto-expire after 10 minutes.
+const pendingConnections = new Map();
+const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Periodic cleanup every 5 minutes for any expired entries
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [nonce, entry] of pendingConnections) {
+      if (now - entry.createdAt > PENDING_TTL_MS) {
+        pendingConnections.delete(nonce);
+      }
+    }
+  },
+  5 * 60 * 1000,
+);
 
 /**
  * Check if user can manage Facebook connection (Owner/Admin only)
@@ -47,8 +64,6 @@ const getConnectionStatus = async (req, res) => {
       });
     }
 
-    // Page tokens derived from long-lived user tokens don't actually expire
-    // Only mark as expired if we've verified the token doesn't work
     let tokenStatus = 'valid';
     if (connection.lastError) {
       const errorLower = connection.lastError.toLowerCase();
@@ -79,7 +94,8 @@ const getConnectionStatus = async (req, res) => {
 
 /**
  * POST /api/social/facebook/auth/callback
- * Exchanges short-lived token for long-lived token and stores connection
+ * Exchanges short-lived token for long-lived token.
+ * Stores tokens SERVER-SIDE and returns only page metadata + nonce.
  */
 const handleAuthCallback = async (req, res) => {
   const { requestor } = req.body;
@@ -115,7 +131,7 @@ const handleAuthCallback = async (req, res) => {
     });
 
     const longLivedUserToken = tokenResponse.data.access_token;
-    const userTokenExpiresIn = tokenResponse.data.expires_in; // seconds
+    const userTokenExpiresIn = tokenResponse.data.expires_in || 5184000; // Default 60 days
     const userTokenExpiresAt = new Date(Date.now() + userTokenExpiresIn * 1000);
 
     console.log(
@@ -142,15 +158,15 @@ const handleAuthCallback = async (req, res) => {
       });
     }
 
-    // Return pages for user to select (if multiple)
-    // Page access tokens obtained this way are long-lived (no expiry) when derived from long-lived user token
-    return res.status(200).json({
-      success: true,
+    // Step 3: Store tokens server-side, return only metadata to client
+    const selectionNonce = `${userID}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    pendingConnections.set(selectionNonce, {
       pages: pages.map((p) => ({
         pageId: p.id,
         pageName: p.name,
         category: p.category,
-        accessToken: p.access_token, // This is already a long-lived page token
+        accessToken: p.access_token, // Stays server-side
       })),
       userToken: {
         token: longLivedUserToken,
@@ -158,6 +174,21 @@ const handleAuthCallback = async (req, res) => {
         userId: userID,
       },
       grantedScopes: grantedScopes?.split(',') || [],
+      createdAt: Date.now(),
+    });
+
+    console.log('[FacebookAuth] Stored pending connection, nonce:', selectionNonce);
+
+    // Return page list WITHOUT tokens
+    return res.status(200).json({
+      success: true,
+      selectionNonce,
+      pages: pages.map((p) => ({
+        pageId: p.id,
+        pageName: p.name,
+        category: p.category,
+        // No accessToken - tokens stay server-side
+      })),
     });
   } catch (error) {
     const fbError = error.response?.data?.error;
@@ -171,24 +202,45 @@ const handleAuthCallback = async (req, res) => {
 
 /**
  * POST /api/social/facebook/auth/connect
- * Saves the selected Page connection to database
+ * Saves the selected Page connection using server-held tokens.
+ * Accepts selectionNonce + pageId (no raw tokens from client).
  */
 const connectPage = async (req, res) => {
-  console.log('[FacebookAuth] ===== CONNECT PAGE V2 =====');
+  console.log('[FacebookAuth] ===== CONNECT PAGE =====');
   const { requestor } = req.body;
 
   if (!(await canManageConnection(requestor))) {
     return res.status(403).json({ error: 'Only Owners and Administrators can connect Facebook.' });
   }
 
-  const { pageId, pageName, pageAccessToken, userToken, grantedScopes } = req.body;
+  const { pageId, pageName, selectionNonce } = req.body;
 
-  if (!pageId || !pageAccessToken) {
-    return res.status(400).json({ error: 'pageId and pageAccessToken are required' });
+  if (!pageId || !selectionNonce) {
+    return res.status(400).json({ error: 'pageId and selectionNonce are required' });
   }
 
+  // Look up tokens from server-side store
+  const pending = pendingConnections.get(selectionNonce);
+  if (!pending) {
+    return res.status(400).json({
+      error: 'Connection session expired or invalid. Please reconnect with Facebook.',
+    });
+  }
+
+  const selectedPage = pending.pages.find((p) => p.pageId === pageId);
+  if (!selectedPage) {
+    return res.status(400).json({ error: 'Selected page not found in authorized pages.' });
+  }
+
+  // Extract tokens from server-side store (never came from client)
+  const pageAccessToken = selectedPage.accessToken;
+  const { userToken, grantedScopes } = pending;
+
+  // Clean up pending entry immediately
+  pendingConnections.delete(selectionNonce);
+
   try {
-    // Verify the token works by making a test API call
+    // Verify the token works
     console.log('[FacebookAuth] Verifying page token...');
     const verifyUrl = `${graphBaseUrl}/${pageId}`;
     const verifyResponse = await axios.get(verifyUrl, {
@@ -200,25 +252,10 @@ const connectPage = async (req, res) => {
 
     const verifiedPageName = verifyResponse.data.name || pageName;
 
-    // DEBUG: Check what exists before delete
-    const existingBefore = await FacebookConnection.find({ pageId });
-    console.log(
-      '[FacebookAuth] DEBUG: Found',
-      existingBefore.length,
-      'existing records for pageId:',
-      pageId,
-    );
+    // Remove existing connections for this page
+    await FacebookConnection.deleteMany({ pageId });
 
-    // Delete ALL existing records for this pageId to avoid duplicate key error
-    // This is simpler than fighting with indexes
-    const deleteResult = await FacebookConnection.deleteMany({ pageId });
-    console.log('[FacebookAuth] DEBUG: deleteMany result:', JSON.stringify(deleteResult));
-
-    // DEBUG: Check what exists after delete
-    const existingAfter = await FacebookConnection.find({ pageId });
-    console.log('[FacebookAuth] DEBUG: After delete, found', existingAfter.length, 'records');
-
-    // Also deactivate any other active connections (different pages)
+    // Deactivate any other active connections (different pages)
     await FacebookConnection.updateMany(
       { pageId: { $ne: pageId }, isActive: true },
       {
@@ -231,8 +268,6 @@ const connectPage = async (req, res) => {
         },
       },
     );
-
-    console.log('[FacebookAuth] DEBUG: About to create new connection...');
 
     // Create fresh connection
     const connection = new FacebookConnection({
@@ -253,7 +288,6 @@ const connectPage = async (req, res) => {
     });
 
     await connection.save();
-    console.log('[FacebookAuth] DEBUG: Save successful!');
 
     console.log('[FacebookAuth] Page connected successfully:', pageId, verifiedPageName);
 
@@ -278,7 +312,6 @@ const connectPage = async (req, res) => {
 
 /**
  * POST /api/social/facebook/auth/disconnect
- * Disconnects the current Facebook Page
  */
 const disconnectPage = async (req, res) => {
   const { requestor } = req.body;
@@ -320,7 +353,6 @@ const disconnectPage = async (req, res) => {
 
 /**
  * POST /api/social/facebook/auth/verify
- * Verifies the current token still works
  */
 const verifyConnection = async (req, res) => {
   try {
@@ -330,7 +362,6 @@ const verifyConnection = async (req, res) => {
       return res.status(200).json({ valid: false, reason: 'No active connection' });
     }
 
-    // Test the token
     const verifyUrl = `${graphBaseUrl}/${connection.pageId}`;
     await axios.get(verifyUrl, {
       params: {
@@ -339,7 +370,6 @@ const verifyConnection = async (req, res) => {
       },
     });
 
-    // Update last verified timestamp
     connection.lastVerifiedAt = new Date();
     connection.lastError = null;
     await connection.save();
@@ -353,7 +383,6 @@ const verifyConnection = async (req, res) => {
   } catch (error) {
     const fbError = error.response?.data?.error;
 
-    // Update connection with error
     const connection = await FacebookConnection.getActiveConnection();
     if (connection) {
       connection.lastError = fbError?.message || error.message;

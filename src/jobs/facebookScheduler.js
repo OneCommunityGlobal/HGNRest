@@ -5,6 +5,7 @@ const logger = require('../startup/logger');
 
 const PST_TIMEZONE = 'America/Los_Angeles';
 const MAX_POSTS_PER_TICK = 5;
+const MAX_RETRY_ATTEMPTS = 3;
 
 /**
  * Processes the next pending scheduled post.
@@ -70,12 +71,28 @@ const processNextScheduledPost = async () => {
           errorMessage = error.message;
         }
 
-        nextPost.status = 'failed';
         nextPost.attempts += 1;
         nextPost.lastError = errorMessage;
-        await nextPost.save();
 
-        console.log('[FacebookScheduler] Marked as failed:', nextPost._id, '-', errorMessage);
+        if (nextPost.attempts >= MAX_RETRY_ATTEMPTS) {
+          nextPost.status = 'failed';
+          console.log(
+            `[FacebookScheduler] Permanently failed after ${nextPost.attempts} attempts:`,
+            nextPost._id,
+            '-',
+            errorMessage,
+          );
+        } else {
+          // Return to pending for retry on next tick
+          nextPost.status = 'pending';
+          console.log(
+            `[FacebookScheduler] Attempt ${nextPost.attempts}/${MAX_RETRY_ATTEMPTS} failed, will retry:`,
+            nextPost._id,
+            '-',
+            errorMessage,
+          );
+        }
+        await nextPost.save();
       } catch (saveError) {
         console.error('[FacebookScheduler] Failed to save error status:', saveError.message);
       }
