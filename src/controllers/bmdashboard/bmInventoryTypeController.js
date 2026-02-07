@@ -98,6 +98,25 @@ function bmInventoryTypeController(
     }
   };
 
+  const deleteById = (Model) => async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const deleted = await Model.findByIdAndDelete(id);
+
+      if (!deleted) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+
+      return res.status(200).json({
+        message: 'Deleted successfully',
+        id,
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
   async function addMaterialType(req, res) {
     const {
       name,
