@@ -303,8 +303,10 @@ const scheduleFacebookPost = async (req, res) => {
   }
 
   const { message, link, imageUrl, pageId, scheduledFor, timezone } = req.body || {};
-  if (!message) {
-    res.status(400).send({ error: 'message is required to schedule a Facebook post.' });
+  if (!message && !imageUrl && !link) {
+    res.status(400).send({
+      error: 'At least one of message, imageUrl, or link is required to schedule a Facebook post.',
+    });
     return;
   }
 
@@ -381,7 +383,7 @@ const scheduleFacebookPostWithImage = async (req, res) => {
     return;
   }
 
-  const { message, link, scheduledFor, timezone } = req.body;
+  const { message, link, scheduledFor, timezone, pageId } = req.body;
   const imageFile = req.file;
 
   // Validate: need either message or image
@@ -404,6 +406,8 @@ const scheduleFacebookPostWithImage = async (req, res) => {
     return;
   }
 
+  const targetPageId = pageId || credentials.pageId;
+
   const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
 
   if (!scheduledMoment.isValid()) {
@@ -420,7 +424,7 @@ const scheduleFacebookPostWithImage = async (req, res) => {
     const scheduledPost = new ScheduledFacebookPost({
       message: message?.trim() || '',
       link: link?.trim() || undefined,
-      pageId: credentials.pageId,
+      pageId: targetPageId,
       scheduledFor: scheduledMoment.toDate(),
       timezone: targetTimezone,
       imageData: imageFile?.buffer || null,
@@ -468,17 +472,22 @@ const getScheduledPosts = async (req, res) => {
     }
 
     const scheduledPosts = await ScheduledFacebookPost.find(query)
+      .select('-imageData')
       .sort({ scheduledFor: 1 })
       .skip(parseInt(skip, 10))
       .limit(parseInt(limit, 10))
       .lean()
       .exec();
+    const postsWithImageFlag = scheduledPosts.map((p) => ({
+      ...p,
+      hasImage: Boolean(p.imageMimeType),
+    }));
 
     const total = await ScheduledFacebookPost.countDocuments(query);
 
     res.status(200).send({
       success: true,
-      scheduledPosts,
+      scheduledPosts: postsWithImageFlag,
       pagination: { total, limit: parseInt(limit, 10), skip: parseInt(skip, 10) },
     });
   } catch (error) {
@@ -518,6 +527,7 @@ const getPostHistory = async (req, res) => {
       }
 
       results.mongoDbPosts = await ScheduledFacebookPost.find(mongoQuery)
+        .select('-imageData')
         .sort({ postedAt: -1, createdAt: -1 })
         .limit(parseInt(limit, 10))
         .lean()
