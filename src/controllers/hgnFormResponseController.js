@@ -1,3 +1,7 @@
+/* eslint-disable prefer-template */
+/* eslint-disable prefer-const */
+/* eslint-disable no-restricted-globals */
+/* eslint-disable radix */
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');
@@ -12,14 +16,7 @@ const hgnFormController = () => {
     }
 
     try {
-      const formResponse = new FormResponse({
-        userInfo,
-        general,
-        frontend,
-        backend,
-        followUp,
-        user_id,
-      });
+      const formResponse = new FormResponse(req.body);
       await formResponse.save();
       res.status(201).json(formResponse);
     } catch (err) {
@@ -132,5 +129,4 @@ const hgnFormController = () => {
 
   return { submitFormResponse, getAllFormResponses, getRankedResponses };
 };
-
 module.exports = hgnFormController;
