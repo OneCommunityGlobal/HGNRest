@@ -413,6 +413,7 @@ module.exports = function (app) {
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
+  app.use('/api/costs', costsRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/issues', bmIssuesRouter);
