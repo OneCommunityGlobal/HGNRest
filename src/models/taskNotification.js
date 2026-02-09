@@ -23,7 +23,7 @@ const taskNotificationSchema = new Schema({
     resources: [
       {
         name: { type: String, required: true },
-        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfiles' },
+        userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
         profilePic: { type: String },
         completedTask: { type: Boolean, default: false },
       },
@@ -44,8 +44,4 @@ const taskNotificationSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model(
-  'taskNotification',
-  taskNotificationSchema,
-  'taskNotifications',
-);
+module.exports = mongoose.model('taskNotification', taskNotificationSchema, 'taskNotifications');
