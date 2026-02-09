@@ -21,4 +21,4 @@ const toolReplacementSchema = new mongoose.Schema({
 
 toolReplacementSchema.index({ role: 1, date: 1 });
 
-module.exports = mongoose.model('ReplacementGraph', toolReplacementSchema);
+module.exports = mongoose.model('ToolReplacement', toolReplacementSchema);
