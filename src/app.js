@@ -10,11 +10,6 @@ logger.init();
 
 app.use(Sentry.Handlers.requestHandler());
 
-// ✅ Mount analytics routes
-const analyticsRoutes = require('./routes/applicantAnalyticsRoutes');
-
-app.use('/api/applicants', analyticsRoutes);
-
 // Then load all other setup
 require('./startup/compression')(app);
 require('./startup/cors')(app);
