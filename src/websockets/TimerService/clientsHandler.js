@@ -49,6 +49,8 @@ const action = {
 const MAX_HOURS = 5;
 const MIN_MINS = 1;
 
+const HOURS_TO_MS = 60 * 60 * 1000;
+
 const updatedTimeSinceStart = (client) => {
   if (!client.started) return client.goal;
   const now = moment.utc();
@@ -148,7 +150,7 @@ const addGoal = (client, msg) => {
 
   if (goalAfterAddition >= MAX_HOURS) {
     const oldGoal = client.goal;
-    client.goal = MAX_HOURS * 60 * 60 * 1000;
+    client.goal = MAX_HOURS * HOURS_TO_MS;
     client.time = moment
       .duration(client.time)
       .add(client.goal - oldGoal, 'milliseconds')
