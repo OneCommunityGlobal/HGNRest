@@ -114,11 +114,33 @@ async function validateFolderExists(path) {
   }
 }
 
+const CONFLICT_ERROR_STATUS = 409;
+const DEFAULT_WAIT_TIME_MS = 30000;
+
+/**
+ * Helper to check job status and return result if complete.
+ */
+async function checkJobStatus(asyncJobId) {
+  const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId.trim() });
+  const tag = status.result['.tag'];
+
+  if (tag === 'complete') {
+    return status.result;
+  }
+  if (tag === 'failed') {
+    const failedError = new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
+    failedError.name = 'ProcessError';
+    failedError.statusCode = 500;
+    throw failedError;
+  }
+  return null; // In progress
+}
+
 /**
  * Polls an async share-folder job until complete with exponential backoff.
  * Uses smart polling: starts fast, slows down over time to reduce API calls.
  */
-async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
+async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = DEFAULT_WAIT_TIME_MS) {
   // Input validation
   if (!asyncJobId || typeof asyncJobId !== 'string' || asyncJobId.trim().length === 0) {
     const validationError = new Error('Async job ID is required and must be a non-empty string');
@@ -147,27 +169,15 @@ async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
 
   while (Date.now() - startTime < maxWaitTimeMs) {
     try {
-      // eslint-disable-next-line no-await-in-loop
-      const status = await dbx.sharingCheckShareJobStatus({ async_job_id: asyncJobId.trim() });
-      const tag = status.result['.tag'];
+      const result = await checkJobStatus(asyncJobId);
+      if (result) return result;
 
-      if (tag === 'complete') {
-        return status.result;
-      }
-      if (tag === 'failed') {
-        const failedError = new Error(`Share job failed: ${JSON.stringify(status.result.failed)}`);
-        failedError.name = 'ProcessError';
-        failedError.statusCode = 500;
-        throw failedError;
-      }
-
-      // Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms, 5000ms (capped)
-      // eslint-disable-next-line no-await-in-loop
+      // Exponential backoff
       await sleep(delay);
       delay = Math.min(delay * 2, maxDelay);
       attempt += 1;
     } catch (error) {
-      // If it's our custom error, re-throw it
+      // Re-throw custom errors
       if (error.name && error.statusCode) {
         throw error;
       }
@@ -186,7 +196,6 @@ async function waitForShareCompletion(asyncJobId, maxWaitTimeMs = 30000) {
         throw notFoundError;
       }
 
-      // Re-throw other errors
       const apiError = new Error(`Dropbox API error: ${error.message}`);
       apiError.name = 'APIError';
       apiError.statusCode = error.status || 500;
@@ -235,7 +244,7 @@ async function createFolderWithSubfolder(userFolderName, teamFolderKey = DEFAULT
     await dbx.filesGetMetadata({ path: userFolderPath });
     throw new Error(`User folder '${userFolderPath}' already exists`);
   } catch (err) {
-    if (err.status === 409 && err.error?.error?.['.tag'] === 'path') {
+    if (err.status === CONFLICT_ERROR_STATUS && err.error?.error?.['.tag'] === 'path') {
       // Not found, create user folder and Week 1 subfolder
       await dbx.filesCreateFolderV2({ path: userFolderPath });
       await dbx.filesCreateFolderV2({ path: `${userFolderPath}/Week 1` });
