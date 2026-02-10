@@ -7,6 +7,7 @@
  * - Parent-child relationships
  */
 
+const mongoose = require('mongoose');
 const { faker } = require('@faker-js/faker');
 const Task = require('../models/task');
 const UserProfile = require('../models/userProfile');
@@ -21,19 +22,19 @@ async function seedTasks() {
     const existing = await Task.countDocuments();
     if (existing > 0) {
       console.log(`ℹ️ Task collection already has ${existing} documents. No seeding needed.`);
-      process.exit(0);
+      return;
     }
 
     const users = await UserProfile.find({}, '_id firstName lastName profilePic');
     if (!users.length) {
       console.log('⚠️ No users found. Seed users first.');
-      process.exit(1);
+      return;
     }
 
     const wbsList = await Wbs.find({}, '_id');
     if (!wbsList.length) {
       console.log('⚠️ No WBS entries found. Seed WBS first.');
-      process.exit(1);
+      return;
     }
 
     const tasks = [];
@@ -124,10 +125,10 @@ async function seedTasks() {
     await Promise.all(insertedTasks.map((t) => Task.findByIdAndUpdate(t._id, t, { new: true })));
 
     console.log('🎉 Seeded 30 tasks with WBS, users, links, and parent-child relationships!');
-    process.exit(0);
   } catch (err) {
     console.error('❌ Error while seeding tasks:', err);
-    process.exit(1);
+  } finally {
+    await mongoose.disconnect();
   }
 }
 

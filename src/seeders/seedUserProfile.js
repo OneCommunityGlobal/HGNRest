@@ -6,6 +6,7 @@
  *   • Leaves teams, projects, and applicationAccess blank
  */
 
+const mongoose = require('mongoose');
 const { faker } = require('@faker-js/faker');
 const User = require('../models/userProfile');
 const Badge = require('../models/badge');
@@ -20,7 +21,7 @@ async function seedUsersIfEmpty() {
     const userCount = await User.countDocuments();
     if (userCount > 0) {
       console.log(`ℹ️ User collection already has ${userCount} users. No seeding needed.`);
-      process.exit(0);
+      return;
     }
 
     // Fetch only necessary collections
@@ -178,10 +179,10 @@ async function seedUsersIfEmpty() {
 
     await User.insertMany(usersToInsert);
     console.log('🎉 Successfully seeded 100 fake users with badges and subjects only!');
-    process.exit(0);
   } catch (err) {
     console.error('❌ Error while seeding user profiles:', err);
-    process.exit(1);
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
