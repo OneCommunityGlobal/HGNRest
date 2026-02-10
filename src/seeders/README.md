@@ -25,9 +25,16 @@ Before running the seeder script, ensure the following are installed:
 Execute the following commands in order:
 
 ```bash
+# Clone the repository
 git clone git@github.com:OneCommunityGlobal/HGNRest.git
+
+# Install dependencies needed for the project and seeders
 npm install
-cd src/seeders
+
+# Run the seeders from the project root using the npm script (Recommended)
+npm run seed
+
+# OR run directly using node from the project root
 node src/seeders/index.js
 ```
 
