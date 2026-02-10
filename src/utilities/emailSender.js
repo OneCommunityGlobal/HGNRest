@@ -303,7 +303,7 @@ const emailSender = (
   emailBccs = null,
   opts = {},
 ) => {
-  const type = opts.type || 'general';
+  const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
 
   if (
