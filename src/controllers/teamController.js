@@ -26,7 +26,12 @@ const teamcontroller = function (Team) {
       {
         $unwind: {
           path: '$userProfile',
-          preserveNullAndEmptyArrays: true,
+          preserveNullAndEmptyArrays: true, // Ensures that if no userProfile is found, the document is not removed
+        },
+      },
+      {
+        $match: {
+          isActive: true,
         },
       },
       {
@@ -36,7 +41,7 @@ const teamcontroller = function (Team) {
             // Keep the raw value that worked in Compass
             teamCode: '$userProfile.teamCode',
           },
-          count: { $sum: 1 },
+          count: { $sum: { $cond: [{ $ifNull: ['$members', false] }, 1, 0] } }, // Count only if members exist
           teamName: { $first: '$teamName' },
           members: {
             $push: {
@@ -80,6 +85,7 @@ const teamcontroller = function (Team) {
         res.status(500).send(error);
       });
   };
+
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -312,9 +318,11 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    const { visibility, teamId, userId } = req.body;
+    const { visibility, teamId, userId, requestor } = req.body;
 
     try {
+      const elevatedRoles = ['Owner', 'Admin', 'Core Team'];
+
       Team.findById(teamId, (error, teamDoc) => {
         if (error || teamDoc === null) {
           res.status(400).send('No valid records found');
@@ -344,9 +352,12 @@ const teamcontroller = function (Team) {
                 return;
               }
 
-              if (visibility) {
+              if (visibility || elevatedRoles.includes(requestor.role)) {
+                console.log(`Assigning user: ${member.userId}`);
                 assignlist.push(member.userId);
               } else {
+                console.log(` Unassigning user: ${member.userId}`);
+
                 unassignlist.push(member.userId);
               }
             });

@@ -17,7 +17,6 @@ const { hasPermission } = require('../utilities/permissions');
 const emailSender = require('../utilities/emailSender');
 
 // controller to test
-const taskController = require('./taskController');
 
 // MongoDB Model imports
 const Task = require('../models/task');
@@ -26,6 +25,7 @@ const UserProfile = require('../models/userProfile');
 const TaskChangeTracker = require('../middleware/taskChangeTracker');
 const WBS = require('../models/wbs');
 const FollowUp = require('../models/followUp');
+const taskController = require('./taskController');
 
 // ----------- minimal chainable helpers for new controller code -----------
 function makeFindChain({ data, reject } = {}) {

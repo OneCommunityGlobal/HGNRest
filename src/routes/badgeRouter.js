@@ -2,11 +2,10 @@ const express = require('express');
 
 const routes = function (badge) {
   const controller = require('../controllers/badgeController')(badge);
+
   const badgeRouter = express.Router();
 
-  if (typeof controller.awardBadgesTest === 'function') {
-    badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
-  }
+  //badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
 
   badgeRouter.route('/badge').get(controller.getAllBadges).post(controller.postBadge);
 
@@ -14,10 +13,7 @@ const routes = function (badge) {
 
   badgeRouter.route('/badge/assign/:userId').put(controller.assignBadges);
 
-  badgeRouter
-    .route('/badge/badgecount/:userId')
-    .get(controller.getBadgeCount)
-    .put(controller.putBadgecount);
+  badgeRouter.route('/badge/badgecount/:userId').get(controller.getBadgeCount).put(controller.putBadgecount);
 
   badgeRouter.route('/badge/badgecount/reset/:userId').put(controller.resetBadgecount);
 

@@ -1,5 +1,7 @@
+/* eslint-disable no-unused-vars */
 const express = require('express');
-const router = express.Router();
+
+// const router = express.Router();
 
 const routes = function () {
   const controller = require('../controllers/communityController')();
@@ -7,8 +9,7 @@ const routes = function () {
   const communityRouter = express.Router();
 
   // Route: /hgnhelp/community
-  communityRouter.route('/community')
-    .get(controller.getCommunityMembers);
+  communityRouter.route('/community').get(controller.getCommunityMembers);
 
   return communityRouter;
 };

@@ -1,10 +1,21 @@
+/* eslint-disable no-console */
 const mongoose = require('mongoose');
-const logger = require('./logger');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
+const logger = require('./logger');
 require('dotenv').config();
 
 mongoose.Promise = Promise;
+
+/* 👇 ADD HERE */
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+});
+/* 👆 ADD HERE */
 
 const afterConnect = async () => {
   try {

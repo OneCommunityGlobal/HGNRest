@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 const moment = require('moment-timezone');
 const PermissionChangeLog = require('../models/permissionChangeLog');
 
