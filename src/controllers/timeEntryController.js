@@ -1578,7 +1578,7 @@ const timeEntrycontroller = function (TimeEntry) {
       taskId,
     });
 
-    setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0);
+    if (process.env.NODE_ENV !== 'test') {   setTimeout(() => recalculateHoursByCategoryAllUsers(taskId), 0); }
   };
 
   const checkRecalculationStatus = async function (req, res) {
