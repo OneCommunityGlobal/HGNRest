@@ -107,6 +107,31 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
+  const updateInventoryTypeById = (Model) => async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updatedData = {};
+      if (req.body.name) updatedData.name = req.body.name;
+      if (req.body.description) updatedData.description = req.body.description;
+
+      const updated = await Model.findByIdAndUpdate(id, updatedData, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+
+      res.status(200).json({
+        message: 'Updated successfully',
+        item: updated,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   async function addMaterialType(req, res) {
     const {
       name,
@@ -422,11 +447,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchInvUnitsFromJson,
     fetchInventoryByType,
     deleteInvType: deleteById(InvType),
-    deleteMaterialType: deleteById(MatType),
-    deleteConsumableType: deleteById(ConsType),
-    deleteReusableType: deleteById(ReusType),
-    deleteToolType: deleteById(ToolType),
-    deleteEquipmentType: deleteById(EquipType),
+    updateInvType: updateInventoryTypeById(InvType),
   };
 }
 
