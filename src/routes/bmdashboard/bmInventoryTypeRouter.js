@@ -49,17 +49,11 @@ const routes = function (
     .get(controller.fetchSingleInventoryType)
     .put(controller.updateNameAndUnit);
 
-  // Routes for updating and deleting other inventory types
-  inventoryTypeRouter
-    .route('/invtypes/:type/:invtypeId')
-    .put(controller.updateSingleInvType)
-    .delete(controller.deleteSingleInvType);
+  inventoryTypeRouter.route('/inventoryUnits').get(controller.fetchInvUnitsFromJson);
 
-  inventoryTypeRouter
-    .route('/inventoryUnits')
-    .get(controller.fetchInvUnitsFromJson)
-    .post(controller.addInvUnit)
-    .delete(controller.deleteInvUnit);
+  // Route for deleting and editing inventory type by ID
+  inventoryTypeRouter.delete('/invtypes/:id', controller.deleteInvType);
+  inventoryTypeRouter.put('/invtypes/:id', controller.updateInvType);
 
   return inventoryTypeRouter;
 };
