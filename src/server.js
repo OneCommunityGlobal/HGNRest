@@ -8,6 +8,9 @@ const TimerWebsockets = require('./websockets').default;
 const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').default;
 const emailProcessor = require('./services/announcements/emails/emailProcessor');
 require('./startup/db')();
+// const { initializeLiveJournalScheduler } = require('./utilities/liveJournalScheduler');
+// initializeLiveJournalScheduler();
+const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
@@ -20,9 +23,11 @@ mongoose.connection.once('connected', () => {
   });
 });
 
+// eslint-disable-next-line import/order
 const websocketRouter = require('./websockets/webSocketRouter');
 
-const port = process.env.PORT || 4500;
+const DEFAULT_PORT = 4500;
+const port = process.env.PORT || DEFAULT_PORT;
 
 // Create HTTP server for both Express and Socket.IO
 const server = http.createServer(app);
@@ -42,7 +47,7 @@ server.listen(port, () => {
 
 const timerService = TimerWebsockets();
 const messagingService = MessagingWebSocket();
-
+// app.use('/api/livejournal', liveJournalRoutes);
 websocketRouter(server, [timerService, messagingService]);
 
 module.exports = server;
