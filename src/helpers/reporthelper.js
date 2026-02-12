@@ -9,9 +9,10 @@ const userProfile = require('../models/userProfile');
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
 const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
-  dateOfWork = moment(dateOfWork).endOf('week');
-  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
-  return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
+  // Align BOTH sides to America/Los_Angeles so week boundaries match the UI tabs
+  const dowLA = moment(dateOfWork).tz('America/Los_Angeles').endOf('week');
+  const pstEndLA = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
+  return Math.abs(dowLA.diff(pstEndLA, 'weeks'));
 };
 
 const reporthelper = function () {
@@ -39,7 +40,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: true },
+        $match: { isActive: { $in: [true, false] } },
       },
       {
         $lookup: {
@@ -197,7 +198,11 @@ const reporthelper = function () {
       result.totalSeconds = result.totalSeconds.map((seconds) =>
         seconds === 0 ? undefined : seconds,
       );
-
+      if (result.endDate) {
+        result.finalWeekIndex = absoluteDifferenceInWeeks(result.endDate, pstEnd);
+      } else {
+        result.finalWeekIndex = undefined;
+      }
       delete result.timeEntries;
     });
 
