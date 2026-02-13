@@ -1,3 +1,7 @@
+// Must set JWT_SECRET BEFORE requiring the controller because it captures
+// `const jwtSecret = process.env.JWT_SECRET` at module load time.
+process.env.JWT_SECRET = 'test-secret';
+
 jest.mock('jsonwebtoken');
 jest.mock('../utilities/emailSender');
 jest.mock('../models/userProfile');
@@ -14,6 +18,9 @@ jest.mock('../services/announcements/emails/emailProcessor', () => ({
 jest.mock('../utilities/emailValidators', () => ({
   isValidEmailAddress: jest.fn(() => true),
   normalizeRecipientsToArray: jest.fn((to) => (Array.isArray(to) ? to : [to])),
+}));
+jest.mock('../config', () => ({
+  FRONT_END_URL: 'https://example.com',
 }));
 
 const jwt = require('jsonwebtoken');
@@ -59,12 +66,10 @@ describe('emailController', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
-    process.env.JWT_SECRET = 'test-secret';
     jest.clearAllMocks();
   });
 
   afterEach(() => {
-    delete process.env.JWT_SECRET;
     jest.restoreAllMocks();
   });
 
