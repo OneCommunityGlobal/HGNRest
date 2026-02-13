@@ -71,14 +71,15 @@ const taskNotificationController = function (TaskNotification) {
       .exec((err, result) => {
         if (err) {
           console.log(err);
-          res.status(400).send(err);
+          return res.status(400).send(err);
+        }
+        if (!result) {
+          return res.status(404).send({ error: 'Task notification not found' });
         }
         result
           .remove()
-          .then(res.status(200).send({ message: 'Deleted task notification' }))
-          .catch((error) => {
-            res.status(400).send(error);
-          });
+          .then(() => res.status(200).send({ message: 'Deleted task notification' }))
+          .catch((error) => res.status(400).send(error));
       });
   };
 
