@@ -391,8 +391,17 @@ const resendEmail = async (req, res) => {
       const batchRecipients = emailBatchItems
         .filter((batch) => batch.recipients && Array.isArray(batch.recipients))
         .flatMap((batch) => batch.recipients);
-      // Convert string array to object array format
-      allRecipients.push(...batchRecipients.map((email) => ({ email })));
+      // Normalize to object array - handle both strings and objects
+      allRecipients.push(
+        ...batchRecipients.map((item) => {
+          // If item is already an object with email property, use it
+          if (typeof item === 'object' && item !== null && item.email) {
+            return { email: item.email };
+          }
+          // If item is a string, wrap it
+          return { email: item };
+        }),
+      );
     }
 
     // Deduplicate all recipients (case-insensitive)
