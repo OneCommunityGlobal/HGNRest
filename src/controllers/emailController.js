@@ -312,6 +312,15 @@ const resendEmail = async (req, res) => {
     // Get the original email (service throws error if not found)
     const originalEmail = await EmailService.getEmailById(emailId, null, true);
 
+    // Don't allow resending if original is still being processed
+    if (originalEmail.status === EMAIL_CONFIG.EMAIL_STATUSES.SENDING) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Cannot resend email that is still being sent. Please wait for completion or use retry to process failed batches.',
+      });
+    }
+
     // Validate recipient option
     if (!recipientOption) {
       return res.status(400).json({ success: false, message: 'Recipient option is required' });
@@ -382,7 +391,8 @@ const resendEmail = async (req, res) => {
       const batchRecipients = emailBatchItems
         .filter((batch) => batch.recipients && Array.isArray(batch.recipients))
         .flatMap((batch) => batch.recipients);
-      allRecipients.push(...batchRecipients);
+      // Convert string array to object array format
+      allRecipients.push(...batchRecipients.map((email) => ({ email })));
     }
 
     // Deduplicate all recipients (case-insensitive)
