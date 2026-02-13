@@ -1558,6 +1558,9 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
+    if (mongoose.connection.readyState === 0) {
+      return;
+    }
     const session = await mongoose.startSession();
     session.startTransaction();
 

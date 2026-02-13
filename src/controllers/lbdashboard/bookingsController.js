@@ -1,5 +1,4 @@
 const paypal = require('@paypal/checkout-server-sdk');
-
 const nodemailer = require('nodemailer');
 const Joi = require('joi');
 require('dotenv').config();
