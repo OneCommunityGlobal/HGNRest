@@ -743,7 +743,7 @@ const addNonHgnEmailSubscription = async (req, res) => {
     if (!jwtSecret) {
       return res.status(500).json({
         success: false,
-        message: 'Server configuration error. JWT_SECRET is not set.',
+        message: 'Server configuration error.',
       });
     }
     const payload = { email: normalizedEmail };
@@ -751,25 +751,14 @@ const addNonHgnEmailSubscription = async (req, res) => {
 
     // Get frontend URL from request origin
     const getFrontendUrl = () => {
-      // Try to get from request origin header first
       const origin = req.get('origin') || req.get('referer');
       if (origin) {
         try {
           const url = new URL(origin);
           return `${url.protocol}//${url.host}`;
         } catch (error) {
-          // logger.logException(error, 'Error parsing request origin');
+          // Invalid origin URL format
         }
-      }
-      // Fallback to config or construct from request
-      if (config.FRONT_END_URL) {
-        return config.FRONT_END_URL;
-      }
-      // Last resort: construct from request
-      const protocol = req.protocol || 'https';
-      const host = req.get('host');
-      if (host) {
-        return `${protocol}://${host}`;
       }
       return null;
     };
@@ -840,7 +829,7 @@ const confirmNonHgnEmailSubscription = async (req, res) => {
     if (!jwtSecret) {
       return res.status(500).json({
         success: false,
-        message: 'Server configuration error. JWT_SECRET is not set.',
+        message: 'Server configuration error.',
       });
     }
 

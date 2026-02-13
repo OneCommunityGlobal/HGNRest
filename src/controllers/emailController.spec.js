@@ -19,9 +19,7 @@ jest.mock('../utilities/emailValidators', () => ({
   isValidEmailAddress: jest.fn(() => true),
   normalizeRecipientsToArray: jest.fn((to) => (Array.isArray(to) ? to : [to])),
 }));
-jest.mock('../config', () => ({
-  FRONT_END_URL: 'https://example.com',
-}));
+jest.mock('../config', () => ({}));
 
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
@@ -453,6 +451,21 @@ describe('emailController', () => {
 
       await addNonHgnEmailSubscription(req, res);
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should return 500 when frontend URL cannot be determined', async () => {
+      req.body.email = 'new@example.com';
+      isValidEmailAddress.mockReturnValue(true);
+      EmailSubcriptionList.findOne.mockResolvedValue(null);
+      userProfile.findOne.mockResolvedValue(null);
+      EmailSubcriptionList.mockImplementation(() => ({
+        save: jest.fn().mockResolvedValue({}),
+      }));
+      jwt.sign.mockReturnValue('mock-token');
+      req.get.mockReturnValue(null); // No origin header
+
+      await addNonHgnEmailSubscription(req, res);
+      expect(res.status).toHaveBeenCalledWith(500);
     });
   });
 

@@ -17,8 +17,8 @@
 5. ❌ **Returns error 500 if there is an internal error while checking the subscription list**
    - Covers scenarios where there's an issue querying the `EmailSubcriptionList` collection for the provided email (e.g., database connection issues).
 
-6. ❌ **Returns error 500 if `FRONT_END_URL` cannot be determined from request**
-   - Verifies that the function handles cases where the frontend URL cannot be determined from request headers, config, or request information.
+6. ❌ **Returns error 500 if frontend URL cannot be determined from request origin**
+   - Verifies that the function returns a `500` status code when the request's `Origin` or `Referer` header is missing or unparseable. The frontend URL is determined solely from request headers to correctly support multiple frontend domains (no env var fallback).
 
 7. ❌ **Returns error 500 if there is an error sending the confirmation email**
    - This case handles any issues that occur while calling the `emailSender` function, such as network errors or service unavailability.
@@ -35,7 +35,7 @@
    - Verifies that the subscription is created with `isConfirmed: false`, `emailSubscriptions: true`, and proper normalization (lowercase email).
 
 3. ✅ **Successfully sends a confirmation email containing the correct link**
-   - Verifies that the generated JWT token is correctly included in the confirmation link, and the frontend URL is dynamically determined from the request origin.
+   - Verifies that the generated JWT token is correctly included in the confirmation link, and the frontend URL is dynamically determined from the request's `Origin` or `Referer` header to support multiple frontend domains.
 
 4. ✅ **Returns success even if confirmation email fails to send**
    - Ensures that if the subscription is saved to the database but the confirmation email fails, the function still returns success (subscription is already saved).
