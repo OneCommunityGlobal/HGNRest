@@ -76,8 +76,8 @@ module.exports = function (app) {
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
     }
-    // Skip auth for Plurk API route
-    if (req.originalUrl === '/api/postToPlurk') {
+    // Skip auth for Plurk API routes (handle trailing slash or query string)
+    if (req.path.startsWith('/api/postToPlurk') || req.path.startsWith('/api/plurk/diagnose')) {
       return next();
     }
     if (!req.header('Authorization')) {

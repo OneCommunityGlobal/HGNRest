@@ -82,6 +82,29 @@ const postToPlurk = (content) =>
     );
   });
 
+const diagnosePlurkAuth = () =>
+  new Promise((resolve, reject) => {
+    const url = 'https://www.plurk.com/APP/Users/me';
+    oauth.get(url, PLURK_TOKEN, PLURK_TOKEN_SECRET, (err, data) => {
+      if (err) {
+        // eslint-disable-next-line prefer-promise-reject-errors
+        return reject({
+          statusCode: err.statusCode,
+          data: err.data,
+          message: err.message,
+        });
+      }
+      try {
+        const parsed = JSON.parse(data);
+        return resolve(parsed);
+      } catch (parseErr) {
+        // eslint-disable-next-line prefer-promise-reject-errors
+        return reject({ message: 'Invalid Plurk response', raw: data });
+      }
+    });
+  });
+
 module.exports = {
   postToPlurk,
+  diagnosePlurkAuth,
 };

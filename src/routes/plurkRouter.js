@@ -26,7 +26,7 @@ function extractTextAndImgUrl(htmlString) {
   return { textContent, urlSrcs, base64Srcs };
 }
 
-const { postToPlurk } = require('../controllers/plurkController');
+const { postToPlurk, diagnosePlurkAuth } = require('../controllers/plurkController');
 
 router.post('/postToPlurk', async (req, res) => {
   console.log('Received request to /postToPlurk', req.body);
@@ -53,6 +53,41 @@ router.post('/postToPlurk', async (req, res) => {
     }
     console.error('Plurk route error:', err);
     return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/plurk/diagnose', async (req, res) => {
+  try {
+    const result = await diagnosePlurkAuth();
+    return res.status(200).json({
+      ok: true,
+      env: {
+        PLURK_CONSUMER_KEY: !!process.env.PLURK_CONSUMER_KEY,
+        PLURK_CONSUMER_SECRET: !!process.env.PLURK_CONSUMER_SECRET,
+        PLURK_TOKEN: !!process.env.PLURK_TOKEN,
+        PLURK_TOKEN_SECRET: !!process.env.PLURK_TOKEN_SECRET,
+      },
+      plurk: {
+        id: result.id,
+        nick_name: result.nick_name,
+        display_name: result.display_name,
+      },
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({
+      ok: false,
+      env: {
+        PLURK_CONSUMER_KEY: !!process.env.PLURK_CONSUMER_KEY,
+        PLURK_CONSUMER_SECRET: !!process.env.PLURK_CONSUMER_SECRET,
+        PLURK_TOKEN: !!process.env.PLURK_TOKEN,
+        PLURK_TOKEN_SECRET: !!process.env.PLURK_TOKEN_SECRET,
+      },
+      error: {
+        statusCode: err.statusCode,
+        data: err.data,
+        message: err.message,
+      },
+    });
   }
 });
 
