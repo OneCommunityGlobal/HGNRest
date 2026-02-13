@@ -10,7 +10,6 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
-
 const fs = require('fs');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
@@ -1819,7 +1818,7 @@ const userHelper = function () {
     }
   };
 
-  const notifyInfringements = function (
+  const notifyInfringements = async (
     original,
     current,
     firstName,
@@ -2134,9 +2133,6 @@ const userHelper = function () {
 
   //   'No Infringement Streak',
   const checkNoInfringementStreak = async function (personId, user, badgeCollection) {
-    console.log('==> Starting checkNoInfringementStreak');
-    console.log('Input personId:', personId);
-
     let badgeOfType;
     for (let i = 0; i < badgeCollection.length; i += 1) {
       if (badgeCollection[i].badge?.type === 'No Infringement Streak') {
@@ -2154,10 +2150,7 @@ const userHelper = function () {
       .find({ type: 'No Infringement Streak' })
       .sort({ months: -1 })
       .then((results) => {
-        console.log('Available No Infringement Streak badges:', results);
-
         if (!Array.isArray(results) || !results.length) {
-          console.log('No badges found, exiting.');
           return;
         }
 
@@ -2227,16 +2220,11 @@ const userHelper = function () {
           return true;
         });
       });
-
-    console.log('==> Finished checkNoInfringementStreak');
   };
 
   // 'Minimum Hours Multiple',
   const checkMinHoursMultiple = async function (personId, user, badgeCollection) {
-    console.log('--- checkMinHoursMultiple START ---');
-
     const ratio = user.lastWeekTangibleHrs / user.weeklycommittedHours;
-    console.log(`User tangible/committed hours ratio: ${ratio}`);
 
     const badgesOfType = badgeCollection
       .map((obj) => obj.badge)
@@ -2247,15 +2235,11 @@ const userHelper = function () {
       .sort({ multiple: -1 }); // Higher multiples come first
 
     if (!availableBadges.length) {
-      console.log('No matching badges found in database.');
       return;
     }
 
     for (const candidateBadge of availableBadges) {
       if (ratio < candidateBadge.multiple) {
-        console.log(
-          `Not eligible for badge ${candidateBadge._id} (requires ${candidateBadge.multiple})`,
-        );
         continue;
       }
 
@@ -2285,11 +2269,8 @@ const userHelper = function () {
         return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
       }
 
-      console.log(`Adding new badge: ${candidateBadge._id}`);
       return addBadge(personId, mongoose.Types.ObjectId(candidateBadge._id));
     }
-
-    console.log('--- checkMinHoursMultiple END ---');
   };
 
   const getAllWeeksData = async (personId, user) => {
@@ -2506,8 +2487,6 @@ const userHelper = function () {
         }
       }
 
-      console.log('Calculated streak:', streak);
-
       if (streak === 0) {
         console.log('No valid streak found.');
         return;
@@ -2551,7 +2530,6 @@ const userHelper = function () {
       }
 
       if (badgeInCollection) {
-        console.log(`Badge already exists: ${newBadge.badgeName}, increasing count.`);
         await increaseBadgeCount(personId, newBadge._id);
         return;
       }
@@ -2563,8 +2541,6 @@ const userHelper = function () {
         if (!lastBadge || !lastBadge.badge) {
           continue;
         }
-
-        console.log('lastBadge.badge.totalHrs ::', lastBadge.badge.totalHrs === currentMaxHours);
 
         if (lastBadge.badge.totalHrs === currentMaxHours) {
           // Check if the badge is eligible for downgrade or replacement
@@ -2694,14 +2670,11 @@ const userHelper = function () {
         const currBadge = current.badge;
 
         if (current.count > 1) {
-          console.log(`Decreasing count for badge ${currBadge._id}`);
           decreaseBadgeCount(personId, currBadge._id);
-          console.log(`Adding badge ${currBadge._id}`);
           addBadge(personId, currBadge._id);
           badgeOfType = currBadge;
           break;
         } else if (badgeOfType && badgeOfType.totalHrs > currBadge.totalHrs) {
-          console.log(`Removing lower badge ${currBadge._id}`);
           removeDupBadge(personId, currBadge._id);
         } else if (!badgeOfType) {
           badgeOfType = currBadge;
@@ -2713,7 +2686,6 @@ const userHelper = function () {
         .sort({ totalHrs: -1 });
 
       if (!Array.isArray(results) || !results.length || !categoryHrs) {
-        console.log(`No valid badge results or category hours missing for ${newCatg}`);
         continue;
       }
 
@@ -2724,19 +2696,16 @@ const userHelper = function () {
           );
 
           if (alreadyHas) {
-            console.log(`Increasing badge count for ${elem._id}`);
             increaseBadgeCount(personId, elem._id);
             break;
           }
 
           if (badgeOfType && badgeOfType.totalHrs < elem.totalHrs) {
-            console.log(`Replacing badge ${badgeOfType._id} with ${elem._id}`);
             replaceBadge(personId, badgeOfType._id, elem._id);
             break;
           }
 
           if (!badgeOfType) {
-            console.log(`Adding new badge ${elem._id}`);
             addBadge(personId, elem._id);
             break;
           }
