@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable operator-linebreak */
 /* eslint-disable consistent-return */
@@ -157,6 +158,7 @@ export default () => {
             try {
               if (client?.started && !client?.paused) {
                 logger.logInfo(`[WS] Sending weekly pause to user ${userId} (weekly)`);
+                // eslint-disable-next-line no-await-in-loop
                 await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
                 broadcastToSameUser(
                   connections,
