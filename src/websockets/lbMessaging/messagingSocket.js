@@ -8,6 +8,8 @@ const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification');
 const UserProfile = require('../../models/userProfile');
 const UserPreference = require('../../models/lbdashboard/userPreferences');
+const { queueSmsNotification } = require('../../utilities/smsQueue');
+const emailSender = require('../../utilities/emailSender');
 const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
 
 const authenticate = (req, res) => {
@@ -102,6 +104,36 @@ export default () => {
     });
   };
 
+  const sendNewMessageEmail = async (receiverId, senderName) => {
+    try {
+      const receiverProfile = await UserProfile.findById(receiverId).select(
+        'email firstName lastName',
+      );
+      if (!receiverProfile?.email) return;
+      const subject = `New message from ${senderName}`;
+      const body = `
+        <p>Hi ${receiverProfile.firstName || 'there'},</p>
+        <p>You received a new message from ${senderName}.</p>
+        <p>Log in to view and reply.</p>
+      `;
+      await emailSender(receiverProfile.email, subject, body, null, null, null, null, {
+        type: 'lb_message',
+        recipientUserId: receiverId,
+      });
+    } catch (error) {
+      console.error('Failed to send message email:', error.message);
+    }
+  };
+
+  const sendNewMessageSms = (userPreference, senderName) => {
+    if (userPreference?.notifySms && userPreference?.smsPhone) {
+      queueSmsNotification({
+        to: userPreference.smsPhone,
+        message: `New message from ${senderName}`,
+      });
+    }
+  };
+
   const broadcastStatusUpdate = async (messageId, status /* userId */) => {
     const message = await Message.findByIdAndUpdate(messageId, { status }, { new: true });
 
@@ -165,24 +197,34 @@ export default () => {
             // Send notification if receiver is active but not in chat with sender
             if (isReceiverActive && !isReceiverInChat) {
               const userPreference = await UserPreference.findOne({ user: msg.receiver });
+              const allowGlobalInApp =
+                userPreference?.notifyInApp === undefined ? true : userPreference.notifyInApp;
               const isSenderInPreference = userPreference?.users.some(
                 (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
               );
 
-              if (isSenderInPreference) {
+              if (allowGlobalInApp && isSenderInPreference) {
                 broadcastToUser(msg.receiver, {
                   action: 'NEW_NOTIFICATION',
                   payload: `You got a message from ${senderName}`,
                 });
               }
+
+              if (userPreference?.notifyEmail) {
+                sendNewMessageEmail(msg.receiver, senderName);
+              }
+
+              sendNewMessageSms(userPreference, senderName);
             }
           } else {
             // Receiver is offline, create notification
             const userPreference = await UserPreference.findOne({ user: msg.receiver });
+            const allowGlobalInApp =
+              userPreference?.notifyInApp === undefined ? true : userPreference.notifyInApp;
             const isSenderInPreference = userPreference?.users.some(
               (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
             );
-            if (isSenderInPreference) {
+            if (allowGlobalInApp && isSenderInPreference) {
               const notification = new Notification({
                 message: `You got a message from ${senderName}`,
                 sender: userId,
@@ -190,6 +232,12 @@ export default () => {
                 isSystemGenerated: false,
               });
               await notification.save();
+            }
+
+            sendNewMessageSms(userPreference, senderName);
+
+            if (userPreference?.notifyEmail) {
+              sendNewMessageEmail(msg.receiver, senderName);
             }
           }
 
