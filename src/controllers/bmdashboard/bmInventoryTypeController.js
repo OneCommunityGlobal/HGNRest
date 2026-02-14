@@ -88,6 +88,50 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
+  const deleteById = (Model) => async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const deleted = await Model.findByIdAndDelete(id);
+
+      if (!deleted) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+
+      return res.status(200).json({
+        message: 'Deleted successfully',
+        id,
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  const updateInventoryTypeById = (Model) => async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updatedData = {};
+      if (req.body.name) updatedData.name = req.body.name;
+      if (req.body.description) updatedData.description = req.body.description;
+
+      const updated = await Model.findByIdAndUpdate(id, updatedData, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+
+      res.status(200).json({
+        message: 'Updated successfully',
+        item: updated,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   async function addMaterialType(req, res) {
     const {
       name,
@@ -402,6 +446,8 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addToolType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    deleteInvType: deleteById(InvType),
+    updateInvType: updateInventoryTypeById(InvType),
   };
 }
 

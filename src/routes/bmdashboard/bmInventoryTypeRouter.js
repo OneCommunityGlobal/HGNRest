@@ -41,6 +41,10 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
 
   inventoryTypeRouter.route('/inventoryUnits').get(controller.fetchInvUnitsFromJson);
 
+  // Route for deleting and editing inventory type by ID
+  inventoryTypeRouter.delete('/invtypes/:id', controller.deleteInvType);
+  inventoryTypeRouter.put('/invtypes/:id', controller.updateInvType);
+
   return inventoryTypeRouter;
 };
 
