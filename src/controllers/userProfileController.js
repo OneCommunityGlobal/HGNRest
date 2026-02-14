@@ -2723,7 +2723,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
 
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => ({ updateOne: x.updateOne }));
 
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {
