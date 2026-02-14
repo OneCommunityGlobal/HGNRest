@@ -1,3 +1,9 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-continue */
+/* eslint-disable no-magic-numbers */
+/* eslint-disable max-lines-per-function */
+/* eslint-disable complexity */
 /* eslint-disable no-console */
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
@@ -10,6 +16,7 @@ const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
+// eslint-disable-next-line no-unused-vars
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
@@ -23,21 +30,23 @@ const objectUtils = require('../utilities/objectUtils');
 const config = require('../config');
 // eslint-disable-next-line import/order
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
-// const { authorizedUserSara, authorizedUserJae } = process.env;
+
 const authorizedUserSara = `nathaliaowner@gmail.com`; // To test this code please include your email here
 const authorizedUserJae = `jae@onecommunityglobal.org`;
-// const logUserPermissionChangeByAccount = require('../utilities/logUserPermissionChangeByAccount');
 
 // Import reports controller to access cache invalidation function
 const reportsController = require('./reportsController')();
-const { COMPANY_TZ } = require('../constants/company');
 
 // Constants for magic numbers
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
-const HOURS_TO_ADD_FOR_END_DATE = 7;
-const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
+const { COMPANY_TZ } = require('../constants/company');
+const {
+  InactiveReason,
+  UserStatusOperations,
+  LifecycleStatus,
+} = require('../constants/userProfile');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -163,6 +172,8 @@ const auditIfProtectedAccountUpdated = async ({
     });
   }
 };
+
+const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
@@ -498,60 +509,17 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
-  // Helper functions for changeUserStatus
-  const calculateUserStatusFromEndDate = (endDate, status) => {
-    let activeStatus = status;
-    let emailThreeWeeksSent = false;
-    if (endDate && status) {
-      const dateObject = new Date(endDate);
-      dateObject.setHours(dateObject.getHours() + HOURS_TO_ADD_FOR_END_DATE);
-      const setEndDate = dateObject;
-      if (moment().isAfter(moment(setEndDate).add(1, 'days'))) {
-        activeStatus = false;
-      } else if (
-        moment().isBefore(moment(endDate).subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks'))
-      ) {
-        emailThreeWeeksSent = true;
-      }
-    }
-    return { activeStatus, emailThreeWeeksSent };
-  };
-
-  const getEmailRecipientsForStatusChange = async (userId) => {
-    const emailReceivers = await UserProfile.find(
-      { isActive: true, role: { $in: ['Owner'] } },
-      '_id isActive role email',
-    );
-    const recipients = emailReceivers.map((receiver) => receiver.email);
-
-    try {
-      const findUser = await UserProfile.findById(userId, 'teams');
-      findUser.teams.map(async (teamId) => {
-        const managementEmails = await userHelper.getTeamManagementEmail(teamId);
-        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
-          managementEmails.forEach((management) => {
-            recipients.push(management.email);
-          });
-        }
-      });
-    } catch (err) {
-      logger.logException(err, 'Unexpected error in finding menagement team');
-    }
-    return recipients;
-  };
-
   const checkChangeUserStatusAuthorization = async (req, userId) => {
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
+    const { requestor } = req.body;
 
-    if (
-      !((await hasPermission(req.body.requestor, 'changeUserStatus')) && canEditProtectedAccount)
-    ) {
-      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+    const canEditProtectedAccount = await canRequestorUpdateUser(requestor.requestorId, userId);
+
+    const hasChangeStatusPermission = await hasPermission(requestor, 'changeUserStatus');
+    const hasFinalDayPermission = await hasPermission(requestor, 'setFinalDay');
+    if (!(hasChangeStatusPermission && hasFinalDayPermission && canEditProtectedAccount)) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(requestor.email)) {
         logger.logInfo(
-          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+          `Unauthorized attempt to change protected user status. Requestor: ${requestor.requestorId} Target: ${userId}`,
         );
       }
       return { authorized: false };
@@ -581,8 +549,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const handleUserStatusSave = async ({
     user,
     userId,
-    isActivating,
-    isDeactivating,
+    action,
+    previousLifecycleStatus,
+    lifecycleContext,
     recipients,
     req,
   }) => {
@@ -607,18 +576,51 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     // =========================
     // LIFECYCLE EMAILS ONLY
     // =========================
+    switch (action) {
+      case UserStatusOperations.ACTIVATE:
+        switch (previousLifecycleStatus) {
+          case LifecycleStatus.PAUSE_TO_ACTIVE:
+            userHelper.sendUserResumedEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              pausedOn: lifecycleContext.pausedOn,
+            });
+            break;
 
-    if (isActivating) {
-      userHelper.sendUserActivatedEmail({
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        recipients,
-      });
-    }
+          case LifecycleStatus.SEPARATED_TO_ACTIVE:
+            userHelper.sendUserReactivatedAfterSeparation({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              previousEndDate: lifecycleContext.previousEndDate,
+            });
+            break;
 
-    if (isDeactivating) {
-      if (user.inactiveReason === 'Paused') {
+          case LifecycleStatus.SCHEDULED_SEPARATION_TO_ACTIVE:
+            userHelper.sendUserCancelledSeparationEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+              previousEndDate: lifecycleContext.previousEndDate,
+            });
+            break;
+
+          default:
+            userHelper.sendUserActivatedEmail({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              recipients,
+            });
+            break;
+        }
+        break;
+
+      case UserStatusOperations.PAUSE:
         userHelper.sendUserPausedEmail({
           firstName: user.firstName,
           lastName: user.lastName,
@@ -626,16 +628,30 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           reactivationDate: user.reactivationDate,
           recipients,
         });
-      }
+        break;
 
-      if (user.inactiveReason === 'Separated') {
+      case UserStatusOperations.DEACTIVATE:
         userHelper.sendUserSeparatedEmail({
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
           recipients,
+          endDate: user.endDate,
         });
-      }
+        break;
+
+      case UserStatusOperations.SCHEDULE_DEACTIVATION:
+        userHelper.sendUserScheduledSeparationEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          endDate: user.endDate,
+          recipients,
+        });
+        break;
+
+      default:
+        throw new Error('Invalid user status action');
     }
 
     auditIfProtectedAccountUpdated({
@@ -789,7 +805,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             startDate: 1,
             createdDate: 1,
             endDate: 1,
+            lastActivityAt: 1,
+            deactivatedAt: 1,
             timeZone: 1,
+            filterColor: 1,
             bioPosted: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
@@ -889,7 +908,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const userProfiles = await UserProfile.find(
         {},
-        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic', // Include profilePic
+        '_id firstName lastName isActive startDate createdDate endDate jobTitle role email phoneNumber profilePic filterColor', // Include profilePic
       )
         .sort({
           lastName: 1,
@@ -1034,7 +1053,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         _id: up._id,
       });
     } catch (error) {
-      res.status(400).send(error);
+      res.status(501).send(error);
     }
   };
 
@@ -1120,19 +1139,40 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const putUserProfile = async function (req, res) {
-    const userid = req.params.userId;
-    const authResult = await checkPutUserProfileAuthorization(req, userid);
+    console.log('➡️ PUT /userprofile triggered');
+    console.log('UserID:', req.params.userId);
+    console.log('Incoming body keys:', Object.keys(req.body));
+    console.log('🟩 PUT /userProfile called with:', req.params.userId);
+    console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
 
+    const userid = req.params.userId;
+
+    const authResult = await checkPutUserProfileAuthorization(req, userid);
     if (!authResult.authorized) {
-      res.status(403).send(authResult.message);
-      return;
+      return res.status(403).send(authResult.message);
     }
 
     cache.removeCache(`user-${userid}`);
-    UserProfile.findById(userid, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
+
+    try {
+      const record = await UserProfile.findById(userid);
+      if (!record) {
+        return res.status(404).send('No valid records found');
+      }
+
+      if (!Array.isArray(record.summarySubmissionDates)) {
+        record.summarySubmissionDates = [];
+      } else {
+        record.summarySubmissionDates = record.summarySubmissionDates.filter((d) => {
+          const dateObj = new Date(d);
+          return !Number.isNaN(dateObj.getTime());
+        });
+      }
+
+      if (req.body.filterColor !== undefined) {
+        record.filterColor = req.body.filterColor;
+        record.lastModifiedDate = Date.now();
+        console.log('Setting filterColor:', req.body.filterColor);
       }
 
       const updateResult = await handleUserProfileUpdate(
@@ -1142,65 +1182,95 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         authResult.canManageAdminLinks,
       );
 
-      if (updateResult.error) {
-        res.status(updateResult.status).send(updateResult.error);
-        return;
+      if (updateResult?.error) {
+        return res.status(updateResult.status).send(updateResult.error);
       }
 
       const {
         originalRecord,
         originalinfringements,
         isUserInCache,
-        allUserData,
-        userData,
-        userIdx,
+        allUserData: allUserDataFromUpdate,
         updatedDiff,
-      } = updateResult;
+      } = updateResult || {};
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-          });
+      const results = await record.save();
 
-          if (isUserInCache) {
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
+      await userHelper.notifyInfringements(
+        originalinfringements || (record.infringements ? record.infringements : []),
+        results.infringements,
+        results.firstName,
+        results.lastName,
+        results.email,
+        results.role,
+        results.startDate,
+        results.jobTitle?.[0],
+        results.weeklycommittedHours,
+      );
+
+      console.log('✅ Saved filterColor in DB:', results.filterColor);
+      console.log('Backend: Save successful for user:', userid);
+
+      [
+        'weeklySummaries_0',
+        'weeklySummaries_1',
+        'weeklySummaries_3',
+        'weeklySummaries_all',
+        'weeklySummariesReport',
+        `weeklySummaries_user_${userid}`,
+        'allusers',
+        `user-${userid}`,
+      ].forEach((key) => cache.removeCache(key));
+      cache.clearByPrefix('weeklySummaries');
+
+      if (cache.hasCache('allusers')) {
+        try {
+          const allUsers = JSON.parse(cache.getCache('allusers'));
+          const idx = allUsers.findIndex((u) => u._id === userid);
+          if (idx !== -1) {
+            allUsers[idx].filterColor = results.filterColor;
+            allUsers[idx].projects = results.projects;
+            allUsers[idx].teams = results.teams;
+            cache.setCache('allusers', JSON.stringify(allUsers));
           }
+        } catch (e) {
+          console.error('❌ Failed to update allusers cache:', e);
+        }
+      }
 
-          auditIfProtectedAccountUpdated({
-            requestorId: req.body.requestor.requestorId,
-            updatedRecordEmail: originalRecord.email,
-            originalRecord,
-            updatedRecord: record,
-            updateDiffPaths: updatedDiff,
-            actionPerformed: 'update',
-          });
-        })
-        .catch((error) => {
-          if (error.name === 'ValidationError' && error.errors.lastName) {
-            const errors = Object.values(error.errors).map((er) => er.message);
-            return res.status(400).json({
-              message: 'Validation Error',
-              error: errors,
-            });
-          }
-          console.error('Failed to save record:', error);
-          return res.status(400).json({ error: 'Failed to save record.' });
+      if (req.body?.requestor?.requestorId) {
+        auditIfProtectedAccountUpdated({
+          requestorId: req.body.requestor.requestorId,
+          updatedRecordEmail: originalRecord?.email || record.email,
+          originalRecord,
+          updatedRecord: record, // or results
+          updateDiffPaths: updatedDiff,
+          actionPerformed: 'update',
         });
-    });
+      }
+
+      return res.status(200).json({
+        _id: results._id,
+        filterColor: results.filterColor,
+        projects: results.projects,
+        teams: results.teams,
+      });
+    } catch (error) {
+      console.error('❌ Backend: putUserProfile FAILED:', error);
+
+      if (error?.name === 'ValidationError') {
+        const errors = Object.values(error.errors || {}).map((er) => er.message);
+        return res.status(400).json({
+          message: 'Validation Error during save',
+          error: errors,
+        });
+      }
+
+      return res.status(500).json({
+        message: 'Internal server error during save.',
+        error: error.message || 'Unknown save error',
+      });
+    }
   };
 
   const deleteUserProfile = async function (req, res) {
@@ -1387,105 +1457,117 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       .catch((error) => res.status(404).send(error));
   };
 
-  const updateOneProperty = async function (req, res) {
+  const updateOneProperty = async (req, res) => {
     const { userId } = req.params;
-    const { key, value } = req.body;
+    const { key, value, requestor } = req.body;
 
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
-
-    if (!canEditProtectedAccount) {
-      logger.logInfo(
-        `Unauthorized attempt to update a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
-      );
-      res.status(403).send('You are not authorized to update this user');
-      return;
-    }
-
-    if (key === 'teamCode') {
-      const canEditTeamCode =
-        req.body.requestor.role === 'Owner' ||
-        req.body.requestor.role === 'Administrator' ||
-        req.body.requestor.permissions?.frontPermissions.includes('editTeamCode');
-
-      if (!canEditTeamCode) {
-        res.status(403).send('You are not authorized to edit team code.');
-        return;
-      }
-    }
-
-    // remove user from cache, it should be loaded next time
+    // remove user from cache so it reloads next time
     cache.removeCache(`user-${userId}`);
+
     if (!key || value === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
     }
 
-    return UserProfile.findById(userId)
-      .then((user) => {
-        let originalRecord = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+    try {
+      const user = await UserProfile.findById(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Keep original record for protected accounts
+      let originalRecord = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+        originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(user);
+      }
+
+      // ✅ Normalize filterColor (YOUR LOGIC – CRITICAL)
+      let payloadValue = value;
+      if (key === 'filterColor') {
+        if (Array.isArray(value)) {
+          payloadValue = value.map((c) => c.trim()).filter(Boolean);
+        } else if (typeof value === 'string') {
+          payloadValue = value
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
+        } else {
+          payloadValue = [];
         }
-        user.set({
-          [key]: value,
+        console.log('🛠 filterColor normalized to:', payloadValue);
+      }
+
+      user.set({ [key]: payloadValue });
+
+      let updatedDiff = null;
+      if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
+        updatedDiff = user.modifiedPaths();
+      }
+
+      await user.save();
+
+      console.log(`✅ Saved ${key} in DB:`, user[key]);
+
+      // ================================
+      // CACHE INVALIDATION (MERGED)
+      // ================================
+      try {
+        cache.removeCache(`user-${userId}`);
+        cache.removeCache('allusers');
+        cache.removeCache('teamCodes');
+
+        cache.clearByPrefix('weeklySummaries');
+        cache.removeCache('weeklySummaries_all');
+        cache.removeCache('weeklySummaries_null');
+        cache.removeCache('weeklySummaries_undefined');
+      } catch (e) {
+        console.error('Cache clearing error:', e);
+      }
+
+      // Patch allusers cache if present
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const idx = allUserData.findIndex((u) => u._id === userId);
+        if (idx !== -1) {
+          allUserData[idx][key] = user[key];
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      // Special case: bioPosted invalidates weekly summaries
+      if (key === 'bioPosted') {
+        try {
+          for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_INVALIDATION; week += 1) {
+            reportsController.invalidateWeeklySummariesCache(week);
+          }
+        } catch (e) {
+          console.error('Error invalidating weekly summaries after bioPosted:', e);
+        }
+      }
+
+      // Respond
+      res.status(200).json({
+        _id: user._id,
+        [key]: user[key],
+      });
+
+      // ================================
+      // AUDIT (DEV BRANCH – PRESERVED)
+      // ================================
+      if (originalRecord) {
+        auditIfProtectedAccountUpdated({
+          requestorId: requestor?.requestorId,
+          updatedRecordEmail: originalRecord.email,
+          originalRecord,
+          updatedRecord: user,
+          updateDiffPaths: updatedDiff,
+          actionPerformed: 'update',
         });
-        let updatedDiff = null;
-        if (PROTECTED_EMAIL_ACCOUNT.includes(user.email)) {
-          updatedDiff = user.modifiedPaths();
-        }
-        return user
-          .save()
-          .then(() => {
-            // If bioPosted was updated via this generic property route,
-            // update caches and invalidate weekly summaries to avoid stale data.
-            if (key === 'bioPosted') {
-              try {
-                // Update or invalidate the allusers cache
-                if (cache.hasCache('allusers')) {
-                  const allUserData = JSON.parse(cache.getCache('allusers'));
-                  const userIdx = allUserData.findIndex((u) => u._id === userId);
-                  if (userIdx !== -1) {
-                    allUserData[userIdx].bioPosted = value;
-                    cache.setCache('allusers', JSON.stringify(allUserData));
-                  } else {
-                    cache.removeCache('allusers');
-                  }
-                }
-
-                // Invalidate weekly summaries caches, as bioPosted is part of that response
-                for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_INVALIDATION; week += 1) {
-                  reportsController.invalidateWeeklySummariesCache(week);
-                }
-                for (let week = 0; week <= MAX_WEEKS_FOR_CACHE_CLEAR; week += 1) {
-                  cache.removeCache(`weeklySummaries_${week}`);
-                }
-                cache.removeCache('weeklySummaries_all');
-                cache.removeCache('weeklySummaries_null');
-                cache.removeCache('weeklySummaries_undefined');
-              } catch (e) {
-                // non-blocking cache invalidation
-                // eslint-disable-next-line no-console
-                console.error('Error invalidating caches after bioPosted update:', e);
-              }
-            }
-
-            res.status(200).send({ message: 'updated property' });
-            auditIfProtectedAccountUpdated({
-              requestorId: req.body.requestor.requestorId,
-              updatedRecordEmail: originalRecord.email,
-              originalRecord,
-              updatedRecord: user,
-              updateDiffPaths: updatedDiff,
-              actionPerformed: 'update',
-            });
-          })
-          .catch((error) => res.status(500).send(error));
-      })
-      .catch((error) => res.status(500).send(error));
+      }
+    } catch (err) {
+      console.error(`❌ Failed to update property ${key}:`, err);
+      return res.status(500).json({ error: 'Failed to update user property' });
+    }
   };
-
   const updateAllMembersTeamCode = async (req, res) => {
     const canEditTeamCode = await hasPermission(req.body.requestor, 'editTeamCode');
     if (!canEditTeamCode) {
@@ -1663,21 +1745,26 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getPreviousLifecycleStatus = (user) => {
+    if (user.reactivationDate) {
+      return LifecycleStatus.PAUSE_TO_ACTIVE;
+    }
+    if (user.endDate && user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION) {
+      return LifecycleStatus.SCHEDULED_SEPARATION_TO_ACTIVE;
+    }
+    if (!user.isActive) {
+      return LifecycleStatus.SEPARATED_TO_ACTIVE;
+    }
+    return null;
+  };
+
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
-    const { reactivationDate } = req.body;
+    const { action, endDate, reactivationDate } = req.body;
 
     try {
-      const isActivating = req.body.status === 'Active';
-      const isDeactivating = req.body.status === 'Inactive';
-
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).send({ error: 'Bad Request' });
-      }
-
-      // Validate status input early
-      if (!isActivating && !isDeactivating) {
-        return res.status(400).send({ error: 'Invalid status. Must be "Active" or "Inactive".' });
       }
 
       const authResult = await checkChangeUserStatusAuthorization(req, userId);
@@ -1686,11 +1773,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       cache.removeCache(`user-${userId}`);
-      const recipients = await getEmailRecipientsForStatusChange(userId);
+      const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
 
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent deactivatedAt reactivationDate inactiveReason',
+        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason',
       );
 
       if (!user) {
@@ -1698,56 +1785,74 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       const wasInactive = !user.isActive;
+      const previousLifecycleStatus = getPreviousLifecycleStatus(user);
+      const lifecycleContext = {
+        pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
+        previousEndDate:
+          user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
+          user.inactiveReason === InactiveReason.SEPARATED
+            ? user.endDate
+            : null,
+      };
 
-      // =========================
-      // ACTIVATION
-      // =========================
-      if (isActivating) {
-        user.isActive = true;
-        user.deactivatedAt = null;
-        user.reactivationDate = null;
-        user.inactiveReason = undefined;
-
-        // 🔑 required lifecycle reset
-        console.log(
-          `Activating user ${userId}: resetting endDate, isSet, and finalEmailThreeWeeksSent`,
-        );
-        user.endDate = null;
-        user.isSet = false;
-        user.finalEmailThreeWeeksSent = false;
-      }
-
-      // =========================
-      // DEACTIVATION
-      // =========================
-      if (isDeactivating) {
-        user.deactivatedAt = new Date();
-
-        // If a reactivationDate is provided, treat this as PAUSE.
-        if (reactivationDate) {
-          console.log(`Received reactivationDate before parsing ${userId}: ${reactivationDate}`);
-          const parsedReactivationDate = moment
-            .tz(reactivationDate, COMPANY_TZ)
-            .startOf('day')
-            .toDate();
-          if (Number.isNaN(parsedReactivationDate.getTime())) {
-            return res.status(400).send({ error: 'Invalid reactivationDate format' });
-          }
-          console.log(`Setting reactivationDate for user ${userId} to ${parsedReactivationDate}`);
-
-          user.isActive = false;
-          user.reactivationDate = parsedReactivationDate;
-          user.inactiveReason = 'Paused';
-
-          // Safety: paused users must not have a final day
+      switch (action) {
+        case UserStatusOperations.ACTIVATE: {
+          user.isActive = true;
+          user.inactiveReason = undefined;
+          user.deactivatedAt = null;
+          user.reactivationDate = null;
           user.endDate = null;
           user.isSet = false;
           user.finalEmailThreeWeeksSent = false;
-        } else {
-          // Otherwise treat as SEPARATION (endDate will be finalized by cron).
-          user.reactivationDate = null;
-          user.inactiveReason = 'Separated';
+          break;
         }
+
+        case UserStatusOperations.DEACTIVATE: {
+          if (!endDate) {
+            return res.status(400).send({ error: 'End date is required for deactivation' });
+          }
+          user.isActive = false;
+          user.inactiveReason = InactiveReason.SEPARATED;
+          user.endDate = moment(endDate).tz(COMPANY_TZ).endOf('day').toISOString();
+          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
+          user.reactivationDate = null;
+          user.isSet = true;
+          break;
+        }
+
+        case UserStatusOperations.SCHEDULE_DEACTIVATION: {
+          if (!endDate) {
+            return res
+              .status(400)
+              .send({ error: 'End date is required for scheduled deactivation' });
+          }
+          user.isActive = true;
+          user.inactiveReason = InactiveReason.SCHEDULED_SEPARATION;
+          user.endDate = moment(endDate).tz(COMPANY_TZ).endOf('day').toISOString();
+          user.deactivatedAt = null;
+          user.reactivationDate = null;
+          user.isSet = true;
+          break;
+        }
+
+        case UserStatusOperations.PAUSE: {
+          if (!reactivationDate) {
+            return res.status(400).send({ error: 'Reactivation date is required for pause' });
+          }
+          user.isActive = false;
+          user.inactiveReason = InactiveReason.PAUSED;
+          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
+          user.reactivationDate = moment(reactivationDate)
+            .tz(COMPANY_TZ)
+            .startOf('day')
+            .toISOString();
+          user.endDate = null;
+          user.isSet = false;
+          break;
+        }
+
+        default:
+          return res.status(400).send({ error: 'Invalid action' });
       }
 
       // =========================
@@ -1761,14 +1866,14 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           user.teamCodeWarning = true;
         }
       }
-
       await user.save();
 
       await handleUserStatusSave({
         user,
         userId,
-        isActivating,
-        isDeactivating,
+        action,
+        previousLifecycleStatus,
+        lifecycleContext,
         recipients,
         req,
       });
@@ -1950,7 +2055,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       access: {
         canAccessBMPortal: false,
       },
-      expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+      expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
     };
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
@@ -2098,13 +2203,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
-      // const validDate = moment(inputDate).isValid() ? moment(inputDate).toDate() : new Date();
       const newInfringement = {
         ...req.body.blueSquare,
-        // date:validDate,
         date: inputDate,
 
-        // date: req.body.blueSquare.date || new Date(), // default to now if not provided
         // Handle reason - default to 'missingHours' if not provided
         reason: [
           'missingHours',
@@ -2117,7 +2219,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           : 'missingHours',
         // Maintain backward compatibility
       };
-      console.log('🟦 New infringement prepared:', JSON.stringify(newInfringement, null, 2));
 
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
@@ -2135,14 +2236,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       record.infringements = originalinfringements.concat(newInfringement);
       record.infringementCount += 1;
 
+      console.log('Original infringements:', originalinfringements);
+      console.log('Record infringements:', record.infringements);
+
       record
         .save()
         .then(async (results) => {
-          console.log(
-            '✅ Infringements saved in DB:',
-            JSON.stringify(results.infringements, null, 2),
-          );
-
           await userHelper.notifyInfringements(
             originalinfringements,
             results.infringements,
@@ -2324,7 +2423,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
-  const getAllTeamCodeHelper = async function () {
+  const getAllTeamCodeHelper = async function (includePRTeams = false) {
     try {
       let distinctTeamCodes = await UserProfile.distinct('teamCode', {
         teamCode: { $ne: null },
@@ -2333,6 +2432,30 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       distinctTeamCodes = distinctTeamCodes
         .map((code) => (code ? code.trim().toUpperCase() : ''))
         .filter((code) => code !== '');
+
+      if (includePRTeams) {
+        let prInsightsTeamCodes = [];
+        try {
+          prInsightsTeamCodes = await PRReviewInsights.distinct('teamCode', {
+            teamCode: { $ne: null },
+          });
+          prInsightsTeamCodes = prInsightsTeamCodes.filter((code) => code && code.trim() !== '');
+        } catch (error) {
+          console.error('Error fetching PR insights team codes:', error);
+        }
+
+        const allTeamCodes = [...new Set([...distinctTeamCodes, ...prInsightsTeamCodes])];
+        allTeamCodes.sort();
+
+        try {
+          cache.removeCache('teamCodes');
+          cache.setCache('teamCodes', JSON.stringify(allTeamCodes));
+        } catch (error) {
+          console.error('Error caching team codes:', error);
+        }
+
+        return allTeamCodes;
+      }
 
       try {
         cache.removeCache('teamCodes');
@@ -2347,9 +2470,20 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  // const getAllTeamCodeHelper = async function () {
+  //   let distinctTeamCodes = await UserProfile.distinct("teamCode", {
+  //     teamCode: { $ne: null },
+  //   });
+  //   distinctTeamCodes = distinctTeamCodes.filter((code) => code && code.trim() !== "");
+  //   console.log("Team codes found:", distinctTeamCodes);
+  //   return distinctTeamCodes;
+  // };
+
   const getAllTeamCode = async function (req, res) {
     try {
-      const distinctTeamCodes = await getAllTeamCodeHelper();
+      // Check if includePRTeams query parameter is set to 'true'
+      const includePRTeams = req.query.includePRTeams === 'true';
+      const distinctTeamCodes = await getAllTeamCodeHelper(includePRTeams);
       return res.status(200).send({ message: 'Found', distinctTeamCodes });
     } catch (error) {
       return res
@@ -2563,72 +2697,35 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const updatedUsersInfo = await Promise.all(
         usersToUpdate.map(async (user) => {
-          // if (!user || !user._id || !newTeamCode) {
-          //   console.warn('Skipping invalid user or missing newTeamCode:', user);
-          //   return null;
-          // }
-          // user.teamCode = newTeamCode;
-          // let { teamCodeWarning } = user;
-          let teamCodeWarning = user.teamCodeWarning ?? false;
+          user.teamCode = newTeamCode;
+          let { teamCodeWarning } = user;
 
           if (warningUsers && warningUsers.includes(user._id.toString())) {
             teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
           }
 
-          // return {
-          //   updateOne: {
-          //     // filter: { _id: user._id },
-          //     filter: { _id: new mongoose.Types.ObjectId(user._id)},
-          //     update: {
-          //       $set: {
-          //         teamCode: newTeamCode,
-          //         // teamCodeWarning: teamCodeWarning ?? false,
-          //         teamCodeWarning,
-          //       },
-          //     },
-          //   },
-          //   userInfo: {
-          //     userId: user._id,
-          //     teamCodeWarning,
-          //   },
-          // };
           return {
-            userId: user._id,
-            teamCodeWarning,
+            updateOne: {
+              filter: { _id: user._id },
+              update: {
+                $set: {
+                  teamCode: newTeamCode,
+                  teamCodeWarning,
+                },
+              },
+            },
+            userInfo: {
+              userId: user._id,
+              teamCodeWarning,
+            },
           };
         }),
       );
 
-      // Filter out null entries
-      // const filteredUpdates = updatedUsersInfo.filter(Boolean);
       // Then split into bulkOps and result set
-      // const bulkOps = filteredUpdates.map((x) => x.updateOne);
-      // const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
 
-      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
       // 2. Execute all updates at once
-      // if (bulkOps.length > 0) {
-      //   await UserProfile.bulkWrite(bulkOps);
-      // } else {
-      //   console.warn('Invalid bulkOps detected. Aborting write.');
-      // }
-
-      // ✅ Build the proper bulkWrite payload
-      const bulkOps = updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
-        updateOne: {
-          filter: { _id: mongoose.Types.ObjectId(userId) }, // IMPORTANT: ObjectId
-          update: {
-            $set: {
-              teamCode: newTeamCode,
-              teamCodeWarning,
-            },
-          },
-        },
-      }));
-
-      // // ✅ Log structure
-      // console.log('bulkOps to execute:', JSON.stringify(bulkOps, null, 2));
-
       if (bulkOps.length > 0) {
         await UserProfile.bulkWrite(bulkOps);
       }
@@ -2640,119 +2737,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
-    }
-  };
-
-  const updateFinalDay = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { endDate, isSet } = req.body;
-      const { requestor } = req.body;
-
-      // 1️⃣ Auth check
-      if (!requestor) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required',
-        });
-      }
-
-      // 2️⃣ Permission check (ONLY setFinalDay)
-      const allowed = await hasPermission(requestor, 'setFinalDay');
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. Missing setFinalDay permission.',
-        });
-      }
-
-      // 3️⃣ Validate target user
-      if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ message: 'Invalid userId' });
-      }
-
-      const user = await UserProfile.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      /**
-       * =========================
-       * REMOVE FINAL DAY
-       * =========================
-       * Payload:
-       * { isSet: "RemoveFinalDay" }
-       */
-      if (isSet === 'RemoveFinalDay') {
-        user.endDate = null;
-        user.isSet = false;
-
-        await user.save();
-
-        return res.status(200).json({
-          success: true,
-          message: 'Final day removed successfully',
-          user: {
-            id: user._id,
-            endDate: null,
-            isSet: false,
-          },
-        });
-      }
-
-      /**
-       * =========================
-       * SET FINAL DAY
-       * =========================
-       * Payload:
-       * {
-       *   endDate: "2025-12-27T07:59:59.999Z",
-       *   isSet: "FinalDay"
-       * }
-       */
-      if (!endDate || isSet !== 'FinalDay') {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid payload for setting final day',
-        });
-      }
-
-      const parsedEndDate = new Date(endDate);
-      if (Number.isNaN(parsedEndDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid endDate format' });
-      }
-
-      // 4️⃣ Business rule: final day must be >= start date
-      if (user.startDate && parsedEndDate < user.startDate) {
-        return res.status(400).json({
-          success: false,
-          message: 'Final day cannot be before start date',
-          startDate: user.startDate,
-        });
-      }
-
-      user.endDate = parsedEndDate; // already UTC-safe
-      user.isSet = true;
-      user.inactiveReason = 'ManualDeactivation';
-
-      await user.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Final day set successfully',
-        user: {
-          id: user._id,
-          endDate: user.endDate,
-          isSet: true,
-          isActive: user.isActive,
-        },
-      });
-    } catch (error) {
-      console.error('Error in setFinalDay:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-      });
     }
   };
 
@@ -2794,7 +2778,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
-    updateFinalDay,
   };
 };
 
