@@ -1582,7 +1582,8 @@ const overviewReportHelper = function () {
                 $match: {
                   isActive: true,
                   role: { $ne: 'Mentor' },
-                  createdDate: { $lte: isoEndDate },
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  // Removed createdDate filter to match dashboard logic exactly
                 },
               },
               { $count: 'count' },
@@ -1607,6 +1608,8 @@ const overviewReportHelper = function () {
                     $lte: isoEndDate,
                   },
                   isActive: true,
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  role: { $ne: 'Mentor' }, // Exclude mentors from new volunteers count
                 },
               },
               { $count: 'count' },
