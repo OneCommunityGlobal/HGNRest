@@ -1,8 +1,7 @@
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
 const Atom = require('../models/atom');
 const Subject = require('../models/subject');
 
+// eslint-disable-next-line max-lines-per-function
 const atomController = function () {
   // Get all atoms
   const getAtoms = async (req, res) => {

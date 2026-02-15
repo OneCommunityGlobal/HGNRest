@@ -8,7 +8,7 @@ const routes = function (project) {
 
   projectRouter.route('/archivedProjects').get(controller.getArchivedProjects);
   projectRouter
-    
+
     .route('/project/:projectId')
     .get(controller.getProjectById)
     .post(controller.putProject)
@@ -33,6 +33,7 @@ const routes = function (project) {
   projectRouter
     .route('/projects/:projectId/users/search/:query')
     .get(controller.searchProjectMembers);
+
   return projectRouter;
 };
 

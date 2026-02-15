@@ -27,8 +27,8 @@ const routes = function (userProfile, project) {
     .get(param('name').exists(), controller.searchUsersByName);
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
-  // Endpoint to retrieve basic user profile information
-  userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
+  // Endpoint to retrieve basic user profile information after verifying access permission based on the request source.
+  userProfileRouter.route('/userProfile/basicInfo/:source').get(controller.getUserProfileBasicInfo);
   userProfileRouter
     .route('/userProfile/:userId')
     .get(controller.getUserById)
@@ -41,30 +41,59 @@ const routes = function (userProfile, project) {
         if (!value) throw new ValidationError('Last Name is required');
         return value.trim();
       }),
-      body('personalLinks').customSanitizer((value) =>
-        value.map((link) => {
-          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
-            return {
-              ...link,
-              Name: link.Name.trim(),
-              Link: link.Link.replace(/\s/g, ''),
-            };
-          }
-          throw new ValidationError('personalLinks not valid');
-        }),
-      ),
-      body('adminLinks').customSanitizer((value) =>
-        value.map((link) => {
-          if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
-            return {
-              ...link,
-              Name: link.Name.trim(),
-              Link: link.Link.replace(/\s/g, ''),
-            };
-          }
-          throw new ValidationError('adminLinks not valid');
-        }),
-      ),
+      // body('personalLinks').customSanitizer((value) =>
+      //   value.map((link) => {
+      //     if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+      //       return {
+      //         ...link,
+      //         Name: link.Name.trim(),
+      //         Link: link.Link.replace(/\s/g, ''),
+      //       };
+      //     }
+      //     throw new ValidationError('personalLinks not valid');
+      //   }),
+      // ),
+      // body('adminLinks').customSanitizer((value) =>
+      //   value.map((link) => {
+      //     if (link.Name.replace(/\s/g, '') || link.Link.replace(/\s/g, '')) {
+      //       return {
+      //         ...link,
+      //         Name: link.Name.trim(),
+      //         Link: link.Link.replace(/\s/g, ''),
+      //       };
+      //     }
+      //     throw new ValidationError('adminLinks not valid');
+      //   }),
+      // ),
+
+      body('personalLinks')
+        .optional()
+        .customSanitizer((value) =>
+          value.map((link) => {
+            if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
+              return {
+                ...link,
+                Name: link.Name.trim(),
+                Link: link.Link.replace(/\s/g, ''),
+              };
+            }
+            throw new ValidationError('personalLinks not valid');
+          }),
+        ),
+      body('adminLinks')
+        .optional()
+        .customSanitizer((value) =>
+          value.map((link) => {
+            if (link.Name?.replace(/\s/g, '') || link.Link?.replace(/\s/g, '')) {
+              return {
+                ...link,
+                Name: link.Name.trim(),
+                Link: link.Link.replace(/\s/g, ''),
+              };
+            }
+            throw new ValidationError('adminLinks not valid');
+          }),
+        ),
       body('infringementCount')
         .optional()
         .isInt({ min: 0 })
@@ -144,8 +173,6 @@ const routes = function (userProfile, project) {
   userProfileRouter
     .route('/userProfile/skills/:skill')
     .get(controller.getAllMembersSkillsAndContact);
-
-  userProfileRouter.route('/userProfile/:userId/finalDay').patch(controller.setFinalDay);
 
   return userProfileRouter;
 };

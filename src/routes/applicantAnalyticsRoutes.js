@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('express'); //
 
 const router = express.Router();
 const Applicant = require('../models/jobApplicants');
@@ -9,6 +9,7 @@ const analyticsController = require('../controllers/applicantAnalyticsController
 
 const {
   getExperienceBreakdown,
+  getApplicantSources,
   getAllRoles,
   trackInteraction,
   trackApplication,
@@ -18,6 +19,7 @@ const {
 } = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
 
 router.get('/experience-breakdown', getExperienceBreakdown);
+router.get('/applicant-sources', getApplicantSources);
 router.get('/experience-roles', getAllRoles);
 
 // public - no auth required
