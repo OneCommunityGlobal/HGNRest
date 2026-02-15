@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-//const userHelper = require('../helpers/userHelper')();
+// const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -18,10 +18,124 @@ const badgeController = function (Badge) {
   //   res.status(200).send('Badges awarded');
   // };
 
+  // const updateBadgeUsers = async function (req, res) {
+  //   console.log('Assigning Users to Badges');
+
+  //   try {
+  //     // First make sure all badges have users array
+  //     await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
+
+  //     // Get all user profiles with badges
+  //     const userProfiles = await UserProfile.find({
+  //       'badgeCollection.0': { $exists: true },
+  //     }).select('_id badgeCollection');
+
+  //     // Filter out any null badge items and validate badge IDs
+  //     const updatePromises = userProfiles.map((profile) =>
+  //       Promise.all(
+  //         profile.badgeCollection
+  //           .filter((badgeItem) => badgeItem && badgeItem.badge) // Filter out null items
+  //           .map((badgeItem) =>
+  //             Badge.findByIdAndUpdate(badgeItem.badge, {
+  //               $addToSet: {
+  //                 users: {
+  //                   userId: profile._id,
+  //                 },
+  //               },
+  //             }).catch((err) =>
+  //               console.error(`Error updating badge ${badgeItem.badge}: ${err.message}`),
+  //             ),
+  //           ),
+  //       ),
+  //     );
+
+  //     await Promise.all(updatePromises);
+
+  //     // Clear cache
+  //     if (cache.hasCache('allBadges')) {
+  //       cache.removeCache('allBadges');
+  //     }
+
+  //     const totalUpdates = userProfiles.reduce(
+  //       (sum, profile) =>
+  //         sum + (profile.badgeCollection?.filter((item) => item && item.badge)?.length || 0),
+  //       0,
+  //     );
+
+  //     res.status(200).send({
+  //       message: `Successfully processed ${totalUpdates} badge-user associations`,
+  //       processedUsers: userProfiles.length,
+  //     });
+  //   } catch (error) {
+  //     console.error('Full error:', error);
+  //     res.status(500).send({
+  //       error: 'Error updating badge users',
+  //       details: error.message,
+  //     });
+  //   }
+  // };
+
+  const updateBadgesWithUsers = async function (req, res) {
+    console.log('Updating Badges');
+
+    try {
+      // Find badges that don't have users field
+      const badgesToUpdate = await Badge.find({
+        users: { $exists: false },
+      });
+
+      if (badgesToUpdate.length === 0) {
+        return res.status(200).send({ message: 'No badges need updating' });
+      }
+
+      // Update all matching badges with empty users array
+      await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
+
+      // Clear cache since badges were updated
+      if (cache.hasCache('allBadges')) {
+        cache.removeCache('allBadges');
+      }
+
+      res.status(200).send({
+        message: `Successfully updated ${badgesToUpdate.length} badges with users array`,
+        updatedBadges: badgesToUpdate,
+      });
+    } catch (error) {
+      res.status(500).send({
+        error: 'Error updating badges',
+        details: error.message,
+      });
+    }
+  };
+
+  // const getBadge = async function (req, res) {
+  //   const { badgeId } = req.params;
+
+  //   try {
+  //     const badge = await Badge.findById(badgeId)
+  //       .populate({
+  //         path: 'project',
+  //         select: '_id projectName',
+  //       })
+  //       .populate({
+  //         path: 'users.userId',
+  //         select: '_id',
+  //       });
+
+  //     if (!badge) {
+  //       return res.status(404).send({ error: 'Badge not found' });
+  //     }
+
+  //     res.status(200).send(badge);
+  //   } catch (error) {
+  //     res.status(500).send({ error: error.message });
+  //   }
+  // };
+
   const getAllBadges = async function (req, res) {
     // console.log(req.body.requestor);  // Retain logging from development branch for debugging
 
-    // Check if the user has any of the following permissions
+    // Check permissions
     if (
       !(await helper.hasPermission(req.body.requestor, 'seeBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'assignBadges')) &&
@@ -29,6 +143,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
+      console.log('User not authorized');
       // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
@@ -47,6 +162,10 @@ const badgeController = function (Badge) {
       .populate({
         path: 'project',
         select: '_id projectName',
+      })
+      .populate({
+        path: 'users.userId',
+        select: '_id username firstName lastName', // Populate firstName and profileName
       })
       .sort({
         ranking: 1,
@@ -201,9 +320,10 @@ const badgeController = function (Badge) {
       badge.ranking = req.body.ranking;
       badge.description = req.body.description;
       badge.showReport = req.body.showReport;
+      badge.users = []; // Initialize empty users array
 
       const newBadge = await badge.save();
-      // remove cache after new badge is saved
+
       if (cache.getCache('allBadges')) {
         cache.removeCache('allBadges');
       }
@@ -257,6 +377,11 @@ const badgeController = function (Badge) {
     const { badgeId } = req.params;
     const imageUrl = null;
 
+    if (!req.body || Object.keys(req.body).length <= 1) {
+      // Call updateBadgesWithUsers if no update data provided
+      return updateBadgesWithUsers(req, res);
+    }
+
     // If has req.body.file than upload image and insert that url
     // into imageUrl
     if (req.body.file) {
@@ -292,6 +417,7 @@ const badgeController = function (Badge) {
       res.status(200).send({ message: 'Badge successfully updated' });
     });
   };
+
   const getBadgeCount = async function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
@@ -341,7 +467,7 @@ const badgeController = function (Badge) {
   };
 
   return {
-    //awardBadgesTest,
+    // awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
@@ -350,6 +476,8 @@ const badgeController = function (Badge) {
     getBadgeCount,
     putBadgecount,
     resetBadgecount,
+    updateBadgesWithUsers,
+    updateBadgeUsers: updateBadgesWithUsers,
   };
 };
 

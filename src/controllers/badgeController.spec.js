@@ -238,9 +238,19 @@ describe('badeController module', () => {
     });
   });
 
+  // describe('getAllBadges method', () => {
+  //   const findObject = { populate: () => {} };
+  //   const populateObject = { sort: () => {} };
   describe('getAllBadges method', () => {
-    const findObject = { populate: () => {} };
-    const populateObject = { sort: () => {} };
+    const makeFindChain = ({ result, rejectMsg } = {}) => {
+      const chain = {
+        populate: jest.fn().mockReturnThis(), // allows .populate(...).populate(...)
+        sort: rejectMsg
+          ? jest.fn().mockRejectedValue(new Error(rejectMsg))
+          : jest.fn().mockResolvedValue(result ?? []),
+      };
+      return chain;
+    };
     // TODO: Fix this test
     // test('Returns 403 if the user is not authorized', async () => {
     //   const { getAllBadges } = makeSut();
@@ -260,13 +270,17 @@ describe('badeController module', () => {
       const mockPermission = mockHasPermission(true);
       const errorMsg = 'Error when finding badges';
 
-      const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
-      const populateMock = jest
-        .spyOn(findObject, 'populate')
-        .mockImplementationOnce(() => populateObject);
-      const sortMock = jest
-        .spyOn(populateObject, 'sort')
-        .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      // const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
+      // const populateMock = jest
+      //   .spyOn(findObject, 'populate')
+      //   .mockImplementationOnce(() => populateObject);
+      // const sortMock = jest
+      //   .spyOn(populateObject, 'sort')
+      //   .mockImplementationOnce(() => Promise.reject(new Error(errorMsg)));
+      const chain = makeFindChain({ rejectMsg: errorMsg });
+      const findMock = jest.spyOn(Badge, 'find').mockReturnValueOnce(chain);
+      const populateMock = chain.populate; // chainable
+      const sortMock = chain.sort;
 
       getAllBadges(mockReq, mockRes);
       await flushPromises();
@@ -313,13 +327,17 @@ describe('badeController module', () => {
       const mockPermission = mockHasPermission(true);
       const badges = [{ badge: 'random badge' }];
 
-      const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
-      const populateMock = jest
-        .spyOn(findObject, 'populate')
-        .mockImplementationOnce(() => populateObject);
-      const sortMock = jest
-        .spyOn(populateObject, 'sort')
-        .mockImplementationOnce(() => Promise.resolve(badges));
+      // const findMock = jest.spyOn(Badge, 'find').mockImplementationOnce(() => findObject);
+      // const populateMock = jest
+      //   .spyOn(findObject, 'populate')
+      //   .mockImplementationOnce(() => populateObject);
+      // const sortMock = jest
+      //   .spyOn(populateObject, 'sort')
+      //   .mockImplementationOnce(() => Promise.resolve(badges));
+      const chain = makeFindChain({ result: badges });
+      const findMock = jest.spyOn(Badge, 'find').mockReturnValueOnce(chain);
+      const populateMock = chain.populate;
+      const sortMock = chain.sort;
 
       getAllBadges(mockReq, mockRes);
       await flushPromises();

@@ -1,6 +1,7 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
+const badgeController = require('../controllers/badgeController');
 
 const userProfileJobs = () => {
   /* eslint-disable no-unused-vars */
@@ -21,6 +22,10 @@ const userProfileJobs = () => {
         await userhelper.emailWeeklySummariesForAllUsers();
         await userhelper.deleteBlueSquareAfterYear();
         await userhelper.deleteExpiredTokens();
+
+        // New badge-related jobs
+        await badgeController.updateBadgesWithUsers();
+        await badgeController.updateBadgeUsers();
       }
       await userhelper.awardNewBadges();
     },
