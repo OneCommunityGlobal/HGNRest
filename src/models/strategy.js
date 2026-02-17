@@ -38,7 +38,7 @@ const strategySchema = new Schema({
   },
 });
 
-strategySchema.pre('save', function(next) {
+strategySchema.pre('save', function (next) {
   this.updated_at = Date.now();
   next();
 });
