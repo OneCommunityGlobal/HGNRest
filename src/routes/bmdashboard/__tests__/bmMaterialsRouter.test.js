@@ -7,6 +7,7 @@ const mockController = {
   bmPostMaterialUpdateBulk: jest.fn(),
   bmupdatePurchaseStatus: jest.fn(),
   bmGetMaterialCostCorrelation: jest.fn(),
+  bmGetMaterialStockOutRisk: jest.fn(),
   bmGetMaterialSummaryByProject: jest.fn(),
 };
 
