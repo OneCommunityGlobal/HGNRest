@@ -983,6 +983,7 @@ const userHelper = function () {
   // function to send emails to those users who have completed hours but not submitted their summary
   const completeHoursAndMissedSummary = async (emailConfig = {}) => {
     try {
+      console.log('[completeHoursAndMissedSummary] Starting function execution');
       // If targetUserId is provided (testing), use that; otherwise use all active users (production)
       const query = emailConfig.targetUserId
         ? { _id: emailConfig.targetUserId }
@@ -991,6 +992,7 @@ const userHelper = function () {
         query,
         '_id weeklycommittedHours weeklySummaries missedHours email firstName weeklySummaryOption weeklySummaryNotReq',
       );
+      console.log(`[completeHoursAndMissedSummary] Found ${users.length} users to process`);
 
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
@@ -998,6 +1000,9 @@ const userHelper = function () {
         .subtract(1, 'week');
 
       const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      console.log(
+        `[completeHoursAndMissedSummary] Checking last week: ${pdtStartOfLastWeek.format('YYYY-MM-DD')} to ${pdtEndOfLastWeek.format('YYYY-MM-DD')}`,
+      );
 
       let emailsBCCs;
       const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
@@ -1027,13 +1032,10 @@ const userHelper = function () {
           hasWeeklySummary = true;
         }
 
-        const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
-        const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
-
         const results = await dashboardHelper.laborthisweek(
           user._id,
-          pdtStartOfCurrentWeek,
-          pdtEndOfCurrentWeek,
+          pdtStartOfLastWeek,
+          pdtEndOfLastWeek,
         );
 
         const timeSpent =
@@ -1056,7 +1058,13 @@ const userHelper = function () {
         console.log('hasTimeOffRequest: ', hasTimeOffRequest);
         console.log('timeNotMet: ', timeNotMet);
         console.log('hasWeeklySummary: ', hasWeeklySummary);
+        console.log(
+          `[completeHoursAndMissedSummary] User ${user.firstName}: timeSpent=${timeSpent}, committed=${weeklycommittedHours}, timeNotMet=${timeNotMet}, hasWeeklySummary=${hasWeeklySummary}, hasTimeOff=${hasTimeOffRequest}`,
+        );
         if (hasTimeOffRequest === false && timeNotMet === false && hasWeeklySummary === false) {
+          console.log(
+            `[completeHoursAndMissedSummary] ✅ Sending email to ${user.firstName} (${user.email})`,
+          );
           await emailSender(
             emailConfig.emailOverride || user.email,
             `Re: New Infringement Assigned - Week of ${moment(pdtStartOfLastWeek).format('MM/DD/YYYY')}`,
@@ -1219,6 +1227,7 @@ const userHelper = function () {
 
   const inCompleteHoursEmailFunction = async (emailConfig = {}) => {
     try {
+      console.log('[inCompleteHoursEmailFunction] Starting function execution');
       // If targetUserId is provided (testing), use that; otherwise use all active users (production)
       const query = emailConfig.targetUserId
         ? { _id: emailConfig.targetUserId }
@@ -1227,11 +1236,15 @@ const userHelper = function () {
         query,
         '_id weeklycommittedHours missedHours email firstName infringements startDate',
       );
+      console.log(`[inCompleteHoursEmailFunction] Found ${users.length} users to process`);
 
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
+      console.log(
+        `[inCompleteHoursEmailFunction] Checking last week starting: ${pdtStartOfLastWeek.format('YYYY-MM-DD')}`,
+      );
 
       const date = moment();
       const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
@@ -1248,14 +1261,14 @@ const userHelper = function () {
       }
       console.log('emailsBCCs: ', emailsBCCs);
 
+      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
-        const pdtStartOfCurrentWeek = moment().tz('America/Los_Angeles').startOf('week');
-        const pdtEndOfCurrentWeek = moment().tz('America/Los_Angeles').endOf('week');
         const results = await dashboardHelper.laborthisweek(
           user._id,
-          pdtStartOfCurrentWeek,
-          pdtEndOfCurrentWeek,
+          pdtStartOfLastWeek,
+          pdtEndOfLastWeek,
         );
         const timeSpent =
           Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
@@ -1279,6 +1292,9 @@ const userHelper = function () {
 
         const todayBlueSquare = user.infringements.filter(
           (infringement) => infringement.date === todayDate,
+        );
+        console.log(
+          `[inCompleteHoursEmailFunction] User ${user.firstName}: timeSpent=${timeSpent}, committed=${weeklycommittedHours}, todayBlueSquares=${todayBlueSquare.length}, totalInfringements=${user.infringements.length}`,
         );
 
         // Check conditions for sending blue square email
@@ -1361,6 +1377,7 @@ const userHelper = function () {
 
   const weeklyBlueSquareReminderFunction = async (emailConfig = {}) => {
     try {
+      console.log('[weeklyBlueSquareReminderFunction] Starting function execution');
       // If targetUserId is provided (testing), use that; otherwise use all active users (production)
       const query = emailConfig.targetUserId
         ? { _id: emailConfig.targetUserId }
@@ -1369,6 +1386,7 @@ const userHelper = function () {
         query,
         '_id weeklycommittedHours missedHours email firstName infringements startDate',
       );
+      console.log(`[weeklyBlueSquareReminderFunction] Found ${users.length} users to process`);
 
       const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
@@ -1378,6 +1396,7 @@ const userHelper = function () {
 
       const date = moment();
       const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
+      console.log("[weeklyBlueSquareReminderFunction] Today's date for comparison:", todayDate);
 
       // blue square email BCC's
       let emailsBCCs;
@@ -1442,6 +1461,15 @@ const userHelper = function () {
           const todayBlueSquare = users[i].infringements.filter(
             (infringement) => infringement.date === todayDate,
           );
+          console.log(
+            `[weeklyBlueSquareReminderFunction] User ${user.firstName} - Total infringements: ${users[i].infringements.length}, Today's blue squares: ${todayBlueSquare.length}, bluesquareEmailCondition: ${bluesquareEmailCondition}`,
+          );
+          if (todayBlueSquare.length > 0) {
+            console.log(
+              `[weeklyBlueSquareReminderFunction] User ${user.firstName} has blue square(s) today:`,
+              todayBlueSquare.map((inf) => ({ date: inf.date, description: inf.description })),
+            );
+          }
           if (
             bluesquareEmailCondition &&
             users[i].infringements.length === 1 &&
