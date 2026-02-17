@@ -161,6 +161,8 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
+const materialUtilizationRouter = require('../routes/materialUtilizationRouter');
+
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
 
 const faqRouter = require('../routes/faqRouter');
@@ -173,6 +175,7 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage)
 const ownerMessageLogRouter = require('../routes/ownerMessageLogRouter')();
 
 const emailRouter = require('../routes/emailRouter')();
+const emailOutboxRouter = require('../routes/emailOutboxRouter');
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
 
@@ -316,6 +319,7 @@ const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPe
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
 const templateRouter = require('../routes/templateRouter');
+const emailTemplateRouter = require('../routes/emailTemplateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 
@@ -360,7 +364,10 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
+
 module.exports = function (app) {
+  app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -397,6 +404,7 @@ module.exports = function (app) {
   app.use('/api', informationRouter);
   app.use('/api', mouseoverTextRouter);
   app.use('/api', permissionChangeLogRouter);
+  app.use('/api', emailOutboxRouter);
   app.use('/api', emailRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
@@ -408,6 +416,7 @@ module.exports = function (app) {
   app.use('/api', followUpRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
+  app.use('/api', materialUtilizationRouter);
 
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
@@ -424,6 +433,12 @@ module.exports = function (app) {
 
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
+
+  app.use('/api/hgnHelp', communityRouter());
+  app.use('/api/costs', costsRouter);
+  app.use('/api', hoursPledgedRoutes);
+  app.use('/api', templateRouter);
+  app.use('/api', emailTemplateRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
