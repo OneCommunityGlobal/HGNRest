@@ -9,6 +9,7 @@
 /bower_components
 
 # misc
+/scripts
 /.sass-cache
 /connect.lock
 /coverage/*
@@ -25,3 +26,13 @@ testem.log
 
 # OS specific
 .DS_Store
+
+# Documentation
+/docs
+.DS_Storescripts/
+.env
+patch-mongo.js
+skip-db.js
+stub-db.js
+stub-db-strong.js
+scripts/

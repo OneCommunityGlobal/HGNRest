@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
 const Task = require('../../models/task');
