@@ -3,6 +3,78 @@ const { endOfDay } = require('date-fns');
 
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
+const MS_PER_MINUTE = 60 * 1000;
+const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
+const AVG_DAYS_PER_MONTH = 30.44;
+const MAX_LONGEST_OPEN_ISSUES = 7;
+
+const getProjectFilterIds = (projectsParam) =>
+  projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
+
+const filterProjectIdsByDates = async (datesParam, currentProjectIds) => {
+  if (!datesParam) {
+    return currentProjectIds;
+  }
+
+  const [start, end] = datesParam.split(',').map((d) => d.trim());
+  const matchingProjects = await BuildingProject.find({
+    dateCreated: { $gte: new Date(start), $lte: new Date(end) },
+    isActive: true,
+  })
+    .select('_id')
+    .lean();
+
+  const dateIds = matchingProjects.map((p) => p._id.toString());
+  if (currentProjectIds.length === 0) {
+    return dateIds;
+  }
+
+  return currentProjectIds.filter((id) => dateIds.includes(id));
+};
+
+const getDurationOpenMonths = (issueDate) =>
+  Math.ceil(
+    (Date.now() - new Date(issueDate)) /
+      (MS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY * AVG_DAYS_PER_MONTH),
+  );
+
+const buildGroupedIssues = (issues) => {
+  const grouped = {};
+
+  issues.forEach((issue) => {
+    if (!issue.issueDate || !issue.projectId) return;
+
+    const issueName = Array.isArray(issue.issueTitle)
+      ? issue.issueTitle[0]
+      : issue.issueTitle || 'Unknown Issue';
+
+    const projectId = issue.projectId._id.toString();
+    const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
+
+    const durationOpen = getDurationOpenMonths(issue.issueDate);
+
+    if (!grouped[issueName]) grouped[issueName] = {};
+    if (!grouped[issueName][projectId]) {
+      grouped[issueName][projectId] = {
+        projectId,
+        projectName,
+        durationOpen,
+      };
+    }
+  });
+
+  return grouped;
+};
+
+const buildLongestOpenResponse = (grouped) =>
+  Object.entries(grouped)
+    .map(([issueName, projectsById]) => ({
+      issueName,
+      projects: Object.values(projectsById),
+    }))
+    .slice(0, MAX_LONGEST_OPEN_ISSUES);
+
 const bmIssueController = function (buildingIssue) {
   // fetch open issues with optional date range and tag filtering and project ID
   const bmGetOpenIssue = async (req, res) => {
@@ -113,18 +185,13 @@ const bmIssueController = function (buildingIssue) {
     }
   };
 
+  /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      buildingIssue
-        .create(req.body)
-        .then((result) => {
-          res.status(201).send(result);
-        })
-        .catch((error) => {
-          res.status(500).send(error);
-        });
-    } catch (err) {
-      res.json(err);
+      const issue = await buildingIssue.create(req.body);
+      res.status(201).json(issue);
+    } catch (error) {
+      res.status(500).json(error);
     }
   };
 
@@ -177,39 +244,40 @@ const bmIssueController = function (buildingIssue) {
       .catch((err) => res.status(500).json({ error: err.message }));
   };
 
+  /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
     try {
-      buildingIssue
-        .find()
-        .populate()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+      const issues = await buildingIssue.find().populate();
+      res.status(200).json(issues);
+    } catch (error) {
+      res.status(500).json(error);
     }
   };
 
+  /* -------------------- ISSUE CHART (MULTI-YEAR) -------------------- */
   const bmGetIssueChart = async (req, res) => {
     try {
       const { issueType, year } = req.query;
-      const matchQuery = {}; // Initialize an empty match query object
+      const matchQuery = {};
 
-      // Apply filters if provided
-      if (issueType) {
-        matchQuery.issueType = issueType;
-      }
+      if (issueType) matchQuery.issueType = issueType;
+
       if (year) {
-        const startDate = new Date(`${year}-01-01T00:00:00Z`);
-        const endDate = new Date(`${year}-12-31T23:59:59Z`);
-        matchQuery.issueDate = { $gte: startDate, $lte: endDate }; // Filter based on issueDate
+        matchQuery.issueDate = {
+          $gte: new Date(`${year}-01-01T00:00:00Z`),
+          $lte: new Date(`${year}-12-31T23:59:59Z`),
+        };
       }
 
-      const aggregationPipeline = [
-        { $match: matchQuery }, // Match the filtered data
+      const pipeline = [
+        { $match: matchQuery },
         {
           $group: {
-            _id: { issueType: '$issueType', year: { $year: '$issueDate' } },
-            count: { $sum: 1 }, // Properly count occurrences
+            _id: {
+              issueType: '$issueType',
+              year: { $year: '$issueDate' },
+            },
+            count: { $sum: 1 },
           },
         },
         {
@@ -223,108 +291,59 @@ const bmIssueController = function (buildingIssue) {
             },
           },
         },
-        { $sort: { _id: 1 } }, // Sort by issueType
+        { $sort: { _id: 1 } },
       ];
 
-      const issues = await buildingIssue.aggregate(aggregationPipeline); // Execute aggregation pipeline
+      const data = await buildingIssue.aggregate(pipeline);
 
-      // Format the result
-      const result = issues.reduce((acc, item) => {
-        const issueTypeKey = item._id;
-        acc[issueTypeKey] = {};
-        item.years.forEach((yearData) => {
-          acc[issueTypeKey][yearData.year] = yearData.count;
+      const result = data.reduce((acc, item) => {
+        acc[item._id] = {};
+        item.years.forEach((y) => {
+          acc[item._id][y.year] = y.count;
         });
         return acc;
       }, {});
 
-      res.status(200).json(result); // Return the formatted result
+      res.status(200).json(result);
     } catch (error) {
-      console.error('Error fetching issues:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   };
 
+  /* -------------------- LONGEST OPEN ISSUES (FINAL) -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
       const { dates, projects } = req.query;
-      // dates = '2021-10-01,2023-11-03';
-      // projects = '654946c8bc5772e8caf7e963';
       const query = { status: 'open' };
-      let filteredProjectIds = [];
+      let filteredProjectIds = getProjectFilterIds(projects);
 
-      // Parse project filter if provided
-      if (projects) {
-        filteredProjectIds = projects.split(',').map((id) => id.trim());
-      }
+      /* ---- date filter ---- */
+      filteredProjectIds = await filterProjectIdsByDates(dates, filteredProjectIds);
 
-      // Apply date filtering logic
-      if (dates) {
-        const [startDateStr, endDateStr] = dates.split(',').map((d) => d.trim());
-        const startDate = new Date(startDateStr);
-        const endDate = new Date(endDateStr);
-
-        const matchingProjects = await BuildingProject.find({
-          dateCreated: { $gte: startDate, $lte: endDate },
-          isActive: true,
-        })
-          .select('_id')
-          .lean();
-
-        const dateFilteredIds = matchingProjects.map((p) => p._id.toString());
-
-        if (filteredProjectIds.length > 0) {
-          // Intersection of project filters
-          filteredProjectIds = filteredProjectIds.filter((id) => dateFilteredIds.includes(id));
-        } else {
-          filteredProjectIds = dateFilteredIds;
-        }
-      }
-
-      // If no matching project IDs, return early
       if (dates && filteredProjectIds.length === 0) {
-        return res.json([]); // No results to return
+        return res.json([]);
       }
 
-      if (filteredProjectIds.length > 0) {
+      if (filteredProjectIds.length) {
         query.projectId = { $in: filteredProjectIds };
       }
 
-      let issues = await buildingIssue
+      /* ---- fetch issues ---- */
+      const issues = await buildingIssue
         .find(query)
-        .select('issueTitle issueDate')
-        .populate('projectId')
+        .select('issueTitle issueDate projectId')
+        .populate({
+          path: 'projectId',
+          select: 'projectName name',
+        })
         .lean();
 
-      issues = issues.map((issue) => {
-        const durationInMonths = Math.ceil(
-          (new Date() - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24 * 30.44),
-        );
-        const years = Math.floor(durationInMonths / 12);
-        const months = durationInMonths % 12;
-        const durationText =
-          years > 0
-            ? `${years} year${years > 1 ? 's' : ''} ${months} month${months > 1 ? 's' : ''}`
-            : `${months} month${months > 1 ? 's' : ''}`;
+      /* ---- group by issue + project ---- */
+      const grouped = buildGroupedIssues(issues);
+      const response = buildLongestOpenResponse(grouped);
 
-        return {
-          issueName: issue.issueTitle[0],
-          durationOpen: durationText,
-          durationInMonths,
-        };
-      });
-
-      const topIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .slice(0, 7)
-        .map(({ issueName, durationInMonths }) => ({
-          issueName,
-          durationOpen: durationInMonths, // send number only
-        }));
-
-      res.json(topIssues);
+      res.json(response);
     } catch (error) {
-      console.error('Error fetching longest open issues:', error);
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
   };

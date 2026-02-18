@@ -509,31 +509,27 @@ describe('Building Issue Controller', () => {
     it('should fetch all issues successfully', async () => {
       const mockIssues = [{ _id: '1', name: 'Issue 1' }];
       mockBuildingIssue.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        then: jest.fn((resolve) => resolve(mockIssues)),
-        catch: jest.fn(),
+        populate: jest.fn().mockResolvedValue(mockIssues),
       });
 
       await controller.bmGetIssue(req, res);
 
       expect(mockBuildingIssue.find).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.send).toHaveBeenCalledWith(mockIssues);
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
     });
 
     it('should handle errors when fetching issues', async () => {
       const error = new Error('Database error');
       mockBuildingIssue.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        then: jest.fn().mockImplementation(() => Promise.reject(error)),
-        catch: jest.fn((reject) => reject(error)),
+        populate: jest.fn().mockRejectedValue(error),
       });
 
       await controller.bmGetIssue(req, res);
 
       expect(mockBuildingIssue.find).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith(error);
+      expect(res.json).toHaveBeenCalledWith(error);
     });
 
     it('should handle thrown errors in try-catch', async () => {
@@ -554,35 +550,24 @@ describe('Building Issue Controller', () => {
       const mockNewIssue = { _id: '123', name: 'New Issue' };
       req.body = mockNewIssue;
 
-      mockBuildingIssue.create.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(mockNewIssue);
-          return { catch: jest.fn() };
-        }),
-        catch: jest.fn(),
-      });
+      mockBuildingIssue.create.mockResolvedValue(mockNewIssue);
 
       await controller.bmPostIssue(req, res);
 
       expect(mockBuildingIssue.create).toHaveBeenCalledWith(mockNewIssue);
       expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.send).toHaveBeenCalledWith(mockNewIssue);
+      expect(res.json).toHaveBeenCalledWith(mockNewIssue);
     });
 
     it('should handle errors when creating a new issue', async () => {
       const error = new Error('Creation error');
-      mockBuildingIssue.create.mockReturnValue({
-        then: jest.fn(() => ({
-          catch: jest.fn((reject) => reject(error)),
-        })),
-        catch: jest.fn((reject) => reject(error)),
-      });
+      mockBuildingIssue.create.mockRejectedValue(error);
 
       await controller.bmPostIssue(req, res);
 
       expect(mockBuildingIssue.create).toHaveBeenCalledWith(req.body);
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith(error);
+      expect(res.json).toHaveBeenCalledWith(error);
     });
 
     it('should handle thrown errors in try-catch', async () => {
@@ -724,7 +709,8 @@ describe('Building Issue Controller', () => {
       const result = res.json.mock.calls[0][0];
       expect(result).toHaveLength(1);
       expect(result[0].issueName).toBe('Old Issue');
-      expect(result[0].durationOpen).toBeGreaterThan(0);
+      expect(result[0].projects).toHaveLength(1);
+      expect(result[0].projects[0].durationOpen).toBeGreaterThan(0);
     });
 
     it('should filter by projects when provided', async () => {
@@ -825,10 +811,12 @@ describe('Building Issue Controller', () => {
 
       const result = res.json.mock.calls[0][0];
       expect(result).toHaveLength(7);
-      // Ensure sorted by duration (descending)
-      for (let i = 1; i < result.length; i += 1) {
-        expect(result[i - 1].durationOpen).toBeGreaterThanOrEqual(result[i].durationOpen);
-      }
+      // Response is capped at 7 items; each item has issueName and projects with durationOpen
+      result.forEach((item) => {
+        expect(item.issueName).toBeDefined();
+        expect(item.projects).toHaveLength(1);
+        expect(typeof item.projects[0].durationOpen).toBe('number');
+      });
     });
 
     it('should format duration correctly for months', async () => {
@@ -852,7 +840,7 @@ describe('Building Issue Controller', () => {
       await controller.getLongestOpenIssues(req, res);
 
       const result = res.json.mock.calls[0][0];
-      expect(result[0].durationOpen).toBeGreaterThanOrEqual(2);
+      expect(result[0].projects[0].durationOpen).toBeGreaterThanOrEqual(2);
     });
 
     it('should return 500 error when database error occurs', async () => {

@@ -51,12 +51,14 @@ const logincontroller = function () {
           const jwtPayload = {
             userid: user._id,
             role: user.role,
+            firstName: user.firstName,
+            lastName: user.lastName,
             permissions: user.permissions,
             access: {
               canAccessBMPortal: false,
             },
             email: user.email,
-            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
           };
 
           const token = jwt.sign(jwtPayload, JWT_SECRET);
@@ -69,7 +71,6 @@ const logincontroller = function () {
         }
       }
     } catch (err) {
-      console.log(err);
       res.json(err);
     }
   };
