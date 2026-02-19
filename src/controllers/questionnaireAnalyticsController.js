@@ -1,11 +1,10 @@
 // const { hasPermission } = require('../utilities/permissions');
 const FormResponse = require('../models/hgnFormResponse');
-const userProfile = require('../models/userProfile');
 
 const questionnaireAnalyticsController = function () {
   const getUsersBySkills = async function (req, res) {
     try {
-      const { skills, requestor } = req.body;
+      const { skills } = req.body;
       const { frontend, backend } = skills || {};
 
       if (!skills || (!frontend?.length && !backend?.length)) {
@@ -15,11 +14,6 @@ const questionnaireAnalyticsController = function () {
       const skillPaths = Object.entries(skills).flatMap(([domain, list]) =>
         list.map((skill) => `$${domain}.${skill}`),
       );
-
-      const profile = await userProfile.findById(requestor.requestorId).lean();
-      if (!profile) {
-        return res.status(404).json({ error: 'Requestor profile not found' });
-      }
 
       const isSameTeamParam = req.query.isSameTeam;
 
@@ -37,19 +31,8 @@ const questionnaireAnalyticsController = function () {
           $addFields: {
             isSameTeam: {
               $cond: {
-                if: {
-                  $and: [{ $isArray: '$profile.teams' }, { $gt: [{ $size: '$profile.teams' }, 0] }],
-                },
-                then: {
-                  $gt: [
-                    {
-                      $size: {
-                        $setIntersection: ['$profile.teams', profile.teams],
-                      },
-                    },
-                    0,
-                  ],
-                },
+                if: { $isArray: '$profile.teams' },
+                then: { $gt: [{ $size: '$profile.teams' }, 0] },
                 else: false,
               },
             },
@@ -58,23 +41,22 @@ const questionnaireAnalyticsController = function () {
       ];
 
       if (isSameTeamParam === 'true') {
-        if (profile.teams?.length > 0) {
-          basePipeline.push({ $match: { isSameTeam: true } });
-        } else {
-          return res.status(400).json({ error: 'User is not part of any team' });
-        }
+        basePipeline.push({ $match: { isSameTeam: true } });
       } else if (isSameTeamParam === 'false') {
-        if (profile.teams?.length > 0) {
-          basePipeline.push({ $match: { isSameTeam: false } });
-        } else {
-          return res.status(400).json({ error: 'User is not part of any team' });
-        }
+        basePipeline.push({ $match: { isSameTeam: false } });
       }
 
       // Calculate score
       const addFieldsStage = { $addFields: {} };
       skillPaths.forEach((path, index) => {
-        addFieldsStage.$addFields[`skill${index}`] = { $toDouble: path };
+        addFieldsStage.$addFields[`skill${index}`] = {
+          $convert: {
+            input: { $ifNull: [path, '0'] },
+            to: 'double',
+            onError: 0,
+            onNull: 0,
+          },
+        };
       });
       const sumFields = skillPaths.map((_, index) => `$skill${index}`);
 
@@ -96,17 +78,61 @@ const questionnaireAnalyticsController = function () {
         { $sort: { avg_score: -1 } },
         {
           $project: {
-            userInfo: '$userInfo.name',
-            email: '$userInfo.name',
+            _id: 0,
+            userId: '$profile._id',
+            firstName: '$profile.firstName',
+            lastName: '$profile.lastName',
+            userEmail: '$userInfo.email',
+            phoneNumber: '$profile.phoneNumber',
             slack: '$userInfo.slack',
+            github: '$userInfo.github',
             avg_score: 1,
             isSameTeam: 1,
+            frontend: 1,
+            backend: 1,
+            privacySettings: '$profile.privacySettings',
           },
         },
       );
 
       const users = await FormResponse.aggregate(basePipeline);
-      res.json(users);
+
+      // Calculate topSkills and build response in Node.js
+      const result = users.map((user) => {
+        // Build name
+        const name = `${user.firstName} ${user.lastName}`;
+
+        // Build all skills
+        const allSkills = { ...user.frontend, ...user.backend };
+        const skillsArray = Object.entries(allSkills)
+          .map(([k, v]) => ({ k, v: parseFloat(v) || 0 }))
+          .sort((a, b) => b.v - a.v);
+        const topSkills = skillsArray.slice(0, 4).map((s) => s.k);
+
+        // Privacy enforcement
+        let email = null;
+        let phoneNumber = null;
+        if (user.privacySettings?.email === false) {
+          email = user.userEmail;
+        }
+        if (user.privacySettings?.phoneNumber === false) {
+          phoneNumber = user.phoneNumber;
+        }
+
+        return {
+          userId: user.userId,
+          name,
+          email,
+          phoneNumber,
+          slack: user.slack,
+          github: user.github,
+          avg_score: user.avg_score,
+          isSameTeam: user.isSameTeam,
+          topSkills,
+        };
+      });
+
+      res.json(result);
     } catch (err) {
       console.error('Error in getUsersBySkills:', err);
       res.status(500).json({ error: `Failed to fetch details: ${err.message}` });
