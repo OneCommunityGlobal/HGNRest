@@ -34,6 +34,8 @@ const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignm
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 
+const DEFAULT_BCC_EMAILS = [];
+
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
