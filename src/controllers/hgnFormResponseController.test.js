@@ -1,10 +1,12 @@
 // Mock the FormResponse model
 jest.mock('../models/hgnFormResponse');
+jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
 const FormResponse = require('../models/hgnFormResponse');
+const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 const hgnFormController = require('./hgnFormResponseController');
 
@@ -110,10 +112,16 @@ describe('HgnFormResponseController', () => {
   describe('getRankedResponses', () => {
     it('should return ranked responses based on skills and preferences', async () => {
       mockReq.query = { skills: 'React,MongoDB', preferences: 'design' };
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: '123', isActive: true },
+        { _id: '456', isActive: true },
+        { _id: '789', isActive: true },
+      ]);
 
       const mockResponses = [
         {
           _id: '1',
+          user_id: '123',
           userInfo: { name: 'John', email: 'john@example.com', slack: 'john' },
           frontend: { React: '8' },
           backend: { MongoDB: '7' },
@@ -127,6 +135,7 @@ describe('HgnFormResponseController', () => {
         },
         {
           _id: '2',
+          user_id: '456',
           userInfo: { name: 'Jane', email: 'jane@example.com', slack: 'jane' },
           frontend: { React: '9' },
           backend: { MongoDB: '8' },
@@ -140,6 +149,7 @@ describe('HgnFormResponseController', () => {
         },
         {
           _id: '3',
+          user_id: '789',
           userInfo: { name: 'Alice', email: 'alice@example.com', slack: 'alice' },
           frontend: { Database: '9' },
           backend: { MongoDB: '8' },
@@ -166,9 +176,28 @@ describe('HgnFormResponseController', () => {
     });
 
     it('should return all users if no query params are provided', async () => {
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: '123', isActive: true },
+        { _id: '456', isActive: true },
+      ]);
+
       const mockResponses = [
-        { _id: '1', userInfo: { name: 'A' }, frontend: {}, backend: {}, general: {} },
-        { _id: '2', userInfo: { name: 'B' }, frontend: {}, backend: {}, general: {} },
+        {
+          _id: '1',
+          user_id: '123',
+          userInfo: { name: 'A' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
+        {
+          _id: '2',
+          user_id: '456',
+          userInfo: { name: 'B' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
       ];
 
       FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
