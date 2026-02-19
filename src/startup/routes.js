@@ -230,6 +230,7 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const bmIssueGraphRouter = require('../routes/bmdashboard/bmIssueGraphRouter');
 
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
@@ -424,6 +425,7 @@ module.exports = function (app) {
   app.use('/api', savedFilterRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
+  app.use('/api', bmIssueGraphRouter);
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/skills', userSkillTabsRouter);
