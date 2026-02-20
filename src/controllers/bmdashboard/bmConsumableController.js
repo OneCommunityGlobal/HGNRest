@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const UpdateHistory = require('../../models/bmdashboard/updateHistory');
 
 const bmConsumableController = function (BuildingConsumable) {
   const fetchBMConsumables = async (req, res) => {
@@ -138,7 +139,46 @@ const bmConsumableController = function (BuildingConsumable) {
         },
       },
     )
-      .then((results) => {
+      .then(async (results) => {
+        // Log update history - 1 entry per update action
+        try {
+          const itemName = consumable.itemType?.name || 'Unknown Consumable';
+          const projectName = consumable.project?.name || 'Unknown Project';
+          const changes = {};
+
+          if (consumable.stockUsed !== newStockUsed) {
+            changes.stockUsed = { old: consumable.stockUsed, new: newStockUsed };
+          }
+          if (consumable.stockWasted !== newStockWasted) {
+            changes.stockWasted = { old: consumable.stockWasted, new: newStockWasted };
+          }
+          if (stockAvailable !== newAvailable) {
+            changes.stockAvailable = { old: stockAvailable, new: newAvailable };
+          }
+
+          if (Object.keys(changes).length > 0) {
+            console.log(
+              '=== CREATING UPDATE HISTORY ===',
+              new Date().toISOString(),
+              itemName,
+              projectName,
+            );
+            await UpdateHistory.create({
+              itemType: 'consumable',
+              itemId: consumable._id,
+              itemName,
+              projectId: consumable.project?._id || consumable.project,
+              projectName,
+              changes,
+              modifiedBy: req.body.requestor.requestorId,
+              date: new Date(),
+            });
+            console.log('=== UPDATE HISTORY CREATED ===');
+          }
+        } catch (historyError) {
+          console.log('Error logging update history:', historyError);
+        }
+
         res.status(200).send(results);
       })
       .catch((error) => {
