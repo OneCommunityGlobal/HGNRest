@@ -39,6 +39,23 @@ function formatDistribution(aggregationResult, totalHours) {
 }
 
 /**
+ * Check if a date string represents a valid calendar date (rejects invalid months, days, etc.)
+ */
+function isValidCalendarDate(dateString) {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateString)) return false;
+
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+/**
  * Validate query parameters
  */
 function validateParams(query) {
@@ -52,9 +69,17 @@ function validateParams(query) {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (startDate && !dateRegex.test(startDate)) {
     errors.push('Invalid start_date format. Please use YYYY-MM-DD format');
+  } else if (startDate && !isValidCalendarDate(startDate)) {
+    errors.push('Invalid start_date: date does not exist (e.g., invalid month or day)');
   }
   if (endDate && !dateRegex.test(endDate)) {
     errors.push('Invalid end_date format. Please use YYYY-MM-DD format');
+  } else if (endDate && !isValidCalendarDate(endDate)) {
+    errors.push('Invalid end_date: date does not exist (e.g., invalid month or day)');
+  }
+
+  if (errors.length === 0 && startDate && endDate && new Date(startDate) > new Date(endDate)) {
+    errors.push('Invalid date range: start_date must be before or equal to end_date');
   }
 
   return { startDate, endDate, category, errors };
