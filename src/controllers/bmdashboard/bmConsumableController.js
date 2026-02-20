@@ -187,10 +187,75 @@ const bmConsumableController = function (BuildingConsumable) {
       });
   };
 
+  const bmUpdateConsumablePurchaseStatus = async function (req, res) {
+    const { purchaseId, status, quantity } = req.body;
+
+    if (!purchaseId || !status || !['Approved', 'Rejected'].includes(status)) {
+      return res
+        .status(400)
+        .send('Invalid request. purchaseId and a valid status (Approved/Rejected) are required.');
+    }
+
+    if (status === 'Approved' && (quantity == null || quantity <= 0)) {
+      return res.status(400).send('A positive quantity is required when approving a purchase.');
+    }
+
+    const requestorRole = req.body.requestor && req.body.requestor.role;
+    if (requestorRole !== 'Owner' && requestorRole !== 'Administrator') {
+      return res.status(403).send('You are not authorized to approve or reject purchases.');
+    }
+
+    try {
+      const consumable = await BuildingConsumable.findOne({ 'purchaseRecord._id': purchaseId });
+
+      if (!consumable) {
+        return res.status(404).send('Purchase not found');
+      }
+
+      const purchaseRecord = consumable.purchaseRecord.find(
+        (record) => record._id.toString() === purchaseId,
+      );
+
+      if (!purchaseRecord) {
+        return res.status(404).send('Purchase record not found');
+      }
+
+      if (purchaseRecord.status !== 'Pending') {
+        return res
+          .status(400)
+          .send(
+            `Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`,
+          );
+      }
+
+      const updateObject = {
+        $set: { 'purchaseRecord.$.status': status },
+      };
+      if (status === 'Approved') {
+        updateObject.$inc = { stockBought: quantity };
+      }
+
+      const updatedConsumable = await BuildingConsumable.findOneAndUpdate(
+        { 'purchaseRecord._id': purchaseId },
+        updateObject,
+        { new: true },
+      );
+
+      if (!updatedConsumable) {
+        return res.status(500).send('Failed to apply purchase status update to consumable.');
+      }
+
+      res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
   return {
     fetchBMConsumables,
     bmPurchaseConsumables,
     bmPostConsumableUpdateRecord,
+    bmUpdateConsumablePurchaseStatus,
   };
 };
 
