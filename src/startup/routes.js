@@ -353,6 +353,9 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+// education portal
+const educationProfileRouter = require('../routes/educationRouter');
+
 // lesson planner router
 
 const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
