@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 const bmConsumableController = require('../bmConsumableController');
 
+jest.mock('../../../models/bmdashboard/updateHistory', () => ({
+  create: jest.fn().mockResolvedValue({}),
+}));
+
+const flushPromises = () => new Promise(setImmediate);
+
 mongoose.Types.ObjectId = jest.fn((id) => id);
 
 const mockBuildingConsumable = {
@@ -139,6 +145,7 @@ describe('Building Consumable Controller', () => {
       mockBuildingConsumable.updateOne.mockResolvedValue({});
 
       await controller.bmPostConsumableUpdateRecord(mockRequest, mockResponse);
+      await flushPromises();
 
       expect(mockBuildingConsumable.updateOne).toHaveBeenCalledWith(
         { _id: '123' },
@@ -175,6 +182,7 @@ describe('Building Consumable Controller', () => {
       mockBuildingConsumable.updateOne.mockResolvedValue({});
 
       await controller.bmPostConsumableUpdateRecord(percentRequest, mockResponse);
+      await flushPromises();
 
       const expectedUsed = 10; // 10% of 100
       const expectedWasted = 5; // 5% of 100
