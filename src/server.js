@@ -15,6 +15,7 @@ require('./startup/db')();
 const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
+require('./cronjobs/mediumPostScheduler')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 
