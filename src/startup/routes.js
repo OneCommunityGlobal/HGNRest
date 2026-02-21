@@ -246,6 +246,7 @@ const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySe
 
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
+const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
 const toolUtilizationRouter = require('../routes/bmdashboard/toolUtilizationRouter')(buildingTool);
@@ -489,6 +490,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
+  app.use('/api/bm', bmExpenditureRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
