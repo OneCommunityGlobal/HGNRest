@@ -239,6 +239,7 @@ const biddingRouter = require('../routes/lbdashboard/biddingRouter')(biddingHome
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
+const bmUpdateHistoryRouter = require('../routes/bmdashboard/bmUpdateHistoryRouter')();
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
 const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
 const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
@@ -366,6 +367,9 @@ const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 
+// Actual Cost
+const actualCostRouter = require('../routes/actualCostRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -469,6 +473,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
+  app.use('/api/bm', bmUpdateHistoryRouter);
   app.use('/api/dropbox', dropboxRouter);
   app.use('/api/github', githubRouter);
   app.use('/api/sentry', sentryRouter);
@@ -520,6 +525,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api', actualCostRouter);
 
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);

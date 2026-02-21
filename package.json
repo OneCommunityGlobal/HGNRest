@@ -58,6 +58,7 @@
     "mongodb-memory-server": "^7.6.3",
     "nock": "^14.0.10",
     "nodemon": "^3.0.1",
+    "pidtree": "^0.6.0",
     "prettier": "3.2.5",
     "supertest": "^6.3.4"
   },
