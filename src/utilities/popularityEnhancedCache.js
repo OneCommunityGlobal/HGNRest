@@ -5,7 +5,8 @@
  */
 
 const cache = new Map();
-const DEFAULT_TTL = 10 * 60 * 1000; // 10 minutes
+const MINUTES_TO_MS = 60 * 1000;
+const DEFAULT_TTL = 10 * MINUTES_TO_MS; // 10 minutes
 
 class EnhancedPopularityCache {
   static set(key, value, ttl = DEFAULT_TTL) {
@@ -34,7 +35,8 @@ class EnhancedPopularityCache {
 
   // Role-based caching methods
   static setRoleData(role, data, ttl = DEFAULT_TTL) {
-    const key = `role_${role}_${new Date().toISOString().slice(0, 7)}`;
+    const DATE_SLICE_LENGTH = 7;
+    const key = `role_${role}_${new Date().toISOString().slice(0, DATE_SLICE_LENGTH)}`;
     this.set(key, data, ttl);
   }
 

@@ -23,7 +23,7 @@ module.exports = {
       branches: 9,
       functions: 23.5,
       lines: 30,
-      statements: 29.5, // Adjusted to match current coverage (websocket files with ES6 exports)
+      statements: 29.5,
     },
   },
 

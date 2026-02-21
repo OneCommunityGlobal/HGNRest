@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const Message = require('../../models/lbdashboard/message');
 const UserProfile = require('../../models/userProfile');
+const logger = require('../../startup/logger');
+
+const SEARCH_LIMIT = 15;
 
 const sendMessageHandler = async (msg, userId) => {
   try {
@@ -23,7 +26,7 @@ const sendMessageHandler = async (msg, userId) => {
 
     return message;
   } catch (error) {
-    console.error('Error in sendMessageHandler:', error);
+    logger.logException(error);
     throw error; // Ensure the error is properly propagated
   }
 };
@@ -50,7 +53,7 @@ const getConversationHandler = async (req, res) => {
 
     res.json(messages);
   } catch (error) {
-    console.error('Error fetching conversation:', error);
+    logger.logException(error);
     res.status(500).json({ error: 'Failed to fetch conversation' });
   }
 };
@@ -85,7 +88,7 @@ const getMessageStatusesHandler = async (req, res) => {
 
     res.json(messages);
   } catch (error) {
-    console.error('Error fetching message statuses:', error);
+    logger.logException(error);
     res.status(500).json({ error: 'Failed to fetch message statuses' });
   }
 };
@@ -133,7 +136,7 @@ const getExistingChatsHandler = async (req, res) => {
 
     res.json(chatUsers);
   } catch (error) {
-    console.error('Error fetching existing chats:', error);
+    logger.logException(error);
     res.status(500).json({ error: 'Failed to fetch existing chats' });
   }
 };
@@ -154,11 +157,11 @@ const searchUserProfilesHandler = async (req, res) => {
         ],
       },
       '_id firstName lastName profilePic',
-    ).limit(15);
+    ).limit(SEARCH_LIMIT);
 
     res.json(users);
   } catch (error) {
-    console.error('Error searching user profiles:', error);
+    logger.logException(error);
     res.status(500).json({ error: 'Failed to search user profiles' });
   }
 };
@@ -178,7 +181,7 @@ const markMessagesAsRead = async (req, res) => {
 
     res.status(200).json({ message: 'Messages marked as read.', updatedMessages });
   } catch (error) {
-    console.error('Error marking messages as read:', error);
+    logger.logException(error);
     res.status(500).json({ message: 'Failed to mark messages as read.' });
   }
 };

@@ -1,5 +1,6 @@
 const cache = {};
-const DEFAULT_TTL = 5 * 60 * 1000;
+const MINUTES_TO_MS = 60 * 1000;
+const DEFAULT_TTL = 5 * MINUTES_TO_MS;
 
 function setCache(key, value, ttl = DEFAULT_TTL) {
   // const cacheKey = `popularity_${JSON.stringify(key)}`;
