@@ -319,8 +319,10 @@ const userSkillsProfileController = function (UserProfile) {
   };
   const updateYearsOfExperience = async (req, res, next) => {
     try {
-      const hasAccess = await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp');
-      if (!hasAccess && req.body.requestor.requestorId !== req.params.userId) {
+      const hasAccess =
+        req.body.requestor.requestorId === req.params.userId ||
+        (await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp'));
+      if (!hasAccess) {
         return res.status(403).json({ error: 'You do not have permission to update this profile' });
       }
 
