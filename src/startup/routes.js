@@ -372,6 +372,9 @@ const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
+const BitwardenRouter = require('../routes/bitwardenRouter')();
+const BitwardenPasswordRouter = require('../routes/bitwardenPasswordRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -540,4 +543,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  app.use('/api/bitwarden', BitwardenRouter);
+  app.use('/api/bitwarden/password', BitwardenPasswordRouter);
 };

@@ -72,6 +72,8 @@
     "@babel/plugin-transform-runtime": "^7.10.1",
     "@babel/preset-env": "^7.10.2",
     "@babel/runtime": "^7.10.2",
+    "@bitwarden/cli": "^2025.12.1",
+    "@bitwarden/sdk-napi": "^1.0.0",
     "@paypal/checkout-server-sdk": "^1.0.3",
     "@paypal/paypal-server-sdk": "^0.6.0",
     "@sentry/integrations": "^7.110.0",
