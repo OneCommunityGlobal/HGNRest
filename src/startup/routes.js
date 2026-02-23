@@ -325,6 +325,13 @@ const templateRouter = require('../routes/templateRouter');
 const emailTemplateRouter = require('../routes/emailTemplateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
+console.log('Loading plannedCost model...');
+const plannedCost = require('../models/plannedCost');
+console.log('PlannedCost model loaded:', plannedCost ? 'success' : 'failed');
+
+console.log('Loading plannedCostRouter...');
+const plannedCostRouter = require('../routes/plannedCostRouter');
+console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
@@ -486,6 +493,10 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
+
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
@@ -518,6 +529,9 @@ module.exports = function (app) {
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api', plannedCostRouter(plannedCost, project));
+
 
   // summary dashboard
   app.use('/api/suppliers', supplierPerformanceRouter);
