@@ -372,6 +372,11 @@ const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 
+// kitchen inventory
+
+const kitchenSupplierRouter = require('../routes/kitchenInventory/kitchenSupplierRouter')();
+const kitchenOrderRouter = require('../routes/kitchenInventory/kitchenOrderRouter')();
+
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
@@ -554,4 +559,27 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', listingAvailablityRouter);
+  // lb dashboard
+  app.use('/api/lb', bidTermsRouter);
+  app.use('/api/lb', bidsRouter);
+  app.use('/api/lb', paymentsRouter);
+  app.use('/api/lb', webhookRouter);
+  app.use('/api/lb', bidNotificationsRouter);
+  app.use('/api/lb', bidDeadlinesRouter);
+  app.use('/api/lb', SMSRouter);
+  app.use('/api', materialCostRouter);
+
+  // education portal
+  app.use('/api/education', badgeSystemRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/education', browsableLessonPlanRouter);
+
+  app.use('/api/educator/reports', downloadReportRouter);
+
+  // kitchen and inventory
+  app.use('/api/kitchenandinventory', kitchenSupplierRouter);
+  app.use('/api/kitchenandinventory', kitchenOrderRouter);
 };
