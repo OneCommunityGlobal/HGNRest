@@ -451,7 +451,9 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
           const jsonData = JSON.parse(data);
 
           // Check if unit already exists
-          const exists = jsonData.some((item) => item.unit.toLowerCase() === unit.toLowerCase());
+          const exists = jsonData.some(
+            (item) => item.unit.toLowerCase() === unit.toLowerCase(),
+          );
           if (exists) {
             return res.status(409).json({ error: 'Unit already exists' });
           }

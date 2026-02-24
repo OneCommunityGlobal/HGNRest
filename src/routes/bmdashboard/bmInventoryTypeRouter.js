@@ -54,7 +54,9 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .get(controller.fetchInvUnitsFromJson)
     .post(controller.addInventoryUnit);
 
-  inventoryTypeRouter.route('/inventoryUnits/:unitName').delete(controller.deleteInventoryUnit);
+  inventoryTypeRouter
+    .route('/inventoryUnits/:unitName')
+    .delete(controller.deleteInventoryUnit);
 
   return inventoryTypeRouter;
 };

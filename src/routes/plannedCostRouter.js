@@ -10,13 +10,14 @@ const routes = function (Cost, Project) {
     next();
   }, controller.getPlannedCostBreakdown);
 
-  CostRouter.route('/projects/:projectId/planned-costs')
+  CostRouter
+    .route('/projects/:projectId/planned-costs')
     .get(controller.getAllPlannedCostsForProject)
     .post(controller.createOrUpdatePlannedCost);
 
-  CostRouter.route('/projects/:projectId/planned-costs/:category').delete(
-    controller.deletePlannedCost,
-  );
+  CostRouter
+    .route('/projects/:projectId/planned-costs/:category')
+    .delete(controller.deletePlannedCost);
 
   return CostRouter;
 };
