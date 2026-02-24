@@ -348,7 +348,9 @@ const getSubjectTasks = async (req, res) => {
     }
 
     // 3. Find Atoms for this Subject
-    const atomsInSubject = await Atom.find({ subjectId }).select('_id');
+    const atomsInSubject = await Atom.find({
+      subjectId: new mongoose.Types.ObjectId(subjectId),
+    }).select('_id');
     const atomIds = atomsInSubject.map((atom) => atom._id);
 
     if (atomIds.length === 0) {
@@ -356,7 +358,6 @@ const getSubjectTasks = async (req, res) => {
     }
 
     // 4. Find Tasks (Filtering by Atom IDs and Student)
-    // CRITICAL FIX: Removed lessonPlanId filter to show all history for the subject
     const tasks = await EducationTask.find({
       studentId: new mongoose.Types.ObjectId(studentId),
       atomIds: { $in: atomIds },
