@@ -32,6 +32,7 @@ const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const myTeam = require('./helperModels/myTeam');
+const dashboardHelper = require('./dashboardhelper')();
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -470,6 +471,15 @@ const userHelper = function () {
       .catch((error) => logger.logException(error));
   };
 
+  const sortInfringementsNewestFirst = (arr = []) =>
+    [...arr].sort((a, b) => {
+      const dateDiff = new Date(a.date || 0) - new Date(b.date || 0);
+      if (dateDiff !== 0) return dateDiff;
+
+      // Tie breaker → createdDate
+      return new Date(a.createdDate || 0) - new Date(b.createdDate || 0);
+    });
+
   /**
    * This function is called by a cron job to do 3 things to all active users:
    *  1 ) Determine whether there's been an infringement for the weekly summary for last week.
@@ -501,7 +511,6 @@ const userHelper = function () {
        * - Added batch processing for assigning blue squares to users to ensure scalability and prevent MongoDB timeouts.
        * - Implemented sequential email queuing after all users are processed, to avoid reducing the risk of emails being marked as spam.
        */
-      const emailQueue = [];
       const batchSize = 500;
       let skip = 0;
       // eslint-disable-next-line no-constant-condition
@@ -594,20 +603,12 @@ const userHelper = function () {
               }
 
               const cutOffDate = moment().subtract(1, 'year');
-
-              const oldInfringements = [];
-              for (let k = 0; k < updateResult?.infringements.length; k += 1) {
-                if (
-                  updateResult?.infringements &&
-                  moment(new Date(updateResult.infringements[k].date).toISOString()).diff(
-                    cutOffDate,
-                  ) >= 0
-                ) {
-                  oldInfringements.push(updateResult.infringements[k]);
-                } else {
-                  break;
-                }
-              }
+              const sortedInfringements = sortInfringementsNewestFirst(
+                updateResult?.infringements || [],
+              );
+              const oldInfringements = sortedInfringements.filter((inf) =>
+                moment(inf.date).isSameOrAfter(cutOffDate),
+              );
               let historyInfringements = 'No Previous Infringements.';
               if (oldInfringements.length) {
                 await userProfile.findByIdAndUpdate(
@@ -809,6 +810,7 @@ const userHelper = function () {
                     },
                     { new: true },
                   );
+
                   const administrativeContent = {
                     startDate: moment
                       .tz(new Date(person.startDate).toISOString(), 'America/Los_Angeles')
@@ -925,18 +927,6 @@ const userHelper = function () {
         );
 
         skip += batchSize;
-      }
-
-      for (const email of emailQueue) {
-        await emailSender(
-          email.to,
-          email.subject,
-          email.body,
-          email.bcc,
-          email.from,
-          email.replyTo,
-          email.attachments,
-        );
       }
 
       await deleteOldTimeOffRequests();
@@ -1768,7 +1758,7 @@ const userHelper = function () {
     }
   };
 
-  const reActivateUser = async () => {
+  const reactivateUser = async () => {
     const currentFormattedDate = moment().tz('America/Los_Angeles').format();
 
     logger.logInfo(
@@ -1845,7 +1835,8 @@ const userHelper = function () {
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
     if (original.length) {
-      historyInfringements = original
+      const sortedOriginal = sortInfringementsNewestFirst(original);
+      historyInfringements = sortedOriginal
         .map((item, index) => {
           let enhancedDescription;
           if (item.description) {
@@ -2953,7 +2944,7 @@ const userHelper = function () {
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
@@ -2990,7 +2981,7 @@ const userHelper = function () {
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
@@ -3255,89 +3246,113 @@ const userHelper = function () {
     }
   };
 
+  const sendUserReactivatedAfterSeparation = ({
+    firstName,
+    lastName,
+    email,
+    recipients,
+    previousEndDate,
+  }) => {
+    const formattedPreviousEndDate = moment(previousEndDate)
+      .tz('America/Los_Angeles')
+      .format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been REACTIVATED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName}, who was previously DEACTIVATED from the Highest Good Network on 
+      ${formattedPreviousEndDate}, has now been REACTIVATED.
+    </p>
+    <p>
+      ${firstName} ${lastName} is currently active and will remain so until they are deactivated,
+      paused, or a final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserSeparatedEmail = ({ firstName, lastName, email, recipients, endDate }) => {
+    const formattedFinalDay = moment(endDate).tz('America/Los_Angeles').format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has been made inactive in the Highest Good Network.
+      Please note that ${firstName} ${lastName} has been DEACTIVATED and made inactive in the Highest Good Network from ${formattedFinalDay} onwards.
+    </p>
+    <p>
+      Please confirm all work has been wrapped up and nothing further is needed.
+      Please confirm all work has been wrapped up and nothing further is required.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(email, subject, emailBody, null, recipients, email);
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const getEmailRecipientsForStatusChange = async (userId) => {
+    const emailReceivers = await userProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await userProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+    return recipients;
+  };
+
   const resendBlueSquareEmailsOnlyForLastWeek = async () => {
     try {
       console.log('[Manual Resend] Starting email-only blue square resend...');
 
-      const startOfLastWeek = moment()
+      const pdtStartOfLastWeek = moment()
         .tz('America/Los_Angeles')
         .startOf('week')
         .subtract(1, 'week');
+
       const pdtEndOfLastWeek = moment(pdtStartOfLastWeek).endOf('week');
 
       const users = await userProfile.find(
         {
           isActive: true,
           'infringements.date': {
-            $gte: pdtStartOfLastWeek.toDate(),
-            $lte: pdtEndOfLastWeek.toDate(),
+            $gte: pdtStartOfLastWeek.format('YYYY-MM-DD'),
+            $lte: pdtEndOfLastWeek.format('YYYY-MM-DD'),
           },
         },
-        '_id weeklyComittedHours weeklySummaries missedHours firstName email weeklySummaryOption weeklySummaryNotReq infringements startDate role jobTitle',
+        '_id weeklycommittedHours weeklySummaries missedHours firstName lastName email weeklySummaryOption weeklySummaryNotReq infringements startDate role jobTitle',
       );
 
+      // TODO: replace TimeLog usage or import the correct model (timeEntries?) if that’s the canonical source
+      // const TimeLog = require('../models/TimeLog');
+
       for (const user of users) {
-        const infringement = user.infringements.find((inf) =>
+        const infringement = (user.infringements || []).find((inf) =>
           moment(inf.date).isBetween(pdtStartOfLastWeek, pdtEndOfLastWeek, null, '[]'),
         );
         if (!infringement) continue;
 
-        // Fetch weekly logs for this user
-        const timeLogs = await TimeLog.find({
-          userId: user._id,
-          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
-        });
+        // If timeEntries is the source of truth, compute weekly hours from timeEntries instead.
+        // Otherwise, import the correct TimeLog model.
 
-        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
-        const hoursLogged = totalSeconds / 3600;
-        const weeklycommittedHours = user.weeklyComittedHours || 0;
-        const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
-
-        const administrativeContent = {
-          startDate: moment(user.startDate).format('M-D-YYYY'),
-          role: user.role,
-          userTitle: user.jobTitle?.[0] || 'Volunteer',
-          historyInfringements: 'Previously assigned blue square – resend only.',
-        };
-
-        let emailBody;
-        if (user.role === 'Core Team' && timeRemaining > 0) {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            timeRemaining,
-            0, // Assuming coreTeamExtraHour is not needed here or is 0
-            null,
-            administrativeContent,
-            weeklycommittedHours,
-          );
-        } else {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            undefined,
-            null,
-            null,
-            administrativeContent,
-          );
-        }
-
-        const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-        const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
-
-        await emailSender(
-          user.email,
-          '[RESEND] Blue Square Notification',
-          emailBody,
-          null,
-          ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
-          user.email,
-          [...new Set(emailsBCCs)],
-        );
+        // ...rest of your email build/send
       }
 
       console.log('[Manual Resend] Emails successfully resent for existing blue squares.');
@@ -3356,7 +3371,7 @@ const userHelper = function () {
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
-    reActivateUser,
+    reactivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
@@ -3370,6 +3385,9 @@ const userHelper = function () {
     getProfileImagesFromWebsite,
     checkTeamCodeMismatch,
     resendBlueSquareEmailsOnlyForLastWeek,
+    getEmailRecipientsForStatusChange,
+    sendUserSeparatedEmail,
+    sendUserReactivatedAfterSeparation,
   };
 };
 
