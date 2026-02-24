@@ -12,7 +12,7 @@ const emailProcessor = require('./services/announcements/emails/emailProcessor')
 require('./startup/db')();
 // const { initializeLiveJournalScheduler } = require('./utilities/liveJournalScheduler');
 // initializeLiveJournalScheduler();
-const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
+// const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();

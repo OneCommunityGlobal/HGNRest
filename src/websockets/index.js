@@ -127,6 +127,7 @@ export default () => {
   });
 
   // For each new connection we start a time interval of 1min to check if the connection is alive.
+  const HEARTBEAT_INTERVAL = 60000;
   const interval = setInterval(() => {
     wss.clients.forEach((ws) => {
       if (ws.isAlive === false) {
@@ -135,7 +136,7 @@ export default () => {
       ws.isAlive = false;
       ws.ping();
     });
-  }, 60000);
+  }, HEARTBEAT_INTERVAL);
 
   wss.on('close', () => {
     clearInterval(interval);

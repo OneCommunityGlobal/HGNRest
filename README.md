@@ -40,6 +40,7 @@ To make the process easy create a .env file and put the above text in the file a
 - `npm run start` -- run the server in dist
 - `npm run serve` -- run the server in src without build
 - `npm run dev` -- run the server in src and auto restart upon change of src
+- `npm run seed` -- seed the database with fake data
 
 Note: Once you check in the code in github, the application will be publsihed to the following:
 Developement : https://hgn-rest-dev.herokuapp.com

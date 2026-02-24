@@ -18,8 +18,8 @@ module.exports.dbConnect = async () => {
       await mongoose.disconnect();
     }
 
-    // Try to use a real MongoDB connection if available, otherwise use a simple in-memory approach
-    const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/test';
+    // Use local MongoDB connection only, as per user request to avoid touching remote Atlas DB
+    const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/hgnData_test';
 
     console.log('Using MongoDB URI:', mongoUri);
 
