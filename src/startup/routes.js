@@ -374,6 +374,7 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 
 // Actual Cost
@@ -554,4 +555,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  //Kitchen and Inventory
+  app.use('/api/kitchenandinventory/garden', gardenRouter);
 };
