@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 const PopUpEditor = require('../models/popupEditor');
 const { mockReq, mockRes, assertResMock } = require('../test');
 
@@ -111,6 +112,17 @@ describe('popupEditorController Controller Unit tests', () => {
 
       assertResMock(500, { error }, response, mockRes);
     });
+
+    test('Should call hasPermission with correct parameters on create', async () => {
+      const { createPopupEditor } = makeSut();
+      const spy = mockHasPermission(true);
+      mockReq.body = { popupName: 'popup', popupContent: 'content', requestor: 'user123' };
+      jest.spyOn(PopUpEditor.prototype, 'save').mockResolvedValue(mockReq.body);
+
+      await createPopupEditor(mockReq, mockRes);
+
+      expect(spy).toHaveBeenCalledWith('user123', 'createPopup');
+    });
   });
   describe(`updatePopupEditor function`, () => {
     test(`Should return 403 if user is not authorized`, async () => {
@@ -160,6 +172,31 @@ describe('popupEditorController Controller Unit tests', () => {
       const response = await updatePopupEditor(mockReq, mockRes);
       await flushPromises();
       assertResMock(500, { err }, response, mockRes);
+    });
+
+    test('Should call hasPermission with correct parameters on update', async () => {
+      const { updatePopupEditor } = makeSut();
+      const spy = mockHasPermission(true);
+      mockReq.body = { popupContent: 'content', requestor: 'user123' };
+      const mockPopupEditor = { save: jest.fn().mockResolvedValue(mockReq.body) };
+
+      jest
+        .spyOn(PopUpEditor, 'findById')
+        .mockImplementationOnce((id, callback) => callback(null, mockPopupEditor));
+
+      await updatePopupEditor(mockReq, mockRes);
+      expect(spy).toHaveBeenCalledWith('user123', 'updatePopup');
+    });
+
+    test('Should handle null popup returned from findById', async () => {
+      const { updatePopupEditor } = makeSut();
+      mockHasPermission(true);
+      mockReq.body = { popupContent: 'content' };
+
+      jest.spyOn(PopUpEditor, 'findById').mockImplementationOnce((...args) => args[1](null, null));
+
+      await updatePopupEditor(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
   });
 });
