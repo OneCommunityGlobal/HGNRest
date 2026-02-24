@@ -23,25 +23,33 @@ const logUserPermissionChangeByAccount = async (req, user) => {
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
+    if (!permissions || !requestor?.requestorId) {
+      return;
+    }
+
+    const Permissions = Array.isArray(permissions.frontPermissions)
+      ? permissions.frontPermissions
+      : [];
+    const { userId } = req.params;
+
+    // Fetch requestor email (may be null if requestor deleted)
+    const requestorDoc = await UserProfile.findById(requestor.requestorId)
+      .select('email')
+      .lean()
+      .exec();
+    const requestorEmail = requestorDoc?.email ?? 'unknown';
+
+    const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
-    const { userId } = req.params;
-    const Permissions = permissions.frontPermissions;
-
-    // Fetch requestor email
-    const requestorEmailId = await UserProfile.findById(requestor.requestorId)
-      .select('email')
-      .exec();
-
-    // Use the user object passed from controller (already fetched)
-    const { firstName, lastName } = user;
 
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      // no new changes in permissions list from last update
-      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(Permissions.sort())) {
+      const sortedDoc = [...docPermissions].sort();
+      const sortedCurrent = [...Permissions].sort();
+      if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
         return;
       }
       permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
@@ -50,7 +58,6 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsAdded = Permissions;
     }
 
-    // no permission added nor removed
     if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
       return;
     }
@@ -63,7 +70,7 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
-      requestorEmail: requestorEmailId.email,
+      requestorEmail,
     });
 
     await logEntry.save();
