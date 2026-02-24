@@ -1558,28 +1558,25 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
-// Check if MongoDB connection is ready before attempting to start a session
-// readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-if (mongoose.connection.readyState !== 1) {
-  const recalculationTask = recalculationTaskQueue.find(task => task.taskId === taskId);
-  if (recalculationTask) {
-    recalculationTask.status = 'Failed';
-    recalculationTask.completionTime = new Date().toISOString();
-  }
+    // Check if MongoDB connection is ready before attempting to start a session
+    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    if (mongoose.connection.readyState !== 1) {
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
 
-  logger.logInfo(
-    `Recalculation task ${taskId} skipped: MongoDB connection not ready (state: ${mongoose.connection.readyState})`,
-  );
-  return;
-}
+      logger.logInfo(
+        `Recalculation task ${taskId} skipped: MongoDB connection not ready (state: ${mongoose.connection.readyState})`,
+      );
+      return;
+    }
 
-const session = await mongoose.startSession();
-session.startTransaction();
-
-    let session;
+    let sesh;
     try {
-      session = await mongoose.startSession();
-      session.startTransaction();
+      sesh = await mongoose.startSession();
+      sesh.startTransaction();
 
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
@@ -1590,7 +1587,7 @@ session.startTransaction();
       });
       await Promise.all(recalculationPromises);
 
-      await session.commitTransaction();
+      await sesh.commitTransaction();
 
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
@@ -1598,8 +1595,8 @@ session.startTransaction();
         recalculationTask.completionTime = new Date().toISOString();
       }
     } catch (err) {
-      if (session) {
-        await session.abortTransaction();
+      if (sesh) {
+        await sesh.abortTransaction();
       }
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
@@ -1609,8 +1606,8 @@ session.startTransaction();
 
       logger.logException(err);
     } finally {
-      if (session) {
-        session.endSession();
+      if (sesh) {
+        sesh.endSession();
       }
     }
   };
