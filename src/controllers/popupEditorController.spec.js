@@ -152,7 +152,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const mockPopupEditor = { save: jest.fn().mockResolvedValue(mockReq.body) };
       jest
         .spyOn(PopUpEditor, 'findById')
-        .mockImplementationOnce((...args) => args[1](null, mockPopupEditor));
+        .mockImplementationOnce((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
       const response = await updatePopupEditor(mockReq, mockRes);
       expect(mockPopupEditor.save).toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe('popupEditorController Controller Unit tests', () => {
       const mockPopupEditor = { save: jest.fn().mockRejectedValue(err) };
       jest
         .spyOn(PopUpEditor, 'findById')
-        .mockImplementation((...args) => args[1](null, mockPopupEditor));
+        .mockImplementation((reqParam, callback) => callback(null, mockPopupEditor));
       jest.spyOn(PopUpEditor.prototype, 'save').mockImplementationOnce(mockPopupEditor.save);
       const response = await updatePopupEditor(mockReq, mockRes);
       await flushPromises();

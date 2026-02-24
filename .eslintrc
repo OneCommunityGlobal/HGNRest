@@ -4,6 +4,17 @@
   "parserOptions": {
     "ecmaVersion": 8,
     "sourceType": "module",
+    "requireConfigFile": false,
+    "babelOptions": {
+       "plugins": [
+        [
+          "module-resolver",
+          {
+            "root": ["./src"]
+          }
+        ]
+      ]
+    }
   },
   "env": { "es6": true, "node": true, "commonjs": true },
   "rules": {
@@ -18,19 +29,25 @@
     "indent": "off",
     "linebreak-style": 0,
     "no-console": "off",
-    "consistent-return": "off",
+    "consistent-return": "off"
   },
   "settings": {
     "import/resolver": {
-      "babel-module": {},
-    },
+      "babel-module": {
+        "root": ["./src"]
+      },
+      "node": {
+        "paths": ["src"],
+        "extensions": [".js", ".jsx"]
+      }
+    }
   },
   "overrides": [
     {
       "files": ["**/*.test.js", "**/*.spec.js", "src/test/*.js"],
       "env": {
-        "jest": true,
-      },
-    },
-  ],
+        "jest": true
+      }
+    }
+  ]
 }
