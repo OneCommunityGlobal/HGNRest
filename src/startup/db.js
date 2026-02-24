@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
@@ -5,6 +6,16 @@ const logger = require('./logger');
 require('dotenv').config();
 
 mongoose.Promise = Promise;
+
+/* 👇 ADD HERE */
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+});
+/* 👆 ADD HERE */
 
 const afterConnect = async () => {
   try {
@@ -34,7 +45,8 @@ const afterConnect = async () => {
 };
 
 module.exports = function () {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const appName = process.env.appName || 'HGNRest';
+  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
   mongoose
     .connect(uri, {
       useNewUrlParser: true,
