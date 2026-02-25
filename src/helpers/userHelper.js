@@ -3360,6 +3360,11 @@ const userHelper = function () {
       console.error('[Manual Resend] Error while resending:', err);
       logger.logException(err);
     }
+    async function getEmailRecipientsForStatusChange(userId) {
+      // Safe default: avoid breaking pause/resume if email-recipient logic is not implemented yet.
+      // Return empty recipients list to skip sending.
+      return [];
+    }
   };
 
   return {
