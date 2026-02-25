@@ -79,23 +79,32 @@ const WeeklySummaryEmailAssignmentController = function (
         });
       }
 
+      const user = await userProfile.findOne({ email });
+      const updateFields = {
+        email,
+      };
+      if (user?._id) {
+        updateFields.assignedTo = user._id;
+      }
+
       const updateAssignment = await WeeklySummaryEmailAssignment.findOneAndUpdate(
         { _id: id },
-        {
-          email,
-        },
+        updateFields,
         {
           new: true,
         },
-      );
+      ).populate('assignedTo');
 
       if (!updateAssignment) {
         res.status(404).send('Assignment not found');
         return;
       }
 
-      res.status(200).send(updateAssignment);
+      res.status(200).send({ assignment: updateAssignment });
     } catch (error) {
+      if (error?.code === 11000) {
+        return res.status(409).send('Email already assigned');
+      }
       res.status(500).send(error);
     }
   };
