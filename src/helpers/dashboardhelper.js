@@ -269,7 +269,7 @@ const dashboardhelper = function () {
           isVisible: teamMember.isVisible,
           hasSummary:
             teamMember.weeklySummaries?.length > 0
-              ? teamMember.weeklySummaries[0].summary !== ''
+              ? (teamMember.weeklySummaries[0]?.summary ?? '') !== ''
               : false,
           weeklycommittedHours: teamMember.weeklycommittedHours,
           missedHours: teamMember.missedHours ?? 0,
@@ -314,7 +314,7 @@ const dashboardhelper = function () {
       return sortedLBData;
     } catch (error) {
       console.log(error);
-      return new Error(error);
+      throw error;
     }
   };
 
@@ -361,7 +361,10 @@ const dashboardhelper = function () {
           isVisible: user.isVisible,
           createdDate: user.createdDate,
           trophyFollowedUp: user.trophyFollowedUp,
-          hasSummary: user.weeklySummaries[0].summary !== '',
+          hasSummary:
+            user.weeklySummaries?.length > 0
+              ? (user.weeklySummaries[0]?.summary ?? '') !== ''
+              : false,
           weeklycommittedHours: user.weeklycommittedHours,
           name: `${user.firstName} ${user.lastName}`,
           totaltime_hrs: (tangibleSeconds + intangibleSeconds) / 3600,

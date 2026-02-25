@@ -45,7 +45,8 @@ const afterConnect = async () => {
 };
 
 module.exports = function () {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const appName = process.env.appName || 'HGNRest';
+  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
   mongoose
     .connect(uri, {
       useNewUrlParser: true,

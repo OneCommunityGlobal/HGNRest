@@ -2055,7 +2055,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       access: {
         canAccessBMPortal: false,
       },
-      expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+      expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
     };
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
@@ -2723,7 +2723,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
 
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => ({ updateOne: x.updateOne }));
 
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {

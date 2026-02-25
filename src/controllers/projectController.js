@@ -27,6 +27,19 @@ const projectController = function (Project) {
     }
   };
 
+  const getArchivedProjects = async function (req, res) {
+    try {
+      const archivedProjects = await Project.find(
+        { isArchived: true },
+        'projectName isActive category modifiedDatetime membersModifiedDatetime isArchived',
+      ).sort({ modifiedDatetime: -1 });
+      res.status(200).send(archivedProjects);
+    } catch (error) {
+      logger.logException(error);
+      res.status(404).send('Error fetching archived projects. Please try again.');
+    }
+  };
+
   const deleteProject = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'deleteProject'))) {
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
@@ -114,11 +127,21 @@ const projectController = function (Project) {
   };
 
   const putProject = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
-      res.status(403).send('You are not authorized to make changes in the projects.');
-      return;
+    // console.log("PUT body:", req.body);
+    if (!(await helper.hasPermission(req.body.requestor, 'editProject'))) {
+      if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
+        res.status(403).send('You are not authorized to make changes in the projects.');
+        return;
+      }
     }
-    const { projectName, category, isActive, _id: projectId, isArchived } = req.body;
+    const {
+      projectName,
+      category,
+      isActive,
+      _id: projectId,
+      isArchived,
+      inventoryModifiedDatetime,
+    } = req.body;
     const sameNameProejct = await Project.find({
       projectName,
       _id: { $ne: projectId },
@@ -143,10 +166,13 @@ const projectController = function (Project) {
         `[Category Cascade] Project ${projectId} update started. Original category: ${originalCategory}, New category: ${category}`,
       );
 
-      targetProject.projectName = projectName;
-      targetProject.category = category;
-      targetProject.isActive = isActive;
+      targetProject.projectName = projectName ?? targetProject.projectName;
+      targetProject.category = category ?? targetProject.category;
+      targetProject.isActive = isActive !== undefined ? isActive : targetProject.isActive;
       targetProject.modifiedDatetime = Date.now();
+      targetProject.isArchived = isArchived !== undefined ? isArchived : targetProject.isArchived;
+      targetProject.inventoryModifiedDatetime =
+        inventoryModifiedDatetime ?? targetProject.inventoryModifiedDatetime;
 
       // IF CATEGORY CHANGED, CASCADE TO NON-OVERRIDDEN TASKS
       if (category && originalCategory !== category) {
@@ -249,28 +275,101 @@ const projectController = function (Project) {
         );
       }
 
-      if (isArchived) {
-        logger.logInfo(`[Category Cascade] Project ${projectId} is being archived`);
-        targetProject.isArchived = isArchived;
-        // deactivate wbs within target project
-        await wbs.updateMany({ projectId }, { isActive: false }, { session });
-        // deactivate tasks within affected wbs
-        const deactivatedwbsIds = await wbs.find({ projectId }, '_id');
-        await task.updateMany(
-          { wbsId: { $in: deactivatedwbsIds } },
-          { isActive: false },
-          { session },
-        );
-        // remove project from userprofiles.projects array
-        await userProfile.updateMany(
-          { projects: projectId },
-          { $pull: { projects: projectId } },
-          { session },
-        );
-        // deactivate timeentry for affected tasks
-        await timeentry.updateMany({ projectId }, { isActive: false }, { session });
-      }
+      // if (isArchived) {
+      //   logger.logInfo(`[Category Cascade] Project ${projectId} is being archived`);
+      //   targetProject.isArchived = isArchived;
+      //   // deactivate wbs within target project
+      //   await wbs.updateMany({ projectId }, { isActive: false }, { session });
+      //   // deactivate tasks within affected wbs
+      //   const deactivatedwbsIds = await wbs.find({ projectId }, '_id');
+      //   await task.updateMany(
+      //     { wbsId: { $in: deactivatedwbsIds } },
+      //     { isActive: false },
+      //     { session },
+      //   );
+      //   // remove project from userprofiles.projects array
+      //   await userProfile.updateMany(
+      //     { projects: projectId },
+      //     { $pull: { projects: projectId } },
+      //     { session },
+      //   );
+      //   // deactivate timeentry for affected tasks
+      //   await timeentry.updateMany({ projectId }, { isActive: false }, { session });
+      // } else {
+      //   // reactivate wbs within target project
+      //   await wbs.updateMany({ projectId }, { isActive: true }, { session });
+      //   // reactivate tasks within affected wbs
+      //   const activatedwbsIds = await wbs.find({ projectId }, '_id');
+      //   await task.updateMany({ wbsId: { $in: activatedwbsIds } }, { isActive: true }, { session });
 
+      //   // readd project from userprofiles.projects array
+      //   await userProfile.updateMany(
+      //     { projects: { $ne: projectId } },
+      //     { $addToSet: { projects: projectId } },
+      //     { session },
+      //   );
+      //   // activate timeentry for affected tasks
+      //   await timeentry.updateMany({ projectId }, { isActive: true }, { session });
+      // }
+      // 🔹 Run archive/unarchive logic only when the archive status actually changes
+      if (typeof isArchived !== 'undefined' && targetProject.isArchived !== isArchived) {
+        logger.logInfo(
+          `[Category Cascade] Project ${projectId} is being ${isArchived ? 'archived' : 'unarchived'}`,
+        );
+        targetProject.isArchived = isArchived;
+
+        if (isArchived) {
+          // deactivate wbs within target project
+          await wbs.updateMany({ projectId }, { isActive: false }, { session });
+
+          // deactivate tasks within affected wbs
+          const deactivatedWbsIds = await wbs.find({ projectId }, '_id');
+          await task.updateMany(
+            { wbsId: { $in: deactivatedWbsIds } },
+            { isActive: false },
+            { session },
+          );
+
+          // remove project from userprofiles.projects array
+          await userProfile.updateMany(
+            { projects: projectId },
+            { $pull: { projects: projectId } },
+            { session },
+          );
+
+          // deactivate timeentry for affected tasks
+          await timeentry.updateMany({ projectId }, { isActive: false }, { session });
+
+          logger.logInfo(`[Category Cascade] Project ${projectId} archived successfully.`);
+        } else {
+          // reactivate wbs within target project
+          await wbs.updateMany({ projectId }, { isActive: true }, { session });
+
+          // reactivate tasks within affected wbs
+          const activatedWbsIds = await wbs.find({ projectId }, '_id');
+          await task.updateMany(
+            { wbsId: { $in: activatedWbsIds } },
+            { isActive: true },
+            { session },
+          );
+
+          // readd project to userprofiles.projects array
+          await userProfile.updateMany(
+            { projects: { $ne: projectId } },
+            { $addToSet: { projects: projectId } },
+            { session },
+          );
+
+          // activate timeentry for affected tasks
+          await timeentry.updateMany({ projectId }, { isActive: true }, { session });
+
+          logger.logInfo(`[Category Cascade] Project ${projectId} unarchived successfully.`);
+        }
+      } else {
+        logger.logInfo(
+          `[Category Cascade] Archive status unchanged for project ${projectId}, skipping archive/unarchive cascade.`,
+        );
+      }
       await targetProject.save({ session });
       await session.commitTransaction();
       logger.logInfo(`[Category Cascade] Project ${projectId} update completed successfully`);
@@ -469,6 +568,34 @@ const projectController = function (Project) {
     const { projectId, query } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      //    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      //   res.status(400).send('Invalid request');
+      //   return;
+      // }
+
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+
+      // // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks.
+      // // Therefore, the _id field must be included when retrieving the user profile for project members (resources).
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+
+      // eslint-disable-next-line no-unused-vars
+      const getId = getProjMembers || postTask || updateTask || suggestTask;
+
+      // userProfile
+      //   .find(
+      //     { projects: projectId },
+      //     { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+      //   )
+      //   .sort({ firstName: 1, lastName: 1 })
+      //   .then((results) => {
+      //     res.status(200).send(results);
+      //   })
+      //   .catch((error) => {
+      //     res.status(500).send(error);
+      //   });
       return res.status(400).send('Invalid project ID');
     }
     // Sanitize user input and escape special characters
@@ -536,6 +663,7 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    getArchivedProjects,
     getprojectMembershipSummary,
     searchProjectMembers,
     getProjectsWithActiveUserCounts,
