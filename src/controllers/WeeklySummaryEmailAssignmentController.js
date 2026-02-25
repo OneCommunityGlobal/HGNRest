@@ -20,18 +20,19 @@ const WeeklySummaryEmailAssignmentController = function (
         return;
       }
 
-      const user = await userProfile.findOne({ email });
+      const normalizedEmail = email.toLowerCase().trim();
+      const user = await userProfile.findOne().where('email').equals(normalizedEmail);
       if (!user) {
         return res.status(400).send('User profile not found');
       }
 
       const newAssignment = new WeeklySummaryEmailAssignment({
-        email,
+        email: normalizedEmail,
         assignedTo: user._id,
       });
 
       await newAssignment.save();
-      const assignment = await WeeklySummaryEmailAssignment.find({ email })
+      const assignment = await WeeklySummaryEmailAssignment.find({ email: normalizedEmail })
         .populate('assignedTo')
         .exec();
 
@@ -79,9 +80,10 @@ const WeeklySummaryEmailAssignmentController = function (
         });
       }
 
-      const user = await userProfile.findOne({ email });
+      const normalizedEmail = email.toLowerCase().trim();
+      const user = await userProfile.findOne().where('email').equals(normalizedEmail);
       const updateFields = {
-        email,
+        email: normalizedEmail,
       };
       if (user?._id) {
         updateFields.assignedTo = user._id;

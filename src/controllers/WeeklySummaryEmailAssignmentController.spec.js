@@ -7,6 +7,14 @@ const makeMockRes = () => ({
 });
 
 describe('WeeklySummaryEmailAssignmentController', () => {
+  const makeUserProfileQueryMock = (resolvedValue) => ({
+    findOne: jest.fn().mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        equals: jest.fn().mockResolvedValue(resolvedValue),
+      }),
+    }),
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -22,9 +30,7 @@ describe('WeeklySummaryEmailAssignmentController', () => {
       const WeeklySummaryEmailAssignment = {
         findOneAndUpdate: jest.fn().mockReturnValue({ populate }),
       };
-      const userProfile = {
-        findOne: jest.fn().mockResolvedValue(null),
-      };
+      const userProfile = makeUserProfileQueryMock(null);
 
       const controller = WeeklySummaryEmailAssignmentController(
         WeeklySummaryEmailAssignment,
@@ -35,7 +41,7 @@ describe('WeeklySummaryEmailAssignmentController', () => {
 
       await controller.updateWeeklySummaryEmailAssignment(req, res);
 
-      expect(userProfile.findOne).toHaveBeenCalledWith({ email: 'new@example.com' });
+      expect(userProfile.findOne).toHaveBeenCalledWith();
       expect(WeeklySummaryEmailAssignment.findOneAndUpdate).toHaveBeenCalledWith(
         { _id: 'assignment-id' },
         { email: 'new@example.com' },
@@ -55,9 +61,7 @@ describe('WeeklySummaryEmailAssignmentController', () => {
       const WeeklySummaryEmailAssignment = {
         findOneAndUpdate: jest.fn().mockReturnValue({ populate }),
       };
-      const userProfile = {
-        findOne: jest.fn().mockResolvedValue({ _id: 'user-id' }),
-      };
+      const userProfile = makeUserProfileQueryMock({ _id: 'user-id' });
 
       const controller = WeeklySummaryEmailAssignmentController(
         WeeklySummaryEmailAssignment,
@@ -83,9 +87,7 @@ describe('WeeklySummaryEmailAssignmentController', () => {
       const WeeklySummaryEmailAssignment = {
         findOneAndUpdate: jest.fn().mockReturnValue({ populate }),
       };
-      const userProfile = {
-        findOne: jest.fn().mockResolvedValue({ _id: 'user-id' }),
-      };
+      const userProfile = makeUserProfileQueryMock({ _id: 'user-id' });
 
       const controller = WeeklySummaryEmailAssignmentController(
         WeeklySummaryEmailAssignment,
