@@ -1,13 +1,13 @@
 const UserStateCatalog = require('../models/userStateCatalog');
 const UserStateSelection = require('../models/userStateSelection');
 
-// Fix: replaceAll instead of replace (Reliability Low L7, L9)
+// Fix: use replaceAll (L25, L31)
 const slugify = (s) =>
   s
     .toLowerCase()
-    .replaceAll(/[^a-z0-9\s]+/g, '')
+    .replaceAll(/[^a-z0-9\s]+/gu, '')
     .trim()
-    .replaceAll(/\s+/g, '-');
+    .replaceAll(/\s+/gu, '-');
 
 function checkManage(req) {
   const requestor = req.body?.requestor || {};
@@ -19,25 +19,29 @@ function checkManage(req) {
   );
 }
 
-// Fix: sanitize userId to prevent DB injection (Blocker)
+// Fix: sanitize userId to prevent DB injection (Blocker L76)
 function sanitizeId(id) {
   if (typeof id !== 'string') return null;
-  return id.replace(/[^a-zA-Z0-9]/g, '');
+  return id.replaceAll(/[^a-zA-Z0-9]/gu, '');
 }
 
-// Fix: sanitize key to prevent DB injection (Blocker)
 function sanitizeKey(key) {
   if (typeof key !== 'string') return null;
-  return key.replace(/[^a-z0-9-]/g, '');
+  return key.replaceAll(/[^a-z0-9-]/gu, '');
+}
+
+// Fix: escape user input before using in regex (L60, L144)
+function escapeRegex(str) {
+  // Fix: use String.raw to avoid escaping issues
+  return str.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
 }
 
 const listCatalog = async (req, res) => {
   try {
     const items = await UserStateCatalog.find({ isActive: true }).sort({ order: 1 }).lean();
     return res.json({ items });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L25)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (listError) {
+    return res.status(500).json({ error: 'db error', details: listError.message });
   }
 };
 
@@ -56,8 +60,8 @@ const createCatalog = async (req, res) => {
     const key = slugify(label);
     if (!key) return res.status(400).json({ error: 'label produced empty key' });
 
-    // Fix: use $regex object instead of RegExp from user data (High L46)
-    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Fix: escape label before regex (L60)
+    const escapedLabel = escapeRegex(label);
     const exists = await UserStateCatalog.findOne({
       $or: [{ key }, { label: { $regex: `^${escapedLabel}$`, $options: 'i' } }],
     });
@@ -82,9 +86,8 @@ const createCatalog = async (req, res) => {
     });
 
     return res.status(201).json({ item });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L70)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (createError) {
+    return res.status(500).json({ error: 'db error', details: createError.message });
   }
 };
 
@@ -107,7 +110,7 @@ const reorderCatalog = async (req, res) => {
       return res.status(400).json({ error: 'orderedKeys must match catalog keys' });
     }
 
-    // Fix: sanitize keys before using in DB query (Blocker L61)
+    // Fix: sanitize keys before DB query
     const sanitizedKeys = orderedKeys.map((k) => sanitizeKey(k)).filter(Boolean);
     await UserStateCatalog.bulkWrite(
       sanitizedKeys.map((k, i) => ({
@@ -115,18 +118,17 @@ const reorderCatalog = async (req, res) => {
       })),
     );
 
-    const items = await UserStateCatalog.find().sort({ order: 1 }).lean();
+    const items = await UserStateCatalog.find({ isActive: true }).sort({ order: 1 }).lean();
     return res.json({ items });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L101)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (reorderError) {
+    return res.status(500).json({ error: 'db error', details: reorderError.message });
   }
 };
 
 const updateCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Fix: sanitize key from params (Blocker L112)
+  // Fix: sanitize key from params
   const key = sanitizeKey(req.params.key);
   if (!key) return res.status(400).json({ error: 'invalid key' });
 
@@ -140,8 +142,8 @@ const updateCatalog = async (req, res) => {
       if (!trimmed) return res.status(400).json({ error: 'label cannot be empty' });
       if (trimmed.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
 
-      // Fix: escape regex from user data (High L122)
-      const escapedTrimmed = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Fix: escape trimmed before regex (L144)
+      const escapedTrimmed = escapeRegex(trimmed);
       const clash = await UserStateCatalog.findOne({
         _id: { $ne: item._id },
         label: { $regex: `^${escapedTrimmed}$`, $options: 'i' },
@@ -156,30 +158,28 @@ const updateCatalog = async (req, res) => {
 
     await item.save();
     return res.json({ item });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L134)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (updateError) {
+    return res.status(500).json({ error: 'db error', details: updateError.message });
   }
 };
 
 const getUserSelections = async (req, res) => {
-  // Fix: sanitize userId from params (Blocker L142)
+  // Fix: sanitize userId (Blocker L76)
   const userId = sanitizeId(req.params.userId);
   if (!userId) return res.status(400).json({ error: 'invalid userId' });
 
   try {
     const doc = await UserStateSelection.findOne({ userId }).lean();
     return res.json({ userId, stateIndicators: doc?.stateIndicators || [] });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L144)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (getError) {
+    return res.status(500).json({ error: 'db error', details: getError.message });
   }
 };
 
 const setUserSelections = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Fix: sanitize userId from params (Blocker L173, L187)
+  // Fix: sanitize userId (Blocker L76)
   const userId = sanitizeId(req.params.userId);
   if (!userId) return res.status(400).json({ error: 'invalid userId' });
 
@@ -222,9 +222,8 @@ const setUserSelections = async (req, res) => {
     ).lean();
 
     return res.json({ userId, stateIndicators: doc.stateIndicators });
-  } catch (e) {
-    // Fix: handle exception (Maintainability Low L194)
-    return res.status(500).json({ error: 'db error', details: e.message });
+  } catch (setError) {
+    return res.status(500).json({ error: 'db error', details: setError.message });
   }
 };
 
