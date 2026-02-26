@@ -362,6 +362,9 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+// education portal
+const educationProfileRouter = require('../routes/educationRouter');
+
 // lesson planner router
 
 const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
@@ -532,7 +535,6 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api', plannedCostRouter(plannedCost, project));
 
-
   // summary dashboard
   app.use('/api/suppliers', supplierPerformanceRouter);
   app.use('/api/labor-hours', laborHoursDistributionRouter);
@@ -554,4 +556,11 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  // Education Portal
+  app.use('/api/student/profile', educationProfileRouter);
+
+  app.use('/api', materialCostRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
 };
