@@ -58,87 +58,46 @@ describe('laborHoursDistributionController', () => {
       expect(LaborHours.aggregate).not.toHaveBeenCalled();
     });
 
-    it('returns 400 when start_date and end_date are missing', async () => {
+    it.each([
+      [
+        'start_date and end_date are missing',
+        { start_date: undefined, end_date: undefined },
+        'Missing required query parameters: start_date and end_date are required',
+      ],
+      [
+        'start_date format is invalid',
+        { start_date: '01-01-2024', end_date: '2024-01-31' },
+        'Invalid start_date format. Please use YYYY-MM-DD format',
+      ],
+      [
+        'start_date is not a valid calendar date',
+        { start_date: '2024-02-30', end_date: '2024-01-31' },
+        'Invalid start_date: date does not exist (e.g., invalid month or day)',
+      ],
+      [
+        'end_date format is invalid',
+        { start_date: '2024-01-01', end_date: '31/01/2024' },
+        'Invalid end_date format. Please use YYYY-MM-DD format',
+      ],
+      [
+        'end_date is not a valid calendar date',
+        { start_date: '2024-01-01', end_date: '2024-04-31' },
+        'Invalid end_date: date does not exist (e.g., invalid month or day)',
+      ],
+      [
+        'start_date is after end_date',
+        { start_date: '2024-02-01', end_date: '2024-01-15' },
+        'Invalid date range: start_date must be before or equal to end_date',
+      ],
+    ])('returns 400 when %s', async (_, queryOverrides, expectedError) => {
       const controller = getController();
-      const req = makeReq({ start_date: undefined, end_date: undefined });
+      const req = makeReq(queryOverrides);
       const res = makeRes();
 
       await controller.getLaborHoursDistribution(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Missing required query parameters: start_date and end_date are required',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('returns 400 when start_date format is invalid', async () => {
-      const controller = getController();
-      const req = makeReq({ start_date: '01-01-2024', end_date: '2024-01-31' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid start_date format. Please use YYYY-MM-DD format',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('returns 400 when start_date is not a valid calendar date', async () => {
-      const controller = getController();
-      const req = makeReq({ start_date: '2024-02-30', end_date: '2024-01-31' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid start_date: date does not exist (e.g., invalid month or day)',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('returns 400 when end_date format is invalid', async () => {
-      const controller = getController();
-      const req = makeReq({ start_date: '2024-01-01', end_date: '31/01/2024' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid end_date format. Please use YYYY-MM-DD format',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('returns 400 when end_date is not a valid calendar date', async () => {
-      const controller = getController();
-      const req = makeReq({ start_date: '2024-01-01', end_date: '2024-04-31' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid end_date: date does not exist (e.g., invalid month or day)',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('returns 400 when start_date is after end_date', async () => {
-      const controller = getController();
-      const req = makeReq({ start_date: '2024-02-01', end_date: '2024-01-15' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid date range: start_date must be before or equal to end_date',
-      });
+      expect(res.json).toHaveBeenCalledWith({ error: expectedError });
       expect(LaborHours.aggregate).not.toHaveBeenCalled();
     });
 
