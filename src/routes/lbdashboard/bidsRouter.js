@@ -18,7 +18,6 @@ bidsRouter.route('/orderCapture/').post(bidsController.orderCapture);
 
 bidsRouter.route('/orderAuthorizeWithoutCard/').get(bidsController.orderAuthorizeWithoutCard);
 
-
 bidsRouter.route('/voidPayment/').post(bidsController.voidPayment);
 bidsRouter.route('/updateOrder/').patch(bidsController.updateOrder);
 

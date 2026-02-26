@@ -1,8 +1,6 @@
 /* eslint-disable camelcase */
 const axios = require('axios');
-
 const Payments = require('../../models/lbdashboard/payments');
-
 const paymentController = require('./paymentsController');
 
 const paymentControllerInstance = paymentController(Payments);
@@ -10,7 +8,6 @@ const paymentControllerInstance = paymentController(Payments);
 const { postPaymentStatusWithoutCard } = paymentControllerInstance;
 
 const Bids = require('../../models/lbdashboard/bids');
-
 const bidsController = require('./bidsController');
 
 const bidsControllerInstance = bidsController(Bids);
@@ -48,12 +45,10 @@ const webHookController = function () {
       );
       return res.status(200).json({ success: true, data: webhookResponse.data });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error in myHook',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error in myHook',
+      });
     }
   };
 
@@ -122,12 +117,10 @@ const webHookController = function () {
       return res.status(200).json({ success: true, data: 'event received' });
     } catch (error) {
       console.log(error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'error in webhook',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'error in webhook',
+      });
     }
   };
 

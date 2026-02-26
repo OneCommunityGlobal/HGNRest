@@ -9,11 +9,12 @@ const bidSchema = new Schema({
   endDate: { type: Date, required: true },
   // bidPrice: { type: mongoose.SchemaTypes.Decimal128, required: true },
   termsAgreed: { type: Boolean, required: true, default: false },
- //   orderId: { type: String, required: true },
- 
-  paypalOrderId: { type: String // , required: true 
+  //   orderId: { type: String, required: true },
+
+  paypalOrderId: {
+    type: String, // , required: true
   },
-  paypalCheckoutNowLink: {type:String},
+  paypalCheckoutNowLink: { type: String },
   biddingHistory: [
     {
       bidPrice: { type: mongoose.SchemaTypes.Decimal128, required: true },

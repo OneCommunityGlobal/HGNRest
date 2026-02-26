@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const overviewReportHelper = require('./overviewReportHelper');
 // const UserProfile = require('../models/userProfile');
 
@@ -9,7 +10,7 @@ const makeSut = () => {
 };
 
 describe('overviewReportHelper tests', () => {
-  it("Fix this test suite", () => {})
+  it('Fix this test suite', () => {});
 });
 
 // describe('overviewReportHelper method tests', () => {

@@ -1,3 +1,12 @@
+/* eslint-disable prefer-template */
+/* eslint-disable camelcase */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable eqeqeq */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-plusplus */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
 const userprofile = require('../models/userProfile');
 
 const formController = function (Form, FormResponse) {
@@ -33,7 +42,7 @@ const formController = function (Form, FormResponse) {
         message: 'Form created successfully',
         formID: savedForm.formID,
         id: savedForm._id,
-        formLink: `hostname${  formLink}`,
+        formLink: `hostname${formLink}`,
       });
     } catch (error) {
       console.error('Error creating form:', error);
@@ -88,11 +97,9 @@ const formController = function (Form, FormResponse) {
 
           if (['radio', 'checkbox'].includes(question.type)) {
             if (!Array.isArray(question.options) || question.options.length === 0) {
-              return res
-                .status(400)
-                .json({
-                  message: `Question of type '${question.type}' must have a non-empty options array`,
-                });
+              return res.status(400).json({
+                message: `Question of type '${question.type}' must have a non-empty options array`,
+              });
             }
 
             question.options.forEach((option) => {
@@ -169,7 +176,7 @@ const formController = function (Form, FormResponse) {
 
   const getFormData = async function (req, res) {
     try {
-      const {formID} = req.query;
+      const { formID } = req.query;
       // Check if formID is provided
       if (!formID) {
         return res.status(400).json({ message: 'Form ID is required.' });
@@ -252,11 +259,9 @@ const formController = function (Form, FormResponse) {
 
         // Ensure response label matches the expected question label
         if (response.questionLabel !== question.label) {
-          return res
-            .status(400)
-            .json({
-              message: `Invalid question label: Expected "${question.label}", got "${response.questionLabel}".`,
-            });
+          return res.status(400).json({
+            message: `Invalid question label: Expected "${question.label}", got "${response.questionLabel}".`,
+          });
         }
 
         // Validate response based on question type
@@ -267,19 +272,15 @@ const formController = function (Form, FormResponse) {
               .json({ message: `Response for "${question.label}" must be a single string value.` });
           }
           if (!question.options.includes(response.answer)) {
-            return res
-              .status(400)
-              .json({
-                message: `Invalid response for "${question.label}". Expected one of: ${question.options.join(', ')}`,
-              });
+            return res.status(400).json({
+              message: `Invalid response for "${question.label}". Expected one of: ${question.options.join(', ')}`,
+            });
           }
         } else if (question.type === 'checkbox') {
           if (!Array.isArray(response.answer)) {
-            return res
-              .status(400)
-              .json({
-                message: `Response for "${question.label}" must be an array of selected options.`,
-              });
+            return res.status(400).json({
+              message: `Response for "${question.label}" must be an array of selected options.`,
+            });
           }
           if (response.answer.length === 0) {
             return res
@@ -290,19 +291,15 @@ const formController = function (Form, FormResponse) {
             (option) => !question.options.includes(option),
           );
           if (invalidOptions.length > 0) {
-            return res
-              .status(400)
-              .json({
-                message: `Invalid options selected for "${question.label}": ${invalidOptions.join(', ')}`,
-              });
+            return res.status(400).json({
+              message: `Invalid options selected for "${question.label}": ${invalidOptions.join(', ')}`,
+            });
           }
         } else if (question.type === 'text') {
           if (typeof response.answer !== 'string' || response.answer.trim() === '') {
-            return res
-              .status(400)
-              .json({
-                message: `Response for "${question.label}" must be a non-empty text string.`,
-              });
+            return res.status(400).json({
+              message: `Response for "${question.label}" must be a non-empty text string.`,
+            });
           }
         } else {
           return res.status(400).json({ message: `Invalid question type: "${question.type}"` });

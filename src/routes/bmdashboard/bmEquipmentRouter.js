@@ -6,7 +6,10 @@ const routes = function (BuildingEquipment) {
     BuildingEquipment,
   );
 
-  equipmentRouter.route('/equipment/:equipmentId').get(controller.fetchSingleEquipment);
+  equipmentRouter
+    .route('/equipment/:equipmentId')
+    .get(controller.fetchSingleEquipment)
+    .put(controller.updateEquipmentById);
 
   equipmentRouter.route('/equipment/purchase').post(controller.bmPurchaseEquipments);
 

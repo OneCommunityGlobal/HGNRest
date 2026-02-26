@@ -5,8 +5,8 @@ const { Schema } = mongoose;
 const paymentSchema = new Schema({
   paypalOrderId: { type: String, required: true },
   paypalAuthorizationsId: { type: String, required: false },
-  paypalExpirationTime:{ type: Date },
-  paypalCreateTime: { type: Date },    
+  paypalExpirationTime: { type: Date },
+  paypalCreateTime: { type: Date },
   payment_source: {
     card: {
       lastDigits: { type: String, required: false },
@@ -17,7 +17,7 @@ const paymentSchema = new Schema({
   purchase_units: {
     payments: {
       amount: { type: mongoose.SchemaTypes.Decimal128, required: true },
-      },
+    },
   },
   userId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'users' }],
   bidId: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'bids' }],

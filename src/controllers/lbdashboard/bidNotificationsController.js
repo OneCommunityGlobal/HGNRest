@@ -48,12 +48,10 @@ const bidNotificationsController = function (BidNotifications) {
         .select('userId message isDelivered createdAt modifiedAt _id');
       return res.status(200).json({ success: true, data: results });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
 
@@ -73,12 +71,10 @@ const bidNotificationsController = function (BidNotifications) {
         },
       });
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          success: false,
-          error: error.response?.data?.error || error.message || 'Unknown error',
-        });
+      res.status(500).json({
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      });
     }
   };
   return {
