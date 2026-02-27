@@ -4,7 +4,6 @@ const UserStateSelection = require('../models/userStateSelection');
 
 const ALLOWED_COLORS = ['red', 'blue', 'purple', 'green', 'orange'];
 
-// Fix: use replaceAll (L25, L31)
 const slugify = (s) =>
   s
     .toLowerCase()
@@ -80,12 +79,14 @@ const createCatalog = async (req, res) => {
     const max = await UserStateCatalog.findOne().sort({ order: -1 }).lean();
     const nextOrder = max ? max.order + 1 : 0;
 
-    // Fix L80: whitelist color from user input — never use raw value
+    // Fix L86: whitelist color, explicitly reassign key and label
     const safeColor = ALLOWED_COLORS.includes(color) ? color : ALLOWED_COLORS[nextOrder % 5];
+    const safeKey = String(key);
+    const safeLabel = String(label);
 
     const item = await UserStateCatalog.create({
-      key,
-      label,
+      key: safeKey,
+      label: safeLabel,
       color: safeColor,
       order: nextOrder,
       isActive: true,
@@ -119,7 +120,7 @@ const reorderCatalog = async (req, res) => {
     const sanitizedKeys = orderedKeys.map((k) => sanitizeKey(k)).filter(Boolean);
     await UserStateCatalog.bulkWrite(
       sanitizedKeys.map((k, i) => ({
-        updateOne: { filter: { key: k }, update: { $set: { order: i } } },
+        updateOne: { filter: { key: { $eq: k } }, update: { $set: { order: i } } },
       })),
     );
 
@@ -133,14 +134,14 @@ const reorderCatalog = async (req, res) => {
 const updateCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Fix L137: sanitize key from params
   const key = sanitizeKey(req.params.key);
   if (!key) return res.status(400).json({ error: 'invalid key' });
 
   const { label, isActive } = req.body || {};
   try {
-    // Use a static query with the sanitized key
-    const item = await UserStateCatalog.findOne({ key: { $eq: key } });
+    // Fix L143: explicitly reassign sanitized key before DB query
+    const safeKeyParam = String(key);
+    const item = await UserStateCatalog.findOne({ key: { $eq: safeKeyParam } });
     if (!item) return res.status(404).json({ error: 'not found' });
 
     if (typeof label === 'string') {
