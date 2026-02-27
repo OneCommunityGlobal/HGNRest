@@ -79,10 +79,17 @@ const createCatalog = async (req, res) => {
     const max = await UserStateCatalog.findOne().sort({ order: -1 }).lean();
     const nextOrder = max ? max.order + 1 : 0;
 
-    // Fix L86: whitelist color, explicitly reassign key and label
+    // Fix L87: break taint chain completely
     const safeColor = ALLOWED_COLORS.includes(color) ? color : ALLOWED_COLORS[nextOrder % 5];
-    const safeKey = String(key);
-    const safeLabel = String(label);
+    const safeKey = key
+      .split('')
+      .filter((c) => /[a-z0-9-]/u.test(c))
+      .join('');
+    const safeLabel = label
+      .split('')
+      .filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126)
+      .join('')
+      .slice(0, 30);
 
     const item = await UserStateCatalog.create({
       key: safeKey,
