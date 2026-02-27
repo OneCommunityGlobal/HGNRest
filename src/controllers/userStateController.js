@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const UserStateCatalog = require('../models/userStateCatalog');
 const UserStateSelection = require('../models/userStateSelection');
+
+const ALLOWED_COLORS = ['red', 'blue', 'purple', 'green', 'orange'];
 
 // Fix: use replaceAll (L25, L31)
 const slugify = (s) =>
@@ -19,20 +22,21 @@ function checkManage(req) {
   );
 }
 
-// Fix: sanitize userId to prevent DB injection (Blocker L76)
-function sanitizeId(id) {
-  if (typeof id !== 'string') return null;
-  return id.replaceAll(/[^a-zA-Z0-9]/gu, '');
+// Fix: validate userId as a real MongoDB ObjectId — SonarCloud safe
+function parseUserId(id) {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  return new mongoose.Types.ObjectId(id);
 }
 
+// Fix: whitelist-based key sanitization
 function sanitizeKey(key) {
   if (typeof key !== 'string') return null;
-  return key.replaceAll(/[^a-z0-9-]/gu, '');
+  const clean = key.replaceAll(/[^a-z0-9-]/gu, '');
+  return clean || null;
 }
 
-// Fix: escape user input before using in regex (L60, L144)
+// Fix: escape user input before using in regex
 function escapeRegex(str) {
-  // Fix: use String.raw to avoid escaping issues
   return str.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
 }
 
@@ -60,7 +64,6 @@ const createCatalog = async (req, res) => {
     const key = slugify(label);
     if (!key) return res.status(400).json({ error: 'label produced empty key' });
 
-    // Fix: escape label before regex (L60)
     const escapedLabel = escapeRegex(label);
     const exists = await UserStateCatalog.findOne({
       $or: [{ key }, { label: { $regex: `^${escapedLabel}$`, $options: 'i' } }],
@@ -77,10 +80,13 @@ const createCatalog = async (req, res) => {
     const max = await UserStateCatalog.findOne().sort({ order: -1 }).lean();
     const nextOrder = max ? max.order + 1 : 0;
 
+    // Fix L80: whitelist color from user input — never use raw value
+    const safeColor = ALLOWED_COLORS.includes(color) ? color : ALLOWED_COLORS[nextOrder % 5];
+
     const item = await UserStateCatalog.create({
       key,
       label,
-      color: color || ['red', 'blue', 'purple', 'green', 'orange'][nextOrder % 5],
+      color: safeColor,
       order: nextOrder,
       isActive: true,
     });
@@ -110,7 +116,6 @@ const reorderCatalog = async (req, res) => {
       return res.status(400).json({ error: 'orderedKeys must match catalog keys' });
     }
 
-    // Fix: sanitize keys before DB query
     const sanitizedKeys = orderedKeys.map((k) => sanitizeKey(k)).filter(Boolean);
     await UserStateCatalog.bulkWrite(
       sanitizedKeys.map((k, i) => ({
@@ -128,13 +133,14 @@ const reorderCatalog = async (req, res) => {
 const updateCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Fix: sanitize key from params
+  // Fix L137: sanitize key from params
   const key = sanitizeKey(req.params.key);
   if (!key) return res.status(400).json({ error: 'invalid key' });
 
   const { label, isActive } = req.body || {};
   try {
-    const item = await UserStateCatalog.findOne({ key });
+    // Use a static query with the sanitized key
+    const item = await UserStateCatalog.findOne({ key: { $eq: key } });
     if (!item) return res.status(404).json({ error: 'not found' });
 
     if (typeof label === 'string') {
@@ -142,7 +148,6 @@ const updateCatalog = async (req, res) => {
       if (!trimmed) return res.status(400).json({ error: 'label cannot be empty' });
       if (trimmed.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
 
-      // Fix: escape trimmed before regex (L144)
       const escapedTrimmed = escapeRegex(trimmed);
       const clash = await UserStateCatalog.findOne({
         _id: { $ne: item._id },
@@ -164,12 +169,12 @@ const updateCatalog = async (req, res) => {
 };
 
 const getUserSelections = async (req, res) => {
-  // Fix: sanitize userId (Blocker L76)
-  const userId = sanitizeId(req.params.userId);
+  // Fix L172: validate userId as ObjectId — SonarCloud safe
+  const userId = parseUserId(req.params.userId);
   if (!userId) return res.status(400).json({ error: 'invalid userId' });
 
   try {
-    const doc = await UserStateSelection.findOne({ userId }).lean();
+    const doc = await UserStateSelection.findOne({ userId: { $eq: userId } }).lean();
     return res.json({ userId, stateIndicators: doc?.stateIndicators || [] });
   } catch (getError) {
     return res.status(500).json({ error: 'db error', details: getError.message });
@@ -179,8 +184,8 @@ const getUserSelections = async (req, res) => {
 const setUserSelections = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Fix: sanitize userId (Blocker L76)
-  const userId = sanitizeId(req.params.userId);
+  // Fix L205, L218: validate userId as ObjectId — SonarCloud safe
+  const userId = parseUserId(req.params.userId);
   if (!userId) return res.status(400).json({ error: 'invalid userId' });
 
   const { selectedKeys } = req.body || {};
@@ -202,7 +207,7 @@ const setUserSelections = async (req, res) => {
       return res.status(400).json({ error: 'too many selections (max 10)' });
     }
 
-    const existing = await UserStateSelection.findOne({ userId }).lean();
+    const existing = await UserStateSelection.findOne({ userId: { $eq: userId } }).lean();
     const existingMap = new Map(
       (existing?.stateIndicators || []).map((s) => [s.key, s.selectedAt]),
     );
@@ -216,7 +221,7 @@ const setUserSelections = async (req, res) => {
       }));
 
     const doc = await UserStateSelection.findOneAndUpdate(
-      { userId },
+      { userId: { $eq: userId } },
       { $set: { stateIndicators: normalized } },
       { new: true, upsert: true },
     ).lean();
