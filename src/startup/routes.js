@@ -108,7 +108,7 @@ const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
-
+const userStateRouter = require('../routes/userState');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -496,7 +496,6 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -545,7 +544,7 @@ module.exports = function (app) {
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', actualCostRouter);
-
+  app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
