@@ -299,14 +299,35 @@ const educationTaskController = function () {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
+      // const filter = {};
+
+      // if (status) {
+      //   filter.status = status;
+      // }
+      // if (studentId) {
+      //   filter.studentId = studentId;
+      // }
+      // if (lessonPlanId) {
+      //   filter.lessonPlanId = lessonPlanId;
+      // }
       const filter = {};
 
+      // Always restrict to finished tasks only
+      filter.status = { $in: ['completed', 'graded'] };
+
+      // If specific status filter provided, override safely
       if (status) {
-        filter.status = status;
+        if (status === 'completed') {
+          filter.status = 'completed';
+        } else if (status === 'graded') {
+          filter.status = 'graded';
+        }
       }
+
       if (studentId) {
         filter.studentId = studentId;
       }
+
       if (lessonPlanId) {
         filter.lessonPlanId = lessonPlanId;
       }
@@ -329,11 +350,14 @@ const educationTaskController = function () {
             taskName: task.name || 'Unnamed Task',
             taskType: task.type,
             submissionLinks: task.uploadUrls,
-            status: (() => {
-              if (task.status === 'completed') return 'Pending Review';
-              if (task.status === 'graded') return 'Graded';
-              return task.status;
-            })(),
+            // status: (() => {
+            //   if (task.status === 'completed') return 'Pending Review';
+            //   if (task.status === 'graded') return 'Graded';
+            //   return task.status;
+            // })(),
+            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
+            isLate:
+              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
             submittedAt: task.completedAt,
             assignedAt: task.assignedAt,
             dueAt: task.dueAt,

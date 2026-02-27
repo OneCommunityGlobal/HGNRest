@@ -66,5 +66,9 @@ const educationTaskSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+educationTaskSchema.index({ status: 1 });
+educationTaskSchema.index({ studentId: 1 });
+educationTaskSchema.index({ lessonPlanId: 1 });
+educationTaskSchema.index({ completedAt: -1 });
 
 module.exports = mongoose.model('EducationTask', educationTaskSchema);
