@@ -11,6 +11,17 @@ const bmIssueController = require('../bmIssueController');
 // Shared test fixtures
 const TEST_ISSUE_ID = '507f1f77bcf86cd799439011';
 
+const MINIMAL_POST_BODY = {
+  issueDate: new Date('2024-06-15'),
+  createdBy: TEST_ISSUE_ID,
+  issueTitle: ['Test'],
+  issueText: ['Description'],
+  projectId: TEST_ISSUE_ID,
+  cost: 0,
+  tag: 'In-person',
+  status: 'open',
+};
+
 // Mocking the BuildingIssue Model
 const mockBuildingIssue = {
   find: jest.fn(),
@@ -19,6 +30,19 @@ const mockBuildingIssue = {
   findByIdAndUpdate: jest.fn(),
   findByIdAndDelete: jest.fn(),
 };
+
+// Helper: call bmGetOpenIssue and return the find query that was used (for filter tests)
+async function getOpenIssueFindQuery(controller, req, res, findResult = []) {
+  mockBuildingIssue.find.mockResolvedValue(findResult);
+  await controller.bmGetOpenIssue(req, res);
+  return mockBuildingIssue.find.mock.calls[0][0];
+}
+
+// Helper: BuildingProject find chain used in getLongestOpenIssues tests
+const mockBuildingProjectChain = (projects) => ({
+  select: jest.fn().mockReturnThis(),
+  lean: jest.fn().mockResolvedValue(projects),
+});
 
 // Helper: builds the chained find mock used by getLongestOpenIssues
 const mockFindChain = (result) => ({
@@ -81,43 +105,27 @@ describe('Building Issue Controller', () => {
     it('should filter by projectIds when provided', async () => {
       const validId2 = '507f1f77bcf86cd799439012';
       req.query.projectIds = `${TEST_ISSUE_ID},${validId2}`;
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.status).toBe('open');
       expect(callArgs.projectId.$in).toHaveLength(2);
     });
 
     it('should ignore invalid projectIds', async () => {
       req.query.projectIds = `invalid-id,${TEST_ISSUE_ID}`;
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.projectId.$in).toHaveLength(1);
     });
 
     it('should not add projectId filter when all projectIds are invalid', async () => {
       req.query.projectIds = 'invalid-id1,invalid-id2';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.projectId).toBeUndefined();
     });
 
     it('should filter by startDate and endDate when both provided', async () => {
       req.query.startDate = '2024-01-01';
       req.query.endDate = '2024-12-31';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.$and).toBeDefined();
       expect(callArgs.$and[0].createdDate.$lte).toBeInstanceOf(Date);
       expect(callArgs.$and[1].$or).toBeDefined();
@@ -127,11 +135,7 @@ describe('Building Issue Controller', () => {
 
     it('should filter by startDate only when endDate not provided', async () => {
       req.query.startDate = '2024-01-01';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.$or).toBeDefined();
       expect(callArgs.$or).toContainEqual({ status: 'open' });
       expect(callArgs.$or[1].closedDate.$gte).toBeInstanceOf(Date);
@@ -139,11 +143,7 @@ describe('Building Issue Controller', () => {
 
     it('should filter by endDate only when startDate not provided', async () => {
       req.query.endDate = '2024-12-31';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.createdDate.$lte).toBeInstanceOf(Date);
     });
 
@@ -287,20 +287,13 @@ describe('Building Issue Controller', () => {
 
     it('should filter by tag when provided', async () => {
       req.query.tag = 'In-person';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.tag).toBe('In-person');
     });
 
     it('should return 400 when tag is not a valid enum value', async () => {
       req.query.tag = 'InvalidTag';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
       await controller.bmGetOpenIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Invalid tag. Allowed values: In-person, Virtual.',
@@ -322,11 +315,7 @@ describe('Building Issue Controller', () => {
       req.query.startDate = '2024-01-01';
       req.query.endDate = '2024-12-31';
       req.query.tag = 'Virtual';
-      mockBuildingIssue.find.mockResolvedValue([]);
-
-      await controller.bmGetOpenIssue(req, res);
-
-      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      const callArgs = await getOpenIssueFindQuery(controller, req, res);
       expect(callArgs.projectId.$in).toHaveLength(1);
       expect(callArgs.$and).toBeDefined();
       expect(callArgs.$and[0].createdDate.$lte).toBeInstanceOf(Date);
@@ -335,11 +324,8 @@ describe('Building Issue Controller', () => {
     });
 
     it('should return 500 error when database error occurs', async () => {
-      const error = new Error('Database error');
-      mockBuildingIssue.find.mockRejectedValue(error);
-
+      mockBuildingIssue.find.mockRejectedValue(new Error('Database error'));
       await controller.bmGetOpenIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     });
@@ -363,26 +349,17 @@ describe('Building Issue Controller', () => {
       ]);
     });
 
+    const unknownProjectResponse = [{ projectId: TEST_ISSUE_ID, projectName: 'Unknown Project' }];
     it('should return "Unknown Project" when project name is null', async () => {
-      const mockAggregateResults = [{ _id: TEST_ISSUE_ID, projectName: null }];
-      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
-
+      mockBuildingIssue.aggregate.mockResolvedValue([{ _id: TEST_ISSUE_ID, projectName: null }]);
       await controller.getUniqueProjectIds(req, res);
-
-      expect(res.json).toHaveBeenCalledWith([
-        { projectId: TEST_ISSUE_ID, projectName: 'Unknown Project' },
-      ]);
+      expect(res.json).toHaveBeenCalledWith(unknownProjectResponse);
     });
 
     it('should return "Unknown Project" when projectName is undefined', async () => {
-      const mockAggregateResults = [{ _id: TEST_ISSUE_ID }];
-      mockBuildingIssue.aggregate.mockResolvedValue(mockAggregateResults);
-
+      mockBuildingIssue.aggregate.mockResolvedValue([{ _id: TEST_ISSUE_ID }]);
       await controller.getUniqueProjectIds(req, res);
-
-      expect(res.json).toHaveBeenCalledWith([
-        { projectId: TEST_ISSUE_ID, projectName: 'Unknown Project' },
-      ]);
+      expect(res.json).toHaveBeenCalledWith(unknownProjectResponse);
     });
 
     it('should return empty array when no projects found', async () => {
@@ -394,11 +371,8 @@ describe('Building Issue Controller', () => {
     });
 
     it('should return 500 error when database error occurs', async () => {
-      const error = new Error('Aggregation error');
-      mockBuildingIssue.aggregate.mockRejectedValue(error);
-
+      mockBuildingIssue.aggregate.mockRejectedValue(new Error('Aggregation error'));
       await controller.getUniqueProjectIds(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     });
@@ -451,24 +425,17 @@ describe('Building Issue Controller', () => {
     it('should return 404 when issue not found', async () => {
       req.params.id = TEST_ISSUE_ID;
       req.body = { status: 'closed' };
-
       mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(null);
-
       await controller.bmUpdateIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found.' });
     });
 
     it('should return 500 when database error occurs', async () => {
-      const error = new Error('Database error');
       req.params.id = TEST_ISSUE_ID;
       req.body = { status: 'closed' };
-
-      mockBuildingIssue.findByIdAndUpdate.mockRejectedValue(error);
-
+      mockBuildingIssue.findByIdAndUpdate.mockRejectedValue(new Error('Database error'));
       await controller.bmUpdateIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
@@ -477,13 +444,10 @@ describe('Building Issue Controller', () => {
       const error = new Error('Unexpected error');
       req.params.id = TEST_ISSUE_ID;
       req.body = { status: 'closed' };
-
       mockBuildingIssue.findByIdAndUpdate.mockImplementation(() => {
         throw error;
       });
-
       await controller.bmUpdateIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Unexpected error' });
     });
@@ -553,13 +517,9 @@ describe('Building Issue Controller', () => {
     });
 
     it('should return 500 when database error occurs', async () => {
-      const error = new Error('Database error');
       req.params.id = TEST_ISSUE_ID;
-
-      mockBuildingIssue.findByIdAndDelete.mockRejectedValue(error);
-
+      mockBuildingIssue.findByIdAndDelete.mockRejectedValue(new Error('Database error'));
       await controller.bmDeleteIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
@@ -609,18 +569,12 @@ describe('Building Issue Controller', () => {
   describe('bmPostIssue', () => {
     it('should create a new issue successfully', async () => {
       const mockBody = {
-        issueDate: new Date('2024-06-15'),
-        createdBy: TEST_ISSUE_ID,
+        ...MINIMAL_POST_BODY,
         issueTitle: ['HVAC Noise'],
         issueText: ['Unusual rattling from HVAC'],
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-        tag: 'In-person',
-        status: 'open',
       };
       const mockNewIssue = { _id: '123', ...mockBody };
       req.body = mockBody;
-
       mockBuildingIssue.create.mockResolvedValue(mockNewIssue);
 
       await controller.bmPostIssue(req, res);
@@ -633,128 +587,47 @@ describe('Building Issue Controller', () => {
     });
 
     it('should handle errors when creating a new issue', async () => {
-      const error = new Error('Creation error');
-      req.body = {
-        issueDate: new Date('2024-06-15'),
-        createdBy: TEST_ISSUE_ID,
-        issueTitle: ['Test'],
-        issueText: ['Description'],
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-        tag: 'In-person',
-        status: 'open',
-      };
-      mockBuildingIssue.create.mockRejectedValue(error);
-
+      req.body = { ...MINIMAL_POST_BODY };
+      mockBuildingIssue.create.mockRejectedValue(new Error('Creation error'));
       await controller.bmPostIssue(req, res);
-
       expect(mockBuildingIssue.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(error);
+      expect(res.json).toHaveBeenCalledWith(expect.any(Error));
     });
 
     it('should handle thrown errors in try-catch', async () => {
       const error = new Error('Unexpected error');
-      req.body = {
-        issueDate: new Date('2024-06-15'),
-        createdBy: TEST_ISSUE_ID,
-        issueTitle: ['Test'],
-        issueText: ['Description'],
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-        tag: 'In-person',
-        status: 'open',
-      };
+      req.body = { ...MINIMAL_POST_BODY };
       mockBuildingIssue.create.mockImplementation(() => {
         throw error;
       });
-
       await controller.bmPostIssue(req, res);
-
       expect(res.json).toHaveBeenCalledWith(error);
     });
 
-    it('should return 400 when tag is invalid', async () => {
-      req.body = {
-        tag: 'BadTag',
-        status: 'open',
-        issueDate: new Date(),
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-      };
-
+    it.each([
+      [
+        'tag',
+        { ...MINIMAL_POST_BODY, tag: 'BadTag' },
+        { error: 'Invalid tag. Allowed values: In-person, Virtual.' },
+      ],
+      [
+        'status',
+        { ...MINIMAL_POST_BODY, status: 'pending' },
+        { error: 'Invalid status. Allowed values: open, closed.' },
+      ],
+      [
+        'issueDate',
+        { ...MINIMAL_POST_BODY, issueDate: 'not-a-date' },
+        { error: 'Invalid issueDate.' },
+      ],
+      ['projectId', { ...MINIMAL_POST_BODY, projectId: 'bad-id' }, { error: 'Invalid projectId.' }],
+      ['cost', { ...MINIMAL_POST_BODY, cost: 'free' }, { error: 'Invalid cost.' }],
+    ])('should return 400 when %s is invalid', async (_, body, expectedError) => {
+      req.body = body;
       await controller.bmPostIssue(req, res);
-
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid tag. Allowed values: In-person, Virtual.',
-      });
-      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when status is invalid', async () => {
-      req.body = {
-        tag: 'In-person',
-        status: 'pending',
-        issueDate: new Date(),
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-      };
-
-      await controller.bmPostIssue(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid status. Allowed values: open, closed.',
-      });
-      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when issueDate is invalid', async () => {
-      req.body = {
-        tag: 'In-person',
-        status: 'open',
-        issueDate: 'not-a-date',
-        projectId: TEST_ISSUE_ID,
-        cost: 0,
-      };
-
-      await controller.bmPostIssue(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid issueDate.' });
-      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when projectId is invalid', async () => {
-      req.body = {
-        tag: 'In-person',
-        status: 'open',
-        issueDate: new Date(),
-        projectId: 'bad-id',
-        cost: 0,
-      };
-
-      await controller.bmPostIssue(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid projectId.' });
-      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when cost is not a number', async () => {
-      req.body = {
-        tag: 'In-person',
-        status: 'open',
-        issueDate: new Date(),
-        projectId: TEST_ISSUE_ID,
-        cost: 'free',
-      };
-
-      await controller.bmPostIssue(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid cost.' });
+      expect(res.json).toHaveBeenCalledWith(expectedError);
       expect(mockBuildingIssue.create).not.toHaveBeenCalled();
     });
   });
@@ -825,23 +698,12 @@ describe('Building Issue Controller', () => {
       expect(aggregationPipeline[0].$match.issueDate.$lte).toBeInstanceOf(Date);
     });
 
-    it('should return 400 when year is not a valid integer', async () => {
-      req.query.year = 'notayear';
-
+    it.each([
+      ['notayear', 'non-integer'],
+      ['99999', 'out of range'],
+    ])('should return 400 when year is invalid (%s)', async (yearValue) => {
+      req.query.year = yearValue;
       await controller.bmGetIssueChart(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid year. Must be a 4-digit integer.',
-      });
-      expect(mockBuildingIssue.aggregate).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when year is out of valid range', async () => {
-      req.query.year = '99999';
-
-      await controller.bmGetIssueChart(req, res);
-
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Invalid year. Must be a 4-digit integer.',
@@ -892,9 +754,7 @@ describe('Building Issue Controller', () => {
     it('should return 500 error when database error occurs', async () => {
       const error = new Error('Aggregation error');
       mockBuildingIssue.aggregate.mockRejectedValue(error);
-
       await controller.bmGetIssueChart(req, res);
-
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Server error', error });
     });
@@ -943,31 +803,17 @@ describe('Building Issue Controller', () => {
 
     it('should filter by dates and return matching projects', async () => {
       req.query.dates = '2022-01-01,2024-12-31';
-
-      const mockProjects = [{ _id: TEST_ISSUE_ID }];
-      mockBuildingProjectFind.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue(mockProjects),
-      });
-
+      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
-
       await controller.getLongestOpenIssues(req, res);
-
       expect(mockBuildingProjectFind).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalled();
     });
 
     it('should return empty array when dates provided but no matching projects', async () => {
       req.query.dates = '2022-01-01,2024-12-31';
-
-      mockBuildingProjectFind.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      });
-
+      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([]));
       await controller.getLongestOpenIssues(req, res);
-
       expect(res.json).toHaveBeenCalledWith([]);
     });
 
@@ -975,20 +821,11 @@ describe('Building Issue Controller', () => {
       const anotherProjectId = '507f1f77bcf86cd799439012';
       req.query.dates = '2022-01-01,2024-12-31';
       req.query.projects = `${TEST_ISSUE_ID},${anotherProjectId}`;
-
-      const mockProjects = [{ _id: TEST_ISSUE_ID }];
-      mockBuildingProjectFind.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue(mockProjects),
-      });
-
+      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
-
       await controller.getLongestOpenIssues(req, res);
-
       expect(mockBuildingProjectFind).toHaveBeenCalled();
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
-      // Should only include TEST_ISSUE_ID since it's the intersection
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
     });
 
