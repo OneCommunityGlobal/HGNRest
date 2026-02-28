@@ -304,14 +304,24 @@ exports.getIssueStatistics = async (req, res) => {
     // This is used later to handle edge case: projects with no issues
     const filteredProjectIds = match.projectId?.$in || null;
 
-    // Build switch branches for MongoDB $switch operator
-    // This maps database issue types to the three required categories
-    // Use bracket notation for 'then' to avoid treating objects as thenables (SonarQube S4830)
-    const switchBranches = Object.keys(ISSUE_TYPE_MAPPING).map((dbType) => {
-      const branch = { case: { $eq: ['$issueType', dbType] } };
-      branch.then = ISSUE_TYPE_MAPPING[dbType];
-      return branch;
-    });
+    // Build a nested $cond expression (array form) to map database issue types to categories.
+    // Array form { $cond: [condition, trueVal, falseVal] } avoids 'then' as a property name,
+    // which would make objects thenable and trigger SonarQube S4830.
+    const equipmentTypes = getIssueTypesForCategory('Equipment Issues');
+    const laborTypes = getIssueTypesForCategory('Labor Issues');
+    const mappedIssueTypeExpr = {
+      $cond: [
+        { $in: ['$issueType', equipmentTypes] },
+        'Equipment Issues',
+        {
+          $cond: [
+            { $in: ['$issueType', laborTypes] },
+            'Labor Issues',
+            'Materials Issues', // Default for unmapped types
+          ],
+        },
+      ],
+    };
 
     // Match filtered issues
     // If no filters provided, match will be empty object {} which matches all documents
@@ -321,12 +331,7 @@ exports.getIssueStatistics = async (req, res) => {
       // Add a field to map the database issue type to one of the three required categories
       {
         $addFields: {
-          mappedIssueType: {
-            $switch: {
-              branches: switchBranches,
-              default: 'Materials Issues', // Default for unmapped types
-            },
-          },
+          mappedIssueType: mappedIssueTypeExpr,
         },
       },
       // Group by projectId and mapped category to count issues
