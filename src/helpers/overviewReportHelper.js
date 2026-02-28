@@ -1481,6 +1481,8 @@ const overviewReportHelper = function () {
               $gte: moment(startDate).format('YYYY-MM-DD'),
               $lte: moment(endDate).format('YYYY-MM-DD'),
             },
+            isActive: { $ne: false }, // Match leaderboard logic - exclude inactive time entries
+            entryType: { $nin: ['person', 'team', 'project'] }, // Match leaderboard logic - exclude specific entry types
           },
         },
         {
@@ -1509,6 +1511,8 @@ const overviewReportHelper = function () {
                   $gte: moment(startDate).format('YYYY-MM-DD'),
                   $lte: moment(endDate).format('YYYY-MM-DD'),
                 },
+                isActive: { $ne: false }, // Match leaderboard logic - exclude inactive time entries
+                entryType: { $nin: ['person', 'team', 'project'] }, // Match leaderboard logic - exclude specific entry types
               },
             },
             {
@@ -1532,6 +1536,8 @@ const overviewReportHelper = function () {
                   $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
                   $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
                 },
+                isActive: { $ne: false }, // Match leaderboard logic - exclude inactive time entries
+                entryType: { $nin: ['person', 'team', 'project'] }, // Match leaderboard logic - exclude specific entry types
               },
             },
             {
