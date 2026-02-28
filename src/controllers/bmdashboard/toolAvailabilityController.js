@@ -1,4 +1,3 @@
-
 const { ObjectId } = require('mongoose').Types;
 
 const toolAvailabilityController = function (ToolAvailability) {

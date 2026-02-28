@@ -155,6 +155,10 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmPurchaseMaterials', () => {
+    const validProjectId = '507f1f77bcf86cd799439011';
+    const validMatTypeId = '507f1f77bcf86cd799439012';
+    const validRequestorId = '507f1f77bcf86cd799439013';
+
     it('should create a new material if not found', async () => {
       mockFindOne.mockResolvedValue(null);
       mockCreate.mockImplementation(() => ({
@@ -166,24 +170,25 @@ describe('bmMaterialsController', () => {
 
       const req = {
         body: {
-          primaryId: 'project123',
-          secondaryId: 'matType123',
+          primaryId: validProjectId,
+          secondaryId: validMatTypeId,
           quantity: 50,
-          priority: 'high',
+          priority: 'Low',
           brand: 'BrandX',
-          requestor: { requestorId: 'user123' },
+          requestor: { requestorId: validRequestorId },
         },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
       };
 
       await controller.bmPurchaseMaterials(req, res);
 
       expect(mockFindOne).toHaveBeenCalledWith({
-        project: 'project123',
-        itemType: 'matType123',
+        project: validProjectId,
+        itemType: validMatTypeId,
       });
       expect(mockCreate).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
@@ -191,10 +196,17 @@ describe('bmMaterialsController', () => {
     });
 
     it('should update an existing material if found', async () => {
-      const mockMaterial = { _id: 'material123' };
+      const mockMaterial = {
+        _id: '507f1f77bcf86cd799439014',
+        stockBought: 100,
+      };
       mockFindOne.mockResolvedValue(mockMaterial);
 
-      mongoose.Types.ObjectId = jest.fn().mockReturnValue('material123');
+      // Mock ObjectId.isValid to return true, and ObjectId constructor
+      mongoose.Types.ObjectId.isValid = jest.fn().mockReturnValue(true);
+      const originalObjectId = mongoose.Types.ObjectId;
+      mongoose.Types.ObjectId = jest.fn().mockReturnValue('507f1f77bcf86cd799439014');
+      mongoose.Types.ObjectId.isValid = originalObjectId.isValid;
 
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
@@ -207,24 +219,25 @@ describe('bmMaterialsController', () => {
 
       const req = {
         body: {
-          primaryId: 'project123',
-          secondaryId: 'matType123',
+          primaryId: validProjectId,
+          secondaryId: validMatTypeId,
           quantity: 50,
-          priority: 'high',
+          priority: 'Low',
           brand: 'BrandX',
-          requestor: { requestorId: 'user123' },
+          requestor: { requestorId: validRequestorId },
         },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
       };
 
       await controller.bmPurchaseMaterials(req, res);
 
       expect(mockFindOne).toHaveBeenCalledWith({
-        project: 'project123',
-        itemType: 'matType123',
+        project: validProjectId,
+        itemType: validMatTypeId,
       });
       expect(mockFindOneAndUpdate).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
@@ -236,17 +249,18 @@ describe('bmMaterialsController', () => {
 
       const req = {
         body: {
-          primaryId: 'project123',
-          secondaryId: 'matType123',
+          primaryId: validProjectId,
+          secondaryId: validMatTypeId,
           quantity: 50,
-          priority: 'high',
+          priority: 'Low',
           brand: 'BrandX',
-          requestor: { requestorId: 'user123' },
+          requestor: { requestorId: validRequestorId },
         },
       };
       const res = {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
       };
 
       await controller.bmPurchaseMaterials(req, res);

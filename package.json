@@ -22,7 +22,7 @@
     "test:ci": "npm test -- --coverage",
     "lint": "eslint ./src --ext .js,.jsx --max-warnings=2000",
     "lint:fix": "eslint ./src --ext .js,.jsx --fix",
-    "build": "babel src -d dist",
+    "build": "babel src -d dist && mkdir -p dist/data && cp -r src/data/* dist/data/ 2>/dev/null || true",
     "buildw": "babel src -d dist --watch",
     "start": "node dist/server.js",
     "dev": "nodemon --exec \"babel-node --ignore 'node_modules/(?!@typespec)' src/server.js\"",
@@ -58,6 +58,7 @@
     "mongodb-memory-server": "^7.6.3",
     "nock": "^14.0.10",
     "nodemon": "^3.0.1",
+    "pidtree": "^0.6.0",
     "prettier": "3.2.5",
     "supertest": "^6.3.4"
   },
