@@ -7,7 +7,7 @@ const {
   updateScheduledPost,
   deleteScheduledPost,
   postScheduledNow,
-  getPostHistory
+  getPostHistory,
 } = require('../controllers/liveJournalPostController');
 
 const router = express.Router();
@@ -15,8 +15,8 @@ const router = express.Router();
 // Configure Multer to store file in memory
 const storage = multer.memoryStorage();
 const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit to 5MB
 });
 
 // Update POST routes to accept a single file named 'image'
