@@ -380,7 +380,17 @@ const END_OF_DAY_SECOND = 59;
 const END_OF_DAY_MS = 999;
 
 /**
- * Builds MongoDB query filter from parsed parameters
+ * Sanitizes an array of user-provided strings for safe use in MongoDB query filters.
+ * Converts each element to a plain string primitive and removes any values beginning
+ * with '$', which is the MongoDB operator prefix, to prevent NoSQL injection.
+ * @param {string[]} arr - Validated array of string values from user input
+ * @returns {string[]} Array of sanitized string primitives safe for use in queries
+ */
+const sanitizeStringArrayForQuery = (arr) =>
+  arr.map(String).filter((item) => !item.startsWith('$'));
+
+/**
+ * Builds MongoDB query filter from parsed and sanitized parameters
  */
 const buildQueryFilter = ({ projectsArray, tasksArray, dateRange, startDate, endDate }) => {
   const queryFilter = {};
@@ -407,14 +417,16 @@ const buildQueryFilter = ({ projectsArray, tasksArray, dateRange, startDate, end
     }
   }
 
-  // Build project filter
-  if (projectsArray.length > 0) {
-    queryFilter.project_name = { $in: projectsArray };
+  // Build project filter — sanitize to prevent NoSQL injection via MongoDB operator strings
+  const sanitizedProjects = sanitizeStringArrayForQuery(projectsArray);
+  if (sanitizedProjects.length > 0) {
+    queryFilter.project_name = { $in: sanitizedProjects };
   }
 
-  // Build task filter
-  if (tasksArray.length > 0) {
-    queryFilter.task = { $in: tasksArray };
+  // Build task filter — sanitize to prevent NoSQL injection via MongoDB operator strings
+  const sanitizedTasks = sanitizeStringArrayForQuery(tasksArray);
+  if (sanitizedTasks.length > 0) {
+    queryFilter.task = { $in: sanitizedTasks };
   }
 
   return queryFilter;
@@ -574,4 +586,5 @@ module.exports.testExports = {
   parseArrayParam,
   parseDateRangeParam,
   isValidDateValue,
+  sanitizeStringArrayForQuery,
 };
