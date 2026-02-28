@@ -110,6 +110,13 @@ const bmIssueController = function (buildingIssue) {
             return res.status(400).json({ error: 'Invalid date format.' });
           }
 
+          // Reject requests where startDate is after endDate
+          if (start > end) {
+            return res.status(400).json({
+              error: 'startDate must not be after endDate.',
+            });
+          }
+
           const now = new Date();
 
           // Reject requests where the entire range is in the future —

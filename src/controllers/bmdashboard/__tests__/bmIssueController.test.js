@@ -274,6 +274,17 @@ describe('Building Issue Controller', () => {
       expect(mockBuildingIssue.find).not.toHaveBeenCalled();
     });
 
+    it('should return 400 when startDate is after endDate', async () => {
+      req.query.startDate = '2024-06-01';
+      req.query.endDate = '2024-01-01';
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'startDate must not be after endDate.' });
+      expect(mockBuildingIssue.find).not.toHaveBeenCalled();
+    });
+
     it('should filter by tag when provided', async () => {
       req.query.tag = 'In-person';
       mockBuildingIssue.find.mockResolvedValue([]);
