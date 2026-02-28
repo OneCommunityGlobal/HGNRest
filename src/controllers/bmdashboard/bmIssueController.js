@@ -183,7 +183,7 @@ function buildOpenIssuesQuery({ projectIds, startDate, endDate, tag }) {
 
   if (startDate || endDate) {
     const dateResult = parseDateRangeForOpenIssues(startDate, endDate);
-    if (dateResult && dateResult?.errorResponse) {
+    if (dateResult?.errorResponse) {
       return dateResult;
     }
     if (dateResult && dateResult.queryPart) {
