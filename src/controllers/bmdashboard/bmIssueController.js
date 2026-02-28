@@ -8,6 +8,12 @@ const HOURS_PER_DAY = 24;
 const AVG_DAYS_PER_MONTH = 30.44;
 const MAX_LONGEST_OPEN_ISSUES = 7;
 
+// Allowed values for the tag field (mirrors the schema enum)
+const VALID_TAGS = new Set(['In-person', 'Virtual']);
+
+// Reusable condition: issue is open or was closed on/after `start`
+const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
+
 const getProjectFilterIds = (projectsParam) =>
   projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
 
@@ -75,18 +81,18 @@ const buildLongestOpenResponse = (grouped) =>
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
 const bmIssueController = function (buildingIssue) {
-  // fetch open issues with optional date range and tag filtering and project ID
+  // Fetch open issues with optional date range, project, and tag filtering
   const bmGetOpenIssue = async (req, res) => {
     try {
       const { projectIds, startDate, endDate, tag } = req.query;
 
-      // Build base query - NO STATUS FILTER YET
       const query = {};
 
-      // Handle projectIds if provided
+      // Filter by project IDs — only valid ObjectIds are accepted
       if (projectIds) {
-        const projectIdArray = projectIds.split(',').map((id) => id.trim());
-        const validProjectIds = projectIdArray
+        const validProjectIds = projectIds
+          .split(',')
+          .map((id) => id.trim())
           .filter((id) => ObjectId.isValid(id))
           .map((id) => new ObjectId(id));
         if (validProjectIds.length > 0) {
@@ -99,6 +105,11 @@ const bmIssueController = function (buildingIssue) {
         if (startDate && endDate) {
           const start = new Date(startDate);
           const end = new Date(endDate);
+
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return res.status(400).json({ error: 'Invalid date format.' });
+          }
+
           const now = new Date();
 
           // Reject requests where the entire range is in the future —
@@ -116,37 +127,41 @@ const bmIssueController = function (buildingIssue) {
 
           // Issue is "open during range" if:
           // 1. Created before or during the range (createdDate <= effectiveEnd)
-          // 2. AND either:
-          //    a. Still open (status = 'open'), OR
-          //    b. Closed during or after the range start (closedDate >= startDate)
+          // 2. AND either still open OR closed on/after the range start
           query.$and = [
             { createdDate: { $lte: effectiveEnd } },
-            {
-              $or: [{ status: 'open' }, { closedDate: { $gte: start } }],
-            },
+            { $or: buildOpenOrClosedAfter(start) },
           ];
         } else if (startDate) {
           const start = new Date(startDate);
-          // Show all issues that are:
-          // - Still open, OR
-          // - Closed on or after startDate
-          query.$or = [{ status: 'open' }, { closedDate: { $gte: start } }];
+          if (Number.isNaN(start.getTime())) {
+            return res.status(400).json({ error: 'Invalid startDate format.' });
+          }
+          // Issues still open or closed on/after startDate
+          query.$or = buildOpenOrClosedAfter(start);
         } else if (endDate) {
-          const end = endOfDay(new Date(endDate));
-          // Show all issues created before or on endDate
-          query.createdDate = { $lte: end };
+          const end = new Date(endDate);
+          if (Number.isNaN(end.getTime())) {
+            return res.status(400).json({ error: 'Invalid endDate format.' });
+          }
+          // All issues created on or before endDate
+          query.createdDate = { $lte: endOfDay(end) };
         }
       } else {
-        // No date filter: only show currently open issues (original behavior)
+        // No date filter: return only currently open issues
         query.status = 'open';
       }
 
-      // Add tag filter if provided
+      // Validate and apply tag filter
       if (tag) {
+        if (typeof tag !== 'string' || !VALID_TAGS.has(tag)) {
+          return res.status(400).json({
+            error: `Invalid tag. Allowed values: ${[...VALID_TAGS].join(', ')}.`,
+          });
+        }
         query.tag = tag;
       }
 
-      // Fetch issues
       const results = await buildingIssue.find(query);
       return res.json(results || []);
     } catch (error) {
@@ -155,16 +170,11 @@ const bmIssueController = function (buildingIssue) {
     }
   };
 
-  // Fetch unique project IDs and their names
+  // Fetch unique project IDs and their names from existing issues
   const getUniqueProjectIds = async (req, res) => {
     try {
-      // Use aggregation to get distinct project IDs and lookup their names
       const results = await buildingIssue.aggregate([
-        {
-          $group: {
-            _id: '$projectId',
-          },
-        },
+        { $group: { _id: '$projectId' } },
         {
           $lookup: {
             from: 'buildingProjects',
@@ -179,12 +189,9 @@ const bmIssueController = function (buildingIssue) {
             projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
           },
         },
-        {
-          $sort: { projectName: 1 },
-        },
+        { $sort: { projectName: 1 } },
       ]);
 
-      // Format the response
       const formattedResults = results.map((item) => ({
         projectId: item._id,
         projectName: item.projectName || 'Unknown Project',
@@ -200,7 +207,34 @@ const bmIssueController = function (buildingIssue) {
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      const issue = await buildingIssue.create(req.body);
+      // Explicitly pick only schema-defined fields to prevent NoSQL injection
+      const {
+        issueDate,
+        createdBy,
+        staffInvolved,
+        issueTitle,
+        issueText,
+        imageUrl,
+        projectId,
+        cost,
+        tag,
+        status,
+        person,
+      } = req.body;
+
+      const issue = await buildingIssue.create({
+        issueDate,
+        createdBy,
+        staffInvolved,
+        issueTitle,
+        issueText,
+        imageUrl,
+        projectId,
+        cost,
+        tag,
+        status,
+        person,
+      });
       res.status(201).json(issue);
     } catch (error) {
       res.status(500).json(error);
@@ -272,12 +306,21 @@ const bmIssueController = function (buildingIssue) {
       const { issueType, year } = req.query;
       const matchQuery = {};
 
-      if (issueType) matchQuery.issueType = issueType;
+      if (issueType) {
+        if (typeof issueType !== 'string') {
+          return res.status(400).json({ error: 'Invalid issueType.' });
+        }
+        matchQuery.issueType = issueType;
+      }
 
       if (year) {
+        const yearInt = Number.parseInt(year, 10);
+        if (Number.isNaN(yearInt) || yearInt < 1000 || yearInt > 9999) {
+          return res.status(400).json({ error: 'Invalid year. Must be a 4-digit integer.' });
+        }
         matchQuery.issueDate = {
-          $gte: new Date(`${year}-01-01T00:00:00Z`),
-          $lte: new Date(`${year}-12-31T23:59:59Z`),
+          $gte: new Date(`${yearInt}-01-01T00:00:00Z`),
+          $lte: new Date(`${yearInt}-12-31T23:59:59Z`),
         };
       }
 
