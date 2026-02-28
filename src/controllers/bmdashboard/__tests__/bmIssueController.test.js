@@ -116,6 +116,40 @@ describe('Building Issue Controller', () => {
       expect(callArgs.$and[1].$or[1].closedDate.$gte).toBeInstanceOf(Date);
     });
 
+    it('should return 400 error when the entire date range is in the future', async () => {
+      req.query.startDate = '2099-01-01';
+      req.query.endDate = '2099-12-31';
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error:
+          'The selected date range is entirely in the future. No issue data exists for future dates.',
+      });
+      expect(mockBuildingIssue.find).not.toHaveBeenCalled();
+    });
+
+    it('should cap endDate to today when startDate is past and endDate is in the future', async () => {
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2099-12-31';
+      mockBuildingIssue.find.mockResolvedValue([]);
+
+      await controller.bmGetOpenIssue(req, res);
+
+      expect(mockBuildingIssue.find).toHaveBeenCalled();
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.$and).toBeDefined();
+
+      const effectiveEnd = callArgs.$and[0].createdDate.$lte;
+      expect(effectiveEnd).toBeInstanceOf(Date);
+      // effectiveEnd must be capped to today, not the far-future endDate
+      const today = new Date();
+      expect(effectiveEnd.getFullYear()).toBe(today.getFullYear());
+      expect(effectiveEnd.getMonth()).toBe(today.getMonth());
+      expect(effectiveEnd.getDate()).toBe(today.getDate());
+    });
+
     it('should filter by startDate only when endDate not provided', async () => {
       req.query.startDate = '2024-01-01';
       mockBuildingIssue.find.mockResolvedValue([]);
@@ -317,12 +351,7 @@ describe('Building Issue Controller', () => {
       req.params.id = '507f1f77bcf86cd799439011';
       req.body = { issueTitle: ['Updated Title'], status: 'closed' };
 
-      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(mockUpdatedIssue);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(mockUpdatedIssue);
 
       await controller.bmUpdateIssue(req, res);
 
@@ -359,12 +388,7 @@ describe('Building Issue Controller', () => {
       req.params.id = '507f1f77bcf86cd799439011';
       req.body = { status: 'closed' };
 
-      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(null);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(null);
 
       await controller.bmUpdateIssue(req, res);
 
@@ -377,11 +401,7 @@ describe('Building Issue Controller', () => {
       req.params.id = '507f1f77bcf86cd799439011';
       req.body = { status: 'closed' };
 
-      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
-        then: jest.fn(() => ({
-          catch: jest.fn((reject) => reject(error)),
-        })),
-      });
+      mockBuildingIssue.findByIdAndUpdate.mockRejectedValue(error);
 
       await controller.bmUpdateIssue(req, res);
 
@@ -389,7 +409,7 @@ describe('Building Issue Controller', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
 
-    it('should handle thrown errors in try-catch', async () => {
+    it('should return 500 when findByIdAndUpdate throws synchronously', async () => {
       const error = new Error('Unexpected error');
       req.params.id = '507f1f77bcf86cd799439011';
       req.body = { status: 'closed' };
@@ -400,6 +420,7 @@ describe('Building Issue Controller', () => {
 
       await controller.bmUpdateIssue(req, res);
 
+      expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Unexpected error' });
     });
 
@@ -413,12 +434,7 @@ describe('Building Issue Controller', () => {
         closedDate: new Date(),
       };
 
-      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(mockUpdatedIssue);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(mockUpdatedIssue);
 
       await controller.bmUpdateIssue(req, res);
 
@@ -437,12 +453,7 @@ describe('Building Issue Controller', () => {
         closedDate: null,
       };
 
-      mockBuildingIssue.findByIdAndUpdate.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(mockUpdatedIssue);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(mockUpdatedIssue);
 
       await controller.bmUpdateIssue(req, res);
 
@@ -458,12 +469,7 @@ describe('Building Issue Controller', () => {
       const mockDeletedIssue = { _id: '507f1f77bcf86cd799439011' };
       req.params.id = '507f1f77bcf86cd799439011';
 
-      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(mockDeletedIssue);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndDelete.mockResolvedValue(mockDeletedIssue);
 
       await controller.bmDeleteIssue(req, res);
 
@@ -474,12 +480,7 @@ describe('Building Issue Controller', () => {
     it('should return 404 when issue not found', async () => {
       req.params.id = '507f1f77bcf86cd799439011';
 
-      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
-        then: jest.fn((resolve) => {
-          resolve(null);
-          return { catch: jest.fn() };
-        }),
-      });
+      mockBuildingIssue.findByIdAndDelete.mockResolvedValue(null);
 
       await controller.bmDeleteIssue(req, res);
 
@@ -491,11 +492,7 @@ describe('Building Issue Controller', () => {
       const error = new Error('Database error');
       req.params.id = '507f1f77bcf86cd799439011';
 
-      mockBuildingIssue.findByIdAndDelete.mockReturnValue({
-        then: jest.fn(() => ({
-          catch: jest.fn((reject) => reject(error)),
-        })),
-      });
+      mockBuildingIssue.findByIdAndDelete.mockRejectedValue(error);
 
       await controller.bmDeleteIssue(req, res);
 
