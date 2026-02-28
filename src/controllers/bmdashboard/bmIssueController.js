@@ -1,6 +1,5 @@
 const { ObjectId } = require('mongoose').Types;
 const { endOfDay } = require('date-fns');
-
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const MS_PER_MINUTE = 60 * 1000;
@@ -99,16 +98,29 @@ const bmIssueController = function (buildingIssue) {
       if (startDate || endDate) {
         if (startDate && endDate) {
           const start = new Date(startDate);
-          const end = endOfDay(new Date(endDate));
+          const end = new Date(endDate);
+          const now = new Date();
+
+          // Reject requests where the entire range is in the future —
+          // no issue data can exist for dates that haven't occurred yet.
+          if (start > now) {
+            return res.status(400).json({
+              error:
+                'The selected date range is entirely in the future. No issue data exists for future dates.',
+            });
+          }
+
+          // If endDate is in the future, cap it to the end of today so only
+          // existing data is queried. req.query is not modified.
+          const effectiveEnd = end > now ? endOfDay(now) : endOfDay(end);
 
           // Issue is "open during range" if:
-          // 1. Created before or during the range (createdDate <= endDate)
+          // 1. Created before or during the range (createdDate <= effectiveEnd)
           // 2. AND either:
           //    a. Still open (status = 'open'), OR
-          //    b. Closed during or after the range (closedDate >= startDate)
-
+          //    b. Closed during or after the range start (closedDate >= startDate)
           query.$and = [
-            { createdDate: { $lte: end } },
+            { createdDate: { $lte: effectiveEnd } },
             {
               $or: [{ status: 'open' }, { closedDate: { $gte: start } }],
             },
