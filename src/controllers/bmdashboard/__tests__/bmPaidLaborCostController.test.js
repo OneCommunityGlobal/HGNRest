@@ -320,6 +320,24 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
     let mockLean;
     let mockExec;
 
+    /** Calls getLaborCost with given query and optional mock DB records. Reduces duplication. */
+    async function callGetLaborCost(query, records = []) {
+      mockReq.query = query;
+      mockExec.mockResolvedValue(records);
+      await controller.getLaborCost(mockReq, mockRes);
+    }
+
+    /** Asserts 200 and LaborCost.find called with expectedFilter. */
+    function expectSuccessWithFind(expectedFilter) {
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(LaborCost.find).toHaveBeenCalledWith(expectedFilter);
+    }
+
+    /** Asserts 200 and empty find. */
+    function expectSuccessEmptyFind() {
+      expectSuccessWithFind({});
+    }
+
     /**
      * Setup mocks before each test
      * Creates chainable mock for LaborCost.find().sort().lean().exec()
@@ -328,32 +346,22 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
       jest.clearAllMocks();
 
       // Set up mock chain for LaborCost.find().sort().lean().exec()
-      // The chain is: find() -> sort() -> lean() -> exec() -> Promise
       mockExec = jest.fn().mockResolvedValue([]);
       mockLean = jest.fn().mockReturnValue({ exec: mockExec });
       mockSort = jest.fn().mockReturnValue({ lean: mockLean });
-
-      // Set up LaborCost.find to return an object with sort method
-      // This creates the chain: find() returns {sort: fn}, sort() returns {lean: fn}, etc.
       LaborCost.find = jest.fn().mockReturnValue({ sort: mockSort });
-
-      // Mock logger
       logger.logException = jest.fn();
 
-      // Set up mock request/response
       mockReq = {
         query: {},
         method: 'GET',
         originalUrl: '/api/labor-cost',
         url: '/api/labor-cost',
       };
-
       mockRes = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
       };
-
-      // Initialize controller AFTER mocks are set up
       controller = bmPaidLaborCostController();
     });
 
@@ -362,614 +370,310 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
      * Tests validation and parsing of projects query parameter
      */
     describe('Parameter Validation - Projects', () => {
-      it('should succeed when projects param is undefined', async () => {
-        mockReq.query = {};
-        // Reset mockExec for this test
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+      it('should call sort, lean, exec and succeed when projects param is undefined', async () => {
+        await callGetLaborCost({});
+        expectSuccessEmptyFind();
         expect(mockSort).toHaveBeenCalledWith({ date: 1 });
         expect(mockLean).toHaveBeenCalled();
         expect(mockExec).toHaveBeenCalled();
       });
 
-      it('should succeed with empty array projects', async () => {
-        mockReq.query = { projects: '[]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+      it.each([
+        ['empty array', { projects: '[]' }, {}],
+        [
+          'valid JSON array',
+          { projects: '["Project A"]' },
+          { project_name: { $in: ['Project A'] } },
+        ],
+        [
+          'multiple projects',
+          { projects: '["Project A","Project B"]' },
+          { project_name: { $in: ['Project A', 'Project B'] } },
+        ],
+        [
+          'comma-separated',
+          { projects: 'Project A,Project B' },
+          { project_name: { $in: ['Project A', 'Project B'] } },
+        ],
+      ])('should succeed with %s projects', async (_label, query, expectedFind) => {
+        await callGetLaborCost(query);
+        expectSuccessWithFind(expectedFind);
       });
 
-      it('should succeed with valid JSON array projects', async () => {
-        mockReq.query = { projects: '["Project A"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({ project_name: { $in: ['Project A'] } });
-      });
-
-      it('should succeed with multiple projects', async () => {
-        mockReq.query = { projects: '["Project A","Project B"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: ['Project A', 'Project B'] },
-        });
-      });
-
-      it('should succeed with comma-separated projects', async () => {
-        mockReq.query = { projects: 'Project A,Project B' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: ['Project A', 'Project B'] },
-        });
-      });
-
-      it('should return 400 for JSON object projects (invalid)', async () => {
-        mockReq.query = { projects: '{"name":"Project A"}' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+      it.each([
+        ['JSON object', '{"name":"Project A"}', 'JSON object provided instead of array'],
+        ['non-string elements', '[1, 2, 3]', 'All project names must be strings'],
+        ['mixed valid/invalid', '["valid", 123]', 'All project names must be strings'],
+        ['mixed format', '{"json":true},Plain', 'Cannot mix JSON'],
+      ])('should return 400 for %s', async (_label, projectsValue, errorSubstring) => {
+        await callGetLaborCost({ projects: projectsValue });
         expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: expect.stringContaining('JSON object provided instead of array'),
-        });
-      });
-
-      it('should return 400 for non-string array elements', async () => {
-        mockReq.query = { projects: '[1, 2, 3]' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: 'All project names must be strings',
-        });
-      });
-
-      it('should return 400 for mixed valid/invalid project elements', async () => {
-        mockReq.query = { projects: '["valid", 123]' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: 'All project names must be strings',
-        });
-      });
-
-      it('should return 400 for mixed format projects', async () => {
-        mockReq.query = { projects: '{"json":true},Plain' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: expect.stringContaining('Cannot mix JSON'),
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            Code: 'INVALID_PARAMETER',
+            error: expect.stringContaining(errorSubstring),
+          }),
+        );
       });
     });
 
     /**
      * Parameter Validation Tests - Tasks
-     * Tests validation and parsing of tasks query parameter
-     * Similar pattern to projects validation
      */
     describe('Parameter Validation - Tasks', () => {
-      it('should succeed when tasks param is undefined', async () => {
-        mockReq.query = {};
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+      it.each([
+        ['undefined', {}],
+        ['empty array', { tasks: '[]' }],
+      ])('should succeed when tasks param is %s', async (_label, query) => {
+        await callGetLaborCost(query);
+        expectSuccessEmptyFind();
       });
 
-      it('should succeed with empty array tasks', async () => {
-        mockReq.query = { tasks: '[]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+      it.each([
+        ['valid JSON array', { tasks: '["Task 1"]' }, { task: { $in: ['Task 1'] } }],
+        [
+          'multiple tasks',
+          { tasks: '["Task 1","Task 2"]' },
+          { task: { $in: ['Task 1', 'Task 2'] } },
+        ],
+        ['comma-separated', { tasks: 'Task 1,Task 2' }, { task: { $in: ['Task 1', 'Task 2'] } }],
+      ])('should succeed with %s tasks', async (_label, query, expectedFind) => {
+        await callGetLaborCost(query);
+        expectSuccessWithFind(expectedFind);
       });
 
-      it('should succeed with valid JSON array tasks', async () => {
-        mockReq.query = { tasks: '["Task 1"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({ task: { $in: ['Task 1'] } });
-      });
-
-      it('should succeed with multiple tasks', async () => {
-        mockReq.query = { tasks: '["Task 1","Task 2"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({ task: { $in: ['Task 1', 'Task 2'] } });
-      });
-
-      it('should succeed with comma-separated tasks', async () => {
-        mockReq.query = { tasks: 'Task 1,Task 2' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({ task: { $in: ['Task 1', 'Task 2'] } });
-      });
-
-      it('should return 400 for JSON object tasks (invalid)', async () => {
-        mockReq.query = { tasks: '{"name":"Task 1"}' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+      it.each([
+        ['JSON object', '{"name":"Task 1"}', 'JSON object provided instead of array'],
+        ['non-string elements', '[1, 2, 3]', 'All task names must be strings'],
+      ])('should return 400 for %s in tasks', async (_label, tasksValue, errorSubstring) => {
+        await callGetLaborCost({ tasks: tasksValue });
         expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: expect.stringContaining('JSON object provided instead of array'),
-        });
-      });
-
-      it('should return 400 for non-string array elements in tasks', async () => {
-        mockReq.query = { tasks: '[1, 2, 3]' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: 'All task names must be strings',
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            Code: 'INVALID_PARAMETER',
+            error: expect.stringContaining(errorSubstring),
+          }),
+        );
       });
     });
 
     /**
      * Parameter Validation Tests - Date Range
-     * Tests validation and parsing of date_range query parameter
-     * Includes partial date ranges and date format validation
      */
     describe('Parameter Validation - Date Range', () => {
-      it('should succeed when date_range is undefined', async () => {
-        mockReq.query = {};
-        mockExec.mockResolvedValue([]);
+      const dateBoth = {
+        date: { $gte: expect.any(Date), $lte: expect.any(Date) },
+      };
+      const dateStartOnly = { date: { $gte: expect.any(Date) } };
+      const dateEndOnly = { date: { $lte: expect.any(Date) } };
 
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
-      });
-
-      it('should succeed with null string date_range', async () => {
-        mockReq.query = { date_range: 'null' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+      it.each([
+        ['undefined', {}],
+        ['null string', { date_range: 'null' }],
+        ['empty object', { date_range: '{}' }],
+      ])('should succeed when date_range is %s', async (_label, query) => {
+        await callGetLaborCost(query);
+        expectSuccessEmptyFind();
       });
 
       it('should succeed with valid date_range with both dates', async () => {
-        mockReq.query = {
+        await callGetLaborCost({
           date_range: '{"start_date":"2025-04-01","end_date":"2025-04-30"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-            $lte: expect.any(Date),
-          },
         });
+        expectSuccessWithFind(dateBoth);
       });
 
       it('should succeed with only start_date', async () => {
-        mockReq.query = {
+        await callGetLaborCost({
           date_range: '{"start_date":"2025-04-01","end_date":null}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-          },
         });
+        expectSuccessWithFind(dateStartOnly);
       });
 
       it('should succeed with only end_date', async () => {
-        mockReq.query = {
+        await callGetLaborCost({
           date_range: '{"start_date":null,"end_date":"2025-04-30"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $lte: expect.any(Date),
-          },
         });
-      });
-
-      it('should succeed with empty date_range object', async () => {
-        mockReq.query = { date_range: '{}' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+        expectSuccessWithFind(dateEndOnly);
       });
 
       it('should return 400 for invalid JSON date_range', async () => {
-        mockReq.query = { date_range: '{malformed' };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        await callGetLaborCost({ date_range: '{malformed' });
         expect(mockRes.status).toHaveBeenCalledWith(400);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_PARAMETER',
-          error: expect.stringContaining('date_range must be a valid JSON object'),
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            Code: 'INVALID_PARAMETER',
+            error: expect.stringContaining('date_range must be a valid JSON object'),
+          }),
+        );
       });
 
-      it('should return 422 for invalid start month', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2025-13-01","end_date":"2025-04-30"}',
-        };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+      it.each([
+        [
+          'invalid start month',
+          '{"start_date":"2025-13-01","end_date":"2025-04-30"}',
+          'start_date must be a valid ISO 8601',
+        ],
+        [
+          'invalid end day',
+          '{"start_date":"2025-04-01","end_date":"2025-04-32"}',
+          'end_date must be a valid ISO 8601',
+        ],
+        [
+          'non-string start_date',
+          '{"start_date":12345,"end_date":"2025-04-30"}',
+          'start_date must be a string',
+        ],
+        [
+          'non-string end_date',
+          '{"start_date":"2025-04-01","end_date":12345}',
+          'end_date must be a string',
+        ],
+      ])('should return 422 for %s', async (_label, dateRangeValue, errorSubstring) => {
+        await callGetLaborCost({ date_range: dateRangeValue });
         expect(mockRes.status).toHaveBeenCalledWith(422);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_DATE_FORMAT',
-          error: expect.stringContaining('start_date must be a valid ISO 8601'),
-        });
-      });
-
-      it('should return 422 for invalid end day', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2025-04-01","end_date":"2025-04-32"}',
-        };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(422);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_DATE_FORMAT',
-          error: expect.stringContaining('end_date must be a valid ISO 8601'),
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            Code: 'INVALID_DATE_FORMAT',
+            error: expect.stringContaining(errorSubstring),
+          }),
+        );
       });
 
       it('should return 400 when start_date > end_date', async () => {
-        mockReq.query = {
+        await callGetLaborCost({
           date_range: '{"start_date":"2025-04-30","end_date":"2025-04-01"}',
-        };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        });
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith({
           Code: 'INVALID_DATE_RANGE',
           error: 'start_date must be before or equal to end_date',
         });
       });
-
-      it('should return 422 for non-string start_date', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":12345,"end_date":"2025-04-30"}',
-        };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(422);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_DATE_FORMAT',
-          error: expect.stringContaining('start_date must be a string'),
-        });
-      });
-
-      it('should return 422 for non-string end_date', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2025-04-01","end_date":12345}',
-        };
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(422);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'INVALID_DATE_FORMAT',
-          error: expect.stringContaining('end_date must be a string'),
-        });
-      });
     });
 
     /**
-     * Query Building Tests
-     * Verifies MongoDB query construction with various filter combinations
+     * Query Building and Database Call
      */
     describe('Query Building and Database Call', () => {
-      it('should build empty query filter when no filters provided', async () => {
-        mockReq.query = {};
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+      it('should build empty query and call sort, lean, exec when no filters', async () => {
+        await callGetLaborCost({});
         expect(LaborCost.find).toHaveBeenCalledWith({});
         expect(mockSort).toHaveBeenCalledWith({ date: 1 });
         expect(mockLean).toHaveBeenCalled();
         expect(mockExec).toHaveBeenCalled();
       });
 
-      it('should build query filter with projects only', async () => {
-        mockReq.query = { projects: '["A"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(LaborCost.find).toHaveBeenCalledWith({ project_name: { $in: ['A'] } });
-      });
-
-      it('should build query filter with tasks only', async () => {
-        mockReq.query = { tasks: '["T1"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(LaborCost.find).toHaveBeenCalledWith({ task: { $in: ['T1'] } });
-      });
-
-      it('should build query filter with date range only', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2025-04-01","end_date":"2025-04-30"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-            $lte: expect.any(Date),
-          },
-        });
+      const dateRangeFilter = {
+        date: { $gte: expect.any(Date), $lte: expect.any(Date) },
+      };
+      it.each([
+        ['projects only', { projects: '["A"]' }, { project_name: { $in: ['A'] } }],
+        ['tasks only', { tasks: '["T1"]' }, { task: { $in: ['T1'] } }],
+        [
+          'date range only',
+          { date_range: '{"start_date":"2025-04-01","end_date":"2025-04-30"}' },
+          dateRangeFilter,
+        ],
+        [
+          'start date only',
+          { date_range: '{"start_date":"2025-04-01","end_date":null}' },
+          { date: { $gte: expect.any(Date) } },
+        ],
+        [
+          'end date only',
+          { date_range: '{"start_date":null,"end_date":"2025-04-30"}' },
+          { date: { $lte: expect.any(Date) } },
+        ],
+      ])('should build query filter with %s', async (_label, query, expectedFind) => {
+        await callGetLaborCost(query);
+        expect(LaborCost.find).toHaveBeenCalledWith(expectedFind);
       });
 
       it('should build combined query filter with all filters', async () => {
-        mockReq.query = {
+        await callGetLaborCost({
           projects: '["A"]',
           tasks: '["T1"]',
           date_range: '{"start_date":"2025-04-01","end_date":"2025-04-30"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        });
         expect(LaborCost.find).toHaveBeenCalledWith({
           project_name: { $in: ['A'] },
           task: { $in: ['T1'] },
-          date: {
-            $gte: expect.any(Date),
-            $lte: expect.any(Date),
-          },
-        });
-      });
-
-      it('should build query filter with start date only', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2025-04-01","end_date":null}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-          },
-        });
-      });
-
-      it('should build query filter with end date only', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":null,"end_date":"2025-04-30"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $lte: expect.any(Date),
-          },
+          date: { $gte: expect.any(Date), $lte: expect.any(Date) },
         });
       });
     });
 
     /**
-     * Response Formatting Tests
-     * Verifies data transformation and totalCost calculation
+     * Response Formatting
      */
     describe('Response Formatting', () => {
       it('should return empty results with totalCost 0', async () => {
-        mockReq.query = {};
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        await callGetLaborCost({});
         expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          totalCost: 0,
-          data: [],
-        });
+        expect(mockRes.json).toHaveBeenCalledWith({ totalCost: 0, data: [] });
       });
 
       it('should format single record correctly', async () => {
         const testDate = new Date('2025-04-01');
-        mockReq.query = {};
-        mockExec.mockResolvedValue([
-          {
-            project_name: 'A',
-            task: 'T1',
-            date: testDate,
-            cost: 100,
-          },
-        ]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        await callGetLaborCost({}, [{ project_name: 'A', task: 'T1', date: testDate, cost: 100 }]);
         expect(mockRes.status).toHaveBeenCalledWith(200);
         expect(mockRes.json).toHaveBeenCalledWith({
           totalCost: 100,
-          data: [
-            {
-              project: 'A',
-              task: 'T1',
-              date: testDate.toISOString(),
-              cost: 100,
-            },
-          ],
+          data: [{ project: 'A', task: 'T1', date: testDate.toISOString(), cost: 100 }],
         });
       });
 
       it('should format multiple records and calculate totalCost', async () => {
         const testDate1 = new Date('2025-04-01');
         const testDate2 = new Date('2025-04-02');
-        mockReq.query = {};
-        mockExec.mockResolvedValue([
-          {
-            project_name: 'A',
-            task: 'T1',
-            date: testDate1,
-            cost: 100,
-          },
-          {
-            project_name: 'B',
-            task: 'T2',
-            date: testDate2,
-            cost: 200,
-          },
+        await callGetLaborCost({}, [
+          { project_name: 'A', task: 'T1', date: testDate1, cost: 100 },
+          { project_name: 'B', task: 'T2', date: testDate2, cost: 200 },
         ]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
         expect(mockRes.status).toHaveBeenCalledWith(200);
         expect(mockRes.json).toHaveBeenCalledWith({
           totalCost: 300,
           data: [
-            {
-              project: 'A',
-              task: 'T1',
-              date: testDate1.toISOString(),
-              cost: 100,
-            },
-            {
-              project: 'B',
-              task: 'T2',
-              date: testDate2.toISOString(),
-              cost: 200,
-            },
+            { project: 'A', task: 'T1', date: testDate1.toISOString(), cost: 100 },
+            { project: 'B', task: 'T2', date: testDate2.toISOString(), cost: 200 },
           ],
         });
       });
 
       it('should convert string cost to number', async () => {
         const testDate = new Date('2025-04-01');
-        mockReq.query = {};
-        mockExec.mockResolvedValue([
-          {
-            project_name: 'A',
-            task: 'T1',
-            date: testDate,
-            cost: '100',
-          },
+        await callGetLaborCost({}, [
+          { project_name: 'A', task: 'T1', date: testDate, cost: '100' },
         ]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
         expect(mockRes.json).toHaveBeenCalledWith({
           totalCost: 100,
-          data: [
-            {
-              project: 'A',
-              task: 'T1',
-              date: testDate.toISOString(),
-              cost: 100,
-            },
-          ],
+          data: [{ project: 'A', task: 'T1', date: testDate.toISOString(), cost: 100 }],
         });
       });
 
       it('should handle null date in response', async () => {
-        mockReq.query = {};
-        mockExec.mockResolvedValue([
-          {
-            project_name: 'A',
-            task: 'T1',
-            date: null,
-            cost: 100,
-          },
-        ]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        await callGetLaborCost({}, [{ project_name: 'A', task: 'T1', date: null, cost: 100 }]);
         expect(mockRes.json).toHaveBeenCalledWith({
           totalCost: 100,
-          data: [
-            {
-              project: 'A',
-              task: 'T1',
-              date: null,
-              cost: 100,
-            },
-          ],
+          data: [{ project: 'A', task: 'T1', date: null, cost: 100 }],
         });
       });
     });
 
     /**
-     * Error Handling Tests
-     * Verifies proper error handling for database errors and unexpected errors
+     * Error Handling
      */
+    const dbErrorResponse = {
+      Code: 'DATABASE_ERROR',
+      error: 'A database error occurred while fetching labor cost data. Please try again later.',
+    };
+
     describe('Error Handling', () => {
-      it('should handle MongoError and return 500', async () => {
-        mockReq.query = {};
+      it('should handle MongoError and return 500 with log context', async () => {
         const error = new Error('Database connection failed');
         error.name = 'MongoError';
+        mockReq.query = {};
         mockExec.mockRejectedValue(error);
 
         await controller.getLaborCost(mockReq, mockRes);
@@ -977,90 +681,44 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
         expect(logger.logException).toHaveBeenCalledWith(
           error,
           'getLaborCost - Database Error - Paid Labor Cost Controller',
-          {
-            query: {},
-            method: 'GET',
-            url: '/api/labor-cost',
-          },
+          { query: {}, method: 'GET', url: '/api/labor-cost' },
         );
         expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(dbErrorResponse);
       });
 
-      it('should handle MongooseError and return 500', async () => {
+      it.each([
+        ['MongooseError', 'MongooseError'],
+        ['CastError', 'CastError'],
+        ['ValidationError', 'ValidationError'],
+      ])('should handle %s and return 500', async (_label, errorName) => {
+        const error = new Error('DB error');
+        error.name = errorName;
         mockReq.query = {};
-        const error = new Error('Mongoose error');
-        error.name = 'MongooseError';
         mockExec.mockRejectedValue(error);
 
         await controller.getLaborCost(mockReq, mockRes);
 
         expect(logger.logException).toHaveBeenCalled();
         expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(dbErrorResponse);
       });
 
-      it('should handle CastError and return 500', async () => {
-        mockReq.query = {};
-        const error = new Error('Cast error');
-        error.name = 'CastError';
-        mockExec.mockRejectedValue(error);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(logger.logException).toHaveBeenCalled();
-        expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
-      });
-
-      it('should handle ValidationError and return 500', async () => {
-        mockReq.query = {};
-        const error = new Error('Validation error');
-        error.name = 'ValidationError';
-        mockExec.mockRejectedValue(error);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(logger.logException).toHaveBeenCalled();
-        expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
-      });
-
-      it('should handle connection error and return 500', async () => {
-        mockReq.query = {};
+      it('should handle connection error message and return 500', async () => {
         const error = new Error('Mongo connection failed');
+        mockReq.query = {};
         mockExec.mockRejectedValue(error);
 
         await controller.getLaborCost(mockReq, mockRes);
 
         expect(logger.logException).toHaveBeenCalled();
         expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({
-          Code: 'DATABASE_ERROR',
-          error:
-            'A database error occurred while fetching labor cost data. Please try again later.',
-        });
+        expect(mockRes.json).toHaveBeenCalledWith(dbErrorResponse);
       });
 
-      it('should handle generic error and return 500', async () => {
-        mockReq.query = {};
+      it('should handle generic error and return 500 with INTERNAL_SERVER_ERROR', async () => {
         const error = new Error('Unknown error');
+        mockReq.query = {};
         mockExec.mockRejectedValue(error);
 
         await controller.getLaborCost(mockReq, mockRes);
@@ -1068,11 +726,7 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
         expect(logger.logException).toHaveBeenCalledWith(
           error,
           'getLaborCost - Unexpected Error - Paid Labor Cost Controller',
-          {
-            query: {},
-            method: 'GET',
-            url: '/api/labor-cost',
-          },
+          { query: {}, method: 'GET', url: '/api/labor-cost' },
         );
         expect(mockRes.status).toHaveBeenCalledWith(500);
         expect(mockRes.json).toHaveBeenCalledWith({
@@ -1085,110 +739,41 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
 
     /**
      * Edge Cases - Boundary Conditions
-     * Tests extreme values and unusual inputs (long strings, Unicode, special chars, etc.)
      */
     describe('Edge Cases - Boundary Conditions', () => {
       it('should handle empty string projects parameter', async () => {
-        mockReq.query = { projects: '' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+        await callGetLaborCost({ projects: '' });
+        expectSuccessEmptyFind();
       });
 
-      it('should handle very long project name', async () => {
-        const longProjectName = 'A'.repeat(1000);
-        mockReq.query = { projects: `["${longProjectName}"]` };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: [longProjectName] },
-        });
-      });
-
-      it('should handle Unicode characters in project names', async () => {
-        mockReq.query = { projects: '["日本語"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: ['日本語'] },
-        });
-      });
-
-      it('should handle special characters in project names', async () => {
-        mockReq.query = { projects: '["Project <script>"]' };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: ['Project <script>'] },
-        });
+      it.each([
+        ['very long project name', 'A'.repeat(1000)],
+        ['Unicode', '日本語'],
+        ['special characters', 'Project <script>'],
+      ])('should handle %s in projects', async (_label, projectValue) => {
+        await callGetLaborCost({ projects: JSON.stringify([projectValue]) });
+        expectSuccessWithFind({ project_name: { $in: [projectValue] } });
       });
 
       it('should handle large array of projects', async () => {
-        // Create array with 100 projects
         const projects = Array.from({ length: 100 }, (_, i) => `Project ${i + 1}`);
-        mockReq.query = { projects: JSON.stringify(projects) };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+        await callGetLaborCost({ projects: JSON.stringify(projects) });
         expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          project_name: { $in: projects },
-        });
+        expect(LaborCost.find).toHaveBeenCalledWith({ project_name: { $in: projects } });
       });
 
-      it('should handle dates far in the past', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"1900-01-01","end_date":"1900-12-31"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
+      const dateRangeExtremeFilter = {
+        date: { $gte: expect.any(Date), $lte: expect.any(Date) },
+      };
+      const emptyDataResponse = { totalCost: 0, data: [] };
+      it.each([
+        ['dates far in the past', '{"start_date":"1900-01-01","end_date":"1900-12-31"}'],
+        ['dates far in the future', '{"start_date":"2100-01-01","end_date":"2100-12-31"}'],
+      ])('should handle %s', async (_label, dateRangeValue) => {
+        await callGetLaborCost({ date_range: dateRangeValue });
         expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-            $lte: expect.any(Date),
-          },
-        });
-        expect(mockRes.json).toHaveBeenCalledWith({
-          totalCost: 0,
-          data: [],
-        });
-      });
-
-      it('should handle dates far in the future', async () => {
-        mockReq.query = {
-          date_range: '{"start_date":"2100-01-01","end_date":"2100-12-31"}',
-        };
-        mockExec.mockResolvedValue([]);
-
-        await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({
-          date: {
-            $gte: expect.any(Date),
-            $lte: expect.any(Date),
-          },
-        });
-        expect(mockRes.json).toHaveBeenCalledWith({
-          totalCost: 0,
-          data: [],
-        });
+        expect(LaborCost.find).toHaveBeenCalledWith(dateRangeExtremeFilter);
+        expect(mockRes.json).toHaveBeenCalledWith(emptyDataResponse);
       });
     });
 
@@ -1202,14 +787,11 @@ describe('bmPaidLaborCostController - Helper Functions', () => {
         ['missing query property', undefined],
         ['null query property', null],
         ['empty query object', {}],
-      ])('should handle %s', async (description, queryValue) => {
+      ])('should handle %s', async (_label, queryValue) => {
         mockReq.query = queryValue;
         mockExec.mockResolvedValue([]);
-
         await controller.getLaborCost(mockReq, mockRes);
-
-        expect(mockRes.status).toHaveBeenCalledWith(200);
-        expect(LaborCost.find).toHaveBeenCalledWith({});
+        expectSuccessEmptyFind();
       });
     });
   });
