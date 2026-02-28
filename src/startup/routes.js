@@ -316,6 +316,8 @@ const collaborationRouter = require('../routes/collaborationRouter');
 
 // summary dashboard routes
 const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
+const laborHoursDistributionRouter =
+  require('../routes/summaryDashboard/laborHoursDistributionRouter')();
 
 const registrationRouter = require('../routes/registrationRouter')(registration);
 
@@ -323,6 +325,13 @@ const templateRouter = require('../routes/templateRouter');
 const emailTemplateRouter = require('../routes/emailTemplateRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
+console.log('Loading plannedCost model...');
+const plannedCost = require('../models/plannedCost');
+console.log('PlannedCost model loaded:', plannedCost ? 'success' : 'failed');
+
+console.log('Loading plannedCostRouter...');
+const plannedCostRouter = require('../routes/plannedCostRouter');
+console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed');
 
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
@@ -352,6 +361,9 @@ const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')
 const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
+
+// education portal
+const educationProfileRouter = require('../routes/educationRouter');
 
 // lesson planner router
 
@@ -484,6 +496,10 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
+
+  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', projectCostTrackingRouter);
+
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
@@ -516,9 +532,12 @@ module.exports = function (app) {
 
   app.use('/api/lb', biddingRouter);
   app.use('/api', registrationRouter);
+  app.use('/api', projectMaterialRouter);
+  app.use('/api', plannedCostRouter(plannedCost, project));
 
   // summary dashboard
   app.use('/api/suppliers', supplierPerformanceRouter);
+  app.use('/api/labor-hours', laborHoursDistributionRouter);
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
@@ -537,4 +556,11 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+
+  // Education Portal
+  app.use('/api/student/profile', educationProfileRouter);
+
+  app.use('/api', materialCostRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
 };
