@@ -473,11 +473,11 @@ const userHelper = function () {
 
   const sortInfringementsNewestFirst = (arr = []) =>
     [...arr].sort((a, b) => {
-      const dateDiff = new Date(b.date || 0) - new Date(a.date || 0);
+      const dateDiff = new Date(a.date || 0) - new Date(b.date || 0);
       if (dateDiff !== 0) return dateDiff;
 
       // Tie breaker → createdDate
-      return new Date(b.createdDate || 0) - new Date(a.createdDate || 0);
+      return new Date(a.createdDate || 0) - new Date(b.createdDate || 0);
     });
 
   /**
