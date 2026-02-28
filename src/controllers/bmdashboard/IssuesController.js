@@ -397,14 +397,14 @@ exports.getIssueStatistics = async (req, res) => {
       );
       if (validCategories.length > 0) {
         // Use only the requested valid categories
-        sortedIssueTypes = validCategories.sort();
+        sortedIssueTypes = validCategories.sort((a, b) => a.localeCompare(b));
       } else {
         // If no valid categories requested, return empty result (no categories to display)
         sortedIssueTypes = [];
       }
     } else {
       // No issueTypes filter provided - use all REQUIRED_ISSUE_TYPES (sorted)
-      sortedIssueTypes = [...REQUIRED_ISSUE_TYPES].sort();
+      sortedIssueTypes = [...REQUIRED_ISSUE_TYPES].sort((a, b) => a.localeCompare(b));
     }
 
     // If no valid categories to display, return empty array
