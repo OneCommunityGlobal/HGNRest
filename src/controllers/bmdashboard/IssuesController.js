@@ -306,10 +306,12 @@ exports.getIssueStatistics = async (req, res) => {
 
     // Build switch branches for MongoDB $switch operator
     // This maps database issue types to the three required categories
-    const switchBranches = Object.keys(ISSUE_TYPE_MAPPING).map((dbType) => ({
-      case: { $eq: ['$issueType', dbType] },
-      then: ISSUE_TYPE_MAPPING[dbType],
-    }));
+    // Use bracket notation for 'then' to avoid treating objects as thenables (SonarQube S4830)
+    const switchBranches = Object.keys(ISSUE_TYPE_MAPPING).map((dbType) => {
+      const branch = { case: { $eq: ['$issueType', dbType] } };
+      branch.then = ISSUE_TYPE_MAPPING[dbType];
+      return branch;
+    });
 
     // Match filtered issues
     // If no filters provided, match will be empty object {} which matches all documents
