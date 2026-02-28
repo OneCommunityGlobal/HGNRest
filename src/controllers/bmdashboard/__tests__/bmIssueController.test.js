@@ -634,6 +634,13 @@ describe('Building Issue Controller', () => {
 
     it('should handle errors when creating a new issue', async () => {
       const error = new Error('Creation error');
+      req.body = {
+        issueDate: new Date('2024-06-15'),
+        projectId: TEST_ISSUE_ID,
+        cost: 0,
+        tag: 'In-person',
+        status: 'open',
+      };
       mockBuildingIssue.create.mockRejectedValue(error);
 
       await controller.bmPostIssue(req, res);
@@ -645,6 +652,13 @@ describe('Building Issue Controller', () => {
 
     it('should handle thrown errors in try-catch', async () => {
       const error = new Error('Unexpected error');
+      req.body = {
+        issueDate: new Date('2024-06-15'),
+        projectId: TEST_ISSUE_ID,
+        cost: 0,
+        tag: 'In-person',
+        status: 'open',
+      };
       mockBuildingIssue.create.mockImplementation(() => {
         throw error;
       });
@@ -652,6 +666,90 @@ describe('Building Issue Controller', () => {
       await controller.bmPostIssue(req, res);
 
       expect(res.json).toHaveBeenCalledWith(error);
+    });
+
+    it('should return 400 when tag is invalid', async () => {
+      req.body = {
+        tag: 'BadTag',
+        status: 'open',
+        issueDate: new Date(),
+        projectId: TEST_ISSUE_ID,
+        cost: 0,
+      };
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid tag. Allowed values: In-person, Virtual.',
+      });
+      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when status is invalid', async () => {
+      req.body = {
+        tag: 'In-person',
+        status: 'pending',
+        issueDate: new Date(),
+        projectId: TEST_ISSUE_ID,
+        cost: 0,
+      };
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid status. Allowed values: open, closed.',
+      });
+      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when issueDate is invalid', async () => {
+      req.body = {
+        tag: 'In-person',
+        status: 'open',
+        issueDate: 'not-a-date',
+        projectId: TEST_ISSUE_ID,
+        cost: 0,
+      };
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid issueDate.' });
+      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when projectId is invalid', async () => {
+      req.body = {
+        tag: 'In-person',
+        status: 'open',
+        issueDate: new Date(),
+        projectId: 'bad-id',
+        cost: 0,
+      };
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid projectId.' });
+      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when cost is not a number', async () => {
+      req.body = {
+        tag: 'In-person',
+        status: 'open',
+        issueDate: new Date(),
+        projectId: TEST_ISSUE_ID,
+        cost: 'free',
+      };
+
+      await controller.bmPostIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid cost.' });
+      expect(mockBuildingIssue.create).not.toHaveBeenCalled();
     });
   });
 
@@ -690,7 +788,23 @@ describe('Building Issue Controller', () => {
       await controller.bmGetIssueChart(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid issueType.' });
+      expect(res.json).toHaveBeenCalledWith({
+        error:
+          'Invalid issueType. Allowed values: Safety, Labor, Weather, Other, METs quality / functionality.',
+      });
+      expect(mockBuildingIssue.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when issueType is a string not in the allowed list', async () => {
+      req.query.issueType = 'UnknownType';
+
+      await controller.bmGetIssueChart(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error:
+          'Invalid issueType. Allowed values: Safety, Labor, Weather, Other, METs quality / functionality.',
+      });
       expect(mockBuildingIssue.aggregate).not.toHaveBeenCalled();
     });
 

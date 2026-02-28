@@ -8,8 +8,11 @@ const HOURS_PER_DAY = 24;
 const AVG_DAYS_PER_MONTH = 30.44;
 const MAX_LONGEST_OPEN_ISSUES = 7;
 
-// Allowed values for the tag field (mirrors the schema enum)
-const VALID_TAGS = new Set(['In-person', 'Virtual']);
+// Allowed values — arrays so the safe value comes from our list, breaking the taint chain
+const VALID_TAGS = ['In-person', 'Virtual'];
+const VALID_STATUSES = ['open', 'closed'];
+// Mirrors the issueType enum used in the metIssue schema
+const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality / functionality'];
 
 // Reusable condition: issue is open or was closed on/after `start`
 const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
@@ -159,14 +162,15 @@ const bmIssueController = function (buildingIssue) {
         query.status = 'open';
       }
 
-      // Validate and apply tag filter
+      // Validate and apply tag filter — value assigned from our array, not from user input
       if (tag) {
-        if (typeof tag !== 'string' || !VALID_TAGS.has(tag)) {
+        const tagIdx = VALID_TAGS.indexOf(typeof tag === 'string' ? tag : '');
+        if (tagIdx === -1) {
           return res.status(400).json({
-            error: `Invalid tag. Allowed values: ${[...VALID_TAGS].join(', ')}.`,
+            error: `Invalid tag. Allowed values: ${VALID_TAGS.join(', ')}.`,
           });
         }
-        query.tag = tag;
+        query.tag = VALID_TAGS[tagIdx];
       }
 
       const results = await buildingIssue.find(query);
@@ -214,7 +218,7 @@ const bmIssueController = function (buildingIssue) {
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      // Explicitly pick only schema-defined fields to prevent NoSQL injection
+      // Explicitly pick only schema-defined fields to prevent mass-assignment
       const {
         issueDate,
         createdBy,
@@ -229,17 +233,48 @@ const bmIssueController = function (buildingIssue) {
         person,
       } = req.body;
 
+      // Validate enum fields — value assigned from our array, not from user input
+      const tagIdx = VALID_TAGS.indexOf(typeof tag === 'string' ? tag : '');
+      if (tagIdx === -1) {
+        return res
+          .status(400)
+          .json({ error: `Invalid tag. Allowed values: ${VALID_TAGS.join(', ')}.` });
+      }
+
+      const statusIdx = VALID_STATUSES.indexOf(typeof status === 'string' ? status : '');
+      if (statusIdx === -1) {
+        return res
+          .status(400)
+          .json({ error: `Invalid status. Allowed values: ${VALID_STATUSES.join(', ')}.` });
+      }
+
+      // Convert typed fields — breaks taint chain via explicit type conversion
+      const safeIssueDate = new Date(issueDate);
+      if (Number.isNaN(safeIssueDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid issueDate.' });
+      }
+
+      if (!ObjectId.isValid(projectId)) {
+        return res.status(400).json({ error: 'Invalid projectId.' });
+      }
+      const safeProjectId = new ObjectId(projectId);
+
+      const safeCost = Number(cost);
+      if (Number.isNaN(safeCost)) {
+        return res.status(400).json({ error: 'Invalid cost.' });
+      }
+
       const issue = await buildingIssue.create({
-        issueDate,
+        issueDate: safeIssueDate,
         createdBy,
         staffInvolved,
         issueTitle,
         issueText,
         imageUrl,
-        projectId,
-        cost,
-        tag,
-        status,
+        projectId: safeProjectId,
+        cost: safeCost,
+        tag: VALID_TAGS[tagIdx],
+        status: VALID_STATUSES[statusIdx],
         person,
       });
       res.status(201).json(issue);
@@ -314,10 +349,15 @@ const bmIssueController = function (buildingIssue) {
       const matchQuery = {};
 
       if (issueType) {
-        if (typeof issueType !== 'string') {
-          return res.status(400).json({ error: 'Invalid issueType.' });
+        const issueTypeIdx = VALID_ISSUE_TYPES.indexOf(
+          typeof issueType === 'string' ? issueType : '',
+        );
+        if (issueTypeIdx === -1) {
+          return res.status(400).json({
+            error: `Invalid issueType. Allowed values: ${VALID_ISSUE_TYPES.join(', ')}.`,
+          });
         }
-        matchQuery.issueType = issueType;
+        matchQuery.issueType = VALID_ISSUE_TYPES[issueTypeIdx];
       }
 
       if (year) {
