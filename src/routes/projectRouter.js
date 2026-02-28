@@ -6,7 +6,9 @@ const routes = function (project) {
 
   projectRouter.route('/projects').get(controller.getAllProjects).post(controller.postProject);
 
+  projectRouter.route('/archivedProjects').get(controller.getArchivedProjects);
   projectRouter
+
     .route('/project/:projectId')
     .get(controller.getProjectById)
     .post(controller.putProject)

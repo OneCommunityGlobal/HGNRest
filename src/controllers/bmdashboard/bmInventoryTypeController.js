@@ -388,6 +388,145 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
       res.status(500).send(error);
     }
   };
+
+  // PUT - Update any inventory type by ID (generic)
+  const updateInventoryType = async (req, res) => {
+    try {
+      const { invtypeId } = req.params;
+      const updateData = req.body;
+
+      // Remove fields that shouldn't be updated directly
+      delete updateData._id;
+      delete updateData.__t;
+      delete updateData.__v;
+
+      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updatedInvType) {
+        return res.status(404).json({ error: 'Inventory type not found' });
+      }
+
+      res.status(200).json(updatedInvType);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // DELETE - Delete any inventory type by ID
+  const deleteInventoryType = async (req, res) => {
+    try {
+      const { invtypeId } = req.params;
+
+      const deletedInvType = await InvType.findByIdAndDelete(invtypeId);
+
+      if (!deletedInvType) {
+        return res.status(404).json({ error: 'Inventory type not found' });
+      }
+
+      res.status(200).json({ message: 'Inventory type deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // POST - Add a new unit to the JSON file
+  const addInventoryUnit = async (req, res) => {
+    try {
+      const { unit, category } = req.body;
+
+      if (!unit) {
+        return res.status(400).json({ error: 'Unit is required' });
+      }
+
+      readFile(filepath, 'utf8', (err, data) => {
+        if (err) {
+          console.error('Error reading file:', err);
+          return res.status(500).json({ error: 'Error reading units file' });
+        }
+
+        try {
+          const jsonData = JSON.parse(data);
+
+          // Check if unit already exists
+          const exists = jsonData.some(
+            (item) => item.unit.toLowerCase() === unit.toLowerCase(),
+          );
+          if (exists) {
+            return res.status(409).json({ error: 'Unit already exists' });
+          }
+
+          // Add new unit
+          const newUnit = { unit, category: category || 'Material' };
+          jsonData.push(newUnit);
+
+          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
+            if (writeErr) {
+              console.error('Error writing to file:', writeErr);
+              return res.status(500).json({ error: 'Error saving unit' });
+            }
+            res.status(201).json(newUnit);
+          });
+        } catch (parseError) {
+          console.error('Error parsing JSON:', parseError);
+          res.status(500).json({ error: 'Error parsing units file' });
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  // DELETE - Remove a unit from the JSON file by unit name
+  const deleteInventoryUnit = async (req, res) => {
+    try {
+      const { unitName } = req.params;
+
+      if (!unitName) {
+        return res.status(400).json({ error: 'Unit name is required' });
+      }
+
+      readFile(filepath, 'utf8', (err, data) => {
+        if (err) {
+          console.error('Error reading file:', err);
+          return res.status(500).json({ error: 'Error reading units file' });
+        }
+
+        try {
+          const jsonData = JSON.parse(data);
+
+          // Find index of unit to delete
+          const decodedUnitName = decodeURIComponent(unitName);
+          const unitIndex = jsonData.findIndex(
+            (item) => item.unit.toLowerCase() === decodedUnitName.toLowerCase(),
+          );
+
+          if (unitIndex === -1) {
+            return res.status(404).json({ error: 'Unit not found' });
+          }
+
+          // Remove the unit
+          jsonData.splice(unitIndex, 1);
+
+          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
+            if (writeErr) {
+              console.error('Error writing to file:', writeErr);
+              return res.status(500).json({ error: 'Error deleting unit' });
+            }
+            res.status(200).json({ message: 'Unit deleted successfully' });
+          });
+        } catch (parseError) {
+          console.error('Error parsing JSON:', parseError);
+          res.status(500).json({ error: 'Error parsing units file' });
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   return {
     fetchMaterialTypes,
     fetchConsumableTypes,
@@ -402,6 +541,10 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addToolType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    updateInventoryType,
+    deleteInventoryType,
+    addInventoryUnit,
+    deleteInventoryUnit,
   };
 }
 

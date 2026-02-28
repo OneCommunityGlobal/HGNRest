@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-//const userHelper = require('../helpers/userHelper')();
+// const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -341,7 +341,7 @@ const badgeController = function (Badge) {
   };
 
   return {
-    //awardBadgesTest,
+    // awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,
