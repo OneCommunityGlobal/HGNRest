@@ -421,6 +421,37 @@ const buildQueryFilter = ({ projectsArray, tasksArray, dateRange, startDate, end
 };
 
 /**
+ * Fetches labor cost records from the database using a validated filter.
+ * This function must only be called with validated/sanitized parameters (from
+ * validateAndParseProjects, validateAndParseTasks, validateAndParseDateRange)
+ * so that the query is not constructed from raw user-controlled data.
+ *
+ * @param {Object} validatedFilter - Validated filter parameters
+ * @param {string[]} validatedFilter.projectsArray - Validated project names
+ * @param {string[]} validatedFilter.tasksArray - Validated task names
+ * @param {Object|null} validatedFilter.dateRange - Validated date range object
+ * @param {string|null} validatedFilter.startDate - Validated start date string
+ * @param {string|null} validatedFilter.endDate - Validated end date string
+ * @returns {Promise<Object[]>} Labor cost records
+ */
+const findLaborCostByValidatedFilter = async ({
+  projectsArray,
+  tasksArray,
+  dateRange,
+  startDate,
+  endDate,
+}) => {
+  const queryFilter = buildQueryFilter({
+    projectsArray,
+    tasksArray,
+    dateRange,
+    startDate,
+    endDate,
+  });
+  return LaborCost.find(queryFilter).sort({ date: 1 }).lean().exec();
+};
+
+/**
  * Formats response data and calculates total cost
  */
 const formatResponseData = (laborCostRecords) => {
@@ -513,17 +544,14 @@ const laborCostController = () => {
       }
       const { dateRange, startDate, endDate } = dateRangeResult;
 
-      // Build MongoDB query filter
-      const queryFilter = buildQueryFilter({
+      // Query database using validated parameters only (not raw req.query)
+      const laborCostRecords = await findLaborCostByValidatedFilter({
         projectsArray,
         tasksArray,
         dateRange,
         startDate,
         endDate,
       });
-
-      // Query database and retrieve records
-      const laborCostRecords = await LaborCost.find(queryFilter).sort({ date: 1 }).lean().exec();
 
       // Format response data
       const response = formatResponseData(laborCostRecords);
