@@ -227,33 +227,33 @@ const bmIssueController = function (buildingIssue) {
         updates.closedDate = null;
       }
 
-      buildingIssue
-        .findByIdAndUpdate(req.params.id, { $set: updates }, { new: true })
-        .then((updatedIssue) => {
-          if (!updatedIssue) {
-            return res.status(404).json({ message: 'Issue not found.' });
-          }
-          res.json(updatedIssue);
-        })
-        .catch((err) => res.status(500).json({ error: err.message }));
+      const updatedIssue = await buildingIssue.findByIdAndUpdate(
+        req.params.id,
+        { $set: updates },
+        { new: true },
+      );
+
+      if (!updatedIssue) {
+        return res.status(404).json({ message: 'Issue not found.' });
+      }
+      return res.json(updatedIssue);
     } catch (error) {
-      res.json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   };
 
   // Delete an issue by ID
-  const bmDeleteIssue = (req, res) => {
-    const { id } = req.params;
-
-    buildingIssue
-      .findByIdAndDelete(id)
-      .then((deletedIssue) => {
-        if (!deletedIssue) {
-          return res.status(404).json({ message: 'Issue not found.' });
-        }
-        res.json({ message: 'Issue deleted successfully.' });
-      })
-      .catch((err) => res.status(500).json({ error: err.message }));
+  const bmDeleteIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deletedIssue = await buildingIssue.findByIdAndDelete(id);
+      if (!deletedIssue) {
+        return res.status(404).json({ message: 'Issue not found.' });
+      }
+      return res.json({ message: 'Issue deleted successfully.' });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   };
 
   /* -------------------- GET ALL ISSUES -------------------- */
