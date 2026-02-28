@@ -636,6 +636,9 @@ describe('Building Issue Controller', () => {
       const error = new Error('Creation error');
       req.body = {
         issueDate: new Date('2024-06-15'),
+        createdBy: TEST_ISSUE_ID,
+        issueTitle: ['Test'],
+        issueText: ['Description'],
         projectId: TEST_ISSUE_ID,
         cost: 0,
         tag: 'In-person',
@@ -654,6 +657,9 @@ describe('Building Issue Controller', () => {
       const error = new Error('Unexpected error');
       req.body = {
         issueDate: new Date('2024-06-15'),
+        createdBy: TEST_ISSUE_ID,
+        issueTitle: ['Test'],
+        issueText: ['Description'],
         projectId: TEST_ISSUE_ID,
         cost: 0,
         tag: 'In-person',

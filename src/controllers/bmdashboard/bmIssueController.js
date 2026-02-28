@@ -14,6 +14,19 @@ const VALID_STATUSES = ['open', 'closed'];
 // Mirrors the issueType enum used in the metIssue schema
 const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality / functionality'];
 
+// Max lengths from buildingIssue schema (breaks taint when building DB payload from user input)
+const MAX_ISSUE_TITLE_LENGTH = 50;
+const MAX_ISSUE_TEXT_LENGTH = 500;
+const MAX_IMAGE_URL_LENGTH = 2048;
+const MAX_PERSON_FIELD_LENGTH = 200;
+
+/** Sanitize to an array of strings with each element capped at maxLen. Returns null if not an array or empty. */
+const toSanitizedStringArray = (value, maxLen) => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const out = value.filter((item) => item != null).map((item) => String(item).slice(0, maxLen));
+  return out.length > 0 ? out : null;
+};
+
 // Reusable condition: issue is open or was closed on/after `start`
 const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
 
@@ -218,7 +231,7 @@ const bmIssueController = function (buildingIssue) {
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      // Explicitly pick only schema-defined fields to prevent mass-assignment
+      // Explicitly pick only schema-defined fields; all values are validated/sanitized before DB (S5147)
       const {
         issueDate,
         createdBy,
@@ -264,43 +277,136 @@ const bmIssueController = function (buildingIssue) {
         return res.status(400).json({ error: 'Invalid cost.' });
       }
 
-      const issue = await buildingIssue.create({
+      // Validate createdBy (required)
+      if (!ObjectId.isValid(createdBy)) {
+        return res.status(400).json({ error: 'Invalid createdBy.' });
+      }
+      const safeCreatedBy = new ObjectId(createdBy);
+
+      // Sanitize staffInvolved to array of ObjectIds only
+      let safeStaffInvolved = [];
+      if (staffInvolved != null && Array.isArray(staffInvolved)) {
+        safeStaffInvolved = staffInvolved
+          .filter((id) => ObjectId.isValid(id))
+          .map((id) => new ObjectId(id));
+      }
+
+      // Sanitize string arrays (required) — do not pass raw user input to DB
+      const safeIssueTitle = toSanitizedStringArray(issueTitle, MAX_ISSUE_TITLE_LENGTH);
+      if (!safeIssueTitle) {
+        return res.status(400).json({ error: 'Invalid issueTitle.' });
+      }
+
+      const safeIssueText = toSanitizedStringArray(issueText, MAX_ISSUE_TEXT_LENGTH);
+      if (!safeIssueText) {
+        return res.status(400).json({ error: 'Invalid issueText.' });
+      }
+
+      // Optional imageUrl — sanitized string array
+      let safeImageUrl = [];
+      if (imageUrl != null && Array.isArray(imageUrl)) {
+        const urls = toSanitizedStringArray(imageUrl, MAX_IMAGE_URL_LENGTH);
+        if (urls) safeImageUrl = urls;
+      }
+
+      // Optional person subdocument — only name and role as sanitized strings
+      let safePerson;
+      if (person != null && typeof person === 'object' && !Array.isArray(person)) {
+        const name =
+          person.name != null ? String(person.name).slice(0, MAX_PERSON_FIELD_LENGTH) : '';
+        const role =
+          person.role != null ? String(person.role).slice(0, MAX_PERSON_FIELD_LENGTH) : '';
+        safePerson = { name, role };
+      }
+
+      // Build payload from validated/sanitized values only — no user-controlled data passed through
+      const createPayload = {
         issueDate: safeIssueDate,
-        createdBy,
-        staffInvolved,
-        issueTitle,
-        issueText,
-        imageUrl,
+        createdBy: safeCreatedBy,
+        staffInvolved: safeStaffInvolved,
+        issueTitle: safeIssueTitle,
+        issueText: safeIssueText,
+        imageUrl: safeImageUrl,
         projectId: safeProjectId,
         cost: safeCost,
         tag: VALID_TAGS[tagIdx],
         status: VALID_STATUSES[statusIdx],
-        person,
-      });
+      };
+      if (safePerson !== undefined) {
+        createPayload.person = safePerson;
+      }
+
+      const issue = await buildingIssue.create(createPayload);
       res.status(201).json(issue);
     } catch (error) {
       res.status(500).json(error);
     }
   };
 
-  // Update an existing issue
+  // Update an existing issue — only whitelisted fields with sanitized values (S5147)
   const bmUpdateIssue = async (req, res) => {
     try {
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ message: 'Invalid update data.' });
       }
 
-      // Create a copy to avoid mutating req.body
-      const updates = { ...req.body };
+      const { status, issueTitle, issueText, imageUrl, person } = req.body;
+      const updates = {};
 
-      // If closing an issue, set closedDate
-      if (updates.status === 'closed') {
-        updates.closedDate = new Date();
+      // Status: only allow enum values; assign from our array
+      if (status !== undefined) {
+        const statusIdx = VALID_STATUSES.indexOf(typeof status === 'string' ? status : '');
+        if (statusIdx === -1) {
+          return res
+            .status(400)
+            .json({ error: `Invalid status. Allowed values: ${VALID_STATUSES.join(', ')}.` });
+        }
+        updates.status = VALID_STATUSES[statusIdx];
+        if (updates.status === 'closed') {
+          updates.closedDate = new Date();
+        } else if (updates.status === 'open') {
+          updates.closedDate = null;
+        }
       }
 
-      // If reopening a closed issue, clear closedDate
-      if (updates.status === 'open') {
-        updates.closedDate = null;
+      // Optional string-array and subdocument fields — sanitize before adding to $set
+      if (issueTitle !== undefined) {
+        const safe = toSanitizedStringArray(issueTitle, MAX_ISSUE_TITLE_LENGTH);
+        if (!safe) {
+          return res.status(400).json({ message: 'Invalid issueTitle.' });
+        }
+        updates.issueTitle = safe;
+      }
+      if (issueText !== undefined) {
+        const safe = toSanitizedStringArray(issueText, MAX_ISSUE_TEXT_LENGTH);
+        if (!safe) {
+          return res.status(400).json({ message: 'Invalid issueText.' });
+        }
+        updates.issueText = safe;
+      }
+      if (imageUrl !== undefined) {
+        if (Array.isArray(imageUrl)) {
+          const urls = toSanitizedStringArray(imageUrl, MAX_IMAGE_URL_LENGTH);
+          updates.imageUrl = urls || [];
+        } else {
+          updates.imageUrl = [];
+        }
+      }
+      if (
+        person !== undefined &&
+        person != null &&
+        typeof person === 'object' &&
+        !Array.isArray(person)
+      ) {
+        const name =
+          person.name != null ? String(person.name).slice(0, MAX_PERSON_FIELD_LENGTH) : '';
+        const role =
+          person.role != null ? String(person.role).slice(0, MAX_PERSON_FIELD_LENGTH) : '';
+        updates.person = { name, role };
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'Invalid update data.' });
       }
 
       const updatedIssue = await buildingIssue.findByIdAndUpdate(
