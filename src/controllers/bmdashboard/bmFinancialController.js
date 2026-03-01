@@ -177,7 +177,7 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
           let laborCost = 0;
 
           try {
-            materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+            materialsCost = await calculateMaterialsCost(project._id);
           } catch (error) {
             logger.logException(
               `Materials cost error for project ${project._id}: ${error.message}`,
@@ -223,7 +223,7 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
       const results = await Promise.all(
         projects.map(async (project) => {
-          const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+          const materialsCost = await calculateMaterialsCost(project._id);
           const toolsCost = await calculateToolsCost(project._id);
           const laborCost = await calculateLaborCost(project._id);
           const totalCost = materialsCost + toolsCost + laborCost;
@@ -247,12 +247,16 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
   const getTotalProjectCost = async (req, res) => {
     try {
-      const project = await BuildingProject.findById(req.params.projectId);
+      const { projectId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ message: 'Invalid project ID' });
+      }
+      const project = await BuildingProject.findById(projectId);
       if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        logger.logException(`Project with ID ${projectId} not found`);
         return res.status(404).json({ message: 'Project not found' });
       }
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const materialsCost = await calculateMaterialsCost(project._id);
       const toolsCost = await calculateToolsCost(project._id);
       const laboorCost = await calculateLaborCost(project._id);
 
@@ -268,12 +272,16 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
 
   const getCostBreakdown = async (req, res) => {
     try {
-      const project = await BuildingProject.findById(req.params.projectId);
+      const { projectId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ message: 'Invalid project ID' });
+      }
+      const project = await BuildingProject.findById(projectId);
       if (!project) {
-        logger.logException(`Project with ID ${req.params.projectId} not found`);
+        logger.logException(`Project with ID ${projectId} not found`);
         return res.status(404).json({ message: 'Project not found' });
       }
-      const materialsCost = await calculateMaterialsCost(BuildingMaterial, project._id);
+      const materialsCost = await calculateMaterialsCost(project._id);
       const toolsCost = await calculateToolsCost(project._id);
       const laboorCost = await calculateLaborCost(project._id);
 
