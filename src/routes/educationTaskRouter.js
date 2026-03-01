@@ -20,5 +20,6 @@ router.patch('/:id/grade', controller.gradeTask);
 
 // Student routes
 router.post('/student/mark-complete', controller.markTaskAsComplete);
+router.get('/student/progress', controller.getStudentProgress);
 
 module.exports = router;
