@@ -8,7 +8,6 @@ const controller = function (CostBreakdown) {
       const { projectId } = req.params;
       const { fromDate, toDate } = req.query;
 
-      console.log('Fetching cost breakdown for project ID:', projectId);
       console.log('Date range:', { fromDate, toDate });
 
       // Find the cost breakdown for the project
