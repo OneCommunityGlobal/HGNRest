@@ -1,5 +1,34 @@
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
+const { parseMultiSelectQueryParam } = require('../../utilities/queryParamParser');
+const {
+  parseAndNormalizeDateRangeUTC,
+  normalizeStartDate,
+} = require('../../utilities/materialCostCorrelationDateUtils');
+const {
+  getEarliestRelevantMaterialDate,
+  aggregateMaterialUsage,
+  aggregateMaterialCost,
+  buildCostCorrelationResponse,
+  resolveProjectNamesToIds,
+  resolveMaterialNamesToIds,
+} = require('../../utilities/materialCostCorrelationHelpers');
 
+// HTTP status codes
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_UNPROCESSABLE_ENTITY = 422;
+const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
+
+// Decimal precision for quantity calculations
+const DECIMAL_PRECISION = 4;
+
+// Time period constants (days)
+const DAYS_IN_WEEK = 7;
+const DAYS_IN_TWO_WEEKS = 14;
+
+// eslint-disable-next-line max-lines-per-function
 const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
     try {
@@ -183,10 +212,12 @@ const bmMaterialsController = function (BuildingMaterial) {
     let quantityWasted = +req.body.quantityWasted;
     const { material } = req.body;
     if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(DECIMAL_PRECISION);
     }
     if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
+        DECIMAL_PRECISION,
+      );
     }
 
     if (
@@ -204,9 +235,9 @@ const bmMaterialsController = function (BuildingMaterial) {
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
         +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(4));
-      newStockWasted = parseFloat(newStockWasted.toFixed(4));
-      newAvailable = parseFloat(newAvailable.toFixed(4));
+      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       BuildingMaterial.updateOne(
         { _id: req.body.material._id },
 
@@ -243,19 +274,23 @@ const bmMaterialsController = function (BuildingMaterial) {
       let quantityWasted = +payload.quantityWasted;
       const { material } = payload;
       if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(4);
+        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(
+          DECIMAL_PRECISION,
+        );
       }
       if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(4);
+        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
+          DECIMAL_PRECISION,
+        );
       }
 
       let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
       let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
       let newAvailable =
         +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(4));
-      newStockWasted = parseFloat(newStockWasted.toFixed(4));
-      newAvailable = parseFloat(newAvailable.toFixed(4));
+      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       if (newAvailable < 0) {
         errorFlag = true;
         break;
@@ -381,9 +416,9 @@ const bmMaterialsController = function (BuildingMaterial) {
 
       const now = new Date();
       const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - DAYS_IN_WEEK);
       const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - DAYS_IN_TWO_WEEKS);
 
       const nowStr = now.toISOString().split('T')[0];
       const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
@@ -444,8 +479,222 @@ const bmMaterialsController = function (BuildingMaterial) {
         increaseOverLastWeek: usageIncreasePercent,
       });
     } catch (err) {
-      console.error('Error in bmGetMaterialSummaryByProject:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      logger.logException(err, 'bmGetMaterialSummaryByProject', {
+        method: req.method,
+        path: req.path,
+        params: req.params,
+        query: req.query,
+      });
+      res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
+    }
+  };
+
+  /**
+   * Compute default start date if startDateInput is not provided.
+   * Uses earliest relevant material date or falls back to today.
+   *
+   * @param {string|undefined} startDateInput - Start date input from query
+   * @param {string[]} projectIds - Project IDs for filtering
+   * @param {string[]} materialTypeIds - Material type IDs for filtering
+   * @returns {Promise<Date|undefined>} Default start date or undefined
+   */
+  const computeDefaultStartDate = async function (startDateInput, projectIds, materialTypeIds) {
+    if (startDateInput && typeof startDateInput === 'string' && startDateInput.trim() !== '') {
+      return undefined;
+    }
+
+    const earliestDate = await getEarliestRelevantMaterialDate(
+      projectIds,
+      materialTypeIds,
+      BuildingMaterial,
+    );
+
+    if (earliestDate) {
+      return earliestDate;
+    }
+
+    // Fallback: today's start-of-day UTC
+    return normalizeStartDate(new Date(), true);
+  };
+
+  /**
+   * Handle date range parsing errors and return appropriate HTTP response.
+   *
+   * @param {Object} error - Error object from date parsing
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @returns {Object|undefined} Response object if error handled, undefined otherwise
+   */
+  const handleDateRangeError = function (error, req, res) {
+    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
+    if (error.type === 'DATE_PARSE_ERROR') {
+      return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
+    }
+    if (error.type === 'DATE_RANGE_ERROR') {
+      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+    }
+    return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+  };
+
+  /**
+   * Handle query parameter validation errors and return appropriate HTTP response.
+   *
+   * @param {Object} error - Error object from parameter validation
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @returns {Object|undefined} Response object if error handled, undefined otherwise
+   */
+  const handleQueryParamError = function (error, req, res) {
+    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
+    if (error.type === 'OBJECTID_VALIDATION_ERROR' || error.type === 'NAME_RESOLUTION_ERROR') {
+      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+    }
+    return undefined;
+  };
+
+  /**
+   * Extract and resolve query parameters (IDs and names) to ObjectId arrays.
+   * Handles both ID-based and name-based parameters, resolving names to IDs.
+   *
+   * @param {Object} req - Express request object
+   * @returns {Promise<{projectIds: string[], materialTypeIds: string[]}>} Resolved ID arrays
+   * @throws {Object} Structured error objects for validation/resolution failures
+   */
+  const extractAndResolveQueryParams = async function (req) {
+    // Parse ID parameters (if provided)
+    const projectIdsFromParam = parseMultiSelectQueryParam(req, 'projectId', true);
+    const materialTypeIdsFromParam = parseMultiSelectQueryParam(req, 'materialType', true);
+
+    // Parse name parameters (if provided, no ObjectId validation)
+    const projectNames = parseMultiSelectQueryParam(req, 'projectName', false);
+    const materialNames = parseMultiSelectQueryParam(req, 'materialName', false);
+
+    let projectIds = projectIdsFromParam;
+    let materialTypeIds = materialTypeIdsFromParam;
+
+    // Resolve names to IDs if provided
+    if (projectNames.length > 0) {
+      const resolvedProjectIds = await resolveProjectNamesToIds(projectNames, BuildingProject);
+      projectIds = [...projectIdsFromParam, ...resolvedProjectIds];
+    }
+
+    if (materialNames.length > 0) {
+      const resolvedMaterialIds = await resolveMaterialNamesToIds(materialNames, invTypeBase);
+      materialTypeIds = [...materialTypeIdsFromParam, ...resolvedMaterialIds];
+    }
+
+    // Remove duplicates from combined arrays
+    return {
+      projectIds: [...new Set(projectIds)],
+      materialTypeIds: [...new Set(materialTypeIds)],
+    };
+  };
+
+  const bmGetMaterialCostCorrelation = async function (req, res) {
+    try {
+      // 1. Extract and parse query parameters (IDs and names)
+      let projectIds;
+      let materialTypeIds;
+
+      try {
+        const resolvedParams = await extractAndResolveQueryParams(req);
+        projectIds = resolvedParams.projectIds;
+        materialTypeIds = resolvedParams.materialTypeIds;
+      } catch (error) {
+        const errorResponse = handleQueryParamError(error, req, res);
+        if (errorResponse) {
+          return errorResponse;
+        }
+        throw error;
+      }
+
+      // Extract date parameters as raw strings
+      const startDateInput = req.query.startDate;
+      const endDateInput = req.query.endDate;
+
+      // 2. Compute default start date if needed
+      const defaultStartDate = await computeDefaultStartDate(
+        startDateInput,
+        projectIds,
+        materialTypeIds,
+      );
+
+      // 3. Parse and normalize date range
+      let dateRangeMeta;
+      try {
+        dateRangeMeta = parseAndNormalizeDateRangeUTC(
+          startDateInput,
+          endDateInput,
+          defaultStartDate,
+          undefined,
+        );
+      } catch (error) {
+        return handleDateRangeError(error, req, res);
+      }
+
+      const { effectiveStart, effectiveEnd } = dateRangeMeta;
+
+      // 4. Run aggregations in parallel
+      let usageData;
+      let costData;
+      try {
+        const filters = { projectIds, materialTypeIds };
+        const dateRange = { effectiveStart, effectiveEnd };
+
+        [usageData, costData] = await Promise.all([
+          aggregateMaterialUsage(BuildingMaterial, filters, dateRange),
+          aggregateMaterialCost(BuildingMaterial, filters, dateRange),
+        ]);
+      } catch (error) {
+        logger.logException(error, 'bmGetMaterialCostCorrelation - aggregation', {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+        });
+        return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+          error: 'Internal server error while aggregating material data',
+        });
+      }
+
+      // 5. Build response
+      let responseObject;
+      try {
+        const requestParams = {
+          projectIds,
+          materialTypeIds,
+          dateRangeMeta,
+        };
+        const models = {
+          BuildingProject,
+          BuildingInventoryType: invTypeBase,
+        };
+        responseObject = await buildCostCorrelationResponse(
+          usageData,
+          costData,
+          requestParams,
+          models,
+        );
+      } catch (error) {
+        logger.logException(error, 'bmGetMaterialCostCorrelation - response building', {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+        });
+        return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+          error: 'Internal server error while building response',
+        });
+      }
+
+      // 6. Send response
+      return res.status(200).json(responseObject);
+    } catch (error) {
+      // Global error handling wrapper
+      logger.logException(error, 'bmGetMaterialCostCorrelation - unexpected error', {
+        method: req.method,
+        path: req.path,
+        query: req.query,
+      });
+      return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ error: 'Internal server error' });
     }
   };
 
@@ -587,6 +836,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     bmPurchaseMaterials,
     bmupdatePurchaseStatus,
     bmGetMaterialSummaryByProject,
+    bmGetMaterialCostCorrelation,
     bmGetMaterialStockOutRisk,
   };
 };
