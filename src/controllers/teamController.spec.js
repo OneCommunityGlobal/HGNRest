@@ -1,12 +1,13 @@
+/* eslint-disable no-unused-vars */
 const Team = require('../models/team');
-const teamController = require('./teamController');
 const { mockReq: baseMockReq, mockRes, assertResMock } = require('../test');
 const helper = require('../utilities/permissions');
+const teamController = require('./teamController');
 
 const mockReq = {
   ...baseMockReq,
   params: {},
-  body: {}
+  body: {},
 };
 
 const mockHasPermission = (value) =>
@@ -165,7 +166,7 @@ describe('teamController', () => {
       assertResMock(404, error, response, mockRes);
     });
 
-    test.todo("TODO: Fix returns 200 - all is successful, return a team by ID.");
+    test.todo('TODO: Fix returns 200 - all is successful, return a team by ID.');
 
     // test('Returns 200 - all is successful, return a team by ID.', async () => {
     //   const { getTeamById } = makeSut();

@@ -1,7 +1,7 @@
-const permissionChangeLogController = require('./permissionChangeLogsController');
 const permissionChangeLog = require('../models/permissionChangeLog');
 const UserProfile = require('../models/userProfile');
 const { mockRes, mockReq } = require('../test');
+const permissionChangeLogController = require('./permissionChangeLogsController');
 
 const makeSut = () => {
   const { getPermissionChangeLogs } = permissionChangeLogController(permissionChangeLog);
@@ -60,7 +60,9 @@ describe('permissionChangeLogsController', () => {
     });
   });
 
-  test.todo('TODO: Fix ensure getPermissionChangeLogs Returns 200 if the user profile role is Owner');
+  test.todo(
+    'TODO: Fix ensure getPermissionChangeLogs Returns 200 if the user profile role is Owner',
+  );
   // test('Ensure getPermissionChangeLogs Returns 200 if the user profile role is Owner', async () => {
   //   const { getPermissionChangeLogs } = makeSut();
 

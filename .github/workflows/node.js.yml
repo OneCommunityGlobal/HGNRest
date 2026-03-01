@@ -1,6 +1,3 @@
-# This workflow will do a clean install of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions 
-
 name: Node.js CI
 
 on:
@@ -10,14 +7,75 @@ on:
     branches: [ development ]
 
 jobs:
-  build:
+  lint:
+    name: Lint Check
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js 20.x
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js 20.17.0
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 20.17.0
         cache: 'npm'
-    - run: npm ci
-    - run: npm run test
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run lint
+      run: npm run lint
+
+  test:
+    name: Tests with 10% Coverage Enforcement
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js 20.17.0
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.17.0
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run tests with coverage enforcement
+      run: npm run test:ci
+      
+    - name: Print detailed coverage report
+      if: always()
+      run: |
+        echo "📊 COVERAGE ENFORCEMENT REPORT 📊"
+        echo "=================================="
+        echo "Minimum Required: Lines: 34%, Statements: 34%, Functions: 27%, Branches: 12%"
+        echo "=================================="
+        if [ -f coverage/coverage-summary.json ]; then
+          node -e "
+            const coverage = require('./coverage/coverage-summary.json');
+            const { lines, statements, functions, branches } = coverage.total;
+            
+            console.log('📈 CURRENT COVERAGE:');
+            console.log(\`📄 Lines:      \${lines.pct}% \${lines.pct >= 34 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`📝 Statements: \${statements.pct}% \${statements.pct >= 34 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🔧 Functions:  \${functions.pct}% \${functions.pct >= 27 ? '✅ PASS' : '❌ FAIL'}\`);
+            console.log(\`🌿 Branches:   \${branches.pct}% \${branches.pct >= 12 ? '✅ PASS' : '❌ FAIL'}\`);
+            
+            const allPass = [lines, statements, functions, branches].every(metric => metric.pct >= 60);
+            console.log('================================');
+            console.log(\`🎯 OVERALL: \${allPass ? '✅ COVERAGE REQUIREMENTS MET' : '❌ COVERAGE REQUIREMENTS FAILED'}\`);
+            console.log('================================');
+          "
+        else
+          echo "❌ No coverage report generated"
+        fi
+        
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-coverage-report
+        path: coverage/
