@@ -107,6 +107,7 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'setFinalDay',
     ],
   },
   {
@@ -201,7 +202,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -243,7 +243,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -295,6 +294,9 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
+      'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
     ],
   },
 ];
@@ -313,7 +315,6 @@ const createInitialPermissions = async () => {
   ) {
     jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
     await jaeProfile.save();
-    console.log('Added resendBlueSquareAndSummaryEmails permission to Jae');
   }
 
   // Get Roles From DB

@@ -1,3 +1,5 @@
+/* eslint-disable no-prototype-builtins */
+/* eslint-disable no-unused-vars */
 const moment = require('moment-timezone');
 const UserModel = require('../models/userProfile');
 const ReasonModel = require('../models/reason');

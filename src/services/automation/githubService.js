@@ -11,12 +11,20 @@ const headers = {
   'User-Agent': 'HGN-App/1.0',
 };
 
+// Allowed team slugs (for security filtering)
+const ALLOWED_TEAM_SLUGS = ['highest-good-network-team'];
+// Default team slugs (teams that should be pre-selected)
+const DEFAULT_TEAM_SLUGS = ['highest-good-network-team'];
+
 const getUserIdUrl = (username) => `https://api.github.com/users/${username}`;
 const sendInvitationUrl = (org) => `https://api.github.com/orgs/${org}/invitations`;
 const removeUserUrl = (org, username) =>
   `https://api.github.com/orgs/${org}/memberships/${username}`;
 const checkMembershipUrl = (org, username) =>
   `https://api.github.com/orgs/${org}/memberships/${username}`;
+const getTeamsUrl = (org) => `https://api.github.com/orgs/${org}/teams`;
+const addTeamMemberUrl = (org, teamSlug, username) =>
+  `https://api.github.com/orgs/${org}/teams/${teamSlug}/memberships/${username}`;
 
 // Service to fetch GitHub user ID by username
 async function getUserId(username) {
@@ -93,8 +101,99 @@ async function checkUserMembership(username) {
   }
 }
 
+// Service to get teams in the organization (filtered for security - only shows allowed teams)
+// Configure ALLOWED_TEAM_SLUGS and DEFAULT_TEAM_SLUGS arrays above to control which teams are shown/selected
+async function getTeams() {
+  try {
+    const response = await axios({
+      method: 'GET',
+      url: getTeamsUrl(orgName),
+      headers,
+    });
+
+    // Filter to only show allowed teams for security
+    const filteredTeams = response.data.filter((team) => ALLOWED_TEAM_SLUGS.includes(team.slug));
+
+    return filteredTeams.map((team) => ({
+      id: team.id,
+      name: team.name,
+      slug: team.slug,
+      description: team.description,
+      privacy: team.privacy,
+      isDefault: DEFAULT_TEAM_SLUGS.includes(team.slug), // Mark as default if in default list
+    }));
+  } catch (error) {
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error(
+        'GitHub API access forbidden - check token permissions for teams',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error('GitHub API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    const apiError = new Error(`GitHub API error fetching teams: ${error.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = 500;
+    throw apiError;
+  }
+}
+
+// Service to add a user to a specific team
+async function addUserToTeam(username, teamSlug, role = 'member') {
+  try {
+    const payload = { role };
+    const response = await axios({
+      method: 'PUT',
+      url: addTeamMemberUrl(orgName, teamSlug, username),
+      headers,
+      data: payload,
+    });
+
+    if (response.status === 200) {
+      return `User ${username} added to team ${teamSlug} as ${role}`;
+    }
+    const unexpectedError = new Error(`Unexpected response status: ${response.status}`);
+    unexpectedError.name = 'APIError';
+    unexpectedError.statusCode = 500;
+    throw unexpectedError;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      const notFoundError = new Error(
+        `Team '${teamSlug}' not found or user '${username}' not found`,
+      );
+      notFoundError.name = 'NotFoundError';
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+    if (error.response?.status === 403) {
+      const forbiddenError = new Error(
+        'GitHub API access forbidden - check token permissions for team management',
+      );
+      forbiddenError.name = 'ForbiddenError';
+      forbiddenError.statusCode = 403;
+      throw forbiddenError;
+    }
+    if (error.response?.status === 401) {
+      const authError = new Error('GitHub API authentication failed - check token validity');
+      authError.name = 'UnauthorizedError';
+      authError.statusCode = 401;
+      throw authError;
+    }
+    const apiError = new Error(`GitHub API error adding user to team: ${error.message}`);
+    apiError.name = 'APIError';
+    apiError.statusCode = 500;
+    throw apiError;
+  }
+}
+
 // Service to send an invitation to a user to join the organization
-async function sendInvitation(username) {
+async function sendInvitation(username, orgRole = 'direct_member', teamIds = []) {
   try {
     // First, check if user exists on GitHub
     const userId = await getUserId(username);
@@ -117,8 +216,12 @@ async function sendInvitation(username) {
       }
     }
 
-    // Send the invitation
-    const payload = { invitee_id: userId };
+    // Send the invitation with role and teams
+    const payload = {
+      invitee_id: userId,
+      role: orgRole,
+      team_ids: teamIds,
+    };
     const response = await axios({
       method: 'POST',
       url: sendInvitationUrl(orgName),
@@ -249,10 +352,62 @@ async function getUserDetails(username) {
     // Get organization membership info
     const membership = await checkUserMembership(username);
 
+    // Get user team memberships
+    let userTeams = [];
+
+    // Only try to get teams if user is an active member
+    if (membership.exists && membership.state === 'active') {
+      try {
+        const teamsResponse = await axios({
+          method: 'GET',
+          url: `https://api.github.com/orgs/${orgName}/members/${username}/teams`,
+          headers,
+        });
+
+        userTeams = teamsResponse.data.map((team) => team.name);
+      } catch (teamsError) {
+        // If the direct endpoint fails, try an alternative approach
+        try {
+          // Get all teams in the organization
+          const allTeamsResponse = await axios({
+            method: 'GET',
+            url: `https://api.github.com/orgs/${orgName}/teams`,
+            headers,
+          });
+
+          // Check each team for user membership
+          const userTeamsPromises = allTeamsResponse.data.map(async (team) => {
+            try {
+              await axios({
+                method: 'GET',
+                url: `https://api.github.com/orgs/${orgName}/teams/${team.slug}/members/${username}`,
+                headers,
+              });
+
+              // If we get here, user is a member of this team
+              return team.name;
+            } catch (memberError) {
+              // User is not a member of this team
+              return null;
+            }
+          });
+
+          const teamResults = await Promise.all(userTeamsPromises);
+          userTeams = teamResults.filter((team) => team !== null);
+        } catch (alternativeError) {
+          userTeams = [];
+        }
+      }
+    } else {
+      // User is not an active member, so no teams
+      userTeams = [];
+    }
+
     const userDetails = {
       name: userResponse.data.name || 'Not set',
       organizationRole: membership.exists ? membership.role : 'Not a member',
       status: membership.exists ? membership.state : 'Not invited',
+      teams: userTeams,
     };
 
     return userDetails;
@@ -339,4 +494,6 @@ module.exports = {
   removeUser,
   checkUserMembership,
   getUserDetails,
+  getTeams,
+  addUserToTeam,
 };

@@ -5,6 +5,8 @@ const Payments = require('../../models/lbdashboard/payments');
 const Users = require('../../models/lbdashboard/users');
 const Listings = require('../../models/lbdashboard/listings');
 const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
+const { getIO } = require('../../sockets/BiddingService/connServer');
+const emailSender = require('../../utilities/emailSender');
 const paymentController = require('./paymentsController');
 
 const paymentControllerInstance = paymentController(Payments);
@@ -18,8 +20,6 @@ const {
   postPaymentCheckoutNowWithoutCard,
   postPaymentStatusWithoutCard,
 } = paymentControllerInstance;
-const { getIO } = require('../../sockets/BiddingService/connServer');
-const emailSender = require('../../utilities/emailSender');
 
 const parseDate = (dateStr) => {
   const [month, day, year] = dateStr.split('/'); // Extract parts

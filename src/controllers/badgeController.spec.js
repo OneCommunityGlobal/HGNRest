@@ -5,9 +5,9 @@ const cache = require('../utilities/nodeCache');
 const Badge = require('../models/badge');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
-const badgeController = require('./badgeController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const UserProfile = require('../models/userProfile');
+const badgeController = require('./badgeController');
 
 const makeSut = () => {
   const { postBadge, getAllBadges, assignBadges, deleteBadge } = badgeController(Badge);

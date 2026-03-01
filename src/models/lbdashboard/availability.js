@@ -14,20 +14,24 @@ const availabilityCalendar = new Schema({
       from: { type: Date, required: true },
       to: { type: Date, required: true },
       bookingUserId: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    }
+    },
   ],
   blockedOutDates: [
     {
       from: { type: Date, required: true },
       to: { type: Date, required: true },
-      reason: { type: String }, 
+      reason: { type: String },
       blockedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    }
+    },
   ],
   lastUpdated: {
     type: Date,
     default: Date.now,
-  }
+  },
 });
 
-module.exports = mongoose.model('availabilityCalendar', availabilityCalendar, 'availabilityCalendar');
+module.exports = mongoose.model(
+  'availabilityCalendar',
+  availabilityCalendar,
+  'availabilityCalendar',
+);

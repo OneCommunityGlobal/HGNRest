@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const Listings = require('../../models/lbdashboard/listings');
 
 const bidsDeadlineController = function (BidDeadlines) {
