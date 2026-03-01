@@ -4,7 +4,6 @@ const { Schema } = mongoose;
 
 const User = require('./userProfile');
 
-
 const UserPermissionChangeLog = new Schema({
   logDateTime: { type: String, required: true },
   userId: {
@@ -14,10 +13,16 @@ const UserPermissionChangeLog = new Schema({
   },
   individualName: { type: String },
   permissions: { type: [String], required: true },
+  removedRolePermissions: { type: [String], default: [] },
   permissionsAdded: { type: [String], default: [] },
   permissionsRemoved: { type: [String], default: [] },
   requestorRole: { type: String },
   requestorEmail: { type: String, required: true },
+  reason: { type: String, default: '' },
 });
 
-module.exports = mongoose.model('UserPermissionChangeLog', UserPermissionChangeLog, 'UserPermissionChangeLogs');
+module.exports = mongoose.model(
+  'UserPermissionChangeLog',
+  UserPermissionChangeLog,
+  'UserPermissionChangeLogs',
+);

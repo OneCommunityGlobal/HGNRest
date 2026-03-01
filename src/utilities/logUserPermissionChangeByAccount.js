@@ -19,14 +19,18 @@ const findLatestRelatedLog = (userId) =>
 //
 
 const logUserPermissionChangeByAccount = async (req, user) => {
-  const { permissions, requestor } = req.body;
+  const { permissions, requestor, reason } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
     let permissionsAdded = [];
     let permissionsRemoved = [];
+    let roleChanged = false;
     const { userId } = req.params;
     const Permissions = permissions.frontPermissions;
+    const removedPermissions = permissions.removedDefaultPermissions; // removed default permissions
+    const rolePermissions = permissions.defaultPermissions; // default permissions for user provided by their role
+    const changedPermissions = [...Permissions, ...removedPermissions];
 
     // Fetch requestor email
     const requestorEmailId = await UserProfile.findById(requestor.requestorId)
@@ -40,18 +44,37 @@ const logUserPermissionChangeByAccount = async (req, user) => {
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      // no new changes in permissions list from last update
-      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(Permissions.sort())) {
+      const docRemovedRolePermissions = Array.isArray(document.removedRolePermissions)
+        ? document.removedRolePermissions
+        : [];
+      roleChanged = reason.includes('Role Changed');
+      const docSavedChanges = [...docPermissions, docRemovedRolePermissions];
+      // no new changes in permissions list from last update and no role change
+      if (
+        JSON.stringify(docSavedChanges.sort()) === JSON.stringify(changedPermissions.sort()) &&
+        !roleChanged
+      ) {
         return;
       }
-      permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
-      permissionsAdded = Permissions.filter((item) => !docPermissions.includes(item));
+      permissionsRemoved = [
+        ...removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item)), // saves new removed role defaults
+        ...docPermissions.filter(
+          (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
+        ), // removed user added permissions
+      ];
+      permissionsAdded = [
+        ...Permissions.filter((item) => !docPermissions.includes(item)), // saves new added permissions
+        ...docRemovedRolePermissions.filter(
+          (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
+        ), // removed role permissions added back
+      ];
     } else {
       permissionsAdded = Permissions;
+      permissionsRemoved = removedPermissions; // adds removed default permissions to permissionsRemoved for inital log
     }
 
-    // no permission added nor removed
-    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
+    // no permission added nor removed nor role change
+    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0 && !roleChanged) {
       return;
     }
 
@@ -60,10 +83,12 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       userId,
       individualName: `INDIVIDUAL: ${firstName} ${lastName}`,
       permissions: Permissions,
+      removedRolePermissions: removedPermissions,
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
       requestorEmail: requestorEmailId.email,
+      reason,
     });
 
     await logEntry.save();
