@@ -111,7 +111,7 @@
     "mongodb": "^3.7.3",
     "mongoose": "^5.13.23",
     "mongoose-validator": "^2.1.0",
-    "multer": "^2.0.2",
+    "multer": "^2.1.0",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
