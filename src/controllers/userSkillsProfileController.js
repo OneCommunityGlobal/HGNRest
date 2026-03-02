@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const { hasPermission } = require('../utilities/permissions');
@@ -18,9 +17,6 @@ const userSkillsProfileController = function (UserProfile) {
    * Returns consistent structure regardless of data availability
    */
   const getUserSkillsProfile = async (req, res, next) => {
-    console.log('req.body.requestor');
-    console.log(req.body.requestor);
-
     try {
       // Check if user has permission to view user profiles
       const hasAccess = await hasPermission(req.body.requestor, 'getUserProfiles');
@@ -87,7 +83,9 @@ const userSkillsProfileController = function (UserProfile) {
 
       // Get skills data - use default values if not found
       const userIdObj = mongoose.Types.ObjectId(userId);
-      const formResponses = await HgnFormResponses.findOne({ user_id: userIdObj })
+      const formResponses = await HgnFormResponses.findOne({
+        $or: [{ user_id: userIdObj }, { user_id: userId }],
+      })
         .sort({ _id: -1 })
         .lean();
       // Flag if we're using real or placeholder data
@@ -225,12 +223,6 @@ const userSkillsProfileController = function (UserProfile) {
   }
   //
   const updateUserSkillsProfileFollowUp = async (req, res, next) => {
-    console.log('updateUserSkillsProfileFollowUp');
-
-    console.log('req.body.requestor');
-    console.log(req.body);
-
-    console.log(req.params?.userId);
     try {
       // Check if user has permission to view user profiles
       const hasAccess = await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp');
@@ -316,10 +308,50 @@ const userSkillsProfileController = function (UserProfile) {
 
       return res.status(200).json({ data: formResponsesUpd });
     } catch (error) {
-      console.log('error');
-      console.log(error);
       // Log exceptions with transaction name and relevant data
       Logger.logException(error, 'updateUserSkillsProfileFollowUp', {
+        requestorId: req.body.requestor?.requestorId,
+        targetUserId: req.params?.userId,
+        timestamp: new Date().toISOString(),
+      });
+      next(error);
+    }
+  };
+  const updateYearsOfExperience = async (req, res, next) => {
+    try {
+      const hasAccess =
+        req.body.requestor.requestorId === req.params.userId ||
+        (await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp'));
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to update this profile' });
+      }
+
+      const { userId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new ValidationError('Invalid user ID format');
+      }
+
+      const { yearsOfExperience } = req.body;
+
+      if (yearsOfExperience !== '' && yearsOfExperience != null) {
+        const num = Number(yearsOfExperience);
+        if (!Number.isInteger(num) || num < 0) {
+          return res
+            .status(400)
+            .json({ error: 'Years of Experience must be a non-negative whole number' });
+        }
+      }
+
+      const updatedResponse = await HgnFormResponses.findOneAndUpdate(
+        { user_id: mongoose.Types.ObjectId(userId) },
+        { 'general.yearsOfExperience': yearsOfExperience },
+        { new: true, sort: { _id: -1 }, upsert: true },
+      );
+
+      return res.status(200).json({ data: updatedResponse });
+    } catch (error) {
+      Logger.logException(error, 'updateYearsOfExperience', {
         requestorId: req.body.requestor?.requestorId,
         targetUserId: req.params?.userId,
         timestamp: new Date().toISOString(),
@@ -332,6 +364,7 @@ const userSkillsProfileController = function (UserProfile) {
   return {
     getUserSkillsProfile,
     updateUserSkillsProfileFollowUp,
+    updateYearsOfExperience,
   };
 };
 

@@ -41,6 +41,17 @@ const hgnFormController = () => {
       const { preferences, skills } = req.query;
       const responses = await FormResponse.find();
 
+      // FIX ISSUE #8: Manually fetch user profiles to get isActive
+      const UserProfile = require('../models/userProfile');
+      const userIds = responses.map((r) => r.user_id).filter(Boolean);
+      const users = await UserProfile.find({ _id: { $in: userIds } }, 'isActive');
+
+      // Create a map for quick lookup
+      const userMap = {};
+      users.forEach((u) => {
+        userMap[u._id.toString()] = u.isActive;
+      });
+
       const scoredUsers = responses.map((user) => {
         const allSkills = [];
 
@@ -89,6 +100,10 @@ const hgnFormController = () => {
           .slice(0, 4)
           .map((s) => s.skill);
 
+        // FIX ISSUE #8: Get isActive from userMap
+        const userId = user.user_id?.toString();
+        const isActive = userId && userMap[userId] !== undefined ? userMap[userId] : true;
+
         return {
           _id: user._id,
           name: user.userInfo?.name,
@@ -97,6 +112,7 @@ const hgnFormController = () => {
           score: Number(avgScore.toFixed(1)),
           topSkills,
           preferences: user.general?.preferences || [],
+          isActive,
         };
       });
 
@@ -110,7 +126,7 @@ const hgnFormController = () => {
         );
       }
 
-      // Filter by skills (keep users who actually have the requested skill)
+      // Filter by skills
       if (skills) {
         const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
         filteredUsers = filteredUsers.filter((user) =>
@@ -123,6 +139,7 @@ const hgnFormController = () => {
 
       res.json(filteredUsers);
     } catch (err) {
+      console.error('Error in getRankedResponses:', err);
       res.status(500).json({ error: 'Failed to rank users' });
     }
   };

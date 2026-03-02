@@ -19,40 +19,43 @@ cloudinary.config({
 });
 
 const CUSTOM_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/xml',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Accept: 'text/xml',
   'Content-Type': 'text/xml',
-  'Connection': 'keep-alive',
+  Connection: 'keep-alive',
 };
 
-const uploadToCloudinary = (fileBuffer) => new Promise((resolve, reject) => {
-  const uploadStream = cloudinary.uploader.upload_stream(
-    { folder: 'livejournal_posts' },
-    (error, result) => {
-      if (error) reject(error);
-      else resolve(result.secure_url);
-    },
-  );
-  streamifier.createReadStream(fileBuffer).pipe(uploadStream);
-});
-
-const getChallenge = () => new Promise((resolve, reject) => {
-  const client = xmlrpc.createSecureClient({
-    host: LJ_API_HOST,
-    port: 443,
-    path: LJ_API_PATH,
-    headers: CUSTOM_HEADERS,
+const uploadToCloudinary = (fileBuffer) =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: 'livejournal_posts' },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result.secure_url);
+      },
+    );
+    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
   });
 
-  client.methodCall('LJ.XMLRPC.getchallenge', [], (error, value) => {
-    if (error) {
-      if (error.body) console.error('LJ Raw Error Body:', error.body);
-      reject(error);
-    } else {
-      resolve(value);
-    }
+const getChallenge = () =>
+  new Promise((resolve, reject) => {
+    const client = xmlrpc.createSecureClient({
+      host: LJ_API_HOST,
+      port: 443,
+      path: LJ_API_PATH,
+      headers: CUSTOM_HEADERS,
+    });
+
+    client.methodCall('LJ.XMLRPC.getchallenge', [], (error, value) => {
+      if (error) {
+        if (error.body) console.error('LJ Raw Error Body:', error.body);
+        reject(error);
+      } else {
+        resolve(value);
+      }
+    });
   });
-});
 
 const generateAuthResponse = (challenge, password) => {
   const hash = crypto.createHash('md5');
@@ -89,8 +92,10 @@ const postToLiveJournal = async (postData) => {
   };
 
   if (postData.security === 'private') ljParams.security = 'private';
-  else if (postData.security === 'friends') { ljParams.security = 'usemask'; ljParams.allowmask = 1; }
-  else ljParams.security = 'public';
+  else if (postData.security === 'friends') {
+    ljParams.security = 'usemask';
+    ljParams.allowmask = 1;
+  } else ljParams.security = 'public';
 
   if (postData.tags && postData.tags.trim()) ljParams.props = { taglist: postData.tags.trim() };
 
@@ -121,17 +126,40 @@ exports.createPost = async (req, res) => {
     if (req.file) imageUrl = await uploadToCloudinary(req.file.buffer);
 
     const userId = req.user ? req.user._id : new mongoose.Types.ObjectId();
-    if (!username || !password) return res.status(400).json({ success: false, message: 'Username and password are required' });
+    if (!username || !password)
+      return res
+        .status(400)
+        .json({ success: false, message: 'Username and password are required' });
 
     const result = await postToLiveJournal({
-      username, password, subject, content, security: security || 'public', tags, imageUrl, altText,
+      username,
+      password,
+      subject,
+      content,
+      security: security || 'public',
+      tags,
+      imageUrl,
+      altText,
     });
 
     const post = new LiveJournalPost({
-      userId, username, subject: subject || 'Untitled', content, security: security || 'public', tags, status: 'posted', ljItemId: result.itemid, ljUrl: result.url, postedAt: new Date(),
+      userId,
+      username,
+      subject: subject || 'Untitled',
+      content,
+      security: security || 'public',
+      tags,
+      status: 'posted',
+      ljItemId: result.itemid,
+      ljUrl: result.url,
+      postedAt: new Date(),
     });
     await post.save();
-    res.json({ success: true, message: 'Posted successfully', post: { id: post._id, itemId: result.itemid, url: result.url } });
+    res.json({
+      success: true,
+      message: 'Posted successfully',
+      post: { id: post._id, itemId: result.itemid, url: result.url },
+    });
   } catch (error) {
     console.error('Error posting:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to post' });
@@ -140,7 +168,8 @@ exports.createPost = async (req, res) => {
 
 exports.schedulePost = async (req, res) => {
   try {
-    const { username, password, subject, content, security, tags, scheduledDateTime, altText } = req.body;
+    const { username, password, subject, content, security, tags, scheduledDateTime, altText } =
+      req.body;
     let imageUrl = null;
     if (req.file) imageUrl = await uploadToCloudinary(req.file.buffer);
 
@@ -155,10 +184,22 @@ exports.schedulePost = async (req, res) => {
     }
 
     const scheduledPost = new LiveJournalPost({
-      userId, username, password, subject: subject || 'Untitled', content: finalContent, security: security || 'public', tags, status: 'scheduled', scheduledFor: scheduledDate,
+      userId,
+      username,
+      password,
+      subject: subject || 'Untitled',
+      content: finalContent,
+      security: security || 'public',
+      tags,
+      status: 'scheduled',
+      scheduledFor: scheduledDate,
     });
     await scheduledPost.save();
-    res.json({ success: true, message: 'Post scheduled successfully', post: { id: scheduledPost._id, scheduledFor: scheduledDate } });
+    res.json({
+      success: true,
+      message: 'Post scheduled successfully',
+      post: { id: scheduledPost._id, scheduledFor: scheduledDate },
+    });
   } catch (error) {
     console.error('Error scheduling:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -169,10 +210,14 @@ exports.getScheduledPosts = async (req, res) => {
   try {
     const userId = req.user ? req.user._id : null;
     const scheduledPosts = await LiveJournalPost.find({
-      userId: userId || { $exists: true }, status: 'scheduled', scheduledFor: { $gte: new Date() },
+      userId: userId || { $exists: true },
+      status: 'scheduled',
+      scheduledFor: { $gte: new Date() },
     }).sort({ scheduledFor: 1 });
     res.json({ success: true, posts: scheduledPosts });
-  } catch (error) { res.status(500).json({ success: false, message: 'Failed to fetch scheduled posts' }); }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch scheduled posts' });
+  }
 };
 
 exports.deleteScheduledPost = async (req, res) => {
@@ -180,7 +225,9 @@ exports.deleteScheduledPost = async (req, res) => {
     const { id } = req.params;
     await LiveJournalPost.deleteOne({ _id: id });
     res.json({ success: true, message: 'Scheduled post deleted successfully' });
-  } catch (error) { res.status(500).json({ success: false, message: 'Failed to delete scheduled post' }); }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to delete scheduled post' });
+  }
 };
 
 exports.updateScheduledPost = async (req, res) => {
@@ -198,7 +245,9 @@ exports.updateScheduledPost = async (req, res) => {
 
     await post.save();
     res.json({ success: true, message: 'Scheduled post updated successfully', post });
-  } catch (error) { res.status(500).json({ success: false, message: 'Failed to update' }); }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update' });
+  }
 };
 
 exports.postScheduledNow = async (req, res) => {
@@ -208,21 +257,41 @@ exports.postScheduledNow = async (req, res) => {
     if (!post) return res.status(404).json({ success: false, message: 'Post not found' });
 
     const result = await postToLiveJournal({
-      username: post.username, password: post.password, subject: post.subject, content: post.content, security: post.security, tags: post.tags,
+      username: post.username,
+      password: post.password,
+      subject: post.subject,
+      content: post.content,
+      security: post.security,
+      tags: post.tags,
     });
 
-    post.status = 'posted'; post.ljItemId = result.itemid; post.ljUrl = result.url; post.postedAt = new Date(); post.scheduledFor = undefined;
+    post.status = 'posted';
+    post.ljItemId = result.itemid;
+    post.ljUrl = result.url;
+    post.postedAt = new Date();
+    post.scheduledFor = undefined;
     await post.save();
-    res.json({ success: true, message: 'Posted successfully', post: { id: post._id, itemId: result.itemid, url: result.url } });
-  } catch (error) { res.status(500).json({ success: false, message: error.message || 'Failed to post' }); }
+    res.json({
+      success: true,
+      message: 'Posted successfully',
+      post: { id: post._id, itemId: result.itemid, url: result.url },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to post' });
+  }
 };
 
 exports.getPostHistory = async (req, res) => {
   try {
     const userId = req.user ? req.user._id : null;
     const posts = await LiveJournalPost.find({
-      userId: userId || { $exists: true }, status: { $in: ['posted', 'failed'] },
-    }).sort({ createdAt: -1 }).limit(HISTORY_LIMIT);
+      userId: userId || { $exists: true },
+      status: { $in: ['posted', 'failed'] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(HISTORY_LIMIT);
     res.json({ success: true, posts });
-  } catch (error) { res.status(500).json({ success: false, message: 'Failed to fetch history' }); }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch history' });
+  }
 };
