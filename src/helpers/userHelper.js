@@ -2815,7 +2815,7 @@ const userHelper = function () {
     try {
       const users = await userProfile.find({ isActive: true }).populate('badgeCollection.badge');
       for (let i = 0; i < users.length; i += 1) {
-        const user = users[0];
+        const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
