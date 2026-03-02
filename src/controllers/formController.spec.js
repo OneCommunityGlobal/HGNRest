@@ -1,3 +1,6 @@
+/* eslint-disable one-var */
+/* eslint-disable import/extensions */
+/* eslint-disable no-unused-vars */
 // test/formController.spec.js
 const {
   // eslint-disable-next-line no-unused-vars

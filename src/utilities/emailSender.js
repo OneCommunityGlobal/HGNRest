@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 // src/utilities/emailSender.js
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
@@ -77,8 +78,11 @@ const sendEmail = async (mailOptions) => {
       // header construction should never block sending; log and continue
       logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
     }
-
+    logger.logInfo(
+      `[sendEmail] about to send to=${mailOptions.to} subject="${mailOptions.subject}"`,
+    );
     const result = await transporter.sendMail(mailOptions);
+    logger.logInfo(`[sendEmail] sent messageId=${result?.messageId} response=${result?.response}`);
     if (process.env.NODE_ENV === 'local') {
       logger.logInfo(`Local emails - not attempting to send!`);
     }
@@ -191,6 +195,7 @@ const sendWithRetry = async (batch, retries = 3, baseDelay = 1000) => {
 };
 
 const worker = async () => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     // atomically pull next batch item: { batch, resolve, reject }
     const item = queue.shift();
@@ -298,7 +303,7 @@ const emailSender = (
   emailBccs = null,
   opts = {},
 ) => {
-  const type = opts.type || 'general';
+  const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
 
   if (

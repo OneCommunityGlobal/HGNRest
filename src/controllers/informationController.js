@@ -66,12 +66,10 @@ const informationController = function (Information) {
   const updateInformation = function (req, res) {
     Information.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true })
       .then((updatedInformation) => {
-        // remove cache if cache is available
         if (cache.hasCache('informations')) {
           cache.removeCache('informations');
-          return;
         }
-        res.status(200).send(updatedInformation);
+        return res.status(200).send(updatedInformation);
       })
       .catch((error) => res.status(400).send(error));
   };
