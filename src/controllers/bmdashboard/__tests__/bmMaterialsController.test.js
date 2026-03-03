@@ -187,10 +187,15 @@ describe('bmMaterialsController', () => {
       await controller.bmPurchaseMaterials(req, res);
 
       expect(mockFindOne).toHaveBeenCalledWith({
-        project: validProjectId,
-        itemType: validMatTypeId,
+        project: expect.any(mongoose.Types.ObjectId),
+        itemType: expect.any(mongoose.Types.ObjectId),
       });
-      expect(mockCreate).toHaveBeenCalled();
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: expect.any(mongoose.Types.ObjectId),
+          itemType: expect.any(mongoose.Types.ObjectId),
+        }),
+      );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.send).toHaveBeenCalled();
     });
@@ -201,12 +206,6 @@ describe('bmMaterialsController', () => {
         stockBought: 100,
       };
       mockFindOne.mockResolvedValue(mockMaterial);
-
-      // Mock ObjectId.isValid to return true, and ObjectId constructor
-      mongoose.Types.ObjectId.isValid = jest.fn().mockReturnValue(true);
-      const originalObjectId = mongoose.Types.ObjectId;
-      mongoose.Types.ObjectId = jest.fn().mockReturnValue('507f1f77bcf86cd799439014');
-      mongoose.Types.ObjectId.isValid = originalObjectId.isValid;
 
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
@@ -236,8 +235,8 @@ describe('bmMaterialsController', () => {
       await controller.bmPurchaseMaterials(req, res);
 
       expect(mockFindOne).toHaveBeenCalledWith({
-        project: validProjectId,
-        itemType: validMatTypeId,
+        project: expect.any(mongoose.Types.ObjectId),
+        itemType: expect.any(mongoose.Types.ObjectId),
       });
       expect(mockFindOneAndUpdate).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
@@ -377,12 +376,39 @@ describe('bmMaterialsController', () => {
     //   expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
     // });
 
+    it('should return 400 if purchaseId is invalid', async () => {
+      const req = {
+        body: {
+          purchaseId: 'not-a-valid-objectid',
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Invalid purchase ID format',
+          field: 'purchaseId',
+        }),
+      );
+      expect(mockFindOne).not.toHaveBeenCalled();
+    });
+
     it('should return 404 if purchase not found', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439099';
       mockFindOne.mockResolvedValue(null);
 
       const req = {
         body: {
-          purchaseId: 'nonexistent',
+          purchaseId: validPurchaseId,
           status: 'Approved',
           quantity: 30,
         },
@@ -394,20 +420,24 @@ describe('bmMaterialsController', () => {
 
       await controller.bmupdatePurchaseStatus(req, res);
 
+      expect(mockFindOne).toHaveBeenCalledWith({
+        'purchaseRecord._id': expect.any(mongoose.Types.ObjectId),
+      });
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.send).toHaveBeenCalledWith('Purchase not found');
     });
 
     it('should reject if purchase is not in Pending status', async () => {
+      const validPurchaseId = '507f1f77bcf86cd7994390aa';
       const mockMaterial = {
-        purchaseRecord: [{ _id: 'purchase123', status: 'Rejected' }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Approved' }],
       };
 
       mockFindOne.mockResolvedValue(mockMaterial);
 
       const req = {
         body: {
-          purchaseId: 'purchase123',
+          purchaseId: validPurchaseId,
           status: 'Approved',
           quantity: 30,
         },
@@ -430,6 +460,7 @@ describe('bmMaterialsController', () => {
     let mockReq;
     let mockRes;
     const FIXED_NOW = new Date('2024-01-15T12:30:45.123Z');
+    const DEFAULT_DATE_QUERY = { startDate: '2024-01-01', endDate: '2024-01-31' };
 
     beforeEach(() => {
       jest.clearAllMocks();
@@ -566,10 +597,7 @@ describe('bmMaterialsController', () => {
       });
 
       it('should handle no filters (all projects/materials)', async () => {
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { ...DEFAULT_DATE_QUERY };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -619,10 +647,7 @@ describe('bmMaterialsController', () => {
       });
 
       it('should handle empty but valid parameters', async () => {
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { ...DEFAULT_DATE_QUERY };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -647,10 +672,7 @@ describe('bmMaterialsController', () => {
           throw error;
         });
 
-        mockReq.query = {
-          startDate: 'invalid-date',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { startDate: 'invalid-date', endDate: '2024-01-31' };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -669,10 +691,7 @@ describe('bmMaterialsController', () => {
           throw error;
         });
 
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: 'invalid-date',
-        };
+        mockReq.query = { startDate: '2024-01-01', endDate: 'invalid-date' };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -690,16 +709,12 @@ describe('bmMaterialsController', () => {
           throw error;
         });
 
-        mockReq.query = {
-          startDate: '2024-01-31',
-          endDate: '2024-01-01',
-        };
+        mockReq.query = { startDate: '2024-01-31', endDate: '2024-01-01' };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
-        // Validation errors are expected and not logged as exceptions
       });
     });
 
@@ -708,10 +723,7 @@ describe('bmMaterialsController', () => {
         const error = new Error('Database error');
         mockAggregateMaterialUsage.mockRejectedValueOnce(error);
 
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { ...DEFAULT_DATE_QUERY };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -730,10 +742,7 @@ describe('bmMaterialsController', () => {
         const error = new Error('Database error');
         mockAggregateMaterialCost.mockRejectedValueOnce(error);
 
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { ...DEFAULT_DATE_QUERY };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
@@ -748,10 +757,7 @@ describe('bmMaterialsController', () => {
         mockAggregateMaterialUsage.mockRejectedValueOnce(error);
         mockAggregateMaterialCost.mockRejectedValueOnce(error);
 
-        mockReq.query = {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31',
-        };
+        mockReq.query = { ...DEFAULT_DATE_QUERY };
 
         await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
 
