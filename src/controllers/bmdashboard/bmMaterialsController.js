@@ -65,142 +65,87 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
-  const bmPurchaseMaterials = async function (req, res) {
+  /** @returns {{ status: number, message: string, field: string }|null} Validation error or null if valid. */
+  const validatePurchaseMaterialsBody = function (body) {
     const {
       primaryId: projectId,
       secondaryId: matTypeId,
       quantity,
       priority,
-      brand: brandPref,
       requestor: { requestorId } = {},
-    } = req.body;
-
-    try {
-      // Validation: Check required fields
-      if (!projectId) {
-        return res.status(400).json({
-          message: 'Project is required',
-          field: 'projectId',
-        });
-      }
-
-      if (!matTypeId) {
-        return res.status(400).json({
-          message: 'Material is required',
-          field: 'matTypeId',
-        });
-      }
-
-      if (!quantity && quantity !== 0) {
-        return res.status(400).json({
-          message: 'Quantity is required',
-          field: 'quantity',
-        });
-      }
-
-      if (!priority) {
-        return res.status(400).json({
-          message: 'Priority is required',
-          field: 'priority',
-        });
-      }
-
-      if (!requestorId) {
-        return res.status(400).json({
-          message: 'Requestor information is required',
-          field: 'requestorId',
-        });
-      }
-
-      // Validation: Validate ObjectIds
-      if (!mongoose.Types.ObjectId.isValid(projectId)) {
-        return res.status(400).json({
-          message: 'Invalid project ID format',
-          field: 'projectId',
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(matTypeId)) {
-        return res.status(400).json({
-          message: 'Invalid material ID format',
-          field: 'matTypeId',
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(requestorId)) {
-        return res.status(400).json({
-          message: 'Invalid requestor ID format',
-          field: 'requestorId',
-        });
-      }
-
-      // Validation: Validate quantity
-      const quantityNum = Number(quantity);
-      if (Number.isNaN(quantityNum)) {
-        return res.status(400).json({
-          message: 'Quantity must be a valid number',
-          field: 'quantity',
-        });
-      }
-
-      if (quantityNum <= 0) {
-        return res.status(400).json({
-          message: 'Quantity must be greater than 0',
-          field: 'quantity',
-        });
-      }
-
-      // Validation: Validate priority
-      const validPriorities = ['Low', 'Medium', 'High'];
-      if (!validPriorities.includes(priority)) {
-        return res.status(400).json({
-          message: 'Priority must be one of: Low, Medium, High',
-          field: 'priority',
-        });
-      }
-
-      // check if requestor has permission to make purchase request
-      //! Note: this code is disabled until permissions are added
-      // TODO: uncomment this code to execute auth check
-      // const { buildingManager: bmId } = await buildingProject.findById(projectId, 'buildingManager').exec();
-      // if (bmId !== requestorId) {
-      //   res.status(403).send({ message: 'You are not authorized to edit this record.' });
-      //   return;
-      // }
-
-      // check if the material is already being used in the project
-      // if no, add a new document to the collection
-      // if yes, update the existing document
-      const newPurchaseRecord = {
-        quantity: quantityNum,
-        priority,
-        brandPref,
-        requestedBy: requestorId,
+    } = body || {};
+    if (!projectId) return { status: 400, message: 'Project is required', field: 'projectId' };
+    if (!matTypeId) return { status: 400, message: 'Material is required', field: 'matTypeId' };
+    if (!quantity && quantity !== 0)
+      return { status: 400, message: 'Quantity is required', field: 'quantity' };
+    if (!priority) return { status: 400, message: 'Priority is required', field: 'priority' };
+    if (!requestorId)
+      return { status: 400, message: 'Requestor information is required', field: 'requestorId' };
+    if (!mongoose.Types.ObjectId.isValid(projectId))
+      return { status: 400, message: 'Invalid project ID format', field: 'projectId' };
+    if (!mongoose.Types.ObjectId.isValid(matTypeId))
+      return { status: 400, message: 'Invalid material ID format', field: 'matTypeId' };
+    if (!mongoose.Types.ObjectId.isValid(requestorId))
+      return { status: 400, message: 'Invalid requestor ID format', field: 'requestorId' };
+    const quantityNum = Number(quantity);
+    if (Number.isNaN(quantityNum))
+      return { status: 400, message: 'Quantity must be a valid number', field: 'quantity' };
+    if (quantityNum <= 0)
+      return { status: 400, message: 'Quantity must be greater than 0', field: 'quantity' };
+    const validPriorities = ['Low', 'Medium', 'High'];
+    if (!validPriorities.includes(priority))
+      return {
+        status: 400,
+        message: 'Priority must be one of: Low, Medium, High',
+        field: 'priority',
       };
-      const doc = await BuildingMaterial.findOne({
-        project: projectId,
-        itemType: matTypeId,
-      });
-      if (!doc) {
-        const newDoc = {
-          itemType: matTypeId,
-          project: projectId,
-          purchaseRecord: [newPurchaseRecord],
-          stockBought: quantityNum,
-        };
-        BuildingMaterial.create(newDoc)
-          .then(() => res.status(201).send())
-          .catch((error) => res.status(500).send(error));
-        return;
-      }
-      doc.stockBought += quantityNum;
-      BuildingMaterial.findOneAndUpdate(
-        { _id: mongoose.Types.ObjectId(doc._id) },
-        { $push: { purchaseRecord: newPurchaseRecord } },
-      )
-        .exec()
+    return null;
+  };
+
+  const performMaterialPurchase = async function (body, quantityNum, res) {
+    const projectObjectId = new mongoose.Types.ObjectId(body.primaryId);
+    const matTypeObjectId = new mongoose.Types.ObjectId(body.secondaryId);
+    const newPurchaseRecord = {
+      quantity: quantityNum,
+      priority: body.priority,
+      brandPref: body.brand,
+      requestedBy: body.requestor?.requestorId,
+    };
+    const doc = await BuildingMaterial.findOne({
+      project: projectObjectId,
+      itemType: matTypeObjectId,
+    });
+    if (!doc) {
+      const newDoc = {
+        itemType: matTypeObjectId,
+        project: projectObjectId,
+        purchaseRecord: [newPurchaseRecord],
+        stockBought: quantityNum,
+      };
+      return BuildingMaterial.create(newDoc)
         .then(() => res.status(201).send())
         .catch((error) => res.status(500).send(error));
+    }
+    return BuildingMaterial.findOneAndUpdate(
+      { _id: doc._id },
+      { $push: { purchaseRecord: newPurchaseRecord } },
+    )
+      .exec()
+      .then(() => res.status(201).send())
+      .catch((error) => res.status(500).send(error));
+  };
+
+  const bmPurchaseMaterials = async function (req, res) {
+    const { body } = req;
+    try {
+      const validation = validatePurchaseMaterialsBody(body);
+      if (validation) {
+        return res
+          .status(validation.status)
+          .json({ message: validation.message, field: validation.field });
+      }
+      const quantityNum = Number(body.quantity);
+      await performMaterialPurchase(body, quantityNum, res);
     } catch (error) {
       res.status(500).send(error);
     }
@@ -231,13 +176,15 @@ const bmMaterialsController = function (BuildingMaterial) {
           'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
         );
     } else {
-      let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
-      let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+      let newStockUsed = +material.stockUsed + Number.parseFloat(quantityUsed);
+      let newStockWasted = +material.stockWasted + Number.parseFloat(quantityWasted);
       let newAvailable =
-        +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
-      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
-      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
+        +material.stockAvailable -
+        Number.parseFloat(quantityUsed) -
+        Number.parseFloat(quantityWasted);
+      newStockUsed = Number.parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = Number.parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = Number.parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       BuildingMaterial.updateOne(
         { _id: req.body.material._id },
 
@@ -295,6 +242,10 @@ const bmMaterialsController = function (BuildingMaterial) {
         errorFlag = true;
         break;
       }
+      if (!mongoose.Types.ObjectId.isValid(material._id)) {
+        errorFlag = true;
+        break;
+      }
       updateRecordsToBeAdded.push({
         updateId: material._id,
         set: {
@@ -316,15 +267,16 @@ const bmMaterialsController = function (BuildingMaterial) {
         res.status(500).send('Stock quantities submitted seems to be invalid');
         return;
       }
-      const updatePromises = updateRecordsToBeAdded.map((updateItem) =>
-        BuildingMaterial.updateOne(
-          { _id: updateItem.updateId },
+      const updatePromises = updateRecordsToBeAdded.map((updateItem) => {
+        const materialObjectId = new mongoose.Types.ObjectId(updateItem.updateId);
+        return BuildingMaterial.updateOne(
+          { _id: materialObjectId },
           {
             $set: updateItem.set,
             $push: { updateRecord: updateItem.updateValue },
           },
-        ).exec(),
-      );
+        ).exec();
+      });
       Promise.all(updatePromises)
         .then((results) => {
           res.status(200).send({
@@ -340,7 +292,11 @@ const bmMaterialsController = function (BuildingMaterial) {
   const bmupdatePurchaseStatus = async function (req, res) {
     const { purchaseId, status, quantity } = req.body;
     try {
-      const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseId });
+      if (!purchaseId || !mongoose.Types.ObjectId.isValid(purchaseId)) {
+        return res.status(400).json({ message: 'Invalid purchase ID format', field: 'purchaseId' });
+      }
+      const purchaseObjectId = new mongoose.Types.ObjectId(purchaseId);
+      const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseObjectId });
 
       if (!material) {
         return res.status(404).send('Purchase not found');
@@ -369,7 +325,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       }
 
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-        { 'purchaseRecord._id': purchaseId },
+        { 'purchaseRecord._id': purchaseObjectId },
         updateObject,
         { new: true },
       );
@@ -393,13 +349,14 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
 
     try {
+      const projectObjectId = new mongoose.Types.ObjectId(projectId);
       const query = {
-        project: mongoose.Types.ObjectId(projectId),
+        project: projectObjectId,
       };
 
       if (materialType) {
         if (mongoose.Types.ObjectId.isValid(materialType)) {
-          query.itemType = mongoose.Types.ObjectId(materialType);
+          query.itemType = new mongoose.Types.ObjectId(materialType);
         } else {
           return res.status(400).json({ error: 'Invalid materialId' });
         }
@@ -698,34 +655,112 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
+  const DAYS_IN_STOCK_RISK_PERIOD = 30;
+  const SENTINEL_NO_USAGE_DATA = 999;
+
+  /** @returns {{ query: Object }|{ error: { status: number, body: Object }}} */
+  const buildStockOutRiskQuery = function (projectIds) {
+    const query = {};
+    if (!projectIds || projectIds === 'all' || typeof projectIds !== 'string') {
+      return { query };
+    }
+    const projectIdArray = projectIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    if (projectIdArray.length === 0) return { query };
+    const validProjectIds = projectIdArray
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (validProjectIds.length > 0) {
+      query.project = { $in: validProjectIds };
+      return { query };
+    }
+    return {
+      error: {
+        status: 400,
+        body: {
+          error: 'Invalid project IDs provided',
+          details: 'All provided project IDs are invalid',
+        },
+      },
+    };
+  };
+
+  const isValidMaterialForStockRisk = function (material) {
+    return (
+      material &&
+      typeof material.stockAvailable === 'number' &&
+      material.stockAvailable > 0 &&
+      material.project?._id &&
+      material.itemType?._id
+    );
+  };
+
+  const computeUsageFromUpdateRecords = function (updateRecords, thirtyDaysAgo, now) {
+    const records = Array.isArray(updateRecords) ? updateRecords : [];
+    let totalUsage = 0;
+    const usageByDate = {};
+    records.forEach((record) => {
+      if (!record?.date) return;
+      const recordDate = new Date(record.date);
+      if (Number.isNaN(recordDate.getTime())) return;
+      if (recordDate < thirtyDaysAgo || recordDate > now) return;
+      const dateKey = recordDate.toISOString().split('T')[0];
+      const quantityUsed = parseFloat(record.quantityUsed) || 0;
+      if (quantityUsed > 0) {
+        usageByDate[dateKey] = (usageByDate[dateKey] || 0) + quantityUsed;
+        totalUsage += quantityUsed;
+      }
+    });
+    return { totalUsage };
+  };
+
+  const computeAverageDailyAndDaysOut = function (material, totalUsage) {
+    const daysInPeriod = DAYS_IN_STOCK_RISK_PERIOD;
+    let averageDailyUsage = totalUsage > 0 ? totalUsage / daysInPeriod : 0;
+    if (averageDailyUsage === 0 && material.stockUsed > 0) {
+      averageDailyUsage = parseFloat(material.stockUsed) / daysInPeriod;
+    }
+    const daysUntilStockOut =
+      averageDailyUsage > 0
+        ? Math.floor(material.stockAvailable / averageDailyUsage)
+        : SENTINEL_NO_USAGE_DATA;
+    return { averageDailyUsage, daysUntilStockOut };
+  };
+
+  const buildStockOutRiskItem = function (material, averageDailyUsage, daysUntilStockOut) {
+    return {
+      materialName: material.itemType.name || 'Unknown Material',
+      materialId: material.itemType._id.toString(),
+      projectId: material.project._id.toString(),
+      projectName: material.project.name || 'Unknown Project',
+      stockAvailable: parseFloat(material.stockAvailable.toFixed(2)),
+      averageDailyUsage: parseFloat(averageDailyUsage.toFixed(2)),
+      daysUntilStockOut: Math.max(0, daysUntilStockOut),
+      unit: material.itemType.unit || '',
+    };
+  };
+
+  const getStockOutRiskErrorResponse = function (err) {
+    if (err.name === 'CastError' || err.name === 'ValidationError') {
+      return { statusCode: 400, errorMessage: 'Invalid request parameters' };
+    }
+    if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+      return { statusCode: 503, errorMessage: 'Database error' };
+    }
+    return { statusCode: 500, errorMessage: 'Internal Server Error' };
+  };
+
   const bmGetMaterialStockOutRisk = async function (req, res) {
     try {
       const { projectIds } = req.query || {};
-      const query = {};
-
-      if (projectIds && projectIds !== 'all' && typeof projectIds === 'string') {
-        const projectIdArray = projectIds
-          .split(',')
-          .map((id) => id.trim())
-          .filter((id) => id.length > 0);
-
-        if (projectIdArray.length > 0) {
-          const validProjectIds = projectIdArray
-            .filter((id) => mongoose.Types.ObjectId.isValid(id))
-            .map((id) => mongoose.Types.ObjectId(id));
-
-          if (validProjectIds.length > 0) {
-            query.project = { $in: validProjectIds };
-          } else {
-            return res.status(400).json({
-              error: 'Invalid project IDs provided',
-              details: 'All provided project IDs are invalid',
-            });
-          }
-        }
+      const queryResult = buildStockOutRiskQuery(projectIds);
+      if (queryResult.error) {
+        return res.status(queryResult.error.status).json(queryResult.error.body);
       }
 
-      const materials = await BuildingMaterial.find(query)
+      const materials = await BuildingMaterial.find(queryResult.query)
         .populate('project', '_id name')
         .populate('itemType', '_id name unit')
         .lean()
@@ -733,76 +768,24 @@ const bmMaterialsController = function (BuildingMaterial) {
 
       const now = new Date();
       const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const daysInPeriod = 30;
-      const SENTINEL_NO_USAGE_DATA = 999;
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - DAYS_IN_STOCK_RISK_PERIOD);
 
-      const stockOutRiskData = [];
-
-      for (const material of materials) {
-        if (
-          !material ||
-          typeof material.stockAvailable !== 'number' ||
-          material.stockAvailable <= 0 ||
-          !material.project ||
-          !material.itemType ||
-          !material.project._id ||
-          !material.itemType._id
-        ) {
-          continue;
-        }
-
-        const updateRecords = Array.isArray(material.updateRecord) ? material.updateRecord : [];
-        let totalUsage = 0;
-        const usageByDate = {};
-
-        for (const record of updateRecords) {
-          if (!record || !record.date) continue;
-
-          const recordDate = new Date(record.date);
-          if (Number.isNaN(recordDate.getTime())) continue;
-          if (recordDate < thirtyDaysAgo || recordDate > now) continue;
-
-          const dateKey = recordDate.toISOString().split('T')[0];
-          const quantityUsed = parseFloat(record.quantityUsed) || 0;
-
-          if (quantityUsed > 0) {
-            if (!usageByDate[dateKey]) {
-              usageByDate[dateKey] = 0;
-            }
-            usageByDate[dateKey] += quantityUsed;
-            totalUsage += quantityUsed;
-          }
-        }
-
-        let averageDailyUsage = 0;
-
-        if (totalUsage > 0) {
-          averageDailyUsage = totalUsage / daysInPeriod;
-        } else if (material.stockUsed > 0) {
-          averageDailyUsage = parseFloat(material.stockUsed) / daysInPeriod;
-        }
-
-        let daysUntilStockOut = 0;
-        if (averageDailyUsage > 0) {
-          daysUntilStockOut = Math.floor(material.stockAvailable / averageDailyUsage);
-        } else {
-          daysUntilStockOut = SENTINEL_NO_USAGE_DATA;
-        }
-
-        if (daysUntilStockOut >= 0 && daysUntilStockOut < SENTINEL_NO_USAGE_DATA) {
-          stockOutRiskData.push({
-            materialName: material.itemType.name || 'Unknown Material',
-            materialId: material.itemType._id.toString(),
-            projectId: material.project._id.toString(),
-            projectName: material.project.name || 'Unknown Project',
-            stockAvailable: parseFloat(material.stockAvailable.toFixed(2)),
-            averageDailyUsage: parseFloat(averageDailyUsage.toFixed(2)),
-            daysUntilStockOut: Math.max(0, daysUntilStockOut),
-            unit: material.itemType.unit || '',
-          });
-        }
-      }
+      const stockOutRiskData = materials
+        .filter((material) => isValidMaterialForStockRisk(material))
+        .map((material) => {
+          const { totalUsage } = computeUsageFromUpdateRecords(
+            material.updateRecord,
+            thirtyDaysAgo,
+            now,
+          );
+          const { averageDailyUsage, daysUntilStockOut } = computeAverageDailyAndDaysOut(
+            material,
+            totalUsage,
+          );
+          return { material, averageDailyUsage, daysUntilStockOut };
+        })
+        .filter((x) => x.daysUntilStockOut >= 0 && x.daysUntilStockOut < SENTINEL_NO_USAGE_DATA)
+        .map((x) => buildStockOutRiskItem(x.material, x.averageDailyUsage, x.daysUntilStockOut));
 
       stockOutRiskData.sort((a, b) => {
         const daysA = Number(a.daysUntilStockOut) || 0;
@@ -812,20 +795,8 @@ const bmMaterialsController = function (BuildingMaterial) {
 
       res.status(200).json(stockOutRiskData);
     } catch (err) {
-      let statusCode = 500;
-      let errorMessage = 'Internal Server Error';
-
-      if (err.name === 'CastError' || err.name === 'ValidationError') {
-        statusCode = 400;
-        errorMessage = 'Invalid request parameters';
-      } else if (err.name === 'MongoError' || err.name === 'MongoServerError') {
-        statusCode = 503;
-        errorMessage = 'Database error';
-      }
-
-      res.status(statusCode).json({
-        error: errorMessage,
-      });
+      const { statusCode, errorMessage } = getStockOutRiskErrorResponse(err);
+      res.status(statusCode).json({ error: errorMessage });
     }
   };
 
