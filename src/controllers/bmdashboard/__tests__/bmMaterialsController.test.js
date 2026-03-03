@@ -270,6 +270,8 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmPostMaterialUpdateRecord', () => {
+    const validMaterialId = '507f1f77bcf86cd799439011';
+
     it('should update material stock and add update record', async () => {
       mockUpdateOne.mockReturnValue({
         then(callback) {
@@ -279,7 +281,7 @@ describe('bmMaterialsController', () => {
       });
 
       const material = {
-        _id: 'material123',
+        _id: validMaterialId,
         stockAvailable: 100,
         stockUsed: 20,
         stockWasted: 10,
@@ -303,14 +305,45 @@ describe('bmMaterialsController', () => {
 
       await controller.bmPostMaterialUpdateRecord(req, res);
 
-      expect(mockUpdateOne).toHaveBeenCalled();
+      expect(mockUpdateOne).toHaveBeenCalledWith(
+        { _id: expect.any(mongoose.Types.ObjectId) },
+        expect.any(Object),
+      );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalled();
     });
 
+    it('should return 400 for invalid material._id', async () => {
+      const req = {
+        body: {
+          material: {
+            _id: 'not-valid-objectid',
+            stockAvailable: 100,
+            stockUsed: 0,
+            stockWasted: 0,
+          },
+          quantityUsed: 5,
+          quantityWasted: 0,
+          QtyUsedLogUnit: 'unit',
+          QtyWastedLogUnit: 'unit',
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
+      };
+      await controller.bmPostMaterialUpdateRecord(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Invalid material ID format', field: 'material._id' }),
+      );
+      expect(mockUpdateOne).not.toHaveBeenCalled();
+    });
+
     it('should reject if stock quantities exceed available', async () => {
       const material = {
-        _id: 'material123',
+        _id: validMaterialId,
         stockAvailable: 10,
         stockUsed: 5,
         stockWasted: 2,
