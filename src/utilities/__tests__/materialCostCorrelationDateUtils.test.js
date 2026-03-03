@@ -6,6 +6,27 @@ const {
   parseAndNormalizeDateRangeUTC,
 } = require('../materialCostCorrelationDateUtils');
 
+/** Assert that calling parseFn(input) throws DATE_PARSE_ERROR and run optional assertions on the error. */
+function expectDateParseError(parseFn, input, assertError) {
+  let caught;
+  try {
+    parseFn(input);
+  } catch (e) {
+    caught = e;
+  }
+  expect(caught).toBeDefined();
+  expect(caught.type).toBe('DATE_PARSE_ERROR');
+  if (assertError) assertError(caught);
+}
+
+/** Assert result is end-of-day UTC (23:59:59.999). */
+function expectEndOfDayUTC(result) {
+  expect(result.getUTCHours()).toBe(23);
+  expect(result.getUTCMinutes()).toBe(59);
+  expect(result.getUTCSeconds()).toBe(59);
+  expect(result.getUTCMilliseconds()).toBe(999);
+}
+
 describe('materialCostCorrelationDateUtils', () => {
   // Use fixed date for consistent testing
   const FIXED_NOW = new Date('2024-01-15T12:30:45.123Z'); // Monday, Jan 15, 2024, 12:30:45 UTC
@@ -75,85 +96,50 @@ describe('materialCostCorrelationDateUtils', () => {
       });
 
       it('should throw error for invalid Date object', () => {
-        const invalidDate = new Date('invalid');
-        expect(() => parseDateInput(invalidDate)).toThrow();
-        try {
-          parseDateInput(invalidDate);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, new Date('invalid'), (error) => {
           expect(error.message).toContain('Invalid Date object');
-        }
+        });
       });
     });
 
     describe('Category 1: Invalid Input Formats', () => {
       it('should throw DATE_PARSE_ERROR for invalid string', () => {
-        expect(() => parseDateInput('not-a-date')).toThrow();
-        try {
-          parseDateInput('not-a-date');
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, 'not-a-date', (error) => {
           expect(error.originalInput).toBe('not-a-date');
           expect(Array.isArray(error.acceptedFormats)).toBe(true);
-        }
+        });
       });
 
       it('should throw DATE_PARSE_ERROR for empty string', () => {
-        expect(() => parseDateInput('')).toThrow();
-        try {
-          parseDateInput('');
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, '', (error) => {
           expect(error.message).toContain('Empty date string');
-        }
+        });
       });
 
       it('should throw DATE_PARSE_ERROR for whitespace-only string', () => {
-        expect(() => parseDateInput('   ')).toThrow();
-        try {
-          parseDateInput('   ');
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-        }
+        expectDateParseError(parseDateInput, '   ');
       });
 
       it('should throw DATE_PARSE_ERROR for null input', () => {
-        expect(() => parseDateInput(null)).toThrow();
-        try {
-          parseDateInput(null);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, null, (error) => {
           expect(error.originalInput).toBe(null);
-        }
+        });
       });
 
       it('should throw DATE_PARSE_ERROR for undefined input', () => {
-        expect(() => parseDateInput(undefined)).toThrow();
-        try {
-          parseDateInput(undefined);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-        }
+        expectDateParseError(parseDateInput, undefined);
       });
 
       it('should throw DATE_PARSE_ERROR for number input', () => {
-        expect(() => parseDateInput(12345)).toThrow();
-        try {
-          parseDateInput(12345);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, 12345, (error) => {
           expect(error.message).toContain('number');
-        }
+        });
       });
 
       it('should throw DATE_PARSE_ERROR for boolean input', () => {
-        expect(() => parseDateInput(true)).toThrow();
-        try {
-          parseDateInput(true);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, true, (error) => {
           expect(error.message).toContain('boolean');
-        }
+        });
       });
 
       it('should throw error for malformed MM-DD-YYYY (invalid month)', () => {
@@ -173,15 +159,12 @@ describe('materialCostCorrelationDateUtils', () => {
       });
 
       it('should have correct error structure with all required properties', () => {
-        try {
-          parseDateInput('invalid');
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
+        expectDateParseError(parseDateInput, 'invalid', (error) => {
           expect(error.message).toBeDefined();
           expect(error.originalInput).toBe('invalid');
           expect(Array.isArray(error.acceptedFormats)).toBe(true);
           expect(error.acceptedFormats.length).toBeGreaterThan(0);
-        }
+        });
       });
 
       // Note: The edge case where Date.parse succeeds but date.getTime() is NaN
@@ -249,14 +232,11 @@ describe('materialCostCorrelationDateUtils', () => {
 
     describe('Category 2: Edge Cases', () => {
       it('should throw error for invalid date object', () => {
-        const invalidDate = new Date('invalid');
-        expect(() => normalizeStartDate(invalidDate, true)).toThrow();
-        try {
-          normalizeStartDate(invalidDate, true);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('normalizeStartDate requires');
-        }
+        expectDateParseError(
+          (d) => normalizeStartDate(d, true),
+          new Date('invalid'),
+          (error) => expect(error.message).toContain('normalizeStartDate requires'),
+        );
       });
 
       it('should handle date at year boundary', () => {
@@ -384,74 +364,50 @@ describe('materialCostCorrelationDateUtils', () => {
 
     describe('Category 4: Non-Today Date Handling', () => {
       it('should normalize yesterday to 23:59:59.999Z of that day', () => {
-        const yesterday = new Date('2024-01-14T10:30:00Z');
-        const result = normalizeEndDate(yesterday, true);
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
-        expect(result.getUTCMilliseconds()).toBe(999);
+        const result = normalizeEndDate(new Date('2024-01-14T10:30:00Z'), true);
+        expectEndOfDayUTC(result);
         expect(result.getUTCDate()).toBe(14);
       });
 
       it('should normalize tomorrow to 23:59:59.999Z of that day', () => {
-        const tomorrow = new Date('2024-01-16T10:30:00Z');
-        const result = normalizeEndDate(tomorrow, true);
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
-        expect(result.getUTCMilliseconds()).toBe(999);
+        const result = normalizeEndDate(new Date('2024-01-16T10:30:00Z'), true);
+        expectEndOfDayUTC(result);
         expect(result.getUTCDate()).toBe(16);
       });
 
       it('should normalize past date to 23:59:59.999Z', () => {
-        const pastDate = new Date('2020-06-15T10:30:00Z');
-        const result = normalizeEndDate(pastDate, true);
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
-        expect(result.getUTCMilliseconds()).toBe(999);
+        const result = normalizeEndDate(new Date('2020-06-15T10:30:00Z'), true);
+        expectEndOfDayUTC(result);
         expect(result.getUTCFullYear()).toBe(2020);
         expect(result.getUTCMonth()).toBe(5); // June
         expect(result.getUTCDate()).toBe(15);
       });
 
       it('should normalize future date to 23:59:59.999Z', () => {
-        const futureDate = new Date('2025-06-15T10:30:00Z');
-        const result = normalizeEndDate(futureDate, true);
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
-        expect(result.getUTCMilliseconds()).toBe(999);
+        const result = normalizeEndDate(new Date('2025-06-15T10:30:00Z'), true);
+        expectEndOfDayUTC(result);
         expect(result.getUTCFullYear()).toBe(2025);
       });
     });
 
     describe('Category 4: UTC Normalization', () => {
       it('should verify time is set to 23:59:59.999Z for non-today dates', () => {
-        const nonToday = new Date('2024-01-20T14:30:00Z');
-        const result = normalizeEndDate(nonToday, true);
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
-        expect(result.getUTCMilliseconds()).toBe(999);
+        const result = normalizeEndDate(new Date('2024-01-20T14:30:00Z'), true);
+        expectEndOfDayUTC(result);
       });
     });
 
     describe('Category 4: Edge Cases', () => {
       it('should throw error for invalid date object', () => {
-        const invalidDate = new Date('invalid');
-        expect(() => normalizeEndDate(invalidDate, true)).toThrow();
-        try {
-          normalizeEndDate(invalidDate, true);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('normalizeEndDate requires');
-        }
+        expectDateParseError(
+          (d) => normalizeEndDate(d, true),
+          new Date('invalid'),
+          (error) => expect(error.message).toContain('normalizeEndDate requires'),
+        );
       });
 
       it('should handle date at year boundary', () => {
-        const yearEnd = new Date('2023-12-31T10:30:00Z');
-        const result = normalizeEndDate(yearEnd, true);
+        const result = normalizeEndDate(new Date('2023-12-31T10:30:00Z'), true);
         expect(result.getUTCFullYear()).toBe(2023);
         expect(result.getUTCMonth()).toBe(11);
         expect(result.getUTCDate()).toBe(31);
@@ -459,16 +415,14 @@ describe('materialCostCorrelationDateUtils', () => {
       });
 
       it('should handle date at month boundary', () => {
-        const monthEnd = new Date('2024-01-31T10:30:00Z');
-        const result = normalizeEndDate(monthEnd, true);
+        const result = normalizeEndDate(new Date('2024-01-31T10:30:00Z'), true);
         expect(result.getUTCMonth()).toBe(0);
         expect(result.getUTCDate()).toBe(31);
         expect(result.getUTCHours()).toBe(23);
       });
 
       it('should handle leap year dates correctly', () => {
-        const leapYear = new Date('2024-02-29T10:30:00Z');
-        const result = normalizeEndDate(leapYear, true);
+        const result = normalizeEndDate(new Date('2024-02-29T10:30:00Z'), true);
         expect(result.getUTCFullYear()).toBe(2024);
         expect(result.getUTCMonth()).toBe(1);
         expect(result.getUTCDate()).toBe(29);
@@ -504,17 +458,17 @@ describe('materialCostCorrelationDateUtils', () => {
       });
 
       it('should throw DATE_RANGE_ERROR when start date is after end date', () => {
-        expect(() => {
-          parseAndNormalizeDateRangeUTC('2024-01-20', '2024-01-10', undefined, undefined);
-        }).toThrow();
+        let caught;
         try {
           parseAndNormalizeDateRangeUTC('2024-01-20', '2024-01-10', undefined, undefined);
         } catch (error) {
-          expect(error.type).toBe('DATE_RANGE_ERROR');
-          expect(error.message).toContain('must be less than or equal');
-          expect(error.effectiveStart).toBeDefined();
-          expect(error.effectiveEnd).toBeDefined();
+          caught = error;
         }
+        expect(caught).toBeDefined();
+        expect(caught.type).toBe('DATE_RANGE_ERROR');
+        expect(caught.message).toContain('must be less than or equal');
+        expect(caught.effectiveStart).toBeDefined();
+        expect(caught.effectiveEnd).toBeDefined();
       });
 
       it('should return valid range when start date equals end date (same day)', () => {
@@ -573,15 +527,11 @@ describe('materialCostCorrelationDateUtils', () => {
       });
 
       it('should throw error when start date missing and no defaultStartDate provided', () => {
-        expect(() => {
-          parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', undefined, undefined);
-        }).toThrow();
-        try {
-          parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', undefined, undefined);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('startDate is required');
-        }
+        expectDateParseError(
+          () => parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', undefined, undefined),
+          undefined,
+          (error) => expect(error.message).toContain('startDate is required'),
+        );
       });
     });
 
@@ -610,29 +560,23 @@ describe('materialCostCorrelationDateUtils', () => {
 
       it('should throw error for invalid defaultStartDate', () => {
         const invalidDefault = new Date('invalid');
-        expect(() => {
-          parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', invalidDefault, undefined);
-        }).toThrow();
-        try {
-          parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', invalidDefault, undefined);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('defaultStartDate must be a valid Date object');
-        }
+        expectDateParseError(
+          () => parseAndNormalizeDateRangeUTC(undefined, '2024-01-20', invalidDefault, undefined),
+          null,
+          (error) =>
+            expect(error.message).toContain('defaultStartDate must be a valid Date object'),
+        );
       });
 
       it('should throw error for invalid defaultEndDate', () => {
         const defaultStart = new Date('2024-01-01T00:00:00Z');
         const invalidDefaultEnd = new Date('invalid');
-        expect(() => {
-          parseAndNormalizeDateRangeUTC('2024-01-10', undefined, defaultStart, invalidDefaultEnd);
-        }).toThrow();
-        try {
-          parseAndNormalizeDateRangeUTC('2024-01-10', undefined, defaultStart, invalidDefaultEnd);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('defaultEndDate must be a valid Date object');
-        }
+        expectDateParseError(
+          () =>
+            parseAndNormalizeDateRangeUTC('2024-01-10', undefined, defaultStart, invalidDefaultEnd),
+          null,
+          (error) => expect(error.message).toContain('defaultEndDate must be a valid Date object'),
+        );
       });
 
       it('should use defaultEndDate when provided', () => {
@@ -651,14 +595,16 @@ describe('materialCostCorrelationDateUtils', () => {
 
     describe('Category 5: Date Range Validation', () => {
       it('should throw DATE_RANGE_ERROR with correct structure', () => {
+        let caught;
         try {
           parseAndNormalizeDateRangeUTC('2024-01-20', '2024-01-10', undefined, undefined);
         } catch (error) {
-          expect(error.type).toBe('DATE_RANGE_ERROR');
-          expect(error.message).toContain('must be less than or equal');
-          expect(error.effectiveStart).toBeDefined();
-          expect(error.effectiveEnd).toBeDefined();
+          caught = error;
         }
+        expect(caught?.type).toBe('DATE_RANGE_ERROR');
+        expect(caught?.message).toContain('must be less than or equal');
+        expect(caught?.effectiveStart).toBeDefined();
+        expect(caught?.effectiveEnd).toBeDefined();
       });
 
       it('should return valid range when start <= end', () => {
@@ -729,27 +675,19 @@ describe('materialCostCorrelationDateUtils', () => {
 
     describe('Category 5: Error Handling', () => {
       it('should throw DATE_PARSE_ERROR for invalid start date format', () => {
-        expect(() => {
-          parseAndNormalizeDateRangeUTC('invalid', '2024-01-20', undefined, undefined);
-        }).toThrow();
-        try {
-          parseAndNormalizeDateRangeUTC('invalid', '2024-01-20', undefined, undefined);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('startDate');
-        }
+        expectDateParseError(
+          () => parseAndNormalizeDateRangeUTC('invalid', '2024-01-20', undefined, undefined),
+          null,
+          (error) => expect(error.message).toContain('startDate'),
+        );
       });
 
       it('should throw DATE_PARSE_ERROR for invalid end date format', () => {
-        expect(() => {
-          parseAndNormalizeDateRangeUTC('2024-01-10', 'invalid', undefined, undefined);
-        }).toThrow();
-        try {
-          parseAndNormalizeDateRangeUTC('2024-01-10', 'invalid', undefined, undefined);
-        } catch (error) {
-          expect(error.type).toBe('DATE_PARSE_ERROR');
-          expect(error.message).toContain('endDate');
-        }
+        expectDateParseError(
+          () => parseAndNormalizeDateRangeUTC('2024-01-10', 'invalid', undefined, undefined),
+          null,
+          (error) => expect(error.message).toContain('endDate'),
+        );
       });
 
       it('should handle errors that are not DATE_PARSE_ERROR from startDate', () => {
