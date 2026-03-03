@@ -152,16 +152,20 @@ const logUnansweredFAQ = async function (req, res) {
     await verifyToken(req);
 
     const rawQuestion = req.body?.question;
-    const normalizedQuestion = rawQuestion?.replace(/\s+/g, ' ').trim();
+    const normalizedQuestion = rawQuestion?.replaceAll(/\s+/g, ' ').trim();
     if (!normalizedQuestion) {
       return res.status(400).json({ message: 'Question is required' });
     }
     const createdBy = req.user.userid;
 
-    const escapedQuestion = normalizedQuestion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const flexibleWhitespaceQuestion = escapedQuestion.replace(/\s+/g, '\\s+');
+    const escapedQuestion = normalizedQuestion.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+    const flexibleWhitespaceQuestion = escapedQuestion.replaceAll(/\s+/g, String.raw`\s+`);
+    const duplicateQuestionPattern = new RegExp(
+      String.raw`^\s*${flexibleWhitespaceQuestion}\s*$`,
+      'i',
+    );
     const existingQuestion = await UnansweredFAQ.findOne({
-      question: { $regex: `^\\s*${flexibleWhitespaceQuestion}\\s*$`, $options: 'i' },
+      question: { $regex: duplicateQuestionPattern },
     });
     if (existingQuestion) {
       return res.status(409).json({ message: 'This question has already been logged' });
