@@ -26,6 +26,21 @@ const {
   buildCostCorrelationResponse,
 } = require('../materialCostCorrelationHelpers');
 
+const DEFAULT_DATE_RANGE = {
+  effectiveStart: new Date('2024-01-01'),
+  effectiveEnd: new Date('2024-01-31'),
+};
+const DEFAULT_FILTERS = { projectIds: [], materialTypeIds: [] };
+const defaultRequestParams = () => ({
+  projectIds: [],
+  materialTypeIds: [],
+  dateRangeMeta: {},
+});
+const defaultModels = (mockProject, mockInventory) => ({
+  BuildingProject: mockProject,
+  BuildingInventoryType: mockInventory,
+});
+
 describe('materialCostCorrelationHelpers', () => {
   let mockBuildingMaterial;
   let mockBuildingProject;
@@ -400,11 +415,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should verify $unwind stage on updateRecord', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialUsage(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialUsage(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         expect(pipeline[1]).toEqual({ $unwind: '$updateRecord' });
@@ -430,11 +441,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should verify $group stage by project and itemType', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialUsage(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialUsage(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         expect(pipeline[3].$group._id.project).toBe('$project');
@@ -445,11 +452,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should verify $project stage for output reshaping', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialUsage(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialUsage(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         expect(pipeline[4].$project._id).toBe(0);
@@ -478,7 +481,7 @@ describe('materialCostCorrelationHelpers', () => {
         await aggregateMaterialUsage(
           mockBuildingMaterial,
           { projectIds: [], materialTypeIds: ['material1'] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_DATE_RANGE,
         );
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
@@ -499,8 +502,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialUsage(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual(mockResults);
@@ -517,8 +520,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialUsage(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual([]);
@@ -536,8 +539,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialUsage(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual([]);
@@ -559,11 +562,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should verify $match stage for status filter', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialCost(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialCost(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         expect(pipeline[2].$match['purchaseRecord.status']).toBe('Approved');
@@ -572,11 +571,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should verify $group stage with cost calculation', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialCost(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialCost(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         // Find the $group stage (Stage 4 in the pipeline, index 5)
@@ -592,11 +587,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should only include Approved status', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialCost(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialCost(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         expect(pipeline[2].$match['purchaseRecord.status']).toBe('Approved');
@@ -607,11 +598,7 @@ describe('materialCostCorrelationHelpers', () => {
       it('should require unitPrice and quantity to exist and be numbers', async () => {
         mockAggregateExec.mockResolvedValue([]);
 
-        await aggregateMaterialCost(
-          mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
-        );
+        await aggregateMaterialCost(mockBuildingMaterial, DEFAULT_FILTERS, DEFAULT_DATE_RANGE);
 
         const pipeline = mockBuildingMaterial.aggregate.mock.calls[0][0];
         // Stage 3: filter for quantity validation
@@ -638,8 +625,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialCost(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual(mockResults);
@@ -654,8 +641,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialCost(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual([]);
@@ -673,8 +660,8 @@ describe('materialCostCorrelationHelpers', () => {
 
         const result = await aggregateMaterialCost(
           mockBuildingMaterial,
-          { projectIds: [], materialTypeIds: [] },
-          { effectiveStart: new Date('2024-01-01'), effectiveEnd: new Date('2024-01-31') },
+          DEFAULT_FILTERS,
+          DEFAULT_DATE_RANGE,
         );
 
         expect(result).toEqual([]);
@@ -812,15 +799,8 @@ describe('materialCostCorrelationHelpers', () => {
         await buildCostCorrelationResponse(
           usageData,
           costData,
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(mockBuildingProject.find).toHaveBeenCalled();
@@ -836,14 +816,11 @@ describe('materialCostCorrelationHelpers', () => {
           usageData,
           costData,
           {
+            ...defaultRequestParams(),
             projectIds: ['project1'],
             materialTypeIds: ['material1'],
-            dateRangeMeta: {},
           },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(mockBuildingProject.find).toHaveBeenCalled();
@@ -862,15 +839,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.meta).toBeDefined();
@@ -883,15 +853,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [{ projectId: 'missing-project', materialTypeId: 'material1', quantityUsed: 10 }],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data).toBeDefined();
@@ -909,15 +872,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.meta).toBeDefined();
@@ -936,15 +892,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           usageData,
           costData,
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data).toHaveLength(1);
@@ -962,15 +911,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           usageData,
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].byMaterialType[0].quantityUsed).toBe(10);
@@ -985,15 +927,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           costData,
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].byMaterialType[0].quantityUsed).toBe(0);
@@ -1013,15 +948,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           usageData,
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].totals.quantityUsed).toBe(30);
@@ -1038,15 +966,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           costData,
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].totals.totalCost).toBe(300);
@@ -1063,15 +984,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           usageData,
           costData,
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].totals.costPerUnit).toBe(10);
@@ -1088,15 +1002,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: ['project1'],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          { ...defaultRequestParams(), projectIds: ['project1'] },
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data).toHaveLength(1);
@@ -1119,15 +1026,8 @@ describe('materialCostCorrelationHelpers', () => {
             { projectId: 'project2', materialTypeId: 'material1', quantityUsed: 20 },
           ],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data[0].projectName).toBe('Alpha Project');
@@ -1203,15 +1103,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.meta.units.currency).toBe('USD');
@@ -1228,15 +1121,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result).toHaveProperty('meta');
@@ -1254,15 +1140,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [{ projectId: 'project1', materialTypeId: 'material1', quantityUsed: 10 }],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result).toBeDefined();
@@ -1288,15 +1167,8 @@ describe('materialCostCorrelationHelpers', () => {
         const result = await buildCostCorrelationResponse(
           [],
           [],
-          {
-            projectIds: [],
-            materialTypeIds: [],
-            dateRangeMeta: {},
-          },
-          {
-            BuildingProject: mockBuildingProject,
-            BuildingInventoryType: mockBuildingInventoryType,
-          },
+          defaultRequestParams(),
+          defaultModels(mockBuildingProject, mockBuildingInventoryType),
         );
 
         expect(result.data).toEqual([]);
