@@ -8,18 +8,20 @@ const controller = function (CostBreakdown) {
       const { projectId } = req.params;
       const { fromDate, toDate } = req.query;
 
-      console.log('Date range:', { fromDate, toDate });
+      const sanitizedProjectId = Number(projectId);
+      if (Number.isNaN(sanitizedProjectId)) {
+        return res.status(400).json({ message: 'Invalid project ID' });
+      }
 
       // Find the cost breakdown for the project
       const costBreakdown = await CostBreakdown.findOne({
-        $or: [{ projectId }, { projectId: Number(projectId) }],
+        $or: [{ projectId: String(sanitizedProjectId) }, { projectId: sanitizedProjectId }],
       });
 
       if (!costBreakdown) {
-        console.log('Cost breakdown not found for project ID:', projectId);
         return res.status(404).json({
           message: 'Cost breakdown not found for this project',
-          projectId: Number(projectId),
+          projectId: sanitizedProjectId,
         });
       }
 
