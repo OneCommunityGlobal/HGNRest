@@ -1,3 +1,5 @@
+/* eslint-disable import/extensions */
+/* eslint-disable import/no-unresolved */
 const WastedMaterial = require('../models/mostWastedModel');
 
 // new controller

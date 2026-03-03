@@ -1,6 +1,8 @@
+/* eslint-disable no-unused-vars */
 const express = require('express');
 
-// const router = express.Router();
+// eslint-disable-next-line no-unused-vars
+const router = express.Router();
 
 const routes = function () {
   const controller = require('../controllers/communityController')();
