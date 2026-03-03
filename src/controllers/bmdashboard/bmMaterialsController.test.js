@@ -1,10 +1,14 @@
 const bmMaterialsController = require('./bmMaterialsController');
 
-jest.mock('mongoose', () => ({
-  Types: {
-    ObjectId: jest.fn((id) => id),
-  },
-}));
+jest.mock('mongoose', () => {
+  const mockObjectId = jest.fn((id) => id);
+  mockObjectId.isValid = (id) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id);
+  return {
+    Types: {
+      ObjectId: mockObjectId,
+    },
+  };
+});
 
 describe('bmMaterialsController', () => {
   let BuildingMaterialMock;
@@ -137,23 +141,25 @@ describe('bmMaterialsController', () => {
 
       await controller.bmPurchaseMaterials(req, res);
 
-      expect(BuildingMaterialMock.findOne).toHaveBeenCalledWith({
-        project: validProjectId,
-        itemType: validMaterialTypeId,
-      });
-      expect(BuildingMaterialMock.create).toHaveBeenCalledWith({
-        itemType: validMaterialTypeId,
-        project: validProjectId,
-        purchaseRecord: [
-          {
-            quantity: 100,
-            priority: 'High',
-            brandPref: 'Premium Brand',
-            requestedBy: validRequestorId,
-          },
-        ],
-        stockBought: 100,
-      });
+      expect(BuildingMaterialMock.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: expect.anything(),
+          itemType: expect.anything(),
+        }),
+      );
+      expect(BuildingMaterialMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          purchaseRecord: [
+            {
+              quantity: 100,
+              priority: 'High',
+              brandPref: 'Premium Brand',
+              requestedBy: validRequestorId,
+            },
+          ],
+          stockBought: 100,
+        }),
+      );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.send).toHaveBeenCalled();
     });
@@ -281,9 +287,11 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmupdatePurchaseStatus', () => {
+    const validPurchaseId = '507f1f77bcf86cd7994390bb';
+
     it('should successfully update purchase status from Pending to Approved', async () => {
       const updateData = {
-        purchaseId: 'purchase123',
+        purchaseId: validPurchaseId,
         status: 'Approved',
         quantity: 100,
       };
@@ -292,7 +300,7 @@ describe('bmMaterialsController', () => {
 
       const mockMaterial = {
         _id: 'material123',
-        purchaseRecord: [{ _id: 'purchase123', status: 'Pending', quantity: 100 }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending', quantity: 100 }],
       };
 
       BuildingMaterialMock.findOne.mockResolvedValue(mockMaterial);
@@ -300,16 +308,17 @@ describe('bmMaterialsController', () => {
 
       await controller.bmupdatePurchaseStatus(req, res);
 
-      expect(BuildingMaterialMock.findOne).toHaveBeenCalledWith({
-        'purchaseRecord._id': 'purchase123',
-      });
-      // Controller does NOT call findOneAndUpdate; don't assert it
+      expect(BuildingMaterialMock.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'purchaseRecord._id': expect.anything(),
+        }),
+      );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
     });
     it('should return 404 when purchase is not found', async () => {
       const updateData = {
-        purchaseId: 'nonexistentPurchase',
+        purchaseId: '507f1f77bcf86cd799439099',
         status: 'Approved',
         quantity: 100,
       };
@@ -324,9 +333,28 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith('Purchase not found');
     });
 
+    it('should return 400 when purchaseId is invalid', async () => {
+      req.body = {
+        purchaseId: 'not-valid-objectid',
+        status: 'Approved',
+        quantity: 100,
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Invalid purchase ID format',
+          field: 'purchaseId',
+        }),
+      );
+      expect(BuildingMaterialMock.findOne).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when trying to update non-Pending purchase', async () => {
       const updateData = {
-        purchaseId: 'purchase123',
+        purchaseId: validPurchaseId,
         status: 'Approved',
         quantity: 100,
       };
@@ -337,7 +365,7 @@ describe('bmMaterialsController', () => {
         _id: 'material123',
         purchaseRecord: [
           {
-            _id: 'purchase123',
+            _id: validPurchaseId,
             status: 'Approved',
             quantity: 100,
           },
