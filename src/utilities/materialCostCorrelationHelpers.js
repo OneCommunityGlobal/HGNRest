@@ -9,43 +9,38 @@ const mongoose = require('mongoose');
 const logger = require('../startup/logger');
 
 /**
- * Resolve project names to ObjectIds by querying the BuildingProject model.
+ * Generic: resolve names to ObjectIds by querying a model with name field.
  *
- * @param {string[]} projectNames - Array of project names to resolve
- * @param {Object} BuildingProject - Mongoose model for BuildingProject
+ * @param {string[]} names - Array of names to resolve
+ * @param {Object} Model - Mongoose model with find(), documents with _id and name
+ * @param {Object} options - { queryFilter, messageNotFound, messageDbError, paramName, logContext }
  * @returns {Promise<string[]>} Array of ObjectId strings
- * @throws {Object} Structured error object with type 'NAME_RESOLUTION_ERROR' if names not found
+ * @throws {Object} Structured error with type 'NAME_RESOLUTION_ERROR' if names not found
  */
-async function resolveProjectNamesToIds(projectNames, BuildingProject) {
-  if (!projectNames || projectNames.length === 0) {
+async function resolveNamesToIds(names, Model, options) {
+  const { queryFilter = {}, messageNotFound, messageDbError, paramName, logContext = {} } = options;
+
+  if (!names || names.length === 0) {
     return [];
   }
 
   try {
-    // Query projects by name (case-insensitive, exact match)
-    const projects = await BuildingProject.find({
-      name: { $in: projectNames },
-      isActive: true, // Only active projects
-    })
-      .select('_id name')
-      .exec();
+    const query = { name: { $in: names }, ...queryFilter };
+    const docs = await Model.find(query).select('_id name').exec();
 
-    // Create a map of name (lowercase) to ObjectId
     const nameToIdMap = new Map();
-    projects.forEach((project) => {
-      if (project.name) {
-        nameToIdMap.set(project.name.toLowerCase(), project._id.toString());
+    docs.forEach((doc) => {
+      if (doc.name) {
+        nameToIdMap.set(doc.name.toLowerCase(), doc._id.toString());
       }
     });
 
-    // Check for missing names
     const missingNames = [];
     const resolvedIds = [];
 
-    projectNames.forEach((name) => {
+    names.forEach((name) => {
       const normalizedName = name.trim().toLowerCase();
       const id = nameToIdMap.get(normalizedName);
-
       if (id) {
         resolvedIds.push(id);
       } else {
@@ -53,36 +48,46 @@ async function resolveProjectNamesToIds(projectNames, BuildingProject) {
       }
     });
 
-    // If any names were not found, throw error
     if (missingNames.length > 0) {
-      const error = {
-        type: 'NAME_RESOLUTION_ERROR',
-        message: `The following project names were not found: ${missingNames.join(', ')}`,
-        missingNames,
-        paramName: 'projectName',
-      };
-      throw error;
+      const err = new Error(messageNotFound(missingNames));
+      err.type = 'NAME_RESOLUTION_ERROR';
+      err.missingNames = missingNames;
+      err.paramName = paramName;
+      throw err;
     }
 
     return resolvedIds;
   } catch (error) {
-    // Re-throw if it's already a structured error
     if (error.type === 'NAME_RESOLUTION_ERROR') {
       throw error;
     }
-
-    // Wrap database errors
-    logger.logException(error, 'resolveProjectNamesToIds - database query', {
-      projectNamesCount: projectNames.length,
+    logger.logException(error, `${logContext.fn || 'resolveNamesToIds'} - database query`, {
+      ...logContext,
+      namesCount: names.length,
     });
-
-    const dbError = {
-      type: 'NAME_RESOLUTION_ERROR',
-      message: 'Error resolving project names. Please try again or use projectId instead.',
-      paramName: 'projectName',
-    };
-    throw dbError;
+    const err = new Error(messageDbError);
+    err.type = 'NAME_RESOLUTION_ERROR';
+    err.paramName = paramName;
+    throw err;
   }
+}
+
+/**
+ * Resolve project names to ObjectIds by querying the BuildingProject model.
+ *
+ * @param {string[]} projectNames - Array of project names to resolve
+ * @param {Object} BuildingProject - Mongoose model for BuildingProject
+ * @returns {Promise<string[]>} Array of ObjectId strings
+ */
+async function resolveProjectNamesToIds(projectNames, BuildingProject) {
+  return resolveNamesToIds(projectNames, BuildingProject, {
+    queryFilter: { isActive: true },
+    messageNotFound: (missing) =>
+      `The following project names were not found: ${missing.join(', ')}`,
+    messageDbError: 'Error resolving project names. Please try again or use projectId instead.',
+    paramName: 'projectName',
+    logContext: { fn: 'resolveProjectNamesToIds' },
+  });
 }
 
 /**
@@ -91,74 +96,16 @@ async function resolveProjectNamesToIds(projectNames, BuildingProject) {
  * @param {string[]} materialNames - Array of material type names to resolve
  * @param {Object} BuildingInventoryType - Mongoose model for BuildingInventoryType
  * @returns {Promise<string[]>} Array of ObjectId strings
- * @throws {Object} Structured error object with type 'NAME_RESOLUTION_ERROR' if names not found
  */
 async function resolveMaterialNamesToIds(materialNames, BuildingInventoryType) {
-  if (!materialNames || materialNames.length === 0) {
-    return [];
-  }
-
-  try {
-    // Query material types by name (case-insensitive, exact match)
-    const materials = await BuildingInventoryType.find({
-      name: { $in: materialNames },
-    })
-      .select('_id name')
-      .exec();
-
-    // Create a map of name (lowercase) to ObjectId
-    const nameToIdMap = new Map();
-    materials.forEach((material) => {
-      if (material.name) {
-        nameToIdMap.set(material.name.toLowerCase(), material._id.toString());
-      }
-    });
-
-    // Check for missing names
-    const missingNames = [];
-    const resolvedIds = [];
-
-    materialNames.forEach((name) => {
-      const normalizedName = name.trim().toLowerCase();
-      const id = nameToIdMap.get(normalizedName);
-
-      if (id) {
-        resolvedIds.push(id);
-      } else {
-        missingNames.push(name);
-      }
-    });
-
-    // If any names were not found, throw error
-    if (missingNames.length > 0) {
-      const error = {
-        type: 'NAME_RESOLUTION_ERROR',
-        message: `The following material type names were not found: ${missingNames.join(', ')}`,
-        missingNames,
-        paramName: 'materialName',
-      };
-      throw error;
-    }
-
-    return resolvedIds;
-  } catch (error) {
-    // Re-throw if it's already a structured error
-    if (error.type === 'NAME_RESOLUTION_ERROR') {
-      throw error;
-    }
-
-    // Wrap database errors
-    logger.logException(error, 'resolveMaterialNamesToIds - database query', {
-      materialNamesCount: materialNames.length,
-    });
-
-    const dbError = {
-      type: 'NAME_RESOLUTION_ERROR',
-      message: 'Error resolving material type names. Please try again or use materialType instead.',
-      paramName: 'materialName',
-    };
-    throw dbError;
-  }
+  return resolveNamesToIds(materialNames, BuildingInventoryType, {
+    messageNotFound: (missing) =>
+      `The following material type names were not found: ${missing.join(', ')}`,
+    messageDbError:
+      'Error resolving material type names. Please try again or use materialType instead.',
+    paramName: 'materialName',
+    logContext: { fn: 'resolveMaterialNamesToIds' },
+  });
 }
 
 /**
@@ -365,25 +312,7 @@ async function aggregateMaterialCost(BuildingMaterial, filters, dateRange) {
     const { projectIds, materialTypeIds } = filters;
     const { effectiveStart, effectiveEnd } = dateRange;
 
-    // Convert string IDs to ObjectIds
-    let projectObjectIds = [];
-    if (projectIds && projectIds.length > 0) {
-      projectObjectIds = convertStringsToObjectIds(projectIds);
-    }
-
-    let materialTypeObjectIds = [];
-    if (materialTypeIds && materialTypeIds.length > 0) {
-      materialTypeObjectIds = convertStringsToObjectIds(materialTypeIds);
-    }
-
-    // Build base match with ObjectIds
-    const baseMatch = {};
-    if (projectObjectIds.length > 0) {
-      baseMatch.project = { $in: projectObjectIds };
-    }
-    if (materialTypeObjectIds.length > 0) {
-      baseMatch.itemType = { $in: materialTypeObjectIds };
-    }
+    const baseMatch = buildBaseMatchForMaterials(projectIds, materialTypeIds);
 
     // Create aggregation pipeline
     const pipeline = [
@@ -500,10 +429,10 @@ function calculateTotalCostK(totalCost) {
  * @returns {string} String representation of the ID
  */
 function objectIdToString(id) {
-  if (!id) {
-    return '';
-  }
-  return id.toString ? id.toString() : String(id);
+  if (id === null || id === undefined) return '';
+  if (typeof id === 'string') return id;
+  if (typeof id.toString === 'function') return id.toString();
+  return '';
 }
 
 /**
@@ -560,6 +489,27 @@ async function buildLookupMaps(
 }
 
 /**
+ * Get or create merged entry for a projectId-materialTypeId key.
+ *
+ * @param {Map} mergedData - Map to mutate
+ * @param {string} projectIdStr - Project ID string
+ * @param {string} materialTypeIdStr - Material type ID string
+ * @returns {Object} Entry with projectId, materialTypeId, quantityUsed, totalCost
+ */
+function getOrCreateMergedEntry(mergedData, projectIdStr, materialTypeIdStr) {
+  const key = `${projectIdStr}-${materialTypeIdStr}`;
+  if (!mergedData.has(key)) {
+    mergedData.set(key, {
+      projectId: projectIdStr,
+      materialTypeId: materialTypeIdStr,
+      quantityUsed: 0,
+      totalCost: 0,
+    });
+  }
+  return mergedData.get(key);
+}
+
+/**
  * Merge usage and cost data by composite key.
  *
  * @param {Array} usageData - Array from aggregateMaterialUsage
@@ -569,56 +519,31 @@ async function buildLookupMaps(
 function mergeUsageAndCostData(usageData, costData) {
   const mergedData = new Map();
 
-  // Process usage data
   if (usageData && Array.isArray(usageData)) {
     usageData.forEach((item) => {
-      if (!item || !item.projectId || !item.materialTypeId) return;
-
-      const projectIdStr = objectIdToString(item.projectId);
-      const materialTypeIdStr = objectIdToString(item.materialTypeId);
-      const key = `${projectIdStr}-${materialTypeIdStr}`;
-
-      if (!mergedData.has(key)) {
-        mergedData.set(key, {
-          projectId: projectIdStr,
-          materialTypeId: materialTypeIdStr,
-          quantityUsed: 0,
-          totalCost: 0,
-        });
-      }
-      mergedData.get(key).quantityUsed = item.quantityUsed || 0;
+      if (!item?.projectId || !item?.materialTypeId) return;
+      const entry = getOrCreateMergedEntry(
+        mergedData,
+        objectIdToString(item.projectId),
+        objectIdToString(item.materialTypeId),
+      );
+      entry.quantityUsed = item.quantityUsed || 0;
     });
   }
 
-  // Process cost data
   if (costData && Array.isArray(costData)) {
     costData.forEach((item) => {
-      if (!item || !item.projectId || !item.materialTypeId) {
-        return;
-      }
-
-      const projectIdStr = objectIdToString(item.projectId);
-      const materialTypeIdStr = objectIdToString(item.materialTypeId);
-      const key = `${projectIdStr}-${materialTypeIdStr}`;
-
-      if (!mergedData.has(key)) {
-        mergedData.set(key, {
-          projectId: projectIdStr,
-          materialTypeId: materialTypeIdStr,
-          quantityUsed: 0,
-          totalCost: 0,
-        });
-      }
-
-      // Extract and validate cost value
+      if (!item?.projectId || !item?.materialTypeId) return;
+      const entry = getOrCreateMergedEntry(
+        mergedData,
+        objectIdToString(item.projectId),
+        objectIdToString(item.materialTypeId),
+      );
       const cost =
         typeof item.totalCost === 'number' && !Number.isNaN(item.totalCost)
           ? item.totalCost
-          : parseFloat(item.totalCost) || 0;
-
-      // Ensure we're setting a valid number
-      const existingEntry = mergedData.get(key);
-      existingEntry.totalCost = typeof cost === 'number' && !Number.isNaN(cost) ? cost : 0;
+          : Number.parseFloat(item.totalCost) || 0;
+      entry.totalCost = typeof cost === 'number' && !Number.isNaN(cost) ? cost : 0;
     });
   }
 
