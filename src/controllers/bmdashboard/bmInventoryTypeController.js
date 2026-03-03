@@ -373,11 +373,13 @@ function bmInventoryTypeController(
       const {
         name,
         unit,
-        type,
+        type: rawType,
         requestor: { requestorId },
       } = req.body;
 
       // Selection of Collection depending on Type
+      const allowedTypes = ['Material', 'Consumable'];
+      const type = allowedTypes.includes(rawType) ? rawType : 'Inventory';
       let CollectionName = InvType;
       if (type === 'Material') {
         CollectionName = MatType;
@@ -399,7 +401,9 @@ function bmInventoryTypeController(
         });
 
         if (existingInvType) {
-          return res.status(404).send(`${type} name already exists`);
+          return res.status(409).json({
+            message: 'Inventory type name already exists',
+          });
         }
       }
 
