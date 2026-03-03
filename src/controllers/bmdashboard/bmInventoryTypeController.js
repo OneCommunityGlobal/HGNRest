@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const filename = 'BuildingUnits.json';
 const currentFilePath = __filename;
@@ -376,62 +377,74 @@ function bmInventoryTypeController(
         type: rawType,
         requestor: { requestorId },
       } = req.body;
-
+      const historyDocs = [];
+      const updateData = {};
       // Selection of Collection depending on Type
       const allowedTypes = ['Material', 'Consumable'];
-      const type = allowedTypes.includes(rawType) ? rawType : 'Inventory';
+      const itemTtype = allowedTypes.includes(rawType) ? rawType : 'Inventory';
+
+      // Validate invtypeId
+      if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
+        return res.status(400).json({ message: 'Invalid inventory type ID' });
+      }
+      // Sanitize name
+      const safeName = String(name).trim();
+      if (!safeName) {
+        return res.status(400).json({ message: 'Invalid inventory name' });
+      }
+      // Extract and sanitize
+      const safeUnit = String(unit).trim();
+      if (!safeUnit || safeUnit.length > 50) {
+        return res.status(400).json({ message: 'Invalid unit value' });
+      }
+
       let CollectionName = InvType;
-      if (type === 'Material') {
+      if (itemTtype === 'Material') {
         CollectionName = MatType;
-      } else if (type === 'Consumable') {
+      } else if (itemTtype === 'Consumable') {
         CollectionName = ConsType;
       }
 
       // Fetch existing document
       const invType = await CollectionName.findById(invtypeId);
       if (!invType) {
-        return res.status(404).send(`invType ${type} not found check Id`);
+        return res.status(404).send('Inventory type not found check Id');
       }
 
-      // Name uniqueness check
-      if (name && name !== invType.name) {
-        const existingInvType = await CollectionName.findOne({
-          name,
-          _id: { $ne: invtypeId },
+      // Perform query using sanitized values
+      const existingInvType = await CollectionName.findOne({
+        name: safeName,
+        _id: { $ne: mongoose.Types.ObjectId(invtypeId) },
+      });
+
+      if (existingInvType) {
+        return res.status(409).json({
+          message: 'Inventory type name already exists',
         });
-
-        if (existingInvType) {
-          return res.status(409).json({
-            message: 'Inventory type name already exists',
-          });
-        }
       }
-
-      const historyDocs = [];
-      const updateData = {};
 
       // Track name change
-      if (name && name !== invType.name) {
+      if (safeName && safeName !== invType.name) {
         historyDocs.push({
           invtypeId,
           field: 'name',
           oldValue: invType.name,
-          newValue: name,
+          newValue: safeName,
           editedBy: requestorId,
         });
-        updateData.name = name;
+        updateData.name = safeName;
       }
 
       // Track unit change
-      if (unit && unit !== invType.unit) {
+      if (safeUnit && safeUnit !== invType.unit) {
         historyDocs.push({
           invtypeId,
           field: 'unit',
           oldValue: invType.unit,
-          newValue: unit,
+          newValue: safeUnit,
           editedBy: requestorId,
         });
-        updateData.unit = unit;
+        updateData.unit = safeUnit;
       }
 
       //  Save history (if any)
