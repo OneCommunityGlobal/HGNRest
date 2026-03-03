@@ -37,6 +37,7 @@ describe('bmMaterialsRouter', () => {
     it('should register GET method for cost-correlation route', () => {
       // Create a test app to verify route registration
       const app = express();
+      app.disable('x-powered-by');
       app.use('/test', router);
 
       // The route should be registered - we verify by checking the controller is called
@@ -72,6 +73,7 @@ describe('bmMaterialsRouter', () => {
     it('should ensure specific route matches before parameterized route', () => {
       // Create Express app to test route matching
       const app = express();
+      app.disable('x-powered-by');
       app.use('/api/bm', router);
 
       // Mock request handlers
