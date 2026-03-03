@@ -4,7 +4,7 @@ const projectStatusController = require('../controllers/projectStatusController'
 module.exports = function () {
   const router = express.Router();
 
-  router.get('/status', projectStatusController.getProjectStatusSummary);
+  router.get('/summary', projectStatusController.getProjectStatusSummary);
 
   return router;
 };
