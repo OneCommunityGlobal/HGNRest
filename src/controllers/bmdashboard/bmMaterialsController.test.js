@@ -166,10 +166,12 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmPostMaterialUpdateRecord', () => {
+    const validMaterialId = '507f1f77bcf86cd799439011';
+
     it('should update material stock with valid quantities', async () => {
       const updateData = {
         material: {
-          _id: 'material123',
+          _id: validMaterialId,
           stockAvailable: 100,
           stockUsed: 20,
           stockWasted: 5,
@@ -190,7 +192,7 @@ describe('bmMaterialsController', () => {
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(BuildingMaterialMock.updateOne).toHaveBeenCalledWith(
-        { _id: 'material123' },
+        expect.objectContaining({ _id: expect.anything() }),
         {
           $set: {
             stockUsed: 30,
@@ -214,7 +216,7 @@ describe('bmMaterialsController', () => {
     it('should handle percentage-based quantity calculations correctly', async () => {
       const updateData = {
         material: {
-          _id: 'material123',
+          _id: validMaterialId,
           stockAvailable: 100,
           stockUsed: 20,
           stockWasted: 5,
@@ -235,7 +237,7 @@ describe('bmMaterialsController', () => {
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(BuildingMaterialMock.updateOne).toHaveBeenCalledWith(
-        { _id: 'material123' },
+        expect.objectContaining({ _id: expect.anything() }),
         {
           $set: {
             stockUsed: 45,

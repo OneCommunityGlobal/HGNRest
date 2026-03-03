@@ -153,9 +153,16 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmPostMaterialUpdateRecord = function (req, res) {
     const payload = req.body;
+    const { material } = req.body;
+    if (!material || !mongoose.Types.ObjectId.isValid(material._id)) {
+      return res.status(400).json({
+        message: 'Invalid material ID format',
+        field: 'material._id',
+      });
+    }
+    const materialObjectId = new mongoose.Types.ObjectId(material._id);
     let quantityUsed = +req.body.quantityUsed;
     let quantityWasted = +req.body.quantityWasted;
-    const { material } = req.body;
     if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
       quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(DECIMAL_PRECISION);
     }
@@ -186,8 +193,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       newStockWasted = Number.parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
       newAvailable = Number.parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       BuildingMaterial.updateOne(
-        { _id: req.body.material._id },
-
+        { _id: materialObjectId },
         {
           $set: {
             stockUsed: newStockUsed,
