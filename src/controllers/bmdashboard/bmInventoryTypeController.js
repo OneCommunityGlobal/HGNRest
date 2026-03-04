@@ -604,13 +604,13 @@ function bmInventoryTypeController(
   const fetchInvTypeHistory = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-
-      if (!invtypeId || !invtypeId.match(/^[0-9a-fA-F]{24}$/)) {
+      const safeInvTypeId = new mongoose.Types.ObjectId(invtypeId);
+      if (!safeInvTypeId || !safeInvTypeId.match(/^[0-9a-fA-F]{24}$/)) {
         return res.status(400).json({ message: 'Invalid inventory type id' });
       }
 
       const history = await invTypeHistory
-        .find({ invtypeId })
+        .find({ safeInvTypeId })
         .populate('editedBy', '_id firstName lastName email')
         .sort({ editedAt: -1 })
         .lean();
