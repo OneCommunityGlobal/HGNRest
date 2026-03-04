@@ -280,6 +280,42 @@ const educationTaskController = function () {
     }
   };
 
+  // Mark a student's task as completed from the student dashboard flow.
+  const markTaskAsComplete = async (req, res) => {
+    try {
+      const { taskId, studentId } = req.body;
+
+      if (!taskId || !studentId) {
+        return res.status(400).json({ error: 'taskId and studentId are required' });
+      }
+
+      const task = await EducationTask.findOne({ _id: taskId, studentId });
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found for this student' });
+      }
+
+      if (task.status === 'completed' || task.status === 'graded') {
+        return res.status(200).json(task);
+      }
+
+      const updatedTask = await EducationTask.findByIdAndUpdate(
+        taskId,
+        {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        { new: true, runValidators: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
+
+      res.status(200).json(updatedTask);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   // Get tasks by status
   const getTasksByStatus = async (req, res) => {
     try {
@@ -409,6 +445,7 @@ const educationTaskController = function () {
     deleteTask,
     updateTaskStatus,
     gradeTask,
+    markTaskAsComplete,
     getTasksByStatus,
     getTaskSubmissions,
   };
