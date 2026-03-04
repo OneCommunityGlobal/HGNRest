@@ -604,6 +604,7 @@ function bmInventoryTypeController(
   const fetchInvTypeHistory = async (req, res) => {
     try {
       const { invtypeId } = req.params;
+      const invTypeID = invtypeId;
       if (
         !invtypeId ||
         !invtypeId.match(/^[0-9a-fA-F]{24}$/) ||
@@ -613,7 +614,7 @@ function bmInventoryTypeController(
       }
 
       const history = await invTypeHistory
-        .find({ invtypeId })
+        .find({ invTypeID })
         .populate('editedBy', '_id firstName lastName email')
         .sort({ editedAt: -1 })
         .lean();
