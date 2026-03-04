@@ -1,7 +1,15 @@
+const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
+
+const toObjectId = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!mongoose.Types.ObjectId.isValid(trimmed)) return null;
+  return new mongoose.Types.ObjectId(trimmed);
+};
 
 const educationTaskController = function () {
   // Get all education tasks
@@ -289,7 +297,13 @@ const educationTaskController = function () {
         return res.status(400).json({ error: 'taskId and studentId are required' });
       }
 
-      const task = await EducationTask.findOne({ _id: taskId, studentId });
+      const safeTaskId = toObjectId(taskId);
+      const safeStudentId = toObjectId(studentId);
+      if (!safeTaskId || !safeStudentId) {
+        return res.status(400).json({ error: 'Invalid taskId or studentId format' });
+      }
+
+      const task = await EducationTask.findOne({ _id: safeTaskId, studentId: safeStudentId });
       if (!task) {
         return res.status(404).json({ error: 'Task not found for this student' });
       }
@@ -299,7 +313,7 @@ const educationTaskController = function () {
       }
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
-        taskId,
+        safeTaskId,
         {
           status: 'completed',
           completedAt: new Date(),
@@ -333,30 +347,54 @@ const educationTaskController = function () {
 
   const getTaskSubmissions = async (req, res) => {
     try {
-      const { status, studentId, lessonPlanId, courseId } = req.query;
+      const {
+        status,
+        studentId,
+        student_id: studentIdAlias,
+        lessonPlanId,
+        courseId,
+        course_id: courseIdAlias,
+      } = req.query;
 
       const filter = {};
 
       // Support friendly status values from frontend (e.g., "submissions", "pending submissions")
       // Map them to internal task statuses where applicable.
       if (status) {
-        const statusMap = {
+        const statusMap = Object.freeze({
           submissions: 'completed',
           'pending submissions': 'assigned',
           pending: 'assigned',
           completed: 'completed',
           graded: 'graded',
-        };
-        filter.status = statusMap[status] || status;
+          assigned: 'assigned',
+          in_progress: 'in_progress',
+        });
+        const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+        const mappedStatus = statusMap[normalizedStatus];
+        if (!mappedStatus) {
+          return res.status(400).json({ error: 'Invalid status filter' });
+        }
+        filter.status = mappedStatus;
       }
-      if (studentId) {
-        filter.studentId = studentId;
+
+      const rawStudentId = studentId || studentIdAlias;
+      if (rawStudentId) {
+        const safeStudentId = toObjectId(rawStudentId);
+        if (!safeStudentId) {
+          return res.status(400).json({ error: 'Invalid studentId filter' });
+        }
+        filter.studentId = safeStudentId;
       }
 
       // Accept `courseId` as an alias for lessonPlanId when frontend sends course filters.
-      const lpFilterId = lessonPlanId || courseId;
+      const lpFilterId = lessonPlanId || courseId || courseIdAlias;
       if (lpFilterId) {
-        filter.lessonPlanId = lpFilterId;
+        const safeLessonPlanId = toObjectId(lpFilterId);
+        if (!safeLessonPlanId) {
+          return res.status(400).json({ error: 'Invalid courseId filter' });
+        }
+        filter.lessonPlanId = safeLessonPlanId;
       }
 
       const submissions = await EducationTask.find(filter)
