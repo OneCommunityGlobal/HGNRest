@@ -87,15 +87,15 @@ const createCatalog = async (req, res) => {
       .join('');
     const safeLabel = label
       .split('')
-      .filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126)
+      .filter((c) => c.codePointAt(0) >= 32 && c.codePointAt(0) <= 126)
       .join('')
       .slice(0, 30);
 
     const item = await UserStateCatalog.create({
-      key: safeKey,
-      label: safeLabel,
-      color: safeColor,
-      order: nextOrder,
+      key: String(safeKey),
+      label: String(safeLabel),
+      color: String(safeColor),
+      order: Number(nextOrder),
       isActive: true,
     });
 
