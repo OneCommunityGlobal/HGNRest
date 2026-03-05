@@ -49,9 +49,12 @@ const logUserPermissionChangeByAccount = async (req, user) => {
         : [];
       roleChanged = reason.includes('Role Changed');
       const docSavedChanges = [...docPermissions, docRemovedRolePermissions];
+      const sortedSaved = [...docSavedChanges].sort((a, b) => a.localecompare(b));
+      const sortedChanged = [...changedPermissions].sort((a, b) => a.localecompare(b));
       // no new changes in permissions list from last update and no role change
       if (
-        JSON.stringify(docSavedChanges.sort()) === JSON.stringify(changedPermissions.sort()) &&
+        sortedSaved.length === sortedChanged.length &&
+        sortedSaved.every((value, index) => value === sortedChanged[index]) &&
         !roleChanged
       ) {
         return;
