@@ -277,12 +277,92 @@ const bmEquipmentController = (BuildingEquipment) => {
     }
   };
 
+  const updateEquipmentStatus = async (req, res) => {
+    const { equipmentId } = req.params;
+    const {
+      condition,
+      lastUsedBy,
+      lastUsedFor,
+      replacementRequired,
+      description,
+      notes,
+      createdBy,
+    } = req.body;
+
+    try {
+      // Validate required fields
+      if (!condition || !createdBy) {
+        return res.status(400).send({
+          error: 'Condition and createdBy are required fields.',
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
+        console.error('Invalid createdBy ID:', createdBy);
+        return res.status(400).send({
+          error: 'Invalid user ID format. Please log in again.',
+          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
+        });
+      }
+
+      const updateRecord = {
+        date: new Date(),
+        createdBy: new mongoose.Types.ObjectId(createdBy),
+        condition,
+        lastUsedBy: lastUsedBy || '',
+        lastUsedFor: lastUsedFor || '',
+        replacementRequired: replacementRequired || '',
+        description: description || '',
+        notes: notes || '',
+      };
+
+      console.log('Adding update record:', updateRecord);
+
+      // Update the equipment with new status
+      const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
+        equipmentId,
+        {
+          $push: {
+            updateRecord,
+          },
+        },
+        { new: true },
+      ).populate([
+        {
+          path: 'itemType',
+          select: '_id name description unit imageUrl category',
+        },
+        {
+          path: 'project',
+          select: 'name',
+        },
+        {
+          path: 'updateRecord.createdBy',
+          select: '_id firstName lastName',
+        },
+      ]);
+
+      if (!updatedEquipment) {
+        return res.status(404).send({ error: 'Equipment not found.' });
+      }
+
+      res.status(200).send(updatedEquipment);
+    } catch (error) {
+      console.error('[updateEquipmentStatus] ', error);
+      res.status(500).send({
+        error: 'Failed to update equipment status',
+        details: error.message,
+      });
+    }
+  };
+
   return {
     fetchSingleEquipment,
     bmPurchaseEquipments,
     fetchBMEquipments,
     updateEquipmentById,
     updateLogRecords,
+    updateEquipmentStatus,
   };
 };
 
