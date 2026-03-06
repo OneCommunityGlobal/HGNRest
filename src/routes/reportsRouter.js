@@ -39,6 +39,10 @@ const route = function () {
 
   reportsRouter.route('/reports/teams').get(controller.getTeamsWithActiveMembers);
 
+  reportsRouter.route('/reports/getAdminList').get(controller.getAdminList);
+
+  reportsRouter.route('/reports/sendEmailReport').post(controller.sendEmailReport);
+
   reportsRouter.route('/reports/teamcodes').get(controller.getReportTeamCodes);
 
   return reportsRouter;
