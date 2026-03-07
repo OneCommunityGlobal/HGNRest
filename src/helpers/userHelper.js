@@ -10,7 +10,7 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
-const path = require('path');
+const path = require('node:path');
 const fs = require('fs');
 // eslint-disable-next-line import/no-unresolved
 const puppeteer = require('puppeteer');
@@ -3304,38 +3304,36 @@ const userHelper = function () {
     console.log('Weekly Company Summary Email');
     const adminList = await userProfile.find({ jobTitle: 'Administrator' });
     const recipients = adminList.map((admin) => admin.email);
-    // const recipients = ['email1@mail.com'];
     const subject = 'Weekly Company Summary';
     const message = `<p>Hi Team,</p>
-      <p>Here is the weekly summary of the company.</p>
-      <p>Please refe to the attachment for this weeks Summary Dashboard"
-      <p>Best regards,</p>
-      <p>One Community</p>`;
+    <p>Here is the weekly summary of the company.</p>
+    <p>Please refer to the attachment for this weeks Summary Dashboard</p>
+    <p>Best regards,</p>
+    <p>One Community</p>`;
 
     // generate screenshot
-    await puppeteerLogic().then((result) => {
-      console.log('Puppeteer logic completed');
-      // create an attachment object
-      const attachment = {
-        filename: 'weeklyCompanySummary.png',
-        content: fs.readFileSync('./weeklyCompanySummary.png'),
-        contentType: 'image/png',
-      };
-      emailSender(
-        recipients,
-        subject,
-        message,
-        attachment,
-        recipients,
-        'onecommunity@gmail.com',
-      ).then((result) => {
-        console.log('Email Sender Job Done...', result);
-        // delete the image
-        fs.unlink('./weeklyCompanySummary.png', (err) => {
-          if (err) throw err;
-          console.log('./weeklyCompanySummary.png was deleted');
-        });
-      });
+    await puppeteerLogic();
+    console.log('Puppeteer logic completed');
+
+    // create an attachment object
+    const attachment = {
+      filename: 'weeklyCompanySummary.png',
+      content: fs.readFileSync('./weeklyCompanySummary.png'),
+      contentType: 'image/png',
+    };
+
+    await emailSender(
+      recipients,
+      subject,
+      message,
+      attachment,
+      recipients,
+      'onecommunity@gmail.com',
+    );
+    // delete the image
+    fs.unlink('./weeklyCompanySummary.png', (err) => {
+      if (err) throw err;
+      console.log('./weeklyCompanySummary.png was deleted');
     });
   };
 

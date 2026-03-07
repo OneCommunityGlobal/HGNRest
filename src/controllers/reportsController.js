@@ -1,5 +1,5 @@
 /* eslint-disable consistent-return */
-const fs = require('fs');
+const fs = require('node:fs');
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-unresolved
 const puppeteer = require('puppeteer');
@@ -761,7 +761,7 @@ const reportsController = function () {
   const puppeteerLogic = async () => {
     const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
     if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      // logger.logError('Puppeteer email or password not found in environment variables');
+      console.log('Puppeteer email or password not found in environment variables');
     }
     const browser = await puppeteer.launch({
       headless: true,
@@ -776,7 +776,6 @@ const reportsController = function () {
     });
     await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
     await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
-    // await page.click('button[type="submit"]', { delay: 100 });
     await page.click('.btn.btn-primary', { delay: 100 });
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
     await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
