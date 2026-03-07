@@ -175,6 +175,55 @@ const auditIfProtectedAccountUpdated = async ({
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
+// Module-scope helper: validates userId and queries DB safely with ObjectId
+const fetchUserSkillRadarData = async function (userId, section) {
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    return { error: 'Missing or invalid userId parameter', status: 400 };
+  }
+
+  const userObjectId = mongoose.Types.ObjectId(String(userId));
+  const normalizedSection = (section || 'all').toLowerCase();
+  const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
+
+  let response = await HGNFormResponses.findOne(
+    { 'followUp.user_id': userObjectId },
+    projection,
+  ).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ user_id: userObjectId }, projection).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ _id: userObjectId }, projection).lean();
+
+  if (!response) return { error: 'No skill data found for this user', status: 404 };
+
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const toItems = (obj) =>
+    Object.entries(obj || {})
+      .filter(([k]) => !/^overall$/i.test(k))
+      .map(([name, score]) => ({ name, score: toNum(score) }));
+
+  const fe = toItems(response.frontend);
+  const be = toItems(response.backend);
+
+  let skills;
+  if (normalizedSection === 'frontend') skills = fe;
+  else if (normalizedSection === 'backend') skills = be;
+  else skills = [...fe, ...be];
+
+  return {
+    data: {
+      userId: userObjectId.toString(),
+      section: normalizedSection,
+      maxScore: 10,
+      skills,
+    },
+  };
+};
+
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
   const forbidden = function (res, message) {
@@ -2741,44 +2790,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const getUserSkillRadarData = async function (req, res) {
     try {
       const { userId } = req.params;
-      const section = (req.query.section || 'all').toLowerCase(); // 'frontend' | 'backend' | 'all'
-      if (!userId) return res.status(400).send({ error: 'Missing userId parameter' });
-
-      const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
-      let response = await HGNFormResponses.findOne(
-        { 'followUp.user_id': userId },
-        projection,
-      ).lean();
-      if (!response)
-        response = await HGNFormResponses.findOne({ user_id: userId }, projection).lean();
-      if (!response) response = await HGNFormResponses.findOne({ _id: userId }, projection).lean();
-
-      if (!response) return res.status(404).send({ error: 'No skill data found for this user' });
-
-      const toNum = (v) => {
-        const n = Number(v);
-        return Number.isNaN(n) ? 0 : n;
-      };
-
-      const toItems = (obj) =>
-        Object.entries(obj || {})
-          .filter(([k]) => !/^overall$/i.test(k)) // drop 'overall'
-          .map(([name, score]) => ({ name, score: toNum(score) }));
-
-      const fe = toItems(response.frontend);
-      const be = toItems(response.backend);
-
-      let skills;
-      if (section === 'frontend') skills = fe;
-      else if (section === 'backend') skills = be;
-      else skills = [...fe, ...be];
-
-      return res.status(200).json({
-        userId,
-        section,
-        maxScore: 10,
-        skills,
-      });
+      const section = req.query.section || 'all';
+      const result = await fetchUserSkillRadarData(userId, section);
+      if (result.error) {
+        return res.status(result.status).send({ error: result.error });
+      }
+      return res.status(200).json(result.data);
     } catch (error) {
       console.error('Error fetching skill data:', error);
       return res.status(500).send({ error: error.message });
