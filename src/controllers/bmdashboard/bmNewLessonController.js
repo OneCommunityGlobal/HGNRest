@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
 
 const bmNewLessonController = function (BuildingNewLesson) {
   const buildingProject = require('../../models/bmdashboard/buildingProject');
@@ -219,6 +220,18 @@ const bmNewLessonController = function (BuildingNewLesson) {
     try {
       const { projectId, startDate, endDate } = req.query;
 
+      if (projectId && projectId !== 'ALL' && !mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ error: 'Invalid projectId' });
+      }
+
+      if (startDate && Number.isNaN(Date.parse(startDate))) {
+        return res.status(400).json({ error: 'Invalid startDate' });
+      }
+
+      if (endDate && Number.isNaN(Date.parse(endDate))) {
+        return res.status(400).json({ error: 'Invalid endDate' });
+      }
+
       const filter = {};
       if (projectId && projectId !== 'ALL') {
         filter.relatedProject = new mongoose.Types.ObjectId(projectId);
@@ -339,7 +352,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
 
       res.status(200).json({ data: result });
     } catch (err) {
-      console.error('Error fetching lessons learnt:', err);
+      logger.logException(err, 'getLessonsLearnt', { query: req.query });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
