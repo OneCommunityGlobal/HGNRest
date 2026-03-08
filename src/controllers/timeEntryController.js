@@ -1558,13 +1558,26 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
-    if (mongoose.connection.readyState === 0) {
+    // Check if MongoDB connection is ready before attempting to start a session
+    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    if (mongoose.connection.readyState !== 1) {
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
+
+      logger.logInfo(
+        `Recalculation task ${taskId} skipped: MongoDB connection not ready (state: ${mongoose.connection.readyState})`,
+      );
       return;
     }
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
+    let sesh;
     try {
+      sesh = await mongoose.startSession();
+      sesh.startTransaction();
+
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1574,7 +1587,7 @@ const timeEntrycontroller = function (TimeEntry) {
       });
       await Promise.all(recalculationPromises);
 
-      await session.commitTransaction();
+      await sesh.commitTransaction();
 
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
@@ -1582,7 +1595,9 @@ const timeEntrycontroller = function (TimeEntry) {
         recalculationTask.completionTime = new Date().toISOString();
       }
     } catch (err) {
-      await session.abortTransaction();
+      if (sesh) {
+        await sesh.abortTransaction();
+      }
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
         recalculationTask.status = 'Failed';
@@ -1591,7 +1606,9 @@ const timeEntrycontroller = function (TimeEntry) {
 
       logger.logException(err);
     } finally {
-      session.endSession();
+      if (sesh) {
+        sesh.endSession();
+      }
     }
   };
 
