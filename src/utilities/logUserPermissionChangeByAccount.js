@@ -47,8 +47,10 @@ const logUserPermissionChangeByAccount = async (req, user) => {
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      const sortedDoc = [...docPermissions].sort();
-      const sortedCurrent = [...Permissions].sort();
+      // const sortedDoc = [...docPermissions].sort();
+      const sortedDoc = [...docPermissions].sort((a, b) => a.localeCompare(b));
+      // const sortedCurrent = [...Permissions].sort();
+      const sortedCurrent = [...Permissions].sort((a, b) => a.localeCompare(b));
       if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
         return;
       }
