@@ -252,13 +252,13 @@ exports.getInjuryTrendData = async (req, res) => {
     // Build ordered list of months from start..endExclusive stepping by 1 month
     const labels = [];
     const monthKeys = [];
-    {
-      const d = new Date(start);
-      while (d < endExclusive) {
-        labels.push(monthNames[d.getUTCMonth()]);
-        monthKeys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-        d.setUTCMonth(d.getUTCMonth() + 1);
-      }
+    for (
+      let d = new Date(start);
+      d.getTime() < endExclusive.getTime();
+      d.setUTCMonth(d.getUTCMonth() + 1)
+    ) {
+      labels.push(monthNames[d.getUTCMonth()]);
+      monthKeys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
     }
 
     // Map of key(year-month)->severity->count
