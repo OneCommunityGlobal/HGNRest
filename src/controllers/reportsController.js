@@ -224,7 +224,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
+        overviewReportHelper.getTotalActiveTeamCount(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getMapLocations(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
