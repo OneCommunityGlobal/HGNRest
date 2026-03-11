@@ -14,6 +14,8 @@ const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
 const inventoryItemType = require('../models/inventoryItemType');
+const transplantingEvent = require('../models/transplantingEvent');
+const harvestingEvent = require('../models/harvestingEvent');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
@@ -145,6 +147,8 @@ const inventoryRouter = require('../routes/inventoryRouter')(
   project,
 );
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
+const transplantingRouter = require('../routes/transplantingRouter')(transplantingEvent);
+const harvestingRouter = require('../routes/harvestingRouter')(harvestingEvent);
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
   userProfile,
@@ -380,6 +384,8 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
+  app.use('/api/kitchenandinventory/transplanting', transplantingRouter);
+  app.use('/api/kitchenandinventory/harvesting', harvestingRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
