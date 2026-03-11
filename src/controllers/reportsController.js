@@ -730,6 +730,30 @@ const reportsController = function () {
     }
   };
 
+  const getAllDistinctTeamCodes = async (req, res) => {
+    const requestor = safeRequestorFromReq(req);
+
+    try {
+      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      if (!allowed) {
+        return res.status(403).send('You are not authorized to view team codes');
+      }
+
+      const teamCodes = await UserProfile.distinct('teamCode', {
+        teamCode: { $nin: [null, ''] },
+      });
+
+      const sortedTeamCodes = teamCodes.sort((a, b) => a.localeCompare(b));
+
+      return res.status(200).send(sortedTeamCodes);
+    } catch (error) {
+      console.error('Error fetching distinct team codes:', error);
+      return res.status(500).send({
+        error: 'An error occurred while fetching team codes.',
+      });
+    }
+  };
+
   const getReportTeamCodes = async (req, res) => {
     try {
       // const minActive = Number(req.query.activeMembersMinimum ?? 1);
@@ -843,6 +867,7 @@ const reportsController = function () {
     invalidateWeeklySummariesCache,
     getAdminList,
     sendEmailReport,
+    getAllDistinctTeamCodes,
   };
 };
 

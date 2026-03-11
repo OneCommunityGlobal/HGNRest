@@ -2714,10 +2714,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 },
               },
             },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id.toString(),
+            teamCodeWarning,
           };
         }),
       );
@@ -2732,7 +2730,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       return res.status(200).send({
         message: 'Team codes updated successfully.',
-        updatedUsers: updatedUsersInfo,
+        updatedUsers: updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+          userId,
+          teamCodeWarning,
+        })),
       });
     } catch (error) {
       console.error('Error updating team codes:', error);
