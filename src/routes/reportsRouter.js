@@ -14,6 +14,7 @@ const route = function () {
   reportsRouter.route('/reports/getrecepients').get(controller.getReportRecipients);
 
   reportsRouter.route('/reports/weeklysummaries').get(controller.getWeeklySummaries);
+  reportsRouter.get('/reports/weeklysummaries/teamcodes', controller.getAllDistinctTeamCodes);
 
   reportsRouter
     .route('/reports/overviewsummaries/volunteerstats')
