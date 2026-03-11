@@ -184,7 +184,6 @@ const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRout
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
-
 // lb dashboard
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
@@ -274,6 +273,9 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
+
+// education portal route
+const educatorRouter = require('../routes/educatorRouter');
 
 module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
@@ -411,4 +413,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  // education portal
+  app.use('/api/educator', educatorRouter);
 };
