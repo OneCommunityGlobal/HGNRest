@@ -43,6 +43,10 @@ const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
+const PRGradingConfig = require('../models/prAnalytics/prGradingConfig');
+const prGradingConfigRouter = require('../routes/prAnalytics/prGradingConfigRouter')(
+  PRGradingConfig,
+);
 
 // Title
 const title = require('../models/title');
@@ -498,7 +502,6 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -555,6 +558,7 @@ module.exports = function (app) {
   // PR Analytics
   app.use('/api', prInsightsRouter);
   app.use('/api', weeklyGradingRouter);
+  app.use('/api', prGradingConfigRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
