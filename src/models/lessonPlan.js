@@ -14,16 +14,46 @@ const subTaskSchema = new Schema(
   { _id: true },
 ); // Ensure sub-tasks get their own IDs
 
-// UPDATED: This now matches your database structure and adds the subTasks array.
+// Merged: Combines incoming properties (theme, dates, activities) with current properties (subTasks, lastEditedBy)
 const lessonPlanSchema = new Schema(
   {
-    title: { type: String, required: true }, // Matches your 'title' field
-    description: { type: String }, // Matches your 'description' field
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    theme: {
+      type: String,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    endDate: {
+      type: Date,
+      required: true,
+    },
     subTasks: [subTaskSchema], // The array of sub-tasks needed for assignments
-    // Store who originally created this lesson plan
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
-    // Store who last modified this lesson plan
-    lastEditedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+    activities: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Activity',
+      },
+    ],
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+      required: true, // Kept strict requirement from incoming
+    },
+    lastEditedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
   },
   {
     timestamps: true, // This will automatically manage createdAt and updatedAt fields

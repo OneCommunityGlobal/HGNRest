@@ -1,22 +1,85 @@
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
-
-// This schema is specifically for tasks assigned from an educator's lesson plan.
-const educationTaskSchema = new Schema(
+const educationTaskSchema = new mongoose.Schema(
   {
-    studentId: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
-    lessonPlanId: { type: mongoose.SchemaTypes.ObjectId, ref: 'LessonPlan', required: true },
-    // Storing who clicked the "Assign" button
-    assignedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
-    // Storing the details of the specific sub-task from the lesson plan
-    title: { type: String, required: true },
-    assignedDate: { type: Date },
-    dueDate: { type: Date },
-    status: { type: String, default: 'Assigned' }, // e.g., Assigned, In Progress, Completed
-    submission: { type: String }, // To store student's work if applicable
+    lessonPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'LessonPlan',
+      required: true,
+    },
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+      required: true,
+    },
+
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+    title: {
+      type: String,
+    },
+    assignedDate: {
+      type: Date,
+    },
+    dueDate: {
+      type: Date,
+    },
+    submission: {
+      type: String, 
+    },
+
+    atomIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Atom',
+      },
+    ],
+    type: {
+      type: String,
+    },
+    status: {
+      type: String,
+      default: 'Assigned',
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    dueAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
+    uploadUrls: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    grade: {
+      type: String,
+      enum: ['A', 'B', 'C', 'D', 'F', 'pending'],
+      default: 'pending',
+    },
+    feedback: {
+      type: String,
+      trim: true,
+    },
+    suggestedTotalHours: {
+      type: Number,
+      default: 0,
+    },
+    loggedHours: {
+      type: Number,
+      default: 0,
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-module.exports = mongoose.model('educationTask', educationTaskSchema);
+module.exports = mongoose.model('EducationTask', educationTaskSchema);

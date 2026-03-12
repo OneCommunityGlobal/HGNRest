@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 const moment = require('moment-timezone');
 const { mockReq, mockRes, mockUser } = require('../test');
 const UserModel = require('../models/userProfile');
@@ -5,7 +6,6 @@ const ReasonModel = require('../models/reason');
 
 jest.mock('../utilities/emailSender', () => jest.fn());
 const emailSender = require('../utilities/emailSender');
-
 const {
   postReason,
   getAllReasons,
