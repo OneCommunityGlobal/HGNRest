@@ -26,15 +26,11 @@ router.post('/assign-tasks', async (req, res) => {
     return res.status(400).json({ message: 'Request is missing lesson_plan_id.' });
   }
 
-  console.log(
-    `Assigning tasks for Lesson Plan ID: ${lessonPlanId}, Auto-assigned: ${isAutoAssigned}`,
-  );
-
   try {
     
     const lessonPlan = await LessonPlan.findById(lessonPlanId);
 
-    if (!lessonPlan || !lessonPlan.subTasks || lessonPlan.subTasks.length === 0) {
+    if (!lessonPlan?.subTasks?.length) {
       return res
         .status(404)
         .json({ message: 'Lesson plan not found or it has no sub-tasks to assign.' });
@@ -57,8 +53,9 @@ router.post('/assign-tasks', async (req, res) => {
     const assignerId = req.body.requestor.requestorId;
 
     eligibleStudents.forEach((student) => {
-      const meetsPrerequisites = true; // Placeholder for your logic
+      const meetsPrerequisites = true;
 
+      // keeping this block commented for future reference
       //   if (meetsPrerequisites) {
       //     // FIXED: The logic now correctly iterates over lessonPlan.subTasks
       //     if (lessonPlan.subTasks && lessonPlan.subTasks.length > 0) {
@@ -93,6 +90,7 @@ router.post('/assign-tasks', async (req, res) => {
               status: 'Assigned',
               assignedBy: assignerId,
             });
+            // keeping this block commented for future reference
             // }
             // else {
             //   console.warn(`Skipping subTask for student ${student._id} due to missing name in lesson plan ${lessonPlanId}`);
@@ -111,7 +109,6 @@ router.post('/assign-tasks', async (req, res) => {
 
     if (tasksToCreate.length > 0) {
       await EducationTask.insertMany(tasksToCreate);
-      console.log(`Successfully inserted ${tasksToCreate.length} tasks into the database.`);
     }
    
     await LessonPlanLog.create({
@@ -121,9 +118,6 @@ router.post('/assign-tasks', async (req, res) => {
       details: `Assigned to ${assignedCount} students. Skipped ${skippedCount}.`,
     });
 
-    console.log(
-      `Successfully assigned tasks to ${assignedCount} students. Skipped ${skippedCount}.`,
-    );
     res.status(200).json({
       assignedCount,
       skippedCount,
