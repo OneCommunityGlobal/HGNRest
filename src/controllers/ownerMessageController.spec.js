@@ -1,4 +1,4 @@
-/* eslint-disable import/order */
+// eslint-disable-next-line import/order
 const mongoose = require('mongoose');
 
 jest.mock('../utilities/permissions', () => ({
@@ -80,6 +80,7 @@ describe('ownerMessageController Unit Tests', () => {
       const existingMessage = { message: 'Existing message', standardMessage: 'Standard message' };
       mockFind.mockResolvedValue([existingMessage]);
       await makeSut().getOwnerMessage(mockReq, mockRes);
+      await flushPromises();
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith({ ownerMessage: existingMessage });
     });
@@ -109,6 +110,8 @@ describe('ownerMessageController Unit Tests', () => {
       };
       helper.hasPermission.mockResolvedValue(true);
       await makeSut().updateOwnerMessage(mockReqDup, mockRes);
+      await flushPromises();
+      
       expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.send).toHaveBeenCalledWith({
         _serverMessage: 'Update successfully!',
@@ -119,10 +122,13 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 500 if an error occurs during the update', async () => {
       const errorMsg = 'Error occurred during update';
-      mockFind.mockRejectedValue(errorMsg);
+      // FIXED: Used mockImplementationOnce so it doesn't instantly reject and crash Node 20
+      mockFind.mockImplementationOnce(() => Promise.reject(errorMsg));
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
       await makeSut().updateOwnerMessage(mockReqDup, mockRes);
+      await flushPromises(); // FIXED: Force Jest to wait for the catch block
+      
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
     });
@@ -150,6 +156,8 @@ describe('ownerMessageController Unit Tests', () => {
 
       const { deleteOwnerMessage } = makeSut();
       await deleteOwnerMessage(mockReqDup, mockRes);
+      await flushPromises();
+      
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith({
         _serverMessage: 'Delete successfully!',
@@ -160,12 +168,15 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
-      mockFind.mockRejectedValue(errorMsg);
+      // FIXED: Used mockImplementationOnce so it doesn't instantly reject and crash Node 20
+      mockFind.mockImplementationOnce(() => Promise.reject(errorMsg));
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
       await deleteOwnerMessage(mockReqDup, mockRes);
+      await flushPromises(); // FIXED: Force Jest to wait for the catch block
+      
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
     });
