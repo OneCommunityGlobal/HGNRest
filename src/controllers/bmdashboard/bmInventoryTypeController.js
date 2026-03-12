@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const filename = 'BuildingUnits.json';
 const currentFilePath = __filename;
@@ -8,7 +9,15 @@ const filepath = path.join(rootPath, filename);
 const { readFile } = fs;
 const { writeFile } = fs;
 
-function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
+function bmInventoryTypeController(
+  InvType,
+  MatType,
+  ConsType,
+  ReusType,
+  ToolType,
+  EquipType,
+  invTypeHistory,
+) {
   async function fetchMaterialTypes(req, res) {
     try {
       MatType.find()
@@ -362,29 +371,96 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   const updateNameAndUnit = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-      const { name, unit } = req.body;
-
+      const {
+        name,
+        unit,
+        type: rawType,
+        requestor: { requestorId },
+      } = req.body;
+      const historyDocs = [];
       const updateData = {};
+      // Selection of Collection depending on Type
+      const allowedTypes = ['Material', 'Consumable'];
+      const itemTtype = allowedTypes.includes(rawType) ? rawType : 'Inventory';
 
-      if (name) {
-        updateData.name = name;
+      // Validate invtypeId
+      if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
+        return res.status(400).json({ message: 'Invalid inventory type ID' });
+      }
+      // Sanitize name
+      const safeName = String(name).trim();
+      if (!safeName) {
+        return res.status(400).json({ message: 'Invalid inventory name' });
+      }
+      // Extract and sanitize
+      const safeUnit = String(unit).trim();
+      if (!safeUnit || safeUnit.length > 50) {
+        return res.status(400).json({ message: 'Invalid unit value' });
       }
 
-      if (unit) {
-        updateData.unit = unit;
+      let CollectionName = InvType;
+      if (itemTtype === 'Material') {
+        CollectionName = MatType;
+      } else if (itemTtype === 'Consumable') {
+        CollectionName = ConsType;
       }
 
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
+      // Fetch existing document
+      const invType = await CollectionName.findById(invtypeId);
+      if (!invType) {
+        return res.status(404).send('Inventory type not found check Id');
+      }
+
+      // Perform query using sanitized values
+      const existingInvType = await CollectionName.findOne({
+        name: safeName,
+        _id: { $ne: mongoose.Types.ObjectId(invtypeId) },
+      });
+
+      if (existingInvType) {
+        return res.status(409).json({
+          message: 'Inventory type name already exists',
+        });
+      }
+
+      // Track name change
+      if (safeName && safeName !== invType.name) {
+        historyDocs.push({
+          invtypeId,
+          field: 'name',
+          oldValue: invType.name,
+          newValue: safeName,
+          editedBy: requestorId,
+        });
+        updateData.name = safeName;
+      }
+
+      // Track unit change
+      if (safeUnit && safeUnit !== invType.unit) {
+        historyDocs.push({
+          invtypeId,
+          field: 'unit',
+          oldValue: invType.unit,
+          newValue: safeUnit,
+          editedBy: requestorId,
+        });
+        updateData.unit = safeUnit;
+      }
+
+      //  Save history (if any)
+      if (historyDocs.length > 0) {
+        await invTypeHistory.insertMany(historyDocs);
+      }
+
+      // Update main document
+      const updatedInvType = await CollectionName.findByIdAndUpdate(invtypeId, updateData, {
         new: true,
         runValidators: true,
       });
 
-      if (!updatedInvType) {
-        return res.status(404).json({ error: 'invType Material not found check Id' });
-      }
-
       res.status(200).json(updatedInvType);
     } catch (error) {
+      console.error(error);
       res.status(500).send(error);
     }
   };
@@ -451,9 +527,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
           const jsonData = JSON.parse(data);
 
           // Check if unit already exists
-          const exists = jsonData.some(
-            (item) => item.unit.toLowerCase() === unit.toLowerCase(),
-          );
+          const exists = jsonData.some((item) => item.unit.toLowerCase() === unit.toLowerCase());
           if (exists) {
             return res.status(409).json({ error: 'Unit already exists' });
           }
@@ -527,6 +601,26 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
+  const fetchInvTypeHistory = async (req, res) => {
+    try {
+      const { invtypeId } = req.params;
+      const safeInvTypeId = new mongoose.Types.ObjectId(invtypeId);
+      if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
+        return res.status(400).json({ message: 'Invalid inventory type id' });
+      }
+
+      const history = await invTypeHistory
+        .find({ invtypeId: safeInvTypeId })
+        .populate('editedBy', '_id firstName lastName email')
+        .sort({ editedAt: -1 })
+        .lean();
+
+      res.status(200).json(history);
+    } catch (error) {
+      console.error('Fetch history error:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory history' });
+    }
+  };
   return {
     fetchMaterialTypes,
     fetchConsumableTypes,
@@ -545,6 +639,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     deleteInventoryType,
     addInventoryUnit,
     deleteInventoryUnit,
+    fetchInvTypeHistory,
   };
 }
 
