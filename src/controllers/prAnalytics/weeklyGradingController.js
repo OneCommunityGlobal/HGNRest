@@ -1,5 +1,5 @@
-// Helper function to normalize prNumbers for comparison
-const normalizePrNumbers = (prNumbers) => prNumbers.replace(/\s+/g, ' ').trim();
+// Helper function to normalize prNumbers for comparison (removes all whitespace)
+const normalizePrNumbers = (prNumbers) => prNumbers.replace(/\s+/g, '');
 
 // Helper function to validate prNumbers regex
 const validatePrNumbers = (prNumbers) => {
@@ -27,6 +27,19 @@ const validateGradedPr = (gradedPr) => {
   }
 };
 
+const checkForDuplicatePRsInSubmission = (gradedPrs, reviewer) => {
+  const seenPRs = new Set();
+  for (const pr of gradedPrs) {
+    const normalized = normalizePrNumbers(pr.prNumbers);
+    if (seenPRs.has(normalized)) {
+      throw new Error(
+        `Duplicate PR number "${pr.prNumbers}" found in submission for reviewer: ${reviewer}`,
+      );
+    }
+    seenPRs.add(normalized);
+  }
+};
+
 // Validate a single grading entry
 const validateGradingEntry = (grading) => {
   const { reviewer, prsReviewed, prsNeeded, gradedPrs } = grading;
@@ -41,6 +54,8 @@ const validateGradingEntry = (grading) => {
   }
 
   gradedPrs.forEach(validateGradedPr);
+
+  checkForDuplicatePRsInSubmission(gradedPrs, reviewer);
 };
 
 // Merge gradedPrs from request with existing gradedPrs
