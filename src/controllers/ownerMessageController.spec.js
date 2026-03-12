@@ -1,6 +1,33 @@
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
+
+jest.mock('mongoose', () => {
+  const mockSession = {
+    startTransaction: jest.fn(),
+    commitTransaction: jest.fn(),
+    abortTransaction: jest.fn(),
+    endSession: jest.fn(),
+  };
+  const actualMongoose = jest.requireActual('mongoose');
+  return {
+    ...actualMongoose,
+    startSession: jest.fn().mockResolvedValue(mockSession),
+  };
+});
+
+jest.mock('../models/ownerMessageLog', () => ({
+  create: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('../models/userProfile', () => ({
+  findById: jest.fn().mockResolvedValue({
+    email: 'test@test.com',
+    firstName: 'Test',
+    lastName: 'User',
+  }),
+}));
+
 const helper = require('../utilities/permissions');
 const OwnerMessage = require('../models/ownerMessage');
 const { mockReq, mockRes, assertResMock } = require('../test');
@@ -25,8 +52,10 @@ describe('ownerMessageController Unit Tests', () => {
   });
 
   beforeEach(() => {
-    mockFind = jest.spyOn(OwnerMessage, 'find');
-    mockSave = jest.fn();
+    mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue({
+      session: jest.fn().mockResolvedValue([]),
+    });
+    mockSave = jest.fn().mockResolvedValue({});
   });
   describe('getOwnerMessage', () => {
     test('Ensures getOwnerMessage returns status 404 if owner message cant be found', async () => {
@@ -80,7 +109,9 @@ describe('ownerMessageController Unit Tests', () => {
     });
     test('Ensures updateOwnerMessage returns status 201 and updates the owner message correctly with custom message', async () => {
       const existingMessage = { message: '', standardMessage: '', save: mockSave };
-      mockFind.mockResolvedValue([existingMessage]);
+      mockFind.mockReturnValue({
+        session: jest.fn().mockResolvedValue([existingMessage]),
+      });
       const mockReqDup = {
         ...mockReq,
         body: {
@@ -101,7 +132,9 @@ describe('ownerMessageController Unit Tests', () => {
     });
     test('Ensures updateOwnerMessage returns status 500 if an error occurs during the update', async () => {
       const errorMsg = 'Error occurred during update';
-      mockFind.mockRejectedValue(errorMsg);
+      mockFind.mockReturnValue({
+        session: jest.fn().mockRejectedValue(errorMsg),
+      });
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
       await makeSut().updateOwnerMessage(mockReqDup, mockRes);
@@ -125,7 +158,9 @@ describe('ownerMessageController Unit Tests', () => {
         standardMessage: 'Standard message',
         save: mockSave,
       };
-      mockFind.mockResolvedValue([existingMessage]);
+      mockFind.mockReturnValue({
+        session: jest.fn().mockResolvedValue([existingMessage]),
+      });
       mockReq.body.requestor.role = '';
       helper.hasPermission.mockResolvedValue(true);
 
@@ -140,7 +175,9 @@ describe('ownerMessageController Unit Tests', () => {
     });
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
-      mockFind.mockRejectedValue(errorMsg);
+      mockFind.mockReturnValue({
+        session: jest.fn().mockRejectedValue(errorMsg),
+      });
       mockReq.body.requestor.role = 'Owner';
       helper.hasPermission.mockResolvedValue(true);
 
