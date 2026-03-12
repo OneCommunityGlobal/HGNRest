@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/order
 const mongoose = require('mongoose');
 
 jest.mock('../utilities/permissions', () => ({
@@ -30,10 +29,13 @@ describe('ownerMessageController Unit Tests', () => {
   });
 
   beforeEach(() => {
-    mockFind = jest.spyOn(OwnerMessage, 'find');
-    mockSave = jest.fn();
+    // Merged: Uses the team's session mock structure
+    mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue({
+      session: jest.fn().mockResolvedValue([]),
+    });
+    mockSave = jest.fn().mockResolvedValue({});
 
-    // Mock mongoose.startSession to prevent CI database disconnect errors
+    // Merged: Keeps your fix for the GitHub Actions database crash
     mockSession = {
       startTransaction: jest.fn(),
       commitTransaction: jest.fn(),
@@ -47,14 +49,14 @@ describe('ownerMessageController Unit Tests', () => {
     test('Ensures getOwnerMessage returns status 404 if owner message cant be found', async () => {
       const { getOwnerMessage } = makeSut();
       const errorMsg = 'Error occurred when finding owner message';
-      mockFind.mockImplementationOnce(() => Promise.reject(errorMsg));
+      mockFind.mockReturnValue({ session: jest.fn().mockRejectedValue(errorMsg) });
       const response = await getOwnerMessage(mockReq, mockRes);
       await flushPromises();
       assertResMock(404, errorMsg, response, mockRes);
     });
 
     test('Ensures getOwnerMessage returns status 200 with new owner message if none exist', async () => {
-      mockFind.mockResolvedValue([]);
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([]) });
       const ownerMessageInstance = new OwnerMessage();
       ownerMessageInstance.set = jest.fn();
       const mockSaveFn = jest.fn().mockResolvedValue(ownerMessageInstance);
@@ -78,7 +80,7 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures getOwnerMessage returns status 200 with the first owner message if it exists', async () => {
       const existingMessage = { message: 'Existing message', standardMessage: 'Standard message' };
-      mockFind.mockResolvedValue([existingMessage]);
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([existingMessage]) });
       await makeSut().getOwnerMessage(mockReq, mockRes);
       await flushPromises();
       expect(mockRes.status).toHaveBeenCalledWith(200);
@@ -98,7 +100,7 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 201 and updates the owner message correctly with custom message', async () => {
       const existingMessage = { message: '', standardMessage: '', save: mockSave };
-      mockFind.mockResolvedValue([existingMessage]);
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([existingMessage]) });
       const mockReqDup = {
         ...mockReq,
         body: {
@@ -111,7 +113,7 @@ describe('ownerMessageController Unit Tests', () => {
       helper.hasPermission.mockResolvedValue(true);
       await makeSut().updateOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
-      
+
       expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.send).toHaveBeenCalledWith({
         _serverMessage: 'Update successfully!',
@@ -122,13 +124,13 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 500 if an error occurs during the update', async () => {
       const errorMsg = 'Error occurred during update';
-      // FIXED: Used mockImplementationOnce so it doesn't instantly reject and crash Node 20
-      mockFind.mockImplementationOnce(() => Promise.reject(errorMsg));
+      mockFind.mockReturnValue({ session: jest.fn().mockRejectedValue(errorMsg) });
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
+
       await makeSut().updateOwnerMessage(mockReqDup, mockRes);
-      await flushPromises(); // FIXED: Force Jest to wait for the catch block
-      
+      await flushPromises();
+
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
     });
@@ -150,14 +152,14 @@ describe('ownerMessageController Unit Tests', () => {
         standardMessage: 'Standard message',
         save: mockSave,
       };
-      mockFind.mockResolvedValue([existingMessage]);
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([existingMessage]) });
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
       await deleteOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
-      
+
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith({
         _serverMessage: 'Delete successfully!',
@@ -168,15 +170,14 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
-      // FIXED: Used mockImplementationOnce so it doesn't instantly reject and crash Node 20
-      mockFind.mockImplementationOnce(() => Promise.reject(errorMsg));
+      mockFind.mockReturnValue({ session: jest.fn().mockRejectedValue(errorMsg) });
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
       await deleteOwnerMessage(mockReqDup, mockRes);
-      await flushPromises(); // FIXED: Force Jest to wait for the catch block
-      
+      await flushPromises();
+
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith(errorMsg);
     });
