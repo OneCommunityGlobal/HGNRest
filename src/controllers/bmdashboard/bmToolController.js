@@ -255,11 +255,79 @@ const bmToolController = (BuildingTool, ToolType) => {
     return res.status(200).send({ errors, results });
   };
 
+  // --- UPDATED FIX FOR EDIT TOOL FEATURE ---
+  const updateToolById = async (req, res) => {
+    const { toolId } = req.params;
+    const { name, status, condition } = req.body;
+    const requestorId = req.body.requestor?.requestorId || '6868351899da83323cc7a695';
+
+    try {
+      // 1. Update the Tool Item (Condition + Log)
+      const newUpdateEntry = {
+        date: new Date(),
+        createdBy: requestorId,
+        condition,
+      };
+
+      const tool = await BuildingTool.findByIdAndUpdate(
+        toolId,
+        {
+          $set: { condition },
+          $push: { updateRecord: newUpdateEntry },
+        },
+        { new: true },
+      );
+
+      if (!tool) return res.status(404).send({ message: 'Tool not found.' });
+
+      // 2. Update the Parent Tool Type in 'buildinginventorytypes'
+      if (tool.itemType) {
+        // Resolve the parent ID
+        const typeId = tool.itemType._id ? tool.itemType._id : tool.itemType;
+        const typeObjectId = mongoose.Types.ObjectId(typeId);
+        const toolObjectId = mongoose.Types.ObjectId(toolId);
+
+        // ACCESS RAW COLLECTION DIRECTLY to bypass Model naming mismatch
+        // (Fixes the bug where updating ToolType updated 0 documents)
+        // Get the collection name dynamically from the model if possible, or fallback
+        const collectionName = ToolType.collection.name || 'buildingInventoryTypes';
+        const collection = mongoose.connection.collection(collectionName);
+
+        // A. Update Name if provided
+        if (name) {
+          await collection.updateOne({ _id: typeObjectId }, { $set: { name } });
+        }
+
+        // B. Atomic Swap: Remove from BOTH arrays
+        await collection.updateOne(
+          { _id: typeObjectId },
+          { $pull: { using: toolObjectId, available: toolObjectId } },
+        );
+
+        // C. Add to the CORRECT array
+        if (status === 'Using') {
+          await collection.updateOne({ _id: typeObjectId }, { $addToSet: { using: toolObjectId } });
+        } else if (status === 'Available') {
+          await collection.updateOne(
+            { _id: typeObjectId },
+            { $addToSet: { available: toolObjectId } },
+          );
+        }
+      }
+
+      res.status(200).send({ message: 'Tool updated successfully', tool });
+    } catch (error) {
+      console.error('Backend Error:', error);
+      res.status(500).send({ message: 'Internal Error', error: error.message });
+    }
+  };
+
   return {
     fetchAllTools,
     fetchSingleTool,
     bmPurchaseTools,
     bmLogTools,
+    updateToolById,
   };
 };
 
