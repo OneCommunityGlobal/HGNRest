@@ -166,11 +166,11 @@ const teamcontroller = function (Team) {
 
       // Store the old team code before updating
       const oldTeamCode = record.teamCode;
-      const newTeamCode = req.body.teamCode;
+      const newTeamCode = req.body.teamCode || '';
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
-      record.teamCode = req.body.teamCode;
+      record.teamCode = newTeamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 
