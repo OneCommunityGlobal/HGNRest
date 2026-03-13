@@ -1,4 +1,19 @@
 const lbUserPrefController = function (UserPreferences, Notification) {
+  const normalizePhone = (phone) => {
+    if (!phone) return { normalized: '', last4: '' };
+    const trimmed = String(phone).trim();
+    const hasPlus = trimmed.startsWith('+');
+    const digits = trimmed.replace(/\D/g, '');
+    const normalized = hasPlus ? `+${digits}` : digits;
+    return { normalized, last4: digits.slice(-4) };
+  };
+
+  const maskPhone = (phone) => {
+    if (!phone) return '';
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits.length <= 4) return digits;
+    return `***-***-${digits.slice(-4)}`;
+  };
   const getPreferences = async (req, res) => {
     try {
       const { userId, selectedUserId } = req.body;
@@ -23,7 +38,9 @@ const lbUserPrefController = function (UserPreferences, Notification) {
         return res.status(200).json(selectedUserPref || { notifyInApp: false, notifyEmail: false });
       }
 
-      res.status(200).json(preferences);
+      const response = preferences.toObject();
+      response.smsPhoneMasked = maskPhone(preferences.smsPhone);
+      res.status(200).json(response);
     } catch (error) {
       console.error('Error fetching preferences:', error);
       res.status(500).json({ message: 'Error fetching preferences', error: error.message });
@@ -32,43 +49,61 @@ const lbUserPrefController = function (UserPreferences, Notification) {
 
   const updatePreferences = async (req, res) => {
     try {
-      const { userId, selectedUserId, notifyInApp, notifyEmail } = req.body;
+      const { userId, selectedUserId, notifyInApp, notifyEmail, notifySms, smsPhone } = req.body;
 
-      if (!userId || !selectedUserId) {
-        return res.status(400).json({ message: 'User ID and Selected User ID are required.' });
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required.' });
       }
 
-      const preferences = await UserPreferences.findOne({ user: userId });
+      let preferences = await UserPreferences.findOne({ user: userId });
 
       if (!preferences) {
-        const newPreferences = new UserPreferences({
-          user: userId,
-          users: [
-            {
-              userNotifyingFor: selectedUserId,
-              notifyInApp: notifyInApp !== undefined ? notifyInApp : false,
-              notifyEmail: notifyEmail !== undefined ? notifyEmail : false,
-            },
-          ],
-        });
-
-        await newPreferences.save();
-        return res.status(200).json(newPreferences);
+        preferences = new UserPreferences({ user: userId, users: [] });
       }
 
-      const userIndex = preferences.users.findIndex(
-        (user) => user.userNotifyingFor.toString() === selectedUserId,
-      );
+      if (selectedUserId) {
+        const userIndex = preferences.users.findIndex(
+          (user) => user.userNotifyingFor.toString() === selectedUserId,
+        );
 
-      if (userIndex === -1) {
-        preferences.users.push({
-          userNotifyingFor: selectedUserId,
-          notifyInApp: notifyInApp !== undefined ? notifyInApp : false,
-          notifyEmail: notifyEmail !== undefined ? notifyEmail : false,
-        });
-      } else {
-        preferences.users[userIndex].notifyInApp = notifyInApp !== undefined ? notifyInApp : false;
-        preferences.users[userIndex].notifyEmail = notifyEmail !== undefined ? notifyEmail : false;
+        if (userIndex === -1) {
+          preferences.users.push({
+            userNotifyingFor: selectedUserId,
+            notifyInApp: notifyInApp !== undefined ? notifyInApp : false,
+            notifyEmail: notifyEmail !== undefined ? notifyEmail : false,
+          });
+        } else {
+          preferences.users[userIndex].notifyInApp =
+            notifyInApp !== undefined ? notifyInApp : false;
+          preferences.users[userIndex].notifyEmail =
+            notifyEmail !== undefined ? notifyEmail : false;
+        }
+      } else if (notifyInApp !== undefined || notifyEmail !== undefined) {
+        if (notifyInApp !== undefined) {
+          preferences.notifyInApp = notifyInApp;
+        }
+        if (notifyEmail !== undefined) {
+          preferences.notifyEmail = notifyEmail;
+        }
+      }
+
+      if (notifySms !== undefined || smsPhone !== undefined) {
+        const { normalized, last4 } = normalizePhone(smsPhone);
+        const digits = normalized.replace(/\D/g, '');
+        const existingDigits = String(preferences.smsPhone || '').replace(/\D/g, '');
+        if (notifySms && digits.length === 0 && existingDigits.length === 0) {
+          return res.status(400).json({ message: 'SMS phone number is required.' });
+        }
+        if (digits.length > 0 && (digits.length < 8 || digits.length > 15)) {
+          return res.status(400).json({ message: 'Invalid phone number format.' });
+        }
+        if (notifySms !== undefined) {
+          preferences.notifySms = notifySms;
+        }
+        if (smsPhone !== undefined && digits.length > 0) {
+          preferences.smsPhone = normalized;
+          preferences.smsPhoneLast4 = last4;
+        }
       }
 
       const updatedPreferences = await preferences.save();
