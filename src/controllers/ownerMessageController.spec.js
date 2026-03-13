@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable object-shorthand */
 /* eslint-disable import/order */
 const mongoose = require('mongoose');
@@ -5,6 +6,33 @@ const mongoose = require('mongoose');
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
+
+jest.mock('mongoose', () => {
+  const mockSession = {
+    startTransaction: jest.fn(),
+    commitTransaction: jest.fn(),
+    abortTransaction: jest.fn(),
+    endSession: jest.fn(),
+  };
+  const actualMongoose = jest.requireActual('mongoose');
+  return {
+    ...actualMongoose,
+    startSession: jest.fn().mockResolvedValue(mockSession),
+  };
+});
+
+jest.mock('../models/ownerMessageLog', () => ({
+  create: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('../models/userProfile', () => ({
+  findById: jest.fn().mockResolvedValue({
+    email: 'test@test.com',
+    firstName: 'Test',
+    lastName: 'User',
+  }),
+}));
+
 const helper = require('../utilities/permissions');
 const OwnerMessage = require('../models/ownerMessage');
 const { mockReq, mockRes, assertResMock } = require('../test');
@@ -42,18 +70,10 @@ describe('ownerMessageController Unit Tests', () => {
   });
 
   beforeEach(() => {
-    // Apply the flexible query mock
-    mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue(mockMongooseQuery([]));
+    mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue({
+      session: jest.fn().mockResolvedValue([]),
+    });
     mockSave = jest.fn().mockResolvedValue({});
-
-    // StartSession mock as a safety net for CI database disconnects
-    mockSession = {
-      startTransaction: jest.fn(),
-      commitTransaction: jest.fn(),
-      abortTransaction: jest.fn(),
-      endSession: jest.fn(),
-    };
-    jest.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession);
   });
 
   describe('getOwnerMessage', () => {
@@ -111,7 +131,9 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 201 and updates the owner message correctly with custom message', async () => {
       const existingMessage = { message: '', standardMessage: '', save: mockSave };
-      mockFind.mockReturnValue(mockMongooseQuery([existingMessage]));
+      mockFind.mockReturnValue({
+        session: jest.fn().mockResolvedValue([existingMessage]),
+      });
       const mockReqDup = {
         ...mockReq,
         body: {
@@ -135,7 +157,9 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 500 if an error occurs during the update', async () => {
       const errorMsg = 'Error occurred during update';
-      mockFind.mockReturnValue(mockMongooseQuery(errorMsg, true));
+      mockFind.mockReturnValue({
+        session: jest.fn().mockRejectedValue(errorMsg),
+      });
       const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
@@ -163,8 +187,10 @@ describe('ownerMessageController Unit Tests', () => {
         standardMessage: 'Standard message',
         save: mockSave,
       };
-      mockFind.mockReturnValue(mockMongooseQuery([existingMessage]));
-      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
+      mockFind.mockReturnValue({
+        session: jest.fn().mockResolvedValue([existingMessage]),
+      });
+      mockReq.body.requestor.role = '';
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
@@ -181,8 +207,10 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
-      mockFind.mockReturnValue(mockMongooseQuery(errorMsg, true));
-      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
+      mockFind.mockReturnValue({
+        session: jest.fn().mockRejectedValue(errorMsg),
+      });
+      mockReq.body.requestor.role = 'Owner';
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();

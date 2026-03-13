@@ -623,6 +623,7 @@ const reportsController = function () {
           createdDate: 1,
           getWeeklyReport: 1,
           permissionGrantedToGetWeeklySummaryReport: 1,
+          isActive: 1,
         },
       )
         .then((results) => {
