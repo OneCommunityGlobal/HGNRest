@@ -220,6 +220,32 @@ const updateTaskLoggedHours = async (
 };
 
 /**
+ * Helper function to resolve the correct project ID by traversing Task -> WBS -> Project hierarchy
+ * @param {*} taskId The task ID to resolve project for
+ * @param {*} fallbackProjectId The fallback project ID if task resolution fails
+ * @returns {string|null} The resolved project ID
+ */
+const resolveProjectId = async (taskId, fallbackProjectId) => {
+  // First try to get project through Task -> WBS -> Project hierarchy
+  if (taskId) {
+    try {
+      const task = await Task.findById(taskId);
+      if (task && task.wbsId) {
+        const wbs = await WBS.findById(task.wbsId);
+        if (wbs && wbs.projectId) {
+          return wbs.projectId;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to resolve project through task hierarchy for taskId ${taskId}:`, error.message);
+    }
+  }
+  
+  // Fallback to direct projectId
+  return fallbackProjectId;
+};
+
+/**
  * Update userprofile hoursByCategory due to project change or posting time entry
  * @param {*} userprofile The userprofile object
  * @param {*} fromProjectId The id of the project that the time entry is moving from
@@ -236,20 +262,36 @@ const updateUserprofileCategoryHrs = async (
   userprofile,
 ) => {
   if (fromProjectId) {
-    const fromProject = await Project.findById(fromProjectId);
-    const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
-    if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
-      userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
-    } else {
+    try {
+      const fromProject = await Project.findById(fromProjectId);
+      if (fromProject) {
+        const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
+        if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
+          userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
+        } else {
+          userprofile.hoursByCategory.unassigned -= hoursToBeRemoved;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to find project with fromProjectId ${fromProjectId}:`, error.message);
+      const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
       userprofile.hoursByCategory.unassigned -= hoursToBeRemoved;
     }
   }
   if (toProjectId) {
-    const toProject = await Project.findById(toProjectId);
-    const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
-    if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
-      userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
-    } else {
+    try {
+      const toProject = await Project.findById(toProjectId);
+      if (toProject) {
+        const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
+        if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
+          userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
+        } else {
+          userprofile.hoursByCategory.unassigned += hoursToBeAdded;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to find project with toProjectId ${toProjectId}:`, error.message);
+      const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
       userprofile.hoursByCategory.unassigned += hoursToBeAdded;
     }
   }
@@ -586,10 +628,14 @@ const timeEntrycontroller = function (TimeEntry) {
         if (timeEntry.isTangible) {
           // update the total tangible hours in the user profile and the hours by category
           updateUserprofileTangibleIntangibleHrs(timeEntry.totalSeconds, 0, userprofile);
+          
+          // Resolve the correct project ID by traversing Task -> WBS -> Project hierarchy
+          const resolvedProjectId = await resolveProjectId(timeEntry.taskId, timeEntry.projectId);
+          
           await updateUserprofileCategoryHrs(
             null,
             null,
-            timeEntry.projectId,
+            resolvedProjectId,
             timeEntry.totalSeconds,
             userprofile,
           );
@@ -819,8 +865,11 @@ const timeEntrycontroller = function (TimeEntry) {
             );
 
             // when changing from tangible to intangible, the original time needs to be removed from hoursByCategory
+            // Resolve the correct initial project ID by traversing Task -> WBS -> Project hierarchy
+            const resolvedInitialProjectId = await resolveProjectId(initialTaskId, initialProjectId);
+            
             await updateUserprofileCategoryHrs(
-              initialProjectIdObject,
+              resolvedInitialProjectId,
               initialTotalSeconds,
               null,
               null,
@@ -842,10 +891,13 @@ const timeEntrycontroller = function (TimeEntry) {
               -initialTotalSeconds,
               userprofile,
             );
+            // Resolve the correct new project ID by traversing Task -> WBS -> Project hierarchy
+            const resolvedNewProjectId = await resolveProjectId(newTaskId, newProjectId);
+            
             await updateUserprofileCategoryHrs(
               null,
               null,
-              newProjectId,
+              resolvedNewProjectId,
               newTotalSeconds,
               userprofile,
             );
@@ -868,10 +920,14 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // when project is also changed
           if (projectChanged || timeChanged) {
+            // Resolve the correct project IDs by traversing Task -> WBS -> Project hierarchy
+            const resolvedInitialProjectId = await resolveProjectId(initialTaskId, initialProjectId);
+            const resolvedNewProjectId = await resolveProjectId(newTaskId, newProjectId);
+            
             await updateUserprofileCategoryHrs(
-              initialProjectIdObject,
+              resolvedInitialProjectId,
               initialTotalSeconds,
-              newProjectId,
+              resolvedNewProjectId,
               newTotalSeconds,
               userprofile,
             );
@@ -976,7 +1032,11 @@ const timeEntrycontroller = function (TimeEntry) {
         // Revert this tangible timeEntry of related task's hoursLogged
         if (isTangible) {
           updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-          await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+          
+          // Resolve the correct project ID by traversing Task -> WBS -> Project hierarchy
+          const resolvedProjectId = await resolveProjectId(taskId, projectId);
+          
+          await updateUserprofileCategoryHrs(resolvedProjectId, totalSeconds, null, null, userprofile);
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
             await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
@@ -1511,11 +1571,36 @@ const timeEntrycontroller = function (TimeEntry) {
 
     const timeEntries = await TimeEntry.find({ personId: userId });
     const updateCategoryPromises = timeEntries.map(async (timeEntry) => {
-      const { projectId, totalSeconds, isTangible } = timeEntry;
+      const { projectId, taskId, totalSeconds, isTangible } = timeEntry;
       const totalHours = Number(totalSeconds / 3600);
-      const project = await Project.findById(projectId);
+      let project = null;
 
       if (isTangible) {
+        // First try to get project through Task -> WBS -> Project hierarchy
+        if (taskId) {
+          try {
+            const task = await Task.findById(taskId);
+            if (task && task.wbsId) {
+              const wbs = await WBS.findById(task.wbsId);
+              if (wbs && wbs.projectId) {
+                project = await Project.findById(wbs.projectId);
+              }
+            }
+          } catch (error) {
+            // If task/wbs lookup fails, fall back to direct projectId
+            console.warn(`Failed to resolve project through task hierarchy for taskId ${taskId}:`, error.message);
+          }
+        }
+        
+        // Fallback to direct projectId if no taskId or hierarchy resolution failed
+        if (!project && projectId) {
+          try {
+            project = await Project.findById(projectId);
+          } catch (error) {
+            console.warn(`Failed to find project with projectId ${projectId}:`, error.message);
+          }
+        }
+
         if (project) {
           const { category } = project;
           if (category && category.toLowerCase() in newCalculatedCategoryHrs) {
