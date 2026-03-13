@@ -1,6 +1,4 @@
 /* eslint-disable import/order */
-/* eslint-disable object-shorthand */
-/* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
 
 jest.mock('../utilities/permissions', () => ({
@@ -21,17 +19,6 @@ const makeSut = () => {
   };
 };
 const flushPromises = () => new Promise(setImmediate);
-
-// HELPER: Mocks Mongoose queries so they work seamlessly whether the controller 
-// uses a standard `await find()` OR a chained `await find().session()`
-const mockMongooseQuery = (data, isReject = false) => ({
-  session: jest.fn().mockImplementation(() =>
-    isReject ? Promise.reject(data) : Promise.resolve(data)
-  ),
-  then: function (resolve, reject) {
-    return isReject ? reject(data) : resolve(data);
-  },
-});
 
 describe('ownerMessageController Unit Tests', () => {
   let mockFind;
