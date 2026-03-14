@@ -963,6 +963,8 @@ const overviewReportHelper = function () {
 
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
+   * NOTE: This shows ALL active users regardless of createdDate to provide
+   * a complete picture of current role distribution in the organization
    */
   async function getRoleDistributionStats(
     startDate,
@@ -970,26 +972,18 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
-    // Helper to build match stage depending on whether start/end are provided
-    const buildMatch = (s, e) => {
-      const match = { isActive: true };
-      if (s && e) {
-        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
-      }
-      return match;
-    };
+    // Always match only active users, ignore date filters for role distribution
+    // This ensures all current roles are displayed, not just recently created users
+    const buildMatch = () => ({ isActive: true });
 
     // If comparison dates provided, return both current and comparison facets
     if (comparisonStartDate && comparisonEndDate) {
       const roleStats = await UserProfile.aggregate([
         {
           $facet: {
-            current: [
-              { $match: buildMatch(startDate, endDate) },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
+            current: [{ $match: buildMatch() }, { $group: { _id: '$role', count: { $sum: 1 } } }],
             comparison: [
-              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
+              { $match: buildMatch() },
               { $group: { _id: '$role', count: { $sum: 1 } } },
             ],
           },
@@ -1003,7 +997,7 @@ const overviewReportHelper = function () {
     }
 
     // No comparison: return same shape as before (array of {_id: role, count})
-    const matchStage = buildMatch(startDate, endDate);
+    const matchStage = buildMatch();
     const result = await UserProfile.aggregate([
       { $match: matchStage },
       { $group: { _id: '$role', count: { $sum: 1 } } },
