@@ -2662,58 +2662,76 @@ const userHelper = function () {
       const categoryHrs = hoursByCategory[category];
 
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
+
+      // Get all badges user currently has in this category
       const badgesInCat = badgeCollection.filter(
         (obj) => obj.badge?.type === 'Total Hrs in Category' && obj.badge?.category === newCatg,
       );
 
-      let badgeOfType = badgesInCat.length ? badgesInCat[0].badge : null;
+      // Clean up duplicate badges - keep only one badge per category
+      if (badgesInCat.length > 1) {
+        // Sort badges by totalHrs descending to find the highest
+        const sortedBadges = badgesInCat.sort((a, b) => b.badge.totalHrs - a.badge.totalHrs);
 
-      // Only process one badge per category
-      for (const current of badgesInCat) {
-        const currBadge = current.badge;
-
-        if (current.count > 1) {
-          decreaseBadgeCount(personId, currBadge._id);
-          addBadge(personId, currBadge._id);
-          badgeOfType = currBadge;
-          break;
-        } else if (badgeOfType && badgeOfType.totalHrs > currBadge.totalHrs) {
-          removeDupBadge(personId, currBadge._id);
-        } else if (!badgeOfType) {
-          badgeOfType = currBadge;
+        // Remove all badges except the highest one
+        for (let i = 1; i < sortedBadges.length; i += 1) {
+          await removeDupBadge(personId, sortedBadges[i].badge._id);
         }
+
+        // If the highest badge has count > 1, reset it to 1
+        if (sortedBadges[0].count > 1) {
+          await changeBadgeCount(personId, sortedBadges[0].badge._id, 1);
+        }
+      } else if (badgesInCat.length === 1 && badgesInCat[0].count > 1) {
+        // If single badge has count > 1, reset it to 1
+        await changeBadgeCount(personId, badgesInCat[0].badge._id, 1);
       }
 
-      const results = await badge
+      // Get the current badge user has (after cleanup)
+      const currentBadge = badgesInCat.length > 0 ? badgesInCat[0].badge : null;
+
+      // Get all available badges for this category, sorted by totalHrs descending (highest first)
+      const availableBadges = await badge
         .find({ type: 'Total Hrs in Category', category: newCatg })
         .sort({ totalHrs: -1 });
 
-      if (!Array.isArray(results) || !results.length || !categoryHrs) {
+      if (!Array.isArray(availableBadges) || !availableBadges.length || !categoryHrs) {
         continue;
       }
 
-      for (const elem of results) {
-        if (categoryHrs >= 100 && categoryHrs >= elem.totalHrs) {
-          const alreadyHas = badgesInCat.find(
-            (b) => b.badge._id.toString() === elem._id.toString(),
-          );
-
-          if (alreadyHas) {
-            increaseBadgeCount(personId, elem._id);
-            break;
-          }
-
-          if (badgeOfType && badgeOfType.totalHrs < elem.totalHrs) {
-            replaceBadge(personId, badgeOfType._id, elem._id);
-            break;
-          }
-
-          if (!badgeOfType) {
-            addBadge(personId, elem._id);
-            break;
-          }
+      // Find the highest badge the user qualifies for
+      let highestQualifyingBadge = null;
+      for (const availableBadge of availableBadges) {
+        if (categoryHrs >= 100 && categoryHrs >= availableBadge.totalHrs) {
+          highestQualifyingBadge = availableBadge;
+          break; // Found the highest qualifying badge (list is sorted descending)
         }
       }
+
+      // If user doesn't qualify for any badge, skip
+      if (!highestQualifyingBadge) {
+        continue;
+      }
+
+      // Case 1: User has no badge in this category - add the highest qualifying badge
+      if (!currentBadge) {
+        await addBadge(personId, highestQualifyingBadge._id);
+        continue;
+      }
+
+      // Case 2: User has a badge, check if they now qualify for a higher one
+      if (currentBadge._id.toString() !== highestQualifyingBadge._id.toString()) {
+        // User qualifies for a different badge
+        if (currentBadge.totalHrs < highestQualifyingBadge.totalHrs) {
+          // Replace lower badge with higher badge (upgrade)
+          await replaceBadge(personId, currentBadge._id, highestQualifyingBadge._id);
+        }
+        // If currentBadge.totalHrs > highestQualifyingBadge.totalHrs, do nothing
+        // This means user has a higher badge than they currently qualify for
+        // This shouldn't happen in normal flow (hours are monotonic), but if it does,
+        // we keep the higher badge to prevent downgrades
+      }
+      // Case 3: User already has the correct badge - do nothing
     }
   };
 
