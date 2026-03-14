@@ -320,6 +320,10 @@ const bmEquipmentController = (BuildingEquipment) => {
     } = req.body;
 
     try {
+      if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
+        return res.status(400).send({ error: 'Invalid equipment ID.' });
+      }
+
       if (!condition || !createdBy) {
         return res.status(400).send({
           error: 'Condition and createdBy are required fields.',
