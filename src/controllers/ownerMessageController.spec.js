@@ -1,3 +1,6 @@
+/* eslint-disable no-return-await */
+/* eslint-disable object-shorthand */
+/* eslint-disable arrow-body-style */
 /* eslint-disable import/order */
 const mongoose = require('mongoose');
 
@@ -20,14 +23,13 @@ const makeSut = () => {
 };
 const flushPromises = () => new Promise(setImmediate);
 
-// HELPER: Fully chainable Mongoose mock. Safely handles .session(), .exec(), and basic awaits.
 const mockMongooseQuery = (data, isReject = false) => {
-  const queryObj = {
+  return {
     session: jest.fn().mockReturnThis(),
     exec: jest.fn().mockImplementation(() =>
       isReject ? Promise.reject(data) : Promise.resolve(data)
     ),
-    then (resolve, reject) {
+    then: function (resolve, reject) {
       return isReject ? reject(data) : resolve(data);
     },
     catch (rejectFn) {
@@ -35,7 +37,6 @@ const mockMongooseQuery = (data, isReject = false) => {
       return this;
     }
   };
-  return queryObj;
 };
 
 describe('ownerMessageController Unit Tests', () => {
@@ -51,12 +52,13 @@ describe('ownerMessageController Unit Tests', () => {
     mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue(mockMongooseQuery([]));
     mockSave = jest.fn().mockResolvedValue({});
 
-    // Bulletproof session mock: Every transaction method safely resolves as a promise
+    // Added withTransaction to support Mongoose write operations
     mockSession = {
       startTransaction: jest.fn().mockResolvedValue(),
       commitTransaction: jest.fn().mockResolvedValue(),
       abortTransaction: jest.fn().mockResolvedValue(),
       endSession: jest.fn().mockResolvedValue(),
+      withTransaction: jest.fn().mockImplementation(async (cb) => await cb()),
     };
     jest.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession);
   });
@@ -108,8 +110,8 @@ describe('ownerMessageController Unit Tests', () => {
     test('Ensures updateOwnerMessage returns status 403 if requestor is not an owner', async () => {
       const { updateOwnerMessage } = makeSut();
       helper.hasPermission.mockResolvedValue(false);
-      const req = { body: { requestor: { role: 'User' } } };
-      const response = await updateOwnerMessage(req, mockRes);
+      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'User' } } };
+      const response = await updateOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
       assertResMock(403, 'You are not authorized to create messages!', response, mockRes);
     });
@@ -155,10 +157,9 @@ describe('ownerMessageController Unit Tests', () => {
   describe('deleteOwnerMessage', () => {
     test('Ensures deleteOwnerMessage returns status 403 if requestor is not an owner', async () => {
       const { deleteOwnerMessage } = makeSut();
-      // Reverted to original direct mutation style to prevent stripping express methods
-      mockReq.body.requestor = { role: 'notOwner' };
+      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'notOwner' } } };
       helper.hasPermission.mockResolvedValue(false);
-      const response = await deleteOwnerMessage(mockReq, mockRes);
+      const response = await deleteOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
       assertResMock(403, 'You are not authorized to delete messages!', response, mockRes);
     });
@@ -170,11 +171,11 @@ describe('ownerMessageController Unit Tests', () => {
         save: mockSave,
       };
       mockFind.mockReturnValue(mockMongooseQuery([existingMessage]));
-      mockReq.body.requestor = { role: 'Owner' };
+      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
-      await deleteOwnerMessage(mockReq, mockRes);
+      await deleteOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
@@ -188,11 +189,11 @@ describe('ownerMessageController Unit Tests', () => {
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
       mockFind.mockReturnValue(mockMongooseQuery(errorMsg, true));
-      mockReq.body.requestor = { role: 'Owner' };
+      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
-      await deleteOwnerMessage(mockReq, mockRes);
+      await deleteOwnerMessage(mockReqDup, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
