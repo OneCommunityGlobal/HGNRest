@@ -1,4 +1,3 @@
-/* eslint-disable no-return-await */
 /* eslint-disable import/order */
 const mongoose = require('mongoose');
 
@@ -42,6 +41,7 @@ describe('ownerMessageController Unit Tests', () => {
       commitTransaction: jest.fn().mockResolvedValue(),
       abortTransaction: jest.fn().mockResolvedValue(),
       endSession: jest.fn().mockResolvedValue(),
+      // eslint-disable-next-line no-return-await
       withTransaction: jest.fn().mockImplementation(async (cb) => await cb(mockSession)),
     };
     jest.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession);
