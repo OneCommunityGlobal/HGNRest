@@ -1,4 +1,3 @@
-/* eslint-disable arrow-body-style */
 /* eslint-disable import/order */
 const mongoose = require('mongoose');
 
@@ -21,21 +20,22 @@ const makeSut = () => {
 };
 const flushPromises = () => new Promise(setImmediate);
 
-// HELPER: Mocks Mongoose queries so they work seamlessly whether the controller 
-// uses a standard `await find()` OR a chained `await find().session()`
+// HELPER: Fully chainable Mongoose mock. Safely handles .session(), .exec(), and basic awaits.
 const mockMongooseQuery = (data, isReject = false) => {
-  return {
-    session: jest.fn().mockImplementation(() =>
+  const queryObj = {
+    session: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockImplementation(() =>
       isReject ? Promise.reject(data) : Promise.resolve(data)
     ),
     then (resolve, reject) {
       return isReject ? reject(data) : resolve(data);
     },
-    catch (reject) {
-      if (isReject) return reject(data);
+    catch (rejectFn) {
+      if (isReject) return rejectFn(data);
       return this;
     }
   };
+  return queryObj;
 };
 
 describe('ownerMessageController Unit Tests', () => {
@@ -48,16 +48,15 @@ describe('ownerMessageController Unit Tests', () => {
   });
 
   beforeEach(() => {
-    // Apply the flexible query mock
     mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue(mockMongooseQuery([]));
     mockSave = jest.fn().mockResolvedValue({});
 
-    // StartSession mock as a safety net for CI database disconnects
+    // Bulletproof session mock: Every transaction method safely resolves as a promise
     mockSession = {
-      startTransaction: jest.fn(),
-      commitTransaction: jest.fn(),
-      abortTransaction: jest.fn(),
-      endSession: jest.fn(),
+      startTransaction: jest.fn().mockResolvedValue(),
+      commitTransaction: jest.fn().mockResolvedValue(),
+      abortTransaction: jest.fn().mockResolvedValue(),
+      endSession: jest.fn().mockResolvedValue(),
     };
     jest.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession);
   });
@@ -156,9 +155,10 @@ describe('ownerMessageController Unit Tests', () => {
   describe('deleteOwnerMessage', () => {
     test('Ensures deleteOwnerMessage returns status 403 if requestor is not an owner', async () => {
       const { deleteOwnerMessage } = makeSut();
-      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'notOwner' } } };
+      // Reverted to original direct mutation style to prevent stripping express methods
+      mockReq.body.requestor = { role: 'notOwner' };
       helper.hasPermission.mockResolvedValue(false);
-      const response = await deleteOwnerMessage(mockReqDup, mockRes);
+      const response = await deleteOwnerMessage(mockReq, mockRes);
       await flushPromises();
       assertResMock(403, 'You are not authorized to delete messages!', response, mockRes);
     });
@@ -170,11 +170,11 @@ describe('ownerMessageController Unit Tests', () => {
         save: mockSave,
       };
       mockFind.mockReturnValue(mockMongooseQuery([existingMessage]));
-      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
+      mockReq.body.requestor = { role: 'Owner' };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
-      await deleteOwnerMessage(mockReqDup, mockRes);
+      await deleteOwnerMessage(mockReq, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
@@ -188,11 +188,11 @@ describe('ownerMessageController Unit Tests', () => {
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
       mockFind.mockReturnValue(mockMongooseQuery(errorMsg, true));
-      const mockReqDup = { ...mockReq, body: { ...mockReq.body, requestor: { role: 'Owner' } } };
+      mockReq.body.requestor = { role: 'Owner' };
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
-      await deleteOwnerMessage(mockReqDup, mockRes);
+      await deleteOwnerMessage(mockReq, mockRes);
       await flushPromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
