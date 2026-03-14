@@ -7,13 +7,22 @@ const {
   IMAGE_NOT_SAVED_ERROR,
 } = require('../../middleware/bmEquipmentStatusUpload');
 
+const AZURE_NOT_CONFIGURED_ERROR = 'Image storage is not configured on this server.';
+
 /**
  * Validates the uploaded file's MIME type and uploads it to Azure Blob Storage.
  * Returns { imageUrl } on success, or { error, status } on validation/upload failure.
+ *
+ * Returns 503 if Azure env vars are not set, so a missing configuration is clearly
+ * distinguishable from a runtime upload failure (500).
  */
 const validateAndUploadImage = async (file, equipmentId) => {
   if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
     return { error: INVALID_IMAGE_ERROR, status: 400 };
+  }
+  if (!process.env.AZURE_STORAGE_CONNECTION_STRING || !process.env.AZURE_STORAGE_CONTAINER_NAME) {
+    logException(new Error('Azure Blob Storage env vars are not set'), 'validateAndUploadImage');
+    return { error: AZURE_NOT_CONFIGURED_ERROR, status: 503 };
   }
   const ext = file.mimetype.split('/')[1];
   const safeName = file.originalname
@@ -28,6 +37,24 @@ const validateAndUploadImage = async (file, equipmentId) => {
     return { error: IMAGE_NOT_SAVED_ERROR, status: 500 };
   }
 };
+
+/**
+ * Builds the updateRecord subdocument for a status update.
+ * Defaults all optional string fields to '' so they are always present in the schema.
+ * If imageUrl is provided it is included; otherwise it is omitted entirely so the field
+ * does not appear in this subdocument entry.
+ */
+const buildUpdateRecord = (fields, imageUrl) => ({
+  date: new Date(),
+  createdBy: new mongoose.Types.ObjectId(fields.createdBy),
+  condition: fields.condition,
+  lastUsedBy: fields.lastUsedBy || '',
+  lastUsedFor: fields.lastUsedFor || '',
+  replacementRequired: fields.replacementRequired || '',
+  description: fields.description || '',
+  notes: fields.notes || '',
+  ...(imageUrl && { imageUrl }),
+});
 
 // eslint-disable-next-line max-lines-per-function
 const bmEquipmentController = (BuildingEquipment) => {
@@ -307,17 +334,19 @@ const bmEquipmentController = (BuildingEquipment) => {
     }
   };
 
+  /**
+   * PUT /equipment/:equipmentId/status
+   *
+   * Appends a new entry to updateRecord[].
+   * If a file is included (multipart/form-data), it is uploaded to Azure and its URL is stored
+   * in both the new updateRecord entry AND the root imageUrl field (which always reflects the
+   * most recently uploaded equipment photo).
+   * JSON-only requests (no file) leave root imageUrl unchanged — it continues to show the last
+   * photo ever uploaded for this equipment.
+   */
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const {
-      condition,
-      lastUsedBy,
-      lastUsedFor,
-      replacementRequired,
-      description,
-      notes,
-      createdBy,
-    } = req.body;
+    const { condition, createdBy } = req.body;
 
     try {
       if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
@@ -347,17 +376,7 @@ const bmEquipmentController = (BuildingEquipment) => {
         imageUrl = result.imageUrl;
       }
 
-      const updateRecord = {
-        date: new Date(),
-        createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition,
-        lastUsedBy: lastUsedBy || '',
-        lastUsedFor: lastUsedFor || '',
-        replacementRequired: replacementRequired || '',
-        description: description || '',
-        notes: notes || '',
-        ...(imageUrl && { imageUrl }),
-      };
+      const updateRecord = buildUpdateRecord(req.body, imageUrl);
 
       const dbUpdate = { $push: { updateRecord } };
       if (imageUrl) {
