@@ -383,6 +383,7 @@ const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -565,4 +566,7 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  // education portal
+  app.use('/api/educator', educatorRouter);
 };
