@@ -8,7 +8,7 @@ const IMAGE_NOT_SAVED_ERROR = 'Image selected but not saved.';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
+  limits: { fileSize: MAX_IMAGE_SIZE_BYTES }, // NOSONAR S5693 - 5 MB is intentional for equipment image uploads; within the ≤8 MB guidance for file uploads
   fileFilter: (req, file, cb) => {
     if (ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);

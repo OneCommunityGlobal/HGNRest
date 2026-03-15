@@ -72,32 +72,32 @@ describe('bmEquipmentStatusUpload', () => {
 
     it('accepts image/png with cb(null, true)', () => {
       const cb = jest.fn();
-      fileFilter({}, { mimetype: 'image/png' }, cb);
+      fileFilter({}, { mimetype: 'image/png' }, cb); // NOSONAR S5693 - testing middleware that uses a reviewed 5 MB limit
       expect(cb).toHaveBeenCalledWith(null, true);
     });
 
     it('accepts image/jpeg with cb(null, true)', () => {
       const cb = jest.fn();
-      fileFilter({}, { mimetype: 'image/jpeg' }, cb);
+      fileFilter({}, { mimetype: 'image/jpeg' }, cb); // NOSONAR S5693 - testing middleware that uses a reviewed 5 MB limit
       expect(cb).toHaveBeenCalledWith(null, true);
     });
 
     it('rejects image/gif with cb(Error, false)', () => {
       const cb = jest.fn();
-      fileFilter({}, { mimetype: 'image/gif' }, cb);
+      fileFilter({}, { mimetype: 'image/gif' }, cb); // NOSONAR S5693 - testing middleware that uses a reviewed 5 MB limit
       expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
       expect(cb.mock.calls[0][0].message).toBe(INVALID_IMAGE_ERROR);
     });
 
     it('rejects image/webp with cb(Error, false)', () => {
       const cb = jest.fn();
-      fileFilter({}, { mimetype: 'image/webp' }, cb);
+      fileFilter({}, { mimetype: 'image/webp' }, cb); // NOSONAR S5693 - testing middleware that uses a reviewed 5 MB limit
       expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
     });
 
     it('rejects application/pdf with cb(Error, false)', () => {
       const cb = jest.fn();
-      fileFilter({}, { mimetype: 'application/pdf' }, cb);
+      fileFilter({}, { mimetype: 'application/pdf' }, cb); // NOSONAR S5693 - testing middleware that uses a reviewed 5 MB limit
       expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
     });
   });
