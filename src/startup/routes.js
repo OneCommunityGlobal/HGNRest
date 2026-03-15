@@ -379,11 +379,13 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
+const chatbotRouter = require('../routes/chatbotRouter');
 
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
 module.exports = function (app) {
+  app.use('/api', chatbotRouter);
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -497,7 +499,6 @@ module.exports = function (app) {
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
-
 
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);

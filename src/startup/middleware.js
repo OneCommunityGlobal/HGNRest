@@ -58,7 +58,9 @@ module.exports = function (app) {
     if (
       ((req.originalUrl === '/api/ProfileInitialSetup' ||
         req.originalUrl === '/api/validateToken' ||
-        req.originalUrl === '/api/getTimeZoneAPIKeyByToken') &&
+        req.originalUrl === '/api/getTimeZoneAPIKeyByToken' ||
+        req.originalUrl === '/api/chatbot/query' ||
+        req.originalUrl === '/chatbot/query') &&
         req.method === 'POST') ||
       (req.originalUrl === '/api/getTotalCountryCount' && req.method === 'GET') ||
       (req.originalUrl.includes('/api/timezone') && req.method === 'POST')
