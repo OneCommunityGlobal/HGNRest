@@ -1,4 +1,5 @@
 const express = require('express');
+const { bmEquipmentStatusUpload } = require('../../middleware/bmEquipmentStatusUpload');
 
 const routes = function (BuildingEquipment) {
   const equipmentRouter = express.Router();
@@ -11,7 +12,9 @@ const routes = function (BuildingEquipment) {
     .get(controller.fetchSingleEquipment)
     .put(controller.updateEquipmentById);
 
-  equipmentRouter.route('/equipment/:equipmentId/status').put(controller.updateEquipmentStatus);
+  equipmentRouter
+    .route('/equipment/:equipmentId/status')
+    .put(bmEquipmentStatusUpload, controller.updateEquipmentStatus);
 
   equipmentRouter.route('/equipment/purchase').post(controller.bmPurchaseEquipments);
 

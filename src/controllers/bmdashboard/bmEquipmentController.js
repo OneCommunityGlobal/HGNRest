@@ -1,5 +1,62 @@
 const mongoose = require('mongoose');
+const { uploadFileToAzureBlobStorage } = require('../../utilities/AzureBlobImages');
+const { logException } = require('../../startup/logger');
+const {
+  ALLOWED_IMAGE_MIME_TYPES,
+  INVALID_IMAGE_ERROR,
+  IMAGE_NOT_SAVED_ERROR,
+} = require('../../middleware/bmEquipmentStatusUpload');
 
+const AZURE_NOT_CONFIGURED_ERROR = 'Image storage is not configured on this server.';
+
+/**
+ * Validates the uploaded file's MIME type and uploads it to Azure Blob Storage.
+ * Returns { imageUrl } on success, or { error, status } on validation/upload failure.
+ *
+ * Returns 503 if Azure env vars are not set, so a missing configuration is clearly
+ * distinguishable from a runtime upload failure (500).
+ */
+const validateAndUploadImage = async (file, equipmentId) => {
+  if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
+    return { error: INVALID_IMAGE_ERROR, status: 400 };
+  }
+  if (!process.env.AZURE_STORAGE_CONNECTION_STRING || !process.env.AZURE_STORAGE_CONTAINER_NAME) {
+    logException(new Error('Azure Blob Storage env vars are not set'), 'validateAndUploadImage');
+    return { error: AZURE_NOT_CONFIGURED_ERROR, status: 503 };
+  }
+  const ext = file.mimetype.split('/')[1];
+  const safeName = file.originalname
+    ? file.originalname.replaceAll(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+    : 'image';
+  const blobName = `equipment/${equipmentId}/status/${Date.now()}_${safeName}.${ext}`;
+  try {
+    const imageUrl = await uploadFileToAzureBlobStorage(file, blobName);
+    return { imageUrl };
+  } catch (err) {
+    logException(err, 'validateAndUploadImage');
+    return { error: IMAGE_NOT_SAVED_ERROR, status: 500 };
+  }
+};
+
+/**
+ * Builds the updateRecord subdocument for a status update.
+ * Defaults all optional string fields to '' so they are always present in the schema.
+ * If imageUrl is provided it is included; otherwise it is omitted entirely so the field
+ * does not appear in this subdocument entry.
+ */
+const buildUpdateRecord = (fields, imageUrl) => ({
+  date: new Date(),
+  createdBy: new mongoose.Types.ObjectId(fields.createdBy),
+  condition: fields.condition,
+  lastUsedBy: fields.lastUsedBy || '',
+  lastUsedFor: fields.lastUsedFor || '',
+  replacementRequired: fields.replacementRequired || '',
+  description: fields.description || '',
+  notes: fields.notes || '',
+  ...(imageUrl && { imageUrl }),
+});
+
+// eslint-disable-next-line max-lines-per-function
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
     { path: 'itemType', select: '_id name description unit imageUrl category' },
@@ -272,25 +329,30 @@ const bmEquipmentController = (BuildingEquipment) => {
 
       return res.status(200).send(equipmentList);
     } catch (error) {
-      console.error('[updateMultipleLogRecords] ', error);
+      logException(error, 'updateMultipleLogRecords');
       return res.status(500).send(error);
     }
   };
 
+  /**
+   * PUT /equipment/:equipmentId/status
+   *
+   * Appends a new entry to updateRecord[].
+   * If a file is included (multipart/form-data), it is uploaded to Azure and its URL is stored
+   * in both the new updateRecord entry AND the root imageUrl field (which always reflects the
+   * most recently uploaded equipment photo).
+   * JSON-only requests (no file) leave root imageUrl unchanged — it continues to show the last
+   * photo ever uploaded for this equipment.
+   */
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const {
-      condition,
-      lastUsedBy,
-      lastUsedFor,
-      replacementRequired,
-      description,
-      notes,
-      createdBy,
-    } = req.body;
+    const { condition, createdBy } = req.body;
 
     try {
-      // Validate required fields
+      if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
+        return res.status(400).send({ error: 'Invalid equipment ID.' });
+      }
+
       if (!condition || !createdBy) {
         return res.status(400).send({
           error: 'Condition and createdBy are required fields.',
@@ -298,36 +360,32 @@ const bmEquipmentController = (BuildingEquipment) => {
       }
 
       if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        console.error('Invalid createdBy ID:', createdBy);
+        logException(new Error('Invalid createdBy ID'), 'updateEquipmentStatus', { createdBy });
         return res.status(400).send({
           error: 'Invalid user ID format. Please log in again.',
           details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
         });
       }
 
-      const updateRecord = {
-        date: new Date(),
-        createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition,
-        lastUsedBy: lastUsedBy || '',
-        lastUsedFor: lastUsedFor || '',
-        replacementRequired: replacementRequired || '',
-        description: description || '',
-        notes: notes || '',
-      };
+      let imageUrl;
+      if (req.file) {
+        const result = await validateAndUploadImage(req.file, equipmentId);
+        if (result.error) {
+          return res.status(result.status).send({ error: result.error });
+        }
+        imageUrl = result.imageUrl;
+      }
 
-      console.log('Adding update record:', updateRecord);
+      const updateRecord = buildUpdateRecord(req.body, imageUrl);
 
-      // Update the equipment with new status
-      const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
-        equipmentId,
-        {
-          $push: {
-            updateRecord,
-          },
-        },
-        { new: true },
-      ).populate([
+      const dbUpdate = { $push: { updateRecord } };
+      if (imageUrl) {
+        dbUpdate.$set = { imageUrl };
+      }
+
+      const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(equipmentId, dbUpdate, {
+        new: true,
+      }).populate([
         {
           path: 'itemType',
           select: '_id name description unit imageUrl category',
@@ -346,13 +404,10 @@ const bmEquipmentController = (BuildingEquipment) => {
         return res.status(404).send({ error: 'Equipment not found.' });
       }
 
-      res.status(200).send(updatedEquipment);
+      return res.status(200).send(updatedEquipment);
     } catch (error) {
-      console.error('[updateEquipmentStatus] ', error);
-      res.status(500).send({
-        error: 'Failed to update equipment status',
-        details: error.message,
-      });
+      logException(error, 'updateEquipmentStatus');
+      return res.status(500).send({ error: IMAGE_NOT_SAVED_ERROR });
     }
   };
 
