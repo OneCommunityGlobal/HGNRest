@@ -2216,13 +2216,15 @@ const overviewReportHelper = function () {
     comparisonEndDate,
   ) {
     // 1. Retrieves the total hours logged to tasks for a given date range.
+    // Tasks are entries where entryType is NOT 'person', 'team', or 'project' (defaulting to 'default')
     const getTaskHours = async (start, end) => {
       const taskHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            taskId: { $exists: true, $type: 'objectId' },
             isTangible: { $eq: true },
+            isActive: { $ne: false }, // Only include active entries
+            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
           },
         },
         {
@@ -2243,12 +2245,14 @@ const overviewReportHelper = function () {
     taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
 
     // 2. Retrieves the total hours logged to projects for a given date range.
+    // Projects are entries where entryType is explicitly 'project'
     const getProjectHours = async (start, end) => {
       const projectHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            projectId: { $exists: true },
+            projectId: { $exists: true, $type: 'objectId' },
+            taskId: { $not: { $type: 'objectId' } }, // exclude entries where taskId is an ObjectId
             isTangible: { $eq: true },
           },
         },
@@ -2281,9 +2285,11 @@ const overviewReportHelper = function () {
         projectHours,
         comparisonProjectHours,
       );
-      hoursSubmittedToTasksComparisonPercentage = Number(
-        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
-      );
+      const comparisonTotal = comparisonTaskHours + comparisonProjectHours;
+      hoursSubmittedToTasksComparisonPercentage =
+        comparisonTotal > 0
+          ? Number(((comparisonTaskHours / comparisonTotal) * 100).toFixed(2))
+          : 0;
     }
 
     // Calculates the number of weeks, rounded up, for a given time range.
@@ -2367,11 +2373,19 @@ const overviewReportHelper = function () {
       dueDatetime: { $gte: startDate, $lte: endDate },
     });
 
+    // Calculate total tangible hours for percentage distribution
+    const totalTangibleHours = taskHours + projectHours;
+    const taskPercentage =
+      totalTangibleHours > 0 ? Number(((taskHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+    const projectPercentage =
+      totalTangibleHours > 0 ? Number(((projectHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+
     const taskAndProjectStats = {
       taskHours: {
         count: taskHours,
         submittedToCommittedHoursPercentage: Number((taskHours / totalCommittedHours).toFixed(2)),
         comparisonPercentage: tasksComparisonPercentage,
+        percentageOfTotal: taskPercentage,
       },
       projectHours: {
         count: projectHours,
@@ -2379,9 +2393,16 @@ const overviewReportHelper = function () {
           (projectHours / totalCommittedHours).toFixed(2),
         ),
         comparisonPercentage: projectsComparisonPercentage,
+        percentageOfTotal: projectPercentage,
       },
-      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      // percentage of tangible hours that were logged as tasks (0-100)
+      hoursSubmittedToTasksPercentage: taskPercentage,
+      // comparison loses meaning when projectHours = 0 (avoid NaN)
       hoursSubmittedToTasksComparisonPercentage,
+      // distribution label for bar chart display (unchanged)
+      hoursDistributionLabel: `${taskPercentage}% Tasks | ${projectPercentage}% Projects (Total = 100%)`,
+      totalTangibleHours,
+
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
