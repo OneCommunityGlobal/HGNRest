@@ -23,11 +23,7 @@ const ownerMessageController = require('./ownerMessageController');
 const makeSut = () => {
   const { getOwnerMessage, updateOwnerMessage, deleteOwnerMessage } =
     ownerMessageController(OwnerMessage);
-  return {
-    getOwnerMessage,
-    updateOwnerMessage,
-    deleteOwnerMessage,
-  };
+  return { getOwnerMessage, updateOwnerMessage, deleteOwnerMessage };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -44,7 +40,6 @@ describe('ownerMessageController Unit Tests', () => {
   beforeEach(() => {
     mockSave = jest.fn().mockResolvedValue({});
 
-    // Mock session with manual transaction flow (matching controller)
     mockSession = {
       startTransaction: jest.fn().mockResolvedValue(),
       commitTransaction: jest.fn().mockResolvedValue(),
@@ -53,20 +48,19 @@ describe('ownerMessageController Unit Tests', () => {
     };
     jest.spyOn(mongoose, 'startSession').mockResolvedValue(mockSession);
 
-    // Mock UserProfile.findById to return a fake requestor
     UserProfile.findById.mockResolvedValue({
       email: 'test@test.com',
       firstName: 'John',
       lastName: 'Doe',
     });
 
-    // Mock OwnerMessageLog.create to do nothing
     OwnerMessageLog.create.mockResolvedValue({});
 
-    // Default find mock — no session chaining needed (controller calls find({}) directly)
-    mockFind = jest.spyOn(OwnerMessage, 'find').mockResolvedValue([]);
+    // Default mock supports .session() chaining — needed by update and delete
+    mockFind = jest.spyOn(OwnerMessage, 'find').mockReturnValue({
+      session: jest.fn().mockResolvedValue([]),
+    });
 
-    // Reset mockReq body before every test to prevent bleeding
     mockReq.body = {};
   });
 
@@ -74,6 +68,7 @@ describe('ownerMessageController Unit Tests', () => {
     test('Ensures getOwnerMessage returns status 404 if owner message cant be found', async () => {
       const { getOwnerMessage } = makeSut();
       const errorMsg = 'Error occurred when finding owner message';
+      // getOwnerMessage uses find({}) with NO .session() — override with direct rejection
       mockFind.mockRejectedValue(errorMsg);
       const response = await getOwnerMessage(mockReq, mockRes);
       await flushPromises();
@@ -81,6 +76,7 @@ describe('ownerMessageController Unit Tests', () => {
     });
 
     test('Ensures getOwnerMessage returns status 200 with new owner message if none exist', async () => {
+      // getOwnerMessage uses find({}) with NO .session() — override with direct resolution
       mockFind.mockResolvedValue([]);
       const ownerMessageInstance = new OwnerMessage();
       const mockSaveFn = jest.fn().mockResolvedValue(ownerMessageInstance);
@@ -104,6 +100,7 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures getOwnerMessage returns status 200 with the first owner message if it exists', async () => {
       const existingMessage = { message: 'Existing message', standardMessage: 'Standard message' };
+      // getOwnerMessage uses find({}) with NO .session() — override with direct resolution
       mockFind.mockResolvedValue([existingMessage]);
 
       await makeSut().getOwnerMessage(mockReq, mockRes);
@@ -126,7 +123,8 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 201 and updates the owner message correctly with custom message', async () => {
       const existingMessage = { message: '', standardMessage: '', save: mockSave };
-      mockFind.mockResolvedValue([existingMessage]);
+      // updateOwnerMessage uses find({}).session() — use .session() chaining mock
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([existingMessage]) });
 
       mockReq.body = {
         isStandard: false,
@@ -149,7 +147,8 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures updateOwnerMessage returns status 500 if an error occurs during the update', async () => {
       const errorMsg = 'Error occurred during update';
-      mockFind.mockRejectedValue(errorMsg);
+      // updateOwnerMessage uses find({}).session() — reject inside .session()
+      mockFind.mockReturnValue({ session: jest.fn().mockRejectedValue(errorMsg) });
       mockReq.body = { requestor: { role: 'Owner' } };
       helper.hasPermission.mockResolvedValue(true);
 
@@ -178,7 +177,8 @@ describe('ownerMessageController Unit Tests', () => {
         standardMessage: 'Standard message',
         save: mockSave,
       };
-      mockFind.mockResolvedValue([existingMessage]);
+      // deleteOwnerMessage uses find({}).session() — use .session() chaining mock
+      mockFind.mockReturnValue({ session: jest.fn().mockResolvedValue([existingMessage]) });
       mockReq.body = { requestor: { role: 'Owner', requestorId: 'requestorId123' } };
       helper.hasPermission.mockResolvedValue(true);
 
@@ -197,7 +197,8 @@ describe('ownerMessageController Unit Tests', () => {
 
     test('Ensures deleteOwnerMessage returns status 500 if an error occurs during the delete', async () => {
       const errorMsg = 'Error occurred during delete';
-      mockFind.mockRejectedValue(errorMsg);
+      // deleteOwnerMessage uses find({}).session() — reject inside .session()
+      mockFind.mockReturnValue({ session: jest.fn().mockRejectedValue(errorMsg) });
       mockReq.body = { requestor: { role: 'Owner' } };
       helper.hasPermission.mockResolvedValue(true);
 
