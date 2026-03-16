@@ -2204,17 +2204,23 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
       // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
-      let reasons = req.body.blueSquare.reasons;
+      let { reasons } = req.body.blueSquare;
       if (!Array.isArray(reasons)) {
         reasons = reasons ? [reasons] : ['other'];
       }
-      const processedReasons = [
+      let processedReasons = [
         ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
       ].filter((r) =>
-        ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'].includes(r),
+        [
+          'time not met',
+          'missing summary',
+          'missed video call',
+          'late reporting',
+          'other',
+        ].includes(r),
       );
       if (processedReasons.length === 0) {
-        processedReasons.push('other');
+        processedReasons = ['other'];
       }
 
       const newInfringement = {
