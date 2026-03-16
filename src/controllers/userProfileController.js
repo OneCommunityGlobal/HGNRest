@@ -2203,6 +2203,20 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
+      // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
+      let reasons = req.body.blueSquare.reasons;
+      if (!Array.isArray(reasons)) {
+        reasons = reasons ? [reasons] : ['other'];
+      }
+      const processedReasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ].filter((r) =>
+        ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'].includes(r),
+      );
+      if (processedReasons.length === 0) {
+        processedReasons.push('other');
+      }
+
       const newInfringement = {
         ...req.body.blueSquare,
         date: inputDate,
@@ -2217,6 +2231,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
+        // Add reasons array for more detailed categorization
+        reasons: processedReasons,
         // Maintain backward compatibility
       };
 
