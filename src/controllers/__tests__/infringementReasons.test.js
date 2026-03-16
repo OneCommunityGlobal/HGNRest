@@ -33,6 +33,32 @@ const moment = require('moment-timezone');
 const UserProfile = require('../../models/userProfile');
 
 describe('Infringement Reasons Array Feature', () => {
+  // Shared helper function for processing reasons - extracted to avoid duplication
+  const processReasons = (reasons) => {
+    let processedReasons = reasons;
+    if (!Array.isArray(reasons)) {
+      processedReasons = reasons ? [reasons] : ['other'];
+    }
+
+    const validReasons = [
+      'time not met',
+      'missing summary',
+      'missed video call',
+      'late reporting',
+      'other',
+    ];
+
+    let result = [...new Set(processedReasons.map((r) => String(r).toLowerCase().trim()))].filter(
+      (r) => validReasons.includes(r),
+    );
+
+    if (result.length === 0) {
+      result = ['other'];
+    }
+
+    return result;
+  };
+
   describe('UserProfile Schema - reasons field', () => {
     it('should have reasons field with correct default value', () => {
       const userProfileSchema = UserProfile.schema;
@@ -75,32 +101,6 @@ describe('Infringement Reasons Array Feature', () => {
   });
 
   describe('Reasons Array Processing Logic', () => {
-    // Simulate the processing logic from the controller
-    const processReasons = (reasons) => {
-      let processedReasons = reasons;
-      if (!Array.isArray(reasons)) {
-        processedReasons = reasons ? [reasons] : ['other'];
-      }
-
-      const validReasons = [
-        'time not met',
-        'missing summary',
-        'missed video call',
-        'late reporting',
-        'other',
-      ];
-
-      let result = [...new Set(processedReasons.map((r) => String(r).toLowerCase().trim()))].filter(
-        (r) => validReasons.includes(r),
-      );
-
-      if (result.length === 0) {
-        result = ['other'];
-      }
-
-      return result;
-    };
-
     it('should normalize reasons to lowercase', () => {
       const input = ['TIME NOT MET', 'Missing Summary', 'LATE REPORTING'];
       const result = processReasons(input);
@@ -232,31 +232,6 @@ describe('Infringement Reasons Array Feature', () => {
 
   describe('Edge Cases', () => {
     it('should handle reasons with special characters', () => {
-      const processReasons = (reasons) => {
-        let processedReasons = reasons;
-        if (!Array.isArray(reasons)) {
-          processedReasons = reasons ? [reasons] : ['other'];
-        }
-
-        const validReasons = [
-          'time not met',
-          'missing summary',
-          'missed video call',
-          'late reporting',
-          'other',
-        ];
-
-        let result = [
-          ...new Set(processedReasons.map((r) => String(r).toLowerCase().trim())),
-        ].filter((r) => validReasons.includes(r));
-
-        if (result.length === 0) {
-          result = ['other'];
-        }
-
-        return result;
-      };
-
       // Special characters should be treated as invalid and filtered out
       const input = ['time not met!', '@missing summary', 'time not met'];
       const result = processReasons(input);
@@ -267,31 +242,6 @@ describe('Infringement Reasons Array Feature', () => {
     });
 
     it('should handle very long reasons array', () => {
-      const processReasons = (reasons) => {
-        let processedReasons = reasons;
-        if (!Array.isArray(reasons)) {
-          processedReasons = reasons ? [reasons] : ['other'];
-        }
-
-        const validReasons = [
-          'time not met',
-          'missing summary',
-          'missed video call',
-          'late reporting',
-          'other',
-        ];
-
-        let result = [
-          ...new Set(processedReasons.map((r) => String(r).toLowerCase().trim())),
-        ].filter((r) => validReasons.includes(r));
-
-        if (result.length === 0) {
-          result = ['other'];
-        }
-
-        return result;
-      };
-
       // Array with many duplicates
       const input = Array(100).fill('time not met');
       const result = processReasons(input);
@@ -301,31 +251,6 @@ describe('Infringement Reasons Array Feature', () => {
     });
 
     it('should handle empty string reasons', () => {
-      const processReasons = (reasons) => {
-        let processedReasons = reasons;
-        if (!Array.isArray(reasons)) {
-          processedReasons = reasons ? [reasons] : ['other'];
-        }
-
-        const validReasons = [
-          'time not met',
-          'missing summary',
-          'missed video call',
-          'late reporting',
-          'other',
-        ];
-
-        let result = [
-          ...new Set(processedReasons.map((r) => String(r).toLowerCase().trim())),
-        ].filter((r) => validReasons.includes(r));
-
-        if (result.length === 0) {
-          result = ['other'];
-        }
-
-        return result;
-      };
-
       const input = ['', '   ', 'time not met'];
       const result = processReasons(input);
 
