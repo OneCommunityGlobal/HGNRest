@@ -117,6 +117,7 @@
     "node-fetch": "^2.6.7",
     "node-schedule": "^2.1.1",
     "nodemailer": "^7.0.11",
+    "oauth-1.0a": "^2.2.6",
     "parse-link-header": "^2.0.0",
     "pdfkit": "^0.17.2",
     "redis": "^4.2.0",

@@ -8,11 +8,14 @@ const MessagingWebSocket = require('./websockets/lbMessaging/messagingSocket').d
 require('./startup/db')();
 // const { initializeLiveJournalScheduler } = require('./utilities/liveJournalScheduler');
 // initializeLiveJournalScheduler();
+const xScheduler = require('./cronjobs/xScheduleJob');
 const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
+
+xScheduler.start();
 // eslint-disable-next-line import/order
 const websocketRouter = require('./websockets/webSocketRouter');
 
