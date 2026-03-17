@@ -18,24 +18,33 @@ const findLatestRelatedLog = (userId) =>
 
 //
 
+const checkPermissionArray = (permArray) => (Array.isArray(permArray) ? permArray : []);
+
 const logUserPermissionChangeByAccount = async (req, user) => {
   const { permissions, requestor, reason } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
+    if (!permissions || !requestor?.requestorId) {
+      return;
+    }
+
+    // Fetch requestor email (may be null if requestor deleted)
+    const requestorDoc = await UserProfile.findById(requestor.requestorId)
+      .select('email')
+      .lean()
+      .exec();
+    const requestorEmail = requestorDoc?.email ?? 'unknown';
+
+    // const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
     let roleChanged = false;
     const { userId } = req.params;
-    const Permissions = permissions.frontPermissions;
-    const removedPermissions = permissions.removedDefaultPermissions; // removed default permissions
-    const rolePermissions = permissions.defaultPermissions; // default permissions for user provided by their role
+    const Permissions = checkPermissionArray(permissions.frontPermissions);
+    const removedPermissions = checkPermissionArray(permissions.removedDefaultPermissions); // removed default permissions
+    const rolePermissions = checkPermissionArray(permissions.defaultPermissions); // default permissions for user provided by their role
     const changedPermissions = [...Permissions, ...removedPermissions];
-
-    // Fetch requestor email
-    const requestorEmailId = await UserProfile.findById(requestor.requestorId)
-      .select('email')
-      .exec();
 
     // Use the user object passed from controller (already fetched)
     const { firstName, lastName } = user;
@@ -43,14 +52,12 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
-      const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      const docRemovedRolePermissions = Array.isArray(document.removedRolePermissions)
-        ? document.removedRolePermissions
-        : [];
+      const docPermissions = checkPermissionArray(document.permissions);
+      const docRemovedRolePermissions = checkPermissionArray(document.removedRolePermissions);
       roleChanged = reason.includes('Role Changed');
-      const docSavedChanges = [...docPermissions, docRemovedRolePermissions];
-      const sortedSaved = [...docSavedChanges].sort((a, b) => a.localecompare(b));
-      const sortedChanged = [...changedPermissions].sort((a, b) => a.localecompare(b));
+      const docSavedChanges = [...docPermissions, ...docRemovedRolePermissions];
+      const sortedSaved = [...docSavedChanges].sort((a, b) => a.localeCompare(b));
+      const sortedChanged = [...changedPermissions].sort((a, b) => a.localeCompare(b));
       // no new changes in permissions list from last update and no role change
       if (
         sortedSaved.length === sortedChanged.length &&
@@ -59,6 +66,15 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       ) {
         return;
       }
+      // Below added by development
+      // const sortedDoc = [...docPermissions].sort();
+      // const sortedDoc = [...docPermissions].sort((a, b) => a.localeCompare(b));
+      // const sortedCurrent = [...Permissions].sort();
+      // const sortedCurrent = [...Permissions].sort((a, b) => a.localeCompare(b));
+      // if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
+      // return;
+      // }
+      // Above added by development, so not specifically needed
       permissionsRemoved = [
         ...removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item)), // saves new removed role defaults
         ...docPermissions.filter(
@@ -90,8 +106,8 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
-      requestorEmail: requestorEmailId.email,
       reason,
+      requestorEmail,
     });
 
     await logEntry.save();
