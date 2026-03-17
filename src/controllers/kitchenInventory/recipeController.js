@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Recipe = require('../../models/kitchenInventory/recipe');
 
 const recipeController = function () {
@@ -72,6 +73,24 @@ const recipeController = function () {
     }
   };
 
+  const updateRecipe = async (req, res) => {
+    const { recipeId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(recipeId)) {
+      return res.status(400).send('Invalid Recipe id');
+    }
+
+    try {
+      const updatedRecipe = await Recipe.findByIdAndUpdate(recipeId, req.body, { new: true });
+      if (!updatedRecipe) {
+        return res.status(404).json('Recipe Not found');
+      }
+      res.status(200).json(updatedRecipe);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   const deleteRecipe = async (req, res) => {
     try {
       const { recipeId } = req.params;
@@ -92,6 +111,7 @@ const recipeController = function () {
     createRecipe,
     getAllRecipes,
     getRecipeById,
+    updateRecipe,
     deleteRecipe,
   };
 };

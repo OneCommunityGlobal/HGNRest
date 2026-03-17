@@ -6,7 +6,11 @@ const routes = function () {
   const recipeCtrl = recipeController();
 
   router.route('/').get(recipeCtrl.getAllRecipes).post(recipeCtrl.createRecipe);
-  router.route('/:recipeId').get(recipeCtrl.getRecipeById).delete(recipeCtrl.deleteRecipe);
+  router
+    .route('/:recipeId')
+    .get(recipeCtrl.getRecipeById)
+    .delete(recipeCtrl.deleteRecipe)
+    .put(recipeCtrl.updateRecipe);
 
   return router;
 };
