@@ -16,7 +16,7 @@ const jwtPayload = (user) => {
       canAccessBMPortal: false,
     },
     email: user.email,
-    expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+    expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
   };
 
   return sign(payload, config.JWT_SECRET);

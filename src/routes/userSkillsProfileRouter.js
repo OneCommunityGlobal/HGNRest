@@ -19,6 +19,10 @@ const routes = function (UserProfile) {
     .route('/skills/profile/updateFollowUp/:userId')
     .put(controller.updateUserSkillsProfileFollowUp);
 
+  userSkillsProfileRouter
+    .route('/skills/profile/updateYearsOfExperience/:userId')
+    .put(controller.updateYearsOfExperience);
+
   return userSkillsProfileRouter;
 };
 
