@@ -3,6 +3,9 @@ const nodemailer = require('nodemailer');
 const Joi = require('joi');
 require('dotenv').config();
 
+const ACTIVE_STATUSES = ['pending', 'confirmed'];
+const HOLD_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
 const environment =
   process.env.NODE_ENV === 'production'
     ? new paypal.core.LiveEnvironment(
@@ -16,7 +19,7 @@ const environment =
 
 const client = new paypal.core.PayPalHttpClient(environment);
 
-const bookingsController = (Booking, Listing, User) => {
+const bookingsController = (Booking, Listing, User, BookingHold) => {
   const calculatePrice = (startDate, endDate, basePrice) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -99,9 +102,27 @@ const bookingsController = (Booking, Listing, User) => {
       console.error('Email notification error:', error.message);
     }
   };
+  const hasBookingConflict = async (listingId, startDate, endDate) =>
+    Booking.findOne({
+      listingId,
+      startDate: { $lt: endDate },
+      endDate: { $gt: startDate },
+      status: { $in: ACTIVE_STATUSES },
+    });
+
+  // Check for an active hold by anyone OTHER than the requesting user
+  const hasActiveHold = async (listingId, startDate, endDate, excludeUserId) =>
+    BookingHold.findOne({
+      listingId,
+      startDate: { $lt: endDate },
+      endDate: { $gt: startDate },
+      userId: { $ne: excludeUserId },
+      expiresAt: { $gt: new Date() }, // belt-and-suspenders in case TTL hasn't fired
+    });
 
   const createPaymentIntent = async (req, res) => {
     try {
+      console.log('in payment intent');
       const schema = Joi.object({
         listingId: Joi.string().hex().length(24).required().messages({
           'string.hex': 'Invalid listing ID format',
@@ -138,6 +159,24 @@ const bookingsController = (Booking, Listing, User) => {
         return res.status(404).json({ error: 'Listing not found' });
       }
 
+      const conflict = await hasBookingConflict(listingId, startDate, endDate);
+      if (conflict) {
+        return res.status(400).json({
+          error: 'Selected dates are unavailable. Please choose different dates.',
+        });
+      }
+
+      // Check for an active hold by someone else
+      const activeHold = await hasActiveHold(listingId, startDate, endDate, userId);
+
+      if (activeHold) {
+        return res.status(409).json({
+          error: 'unavailable_hold',
+          message: `Someone is currently in the booking process for this unit. Choose another one or check back in 15 minutes to see if it becomes available.`,
+          retryAfter: activeHold.expiresAt,
+        });
+      }
+
       const { totalAmount } = calculatePrice(startDate, endDate, listing.price);
 
       const startDateSimple = new Date(startDate).toISOString().split('T')[0];
@@ -161,12 +200,27 @@ const bookingsController = (Booking, Listing, User) => {
 
       const order = await client.execute(request);
 
+      // Place a hold now that we have the PayPal order ID
+      const expiresAt = new Date(Date.now() + HOLD_DURATION_MS);
+      await BookingHold.findOneAndUpdate(
+        { listingId, userId }, // one hold per user per listing — replace if they retry
+        {
+          listingId,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          userId,
+          paypalOrderId: order.result.id,
+          expiresAt,
+        },
+        { upsert: true, new: true },
+      );
       res.status(200).json({
         success: true,
         orderId: order.result.id,
         totalAmount,
         listingId,
         currency,
+        holdExpiresAt: expiresAt, //  use in frontend if want to show a countdown
       });
     } catch (err) {
       console.error('PayPal Error:', err.message);
@@ -282,12 +336,7 @@ const bookingsController = (Booking, Listing, User) => {
         });
       }
 
-      const conflict = await Booking.findOne({
-        listingId,
-        $or: [{ startDate: { $lt: endDateObj }, endDate: { $gt: startDateObj } }],
-        status: { $in: ['pending', 'confirmed'] },
-      });
-
+      const conflict = await hasBookingConflict(listingId, startDateObj, endDateObj);
       if (conflict) {
         return res.status(400).json({
           error: 'Selected dates are unavailable. Please choose different dates.',
@@ -305,6 +354,8 @@ const bookingsController = (Booking, Listing, User) => {
       });
 
       await newBooking.save();
+      // Release the hold — booking is confirmed, no need to keep it
+      await BookingHold.deleteOne({ paypalOrderId });
 
       await sendBookingNotifications(newBooking._id);
 
