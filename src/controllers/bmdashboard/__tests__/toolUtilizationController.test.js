@@ -117,6 +117,19 @@ describe('getUtilization', () => {
     );
   });
 
+  it('returns 400 when startDate is after endDate', async () => {
+    const req = makeReq({ startDate: '2026-01-31', endDate: '2026-01-01' });
+    const res = makeRes();
+
+    await controller.getUtilization(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('startDate') }),
+    );
+    expect(computeUtilizationData).not.toHaveBeenCalled();
+  });
+
   it('returns 500 when computeUtilizationData throws', async () => {
     computeUtilizationData.mockRejectedValue(new Error('DB failure'));
     const req = makeReq({});
@@ -186,6 +199,19 @@ describe('getInsights', () => {
     expect(buildInsightsSummary).toHaveBeenCalledWith(mockUtilizationData);
   });
 
+  it('returns 400 when startDate is after endDate', async () => {
+    const req = makeReq({ startDate: '2026-01-31', endDate: '2026-01-01' });
+    const res = makeRes();
+
+    await controller.getInsights(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('startDate') }),
+    );
+    expect(computeUtilizationData).not.toHaveBeenCalled();
+  });
+
   it('returns 500 when computeUtilizationData throws', async () => {
     computeUtilizationData.mockRejectedValue(new Error('DB error'));
     const req = makeReq({});
@@ -221,6 +247,19 @@ describe('exportReport', () => {
     await controller.exportReport(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('returns 400 when startDate is after endDate', async () => {
+    const req = makeReq({ format: 'csv', startDate: '2026-01-31', endDate: '2026-01-01' });
+    const res = makeRes();
+
+    await controller.exportReport(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('startDate') }),
+    );
+    expect(computeUtilizationData).not.toHaveBeenCalled();
   });
 
   it('calls generateCSVReport for csv format', async () => {
