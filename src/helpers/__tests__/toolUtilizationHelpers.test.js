@@ -13,16 +13,13 @@ jest.mock('regression', () => ({ linear: jest.fn() }));
 
 jest.mock('../../models/bmdashboard/projectRiskProfile', () => ({ findOne: jest.fn() }));
 
-jest.mock('../../utilities/nodeCache', () => ({
-  hasCache: jest.fn(),
-  getCache: jest.fn(),
-  setCache: jest.fn(),
-}));
+const mockCache = { hasCache: jest.fn(), getCache: jest.fn(), setCache: jest.fn() };
+jest.mock('../../utilities/nodeCache', () => jest.fn(() => mockCache));
 
 const mongoose = require('mongoose');
 const regression = require('regression');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
-const cache = require('../../utilities/nodeCache');
+const cache = require('../../utilities/nodeCache')();
 const {
   classifyUtilization,
   calculateCheckedOutHours,
