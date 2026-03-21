@@ -9,29 +9,31 @@ const hasDefaultPermissionRemoved = async (userId, action) =>
   UserProfile.findById(userId)
     .select('permissions')
     .exec()
-    .then(({ permissions }) => permissions.removedDefaultPermissions.includes(action))
-    .catch(false);
+    .then((doc) => (doc?.permissions?.removedDefaultPermissions || []).includes(action))
+    .catch(() => false);
 
 const hasRolePermission = async (role, action) =>
   Role.findOne({ roleName: role })
     .exec()
-    .then(({ permissions }) => permissions.includes(action))
-    .catch(false);
+    .then((doc) => (doc?.permissions || []).includes(action))
+    .catch(() => false);
 
 const hasIndividualPermission = async (userId, action) =>
   UserProfile.findById(userId)
     .select('permissions')
     .exec()
-    .then(({ permissions }) => permissions.frontPermissions.includes(action))
-    .catch(false);
+    .then((doc) => (doc?.permissions?.frontPermissions || []).includes(action))
+    .catch(() => false);
 
 const hasPermission = async (requestor, action) => {
-  const defaultRemoved = requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
+  const defaultRemoved =
+    requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
   const roleHasPermission = await hasRolePermission(requestor.role, action);
-  const individualHasPermission = requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
-  
+  const individualHasPermission =
+    requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
-}
+};
 
 function getDistinct(arr1, arr2) {
   // Merge arrays and reduce to distinct elements
@@ -51,8 +53,8 @@ function getDistinct(arr1, arr2) {
  * @returns
  */
 const canRequestorUpdateUser = async (requestorId, targetUserId) => {
-  let protectedEmailAccountIds;
-  let allowedEmailAccountIds;
+  let protectedEmailAccountIds = [];
+  let allowedEmailAccountIds = [];
   const emailToQuery = getDistinct(PROTECTED_EMAIL_ACCOUNT, ALLOWED_EMAIL_ACCOUNT);
   // Persist the list of protected email accounts in the application cache
   if (
@@ -87,10 +89,11 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
       serverCache.setKeyTimeToLive('allowedEmailAccountIds', 60 * 60);
     } catch (error) {
       Logger.logException(error, 'Error getting protected email accounts');
+      // Keep default [] so .includes() below never throws
     }
   } else {
-    protectedEmailAccountIds = serverCache.getCache('protectedEmailAccountIds');
-    allowedEmailAccountIds = serverCache.getCache('allowedEmailAccountIds');
+    protectedEmailAccountIds = serverCache.getCache('protectedEmailAccountIds') || [];
+    allowedEmailAccountIds = serverCache.getCache('allowedEmailAccountIds') || [];
   }
   // Check requestor edit permission and check target user is protected or not.
   return !(

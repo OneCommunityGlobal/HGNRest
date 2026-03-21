@@ -1,6 +1,5 @@
 // smsSender.js
 const axios = require('axios');
-
 const twilio = require('twilio');
 
 const client = twilio(process.env.twilio_testAccountSid, process.env.twilio_testAuthToken);
@@ -20,7 +19,6 @@ async function twilioSendSMS(bodySMS, fromMob, toMob) {
 }
 
 async function TextbeltSMS(msg, toMob) {
-  console.log(process.env.TextbeltKey);
   return axios.post('https://textbelt.com/text', {
     phone: toMob,
     message: msg,
@@ -46,16 +44,15 @@ async function TelesignSMS(msg, toMob) {
   const telesignClient = new TeleSignSDK(customerId, apiKey);
 
   // Define the callback.
-  function smsCallback(error, responseBody) {
+  function smsCallback(error) {
     // Display the response body in the console for debugging purposes.
     // In your production code, you would likely remove this.
     if (error === null) {
-      console.log(`\nResponse body:\n${JSON.stringify(responseBody)}`);
+      // Response logged if needed
     } else {
       console.error(`Unable to send SMS. Error:\n\n${error}`);
     }
   }
-  console.log(process.env.telesignsendSMS);
   if (process.env.telesignsendSMS !== 'true') return 'Sending SMS Not Enabled';
   // Make the request and capture the response.
   telesignClient.sms.message(smsCallback, phoneNumber, message, messageType);
@@ -80,12 +77,10 @@ function vonSendSMS() {
       text: 'A text message sent using the Vonage SMS API',
     })
     .then((resp) => {
-      console.log('Message sent successfully');
-      console.log(resp);
+      // Message sent successfully
     })
     .catch((err) => {
-      console.log('There was an error sending the messages.');
-      console.error(err);
+      console.error('There was an error sending the messages.', err);
     });
 }
     */
