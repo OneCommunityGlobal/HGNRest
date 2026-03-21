@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const regression = require('regression');
 const ProjectRiskProfile = require('../models/bmdashboard/projectRiskProfile');
-const cache = require('../utilities/nodeCache');
+const cache = require('../utilities/nodeCache')();
 const {
   UTILIZATION_THRESHOLDS,
   UTILIZATION_LABELS,
