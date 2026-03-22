@@ -66,15 +66,6 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       ) {
         return;
       }
-      // Below added by development
-      // const sortedDoc = [...docPermissions].sort();
-      // const sortedDoc = [...docPermissions].sort((a, b) => a.localeCompare(b));
-      // const sortedCurrent = [...Permissions].sort();
-      // const sortedCurrent = [...Permissions].sort((a, b) => a.localeCompare(b));
-      // if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
-      // return;
-      // }
-      // Above added by development, so not specifically needed
       permissionsRemoved = [
         ...removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item)), // saves new removed role defaults
         ...docPermissions.filter(
