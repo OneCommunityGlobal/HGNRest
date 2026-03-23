@@ -1562,6 +1562,11 @@ const overviewReportHelper = function () {
    * 2. New volunteers
    * 3. Deactivated volunteers
    * all within a given time range.
+   *
+   * NOTE: The "mentors" field in this function actually represents users with 0 committed hours
+   * to match the dashboard's "0 hrs Totals: X Members" display (see Leaderboard.jsx:757).
+   * This is NOT a count of users with role='Mentor', but rather users where weeklycommittedHours === 0.
+   *
    * @param {Date} startDate
    * @param {Date} endDate
    * @param {Date} comparisonStartDate
@@ -1577,6 +1582,8 @@ const overviewReportHelper = function () {
       const data = await UserProfile.aggregate([
         {
           $facet: {
+            // Active volunteers: excludes mentors and requires at least 1 hour commitment
+            // This matches the dashboard's "HGN Totals" count (see dashboardhelper.js getOrgData)
             activeVolunteers: [
               {
                 $match: {
@@ -1587,18 +1594,19 @@ const overviewReportHelper = function () {
               },
               { $count: 'count' },
             ],
+            // Users with 0 committed hours (labeled as "mentors" for historical reasons)
+            // Matches dashboard's "0 hrs Totals: X Members" count (see Leaderboard.jsx:757)
+            // Frontend filters: filteredUsers.filter(user => user.weeklycommittedHours === 0)
             mentors: [
               {
                 $match: {
                   isActive: true,
-                  role: 'Mentor',
-                  createdDate: {
-                    $lte: isoEndDate,
-                  },
+                  weeklycommittedHours: 0, // Exact match: users with 0 committed hours (matches dashboard logic)
                 },
               },
               { $count: 'count' },
             ],
+            // New volunteers: users created within the date range who are currently active
             newVolunteers: [
               {
                 $match: {
@@ -1611,6 +1619,7 @@ const overviewReportHelper = function () {
               },
               { $count: 'count' },
             ],
+            // Deactivated volunteers: all inactive users created before or during the date range
             deactivatedVolunteers: [
               {
                 $match: {
@@ -1625,9 +1634,11 @@ const overviewReportHelper = function () {
       ]);
 
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
-      const mentors = data[0].mentors[0]?.count || 0;
+      const mentors = data[0].mentors[0]?.count || 0; // Actually users with 0 committed hours
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
+
+      // Note: totalVolunteers includes overlapping counts (e.g., new volunteers are also in activeVolunteers)
       const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
 
       return {
@@ -1649,6 +1660,7 @@ const overviewReportHelper = function () {
     } = await getVolunteerData(startDate, endDate);
 
     // Calculate existing active volunteers (active - new)
+    // This represents volunteers who were active before the current period
     const currentExistingActive = currentActiveVolunteers - currentNewVolunteers;
 
     const res = {
