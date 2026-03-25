@@ -2236,6 +2236,33 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
+      // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
+      let { reasons } = req.body.blueSquare;
+      if (!Array.isArray(reasons)) {
+        reasons = reasons ? [reasons] : ['other'];
+      }
+      const processedReasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ].filter((r) =>
+        [
+          'time not met',
+          'missing summary',
+          'missed video call',
+          'late reporting',
+          'other',
+        ].includes(r),
+      );
+      if (processedReasons.length === 0) {
+        processedReasons.push('other');
+      }
+
+      // Get requestor info for manually assigned tracking
+      const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+      let requestorProfile = null;
+      if (requestorId) {
+        requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+      }
+
       const newInfringement = {
         ...req.body.blueSquare,
         date: inputDate,
@@ -2250,7 +2277,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
-        // Maintain backward compatibility
+        // Add reasons array for more detailed categorization
+        reasons: processedReasons,
+        // Track if manually assigned (via API call) vs CRON job
+        manullyAssigned: true,
+        manullyAssignedBy: requestorProfile
+          ? {
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
+          : undefined,
+        // Initialize empty edit history
+        editedBy: [],
       };
 
       // find userData in cache
@@ -2309,6 +2348,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     const { userId, blueSquareId } = req.params;
     const { dateStamp, summary, reasons } = req.body;
 
+    // Get requestor info for edit tracking
+    const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+    let requestorProfile = null;
+    if (requestorId) {
+      requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+    }
+
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -2324,6 +2370,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (Array.isArray(reasons)) {
             blueSquare.reasons = reasons;
           }
+          // Track edit history
+          if (!blueSquare.editedBy) {
+            blueSquare.editedBy = [];
+          }
+          blueSquare.editedBy.push({
+            firstName: requestorProfile?.firstName || 'Unknown',
+            lastName: requestorProfile?.lastName || 'Unknown',
+            userId: requestorId,
+            date: new Date(),
+          });
         }
         return blueSquare;
       });
