@@ -786,6 +786,16 @@ const userHelper = function () {
                   )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
                 }
 
+                // Determine reasons based on the violation type
+                let reasons = ['other'];
+                if (timeNotMet && !hasWeeklySummary) {
+                  reasons = ['time not met', 'missing summary'];
+                } else if (timeNotMet) {
+                  reasons = ['time not met'];
+                } else if (!hasWeeklySummary) {
+                  reasons = ['missing summary'];
+                }
+
                 const infringement = {
                   date: moment().utc().format('YYYY-MM-DD'),
                   description,
@@ -797,6 +807,11 @@ const userHelper = function () {
                         )
                         .format('YYYY-MM-DD')
                     : null,
+                  // CRON job assigned - not manually assigned
+                  reasons,
+                  manullyAssigned: false,
+                  manullyAssignedBy: undefined,
+                  editedBy: [],
                 };
 
                 // Only assign blue square and send email if the user IS NOT a new user
