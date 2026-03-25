@@ -43,6 +43,10 @@ const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
+const PRGradingConfig = require('../models/prAnalytics/prGradingConfig');
+const prGradingConfigRouter = require('../routes/prAnalytics/prGradingConfigRouter')(
+  PRGradingConfig,
+);
 
 // Title
 const title = require('../models/title');
@@ -108,7 +112,7 @@ const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
-
+const userStateRouter = require('../routes/userState');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
@@ -378,6 +382,8 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+// Kitchen and Inventory portal routes
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 
 // Actual Cost
@@ -498,7 +504,6 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -547,7 +552,7 @@ module.exports = function (app) {
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', actualCostRouter);
-
+  app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
@@ -555,9 +560,32 @@ module.exports = function (app) {
   // PR Analytics
   app.use('/api', prInsightsRouter);
   app.use('/api', weeklyGradingRouter);
+  app.use('/api', prGradingConfigRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
+  app.use('/api/lb', listingAvailablityRouter);
+  // lb dashboard
+  app.use('/api/lb', bidTermsRouter);
+  app.use('/api/lb', bidsRouter);
+  app.use('/api/lb', paymentsRouter);
+  app.use('/api/lb', webhookRouter);
+  app.use('/api/lb', bidNotificationsRouter);
+  app.use('/api/lb', bidDeadlinesRouter);
+  app.use('/api/lb', SMSRouter);
+  app.use('/api', materialCostRouter);
+
+  // education portal
+  app.use('/api/education', badgeSystemRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/education', browsableLessonPlanRouter);
+
+  app.use('/api/educator/reports', downloadReportRouter);
+
+  // Kitchen and Inventory portal routes
+  app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);

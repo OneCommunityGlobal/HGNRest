@@ -14,6 +14,7 @@ const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
+const Team = require('../models/team');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 // eslint-disable-next-line no-unused-vars
@@ -477,7 +478,39 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     if (req.body.teams !== undefined) {
-      record.teams = Array.from(new Set(req.body.teams));
+      const updatedTeams = Array.from(new Set(req.body.teams));
+
+      // Find teams that were removed
+      const removedTeams = record.teams.filter(
+        (teamId) => !updatedTeams.includes(teamId.toString()),
+      );
+
+      // Find teams that were added
+      const addedTeams = updatedTeams.filter(
+        (teamId) => !record.teams.map((t) => t.toString()).includes(teamId),
+      );
+
+      // Remove user from Team's members array for each removed team
+      if (removedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: removedTeams } },
+          { $pull: { members: { userId: mongoose.Types.ObjectId(record._id) } } },
+        );
+      }
+
+      // Add user to Team's members array for each added team
+      if (addedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: addedTeams } },
+          {
+            $push: {
+              members: { userId: mongoose.Types.ObjectId(record._id), addDateTime: new Date() },
+            },
+          },
+        );
+      }
+
+      record.teams = updatedTeams;
     }
 
     await updateProjects(req, record);
