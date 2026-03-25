@@ -36,6 +36,7 @@ const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
+const reportHelper = require('./reporthelper')();
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -287,14 +288,14 @@ const userHelper = function () {
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
-      await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
-        // eslint-disable-next-line no-shadow
-        .then((results) => {
-          mappedResults = results.map((ele) => ele.email);
-          mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-          mappedResults = mappedResults.toString();
-        });
+      const userProfileResults = await userProfile.find(
+        { getWeeklyReport: true },
+        { email: 1, teamCode: 1, _id: 0 },
+      );
+
+      mappedResults = userProfileResults.map((ele) => ele.email);
+      mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
+      mappedResults = mappedResults.toString();
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -305,7 +306,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       for (let i = 0; i < results.length; i += 1) {
