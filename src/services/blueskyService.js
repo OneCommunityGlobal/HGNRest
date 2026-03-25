@@ -101,7 +101,7 @@ exports.createPost = async (accessJwt, did, text = '', imageData = null) => {
     // Create post record
     const postRecord = {
       $type: 'app.bsky.feed.post',
-      text: text,
+      text,
       createdAt: new Date().toISOString(),
     };
 
@@ -169,7 +169,7 @@ exports.getPosts = async (accessJwt, did) => {
         }
         // Handle embedded external media
         else if (item.post.embed?.external) {
-          const external = item.post.embed.external;
+          const { external } = item.post.embed;
 
           // Check if it's a GIF (either by MIME type or URL)
           const isGif =
