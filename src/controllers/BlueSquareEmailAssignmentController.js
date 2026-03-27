@@ -1,5 +1,6 @@
 const connectDB = require('../startup/db');
 const userHelper = require('../helpers/userHelper')();
+const { hasPermission } = require('../utilities/permissions');
 
 const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment, userProfile) {
   const getBlueSquareEmailAssignment = async function (req, res) {
@@ -7,7 +8,6 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
       const assignments = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
       res.status(200).send(assignments);
     } catch (error) {
-      console.log(error);
       res.status(500).send(error);
     }
   };
@@ -64,7 +64,11 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const runManuallyResendWeeklySummaries = async function (req, res) {
     try {
-      console.log(`[Manual Resend] Triggered at ${new Date().toISOString()}`);
+      // Check permission
+      if (!(await hasPermission(req.body.requestor, 'resendBlueSquareAndSummaryEmails'))) {
+        res.status(403).send('You are not authorized to perform this action');
+        return;
+      }
 
       // Respond immediately
       res.status(202).json({ message: '🔄 Weekly summaries resend started in background.' });
@@ -74,7 +78,6 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
         try {
           await connectDB();
           await userHelper.emailWeeklySummariesForAllUsers();
-          console.log('[Background] ✅ Weekly summaries resent.');
         } catch (err) {
           console.error('[Background] ❌ Error sending weekly summaries:', err);
         }
@@ -87,6 +90,12 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const runManualBlueSquareEmailResend = async function (req, res) {
     try {
+      // Check permission
+      if (!(await hasPermission(req.body.requestor, 'resendBlueSquareAndSummaryEmails'))) {
+        res.status(403).send('You are not authorized to perform this action');
+        return;
+      }
+
       console.log('[API Trigger] Manual blue square email resend');
 
       // Respond immediately
@@ -96,7 +105,6 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
       setImmediate(async () => {
         try {
           await userHelper.resendBlueSquareEmailsOnlyForLastWeek();
-          console.log('[Background] ✅ Blue square emails resent without reassigning.');
         } catch (err) {
           console.error('[Background] ❌ Error during blue square email resend:', err);
         }
@@ -111,10 +119,8 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const assignCCEmail = async function assignCCEmail(req, res) {
     try {
-      console.log('assignCCEmail called with', req.params, req.body);
-      // Which user’s profile are we adding the CC list item to?
+      // Which user's profile are we adding the CC list item to?
       const targetUserId = req.params.userId;
-      console.log('Target userId:', targetUserId);
       if (!targetUserId) {
         return res.status(400).json({ error: 'Missing target userId' });
       }
@@ -184,11 +190,9 @@ const BlueSquareEmailAssignmentController = function (BlueSquareEmailAssignment,
 
   const removeCCEmail = async function removeCCEmail(req, res) {
     try {
-      console.log('removeCCEmail called with', req.params);
-      // Which user’s profile are we removing the CC list item from?
+      // Which user's profile are we removing the CC list item from?
       const targetUserId = req.params.userId;
       const ccEmail = req.params.email;
-      console.log('Target userId:', targetUserId, 'ccEmail to remove:', ccEmail);
 
       if (!targetUserId) {
         return res.status(400).json({ error: 'Missing target userId' });

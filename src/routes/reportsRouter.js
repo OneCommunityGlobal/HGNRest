@@ -14,6 +14,7 @@ const route = function () {
   reportsRouter.route('/reports/getrecepients').get(controller.getReportRecipients);
 
   reportsRouter.route('/reports/weeklysummaries').get(controller.getWeeklySummaries);
+  reportsRouter.get('/reports/weeklysummaries/teamcodes', controller.getAllDistinctTeamCodes);
 
   reportsRouter
     .route('/reports/overviewsummaries/volunteerstats')
@@ -37,7 +38,13 @@ const route = function () {
 
   reportsRouter.route('/reports/volunteertrends').get(controller.getVolunteerTrends);
 
-  reportsRouter.route('/reports/teams').get(controller.getTeamsWithActiveMembers)
+  reportsRouter.route('/reports/teams').get(controller.getTeamsWithActiveMembers);
+
+  reportsRouter.route('/reports/getAdminList').get(controller.getAdminList);
+
+  reportsRouter.route('/reports/sendEmailReport').post(controller.sendEmailReport);
+
+  reportsRouter.route('/reports/teamcodes').get(controller.getReportTeamCodes);
 
   return reportsRouter;
 };
