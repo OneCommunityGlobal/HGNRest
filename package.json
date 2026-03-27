@@ -117,7 +117,6 @@
     "node-cron": "^3.0.3",
     "node-datetime": "^2.0.3",
     "node-fetch": "^3.3.2",
-    "node-fetch": "^2.6.7",
     "node-schedule": "^2.1.1",
     "nodemailer": "^7.0.11",
     "parse-link-header": "^2.0.0",
