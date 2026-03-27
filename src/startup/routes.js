@@ -385,11 +385,13 @@ const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 // Kitchen and Inventory portal routes
 const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
+const chatbotRouter = require('../routes/chatbotRouter');
 
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
 module.exports = function (app) {
+  app.use('/api', chatbotRouter);
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
