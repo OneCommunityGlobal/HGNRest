@@ -50,7 +50,47 @@ const paginationForJobs = async (req, res) => {
     const pageNumber = Math.max(1, parseInt(page, 10));
     const limitNumber = Math.max(1, parseInt(limit, 10));
 
-    const query = buildJobQuery({ search, category, position });
+    const conditions = [];
+
+    /* ----------------------------
+       SEARCH FILTER
+       ---------------------------- */
+    if (search && search.trim() !== '') {
+      const searchString = search.trim();
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
+    }
+
+    /* ----------------------------
+       POSITION FILTER (only if non-empty)
+       ---------------------------- */
+    if (position && position.trim() !== '') {
+      conditions.push({ title: { $in: [position.trim()] } });
+    }
+
+    /* ----------------------------
+       MULTI-CATEGORY FILTER (only if non-empty)
+       ---------------------------- */
+
+    if (category) {
+      let categoryList = [];
+
+      try {
+        categoryList = JSON.parse(category);
+      } catch (e) {
+        console.error('Invalid category format:', category);
+      }
+
+      if (Array.isArray(categoryList) && categoryList.length > 0) {
+        conditions.push({ category: { $in: categoryList } });
+      }
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
 
     const totalJobs = await Job.countDocuments(query);
     const totalPages = Math.max(1, Math.ceil(totalJobs / limitNumber));
@@ -96,8 +136,46 @@ const getJobSummaries = async (req, res) => {
   const { search = '', category = '', position = '' } = req.query;
 
   try {
-    const query = buildJobQuery({ search, category, position });
+    const conditions = [];
 
+    if (search && search.trim() !== '') {
+      const searchString = search.trim();
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
+    }
+
+    if (position && position.trim() !== '') {
+      conditions.push({ title: { $in: [position.trim()] } });
+    }
+
+    if (category) {
+      let categoryList = [];
+
+      try {
+        categoryList = JSON.parse(category);
+      } catch (e) {
+        console.error('Invalid category format:', category);
+      }
+
+      if (Array.isArray(categoryList) && categoryList.length > 0) {
+        conditions.push({ category: { $in: categoryList } });
+      }
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
+
+    const sortCriteria = {
+      displayOrder: 1,
+      featured: -1,
+      datePosted: -1,
+      title: 1,
+    };
+
+    const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
       .select('title category location description datePosted featured jobDetailsLink')
       .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
