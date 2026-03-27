@@ -1,12 +1,16 @@
 const express = require('express');
 
-const router = express.Router();
-const educatorController = require('../controllers/educatorController');
+const routes = function () {
+  const controller = require('../controllers/educatorController')();
+  const educatorRouter = express.Router();
 
-// Initialize controller
-const controller = educatorController();
+  // POST /api/educator/assign-tasks - Main assignment endpoint
+  educatorRouter.route('/assign-tasks').post(controller.assignTasks);
 
-// Routes
-router.post('/assign-atoms', controller.assignAtoms);
+  // GET /api/educator/assignments/:lessonPlanId - Get assignment summary
+  educatorRouter.route('/assignments/:lessonPlanId').get(controller.getAssignmentSummary);
 
-module.exports = router;
+  return educatorRouter;
+};
+
+module.exports = routes;

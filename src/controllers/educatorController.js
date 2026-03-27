@@ -1,143 +1,295 @@
-const StudentAtom = require('../models/studentAtom');
-const UserProfile = require('../models/userProfile');
+const mongoose = require('mongoose');
+const LessonPlan = require('../models/lessonPlan');
+const Activity = require('../models/activity');
+const EducationTask = require('../models/educationTask');
+const Progress = require('../models/progress');
 const Atom = require('../models/atom');
+const UserProfile = require('../models/userProfile');
 
 const educatorController = function () {
-  /**
-   * Assign atoms to students
-   * @param {Object} req - Request object
-   * @param {Object} res - Response object
-   */
-  const assignAtoms = async (req, res) => {
+  // Utility function to calculate deadline
+  const calculateDeadline = (assignmentDate, offsetDays = 7) => {
+    const deadline = new Date(assignmentDate);
+    deadline.setDate(deadline.getDate() + offsetDays);
+    return deadline;
+  };
+
+  // Check if student has completed prerequisite atoms
+  const checkPrerequisites = async (studentId, atomId) => {
     try {
-      const { requestor } = req.body;
-      const { studentId, atomType, atomTypes, note } = req.body;
-
-      // Validate requestor exists and has proper permissions
-      if (!requestor || !requestor.requestorId) {
-        return res.status(401).json({ error: 'Authentication required' });
+      const atom = await Atom.findById(atomId).populate('prerequisites');
+      if (!atom || !atom.prerequisites || atom.prerequisites.length === 0) {
+        return true; // No prerequisites required
       }
 
-      // Check if user has educator/admin/owner role
-      const validRoles = ['admin', 'educator', 'teacher', 'owner', 'Owner', 'Administrator'];
-      if (!validRoles.includes(requestor.role)) {
-        return res.status(403).json({
-          error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
-          receivedRole: requestor.role,
-          validRoles,
-        });
-      }
-
-      // Validate required fields
-      if (!studentId) {
-        return res.status(400).json({ error: 'student_id is required' });
-      }
-
-      // Support both single atomType and multiple atomTypes
-      let atomIds = [];
-      if (atomTypes && Array.isArray(atomTypes)) {
-        atomIds = atomTypes;
-      } else if (atomType) {
-        atomIds = [atomType];
-      } else {
-        return res.status(400).json({ error: 'atom_type or atom_types array is required' });
-      }
-
-      // Validate student exists
-      const student = await UserProfile.findById(studentId);
-      if (!student) {
-        return res.status(404).json({
-          error: 'Student not found',
-          studentId,
-          message: 'Please check if the student ID exists in the database',
-        });
-      }
-
-      // Validate all atoms exist
-      const atoms = await Atom.find({ _id: { $in: atomIds } });
-      const foundAtomIds = atoms.map((atom) => atom._id.toString());
-      const missingAtomIds = atomIds.filter((id) => !foundAtomIds.includes(id.toString()));
-
-      if (missingAtomIds.length > 0) {
-        return res.status(404).json({
-          error: 'One or more atoms not found',
-          missingAtomIds,
-          message: 'Please check if all atom IDs exist in the database',
-        });
-      }
-
-      // Check for existing assignments
-      const existingAssignments = await StudentAtom.find({
+      // Check if student has completed all prerequisite atoms
+      const prerequisiteIds = atom.prerequisites.map((prereq) => prereq._id);
+      const completedProgress = await Progress.find({
         studentId,
-        atomId: { $in: atomIds },
+        atomId: { $in: prerequisiteIds },
+        status: 'completed',
       });
 
-      const alreadyAssignedAtomIds = existingAssignments.map((assignment) =>
-        assignment.atomId.toString(),
-      );
-      const newAtomIds = atomIds.filter((id) => !alreadyAssignedAtomIds.includes(id.toString()));
+      return completedProgress.length === prerequisiteIds.length;
+    } catch (error) {
+      throw new Error(`Error checking prerequisites: ${error.message}`);
+    }
+  };
 
-      if (newAtomIds.length === 0) {
+  // Get enrolled students (those with student education profile)
+  const getEnrolledStudents = async () => {
+    try {
+      return await UserProfile.find({
+        'educationProfiles.student.cohortId': { $exists: true },
+        isActive: true,
+      }).select('_id firstName lastName email educationProfiles.student');
+    } catch (error) {
+      throw new Error(`Error fetching enrolled students: ${error.message}`);
+    }
+  };
+
+  // Main assignment endpoint
+  const assignTasks = async (req, res) => {
+    const session = await mongoose.startSession();
+
+    try {
+      await session.startTransaction();
+
+      const {
+        lesson_plan_id: lessonPlanId,
+        assignment_date: assignmentDate,
+        is_auto_assigned: isAutoAssigned,
+        deadline_offset_days: deadlineOffsetDays,
+      } = req.body;
+
+      // Validate required fields
+      if (!lessonPlanId || !assignmentDate) {
         return res.status(400).json({
-          error: 'All atoms are already assigned to this student',
-          alreadyAssignedAtomIds,
+          error: 'lesson_plan_id and assignment_date are required',
         });
       }
 
-      // Create new atom assignments for atoms that aren't already assigned
-      const assignmentsToCreate = newAtomIds.map((atomId) => ({
-        studentId,
-        atomId,
-        assignedBy: requestor.requestorId,
-        note: note || undefined,
-      }));
+      // Validate lesson plan exists
+      const lessonPlan = await LessonPlan.findById(lessonPlanId)
+        .populate('activities')
+        .session(session);
 
-      const savedAssignments = await StudentAtom.insertMany(assignmentsToCreate);
-
-      // Populate the response with referenced data
-      const populatedAssignments = await StudentAtom.find({
-        _id: { $in: savedAssignments.map((a) => a._id) },
-      })
-        .populate('studentId', 'firstName lastName email')
-        .populate('atomId', 'name description difficulty')
-        .populate('assignedBy', 'firstName lastName email');
-
-      const response = {
-        message: 'Atom assignments processed',
-        successfulAssignments: populatedAssignments,
-        totalRequested: atomIds.length,
-        successfullyAssigned: newAtomIds.length,
-        alreadyAssigned: alreadyAssignedAtomIds.length,
-      };
-
-      // Include information about already assigned atoms if any
-      if (alreadyAssignedAtomIds.length > 0) {
-        response.alreadyAssignedAtomIds = alreadyAssignedAtomIds;
-        response.message += ` (${alreadyAssignedAtomIds.length} were already assigned)`;
+      if (!lessonPlan) {
+        return res.status(404).json({
+          error: 'Lesson plan not found',
+        });
       }
+
+      // Get activities and extract task templates
+      const activities = await Activity.find({
+        lessonPlanId,
+      }).session(session);
+
+      if (!activities || activities.length === 0) {
+        return res.status(400).json({
+          error: 'No activities found for this lesson plan',
+        });
+      }
+
+      // Extract all atom task templates from activities
+      const taskTemplates = [];
+      activities.forEach((activity) => {
+        activity.atomTaskTemplates.forEach((template) => {
+          taskTemplates.push({
+            atomId: template.atomId,
+            subjectId: template.subjectId,
+            taskType: template.taskType,
+            instructions: template.instructions,
+            resources: template.resources || [],
+          });
+        });
+      });
+
+      if (taskTemplates.length === 0) {
+        return res.status(400).json({
+          error: 'No task templates found in lesson plan activities',
+        });
+      }
+
+      // Get enrolled students
+      const students = await getEnrolledStudents();
+
+      if (students.length === 0) {
+        return res.status(400).json({
+          error: 'No enrolled students found',
+        });
+      }
+
+      // Initialize tracking variables
+      let successCount = 0;
+      let failureCount = 0;
+      const skippedStudents = [];
+      const errors = [];
+      const assignedTasks = [];
+
+      // Process students and templates in parallel (no awaits inside loops)
+      const perStudentResults = await Promise.allSettled(
+        students.map(async (student) => {
+          const perTemplateResults = await Promise.allSettled(
+            taskTemplates.map(async (template) => {
+              const hasPrereqs = await checkPrerequisites(student._id, template.atomId);
+              if (!hasPrereqs) {
+                return {
+                  ok: false,
+                  studentId: student._id,
+                  atomId: template.atomId,
+                  reason: 'Prerequisites not completed',
+                };
+              }
+
+              const existingTask = await EducationTask.findOne({
+                studentId: student._id,
+                lessonPlanId,
+                atomIds: template.atomId,
+              }).session(session);
+              if (existingTask) {
+                return {
+                  ok: false,
+                  studentId: student._id,
+                  atomId: template.atomId,
+                  reason: 'Task already assigned',
+                };
+              }
+
+              const dueAt = calculateDeadline(assignmentDate, deadlineOffsetDays);
+
+              const educationTask = new EducationTask({
+                lessonPlanId,
+                studentId: student._id,
+                atomIds: [template.atomId],
+                type: template.taskType,
+                status: 'assigned',
+                assignedAt: new Date(assignmentDate),
+                dueAt,
+                uploadUrls: [],
+                grade: 'pending',
+              });
+
+              const savedTask = await educationTask.save({ session });
+
+              await Progress.findOneAndUpdate(
+                { studentId: student._id, atomId: template.atomId },
+                {
+                  studentId: student._id,
+                  atomId: template.atomId,
+                  status: 'in_progress',
+                  firstStartedAt: new Date(assignmentDate),
+                },
+                { upsert: true, new: true, session },
+              );
+
+              return { ok: true, studentId: student._id, taskId: savedTask._id };
+            }),
+          );
+
+          const successes = perTemplateResults.filter(
+            (r) => r.status === 'fulfilled' && r.value.ok,
+          ).length;
+          const errorsForStudent = perTemplateResults
+            .filter((r) => r.status === 'fulfilled' && !r.value.ok)
+            .map((r) => ({
+              studentId: r.value.studentId,
+              atomId: r.value.atomId,
+              reason: r.value.reason,
+            }));
+
+          return { studentId: student._id, successes, errorsForStudent };
+        }),
+      );
+
+      // Aggregate results (no ++, no continue)
+      // let successCount = 0;
+      // let failureCount = 0;
+      // const skippedStudents = [];
+      // const errors = [];
+      // const assignedTasks = [];
+
+      perStudentResults.forEach((r) => {
+        if (r.status !== 'fulfilled') return;
+        const { studentId, successes, errorsForStudent } = r.value;
+        if (successes > 0) {
+          successCount += 1;
+          // We don’t collect task documents here; keep your existing total via counts or fetch if needed
+        } else if (errorsForStudent.length > 0) {
+          failureCount += 1;
+          skippedStudents.push(studentId);
+        }
+        errors.push(...errorsForStudent);
+      });
+
+      await session.commitTransaction();
+
+      // Return structured response
+      const response = {
+        success: true,
+        summary: {
+          success_count: successCount,
+          failure_count: failureCount,
+          total_students: students.length,
+          total_tasks_assigned: assignedTasks.length,
+          skipped: skippedStudents,
+          errors,
+        },
+        lesson_plan: {
+          id: lessonPlanId,
+          title: lessonPlan.title,
+          theme: lessonPlan.theme,
+        },
+        assignment_details: {
+          assignment_date: new Date(assignmentDate),
+          deadline_offset_days: deadlineOffsetDays,
+          is_auto_assigned: isAutoAssigned,
+        },
+      };
 
       res.status(201).json(response);
     } catch (error) {
-      console.error('Error assigning atoms:', error);
+      await session.abortTransaction();
+      res.status(500).json({
+        error: `Assignment failed: ${error.message}`,
+        success: false,
+      });
+    } finally {
+      session.endSession();
+    }
+  };
 
-      // Handle duplicate key error
-      if (error.code === 11000) {
-        return res
-          .status(400)
-          .json({ error: 'One or more atoms already assigned to this student' });
-      }
+  // Get assignment summary by lesson plan
+  const getAssignmentSummary = async (req, res) => {
+    try {
+      const { lessonPlanId } = req.params;
 
-      // Handle validation errors
-      if (error.name === 'ValidationError') {
-        return res.status(400).json({ error: error.message });
-      }
+      const tasks = await EducationTask.find({ lessonPlanId })
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name difficulty')
+        .sort({ assignedAt: -1 });
 
-      res.status(500).json({ error: 'Internal server error' });
+      const summary = {
+        total_assignments: tasks.length,
+        by_status: {
+          assigned: tasks.filter((t) => t.status === 'assigned').length,
+          in_progress: tasks.filter((t) => t.status === 'in_progress').length,
+          completed: tasks.filter((t) => t.status === 'completed').length,
+          graded: tasks.filter((t) => t.status === 'graded').length,
+        },
+        students: [...new Set(tasks.map((t) => t.studentId._id.toString()))].length,
+        recent_assignments: tasks.slice(0, 10),
+      };
+
+      res.status(200).json(summary);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
   };
 
   return {
-    assignAtoms,
+    assignTasks,
+    getAssignmentSummary,
   };
 };
 
