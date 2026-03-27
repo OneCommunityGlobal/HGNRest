@@ -1,6 +1,14 @@
 const express = require('express');
 
-const routes = function (baseInvType, matType, consType, reusType, toolType, equipType) {
+const routes = function (
+  baseInvType,
+  matType,
+  consType,
+  reusType,
+  toolType,
+  equipType,
+  buildingUnit,
+) {
   const inventoryTypeRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(
     baseInvType,
@@ -9,6 +17,7 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     reusType,
     toolType,
     equipType,
+    buildingUnit,
   );
 
   // Route for fetching all material types
@@ -21,6 +30,8 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
   inventoryTypeRouter.route('/consumables').post(controller.addConsumableType);
 
   inventoryTypeRouter.route('/tools').post(controller.addToolType);
+
+  inventoryTypeRouter.route('/invtypes/reusable').post(controller.addReusableType);
 
   inventoryTypeRouter.route('/invtypes/tools').get(controller.fetchToolTypes);
 
@@ -54,9 +65,7 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .get(controller.fetchInvUnitsFromJson)
     .post(controller.addInventoryUnit);
 
-  inventoryTypeRouter
-    .route('/inventoryUnits/:unitName')
-    .delete(controller.deleteInventoryUnit);
+  inventoryTypeRouter.route('/inventoryUnits/:unitName').delete(controller.deleteInventoryUnit);
 
   return inventoryTypeRouter;
 };

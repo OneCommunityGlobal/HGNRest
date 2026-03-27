@@ -86,6 +86,7 @@ const {
   buildingTool,
   buildingEquipment,
 } = require('../models/bmdashboard/buildingInventoryItem');
+const buildingUnit = require('../models/bmdashboard/buildingUnit');
 const dashboardMetrics = require('../models/bmdashboard/dashboardMetrics');
 const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 
@@ -222,6 +223,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
+  buildingUnit,
 );
 
 const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');

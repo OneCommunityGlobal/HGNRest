@@ -1,14 +1,12 @@
-const fs = require('fs');
-const path = require('path');
-
-const filename = 'BuildingUnits.json';
-const currentFilePath = __filename;
-const rootPath = path.resolve(path.dirname(currentFilePath), '../../../'); // Go up three levels to the root
-const filepath = path.join(rootPath, filename);
-const { readFile } = fs;
-const { writeFile } = fs;
-
-function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolType, EquipType) {
+function bmInventoryTypeController(
+  InvType,
+  MatType,
+  ConsType,
+  ReusType,
+  ToolType,
+  EquipType,
+  BuildingUnit,
+) {
   async function fetchMaterialTypes(req, res) {
     try {
       MatType.find()
@@ -68,23 +66,10 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      console.log(__dirname, filepath);
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          res.status(500).send(err);
-        }
-
-        try {
-          const jsonData = JSON.parse(data);
-          res.status(200).send(jsonData);
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).send(parseError);
-        }
-      });
+      const units = await BuildingUnit.find().exec();
+      res.status(200).send(units);
     } catch (err) {
-      res.json(err);
+      res.status(500).json({ error: err.message });
     }
   };
 
@@ -109,31 +94,19 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               createdBy: requestorId,
             };
             MatType.create(newDoc)
-              .then((results) => {
+              .then(async (results) => {
                 res.status(201).send(results);
                 if (req.body.customUnit) {
                   try {
-                    // Add new unit to json file : src\controllers\bmdashboard\BuildingUnits.json
-                    const newItem = { unit: req.body.customUnit, category: 'Material' };
-                    const newItemString = JSON.stringify(newItem, null, 2);
-                    readFile(filepath, 'utf8', (err, data) => {
-                      if (err) {
-                        console.error('Error reading file:', err);
-                        return;
-                      }
-                      // Remove the last array bracket and comma
-                      const updatedContent = data.trim().replace(/\s*]$/, '');
-
-                      // Add a comma and newline if the file is not empty
-                      const separator = updatedContent !== '' ? ',\n' : '';
-                      const updatedFileContent = `${updatedContent}${separator}${newItemString}\n]`;
-
-                      writeFile(filepath, updatedFileContent, 'utf8', (error) => {
-                        if (error) {
-                          console.error('Error writing to file:', error);
-                        }
-                      });
+                    const exists = await BuildingUnit.findOne({
+                      unit: { $regex: new RegExp(`^${req.body.customUnit}$`, 'i') },
                     });
+                    if (!exists) {
+                      await BuildingUnit.create({
+                        unit: req.body.customUnit,
+                        category: 'Material',
+                      });
+                    }
                   } catch (e) {
                     console.log(e);
                   }
@@ -246,6 +219,74 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
               createdBy: requestorId,
             };
             ToolType.create(newDoc)
+              .then((results) => {
+                res.status(201).send(results);
+              })
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error.errors.unit.message);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
+          }
+        })
+        .catch((error) => {
+          res.status(500).send(error);
+        });
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
+
+  async function addReusableType(req, res) {
+    const {
+      name,
+      description,
+      invoice,
+      purchaseRental,
+      fromDate,
+      toDate,
+      condition,
+      phoneNumber,
+      quantity,
+      currency,
+      unitPrice,
+      shippingFee,
+      taxes,
+      totalPriceWithShipping,
+      images,
+      link,
+      requestor: { requestorId },
+    } = req.body;
+
+    try {
+      ReusType.find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send('Oops!! Reusable already exists!');
+          } else {
+            const newDoc = {
+              category: 'Reusable',
+              name,
+              description,
+              invoice,
+              purchaseRental,
+              fromDate,
+              toDate,
+              condition,
+              phoneNumber,
+              quantity,
+              currency,
+              unitPrice,
+              shippingFee,
+              taxes,
+              totalPriceWithShipping,
+              images,
+              link,
+              createdBy: requestorId,
+            };
+            ReusType.create(newDoc)
               .then((results) => {
                 res.status(201).send(results);
               })
@@ -432,7 +473,6 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
-  // POST - Add a new unit to the JSON file
   const addInventoryUnit = async (req, res) => {
     try {
       const { unit, category } = req.body;
@@ -441,87 +481,43 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
         return res.status(400).json({ error: 'Unit is required' });
       }
 
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          return res.status(500).json({ error: 'Error reading units file' });
-        }
-
-        try {
-          const jsonData = JSON.parse(data);
-
-          // Check if unit already exists
-          const exists = jsonData.some(
-            (item) => item.unit.toLowerCase() === unit.toLowerCase(),
-          );
-          if (exists) {
-            return res.status(409).json({ error: 'Unit already exists' });
-          }
-
-          // Add new unit
-          const newUnit = { unit, category: category || 'Material' };
-          jsonData.push(newUnit);
-
-          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
-            if (writeErr) {
-              console.error('Error writing to file:', writeErr);
-              return res.status(500).json({ error: 'Error saving unit' });
-            }
-            res.status(201).json(newUnit);
-          });
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).json({ error: 'Error parsing units file' });
-        }
+      const exists = await BuildingUnit.findOne({
+        unit: { $regex: new RegExp(`^${unit}$`, 'i') },
       });
+      if (exists) {
+        return res.status(409).json({ error: 'Unit already exists' });
+      }
+
+      const newUnit = await BuildingUnit.create({ unit, category: category || 'Material' });
+      res.status(201).json(newUnit);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   };
 
-  // DELETE - Remove a unit from the JSON file by unit name
   const deleteInventoryUnit = async (req, res) => {
     try {
       const { unitName } = req.params;
 
       if (!unitName) {
-        return res.status(400).json({ error: 'Unit name is required' });
+        return res.status(400).json({ error: 'Unit identifier is required' });
       }
 
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          return res.status(500).json({ error: 'Error reading units file' });
-        }
+      let deleted;
+      if (unitName.match(/^[0-9a-fA-F]{24}$/)) {
+        deleted = await BuildingUnit.findByIdAndDelete(unitName);
+      } else {
+        const decodedUnitName = decodeURIComponent(unitName);
+        deleted = await BuildingUnit.findOneAndDelete({
+          unit: { $regex: new RegExp(`^${decodedUnitName}$`, 'i') },
+        });
+      }
 
-        try {
-          const jsonData = JSON.parse(data);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Unit not found' });
+      }
 
-          // Find index of unit to delete
-          const decodedUnitName = decodeURIComponent(unitName);
-          const unitIndex = jsonData.findIndex(
-            (item) => item.unit.toLowerCase() === decodedUnitName.toLowerCase(),
-          );
-
-          if (unitIndex === -1) {
-            return res.status(404).json({ error: 'Unit not found' });
-          }
-
-          // Remove the unit
-          jsonData.splice(unitIndex, 1);
-
-          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
-            if (writeErr) {
-              console.error('Error writing to file:', writeErr);
-              return res.status(500).json({ error: 'Error deleting unit' });
-            }
-            res.status(200).json({ message: 'Unit deleted successfully' });
-          });
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).json({ error: 'Error parsing units file' });
-        }
-      });
+      res.status(200).json({ message: 'Unit deleted successfully' });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -539,6 +535,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     addMaterialType,
     addConsumableType,
     addToolType,
+    addReusableType,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
     updateInventoryType,
