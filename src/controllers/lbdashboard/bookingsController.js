@@ -122,7 +122,6 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
 
   const createPaymentIntent = async (req, res) => {
     try {
-      console.log('in payment intent');
       const schema = Joi.object({
         listingId: Joi.string().hex().length(24).required().messages({
           'string.hex': 'Invalid listing ID format',
