@@ -9,6 +9,7 @@ require('./startup/db')();
 require('./cronjobs/userProfileJobs')();
 
 require('./cronjobs/bidWinnerJobs')();
+require('./cronjobs/xScheduleJob').start();
 const websocketRouter = require('./websockets/webSocketRouter');
 
 const port = process.env.PORT || 4500;
