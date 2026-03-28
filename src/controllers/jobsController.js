@@ -169,7 +169,7 @@ const resetJobsFilters = async (req, res) => {
 
 const getCategories = async (req, res) => {
   try {
-    const categories = await Job.distinct('category', {});
+    const categories = await JobPositionCategory.distinct('category', {});
     categories.sort((a, b) => a.localeCompare(b));
     res.status(200).json({ categories });
   } catch {
