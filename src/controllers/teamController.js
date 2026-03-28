@@ -26,7 +26,12 @@ const teamcontroller = function (Team) {
       {
         $unwind: {
           path: '$userProfile',
-          preserveNullAndEmptyArrays: true,
+          preserveNullAndEmptyArrays: true, // Ensures that if no userProfile is found, the document is not removed
+        },
+      },
+      {
+        $match: {
+          isActive: true,
         },
       },
       {
@@ -36,7 +41,7 @@ const teamcontroller = function (Team) {
             // Keep the raw value that worked in Compass
             teamCode: '$userProfile.teamCode',
           },
-          count: { $sum: 1 },
+          count: { $sum: { $cond: [{ $ifNull: ['$members', false] }, 1, 0] } }, // Count only if members exist
           teamName: { $first: '$teamName' },
           members: {
             $push: {
@@ -80,6 +85,7 @@ const teamcontroller = function (Team) {
         res.status(500).send(error);
       });
   };
+
   const getTeamById = function (req, res) {
     const { teamId } = req.params;
 
@@ -160,11 +166,11 @@ const teamcontroller = function (Team) {
 
       // Store the old team code before updating
       const oldTeamCode = record.teamCode;
-      const newTeamCode = req.body.teamCode;
+      const newTeamCode = req.body.teamCode || '';
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
-      record.teamCode = req.body.teamCode;
+      record.teamCode = newTeamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 

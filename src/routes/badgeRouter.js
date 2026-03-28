@@ -2,11 +2,10 @@ const express = require('express');
 
 const routes = function (badge) {
   const controller = require('../controllers/badgeController')(badge);
+
   const badgeRouter = express.Router();
 
-  if (typeof controller.awardBadgesTest === 'function') {
-    badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
-  }
+  // badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
 
   badgeRouter.route('/badge').get(controller.getAllBadges).post(controller.postBadge);
 

@@ -1562,6 +1562,11 @@ const overviewReportHelper = function () {
    * 2. New volunteers
    * 3. Deactivated volunteers
    * all within a given time range.
+   *
+   * NOTE: The "mentors" field in this function actually represents users with 0 committed hours
+   * to match the dashboard's "0 hrs Totals: X Members" display (see Leaderboard.jsx:757).
+   * This is NOT a count of users with role='Mentor', but rather users where weeklycommittedHours === 0.
+   *
    * @param {Date} startDate
    * @param {Date} endDate
    * @param {Date} comparisonStartDate
@@ -1577,28 +1582,32 @@ const overviewReportHelper = function () {
       const data = await UserProfile.aggregate([
         {
           $facet: {
+            // Active volunteers: excludes mentors and requires at least 1 hour commitment
+            // This matches the dashboard's "HGN Totals" count (see dashboardhelper.js getOrgData)
             activeVolunteers: [
               {
                 $match: {
                   isActive: true,
                   role: { $ne: 'Mentor' },
-                  createdDate: { $lte: isoEndDate },
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  // Removed createdDate filter to match dashboard logic exactly
                 },
               },
               { $count: 'count' },
             ],
+            // Users with 0 committed hours (labeled as "mentors" for historical reasons)
+            // Matches dashboard's "0 hrs Totals: X Members" count (see Leaderboard.jsx:757)
+            // Frontend filters: filteredUsers.filter(user => user.weeklycommittedHours === 0)
             mentors: [
               {
                 $match: {
                   isActive: true,
-                  role: 'Mentor',
-                  createdDate: {
-                    $lte: isoEndDate,
-                  },
+                  weeklycommittedHours: 0, // Exact match: users with 0 committed hours (matches dashboard logic)
                 },
               },
               { $count: 'count' },
             ],
+            // New volunteers: users created within the date range who are currently active
             newVolunteers: [
               {
                 $match: {
@@ -1607,10 +1616,13 @@ const overviewReportHelper = function () {
                     $lte: isoEndDate,
                   },
                   isActive: true,
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  role: { $ne: 'Mentor' }, // Exclude mentors from new volunteers count
                 },
               },
               { $count: 'count' },
             ],
+            // Deactivated volunteers: all inactive users created before or during the date range
             deactivatedVolunteers: [
               {
                 $match: {
@@ -1625,9 +1637,11 @@ const overviewReportHelper = function () {
       ]);
 
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
-      const mentors = data[0].mentors[0]?.count || 0;
+      const mentors = data[0].mentors[0]?.count || 0; // Actually users with 0 committed hours
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
+
+      // Note: totalVolunteers includes overlapping counts (e.g., new volunteers are also in activeVolunteers)
       const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
 
       return {
@@ -1649,6 +1663,7 @@ const overviewReportHelper = function () {
     } = await getVolunteerData(startDate, endDate);
 
     // Calculate existing active volunteers (active - new)
+    // This represents volunteers who were active before the current period
     const currentExistingActive = currentActiveVolunteers - currentNewVolunteers;
 
     const res = {
@@ -1751,6 +1766,163 @@ const overviewReportHelper = function () {
     }
 
     return res;
+  };
+
+  /**
+   * returns mentor counts for the provided date range
+   * mirrors volunteer stats but filters strictly on Mentor role
+   * @param {Date} startDate
+   * @param {Date} endDate
+   * @param {Date} comparisonStartDate
+   * @param {Date} comparisonEndDate
+   */
+  const getMentorNumberStats = async (
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) => {
+    const getMentorData = async (isoStartDate, isoEndDate) => {
+      const data = await UserProfile.aggregate([
+        {
+          $facet: {
+            activeMentors: [
+              {
+                $match: {
+                  isActive: true,
+                  role: 'Mentor',
+                  createdDate: { $lte: isoEndDate },
+                },
+              },
+              { $count: 'count' },
+            ],
+            newMentors: [
+              {
+                $match: {
+                  role: 'Mentor',
+                  createdDate: {
+                    $gte: isoStartDate,
+                    $lte: isoEndDate,
+                  },
+                },
+              },
+              { $count: 'count' },
+            ],
+            deactivatedMentors: [
+              {
+                $match: {
+                  $and: [
+                    { lastModifiedDate: { $gte: isoStartDate } },
+                    { lastModifiedDate: { $lte: isoEndDate } },
+                    { isActive: false },
+                    { role: 'Mentor' },
+                  ],
+                },
+              },
+              { $count: 'count' },
+            ],
+          },
+        },
+      ]);
+
+      const activeMentors = data[0].activeMentors[0]?.count || 0;
+      const newMentors = data[0].newMentors[0]?.count || 0;
+      const deactivatedMentors = data[0].deactivatedMentors[0]?.count || 0;
+      const totalMentors = activeMentors + newMentors + deactivatedMentors;
+
+      return {
+        activeMentors,
+        newMentors,
+        deactivatedMentors,
+        totalMentors,
+      };
+    };
+
+    const {
+      activeMentors: currentActiveMentors,
+      newMentors: currentNewMentors,
+      deactivatedMentors: currentDeactivatedMentors,
+      totalMentors: currentTotalMentors,
+    } = await getMentorData(startDate, endDate);
+
+    // Calculate existing active mentors (active - new)
+    const currentExistingActive = currentActiveMentors - currentNewMentors;
+
+    const mentorStats = {
+      activeMentors: {
+        count: currentActiveMentors,
+        percentageOutOfTotal: Math.round((currentActiveMentors / currentTotalMentors) * 100) / 100,
+      },
+      newMentors: {
+        count: currentNewMentors,
+        percentageOutOfTotal: Math.round((currentNewMentors / currentTotalMentors) * 100) / 100,
+      },
+      deactivatedMentors: {
+        count: currentDeactivatedMentors,
+        percentageOutOfTotal:
+          Math.round((currentDeactivatedMentors / currentTotalMentors) * 100) / 100,
+      },
+      totalMentors: { count: currentTotalMentors },
+      donutChartData: {
+        existingActive: {
+          count: currentExistingActive,
+          percentageOutOfTotal:
+            Math.round((currentExistingActive / currentTotalMentors) * 100) / 100,
+        },
+        newActive: {
+          count: currentNewMentors,
+          percentageOutOfTotal: Math.round((currentNewMentors / currentTotalMentors) * 100) / 100,
+        },
+        deactivated: {
+          count: currentDeactivatedMentors,
+          percentageOutOfTotal:
+            Math.round((currentDeactivatedMentors / currentTotalMentors) * 100) / 100,
+        },
+      },
+    };
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const {
+        activeMentors: comparisonActiveMentors,
+        newMentors: comparisonNewMentors,
+        deactivatedMentors: comparisonDeactivatedMentors,
+        totalMentors: comparisonTotalMentors,
+      } = await getMentorData(comparisonStartDate, comparisonEndDate);
+
+      // Calculate comparison existing active mentors
+      const comparisonExistingActive = comparisonActiveMentors - comparisonNewMentors;
+
+      mentorStats.activeMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentActiveMentors,
+        comparisonActiveMentors,
+      );
+      mentorStats.newMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentNewMentors,
+        comparisonNewMentors,
+      );
+      mentorStats.deactivatedMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedMentors,
+        comparisonDeactivatedMentors,
+      );
+      mentorStats.totalMentors.comparisonPercentage = calculateGrowthPercentage(
+        currentTotalMentors,
+        comparisonTotalMentors,
+      );
+      mentorStats.donutChartData.existingActive.comparisonPercentage = calculateGrowthPercentage(
+        currentExistingActive,
+        comparisonExistingActive,
+      );
+      mentorStats.donutChartData.newActive.comparisonPercentage = calculateGrowthPercentage(
+        currentNewMentors,
+        comparisonNewMentors,
+      );
+      mentorStats.donutChartData.deactivated.comparisonPercentage = calculateGrowthPercentage(
+        currentDeactivatedMentors,
+        comparisonDeactivatedMentors,
+      );
+    }
+
+    return mentorStats;
   };
 
   /**
@@ -2535,6 +2707,7 @@ const overviewReportHelper = function () {
     getAnniversaries,
     getRoleDistributionStats,
     getVolunteerNumberStats,
+    getMentorNumberStats,
     getTasksStats,
     getWorkDistributionStats,
     getTotalHoursWorked,

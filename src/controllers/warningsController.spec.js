@@ -1,6 +1,3 @@
-
-
-
 const UserProfile = require('../models/userProfile');
 const { mockReq, mockRes } = require('../test');
 const warningsController = require('./warningsController');
@@ -22,11 +19,7 @@ const assertResMock = (statusCode, message, response) => {
   expect(response).toBeUndefined();
 };
 
-
 describe('warnings controller module', () => {
-
-
-
   describe('delete users warnings method', () => {
     test('Ensure deleteUsersWarnings returns error 401 if findOneAndUpdate fails', async () => {
       const { deleteUsersWarnings } = makeSut();
@@ -46,6 +39,6 @@ describe('warnings controller module', () => {
         .mockImplementationOnce(() => Promise.resolve(null));
       const res = await deleteUsersWarnings(mockReq, mockRes);
       assertResMock(400, { message: errorMessage }, res);
-    },5000);
+    }, 5000);
   });
 });

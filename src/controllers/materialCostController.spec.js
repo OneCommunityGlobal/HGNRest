@@ -3,9 +3,9 @@ jest.mock('../utilities/cache', () => ({
   get: jest.fn(),
   set: jest.fn(),
 }));
-const materialCostController = require('./materialCostController');
 const BuildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const cache = require('../utilities/cache');
+const materialCostController = require('./materialCostController');
 
 describe('materialCostController', () => {
   const { getMaterialCosts } = materialCostController();

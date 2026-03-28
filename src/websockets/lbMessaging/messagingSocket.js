@@ -1,6 +1,9 @@
+/* eslint-disable no-console */
+/* eslint-disable max-lines-per-function */
+/* eslint-disable no-unused-vars */
 const Websockets = require('ws');
 const jwt = require('jsonwebtoken');
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const config = require('../../config');
 // eslint-disable-next-line no-unused-vars
 const Message = require('../../models/lbdashboard/message');
