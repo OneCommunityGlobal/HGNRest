@@ -35,17 +35,46 @@ const certificationController = function () {
     }
   };
 
-  // Assign OR update a certification for an educator
+  /**
+   * Helper: Finds or creates a Certification based on ID or Name
+   */
+  const getOrCreateCertification = async (id, name, description) => {
+    let cert = null;
 
+    if (id) {
+      cert = await Certification.findById(id);
+      if (!cert) throw new Error('Certification not found');
+    } else if (name) {
+      if (typeof name !== 'string') throw new Error('Invalid certification name format');
+
+      cert = await Certification.findOne({ name });
+      if (!cert) {
+        cert = await Certification.create({ name, description: description || '' });
+      }
+    } else {
+      throw new Error('Either certificationId or certificationName must be provided');
+    }
+
+    // Common logic: Update description if it differs
+    if (description && description !== cert.description) {
+      cert.description = description;
+      await cert.save();
+    }
+
+    return cert;
+  };
+
+  /**
+   * Main Controller
+   */
   const assignOrUpdateCertification = async (req, res) => {
     try {
       const { educatorId } = req.params;
       const { certificationId, certificationName, description, expiryDate, status } = req.body;
 
-      if (!educatorId) {
-        return res.status(400).json({ error: 'educatorId is required' });
-      }
+      if (!educatorId) return res.status(400).json({ error: 'educatorId is required' });
 
+      // 1. Authorization Handling
       const token = req.headers.authorization;
       if (!token) return res.status(401).json({ error: 'Authorization token missing' });
 
@@ -53,85 +82,48 @@ const certificationController = function () {
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET);
       } catch (err) {
-        console.error('JWT verification failed:', err);
         return res.status(401).json({ error: 'Invalid token' });
       }
 
       const assignedBy = decoded.userid;
-      let certToUse = null;
 
-      // Handle Certification
-      if (certificationId) {
-        certToUse = await Certification.findById(certificationId);
-        if (!certToUse) return res.status(404).json({ error: 'Certification not found' });
-
-        if (description && description !== certToUse.description) {
-          certToUse.description = description;
-          await certToUse.save();
-        }
-      } else if (certificationName) {
-        if (typeof certificationName !== 'string') {
-          return res.status(400).json({ error: 'Invalid certification name format' });
-        }
-        const existingCert = await Certification.findOne({ name: certificationName });
-
-        if (existingCert) {
-          certToUse = existingCert;
-          if (description && description !== existingCert.description) {
-            existingCert.description = description;
-            await existingCert.save();
-          }
-        } else {
-          certToUse = await Certification.create({
-            name: certificationName,
-            description: description || '',
-          });
-        }
-      } else {
-        return res.status(400).json({
-          error: 'Either certificationId or certificationName must be provided',
-        });
+      // 2. Certification Logic (Extracted)
+      let certToUse;
+      try {
+        certToUse = await getOrCreateCertification(certificationId, certificationName, description);
+      } catch (err) {
+        return res
+          .status(err.message.includes('not found') ? 404 : 400)
+          .json({ error: err.message });
       }
 
-      // Check if educator already has this certification
-      const existingAssignment = await EducatorCertification.findOne({
-        educatorId,
-        certificationId: certToUse._id,
-      });
-
-      // UPDATE if exists
-      if (existingAssignment) {
-        existingAssignment.status = status || existingAssignment.status;
-        existingAssignment.expiryDate = expiryDate || existingAssignment.expiryDate;
-        existingAssignment.assignedBy = assignedBy;
-
-        await existingAssignment.save();
-
-        const populated = await existingAssignment.populate([
-          { path: 'certificationId', select: 'name description' },
-          { path: 'assignedBy', select: 'name email' },
-        ]);
-
-        return res.status(200).json(populated);
-      }
-
-      // CREATE new assignment
-      const newAssignment = await EducatorCertification.create({
-        educatorId,
-        certificationId: certToUse._id,
+      // 3. Assignment Logic (Upsert)
+      const query = { educatorId, certificationId: certToUse._id };
+      const updateData = {
+        status,
         expiryDate,
         assignedBy,
-        status,
-      });
+      };
 
-      const populated = await newAssignment.populate([
+      // We check existence to determine the correct HTTP status (200 vs 201)
+      let assignment = await EducatorCertification.findOne(query);
+      const isNew = !assignment;
+
+      if (isNew) {
+        assignment = await EducatorCertification.create({ ...query, ...updateData });
+      } else {
+        Object.assign(assignment, updateData);
+        await assignment.save();
+      }
+
+      const populated = await assignment.populate([
         { path: 'certificationId', select: 'name description' },
         { path: 'assignedBy', select: 'name email' },
       ]);
 
-      return res.status(201).json(populated);
+      return res.status(isNew ? 201 : 200).json(populated);
     } catch (error) {
-      console.log('SERVER ERROR:', error);
+      console.error('SERVER ERROR:', error);
       res.status(500).json({ error: error.message });
     }
   };
