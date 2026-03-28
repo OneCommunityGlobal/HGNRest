@@ -13,7 +13,6 @@
 const path = require('node:path');
 const fs = require('fs');
 // eslint-disable-next-line import/no-unresolved
-const { chromium } = require('playwright');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -34,10 +33,10 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
+const playwrightLogic = require('../utilities/playwrightUtil');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
-
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -3250,55 +3249,6 @@ const userHelper = function () {
     }
   };
 
-  const puppeteerLogic = async () => {
-    try {
-      const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-
-      if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-        console.log('Puppeteer email or password not found in environment variables');
-      }
-
-      const browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      });
-
-      const context = await browser.newContext({
-        viewport: { width: 1920, height: 1080 },
-      });
-
-      const page = await context.newPage();
-
-      // Login page
-      await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle' });
-
-      await page.fill('input[id="email"]', PUPPETEER_EMAIL);
-      await page.fill('input[id="password"]', PUPPETEER_PASSWORD);
-
-      await page.click('.btn.btn-primary');
-
-      // Wait for navigation after login
-      await page.waitForNavigation({ waitUntil: 'networkidle' });
-
-      // Navigate to report page
-      await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle' });
-
-      // Wait for full load (instead of setTimeout)
-      await page.waitForLoadState('networkidle');
-
-      // Screenshot
-      await page.screenshot({
-        path: 'weeklyCompanySummary.png',
-        fullPage: true,
-      });
-
-      await browser.close();
-    } catch (err) {
-      console.error('Playwright error:', err);
-      throw err;
-    }
-  };
-
   // Weekly Company Summary Email
   const weeklyCompanySummaryEmail = async () => {
     console.log('Weekly Company Summary Email');
@@ -3312,7 +3262,7 @@ const userHelper = function () {
     <p>One Community</p>`;
 
     // generate screenshot
-    await puppeteerLogic();
+    await playwrightLogic();
     console.log('Puppeteer logic completed');
 
     // create an attachment object
