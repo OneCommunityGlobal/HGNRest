@@ -122,7 +122,6 @@
     "parse-link-header": "^2.0.0",
     "pdfkit": "^0.17.2",
     "puppeteer": "^24.37.5",
-    "oauth-1.0a": "^2.2.6",
     "redis": "^4.2.0",
     "regression": "^2.0.1",
     "sanitize-html": "^2.16.0",

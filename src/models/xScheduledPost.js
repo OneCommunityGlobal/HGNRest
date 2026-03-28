@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 
-const xScheduledPostSchema = new mongoose.Schema(
+const { Schema } = mongoose;
+
+const xScheduledPostSchema = new Schema(
   {
     content: {
       type: String,
@@ -11,30 +13,32 @@ const xScheduledPostSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    mediaBase64: {
+      type: String,
+      default: null,
+    },
+    altText: {
+      type: String,
+      default: '',
+    },
     status: {
       type: String,
-      enum: ['scheduled', 'posted', 'failed'],
-      default: 'scheduled',
+      enum: ['pending', 'ready', 'posted', 'skipped'],
+      default: 'pending',
     },
     postedAt: {
       type: Date,
       default: null,
     },
-    xPostId: {
-      type: String,
-      default: null,
-    },
-    errorMessage: {
-      type: String,
-      default: null,
-    },
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'userProfile',
-      default: null,
     },
   },
   { timestamps: true },
 );
 
-module.exports = mongoose.model('XScheduledPost', xScheduledPostSchema, 'xScheduledPosts');
+xScheduledPostSchema.index({ scheduledAt: 1 });
+
+module.exports =
+  mongoose.models.XScheduledPost || mongoose.model('XScheduledPost', xScheduledPostSchema);
