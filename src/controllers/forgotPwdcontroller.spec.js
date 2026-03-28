@@ -1,4 +1,3 @@
-
 // const mongoose = require('mongoose');
 const AIPrompt = require('../models/weeklySummaryAIPrompt');
 const { mockReq, mockRes, assertResMock } = require('../test');

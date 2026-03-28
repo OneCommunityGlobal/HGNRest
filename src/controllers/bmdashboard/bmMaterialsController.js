@@ -43,10 +43,93 @@ const bmMaterialsController = function (BuildingMaterial) {
       quantity,
       priority,
       brand: brandPref,
-      requestor: { requestorId },
+      requestor: { requestorId } = {},
     } = req.body;
 
     try {
+      // Validation: Check required fields
+      if (!projectId) {
+        return res.status(400).json({
+          message: 'Project is required',
+          field: 'projectId',
+        });
+      }
+
+      if (!matTypeId) {
+        return res.status(400).json({
+          message: 'Material is required',
+          field: 'matTypeId',
+        });
+      }
+
+      if (!quantity && quantity !== 0) {
+        return res.status(400).json({
+          message: 'Quantity is required',
+          field: 'quantity',
+        });
+      }
+
+      if (!priority) {
+        return res.status(400).json({
+          message: 'Priority is required',
+          field: 'priority',
+        });
+      }
+
+      if (!requestorId) {
+        return res.status(400).json({
+          message: 'Requestor information is required',
+          field: 'requestorId',
+        });
+      }
+
+      // Validation: Validate ObjectIds
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({
+          message: 'Invalid project ID format',
+          field: 'projectId',
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(matTypeId)) {
+        return res.status(400).json({
+          message: 'Invalid material ID format',
+          field: 'matTypeId',
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(requestorId)) {
+        return res.status(400).json({
+          message: 'Invalid requestor ID format',
+          field: 'requestorId',
+        });
+      }
+
+      // Validation: Validate quantity
+      const quantityNum = Number(quantity);
+      if (Number.isNaN(quantityNum)) {
+        return res.status(400).json({
+          message: 'Quantity must be a valid number',
+          field: 'quantity',
+        });
+      }
+
+      if (quantityNum <= 0) {
+        return res.status(400).json({
+          message: 'Quantity must be greater than 0',
+          field: 'quantity',
+        });
+      }
+
+      // Validation: Validate priority
+      const validPriorities = ['Low', 'Medium', 'High'];
+      if (!validPriorities.includes(priority)) {
+        return res.status(400).json({
+          message: 'Priority must be one of: Low, Medium, High',
+          field: 'priority',
+        });
+      }
+
       // check if requestor has permission to make purchase request
       //! Note: this code is disabled until permissions are added
       // TODO: uncomment this code to execute auth check
@@ -60,7 +143,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       // if no, add a new document to the collection
       // if yes, update the existing document
       const newPurchaseRecord = {
-        quantity,
+        quantity: quantityNum,
         priority,
         brandPref,
         requestedBy: requestorId,
@@ -74,14 +157,14 @@ const bmMaterialsController = function (BuildingMaterial) {
           itemType: matTypeId,
           project: projectId,
           purchaseRecord: [newPurchaseRecord],
-          stockBought: quantity,
+          stockBought: quantityNum,
         };
         BuildingMaterial.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
-      doc.stockBought += quantity;
+      doc.stockBought += quantityNum;
       BuildingMaterial.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },

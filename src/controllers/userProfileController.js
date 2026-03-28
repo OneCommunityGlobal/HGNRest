@@ -14,6 +14,7 @@ const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
+const Team = require('../models/team');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 // eslint-disable-next-line no-unused-vars
@@ -174,6 +175,55 @@ const auditIfProtectedAccountUpdated = async ({
 };
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
+
+// Module-scope helper: validates userId and queries DB safely with ObjectId
+const fetchUserSkillRadarData = async function (userId, section) {
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    return { error: 'Missing or invalid userId parameter', status: 400 };
+  }
+
+  const userObjectId = mongoose.Types.ObjectId(String(userId));
+  const normalizedSection = (section || 'all').toLowerCase();
+  const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
+
+  let response = await HGNFormResponses.findOne(
+    { 'followUp.user_id': userObjectId },
+    projection,
+  ).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ user_id: userObjectId }, projection).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ _id: userObjectId }, projection).lean();
+
+  if (!response) return { error: 'No skill data found for this user', status: 404 };
+
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const toItems = (obj) =>
+    Object.entries(obj || {})
+      .filter(([k]) => !/^overall$/i.test(k))
+      .map(([name, score]) => ({ name, score: toNum(score) }));
+
+  const fe = toItems(response.frontend);
+  const be = toItems(response.backend);
+
+  let skills;
+  if (normalizedSection === 'frontend') skills = fe;
+  else if (normalizedSection === 'backend') skills = be;
+  else skills = [...fe, ...be];
+
+  return {
+    data: {
+      userId: userObjectId.toString(),
+      section: normalizedSection,
+      maxScore: 10,
+      skills,
+    },
+  };
+};
 
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
@@ -477,7 +527,39 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     if (req.body.teams !== undefined) {
-      record.teams = Array.from(new Set(req.body.teams));
+      const updatedTeams = Array.from(new Set(req.body.teams));
+
+      // Find teams that were removed
+      const removedTeams = record.teams.filter(
+        (teamId) => !updatedTeams.includes(teamId.toString()),
+      );
+
+      // Find teams that were added
+      const addedTeams = updatedTeams.filter(
+        (teamId) => !record.teams.map((t) => t.toString()).includes(teamId),
+      );
+
+      // Remove user from Team's members array for each removed team
+      if (removedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: removedTeams } },
+          { $pull: { members: { userId: mongoose.Types.ObjectId(record._id) } } },
+        );
+      }
+
+      // Add user to Team's members array for each added team
+      if (addedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: addedTeams } },
+          {
+            $push: {
+              members: { userId: mongoose.Types.ObjectId(record._id), addDateTime: new Date() },
+            },
+          },
+        );
+      }
+
+      record.teams = updatedTeams;
     }
 
     await updateProjects(req, record);
@@ -2582,14 +2664,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID from requestor object added by middleware
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
 
       const userId = req.body.requestor.requestorId;
 
-      // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
@@ -2714,16 +2794,14 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 },
               },
             },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id.toString(),
+            teamCodeWarning,
           };
         }),
       );
 
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => ({ updateOne: x.updateOne }));
 
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {
@@ -2732,11 +2810,29 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       return res.status(200).send({
         message: 'Team codes updated successfully.',
-        updatedUsers: updatedUsersInfo,
+        updatedUsers: updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+          userId,
+          teamCodeWarning,
+        })),
       });
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
+  const getUserSkillRadarData = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const section = req.query.section || 'all';
+      const result = await fetchUserSkillRadarData(userId, section);
+      if (result.error) {
+        return res.status(result.status).send({ error: result.error });
+      }
+      return res.status(200).json(result.data);
+    } catch (error) {
+      console.error('Error fetching skill data:', error);
+      return res.status(500).send({ error: error.message });
     }
   };
 
@@ -2778,6 +2874,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    getUserSkillRadarData,
   };
 };
 

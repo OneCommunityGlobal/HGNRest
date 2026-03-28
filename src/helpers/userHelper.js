@@ -10,7 +10,10 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
+const path = require('node:path');
 const fs = require('fs');
+// eslint-disable-next-line import/no-unresolved
+const puppeteer = require('puppeteer');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -33,6 +36,7 @@ const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
+const reportHelper = require('./reporthelper')();
 
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -284,14 +288,14 @@ const userHelper = function () {
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
-      await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
-        // eslint-disable-next-line no-shadow
-        .then((results) => {
-          mappedResults = results.map((ele) => ele.email);
-          mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-          mappedResults = mappedResults.toString();
-        });
+      const userProfileResults = await userProfile.find(
+        { getWeeklyReport: true },
+        { email: 1, teamCode: 1, _id: 0 },
+      );
+
+      mappedResults = userProfileResults.map((ele) => ele.email);
+      mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
+      mappedResults = mappedResults.toString();
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -302,7 +306,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       for (let i = 0; i < results.length; i += 1) {
@@ -473,11 +477,11 @@ const userHelper = function () {
 
   const sortInfringementsNewestFirst = (arr = []) =>
     [...arr].sort((a, b) => {
-      const dateDiff = new Date(b.date || 0) - new Date(a.date || 0);
+      const dateDiff = new Date(a.date || 0) - new Date(b.date || 0);
       if (dateDiff !== 0) return dateDiff;
 
       // Tie breaker → createdDate
-      return new Date(b.createdDate || 0) - new Date(a.createdDate || 0);
+      return new Date(a.createdDate || 0) - new Date(b.createdDate || 0);
     });
 
   /**
@@ -3246,6 +3250,99 @@ const userHelper = function () {
     }
   };
 
+  const puppeteerLogic = async () => {
+    // get login details from env
+    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
+    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+      logger.logError('Puppeteer email or password not found in environment variables');
+    }
+    // launch puppeteer
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+    });
+    const page = await browser.newPage();
+    // navigate to the login page
+    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1.5,
+    });
+    // enter email and password
+    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
+    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
+    // click the login button
+    // await page.click('button[type="submit"]', { delay: 100 });
+    await page.click('.btn.btn-primary', { delay: 100 });
+    // wait for navigation to complete
+    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+
+    // go to /totalorgsummary
+    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
+
+    // click on all toggle elements
+    const elements = await page.$$('.accordian-trigger');
+
+    console.log('elements', elements);
+
+    // Looping through and interacting with each element
+    for (const element of elements) {
+      await element.click();
+      await page.waitForTimeout(1000); // wait for the animation to complete
+    }
+    await page.waitForTimeout(50000);
+    // take a screenshot of the page
+    // await page.setViewport({ width: 1920, height: 1080 });
+    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
+
+    // close the browser
+    await browser.close();
+  };
+
+  // Weekly Company Summary Email
+  const weeklyCompanySummaryEmail = async () => {
+    console.log('Weekly Company Summary Email');
+    const adminList = await userProfile.find({ jobTitle: 'Administrator' });
+    const recipients = adminList.map((admin) => admin.email);
+    const subject = 'Weekly Company Summary';
+    const message = `<p>Hi Team,</p>
+    <p>Here is the weekly summary of the company.</p>
+    <p>Please refer to the attachment for this weeks Summary Dashboard</p>
+    <p>Best regards,</p>
+    <p>One Community</p>`;
+
+    // generate screenshot
+    await puppeteerLogic();
+    console.log('Puppeteer logic completed');
+
+    // create an attachment object
+    const attachment = {
+      filename: 'weeklyCompanySummary.png',
+      content: fs.readFileSync('./weeklyCompanySummary.png'),
+      contentType: 'image/png',
+    };
+
+    await emailSender(
+      recipients,
+      subject,
+      message,
+      attachment,
+      recipients,
+      'onecommunity@gmail.com',
+    );
+    // delete the image
+    fs.unlink('./weeklyCompanySummary.png', (err) => {
+      if (err) throw err;
+      console.log('./weeklyCompanySummary.png was deleted');
+    });
+  };
+
   const sendUserReactivatedAfterSeparation = ({
     firstName,
     lastName,
@@ -3388,6 +3485,7 @@ const userHelper = function () {
     getEmailRecipientsForStatusChange,
     sendUserSeparatedEmail,
     sendUserReactivatedAfterSeparation,
+    weeklyCompanySummaryEmail,
   };
 };
 
