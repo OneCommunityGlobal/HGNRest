@@ -70,6 +70,9 @@ const certificationController = function () {
           await certToUse.save();
         }
       } else if (certificationName) {
+        if (typeof certificationName !== 'string') {
+          return res.status(400).json({ error: 'Invalid certification name format' });
+        }
         const existingCert = await Certification.findOne({ name: certificationName });
 
         if (existingCert) {
