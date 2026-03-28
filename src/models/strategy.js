@@ -6,27 +6,45 @@ const strategySchema = new Schema({
   name: {
     type: String,
     required: true,
+    unique: true,
+    trim: true,
   },
   type: {
     type: String,
     required: true,
-    enum: ['teaching_strategy', 'life_strategy', 'activity_group'],
+    enum: ['activity_group', 'teaching_strategy', 'life_strategy'],
   },
   description: {
     type: String,
+    trim: true,
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
+  color: {
+    type: String,
+    default: '#6c757d',
   },
   isActive: {
     type: Boolean,
     default: true,
   },
+  created_at: {
+    type: Date,
+    default: Date.now,
+    required: true,
+  },
+  updated_at: {
+    type: Date,
+    default: Date.now,
+    required: true,
+  },
 });
 
-module.exports = mongoose.model('Strategy', strategySchema);
+strategySchema.pre('save', function (next) {
+  this.updated_at = Date.now();
+  next();
+});
+
+strategySchema.index({ type: 1 });
+strategySchema.index({ name: 1 });
+strategySchema.index({ isActive: 1 });
+
+module.exports = mongoose.model('Strategy', strategySchema, 'strategies');
