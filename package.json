@@ -29,8 +29,7 @@
     "serve": "babel-node src/server.js",
     "prepare-macos-linux": "husky install && chmod ug+x .husky/* && chmod ug+x .git/hooks/*",
     "prepare": "husky install",
-    "postinstall": "node node_modules/puppeteer/install.mjs"
-  },
+    "postinstall": "PUPPETEER_SKIP_DOWNLOAD=false node node_modules/puppeteer/install.mjs"  },
   "author": "AK",
   "license": "ISC",
   "devDependencies": {
@@ -121,7 +120,7 @@
     "nodemailer": "^7.0.11",
     "parse-link-header": "^2.0.0",
     "pdfkit": "^0.17.2",
-    "puppeteer": "^24.x",
+    "puppeteer": "^24.40.0",
     "redis": "^4.2.0",
     "regression": "^2.0.1",
     "sanitize-html": "^2.16.0",
