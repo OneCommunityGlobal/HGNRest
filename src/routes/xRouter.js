@@ -12,6 +12,9 @@ router.post('/post', xPostController.createPost);
 router.post('/schedule', xPostController.schedulePost);
 router.get('/schedule', xPostController.getScheduled);
 router.delete('/schedule/:id', xPostController.deleteScheduled);
+router.put('/schedule/:id', xPostController.updateScheduledPost);
+router.patch('/schedule/:id/mark-posted', xPostController.markAsPosted);
+router.patch('/schedule/:id/skip', xPostController.skipPost);
 
 // Post history
 router.get('/history', xPostController.getHistory);
