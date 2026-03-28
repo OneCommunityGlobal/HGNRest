@@ -34,7 +34,6 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
-const { getChromeExecutable } = require('../utilities/puppeteerUtil');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
@@ -3259,9 +3258,13 @@ const userHelper = function () {
     }
     // launch puppeteer
     const browser = await puppeteer.launch({
-      executablePath: getChromeExecutable(),
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
     });
     const page = await browser.newPage();
     // navigate to the login page

@@ -12,7 +12,6 @@ const emailSender = require('../utilities/emailSender');
 const cacheModule = require('../utilities/nodeCache');
 
 const cacheUtil = cacheModule();
-const { getChromeExecutable } = require('../utilities/puppeteerUtil');
 
 const reportsController = function () {
   const overviewReportHelper = overviewReportHelperClosure();
@@ -791,9 +790,13 @@ const reportsController = function () {
       console.log('Puppeteer email or password not found in environment variables');
     }
     const browser = await puppeteer.launch({
-      executablePath: getChromeExecutable(),
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
     });
     const page = await browser.newPage();
     await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
