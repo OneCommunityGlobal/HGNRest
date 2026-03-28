@@ -20,7 +20,10 @@ const certificationController = function () {
   const getAllEducatorCertifications = async (req, res) => {
     try {
       const { status } = req.query;
-      const filter = status ? { status } : {};
+      const filter = {};
+      if (status) {
+        filter.status = String(status);
+      }
       const records = await EducatorCertification.find(filter)
         .populate('educatorId', 'firstName lastName email')
         .populate('certificationId', 'name description')
