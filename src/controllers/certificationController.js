@@ -1,4 +1,3 @@
-// const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const Certification = require('../models/certification');
 const EducatorCertification = require('../models/educatorCertification');
@@ -45,11 +44,15 @@ const certificationController = function () {
       cert = await Certification.findById(id);
       if (!cert) throw new Error('Certification not found');
     } else if (name) {
-      if (typeof name !== 'string') throw new Error('Invalid certification name format');
+      if (typeof name !== 'string') {
+        throw new Error('Invalid certification name format');
+      }
 
-      cert = await Certification.findOne({ name });
+      const sanitizedName = String(name);
+
+      cert = await Certification.findOne({ name: sanitizedName });
       if (!cert) {
-        cert = await Certification.create({ name, description: description || '' });
+        cert = await Certification.create({ name: sanitizedName, description: description || '' });
       }
     } else {
       throw new Error('Either certificationId or certificationName must be provided');
