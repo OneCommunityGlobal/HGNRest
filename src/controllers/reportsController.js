@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-unresolved
-const puppeteer = require('puppeteer');
+const { chromium } = require('playwright');
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
@@ -785,40 +785,52 @@ const reportsController = function () {
     }
   };
   const puppeteerLogic = async () => {
-    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      console.log('Puppeteer email or password not found in environment variables');
-    }
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-    });
-    const page = await browser.newPage();
-    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
-    await page.setViewport({
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1.5,
-    });
-    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
-    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
-    await page.click('.btn.btn-primary', { delay: 100 });
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
+    try {
+      const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
 
-    // eslint-disable-next-line no-restricted-syntax
-    await new Promise((resolve) => {
-      setTimeout(resolve, 50000);
-    });
-    // take a screenshot of the page
-    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
-    // close the browser
-    await browser.close();
+      if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+        console.log('Puppeteer email or password not found in environment variables');
+      }
+
+      const browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      });
+
+      const context = await browser.newContext({
+        viewport: { width: 1920, height: 1080 },
+      });
+
+      const page = await context.newPage();
+
+      // Login page
+      await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle' });
+
+      await page.fill('input[id="email"]', PUPPETEER_EMAIL);
+      await page.fill('input[id="password"]', PUPPETEER_PASSWORD);
+
+      await page.click('.btn.btn-primary');
+
+      // Wait for navigation after login
+      await page.waitForNavigation({ waitUntil: 'networkidle' });
+
+      // Navigate to report page
+      await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle' });
+
+      // Wait for full load (instead of setTimeout)
+      await page.waitForLoadState('networkidle');
+
+      // Screenshot
+      await page.screenshot({
+        path: 'weeklyCompanySummary.png',
+        fullPage: true,
+      });
+
+      await browser.close();
+    } catch (err) {
+      console.error('Playwright error:', err);
+      throw err;
+    }
   };
 
   const sendEmailReport = async (req, res) => {
