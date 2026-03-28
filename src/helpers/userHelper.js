@@ -13,7 +13,7 @@
 const path = require('node:path');
 const fs = require('fs');
 // eslint-disable-next-line import/no-unresolved
-const puppeteer = require('puppeteer');
+const { chromium } = require('playwright');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -3251,58 +3251,52 @@ const userHelper = function () {
   };
 
   const puppeteerLogic = async () => {
-    // get login details from env
-    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      logger.logError('Puppeteer email or password not found in environment variables');
+    try {
+      const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
+
+      if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+        console.log('Puppeteer email or password not found in environment variables');
+      }
+
+      const browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      });
+
+      const context = await browser.newContext({
+        viewport: { width: 1920, height: 1080 },
+      });
+
+      const page = await context.newPage();
+
+      // Login page
+      await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle' });
+
+      await page.fill('input[id="email"]', PUPPETEER_EMAIL);
+      await page.fill('input[id="password"]', PUPPETEER_PASSWORD);
+
+      await page.click('.btn.btn-primary');
+
+      // Wait for navigation after login
+      await page.waitForNavigation({ waitUntil: 'networkidle' });
+
+      // Navigate to report page
+      await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle' });
+
+      // Wait for full load (instead of setTimeout)
+      await page.waitForLoadState('networkidle');
+
+      // Screenshot
+      await page.screenshot({
+        path: 'weeklyCompanySummary.png',
+        fullPage: true,
+      });
+
+      await browser.close();
+    } catch (err) {
+      console.error('Playwright error:', err);
+      throw err;
     }
-    // launch puppeteer
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-    });
-    const page = await browser.newPage();
-    // navigate to the login page
-    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
-    await page.setViewport({
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1.5,
-    });
-    // enter email and password
-    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
-    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
-    // click the login button
-    // await page.click('button[type="submit"]', { delay: 100 });
-    await page.click('.btn.btn-primary', { delay: 100 });
-    // wait for navigation to complete
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // go to /totalorgsummary
-    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
-
-    // click on all toggle elements
-    const elements = await page.$$('.accordian-trigger');
-
-    console.log('elements', elements);
-
-    // Looping through and interacting with each element
-    for (const element of elements) {
-      await element.click();
-      await page.waitForTimeout(1000); // wait for the animation to complete
-    }
-    await page.waitForTimeout(50000);
-    // take a screenshot of the page
-    // await page.setViewport({ width: 1920, height: 1080 });
-    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
-
-    // close the browser
-    await browser.close();
   };
 
   // Weekly Company Summary Email
