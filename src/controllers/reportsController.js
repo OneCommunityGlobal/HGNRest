@@ -3,13 +3,13 @@
 const fs = require('node:fs');
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-unresolved
-const { chromium } = require('playwright');
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
 const cacheModule = require('../utilities/nodeCache');
+const playwrightLogic = require('../utilities/playwrightUtil');
 
 const cacheUtil = cacheModule();
 
@@ -784,54 +784,6 @@ const reportsController = function () {
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
-  const puppeteerLogic = async () => {
-    try {
-      const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-
-      if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-        console.log('Puppeteer email or password not found in environment variables');
-      }
-
-      const browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      });
-
-      const context = await browser.newContext({
-        viewport: { width: 1920, height: 1080 },
-      });
-
-      const page = await context.newPage();
-
-      // Login page
-      await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle' });
-
-      await page.fill('input[id="email"]', PUPPETEER_EMAIL);
-      await page.fill('input[id="password"]', PUPPETEER_PASSWORD);
-
-      await page.click('.btn.btn-primary');
-
-      // Wait for navigation after login
-      await page.waitForNavigation({ waitUntil: 'networkidle' });
-
-      // Navigate to report page
-      await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle' });
-
-      // Wait for full load (instead of setTimeout)
-      await page.waitForLoadState('networkidle');
-
-      // Screenshot
-      await page.screenshot({
-        path: 'weeklyCompanySummary.png',
-        fullPage: true,
-      });
-
-      await browser.close();
-    } catch (err) {
-      console.error('Playwright error:', err);
-      throw err;
-    }
-  };
 
   const sendEmailReport = async (req, res) => {
     try {
@@ -840,7 +792,7 @@ const reportsController = function () {
         return res.status(400).send({ msg: 'Please provide at least one recipient' });
       }
 
-      await puppeteerLogic();
+      await playwrightLogic();
 
       const attachment = {
         filename: 'weeklyCompanySummary.png',
