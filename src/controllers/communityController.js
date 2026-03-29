@@ -9,22 +9,31 @@ const communityMemberController = function () {
       if (search) {
         query['userInfo.name'] = { $regex: search, $options: 'i' };
       }
-      const formResponses = await FormResponse.find(query).sort({
-        'userInfo.name': sortOrder === 'asc' ? 1 : -1,
-      });
+
+      // Use .lean() to get plain JS objects so Object.entries() works correctly on subdocuments
+      const formResponses = await FormResponse.find(query)
+        .lean()
+        .sort({ 'userInfo.name': sortOrder === 'asc' ? 1 : -1 });
 
       const skillFilters = skills ? skills.split(',').map((s) => s.trim().toLowerCase()) : [];
+
+      // Extract skill keys that have a numeric rating value, excluding 'overall' and internal fields
+      const extractSkills = (section) => {
+        if (!section || typeof section !== 'object') return {};
+        return Object.entries(section).reduce((acc, [key, val]) => {
+          if (key.toLowerCase() === 'overall' || key.startsWith('$') || key.startsWith('_')) {
+            return acc;
+          }
+          const num = parseFloat(val);
+          if (!Number.isNaN(num)) {
+            acc[key] = num;
+          }
+          return acc;
+        }, {});
+      };
+
       const structuredMembers = formResponses.map((member) => {
         const { userInfo, frontend, backend, general } = member;
-
-        const extractSkills = (section) =>
-          Object.entries(section || {}).reduce((acc, [key, val]) => {
-            const num = parseFloat(val);
-            if (key.toLowerCase() !== 'overall' && !Number.isNaN(num)) {
-              acc[key] = num;
-            }
-            return acc;
-          }, {});
 
         return {
           _id: member._id,
@@ -42,12 +51,11 @@ const communityMemberController = function () {
       const filteredMembers =
         skillFilters.length > 0
           ? structuredMembers.filter((member) => {
-              const allSkills = {
-                ...member.skills.frontend,
-                ...member.skills.backend,
-              };
-              const lowercased = Object.keys(allSkills).map((s) => s.toLowerCase());
-              return skillFilters.every((filterSkill) => lowercased.includes(filterSkill));
+              const allSkillKeys = [
+                ...Object.keys(member.skills.frontend),
+                ...Object.keys(member.skills.backend),
+              ].map((s) => s.toLowerCase());
+              return skillFilters.every((filterSkill) => allSkillKeys.includes(filterSkill));
             })
           : structuredMembers;
 
