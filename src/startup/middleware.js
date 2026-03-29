@@ -1,9 +1,44 @@
+/* eslint-disable complexity */
+/* eslint-disable no-magic-numbers */
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const express = require('express');
 const config = require('../config');
+const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
+const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
 
+const { webhookTest } = webhookController(Bids);
+
+const paypalAuthMiddleware = (req, res, next) => {
+  const authHeader = req.header('Paypal-Auth-Algo');
+  if (!authHeader) {
+    return res.status(501).json({ error: 'Missing PayPal-Auth-Algo header' });
+  }
+  next();
+};
+
+/* Socket.IO middleware
+function socketMiddleware(socket, next) {
+  const { token } = socket.handshake.auth;
+
+  if (token === 'secret123') {
+    return next();
+  }
+  return next(new Error('Invalid token'));
+}
+*/
 module.exports = function (app) {
+  // Increase request size limit for image uploads
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
   app.all('*', (req, res, next) => {
+    // 🔹 Allow unauthenticated access for Mastodon test APIs
+    if (req.originalUrl.startsWith('/api/mastodon')) {
+      return next();
+    }
+    const openPaths = ['/api/lb/myWebhooks'];
+
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
       return;
@@ -44,6 +79,21 @@ module.exports = function (app) {
       return;
     }
 
+    // Public analytics tracking endpoints (no auth required)
+    if (
+      (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
+      req.method === 'POST'
+    ) {
+      next();
+      return;
+    }
+
+    // Skip auth check for PayPal webhook route
+
+    if (openPaths.includes(req.path)) {
+      return next(); // Allow PayPal requests through
+    }
     if (!req.header('Authorization')) {
       res.status(401).send({ 'error:': 'Unauthorized request' });
       return;
@@ -77,4 +127,6 @@ module.exports = function (app) {
     req.body.requestor = requestor;
     next();
   });
+  // Apply PayPal middleware only to specific route
+  app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };

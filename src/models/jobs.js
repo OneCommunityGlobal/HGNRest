@@ -12,6 +12,7 @@ const jobSchema = new Schema({
   featured: { type: Boolean, default: false }, // Whether the job should be featured prominently
   datePosted: { type: Date, default: Date.now }, // Date the job was posted
   jobDetailsLink: { type: String, required: true }, // Specific job details URL
+  displayOrder: { type: Number, default: 0 }, // Order for displaying jobs on the landing page
 });
 
 module.exports = mongoose.model('Job', jobSchema);

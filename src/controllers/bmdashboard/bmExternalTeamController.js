@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const ExternalTeam = require('../../models/bmdashboard/buildingExternalTeam');
 
 const createExternalTeam = async (req, res) => {

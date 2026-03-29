@@ -25,11 +25,9 @@ const informationController = function (Information) {
     Information.find({ infoName: { $regex: escapeRegex(req.body.infoName), $options: 'i' } })
       .then((result) => {
         if (result.length > 0) {
-          res
-            .status(400)
-            .send({
-              error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
-            });
+          res.status(400).send({
+            error: `Info Name must be unique. Another infoName with name ${result[0].infoName} already exists. Please note that info names are case insensitive`,
+          });
           return;
         }
         const _info = new Information();
@@ -68,12 +66,10 @@ const informationController = function (Information) {
   const updateInformation = function (req, res) {
     Information.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true })
       .then((updatedInformation) => {
-        // remove cache if cache is available
         if (cache.hasCache('informations')) {
           cache.removeCache('informations');
-          return;
         }
-        res.status(200).send(updatedInformation);
+        return res.status(200).send(updatedInformation);
       })
       .catch((error) => res.status(400).send(error));
   };

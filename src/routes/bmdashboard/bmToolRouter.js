@@ -1,22 +1,21 @@
 const express = require('express');
 
 const routes = function (BuildingTool, ToolType) {
-    const toolRouter = express.Router();
-    const controller = require('../../controllers/bmdashboard/bmToolController')(BuildingTool, ToolType);
+  const toolRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/bmToolController')(
+    BuildingTool,
+    ToolType,
+  );
 
-    toolRouter.route('/tools')
-        .get(controller.fetchAllTools);
+  toolRouter.route('/tools').get(controller.fetchAllTools);
 
-    toolRouter.route('/tools/:toolId')
-        .get(controller.fetchSingleTool);
+  toolRouter.route('/tools/:toolId').get(controller.fetchSingleTool);
 
-    toolRouter.route('/tools/purchase')
-        .post(controller.bmPurchaseTools);
+  toolRouter.route('/tools/purchase').post(controller.bmPurchaseTools);
 
-    toolRouter.route('/tools/log')
-        .post(controller.bmLogTools);
+  toolRouter.route('/tools/log').post(controller.bmLogTools);
 
-    return toolRouter;
+  return toolRouter;
 };
 
 module.exports = routes;

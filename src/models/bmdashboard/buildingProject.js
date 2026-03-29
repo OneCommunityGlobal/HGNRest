@@ -10,10 +10,13 @@ const buildingProject = new Schema({
   dateCreated: { type: Date, default: Date.now },
   buildingManager: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'teams' }], // teams assigned to the project
-  members: [{
-    user: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-    hours: { type: Number, default: 0 }, // tracked via the Member Check-In Page timer
-  }],
+  members: [
+    {
+      user: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      hours: { type: Number, default: 0 }, // tracked via the Member Check-In Page timer
+    },
+  ],
+  projectType: { type: String, enum: ['commercial', 'residential', 'private'], default: 'private' },
 });
 
 module.exports = mongoose.model('buildingProject', buildingProject, 'buildingProjects');

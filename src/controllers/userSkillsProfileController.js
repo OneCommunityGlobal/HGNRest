@@ -2,15 +2,16 @@ const mongoose = require('mongoose');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const { hasPermission } = require('../utilities/permissions');
 const Logger = require('../startup/logger');
+const HgnFormResponses = require('../models/hgnFormResponse');
 
 /**
  * Controller for user skills profile operations
  *
- * @param {Object} HgnFormResponses - The HgnFormResponses model
  * @param {Object} UserProfile - The UserProfile model
  * @returns {Object} Controller methods
  */
-const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
+
+const userSkillsProfileController = function (UserProfile) {
   /**
    * Get user profile with skills data
    * Returns consistent structure regardless of data availability
@@ -81,10 +82,12 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
       }
 
       // Get skills data - use default values if not found
-      const formResponses = await HgnFormResponses.findOne({ user_id: userId })
+      const userIdObj = mongoose.Types.ObjectId(userId);
+      const formResponses = await HgnFormResponses.findOne({
+        $or: [{ user_id: userIdObj }, { user_id: userId }],
+      })
         .sort({ _id: -1 })
         .lean();
-
       // Flag if we're using real or placeholder data
       const isProfilePlaceholder = !(await UserProfile.findById(userId));
       const isSkillsPlaceholder = !formResponses;
@@ -164,8 +167,9 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
             leadership_experience: 'No data available',
             combined_frontend_backend: '0',
           },
-          followup: formResponses?.followup || {
+          followUp: formResponses?.followUp || {
             platform: 'N/A',
+            mern_work_experience: 'N/A',
             other_skills: 'N/A',
             suggestion: 'N/A',
             additional_info: 'No followup data available',
@@ -191,7 +195,6 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
         isSkillsPlaceholder,
         timestamp: new Date().toISOString(),
       });
-
       return res.status(200).json(result);
     } catch (error) {
       // Log exceptions with transaction name and relevant data
@@ -204,8 +207,164 @@ const userSkillsProfileController = function (HgnFormResponses, UserProfile) {
     }
   };
 
+  function getWordCount(input) {
+    const excludedSymbols = new Set(['.', '#', '$', '*', '-', '–', '—', '_']);
+
+    const wordCount = input
+      .trim()
+      .split(/\s+/) // still use this to handle any whitespace
+      .filter((word) => {
+        // Remove empty strings and standalone symbols
+        const cleanedWord = word.trim();
+        return cleanedWord && !excludedSymbols.has(cleanedWord);
+      }).length;
+
+    return wordCount;
+  }
+  //
+  const updateUserSkillsProfileFollowUp = async (req, res, next) => {
+    try {
+      // Check if user has permission to view user profiles
+      const hasAccess = await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp');
+
+      // Log access attempt for tracking
+      Logger.logInfo(`User skills profile access attempt`, {
+        requestorId: req.body.requestor.requestorId,
+        targetUserId: req.params.userId,
+        hasAccess,
+        timestamp: new Date().toISOString(),
+      });
+      // If not authorized and trying to view someone else's profile
+      if (!hasAccess && req.body.requestor.requestorId !== req.params.userId) {
+        Logger.logInfo(`Unauthorized access attempt to user skills profile`, {
+          requestorId: req.body.requestor.requestorId,
+          targetUserId: req.params.userId, // user_id??
+          timestamp: new Date().toISOString(),
+        });
+        return res
+          .status(403)
+          .json({ error: 'You do not have permission to view this user profile' });
+      }
+      const { userId } = req.params;
+
+      // Validate user ID format
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new ValidationError('Invalid user ID format');
+      }
+
+      if (req.body.platform == null || req.body.platform === '')
+        return res.status(400).json({ error: 'Please enter valid value for followUp.platform ' });
+
+      if (req.body.other_skills == null || req.body.other_skills === '')
+        return res
+          .status(400)
+          .json({ error: 'Please enter valid value for followUp.other_skills ' });
+
+      if (req.body.mern_work_experience == null || req.body.mern_work_experience === '')
+        return res
+          .status(400)
+          .json({ error: 'Please enter valid value for mern_work_experience ' });
+
+      //  word count should be >= 20
+      const workWordCount = getWordCount(req.body.mern_work_experience);
+
+      /* const workWordCount = req.body.mern_work_experience
+      .trim()
+      .split(' ') // split by space
+      .filter(word => word !== '' && word !== '\n' && word !== '\t').length; // remove empty strings and tabs/newlines
+      */
+      if (workWordCount < 20) {
+        return res.status(403).json({
+          error: 'Please enter a minimum of Twenty words for followUp.mern_work_experience ',
+        });
+      }
+
+      //
+      const updateData = {
+        followUp: {
+          platform: req.body.platform,
+          other_skills: req.body.other_skills,
+          mern_work_experience: req.body.mern_work_experience,
+        },
+      };
+      // Update skills followUp data - use default values if not found
+      const formResponsesUpd = await HgnFormResponses.findOneAndUpdate(
+        { user_id: userId },
+        updateData,
+        {
+          new: true,
+          sort: { _id: -1 }, // sort by newest first
+        },
+      );
+      if (!formResponsesUpd) {
+        return res.status(400).json({ error: 'Invalid formResponsesUpd details' });
+      }
+      // Log successful profile retrieval
+      Logger.logInfo(`User skills profile successfully updated`, {
+        requestorId: req.body.requestor.requestorId,
+        targetUserId: userId,
+        timestamp: new Date().toISOString(),
+      });
+
+      return res.status(200).json({ data: formResponsesUpd });
+    } catch (error) {
+      // Log exceptions with transaction name and relevant data
+      Logger.logException(error, 'updateUserSkillsProfileFollowUp', {
+        requestorId: req.body.requestor?.requestorId,
+        targetUserId: req.params?.userId,
+        timestamp: new Date().toISOString(),
+      });
+      next(error);
+    }
+  };
+  const updateYearsOfExperience = async (req, res, next) => {
+    try {
+      const hasAccess =
+        req.body.requestor.requestorId === req.params.userId ||
+        (await hasPermission(req.body.requestor, 'updateUserSkillsProfileFollowUp'));
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to update this profile' });
+      }
+
+      const { userId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new ValidationError('Invalid user ID format');
+      }
+
+      const { yearsOfExperience } = req.body;
+
+      if (yearsOfExperience !== '' && yearsOfExperience != null) {
+        const num = Number(yearsOfExperience);
+        if (!Number.isInteger(num) || num < 0) {
+          return res
+            .status(400)
+            .json({ error: 'Years of Experience must be a non-negative whole number' });
+        }
+      }
+
+      const updatedResponse = await HgnFormResponses.findOneAndUpdate(
+        { user_id: mongoose.Types.ObjectId(userId) },
+        { 'general.yearsOfExperience': yearsOfExperience },
+        { new: true, sort: { _id: -1 }, upsert: true },
+      );
+
+      return res.status(200).json({ data: updatedResponse });
+    } catch (error) {
+      Logger.logException(error, 'updateYearsOfExperience', {
+        requestorId: req.body.requestor?.requestorId,
+        targetUserId: req.params?.userId,
+        timestamp: new Date().toISOString(),
+      });
+      next(error);
+    }
+  };
+
+  //
   return {
     getUserSkillsProfile,
+    updateUserSkillsProfileFollowUp,
+    updateYearsOfExperience,
   };
 };
 
