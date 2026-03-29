@@ -3,11 +3,16 @@ const FormResponse = require('../models/hgnFormResponse');
 const communityMemberController = function () {
   const getCommunityMembers = async function (req, res) {
     try {
-      const query = {};
-      const { search, skills, sortOrder = 'asc' } = req.query;
+      const { search, skills } = req.query;
 
+      // Validate sortOrder against an allowlist to prevent injection
+      const sortOrder = req.query.sortOrder === 'desc' ? 'desc' : 'asc';
+
+      const query = {};
       if (search) {
-        query['userInfo.name'] = { $regex: search, $options: 'i' };
+        // Escape regex special characters to prevent ReDoS
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query['userInfo.name'] = { $regex: escapedSearch, $options: 'i' };
       }
 
       // Use .lean() to get plain JS objects so Object.entries() works correctly on subdocuments
@@ -34,7 +39,6 @@ const communityMemberController = function () {
 
       const structuredMembers = formResponses.map((member) => {
         const { userInfo, frontend, backend, general } = member;
-
         return {
           _id: member._id,
           name: userInfo?.name || 'N/A',
