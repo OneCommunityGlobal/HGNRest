@@ -73,6 +73,28 @@ const buildLongestOpenResponse = (grouped) =>
     }))
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
+const buildInjuryIssuePayload = (body = {}) => ({
+  projectId: body.projectId,
+  name: body.name,
+  openDate: body.openDate,
+  category: body.category,
+  assignedTo: body.assignedTo,
+  totalCost: body.totalCost,
+});
+
+const buildBuildingIssuePayload = (body = {}) => ({
+  createdDate: body.createdDate,
+  issueDate: body.issueDate,
+  createdBy: body.createdBy,
+  staffInvolved: body.staffInvolved,
+  issueTitle: body.issueTitle,
+  issueText: body.issueText,
+  issueType: body.issueType,
+  imageUrl: body.imageUrl,
+  projectId: body.projectId,
+  status: body.status,
+});
+
 const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
@@ -143,7 +165,8 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      const issue = await BuildingIssue.create(req.body);
+      const issuePayload = buildBuildingIssuePayload(req.body);
+      const issue = await BuildingIssue.create(issuePayload);
       res.status(201).json(issue);
     } catch (error) {
       res.status(500).json(error);
@@ -153,7 +176,8 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- INJURY ISSUES -------------------- */
   const bmPostInjuryIssue = async (req, res) => {
     try {
-      const issue = await injuryIssue.create(req.body);
+      const issuePayload = buildInjuryIssuePayload(req.body);
+      const issue = await injuryIssue.create(issuePayload);
       return res.status(201).json(issue);
     } catch (err) {
       return res.status(400).json({ error: err.message });
