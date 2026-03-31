@@ -18,7 +18,7 @@ exports.connect = async (req, res) => {
       accessJwt: session.accessJwt,
       refreshJwt: session.refreshJwt,
       did: session.did,
-      handle: handle,
+      handle,
       loginTime: new Date().toISOString(),
     };
 
@@ -189,7 +189,7 @@ exports.deletePost = async (req, res) => {
 // Check session status
 exports.checkSession = async (req, res) => {
   try {
-    if (!req.session.bluesky || !req.session.bluesky.accessJwt) {
+    if (!req.session.bluesky?.accessJwt) {
       return res.json({
         success: true,
         isConnected: false,
@@ -223,6 +223,7 @@ exports.checkSession = async (req, res) => {
         });
       } catch (error) {
         // If refresh fails, consider session expired
+        console.error('[Bluesky] Session refresh failed:', error.message);
         return res.json({
           success: true,
           isConnected: false,

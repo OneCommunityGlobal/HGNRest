@@ -20,7 +20,7 @@ global.Blob = Buffer; // Some APIs might need Blob
 exports.login = async (handle, password) => {
   try {
     if (typeof handle !== 'string' || typeof password !== 'string') {
-      throw new Error('Handle and password must be strings');
+      throw new TypeError('Handle and password must be strings');
     }
 
     if (!handle || !password) {
@@ -28,7 +28,7 @@ exports.login = async (handle, password) => {
     }
 
     const agent = new BskyAgent({ service: 'https://bsky.social' });
-    const loginResult = await agent.login({ identifier: handle, password });
+    await agent.login({ identifier: handle, password });
 
     if (!agent.session?.did || !agent.session?.accessJwt || !agent.session?.refreshJwt) {
       throw new Error('Login successful but session data is incomplete');
@@ -74,7 +74,7 @@ exports.createPost = async (accessJwt, did, text = '', imageData = null) => {
     let uploadedBlob = null;
     if (imageData) {
       if (!Buffer.isBuffer(imageData.data)) {
-        throw new Error('imageData.data must be a Buffer');
+        throw new TypeError('imageData.data must be a Buffer');
       }
       if (!imageData.type || typeof imageData.type !== 'string') {
         throw new Error('Invalid or missing MIME type for imageData');
