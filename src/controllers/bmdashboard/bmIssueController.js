@@ -73,27 +73,32 @@ const buildLongestOpenResponse = (grouped) =>
     }))
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
-const buildInjuryIssuePayload = (body = {}) => ({
-  projectId: body.projectId,
-  name: body.name,
-  openDate: body.openDate,
-  category: body.category,
-  assignedTo: body.assignedTo,
-  totalCost: body.totalCost,
-});
+const omitUndefined = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
 
-const buildBuildingIssuePayload = (body = {}) => ({
-  createdDate: body.createdDate,
-  issueDate: body.issueDate,
-  createdBy: body.createdBy,
-  staffInvolved: body.staffInvolved,
-  issueTitle: body.issueTitle,
-  issueText: body.issueText,
-  issueType: body.issueType,
-  imageUrl: body.imageUrl,
-  projectId: body.projectId,
-  status: body.status,
-});
+const buildInjuryIssuePayload = (body = {}) =>
+  omitUndefined({
+    projectId: body.projectId,
+    name: body.name,
+    openDate: body.openDate,
+    category: body.category,
+    assignedTo: body.assignedTo,
+    totalCost: body.totalCost,
+  });
+
+const buildBuildingIssuePayload = (body = {}) =>
+  omitUndefined({
+    createdDate: body.createdDate,
+    issueDate: body.issueDate,
+    createdBy: body.createdBy,
+    staffInvolved: body.staffInvolved,
+    issueTitle: body.issueTitle,
+    issueText: body.issueText,
+    issueType: body.issueType,
+    imageUrl: body.imageUrl,
+    projectId: body.projectId,
+    status: body.status,
+  });
 
 const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
