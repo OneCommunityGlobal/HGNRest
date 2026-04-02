@@ -3,14 +3,17 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const buildingEquipment = new Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   code: { type: Number }, // add function to create code for on-site tool tracking.Not marked as 'required' as it breaks the tool purchase form functionality.
-  purchaseStatus: { type: String, enum: ['Rental', 'Purchase'] },
+  purchaseStatus: { type: String, enum: ['Rental', 'Purchase', 'Purchased', 'Rented'] },
   // add discriminator based on rental or purchase so these fields are required if tool is rented. Not marked as 'required' as it breaks the tool purchase form functionality.
   rentedOnDate: Date,
   rentalDue: Date,
   userResponsible: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+  equipmentClass: { type: String },
+  currentUsage: { type: String, enum: ['Operational', 'Under Maintenance', 'Out of Service'] },
+  condition: { type: String, enum: ['New', 'Used', 'Refurbished'] },
   purchaseRecord: [
     {
       // track purchase/rental requests

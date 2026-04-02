@@ -1,3 +1,5 @@
+/* eslint-disable import/order */
+/* eslint-disable no-magic-numbers */
 /* eslint-disable quotes */
 require('dotenv').config();
 const http = require('http');
