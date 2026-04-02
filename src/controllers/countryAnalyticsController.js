@@ -68,9 +68,10 @@ exports.getCountryApplications = async (req, res, next) => {
         roles: item.roles,
       };
 
-      if (comparisonData && comparisonData[item.country]) {
-        baseData.percentageChange = comparisonData[item.country].percentageChange;
-        baseData.previousCount = comparisonData[item.country].previous;
+      const comparisonRow = comparisonData?.[item.country];
+      if (comparisonRow) {
+        baseData.percentageChange = comparisonRow.percentageChange;
+        baseData.previousCount = comparisonRow.previous;
       }
 
       return baseData;

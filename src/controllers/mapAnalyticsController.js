@@ -243,7 +243,7 @@ exports.getCountryDetails = async (req, res, next) => {
     const range = getRangeFromQuery(req.query);
     const roles = parseRolesParam(req.query.roles);
 
-    if (!country || country.length !== 3) {
+    if (country?.length !== 3) {
       return res.status(400).json({ error: 'Country code must be a 3-letter ISO code.' });
     }
 
