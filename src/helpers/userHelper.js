@@ -489,7 +489,7 @@ const userHelper = function () {
    *  3 ) Call the processWeeklySummariesByUserId(personId) to process the weeklySummaries array.
    */
 
-  const assignBlueSquareForTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
     try {
       console.log('run');
       const currentFormattedDate = moment().tz('America/Los_Angeles').format();
@@ -517,8 +517,11 @@ const userHelper = function () {
       let skip = 0;
       // eslint-disable-next-line no-constant-condition
       while (true) {
+        const query = emailConfig.targetUserId
+          ? { _id: emailConfig.targetUserId }
+          : { isActive: true };
         const users = await userProfile
-          .find({ isActive: true }, '_id weeklycommittedHours weeklySummaries missedHours')
+          .find(query, '_id weeklycommittedHours weeklySummaries missedHours')
           .skip(skip)
           .limit(batchSize);
 
@@ -863,13 +866,16 @@ const userHelper = function () {
                   }
 
                   emailSender(
-                    status.email,
+                    emailConfig.emailOverride || status.email,
                     'New Infringement Assigned',
                     emailBody,
                     null,
-                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    emailConfig.ccOverride || [
+                      'onecommunityglobal@gmail.com',
+                      'jae@onecommunityglobal.org',
+                    ],
                     status.email,
-                    [...new Set([...emailsBCCs])],
+                    emailConfig.bccOverride || [...new Set([...emailsBCCs])],
                   );
                 } else if (isNewUser && !timeNotMet && !hasWeeklySummary) {
                   usersRequiringBlueSqNotification.push(personId);
