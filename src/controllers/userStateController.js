@@ -2,14 +2,37 @@ const mongoose = require('mongoose');
 const UserStateCatalog = require('../models/userStateCatalog');
 const UserStateSelection = require('../models/userStateSelection');
 
-const ALLOWED_COLORS = ['red', 'blue', 'purple', 'green', 'orange'];
+const ALLOWED_COLORS = [
+  '#3498db',
+  '#27ae60',
+  '#9b59b6',
+  '#e67e22',
+  '#e74c3c',
+  '#16a085',
+  '#2c3e50',
+  '#e91e8c',
+  '#f1c40f',
+  '#3f51b5',
+  '#00bcd4',
+  '#795548',
+  '#8bc34a',
+  '#673ab7',
+  '#607d8b',
+];
 
 const slugify = (s) =>
   s
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
     .toLowerCase()
     .replaceAll(/[^a-z0-9\s]+/gu, '')
     .trim()
     .replaceAll(/\s+/gu, '-');
+
+const generateKey = (label) => {
+  const base = slugify(label);
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return base ? `${base}-${suffix}` : suffix;
+};
 
 function checkManage(req) {
   const requestor = req.body?.requestor || {};
@@ -52,7 +75,7 @@ const createCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
   try {
-    const { label, color } = req.body || {};
+    const { label, color, emoji } = req.body || {};
     if (!label || typeof label !== 'string') {
       return res.status(400).json({ error: 'label is required' });
     }
@@ -60,40 +83,43 @@ const createCatalog = async (req, res) => {
       return res.status(400).json({ error: 'label must be ≤ 30 chars' });
     }
 
-    const key = slugify(label);
-    if (!key) return res.status(400).json({ error: 'label produced empty key' });
-
-    const escapedLabel = escapeRegex(label);
-    const exists = await UserStateCatalog.findOne({
-      $or: [{ key }, { label: { $regex: `^${escapedLabel}$`, $options: 'i' } }],
-    });
-    if (exists) {
-      if (!exists.isActive) {
-        exists.isActive = true;
-        await exists.save();
-        return res.status(201).json({ item: exists });
-      }
-      return res.status(409).json({ error: 'label/key already exists' });
-    }
+    const key = generateKey(label);
 
     const max = await UserStateCatalog.findOne().sort({ order: -1 }).lean();
     const nextOrder = max ? max.order + 1 : 0;
 
-    // Fix L87: break taint chain completely
-    const safeColor = ALLOWED_COLORS.includes(color) ? color : ALLOWED_COLORS[nextOrder % 5];
-    const safeKey = key
-      .split('')
-      .filter((c) => /[a-z0-9-]/u.test(c))
-      .join('');
-    const safeLabel = label
-      .split('')
-      .filter((c) => c.codePointAt(0) >= 32 && c.codePointAt(0) <= 126)
+    const safeLabel = [...label]
+      .filter((c) => c.codePointAt(0) >= 32 && c.codePointAt(0) !== 127)
       .join('')
       .slice(0, 30);
 
+    const safeColor = ALLOWED_COLORS.includes(color)
+      ? color
+      : ALLOWED_COLORS[nextOrder % ALLOWED_COLORS.length];
+
+    const safeEmoji =
+      typeof emoji === 'string'
+        ? [...emoji]
+            .filter((c) => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
+            .join('')
+            .slice(0, 2)
+        : '';
+
+    const escapedLabel = escapeRegex(safeLabel);
+    const clash = await UserStateCatalog.findOne({
+      label: { $regex: `^${escapedLabel}$`, $options: 'i' },
+      emoji: safeEmoji,
+      isActive: true,
+    }).lean();
+
+    if (clash) {
+      return res.status(409).json({ error: 'A state with this label and emoji already exists' });
+    }
+
     const item = await UserStateCatalog.create({
-      key: String(safeKey),
+      key: String(key),
       label: String(safeLabel),
+      emoji: String(safeEmoji),
       color: String(safeColor),
       order: Number(nextOrder),
       isActive: true,
@@ -144,9 +170,17 @@ const updateCatalog = async (req, res) => {
   const key = sanitizeKey(req.params.key);
   if (!key) return res.status(400).json({ error: 'invalid key' });
 
-  const { label, isActive } = req.body || {};
+  const { label, color, emoji, isActive } = req.body || {};
+
+  const safeEmoji =
+    typeof emoji === 'string'
+      ? [...emoji]
+          .filter((c) => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
+          .join('')
+          .slice(0, 2)
+      : null;
+
   try {
-    // Fix L143: explicitly reassign sanitized key before DB query
     const safeKeyParam = String(key);
     const item = await UserStateCatalog.findOne({ key: { $eq: safeKeyParam } });
     if (!item) return res.status(404).json({ error: 'not found' });
@@ -160,19 +194,53 @@ const updateCatalog = async (req, res) => {
       const clash = await UserStateCatalog.findOne({
         _id: { $ne: item._id },
         label: { $regex: `^${escapedTrimmed}$`, $options: 'i' },
+        emoji: safeEmoji !== null ? safeEmoji : item.emoji,
+        isActive: true,
       }).lean();
-      if (clash) return res.status(409).json({ error: 'label already exists' });
+      if (clash)
+        return res.status(409).json({ error: 'A state with this label and emoji already exists' });
 
       item.label = trimmed;
     }
+
+    if (typeof color === 'string' && ALLOWED_COLORS.includes(color)) {
+      item.color = color;
+    }
+
+    if (typeof emoji === 'string') {
+      item.emoji = safeEmoji; // already computed above
+    }
+
     if (typeof isActive === 'boolean') {
       item.isActive = isActive;
+      if (!isActive) {
+        await UserStateSelection.updateMany(
+          { 'stateIndicators.key': key },
+          { $pull: { stateIndicators: { key } } },
+        );
+      }
     }
 
     await item.save();
     return res.json({ item });
   } catch (updateError) {
     return res.status(500).json({ error: 'db error', details: updateError.message });
+  }
+};
+
+const getCatalogItemUsage = async (req, res) => {
+  if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
+
+  const { key } = req.params;
+  if (!key) return res.status(400).json({ error: 'key is required' });
+
+  try {
+    const count = await UserStateSelection.countDocuments({
+      'stateIndicators.key': key,
+    });
+    return res.json({ key, count });
+  } catch (err) {
+    return res.status(500).json({ error: 'db error', details: err.message });
   }
 };
 
@@ -240,11 +308,52 @@ const setUserSelections = async (req, res) => {
   }
 };
 
+const getBatchUserSelections = async (req, res) => {
+  const { userIds } = req.body || {};
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: 'userIds must be a non-empty array' });
+  }
+
+  // Most users (managers, mentors) have small teams (10-50 members) so this is fast.
+  // Owners/Admins may have 1000+ users — pagination should be implemented for that case - will handle later on
+  if (userIds.length > 3000) {
+    return res
+      .status(400)
+      .json({ error: `too many userIds (max 300), received: ${userIds.length}` });
+  }
+
+  // Validate each as a proper ObjectId before hitting the DB
+  const validIds = userIds.map((id) => parseUserId(id)).filter(Boolean);
+  if (validIds.length === 0) {
+    return res.status(400).json({ error: 'no valid userIds provided' });
+  }
+
+  try {
+    const docs = await UserStateSelection.find(
+      { userId: { $in: validIds } },
+      'userId stateIndicators',
+    ).lean();
+
+    // Shape into { [userId]: stateIndicators[] } for easy lookup on the frontend
+    const selections = {};
+    for (const doc of docs) {
+      selections[String(doc.userId)] = doc.stateIndicators || [];
+    }
+
+    return res.json({ selections });
+  } catch (batchError) {
+    return res.status(500).json({ error: 'db error', details: batchError.message });
+  }
+};
+
 module.exports = {
   listCatalog,
   createCatalog,
   reorderCatalog,
   updateCatalog,
+  getCatalogItemUsage,
   getUserSelections,
   setUserSelections,
+  getBatchUserSelections,
 };
