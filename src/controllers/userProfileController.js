@@ -1429,8 +1429,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
-      // Convert userId to ObjectId for proper matching in MongoDB
-      const userIdObject = new mongoose.Types.ObjectId(userId);
+      // Validate and convert userId to ObjectId for proper matching in MongoDB
+      let userIdObject;
+      try {
+        userIdObject = new mongoose.Types.ObjectId(userId);
+      } catch (idError) {
+        // If conversion fails, userId might already be an ObjectId or invalid
+        logger.logInfo(`Invalid userId format for ObjectId conversion: ${userId}`);
+        userIdObject = userId;
+      }
       // delete user from task-resources
       await task.updateMany(
         { 'resources.userID': userIdObject },
