@@ -135,6 +135,7 @@ const toolUtilizationController = (BuildingTool) => {
           name: group.name,
           utilizationRate,
           downtime: Math.round(totalDowntimeHours * 10) / 10, // Round to 1 decimal place
+          count: toolCount,
         };
       });
 
