@@ -8,8 +8,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-// eslint-disable-next-line import/no-extraneous-dependencies
-const fetch = require('node-fetch');
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
