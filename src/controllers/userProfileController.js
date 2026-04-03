@@ -1429,13 +1429,18 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
+      // Convert userId to ObjectId for proper matching in MongoDB
+      const userIdObject = new mongoose.Types.ObjectId(userId);
       // delete user from task-resources
       await task.updateMany(
-        { 'resources.userID': userId },
-        { $pull: { resources: { userID: userId } } },
+        { 'resources.userID': userIdObject },
+        { $pull: { resources: { userID: userIdObject } } },
       );
       // delete user from teams-members
-      await team.updateMany({ 'members.userId': userId }, { $pull: { members: { userId } } });
+      await team.updateMany(
+        { 'members.userId': userIdObject },
+        { $pull: { members: { userId: userIdObject } } },
+      );
       res.status(200).send({ message: 'Executed Successfully' });
       auditIfProtectedAccountUpdated({
         requestorId: req.body.requestor.requestorId,
