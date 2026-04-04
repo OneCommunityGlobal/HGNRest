@@ -209,6 +209,7 @@ const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
 const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
@@ -516,6 +517,7 @@ module.exports = function (app) {
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
+  app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
   app.use('/api/bm', bmInjuryRouter);
