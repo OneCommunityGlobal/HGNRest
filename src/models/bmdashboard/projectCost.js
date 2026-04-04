@@ -3,34 +3,34 @@ const mongoose = require('mongoose');
 const costEntrySchema = new mongoose.Schema({
   month: {
     type: String,
-    required: true
+    required: true,
   },
   plannedCost: {
-    type: Number
+    type: Number,
   },
   actualCost: {
-    type: Number
+    type: Number,
   },
   predictedCost: {
-    type: Number
-  }
+    type: Number,
+  },
 });
 
 const projectCostSchema = new mongoose.Schema({
   projectId: {
     type: Number,
     required: true,
-    unique: true
+    unique: true,
   },
   costs: [costEntrySchema],
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 const ProjectCost = mongoose.model('ProjectCost', projectCostSchema);

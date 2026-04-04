@@ -1,3 +1,9 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
@@ -107,20 +113,14 @@ function informManagerMessage(user) {
   return message;
 }
 
-const sendEmailWithAcknowledgment = (email, subject, message) =>
-  new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, (error, result) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(result);
-      }
-    });
-  });
+const sendEmailWithAcknowledgment = (email, subject, message) => {
+  const p = emailSender(email, subject, message, null, null, null, null);
+  return p && typeof p.then === 'function' ? p : Promise.resolve('EMAIL_SENDING_DISABLED');
+};
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
-  userProfile,
+  UserProfile,
   Project,
   MapLocation,
 ) {
@@ -141,21 +141,15 @@ const profileInitialSetupController = function (
     email = email.toLowerCase();
     const token = uuidv4();
     const expiration = moment().add(3, 'week');
-    // Wrap multiple db operations in a transaction
     const session = await startSession();
     session.startTransaction();
 
     try {
-      const existingEmail = await userProfile
-        .findOne({
-          email,
-        })
-        .session(session);
-
+      const existingEmail = await UserProfile.findOne({ email }).session(session);
       if (existingEmail) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).send('email already in use');
+        return res.status(400).send({ error: 'EMAIL_IN_USE' });
       }
 
       await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
@@ -172,35 +166,36 @@ const profileInitialSetupController = function (
 
       const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
+
       await session.commitTransaction();
+      session.endSession();
 
-      // Send response immediately without waiting for email acknowledgment
-      res.status(200).send({ message: 'Token created successfully, email is being sent.' });
-
-      // Asynchronously send the email acknowledgment
-      setImmediate(async () => {
-        try {
-          await sendEmailWithAcknowledgment(
-            email,
-            'NEEDED: Complete your One Community profile setup',
-            sendLinkMessage(link),
-          );
-        } catch (emailError) {
-          // Log email sending failure
-          LOGGER.logException(
-            emailError,
-            'sendEmailWithAcknowledgment',
-            JSON.stringify({ email, link }),
-            null,
-          );
-        }
-      });
+      try {
+        await emailSender(
+          email,
+          'NEEDED: Complete your One Community profile setup',
+          sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
+        );
+        return res.status(200).send({ sent: true });
+      } catch (emailError) {
+        LOGGER.logException(
+          emailError,
+          'sendEmailWithAcknowledgment',
+          JSON.stringify({ email, link }),
+          null,
+        );
+        return res.status(500).send({ error: 'MAIL_SEND_FAILED' });
+      }
     } catch (error) {
       await session.abortTransaction();
-      LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
-      return res.status(400).send(`Error: ${error}`);
-    } finally {
       session.endSession();
+      LOGGER.logException(error, 'getSetupToken', JSON.stringify(req.body), null);
+      return res.status(500).send({ error: 'TOKEN_CREATION_FAILED' });
     }
   };
 
@@ -261,7 +256,7 @@ const profileInitialSetupController = function (
         return;
       }
 
-      const existingEmail = await userProfile.findOne({
+      const existingEmail = await UserProfile.findOne({
         email: foundToken.email,
       });
 
@@ -276,9 +271,7 @@ const profileInitialSetupController = function (
             projectName: 'Orientation and Initial Setup',
           });
 
-          // eslint-disable-next-line new-cap
-          const newUser = new userProfile();
-
+          const newUser = new UserProfile();
           newUser.password = req.body.password;
           newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
@@ -347,7 +340,7 @@ const profileInitialSetupController = function (
           //   isActive: true,
           // };
 
-          res.send({ token: jwtToken }).status(200);
+          res.status(200).send({ token: jwtToken });
 
           // const mapEntryResult = await setMapLocation(locationData);
           // if (mapEntryResult.type === 'Error') {
@@ -391,9 +384,7 @@ const profileInitialSetupController = function (
         projectName: 'Orientation and Initial Setup',
       });
 
-      // eslint-disable-next-line new-cap
-      const newUser = new userProfile();
-
+      const newUser = new UserProfile();
       newUser.password = req.body.password;
       newUser.role = 'Volunteer';
       newUser.firstName = req.body.firstName;
@@ -508,7 +499,7 @@ const profileInitialSetupController = function (
   const getTotalCountryCount = async (req, res) => {
     try {
       const users = [];
-      const results = await userProfile.find({}, 'location totalTangibleHrs hoursByCategory');
+      const results = await UserProfile.find({}, 'location totalTangibleHrs hoursByCategory');
 
       results.forEach((item) => {
         if (
@@ -637,45 +628,60 @@ const profileInitialSetupController = function (
    * @returns updated result of the setup invitation record.
    */
   const refreshSetupInvitation = async (req, res) => {
-    const { role } = req.body.requestor;
+    const { role } = req.body.requestor || {};
     const { token, baseUrl } = req.body;
 
-    if (role === 'Administrator' || role === 'Owner') {
-      try {
-        ProfileInitialSetupToken.findOneAndUpdate(
-          { token },
-          {
-            expiration: moment().add(3, 'week'),
-            isCancelled: false,
-          },
-        )
-          .then((result) => {
-            const { email } = result;
-            const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
-            sendEmailWithAcknowledgment(
-              email,
-              'Invitation Link Refreshed: Complete Your One Community Profile Setup',
-              sendRefreshedLinkMessage(link),
-            );
-            return res.status(200).send(result);
-          })
-          .catch((err) => {
-            LOGGER.logException(err);
-            res
-              .status(500)
-              .send(
-                'Internal Error: Please retry. If the problem persists, please contact the administrator',
-              );
-          });
-      } catch (error) {
-        return res
-          .status(500)
-          .send(
-            'Internal Error: Please retry. If the problem persists, please contact the administrator',
-          );
-      }
-    } else {
+    if (role !== 'Administrator' && role !== 'Owner') {
       return res.status(403).send('You are not authorized to refresh setup invitation.');
+    }
+
+    try {
+      const result = await ProfileInitialSetupToken.findOneAndUpdate(
+        { token },
+        {
+          expiration: moment().add(3, 'week'),
+          isCancelled: false,
+        },
+        { new: true }, // optional but recommended
+      );
+
+      if (!result) {
+        return res.status(404).send('Setup invitation not found.');
+      }
+
+      const { email } = result;
+      const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+
+      console.log(email);
+      LOGGER.logInfo(email);
+      console.log(link);
+      LOGGER.logInfo(link);
+
+      let emailResult;
+      try {
+        emailResult = await sendEmailWithAcknowledgment(
+          email,
+          'Invitation Link Refreshed: Complete Your One Community Profile Setup',
+          sendRefreshedLinkMessage(link),
+        );
+        LOGGER.logInfo(`Email send result: ${emailResult}`);
+      } catch (err) {
+        LOGGER.logException(err);
+        return res.status(502).send('Invitation refreshed, but email failed to send.');
+      }
+
+      if (emailResult === 'EMAIL_SENDING_DISABLED') {
+        return res.status(503).send('Invitation refreshed, but email sending is disabled.');
+      }
+
+      return res.status(200).send(result);
+    } catch (err) {
+      LOGGER.logException(err);
+      return res
+        .status(500)
+        .send(
+          'Internal Error: Please retry. If the problem persists, please contact the administrator',
+        );
     }
   };
 

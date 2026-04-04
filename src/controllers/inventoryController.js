@@ -43,7 +43,8 @@ const inventoryController = function (Item, ItemType, projects) {
 
   //update the project’s inventoryModifiedDatetime
   const updateProjectInventoryModifiedTime = function (projectId) {
-    return projects.findByIdAndUpdate(projectId, { inventoryModifiedDatetime: Date.now() })
+    return projects
+      .findByIdAndUpdate(projectId, { inventoryModifiedDatetime: Date.now() })
       .then((result) => {
         return result;
       })
@@ -108,14 +109,14 @@ const inventoryController = function (Item, ItemType, projects) {
         return inventoryItem
           .save()
           .then((results) => {
-          return updateProjectInventoryModifiedTime(req.params.projectId)
-            .then(() => {
-              res.status(201).send(results);
-            })
-            .catch((err) => {
-              res.status(500).send(err.message);
-            });
-        })
+            return updateProjectInventoryModifiedTime(req.params.projectId)
+              .then(() => {
+                res.status(201).send(results);
+              })
+              .catch((err) => {
+                res.status(500).send(err.message);
+              });
+          })
           .catch((errors) => res.status(500).send(errors));
       }
       return Item.findOneAndUpdate(
@@ -147,11 +148,11 @@ const inventoryController = function (Item, ItemType, projects) {
           { new: true },
         ).then((result) => {
           updateProjectInventoryModifiedTime(req.params.projectId)
-          .then(() => {
-            res.status(201).send(result);
-          })
-          .catch((err) => res.status(500).send(err.message));
-      });
+            .then(() => {
+              res.status(201).send(result);
+            })
+            .catch((err) => res.status(500).send(err.message));
+        });
       });
     }
     return res
@@ -279,12 +280,12 @@ const inventoryController = function (Item, ItemType, projects) {
           { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
           { new: true },
         ).then((result) => {
-            updateProjectInventoryModifiedTime(req.params.projectId)
-              .then(() => {
-                res.status(201).send(result);
-              })
-              .catch((err) => res.status(500).send(err.message));
-          });
+          updateProjectInventoryModifiedTime(req.params.projectId)
+            .then(() => {
+              res.status(201).send(result);
+            })
+            .catch((err) => res.status(500).send(err.message));
+        });
       });
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');

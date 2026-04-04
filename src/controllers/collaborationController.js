@@ -3,6 +3,10 @@ const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
 
+const canEditJobFormContent = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'editFormQuestions'));
+
 // Create a new form
 exports.createForm = async (req, res) => {
   try {
@@ -74,8 +78,7 @@ exports.getFormFormat = async (req, res) => {
 // Update a form format
 exports.updateFormFormat = async (req, res) => {
   try {
-    // Check permissions
-    if (!(await hasPermission(req.body.requestor, 'editFormQuestions'))) {
+    if (!(await canEditJobFormContent(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to edit forms.' });
     }
 
@@ -341,8 +344,7 @@ exports.deleteForm = async (req, res) => {
 // Import questions from a question set to a form
 exports.importQuestionsFromSet = async (req, res) => {
   try {
-    // Check permissions
-    if (!(await hasPermission(req.body.requestor, 'editFormQuestions'))) {
+    if (!(await canEditJobFormContent(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to import questions.' });
     }
 
@@ -383,8 +385,9 @@ exports.importQuestionsFromSet = async (req, res) => {
       : questionSet.questions.filter((_, index) => selectedQuestions.includes(index));
 
     questionsToImport.forEach((question) => {
+      const plain = question.toObject ? question.toObject() : { ...question };
       form.questions.push({
-        ...question.toObject(),
+        ...plain,
         fromQuestionSet: questionSetId,
       });
     });
