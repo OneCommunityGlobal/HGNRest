@@ -488,56 +488,101 @@ const overviewReportHelper = function () {
 
   /**
    * Get the total number of active teams
+   * A team is considered active only if:
+   * 1. The team is marked as isActive: true
+   * 2. At least one team member has logged actual hours within the selected date range
    */
-  async function getTotalActiveTeamCount(endDate, comparisonEndDate) {
-    if (comparisonEndDate) {
-      const res = await Team.aggregate([
+  async function getTotalActiveTeamCount(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    const getActiveTeamCount = async (start, end) => {
+      // Convert dates to YYYY-MM-DD string format for comparison with dateOfWork
+      const startStr = moment(start).format('YYYY-MM-DD');
+      const endStr = moment(end).format('YYYY-MM-DD');
+
+      console.log(`\n[getTotalActiveTeamCount] ========== START ==========`);
+      console.log(`[getTotalActiveTeamCount] Processing date range: ${startStr} to ${endStr}`);
+      console.log(`[getTotalActiveTeamCount] Input dates - start: ${start}, end: ${end}`);
+
+      // Step 1: Get all active teams
+      const activeTeamsCount = await Team.countDocuments({ isActive: true });
+      console.log(`[getTotalActiveTeamCount] Total active teams (no filter): ${activeTeamsCount}`);
+
+      const result = await Team.aggregate([
+        // Step 1: Match active teams created before/on the end date
         {
-          $facet: {
-            current: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: endDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
-            comparison: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: comparisonEndDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
+          $match: {
+            isActive: true,
+            $or: [{ createdDatetime: { $exists: false } }, { createdDatetime: { $lte: end } }],
           },
         },
-      ]);
-      const data = {};
-      data.current = res[0]?.current[0]?.activeTeams || 0;
-      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
-      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
-      return data;
-    }
-    const res = await Team.aggregate([
-      {
-        $match: {
-          isActive: true,
-          createdDatetime: { $lte: endDate },
+        // Step 2: Lookup time entries for all team members
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: 'members.userId',
+            foreignField: 'personId',
+            as: 'allTeamTimeEntries',
+          },
         },
-      },
-      {
-        $count: 'activeTeams',
-      },
-    ]);
+        // Step 3: Filter the time entries to only those in the date range
+        {
+          $project: {
+            _id: 1,
+            teamName: 1,
+            isActive: 1,
+            memberCount: { $size: '$members' },
+            totalTimeEntriesCount: { $size: '$allTeamTimeEntries' },
+            // Filter time entries to only those within the date range
+            timeEntriesInRange: {
+              $filter: {
+                input: '$allTeamTimeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    { $gte: ['$$entry.dateOfWork', startStr] },
+                    { $lte: ['$$entry.dateOfWork', endStr] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        // Step 4: Keep only teams that have at least one time entry in the date range
+        {
+          $match: {
+            'timeEntriesInRange.0': { $exists: true },
+          },
+        },
+        // Step 5: Count the matching teams
+        {
+          $count: 'activeTeams',
+        },
+      ]);
 
-    return { current: res[0]?.activeTeams || 0 };
+      const activeTeamsWithHours = result[0]?.activeTeams || 0;
+      console.log(
+        `[getTotalActiveTeamCount] Teams with logged hours in range ${startStr} to ${endStr}: ${activeTeamsWithHours}`,
+      );
+      console.log(`[getTotalActiveTeamCount] ========== END ==========\n`);
+      return activeTeamsWithHours;
+    };
+
+    const current = await getActiveTeamCount(startDate, endDate);
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparison = await getActiveTeamCount(comparisonStartDate, comparisonEndDate);
+      return {
+        current,
+        comparison,
+        percentage: calculateGrowthPercentage(current, comparison),
+      };
+    }
+
+    return { current };
   }
 
   /**
