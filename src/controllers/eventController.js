@@ -48,6 +48,25 @@ const getEvents = async (req, res) => {
   }
 };
 
+const getEventById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const event = await Event.findById(id).populate('resources.userID');
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    event.status = updateEventStatus(event);
+
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fetch event',
+      details: error.message,
+    });
+  }
+};
+
 const getEventLocations = async (req, res) => {
   try {
     const locations = await Event.distinct('location', { isActive: true });
@@ -79,9 +98,47 @@ const createEvent = async (req, res) => {
   }
 };
 
+const registerForEvent = async (req, res) => {
+  const { id } = req.params;
+  const { name, userID, profilePic, location } = req.body;
+
+  if (!name || !userID) {
+    return res.status(400).json({ error: 'name and userID are required' });
+  }
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    if (!event.isActive) {
+      return res.status(400).json({ error: 'Event is no longer active' });
+    }
+    if (event.currentAttendees >= event.maxAttendees) {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    const alreadyRegistered = event.resources.some((r) => r.userID?.toString() === userID);
+    if (alreadyRegistered) {
+      return res.status(409).json({ error: 'User is already registered for this event' });
+    }
+
+    event.resources.push({ name, userID, profilePic, location });
+    event.currentAttendees += 1;
+    event.status = updateEventStatus(event);
+
+    const updatedEvent = await event.save();
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to register for event', details: error.message });
+  }
+};
+
 module.exports = {
   getEvents,
+  getEventById,
   getEventLocations,
   getEventTypes,
   createEvent,
+  registerForEvent,
 };
