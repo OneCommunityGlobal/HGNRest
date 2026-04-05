@@ -248,7 +248,8 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmUpdateHistoryRouter = require('../routes/bmdashboard/bmUpdateHistoryRouter')();
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const injuryIssue = require('../models/bmdashboard/injuryIssue');
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue, injuryIssue);
 const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
 
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
