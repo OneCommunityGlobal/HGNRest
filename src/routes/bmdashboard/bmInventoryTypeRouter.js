@@ -1,5 +1,3 @@
-
-
 const express = require('express');
 
 const routes = function (baseInvType, matType, consType, reusType, toolType, equipType) {
@@ -34,9 +32,6 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
 
   inventoryTypeRouter.route('/invtypes/consumables').get(controller.fetchConsumableTypes);
 
-  // Route for fetching types by selected type
-  inventoryTypeRouter.route('/invtypes/:type').get(controller.fetchInventoryByType);
-
   // Combined routes for getting a single inventory type and updating its name and unit of measurement
   inventoryTypeRouter
     .route('/invtypes/material/:invtypeId')
@@ -59,4 +54,3 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
 };
 
 module.exports = routes;
-
