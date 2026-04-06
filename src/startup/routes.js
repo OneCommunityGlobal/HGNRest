@@ -394,6 +394,8 @@ const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
+const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -602,4 +604,6 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
