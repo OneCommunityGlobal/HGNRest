@@ -488,56 +488,101 @@ const overviewReportHelper = function () {
 
   /**
    * Get the total number of active teams
+   * A team is considered active only if:
+   * 1. The team is marked as isActive: true
+   * 2. At least one team member has logged actual hours within the selected date range
    */
-  async function getTotalActiveTeamCount(endDate, comparisonEndDate) {
-    if (comparisonEndDate) {
-      const res = await Team.aggregate([
+  async function getTotalActiveTeamCount(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    const getActiveTeamCount = async (start, end) => {
+      // Convert dates to YYYY-MM-DD string format for comparison with dateOfWork
+      const startStr = moment(start).format('YYYY-MM-DD');
+      const endStr = moment(end).format('YYYY-MM-DD');
+
+      console.log(`\n[getTotalActiveTeamCount] ========== START ==========`);
+      console.log(`[getTotalActiveTeamCount] Processing date range: ${startStr} to ${endStr}`);
+      console.log(`[getTotalActiveTeamCount] Input dates - start: ${start}, end: ${end}`);
+
+      // Step 1: Get all active teams
+      const activeTeamsCount = await Team.countDocuments({ isActive: true });
+      console.log(`[getTotalActiveTeamCount] Total active teams (no filter): ${activeTeamsCount}`);
+
+      const result = await Team.aggregate([
+        // Step 1: Match active teams created before/on the end date
         {
-          $facet: {
-            current: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: endDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
-            comparison: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: comparisonEndDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
+          $match: {
+            isActive: true,
+            $or: [{ createdDatetime: { $exists: false } }, { createdDatetime: { $lte: end } }],
           },
         },
-      ]);
-      const data = {};
-      data.current = res[0]?.current[0]?.activeTeams || 0;
-      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
-      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
-      return data;
-    }
-    const res = await Team.aggregate([
-      {
-        $match: {
-          isActive: true,
-          createdDatetime: { $lte: endDate },
+        // Step 2: Lookup time entries for all team members
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: 'members.userId',
+            foreignField: 'personId',
+            as: 'allTeamTimeEntries',
+          },
         },
-      },
-      {
-        $count: 'activeTeams',
-      },
-    ]);
+        // Step 3: Filter the time entries to only those in the date range
+        {
+          $project: {
+            _id: 1,
+            teamName: 1,
+            isActive: 1,
+            memberCount: { $size: '$members' },
+            totalTimeEntriesCount: { $size: '$allTeamTimeEntries' },
+            // Filter time entries to only those within the date range
+            timeEntriesInRange: {
+              $filter: {
+                input: '$allTeamTimeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    { $gte: ['$$entry.dateOfWork', startStr] },
+                    { $lte: ['$$entry.dateOfWork', endStr] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        // Step 4: Keep only teams that have at least one time entry in the date range
+        {
+          $match: {
+            'timeEntriesInRange.0': { $exists: true },
+          },
+        },
+        // Step 5: Count the matching teams
+        {
+          $count: 'activeTeams',
+        },
+      ]);
 
-    return { current: res[0]?.activeTeams || 0 };
+      const activeTeamsWithHours = result[0]?.activeTeams || 0;
+      console.log(
+        `[getTotalActiveTeamCount] Teams with logged hours in range ${startStr} to ${endStr}: ${activeTeamsWithHours}`,
+      );
+      console.log(`[getTotalActiveTeamCount] ========== END ==========\n`);
+      return activeTeamsWithHours;
+    };
+
+    const current = await getActiveTeamCount(startDate, endDate);
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparison = await getActiveTeamCount(comparisonStartDate, comparisonEndDate);
+      return {
+        current,
+        comparison,
+        percentage: calculateGrowthPercentage(current, comparison),
+      };
+    }
+
+    return { current };
   }
 
   /**
@@ -963,6 +1008,8 @@ const overviewReportHelper = function () {
 
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
+   * NOTE: This shows ALL active users regardless of createdDate to provide
+   * a complete picture of current role distribution in the organization
    */
   async function getRoleDistributionStats(
     startDate,
@@ -970,26 +1017,18 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
-    // Helper to build match stage depending on whether start/end are provided
-    const buildMatch = (s, e) => {
-      const match = { isActive: true };
-      if (s && e) {
-        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
-      }
-      return match;
-    };
+    // Always match only active users, ignore date filters for role distribution
+    // This ensures all current roles are displayed, not just recently created users
+    const buildMatch = () => ({ isActive: true });
 
     // If comparison dates provided, return both current and comparison facets
     if (comparisonStartDate && comparisonEndDate) {
       const roleStats = await UserProfile.aggregate([
         {
           $facet: {
-            current: [
-              { $match: buildMatch(startDate, endDate) },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
+            current: [{ $match: buildMatch() }, { $group: { _id: '$role', count: { $sum: 1 } } }],
             comparison: [
-              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
+              { $match: buildMatch() },
               { $group: { _id: '$role', count: { $sum: 1 } } },
             ],
           },
@@ -1003,7 +1042,7 @@ const overviewReportHelper = function () {
     }
 
     // No comparison: return same shape as before (array of {_id: role, count})
-    const matchStage = buildMatch(startDate, endDate);
+    const matchStage = buildMatch();
     const result = await UserProfile.aggregate([
       { $match: matchStage },
       { $group: { _id: '$role', count: { $sum: 1 } } },
@@ -1562,6 +1601,11 @@ const overviewReportHelper = function () {
    * 2. New volunteers
    * 3. Deactivated volunteers
    * all within a given time range.
+   *
+   * NOTE: The "mentors" field in this function actually represents users with 0 committed hours
+   * to match the dashboard's "0 hrs Totals: X Members" display (see Leaderboard.jsx:757).
+   * This is NOT a count of users with role='Mentor', but rather users where weeklycommittedHours === 0.
+   *
    * @param {Date} startDate
    * @param {Date} endDate
    * @param {Date} comparisonStartDate
@@ -1577,28 +1621,32 @@ const overviewReportHelper = function () {
       const data = await UserProfile.aggregate([
         {
           $facet: {
+            // Active volunteers: excludes mentors and requires at least 1 hour commitment
+            // This matches the dashboard's "HGN Totals" count (see dashboardhelper.js getOrgData)
             activeVolunteers: [
               {
                 $match: {
                   isActive: true,
                   role: { $ne: 'Mentor' },
-                  createdDate: { $lte: isoEndDate },
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  // Removed createdDate filter to match dashboard logic exactly
                 },
               },
               { $count: 'count' },
             ],
+            // Users with 0 committed hours (labeled as "mentors" for historical reasons)
+            // Matches dashboard's "0 hrs Totals: X Members" count (see Leaderboard.jsx:757)
+            // Frontend filters: filteredUsers.filter(user => user.weeklycommittedHours === 0)
             mentors: [
               {
                 $match: {
                   isActive: true,
-                  role: 'Mentor',
-                  createdDate: {
-                    $lte: isoEndDate,
-                  },
+                  weeklycommittedHours: 0, // Exact match: users with 0 committed hours (matches dashboard logic)
                 },
               },
               { $count: 'count' },
             ],
+            // New volunteers: users created within the date range who are currently active
             newVolunteers: [
               {
                 $match: {
@@ -1607,15 +1655,18 @@ const overviewReportHelper = function () {
                     $lte: isoEndDate,
                   },
                   isActive: true,
+                  weeklycommittedHours: { $gte: 1 }, // Match HGN Totals logic
+                  role: { $ne: 'Mentor' }, // Exclude mentors from new volunteers count
                 },
               },
               { $count: 'count' },
             ],
+            // Deactivated volunteers: all inactive users created before or during the date range
             deactivatedVolunteers: [
               {
                 $match: {
                   isActive: false,
-                  createdDate: { $lte: isoEndDate }, // All inactive volunteers, not just recently deactivated
+                  lastModifiedDate: { $gte: isoStartDate, $lte: isoEndDate },
                 },
               },
               { $count: 'count' },
@@ -1625,9 +1676,11 @@ const overviewReportHelper = function () {
       ]);
 
       const activeVolunteers = data[0].activeVolunteers[0]?.count || 0;
-      const mentors = data[0].mentors[0]?.count || 0;
+      const mentors = data[0].mentors[0]?.count || 0; // Actually users with 0 committed hours
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
+
+      // Note: totalVolunteers includes overlapping counts (e.g., new volunteers are also in activeVolunteers)
       const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
 
       return {
@@ -1649,6 +1702,7 @@ const overviewReportHelper = function () {
     } = await getVolunteerData(startDate, endDate);
 
     // Calculate existing active volunteers (active - new)
+    // This represents volunteers who were active before the current period
     const currentExistingActive = currentActiveVolunteers - currentNewVolunteers;
 
     const res = {

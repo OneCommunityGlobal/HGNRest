@@ -1,10 +1,15 @@
+/* eslint-disable no-console */
 /* eslint-disable consistent-return */
+const fs = require('node:fs');
 const mongoose = require('mongoose');
+// eslint-disable-next-line import/no-unresolved
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
+const emailSender = require('../utilities/emailSender');
 const cacheModule = require('../utilities/nodeCache');
+const playwrightLogic = require('../utilities/playwrightUtil');
 
 const cacheUtil = cacheModule();
 
@@ -141,6 +146,11 @@ const reportsController = function () {
         });
       }
     }
+    const cacheKey = `volunteerStatsData_${startDate}_${endDate}_${comparisonStartDate || ''}_${comparisonEndDate || ''}`;
+
+    if (cacheUtil.hasCache(cacheKey)) {
+      return res.status(200).send(cacheUtil.getCache(cacheKey));
+    }
 
     try {
       const [
@@ -224,7 +234,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
+        overviewReportHelper.getTotalActiveTeamCount(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getMapLocations(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
@@ -277,8 +292,7 @@ const reportsController = function () {
           error: 'Invalid date parameters',
         });
       }
-
-      res.status(200).send({
+      const responseData = {
         volunteerNumberStats,
         mentorNumberStats,
         volunteerHoursStats,
@@ -297,7 +311,12 @@ const reportsController = function () {
         volunteersOverAssignedTime,
         completedAssignedHours,
         totalSummariesSubmitted,
-      });
+      };
+
+      cacheUtil.setCache(cacheKey, responseData);
+      cacheUtil.setKeyTimeToLive(cacheKey, 300);
+
+      res.status(200).send(responseData);
     } catch (err) {
       console.error('Backend Error in getVolunteerStatsData:', err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
@@ -619,6 +638,7 @@ const reportsController = function () {
           createdDate: 1,
           getWeeklyReport: 1,
           permissionGrantedToGetWeeklySummaryReport: 1,
+          isActive: 1,
         },
       )
         .then((results) => {
@@ -726,6 +746,30 @@ const reportsController = function () {
     }
   };
 
+  const getAllDistinctTeamCodes = async (req, res) => {
+    const requestor = safeRequestorFromReq(req);
+
+    try {
+      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      if (!allowed) {
+        return res.status(403).send('You are not authorized to view team codes');
+      }
+
+      const teamCodes = await UserProfile.distinct('teamCode', {
+        teamCode: { $nin: [null, ''] },
+      });
+
+      const sortedTeamCodes = teamCodes.sort((a, b) => a.localeCompare(b));
+
+      return res.status(200).send(sortedTeamCodes);
+    } catch (error) {
+      console.error('Error fetching distinct team codes:', error);
+      return res.status(500).send({
+        error: 'An error occurred while fetching team codes.',
+      });
+    }
+  };
+
   const getReportTeamCodes = async (req, res) => {
     try {
       // const minActive = Number(req.query.activeMembersMinimum ?? 1);
@@ -739,6 +783,55 @@ const reportsController = function () {
     } catch (err) {
       console.error('getReportTeamCodes error:', err);
       return res.status(500).send({ msg: 'Failed to fetch report team codes' });
+    }
+  };
+
+  // Weekly admin summary
+
+  const getAdminList = async (req, res) => {
+    try {
+      const adminList = await UserProfile.find({ jobTitle: 'Administrator' });
+      const emailList = adminList.map((admin) => admin.email);
+      res.status(200).send({ emailList });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const sendEmailReport = async (req, res) => {
+    try {
+      const { recipients, subject, message } = req.body;
+      if (!recipients || recipients.length === 0) {
+        return res.status(400).send({ msg: 'Please provide at least one recipient' });
+      }
+
+      await playwrightLogic();
+
+      const attachment = {
+        filename: 'weeklyCompanySummary.png',
+        content: fs.readFileSync('./weeklyCompanySummary.png'),
+        contentType: 'image/png',
+      };
+
+      await emailSender(
+        recipients,
+        subject,
+        message,
+        attachment,
+        recipients,
+        'onecommunity@gmail.com',
+      );
+
+      fs.unlink('./weeklyCompanySummary.png', (err) => {
+        if (err) console.error(err);
+        else console.log('./weeklyCompanySummary.png was deleted');
+      });
+
+      return res.status(200).send({ msg: 'Email sent successfully' });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).send({ msg: 'Error occured while sending email. Please try again!' });
     }
   };
 
@@ -757,6 +850,9 @@ const reportsController = function () {
     getTeamsWithActiveMembers,
     getReportTeamCodes,
     invalidateWeeklySummariesCache,
+    getAdminList,
+    sendEmailReport,
+    getAllDistinctTeamCodes,
   };
 };
 
