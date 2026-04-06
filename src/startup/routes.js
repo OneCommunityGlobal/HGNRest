@@ -218,7 +218,6 @@ const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter
 const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')(
   buildingConsumable,
 );
-const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 const costBreakdown = require('../models/bmdashboard/costBreakdown');
 const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
@@ -510,7 +509,6 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
-  app.use('/api/bm', bmExpenditureRouter);
   app.use('/api', costBreakdownRouter);
   app.use('/api', bmProjectRiskProfileRouter);
   app.use('/api/bm', bmIssueRouter);
