@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsPromises = require('fs/promises');
 const path = require('path');
 
 const filename = 'BuildingUnits.json';
@@ -68,7 +69,7 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
 
   const fetchInvUnitsFromJson = async (req, res) => {
     try {
-      console.log(__dirname, filepath);
+      // console.log(__dirname,filepath)
       readFile(filepath, 'utf8', (err, data) => {
         if (err) {
           console.error('Error reading file:', err);
@@ -302,32 +303,34 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   };
 
   async function addEquipmentType(req, res) {
-    const {
-      name,
-      desc: description,
-      fuel: fuelType,
-      requestor: { requestorId },
-    } = req.body;
+    const { name, description, fuel: fuelType, requestor } = req.body;
+
+    const requestorId = requestor?.requestorId || null;
+
+    // Validate and set default fuel type if not provided
+    const validFuelTypes = ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'];
+    const finalFuelType = fuelType && validFuelTypes.includes(fuelType) ? fuelType : 'Diesel';
+
     try {
       EquipType.find({ name })
         .then((result) => {
           if (result.length) {
-            res.status(409).send();
+            res.status(409).json({ error: `Equipment with name "${name}" already exists.` });
           } else {
             const newDoc = {
               category: 'Equipment',
               name,
               description,
-              fuelType,
+              fuelType: finalFuelType,
               createdBy: requestorId,
             };
             EquipType.create(newDoc)
               .then(() => res.status(201).send())
               .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error);
+                if (error._message && error._message.includes('validation failed')) {
+                  res.status(400).json({ error: 'Validation failed. Please check your input.' });
                 } else {
-                  res.status(500).send(error);
+                  res.status(500).json({ error: 'Failed to create equipment. Please try again.' });
                 }
               });
           }
@@ -349,6 +352,41 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   }
 
+  async function addReusableType(req, res) {
+    const {
+      name,
+      description,
+      requestor: { requestorId },
+    } = req.body;
+    try {
+      ReusType.find({ name })
+        .then((result) => {
+          if (result.length) {
+            res.status(409).send();
+          } else {
+            const newDoc = {
+              category: 'Reusable',
+              name,
+              description,
+              createdBy: requestorId,
+            };
+            ReusType.create(newDoc)
+              .then(() => res.status(201).send())
+              .catch((error) => {
+                if (error._message.includes('validation failed')) {
+                  res.status(400).send(error);
+                } else {
+                  res.status(500).send(error);
+                }
+              });
+          }
+        })
+        .catch((error) => res.status(500).send(error));
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
+
   const fetchSingleInventoryType = async (req, res) => {
     const { invtypeId } = req.params;
     try {
@@ -360,24 +398,15 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
   };
 
   const updateNameAndUnit = async (req, res) => {
+    const { invtypeId } = req.params;
+    const { name, unit } = req.body;
+
     try {
-      const { invtypeId } = req.params;
-      const { name, unit } = req.body;
-
-      const updateData = {};
-
-      if (name) {
-        updateData.name = name;
-      }
-
-      if (unit) {
-        updateData.unit = unit;
-      }
-
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
-        new: true,
-        runValidators: true,
-      });
+      const updatedInvType = await InvType.findByIdAndUpdate(
+        invtypeId,
+        { name, unit },
+        { new: true, runValidators: true },
+      );
 
       if (!updatedInvType) {
         return res.status(404).json({ error: 'invType Material not found check Id' });
@@ -389,139 +418,223 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     }
   };
 
-  // PUT - Update any inventory type by ID (generic)
-  const updateInventoryType = async (req, res) => {
+  const addInvUnit = async (req, res) => {
+    // NOTE: category is default to be Material as no other item types need units
+    const { unit, category = 'Material' } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
     try {
-      const { invtypeId } = req.params;
-      const updateData = req.body;
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
 
-      // Remove fields that shouldn't be updated directly
-      delete updateData._id;
-      delete updateData.__t;
-      delete updateData.__v;
+      // append new unit into array
+      unitsArray.push({ unit, category });
 
-      const updatedInvType = await InvType.findByIdAndUpdate(invtypeId, updateData, {
-        new: true,
-        runValidators: true,
-      });
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(unitsArray, null, ' '));
 
-      if (!updatedInvType) {
-        return res.status(404).json({ error: 'Inventory type not found' });
-      }
-
-      res.status(200).json(updatedInvType);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(201).send(unitsArray);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
     }
   };
 
-  // DELETE - Delete any inventory type by ID
-  const deleteInventoryType = async (req, res) => {
+  const deleteInvUnit = async (req, res) => {
+    const { unit } = req.body;
+    if (typeof unit !== 'string' || unit.length === 0) {
+      res.status(400).json('Invalid unit');
+      return;
+    }
+
     try {
-      const { invtypeId } = req.params;
+      // read JSON file and parse it into an array
+      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
+      const unitsArray = JSON.parse(unitsJSON);
 
-      const deletedInvType = await InvType.findByIdAndDelete(invtypeId);
-
-      if (!deletedInvType) {
-        return res.status(404).json({ error: 'Inventory type not found' });
+      // if unit does not exist, send err response
+      const index = unitsArray.findIndex((unitObject) => unitObject.unit === unit);
+      if (index === -1) {
+        res.status(400).json('Unit does not exist');
+        return;
       }
 
-      res.status(200).json({ message: 'Inventory type deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+      // otherwise, remove unit
+      const filteredUnits = unitsArray.filter((unitObject) => unitObject.unit !== unit);
+
+      // save updated array into JSON file and rend it back
+      await fsPromises.writeFile(filepath, JSON.stringify(filteredUnits, null, ' '));
+      res.status(200).send(filteredUnits);
+    } catch (err) {
+      res.status(500).send(err);
+      console.error(err);
     }
   };
 
-  // POST - Add a new unit to the JSON file
-  const addInventoryUnit = async (req, res) => {
-    try {
-      const { unit, category } = req.body;
+  const updateSingleInvType = async (req, res) => {
+    const { type, invtypeId } = req.params;
+    const { name, description, unit, fuel } = req.body;
 
-      if (!unit) {
-        return res.status(400).json({ error: 'Unit is required' });
+    // Handle Equipment type specifically
+    if (type === 'Equipments') {
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0) {
+        res.status(400).json({ error: 'Name and description are required.' });
+        return;
       }
 
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          return res.status(500).json({ error: 'Error reading units file' });
+      try {
+        // find Equipment by id, and update name, description, fuelType
+        const updatedEquipType = await EquipType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, fuelType: fuel },
+          { new: true, runValidators: true },
+        );
+        if (!updatedEquipType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
         }
 
-        try {
-          const jsonData = JSON.parse(data);
+        res.status(200).json(updatedEquipType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else if (type === 'Materials') {
+      // Handle Material type with unit field
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
+        res.status(400).json({ error: 'Name, description, and unit are required.' });
+        return;
+      }
 
-          // Check if unit already exists
-          const exists = jsonData.some((item) => item.unit.toLowerCase() === unit.toLowerCase());
-          if (exists) {
-            return res.status(409).json({ error: 'Unit already exists' });
-          }
-
-          // Add new unit
-          const newUnit = { unit, category: category || 'Material' };
-          jsonData.push(newUnit);
-
-          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
-            if (writeErr) {
-              console.error('Error writing to file:', writeErr);
-              return res.status(500).json({ error: 'Error saving unit' });
-            }
-            res.status(201).json(newUnit);
-          });
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).json({ error: 'Error parsing units file' });
+      try {
+        // find Material by id, and update name, description, unit
+        const updatedMaterialType = await MatType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, unit },
+          { new: true, runValidators: true },
+        );
+        if (!updatedMaterialType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
         }
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+
+        res.status(200).json(updatedMaterialType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else if (type === 'Consumables') {
+      // Handle Consumable type with unit field
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
+        res.status(400).json({ error: 'Name, description, and unit are required.' });
+        return;
+      }
+
+      try {
+        // find Consumable by id, and update name, description, unit
+        const updatedConsumableType = await ConsType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, unit },
+          { new: true, runValidators: true },
+        );
+        if (!updatedConsumableType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedConsumableType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    } else {
+      // Handle other types (Reusables, Tools) with original logic
+      // send back errors if required fields are missing
+      if (name?.length === 0 || description?.length === 0) {
+        res.status(400).json({ error: 'Name and description are required.' });
+        return;
+      }
+
+      try {
+        // find invType by id, and update name, description
+        const updatedInvType = await InvType.findByIdAndUpdate(
+          invtypeId,
+          { name, description },
+          { new: true, runValidators: true },
+        );
+        if (!updatedInvType) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+
+        res.status(200).json(updatedInvType);
+      } catch (error) {
+        res.status(500).send(error);
+      }
     }
   };
 
-  // DELETE - Remove a unit from the JSON file by unit name
-  const deleteInventoryUnit = async (req, res) => {
-    try {
-      const { unitName } = req.params;
+  const deleteSingleInvType = async (req, res) => {
+    const { type, invtypeId } = req.params;
 
-      if (!unitName) {
-        return res.status(400).json({ error: 'Unit name is required' });
+    try {
+      let deletedResult;
+      let updatedList;
+
+      // Handle different types with their respective models
+      if (type === 'Equipments') {
+        deletedResult = await EquipType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await EquipType.find();
+      } else if (type === 'Materials') {
+        deletedResult = await MatType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await MatType.find();
+      } else if (type === 'Consumables') {
+        deletedResult = await ConsType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ConsType.find();
+      } else if (type === 'Tools') {
+        deletedResult = await ToolType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ToolType.find();
+      } else if (type === 'Reusables') {
+        deletedResult = await ReusType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await ReusType.find();
+      } else {
+        // Fallback to InvType for unknown types
+        deletedResult = await InvType.findByIdAndDelete(invtypeId);
+        if (!deletedResult) {
+          res.status(404).json({ error: 'invTypeId does not exist' });
+          return;
+        }
+        updatedList = await InvType.find({ category: type });
       }
 
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          return res.status(500).json({ error: 'Error reading units file' });
-        }
-
-        try {
-          const jsonData = JSON.parse(data);
-
-          // Find index of unit to delete
-          const decodedUnitName = decodeURIComponent(unitName);
-          const unitIndex = jsonData.findIndex(
-            (item) => item.unit.toLowerCase() === decodedUnitName.toLowerCase(),
-          );
-
-          if (unitIndex === -1) {
-            return res.status(404).json({ error: 'Unit not found' });
-          }
-
-          // Remove the unit
-          jsonData.splice(unitIndex, 1);
-
-          writeFile(filepath, JSON.stringify(jsonData, null, 2), 'utf8', (writeErr) => {
-            if (writeErr) {
-              console.error('Error writing to file:', writeErr);
-              return res.status(500).json({ error: 'Error deleting unit' });
-            }
-            res.status(200).json({ message: 'Unit deleted successfully' });
-          });
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).json({ error: 'Error parsing units file' });
-        }
-      });
+      // send the updated list
+      res.status(200).json(updatedList);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).send(error);
     }
   };
 
@@ -532,17 +645,18 @@ function bmInventoryTypeController(InvType, MatType, ConsType, ReusType, ToolTyp
     fetchToolTypes,
     addEquipmentType,
     fetchEquipmentTypes,
+    addReusableType,
     fetchSingleInventoryType,
-    updateNameAndUnit,
     addMaterialType,
     addConsumableType,
     addToolType,
+    updateNameAndUnit,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
-    updateInventoryType,
-    deleteInventoryType,
-    addInventoryUnit,
-    deleteInventoryUnit,
+    addInvUnit,
+    deleteInvUnit,
+    updateSingleInvType,
+    deleteSingleInvType,
   };
 }
 

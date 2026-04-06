@@ -22,6 +22,8 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
 
   inventoryTypeRouter.route('/tools').post(controller.addToolType);
 
+  inventoryTypeRouter.route('/invtypes/reusables').post(controller.addReusableType);
+
   inventoryTypeRouter.route('/invtypes/tools').get(controller.fetchToolTypes);
 
   inventoryTypeRouter.route('/invtypes/equipment').post(controller.addEquipmentType);
@@ -36,25 +38,17 @@ const routes = function (baseInvType, matType, consType, reusType, toolType, equ
     .get(controller.fetchSingleInventoryType)
     .put(controller.updateNameAndUnit);
 
-  // Generic route for updating/deleting any inventory type by ID
-  // Using regex to match MongoDB ObjectId format (24 hex characters) - must come BEFORE :type route
+  // Routes for updating and deleting other inventory types
   inventoryTypeRouter
-    .route('/invtypes/:invtypeId([0-9a-fA-F]{24})')
-    .get(controller.fetchSingleInventoryType)
-    .put(controller.updateInventoryType)
-    .delete(controller.deleteInventoryType);
+    .route('/invtypes/:type/:invtypeId')
+    .put(controller.updateSingleInvType)
+    .delete(controller.deleteSingleInvType);
 
-  // Route for fetching types by selected type (Materials, Consumables, etc.)
-  // This comes AFTER the ObjectId route so it only matches non-ObjectId strings
-  inventoryTypeRouter.route('/invtypes/:type').get(controller.fetchInventoryByType);
-
-  // Routes for inventory units (JSON file based)
   inventoryTypeRouter
     .route('/inventoryUnits')
     .get(controller.fetchInvUnitsFromJson)
-    .post(controller.addInventoryUnit);
-
-  inventoryTypeRouter.route('/inventoryUnits/:unitName').delete(controller.deleteInventoryUnit);
+    .post(controller.addInvUnit)
+    .delete(controller.deleteInvUnit);
 
   return inventoryTypeRouter;
 };
