@@ -1,0 +1,36 @@
+
+> hgnrest@1.0.0 start
+> node dist/server.js
+
+making router
+{
+  getNoShowsData: [Function: getNoShowsData],
+  getNoShowsByLocation: [Function: getNoShowsByLocation],
+  getNoShowsByAgeGroup: [Function: getNoShowsByAgeGroup],
+  getAttendanceByDay: [Function: getAttendanceByDay],
+  getUniqueEventTypes: [Function: getUniqueEventTypes],
+  getNoShowProportions: [Function: getNoShowProportions]
+}
+Loading plannedCost model...
+PlannedCost model loaded: success
+Loading plannedCostRouter...
+PlannedCostRouter loaded: success
+Started server on port 4500
+Error: listen EADDRINUSE: address already in use :::4500
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Object.<anonymous> (/Users/roshini/Desktop/Backend/HGNRest/dist/server.js:49:8)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+    at node:internal/main/run_main_module:28:49 {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 4500
+}
+Error event:  Request - undefined 

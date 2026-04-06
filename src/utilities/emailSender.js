@@ -306,6 +306,10 @@ const emailSender = (
   const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
 
+  if (process.env.NODE_ENV !== 'production' && !isReset) {
+    return Promise.resolve('EMAIL_SENDING_DISABLED_NON_PROD');
+  }
+
   if (
     !process.env.sendEmail ||
     (String(process.env.sendEmail).toLowerCase() === 'false' && !isReset)
