@@ -46,7 +46,7 @@ exports.getStudentCommentsbyStudent = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { userId } = req.query;
-    console.log('Fetching comments for task:', taskId, 'by user:', userId);
+    
     const user = await User.findById(userId);
     if (!user) return res.status(403).json({ message: 'Invalid userId' });
     if (user.role !== 'student')
