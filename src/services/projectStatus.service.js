@@ -1,8 +1,10 @@
 const dayjs = require('dayjs');
 const ProjectStatus = require('../models/projectStatus');
 
-// Utility to compute percentages safely
-const calcPct = (count, total) => (total ? Number(((count / total) * 100).toFixed(1)) : 0.0);
+const calcPct = (count, total) => {
+  if (!total) return 0;
+  return parseFloat(((count / total) * 100).toFixed(1));
+};
 
 async function getProjectStatusSummary({ startDate, endDate }) {
   try {
