@@ -392,6 +392,10 @@ const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
+//education portal
+
+const studentTaskRouter = require('../routes/studentTasksRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -484,6 +488,8 @@ module.exports = function (app) {
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
+
+  app.use('/api/studentTasks', studentTaskRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);

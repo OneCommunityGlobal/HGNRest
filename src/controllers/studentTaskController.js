@@ -367,9 +367,10 @@ const studentTaskController = function () {
   };
 
   return {
-    getStudentTasks,
-    updateTaskProgress,
-    uploadFile,
+    createStudentTask,
+    getAllStudentTasks,
+    getTasksByStudent,
+    updateStudentTask,
   };
 };
 

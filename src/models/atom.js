@@ -39,6 +39,10 @@ const atomSchema = new mongoose.Schema(
         trim: true,
       },
     ],
+    colorLevel: {
+      type: String,
+      enum: ['red', 'yellow', 'orange', 'green', 'blue', 'indigo', 'violet'],
+    },
   },
   {
     timestamps: true,
