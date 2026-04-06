@@ -384,6 +384,11 @@ const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 
+// kitchen inventory
+
+const kitchenSupplierRouter = require('../routes/kitchenInventory/kitchenSupplierRouter')();
+const kitchenOrderRouter = require('../routes/kitchenInventory/kitchenOrderRouter')();
+
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 // Kitchen and Inventory portal routes
@@ -591,9 +596,11 @@ module.exports = function (app) {
 
   app.use('/api/educator/reports', downloadReportRouter);
 
+  
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
-
+  app.use('/api/kitchenandinventory', kitchenSupplierRouter);
+  app.use('/api/kitchenandinventory', kitchenOrderRouter);
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
 
