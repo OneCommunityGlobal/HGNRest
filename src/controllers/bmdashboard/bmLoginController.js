@@ -1,8 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-
 const config = require('../../config');
-
 const userprofile = require('../../models/userProfile');
 
 const bmLoginController = function () {
