@@ -71,6 +71,14 @@ const listCatalog = async (req, res) => {
   }
 };
 
+function sanitizeEmoji(emoji) {
+  if (typeof emoji !== 'string') return null;
+  return [...emoji]
+    .filter((c) => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
+    .join('')
+    .slice(0, 2);
+}
+
 const createCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
@@ -97,13 +105,7 @@ const createCatalog = async (req, res) => {
       ? color
       : ALLOWED_COLORS[nextOrder % ALLOWED_COLORS.length];
 
-    const safeEmoji =
-      typeof emoji === 'string'
-        ? [...emoji]
-            .filter((c) => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
-            .join('')
-            .slice(0, 2)
-        : '';
+    const safeEmoji = sanitizeEmoji(emoji) ?? '';
 
     const escapedLabel = escapeRegex(safeLabel);
     const clash = await UserStateCatalog.findOne({
@@ -164,6 +166,23 @@ const reorderCatalog = async (req, res) => {
   }
 };
 
+async function checkLabelClash(trimmed, itemId, resolvedEmoji) {
+  const escapedTrimmed = escapeRegex(trimmed);
+  return UserStateCatalog.findOne({
+    _id: { $ne: itemId },
+    label: { $regex: `^${escapedTrimmed}$`, $options: 'i' },
+    emoji: resolvedEmoji,
+    isActive: true,
+  }).lean();
+}
+
+async function deactivateUserSelections(key) {
+  await UserStateSelection.updateMany(
+    { 'stateIndicators.key': key },
+    { $pull: { stateIndicators: { key } } },
+  );
+}
+
 const updateCatalog = async (req, res) => {
   if (!checkManage(req)) return res.status(403).json({ error: 'Forbidden' });
 
@@ -171,18 +190,10 @@ const updateCatalog = async (req, res) => {
   if (!key) return res.status(400).json({ error: 'invalid key' });
 
   const { label, color, emoji, isActive } = req.body || {};
-
-  const safeEmoji =
-    typeof emoji === 'string'
-      ? [...emoji]
-          .filter((c) => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
-          .join('')
-          .slice(0, 2)
-      : null;
+  const safeEmoji = sanitizeEmoji(emoji);
 
   try {
-    const safeKeyParam = String(key);
-    const item = await UserStateCatalog.findOne({ key: { $eq: safeKeyParam } });
+    const item = await UserStateCatalog.findOne({ key: { $eq: String(key) } });
     if (!item) return res.status(404).json({ error: 'not found' });
 
     if (typeof label === 'string') {
@@ -190,13 +201,8 @@ const updateCatalog = async (req, res) => {
       if (!trimmed) return res.status(400).json({ error: 'label cannot be empty' });
       if (trimmed.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
 
-      const escapedTrimmed = escapeRegex(trimmed);
-      const clash = await UserStateCatalog.findOne({
-        _id: { $ne: item._id },
-        label: { $regex: `^${escapedTrimmed}$`, $options: 'i' },
-        emoji: safeEmoji !== null ? safeEmoji : item.emoji,
-        isActive: true,
-      }).lean();
+      const resolvedEmoji = safeEmoji !== null ? safeEmoji : item.emoji;
+      const clash = await checkLabelClash(trimmed, item._id, resolvedEmoji);
       if (clash)
         return res.status(409).json({ error: 'A state with this label and emoji already exists' });
 
@@ -208,16 +214,13 @@ const updateCatalog = async (req, res) => {
     }
 
     if (typeof emoji === 'string') {
-      item.emoji = safeEmoji; // already computed above
+      item.emoji = safeEmoji;
     }
 
     if (typeof isActive === 'boolean') {
       item.isActive = isActive;
-      if (!isActive) {
-        await UserStateSelection.updateMany(
-          { 'stateIndicators.key': key },
-          { $pull: { stateIndicators: { key } } },
-        );
+      if (isActive === false) {
+        await deactivateUserSelections(key);
       }
     }
 

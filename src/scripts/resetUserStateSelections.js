@@ -1,7 +1,7 @@
 // IMPORTANT - PLEASE DO NOT RUN THIS UNLESS EXPLICITLY ASKED TO!!
 const mongoose = require('mongoose');
 require('dotenv').config();
-const readline = require('readline');
+const readline = require('node:readline');
 const UserStateSelection = require('../models/userStateSelection');
 
 const RESET_PASSWORD = process.env.RESET_USERSELECTIONS_PASSWORD;
