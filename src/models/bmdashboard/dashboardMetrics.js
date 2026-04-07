@@ -2,28 +2,34 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-const trendSchema = new Schema({
-  value: {
-    type: Number,
-    default: 0
+const trendSchema = new Schema(
+  {
+    value: {
+      type: Number,
+      default: 0,
+    },
+    period: {
+      type: String,
+      enum: ['day', 'week', 'month'],
+      default: 'week',
+    },
   },
-  period: {
-    type: String,
-    enum: ['day', 'week', 'month'],
-    default: 'week'
-  }
-}, { _id: false });
+  { _id: false },
+);
 
-const metricSchema = new Schema({
-  value: {
-    type: Number,
-    default: 0
+const metricSchema = new Schema(
+  {
+    value: {
+      type: Number,
+      default: 0,
+    },
+    trend: {
+      type: trendSchema,
+      default: () => ({}),
+    },
   },
-  trend: {
-    type: trendSchema,
-    default: () => ({})
-  }
-}, { _id: false });
+  { _id: false },
+);
 
 const dashboardMetricsSchema = new Schema(
   {
@@ -36,60 +42,60 @@ const dashboardMetricsSchema = new Schema(
     snapshotType: {
       type: String,
       enum: ['weekly', 'monthly', 'current'],
-      default: 'current'
+      default: 'current',
     },
     metrics: {
       totalProjects: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       completedProjects: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       delayedProjects: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       activeProjects: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       avgProjectDuration: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       totalMaterialCost: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       totalLaborCost: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       totalMaterialUsed: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       materialWasted: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       materialAvailable: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       materialUsed: {
         type: metricSchema,
-        default: () => ({})
+        default: () => ({}),
       },
       totalLaborHours: {
         type: metricSchema,
-        default: () => ({})
-      }
+        default: () => ({}),
+      },
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('DashboardMetrics', dashboardMetricsSchema, 'dashboardMetrics');

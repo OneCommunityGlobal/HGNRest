@@ -1,7 +1,7 @@
-const notificationController = require('./notificationController');
 const Notification = require('../models/notification');
 const notificationService = require('../services/notificationService');
 const { mockReq, mockRes, assertResMock } = require('../test');
+const notificationController = require('./notificationController');
 
 const makeSut = () => {
   const {

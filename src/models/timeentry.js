@@ -21,5 +21,4 @@ TimeEntry.index({ personId: 1, dateOfWork: 1 });
 TimeEntry.index({ entryType: 1, teamId: 1, dateOfWork: 1, isActive: 1 });
 TimeEntry.index({ personId: 1, dateOfWork: 1 });
 
-
 module.exports = mongoose.model('timeEntry', TimeEntry, 'timeEntries');
