@@ -176,11 +176,14 @@ async function checkLabelClash(trimmed, itemId, resolvedEmoji) {
   }).lean();
 }
 
-async function deactivateUserSelections(key) {
-  await UserStateSelection.updateMany(
-    { 'stateIndicators.key': key },
-    { $pull: { stateIndicators: { key } } },
-  );
+async function handleIsActive(item, isActive, key) {
+  item.isActive = isActive;
+  if (isActive === false) {
+    await UserStateSelection.updateMany(
+      { 'stateIndicators.key': key },
+      { $pull: { stateIndicators: { key } } },
+    );
+  }
 }
 
 const updateCatalog = async (req, res) => {
@@ -201,7 +204,7 @@ const updateCatalog = async (req, res) => {
       if (!trimmed) return res.status(400).json({ error: 'label cannot be empty' });
       if (trimmed.length > 30) return res.status(400).json({ error: 'label must be ≤ 30 chars' });
 
-      const resolvedEmoji = safeEmoji !== null ? safeEmoji : item.emoji;
+      const resolvedEmoji = safeEmoji === null ? item.emoji : safeEmoji;
       const clash = await checkLabelClash(trimmed, item._id, resolvedEmoji);
       if (clash)
         return res.status(409).json({ error: 'A state with this label and emoji already exists' });
@@ -218,10 +221,7 @@ const updateCatalog = async (req, res) => {
     }
 
     if (typeof isActive === 'boolean') {
-      item.isActive = isActive;
-      if (isActive === false) {
-        await deactivateUserSelections(key);
-      }
+      await handleIsActive(item, isActive, key);
     }
 
     await item.save();
