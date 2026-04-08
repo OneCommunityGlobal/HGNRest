@@ -39,6 +39,7 @@ const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
+const injuryAnalyticsRoutes = require('../routes/injuryAnalytics');
 const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
@@ -208,6 +209,7 @@ const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
+const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
 const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
 
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
@@ -246,7 +248,8 @@ const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool,
 const bmEquipmentRouter = require('../routes/bmdashboard/bmEquipmentRouter')(buildingEquipment);
 const bmUpdateHistoryRouter = require('../routes/bmdashboard/bmUpdateHistoryRouter')();
 const buildingIssue = require('../models/bmdashboard/buildingIssue');
-const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue);
+const injuryIssue = require('../models/bmdashboard/injuryIssue');
+const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIssue, injuryIssue);
 const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
 
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
@@ -367,6 +370,7 @@ const PromotionEligibility = require('../models/promotionEligibility');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
+const studentReportRouter = require('../routes/studentReportRouter');
 // education portal
 const educationProfileRouter = require('../routes/educationRouter');
 
@@ -382,12 +386,15 @@ const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter')
 
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
+const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
 // Kitchen and Inventory portal routes
 const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
 const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
+
+const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -471,6 +478,7 @@ module.exports = function (app) {
   app.use('/api/intermediate-tasks', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
+  app.use('/api', injuryAnalyticsRoutes);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
@@ -514,6 +522,7 @@ module.exports = function (app) {
   app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
+  app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
   app.use('/api/bm', bmInjuryRouter);
@@ -575,6 +584,7 @@ module.exports = function (app) {
   app.use('/api/lb', SMSRouter);
   app.use('/api', materialCostRouter);
 
+  app.use('/api/educator/reports', studentReportRouter());
   // education portal
   app.use('/api/education', badgeSystemRouter);
 
@@ -586,6 +596,7 @@ module.exports = function (app) {
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
+  app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
@@ -593,4 +604,6 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
