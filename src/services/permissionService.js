@@ -14,20 +14,10 @@ class PermissionService {
     return permissions && typeof permissions === 'object';
   }
 
-  static async checkUpdateAuthorization(requestor, userId, UserProfile) {
+  static async checkUpdateAuthorization(requestor, userId) {
     const hasUpdatePermission = await hasPermission(requestor, 'putUserProfilePermissions');
     if (!hasUpdatePermission) {
       return { authorized: false, error: 'You are not authorized to update user permissions' };
-    }
-
-    // Special case: Owners with addDeleteEditOwners permission can update other Owners' permissions
-    const hasAddDeleteEditOwnersPermission = await hasPermission(requestor, 'addDeleteEditOwners');
-    if (hasAddDeleteEditOwnersPermission) {
-      const targetUser = await UserProfile.findById(userId).select('role').lean();
-      if (targetUser && targetUser.role === 'Owner') {
-        // Allow Owner with addDeleteEditOwners permission to update other Owners' permissions
-        return { authorized: true };
-      }
     }
 
     const canEditProtectedAccount = await canRequestorUpdateUser(requestor.requestorId, userId);
@@ -43,47 +33,18 @@ class PermissionService {
   }
 
   async findUserById(userId) {
-    let user;
-    try {
-      user = await this.UserProfile.findById(userId);
-    } catch (findError) {
-      const err = new Error('Invalid user id');
-      err.statusCode = 400;
-      throw err;
-    }
+    const user = await this.UserProfile.findById(userId);
     if (!user) {
-      const err = new Error('User not found');
-      err.statusCode = 404;
-      throw err;
+      throw new Error('User not found');
     }
     return user;
   }
 
   static updateUserPermissions(user, permissions) {
-    let existing = {};
-    try {
-      if (user.permissions) {
-        existing =
-          typeof user.permissions.toObject === 'function'
-            ? user.permissions.toObject()
-            : user.permissions;
-      }
-    } catch (_) {
-      existing = user.permissions || {};
-    }
-    const merged = {
-      isAcknowledged: Boolean(permissions.isAcknowledged),
-      frontPermissions: Array.isArray(permissions.frontPermissions)
-        ? permissions.frontPermissions
-        : existing.frontPermissions || [],
-      backPermissions: Array.isArray(permissions.backPermissions)
-        ? permissions.backPermissions
-        : existing.backPermissions || [],
-      removedDefaultPermissions: Array.isArray(permissions.removedDefaultPermissions)
-        ? permissions.removedDefaultPermissions
-        : existing.removedDefaultPermissions || [],
+    user.permissions = {
+      isAcknowledged: false,
+      ...permissions,
     };
-    user.permissions = merged;
     user.lastModifiedDate = Date.now();
   }
 
@@ -104,32 +65,17 @@ class PermissionService {
   }
 
   static async notifyInfringements(originalInfringements, results) {
-    try {
-      if (!results) return;
-
-      const currentInfringements = results.infringements;
-
-      if (!currentInfringements) return;
-
-      const safeOriginal =
-        originalInfringements && typeof originalInfringements.toObject === 'function'
-          ? originalInfringements
-          : currentInfringements;
-
-      await userHelper.notifyInfringements(
-        safeOriginal,
-        currentInfringements,
-        results.firstName,
-        results.lastName,
-        results.email,
-        results.role,
-        results.startDate,
-        results.jobTitle?.[0],
-        results.weeklycommittedHours,
-      );
-    } catch (error) {
-      logger.logException(error, 'Error notifying infringements after permission update');
-    }
+    await userHelper.notifyInfringements(
+      originalInfringements,
+      results.infringements,
+      results.firstName,
+      results.lastName,
+      results.email,
+      results.role,
+      results.startDate,
+      results.jobTitle[0],
+      results.weeklycommittedHours,
+    );
   }
 
   async handlePostSaveOperations(req, user, originalInfringements, results) {
@@ -139,24 +85,13 @@ class PermissionService {
   }
 
   async updatePermissions(userId, permissions, req) {
+    // Validate permissions data
     if (!PermissionService.validatePermissionsData(permissions)) {
-      const err = new Error('Invalid permissions data');
-      err.statusCode = 400;
-      throw err;
+      throw new Error('Invalid permissions data');
     }
 
-    const requestor = req.body?.requestor;
-    if (!requestor || !requestor.requestorId) {
-      const err = new Error('Requestor not found. Ensure request is authenticated.');
-      err.statusCode = 401;
-      throw err;
-    }
-
-    const authResult = await PermissionService.checkUpdateAuthorization(
-      requestor,
-      userId,
-      this.UserProfile,
-    );
+    // Check authorization
+    const authResult = await PermissionService.checkUpdateAuthorization(req.body.requestor, userId);
     if (!authResult.authorized) {
       const error = new Error(authResult.error);
       error.statusCode = 403;
@@ -173,12 +108,8 @@ class PermissionService {
     // Save the user
     const results = await user.save();
 
-    // Handle post-save operations (logging, cache); don't fail the update if these throw
-    try {
-      await this.handlePostSaveOperations(req, user, originalInfringements, results);
-    } catch (postSaveError) {
-      logger.logException(postSaveError, 'Post-save operations failed after permission update');
-    }
+    // Handle post-save operations
+    await this.handlePostSaveOperations(req, user, originalInfringements, results);
 
     return {
       message: 'Permissions updated successfully',

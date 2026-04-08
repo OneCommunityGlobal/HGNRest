@@ -20,19 +20,18 @@ const WeeklySummaryEmailAssignmentController = function (
         return;
       }
 
-      const normalizedEmail = email.toLowerCase().trim();
-      const user = await userProfile.findOne().where('email').equals(normalizedEmail);
+      const user = await userProfile.findOne({ email });
       if (!user) {
         return res.status(400).send('User profile not found');
       }
 
       const newAssignment = new WeeklySummaryEmailAssignment({
-        email: normalizedEmail,
+        email,
         assignedTo: user._id,
       });
 
       await newAssignment.save();
-      const assignment = await WeeklySummaryEmailAssignment.find({ email: normalizedEmail })
+      const assignment = await WeeklySummaryEmailAssignment.find({ email })
         .populate('assignedTo')
         .exec();
 
@@ -80,33 +79,23 @@ const WeeklySummaryEmailAssignmentController = function (
         });
       }
 
-      const normalizedEmail = email.toLowerCase().trim();
-      const user = await userProfile.findOne().where('email').equals(normalizedEmail);
-      const updateFields = {
-        email: normalizedEmail,
-      };
-      if (user?._id) {
-        updateFields.assignedTo = user._id;
-      }
-
       const updateAssignment = await WeeklySummaryEmailAssignment.findOneAndUpdate(
         { _id: id },
-        updateFields,
+        {
+          email,
+        },
         {
           new: true,
         },
-      ).populate('assignedTo');
+      );
 
       if (!updateAssignment) {
         res.status(404).send('Assignment not found');
         return;
       }
 
-      res.status(200).send({ assignment: updateAssignment });
+      res.status(200).send(updateAssignment);
     } catch (error) {
-      if (error?.code === 11000) {
-        return res.status(409).send('Email already assigned');
-      }
       res.status(500).send(error);
     }
   };

@@ -1,11 +1,10 @@
 /* eslint-disable no-console */
 const crypto = require('crypto');
-// eslint-disable-next-line import/no-unresolved
 const xmlrpc = require('xmlrpc');
 const mongoose = require('mongoose');
-// eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
+// eslint-disable-next-line import/no-extraneous-dependencies
 const cloudinary = require('cloudinary').v2;
-// eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
+// eslint-disable-next-line import/no-extraneous-dependencies
 const streamifier = require('streamifier');
 const LiveJournalPost = require('../models/liveJournalPost');
 

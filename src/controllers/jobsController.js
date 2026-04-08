@@ -2,45 +2,6 @@ const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
 
 /* ============================================================
-   UTILS
-   ============================================================ */
-
-// Prevent regex injection / crashes
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-// Build query (REUSABLE)
-const buildJobQuery = ({ search = '', category = '', position = '' }) => {
-  const conditions = [];
-
-  /* SEARCH FILTER */
-  if (search && search.trim() !== '') {
-    const safeSearch = escapeRegex(search.trim());
-    conditions.push({
-      $or: [
-        { title: { $regex: safeSearch, $options: 'i' } },
-        { description: { $regex: safeSearch, $options: 'i' } },
-      ],
-    });
-  }
-
-  /* POSITION FILTER (uses title) */
-  if (position && position.trim() !== '') {
-    const safePosition = escapeRegex(position.trim());
-    conditions.push({
-      title: { $regex: `^${safePosition}`, $options: 'i' },
-    });
-  }
-
-  /* CATEGORY FILTER */
-  if (category && category.trim() !== '') {
-    const categoryList = category.split(',').map((c) => c.trim());
-    conditions.push({ category: { $in: categoryList } });
-  }
-
-  return conditions.length ? { $and: conditions } : {};
-};
-
-/* ============================================================
    INTERNAL: MAIN PAGINATION + FILTERING LOGIC
    ============================================================ */
 const paginationForJobs = async (req, res) => {
@@ -50,21 +11,48 @@ const paginationForJobs = async (req, res) => {
     const pageNumber = Math.max(1, parseInt(page, 10));
     const limitNumber = Math.max(1, parseInt(limit, 10));
 
-    const query = buildJobQuery({ search, category, position });
+    const conditions = [];
+
+    /* ----------------------------
+       SEARCH FILTER
+       ---------------------------- */
+    if (search && search.trim() !== '') {
+      const searchString = search.trim();
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
+    }
+
+    /* ----------------------------
+       POSITION FILTER (only if non-empty)
+       ---------------------------- */
+    if (position && position.trim() !== '') {
+      conditions.push({ title: { $in: [position.trim()] } });
+    }
+
+    /* ----------------------------
+       MULTI-CATEGORY FILTER (only if non-empty)
+       ---------------------------- */
+    if (category && category.trim() !== '') {
+      const categoryList = category.split(',').map((c) => c.trim());
+      conditions.push({ category: { $in: categoryList } });
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
 
     const totalJobs = await Job.countDocuments(query);
-    const totalPages = Math.max(1, Math.ceil(totalJobs / limitNumber));
+    const totalPages = Math.ceil(totalJobs / limitNumber);
 
     const pageNum = pageNumber > totalPages ? 1 : pageNumber;
 
     const jobs = await Job.find(query)
-      .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
       .skip((pageNum - 1) * limitNumber)
-      .limit(limitNumber)
-      .lean();
+      .limit(limitNumber);
 
     res.json({
-      success: true,
       jobs,
       pagination: {
         totalJobs,
@@ -77,8 +65,7 @@ const paginationForJobs = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      success: false,
-      error: 'Failed to fetch jobs',
+      error: 'Failed to fetch Jobs',
       details: error.message,
     });
   }
@@ -96,19 +83,44 @@ const getJobSummaries = async (req, res) => {
   const { search = '', category = '', position = '' } = req.query;
 
   try {
-    const query = buildJobQuery({ search, category, position });
+    const conditions = [];
 
+    if (search && search.trim() !== '') {
+      const searchString = search.trim();
+      conditions.push({
+        $or: [
+          { title: { $regex: new RegExp(searchString, 'i') } },
+          { description: { $regex: new RegExp(searchString, 'i') } },
+        ],
+      });
+    }
+
+    if (position && position.trim() !== '') {
+      conditions.push({ title: { $in: [position.trim()] } });
+    }
+
+    if (category && category.trim() !== '') {
+      const categoryList = category.split(',').map((c) => c.trim());
+      conditions.push({ category: { $in: categoryList } });
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
+
+    const sortCriteria = {
+      displayOrder: 1,
+      featured: -1,
+      datePosted: -1,
+      title: 1,
+    };
+
+    const totalJobs = await Job.countDocuments(query);
     const jobs = await Job.find(query)
       .select('title category location description datePosted featured jobDetailsLink')
-      .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
-      .lean();
+      .sort(sortCriteria);
 
-    const totalJobs = jobs.length;
-
-    res.json({ success: true, jobs, totalJobs });
+    res.json({ jobs, totalJobs });
   } catch (error) {
     res.status(500).json({
-      success: false,
       error: 'Failed to fetch job summaries',
       details: error.message,
     });

@@ -73,34 +73,7 @@ const buildLongestOpenResponse = (grouped) =>
     }))
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
-const omitUndefined = (obj) =>
-  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
-
-const buildInjuryIssuePayload = (body = {}) =>
-  omitUndefined({
-    projectId: body.projectId,
-    name: body.name,
-    openDate: body.openDate,
-    category: body.category,
-    assignedTo: body.assignedTo,
-    totalCost: body.totalCost,
-  });
-
-const buildBuildingIssuePayload = (body = {}) =>
-  omitUndefined({
-    createdDate: body.createdDate,
-    issueDate: body.issueDate,
-    createdBy: body.createdBy,
-    staffInvolved: body.staffInvolved,
-    issueTitle: body.issueTitle,
-    issueText: body.issueText,
-    issueType: body.issueType,
-    imageUrl: body.imageUrl,
-    projectId: body.projectId,
-    status: body.status,
-  });
-
-const bmIssueController = function (BuildingIssue, injuryIssue) {
+const bmIssueController = function (BuildingIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
     try {
@@ -170,89 +143,10 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
-      const issuePayload = buildBuildingIssuePayload(req.body);
-      const issue = await BuildingIssue.create(issuePayload);
+      const issue = await BuildingIssue.create(req.body);
       res.status(201).json(issue);
     } catch (error) {
       res.status(500).json(error);
-    }
-  };
-
-  /* -------------------- INJURY ISSUES -------------------- */
-  const bmPostInjuryIssue = async (req, res) => {
-    try {
-      const issuePayload = buildInjuryIssuePayload(req.body);
-      const issue = await injuryIssue.create(issuePayload);
-      return res.status(201).json(issue);
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
-  };
-
-  const bmGetInjuryIssue = async (req, res) => {
-    try {
-      const issues = await injuryIssue.find().populate('assignedTo', 'firstName lastName _id');
-      return res.status(200).json(issues);
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  };
-
-  const bmDeleteInjuryIssue = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const deleted = await injuryIssue.findByIdAndDelete(id);
-      if (!deleted) {
-        return res.status(404).json({ message: 'Issue not found' });
-      }
-      return res.status(200).json({ message: 'Deleted successfully', deleted });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  };
-
-  const bmRenameInjuryIssue = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { newName } = req.body;
-      if (!newName) {
-        return res.status(400).json({ message: 'newName is required' });
-      }
-      const updated = await injuryIssue.findByIdAndUpdate(
-        id,
-        { name: newName },
-        { new: true, runValidators: true },
-      );
-      if (!updated) {
-        return res.status(404).json({ message: 'Issue not found' });
-      }
-      return res.status(200).json({ message: 'Renamed successfully', updated });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  };
-
-  const bmCopyInjuryIssue = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const original = await injuryIssue.findById(id).lean();
-      if (!original) {
-        return res.status(404).json({ message: 'Issue not found' });
-      }
-
-      const copyData = {
-        projectId: original.projectId,
-        name: `${original.name} (Copy)`,
-        openDate: Date.now(),
-        category: original.category,
-        assignedTo: original.assignedTo,
-        totalCost: original.totalCost,
-      };
-
-      const copy = await injuryIssue.create(copyData);
-      return res.status(201).json({ message: 'Copied successfully', copy });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
     }
   };
 
@@ -263,6 +157,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       const query = { status: 'open' };
       let filteredProjectIds = getProjectFilterIds(projects);
 
+      /* ---- date filter ---- */
       filteredProjectIds = await filterProjectIdsByDates(dates, filteredProjectIds);
 
       if (dates && filteredProjectIds.length === 0) {
@@ -273,6 +168,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         query.projectId = { $in: filteredProjectIds };
       }
 
+      /* ---- fetch issues ---- */
       const issues = await BuildingIssue.find(query)
         .select('issueTitle issueDate projectId')
         .populate({
@@ -281,6 +177,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         })
         .lean();
 
+      /* ---- group by issue + project ---- */
       const grouped = buildGroupedIssues(issues);
       const response = buildLongestOpenResponse(grouped);
 
@@ -295,11 +192,6 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     bmPostIssue,
     bmGetIssueChart,
     getLongestOpenIssues,
-    bmPostInjuryIssue,
-    bmGetInjuryIssue,
-    bmDeleteInjuryIssue,
-    bmRenameInjuryIssue,
-    bmCopyInjuryIssue,
   };
 };
 

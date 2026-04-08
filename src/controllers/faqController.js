@@ -151,28 +151,16 @@ const logUnansweredFAQ = async function (req, res) {
   try {
     await verifyToken(req);
 
-    const rawQuestion = req.body?.question;
-    const normalizedQuestion = rawQuestion?.replaceAll(/\s+/g, ' ').trim();
-    if (!normalizedQuestion) {
-      return res.status(400).json({ message: 'Question is required' });
-    }
+    const { question } = req.body;
     const createdBy = req.user.userid;
 
-    const escapedQuestion = normalizedQuestion.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-    const flexibleWhitespaceQuestion = escapedQuestion.replaceAll(/\s+/g, String.raw`\s+`);
-    const duplicateQuestionPattern = new RegExp(
-      String.raw`^\s*${flexibleWhitespaceQuestion}\s*$`,
-      'i',
-    );
-    const existingQuestion = await UnansweredFAQ.findOne({
-      question: { $regex: duplicateQuestionPattern },
-    });
+    const existingQuestion = await UnansweredFAQ.findOne({ question });
     if (existingQuestion) {
       return res.status(409).json({ message: 'This question has already been logged' });
     }
 
     const newUnansweredFAQ = new UnansweredFAQ({
-      question: normalizedQuestion,
+      question,
       createdBy,
       createdAt: new Date().toISOString(),
     });
@@ -184,30 +172,25 @@ const logUnansweredFAQ = async function (req, res) {
       ownerEmails = [process.env.TEST_OWNER_EMAIL];
       console.log('Test mode enabled. Using test owner email:', ownerEmails);
     } else {
-      const owners = await UserProfile.find({ role: /^owner$/i }).select('email');
+      const owners = await UserProfile.find({ role: 'owner' }).select('email');
       ownerEmails = owners.map((owner) => owner.email);
 
       if (ownerEmails.length === 0) {
         console.warn('No owner emails found in the database.');
+        return res.status(500).json({ message: 'No owner emails found' });
       }
-      if (ownerEmails.length > 0) {
-        console.log('Sending email to owners:', ownerEmails);
-      }
+      console.log('Sending email to owners:', ownerEmails);
     }
 
     const emailMessage = `
             <p>A new unanswered question has been logged:</p>
-            <p><strong>Question:</strong> ${normalizedQuestion}</p>
+            <p><strong>Question:</strong> ${question}</p>
             <p>Please review and add an answer if necessary.</p>
         `;
 
     try {
-      if (ownerEmails.length > 0) {
-        emailSender(ownerEmails, 'New Unanswered FAQ Logged', emailMessage);
-        console.log('Email successfully sent.');
-      } else {
-        console.warn('Skipping owner notification email because no owner email was found.');
-      }
+      emailSender(ownerEmails, 'New Unanswered FAQ Logged', emailMessage);
+      console.log('Email successfully sent.');
     } catch (error) {
       console.error('Error sending email:', error);
     }

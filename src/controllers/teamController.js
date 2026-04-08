@@ -30,6 +30,11 @@ const teamcontroller = function (Team) {
         },
       },
       {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
         $group: {
           _id: {
             teamId: '$_id',
@@ -161,11 +166,11 @@ const teamcontroller = function (Team) {
 
       // Store the old team code before updating
       const oldTeamCode = record.teamCode;
-      const newTeamCode = req.body.teamCode || '';
+      const newTeamCode = req.body.teamCode;
 
       record.teamName = req.body.teamName;
       record.isActive = req.body.isActive;
-      record.teamCode = newTeamCode;
+      record.teamCode = req.body.teamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
 

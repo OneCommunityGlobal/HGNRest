@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-unresolved
 const schedule = require('node-schedule');
 const liveJournalPostController = require('../controllers/liveJournalPostController')();
 

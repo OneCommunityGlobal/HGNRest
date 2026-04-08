@@ -54,18 +54,7 @@ describe('Building Issue Controller', () => {
 
   describe('bmPostIssue', () => {
     it('should create a new issue successfully', async () => {
-      const mockNewIssue = {
-        createdDate: new Date(),
-        issueDate: new Date(),
-        createdBy: '64e65c659c3e2408c823aabb',
-        staffInvolved: ['64e65c659c3e2408c823aabc'],
-        issueTitle: ['New Issue'],
-        issueText: ['Issue details'],
-        issueType: 'Safety',
-        imageUrl: [],
-        projectId: '6823e200a3475f85a80d5d9c',
-        status: 'open',
-      };
+      const mockNewIssue = { _id: '123', name: 'New Issue' };
       req.body = mockNewIssue;
 
       mockBuildingIssue.create.mockResolvedValue(mockNewIssue);
