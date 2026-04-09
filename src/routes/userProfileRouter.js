@@ -105,7 +105,7 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserStatus);
 
   userProfileRouter.route('/userProfile/name/:name').get(controller.getUserByName);
-
+  userProfileRouter.route('/userProfile/:userId/pause').patch(controller.pauseResumeUser);
   userProfileRouter
     .route('/userProfile/:userId/rehireable')
     .patch(controller.changeUserRehireableStatus);

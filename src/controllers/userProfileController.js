@@ -516,7 +516,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     const hasChangeStatusPermission = await hasPermission(requestor, 'changeUserStatus');
     const hasFinalDayPermission = await hasPermission(requestor, 'setFinalDay');
-    if (!(hasChangeStatusPermission && hasFinalDayPermission && canEditProtectedAccount)) {
+    const hasPausePermission = await hasPermission(requestor, 'interactWithPauseUserButton');
+    if (
+      !(
+        ((hasChangeStatusPermission && hasFinalDayPermission) || hasPausePermission) &&
+        canEditProtectedAccount
+      )
+    ) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(requestor.email)) {
         logger.logInfo(
           `Unauthorized attempt to change protected user status. Requestor: ${requestor.requestorId} Target: ${userId}`,
@@ -783,7 +789,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
+    if (
+      !(
+        (await checkPermission(req, 'getUserProfiles')) ||
+        (await checkPermission(req, 'interactWithPauseUserButton'))
+      )
+    ) {
       return forbidden(res, 'You are not authorized to view all users');
     }
 
@@ -1757,7 +1768,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
     return null;
   };
-
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
     const { action, endDate, reactivationDate } = req.body;
@@ -1881,6 +1891,73 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(200).send({ message: 'status updated' });
     } catch (error) {
       console.log(error);
+      return res.status(500).send(error);
+    }
+  };
+
+  const pauseResumeUser = async function (req, res) {
+    const { userId } = req.params;
+    const activationDate = req.body.reactivationDate;
+    const status = req.body.status === 'Active';
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Bad Request' });
+    }
+
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (
+      !(
+        (await hasPermission(req.body.requestor, 'interactWithPauseUserButton')) &&
+        canEditProtectedAccount
+      )
+    ) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+        logger.logInfo(
+          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+        );
+      }
+      return res.status(403).send('You are not authorized to change user status');
+    }
+
+    cache.removeCache(`user-${userId}`);
+
+    try {
+      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      user.set({
+        isActive: status,
+        reactivationDate: activationDate,
+      });
+
+      await user.save();
+
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((u) => u._id === userId);
+        if (userIdx !== -1) {
+          const userData = allUserData[userIdx];
+          userData.isActive = user.isActive;
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      auditIfProtectedAccountUpdated({
+        requestorId: req.body.requestor.requestorId,
+        updatedRecordEmail: user.email,
+        actionPerformed: 'UserStatusUpdate',
+      });
+
+      return res.status(200).send({ message: 'status updated' });
+    } catch (error) {
       return res.status(500).send(error);
     }
   };
@@ -2756,6 +2833,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     getTeamMembersofUser,
     getProjectMembers,
     changeUserStatus,
+    pauseResumeUser,
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
