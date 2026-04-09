@@ -2,6 +2,7 @@ const paypal = require('@paypal/checkout-server-sdk');
 const nodemailer = require('nodemailer');
 const Joi = require('joi');
 require('dotenv').config();
+const { Types } = require('mongoose');
 
 const ACTIVE_STATUSES = ['pending', 'confirmed'];
 const HOLD_DURATION_MS = 10 * 60 * 1000; // 10 minutes
@@ -111,14 +112,27 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
     });
 
   // Check for an active hold by anyone OTHER than the requesting user
-  const hasActiveHold = async (listingId, startDate, endDate, excludeUserId) =>
-    BookingHold.findOne({
-      listingId,
-      startDate: { $lt: endDate },
-      endDate: { $gt: startDate },
-      userId: { $ne: excludeUserId },
-      expiresAt: { $gt: new Date() }, // belt-and-suspenders in case TTL hasn't fired
+  const hasActiveHold = async (listingId, startDate, endDate, excludeUserId) => {
+    // Validate and sanitize inputs before constructing the query
+    if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(excludeUserId)) {
+      throw new Error('Invalid ID format');
+    }
+
+    const parsedStart = new Date(startDate);
+    const parsedEnd = new Date(endDate);
+
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+      throw new Error('Invalid date format');
+    }
+
+    return BookingHold.findOne({
+      listingId: new Types.ObjectId(listingId),
+      startDate: { $lt: parsedEnd },
+      endDate: { $gt: parsedStart },
+      userId: { $ne: new Types.ObjectId(excludeUserId) },
+      expiresAt: { $gt: new Date() },
     });
+  };
 
   const createPaymentIntent = async (req, res) => {
     try {
@@ -201,13 +215,31 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
 
       // Place a hold now that we have the PayPal order ID
       const expiresAt = new Date(Date.now() + HOLD_DURATION_MS);
+      // Validate inputs
+      if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid ID format');
+      }
+
+      const parsedStart = new Date(startDate);
+      const parsedEnd = new Date(endDate);
+
+      if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+        throw new Error('Invalid date format');
+      }
+
+      if (!order?.result?.id || typeof order.result.id !== 'string') {
+        throw new Error('Invalid order ID');
+      }
       await BookingHold.findOneAndUpdate(
-        { listingId, userId }, // one hold per user per listing — replace if they retry
         {
-          listingId,
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
-          userId,
+          listingId: new Types.ObjectId(listingId),
+          userId: new Types.ObjectId(userId),
+        },
+        {
+          listingId: new Types.ObjectId(listingId),
+          startDate: parsedStart,
+          endDate: parsedEnd,
+          userId: new Types.ObjectId(userId),
           paypalOrderId: order.result.id,
           expiresAt,
         },
