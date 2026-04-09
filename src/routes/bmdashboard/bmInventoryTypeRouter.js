@@ -41,6 +41,8 @@ const routes = function (
 
   inventoryTypeRouter.route('/invtypes/consumables').get(controller.fetchConsumableTypes);
 
+  inventoryTypeRouter.route('/invtypes/:invtypeId/history').get(controller.fetchInvTypeHistory);
+
   // Combined routes for getting a single inventory type and updating its name and unit of measurement
   inventoryTypeRouter
     .route('/invtypes/material/:invtypeId')
@@ -59,7 +61,6 @@ const routes = function (
     .post(controller.addInvUnit)
     .delete(controller.deleteInvUnit);
 
-  inventoryTypeRouter.route('/invtypes/:invtypeId/history').get(controller.fetchInvTypeHistory);
   return inventoryTypeRouter;
 };
 
