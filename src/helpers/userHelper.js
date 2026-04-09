@@ -10,7 +10,9 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
+const path = require('node:path');
 const fs = require('fs');
+// eslint-disable-next-line import/no-unresolved
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -31,11 +33,14 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
+const playwrightLogic = require('../utilities/playwrightUtil');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
-
+const reportHelper = require('./reporthelper')();
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const COMPANY_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org']; // DO NOT REMOVE - USED IN WEEKLY SUMMARY EMAILS AND BLUE SQUARE CRON
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -284,14 +289,14 @@ const userHelper = function () {
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
-      await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
-        // eslint-disable-next-line no-shadow
-        .then((results) => {
-          mappedResults = results.map((ele) => ele.email);
-          mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-          mappedResults = mappedResults.toString();
-        });
+      const userProfileResults = await userProfile.find(
+        { getWeeklyReport: true },
+        { email: 1, teamCode: 1, _id: 0 },
+      );
+
+      mappedResults = userProfileResults.map((ele) => ele.email);
+      mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
+      mappedResults = mappedResults.toString();
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -302,7 +307,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       for (let i = 0; i < results.length; i += 1) {
@@ -438,7 +443,7 @@ const userHelper = function () {
         emailBody,
         null,
         null,
-        emailString,
+        COMPANY_EMAILS,
       );
     } catch (err) {
       logger.logException(err);
@@ -865,7 +870,7 @@ const userHelper = function () {
                     'New Infringement Assigned',
                     emailBody,
                     null,
-                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    COMPANY_EMAILS,
                     status.email,
                     [...new Set([...emailsBCCs])],
                   );
@@ -1923,14 +1928,8 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        COMPANY_EMAILS,
         emailAddress,
-        // Don't change this is to CC!
-        [...new Set([...bccEmails])],
-        null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
-        emailAddress,
-        // Don't change this is to CC!
         [...new Set([...bccEmails])],
       );
     });
@@ -3246,6 +3245,44 @@ const userHelper = function () {
     }
   };
 
+  // Weekly Company Summary Email
+  const weeklyCompanySummaryEmail = async () => {
+    console.log('Weekly Company Summary Email');
+    const adminList = await userProfile.find({ jobTitle: 'Administrator' });
+    const recipients = adminList.map((admin) => admin.email);
+    const subject = 'Weekly Company Summary';
+    const message = `<p>Hi Team,</p>
+    <p>Here is the weekly summary of the company.</p>
+    <p>Please refer to the attachment for this weeks Summary Dashboard</p>
+    <p>Best regards,</p>
+    <p>One Community</p>`;
+
+    // generate screenshot
+    await playwrightLogic();
+    console.log('Puppeteer logic completed');
+
+    // create an attachment object
+    const attachment = {
+      filename: 'weeklyCompanySummary.png',
+      content: fs.readFileSync('./weeklyCompanySummary.png'),
+      contentType: 'image/png',
+    };
+
+    await emailSender(
+      recipients,
+      subject,
+      message,
+      attachment,
+      recipients,
+      'onecommunity@gmail.com',
+    );
+    // delete the image
+    fs.unlink('./weeklyCompanySummary.png', (err) => {
+      if (err) throw err;
+      console.log('./weeklyCompanySummary.png was deleted');
+    });
+  };
+
   const sendUserReactivatedAfterSeparation = ({
     firstName,
     lastName,
@@ -3393,6 +3430,7 @@ const userHelper = function () {
     getEmailRecipientsForStatusChange,
     sendUserSeparatedEmail,
     sendUserReactivatedAfterSeparation,
+    weeklyCompanySummaryEmail,
   };
 };
 

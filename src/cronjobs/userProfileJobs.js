@@ -23,6 +23,7 @@ const userProfileJobs = () => {
         await userhelper.deleteExpiredTokens();
       }
       await userhelper.awardNewBadges();
+      await userhelper.weeklyCompanySummaryEmail();
     },
     null,
     false,
