@@ -79,6 +79,7 @@ const {
   reusableType,
   toolType,
   equipmentType,
+  invTypeHistory,
 } = require('../models/bmdashboard/buildingInventoryType');
 const {
   buildingConsumable,
@@ -224,6 +225,7 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
+  invTypeHistory,
 );
 
 const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
