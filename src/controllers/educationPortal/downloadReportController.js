@@ -1,5 +1,7 @@
 /* istanbul ignore file */
+// eslint-disable-next-line import/no-unresolved
 const PDFDocument = require('pdfkit');
+// eslint-disable-next-line import/no-unresolved
 const { Parser } = require('json2csv');
 const mongoose = require('mongoose');
 const EducationTask = require('../../models/educationTask');
