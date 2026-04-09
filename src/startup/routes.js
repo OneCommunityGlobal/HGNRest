@@ -398,6 +398,8 @@ const actualCostRouter = require('../routes/actualCostRouter')();
 
 const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -490,6 +492,7 @@ module.exports = function (app) {
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
+  app.use('/api', jobHitsAndApplicationsRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
