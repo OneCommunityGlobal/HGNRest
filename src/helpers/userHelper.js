@@ -40,6 +40,8 @@ const reportHelper = require('./reporthelper')();
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const COMPANY_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org']; // DO NOT REMOVE - USED IN WEEKLY SUMMARY EMAILS AND BLUE SQUARE CRON
+
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
@@ -441,7 +443,7 @@ const userHelper = function () {
         emailBody,
         null,
         null,
-        emailString,
+        COMPANY_EMAILS,
       );
     } catch (err) {
       logger.logException(err);
@@ -868,7 +870,7 @@ const userHelper = function () {
                     'New Infringement Assigned',
                     emailBody,
                     null,
-                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    COMPANY_EMAILS,
                     status.email,
                     [...new Set([...emailsBCCs])],
                   );
@@ -1926,14 +1928,8 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        COMPANY_EMAILS,
         emailAddress,
-        // Don't change this is to CC!
-        [...new Set([...bccEmails])],
-        null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
-        emailAddress,
-        // Don't change this is to CC!
         [...new Set([...bccEmails])],
       );
     });
