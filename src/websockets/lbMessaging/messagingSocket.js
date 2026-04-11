@@ -201,8 +201,9 @@ export default () => {
               const isSenderInPreference = userPreference?.users.some(
                 (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
               );
+              const shouldNotifyInApp = allowGlobalInApp || isSenderInPreference;
 
-              if (allowGlobalInApp && isSenderInPreference) {
+              if (shouldNotifyInApp) {
                 broadcastToUser(msg.receiver, {
                   action: 'NEW_NOTIFICATION',
                   payload: `You got a message from ${senderName}`,
@@ -223,7 +224,8 @@ export default () => {
             const isSenderInPreference = userPreference?.users.some(
               (pref) => pref.userNotifyingFor.toString() === userId && pref.notifyInApp === true,
             );
-            if (allowGlobalInApp && isSenderInPreference) {
+            const shouldNotifyInApp = allowGlobalInApp || isSenderInPreference;
+            if (shouldNotifyInApp) {
               const notification = new Notification({
                 message: `You got a message from ${senderName}`,
                 sender: userId,
