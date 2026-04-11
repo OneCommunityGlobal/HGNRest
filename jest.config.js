@@ -42,6 +42,9 @@ module.exports = {
   transform: {
     '^.+\\.js$': 'babel-jest',
   },
+  moduleNameMapper: {
+    '^puppeteer$': '<rootDir>/src/test/mocks/puppeteer.js',
+  },
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.js'],
   // Simple CI settings
   maxWorkers: 1, // Run tests sequentially
