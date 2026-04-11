@@ -25,12 +25,41 @@ const hasIndividualPermission = async (userId, action) =>
     .then((doc) => (doc?.permissions?.frontPermissions || []).includes(action))
     .catch(() => false);
 
+const normalizeRequestor = async (requestor) => {
+  if (!requestor) {
+    return null;
+  }
+
+  if (typeof requestor === 'string') {
+    return UserProfile.findById(requestor)
+      .select('role')
+      .lean()
+      .exec()
+      .then((doc) => (doc ? { requestorId: requestor, role: doc.role } : null))
+      .catch(() => null);
+  }
+
+  if (requestor.requestorId && requestor.role) {
+    return requestor;
+  }
+
+  return null;
+};
+
 const hasPermission = async (requestor, action) => {
+  const normalizedRequestor = await normalizeRequestor(requestor);
+
+  if (!normalizedRequestor) {
+    return false;
+  }
+
   const defaultRemoved =
-    requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
-  const roleHasPermission = await hasRolePermission(requestor.role, action);
+    normalizedRequestor.requestorId &&
+    (await hasDefaultPermissionRemoved(normalizedRequestor.requestorId, action));
+  const roleHasPermission = await hasRolePermission(normalizedRequestor.role, action);
   const individualHasPermission =
-    requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+    normalizedRequestor.requestorId &&
+    (await hasIndividualPermission(normalizedRequestor.requestorId, action));
 
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
 };
