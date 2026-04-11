@@ -34,7 +34,7 @@ jest.mock('../../utilities/nodeCache', () => () => ({
 jest.mock('../../startup/logger', () => ({
   logException: jest.fn(),
 }));
-jest.mock('puppeteer', () => ({}));
+jest.mock('../../utilities/playwrightUtil', () => jest.fn());
 jest.mock('sharp', () => ({}));
 
 /* =======================
