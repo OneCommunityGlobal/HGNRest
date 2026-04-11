@@ -3484,6 +3484,7 @@ const userHelper = function () {
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    checkPersonalMax,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
