@@ -28,6 +28,7 @@ jest.mock('../../helpers/dashboardhelper', () => () => ({
 jest.mock('../../helpers/helperModels/myTeam', () => ({}));
 jest.mock('../../utilities/emailSender', () => ({}));
 jest.mock('../../utilities/timeUtils', () => ({}));
+jest.mock('../../utilities/playwrightUtil', () => ({}));
 jest.mock('../../services/notificationService', () => ({}));
 jest.mock('../../constants/message', () => ({ NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE: '' }));
 jest.mock('../../utilities/nodeCache', () => () => ({
@@ -80,8 +81,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   badge.find.mockResolvedValue([{ _id: masterBadgeId, type: 'Personal Max' }]);
   userProfile.updateOne.mockResolvedValue({});
-  userProfile.findByIdAndUpdate.mockImplementation((id, update, cb) => {
-    if (typeof cb === 'function') cb(null);
+  userProfile.findByIdAndUpdate.mockImplementation((id, update, options, cb) => {
+    const callback = typeof options === 'function' ? options : cb;
+    if (typeof callback === 'function') callback(null);
     return Promise.resolve({});
   });
   mockLaborThisWeek.mockResolvedValue([{ timeSpent_hrs: 0 }]);
@@ -98,59 +100,47 @@ describe('checkPersonalMax', () => {
     await checkPersonalMax(personId, user, []);
     expect(userProfile.updateOne).not.toHaveBeenCalled();
     expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
-    expect(user.save).toHaveBeenCalled();
   });
 
-  test('adds badge for new user and persists personal max', async () => {
+  test('adds badge for new user and sets initial personal max', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 10,
       savedTangibleHrs: [10],
       personalBestMaxHrs: 0,
     });
     await checkPersonalMax(personId, user, []);
-    expect(userProfile.findByIdAndUpdate).toHaveBeenCalledWith(
-      personId,
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+    expect(userProfile.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: personId, 'badgeCollection.badge': masterBadgeId }),
       expect.objectContaining({
-        $push: expect.objectContaining({
-          badgeCollection: expect.objectContaining({
-            badge: masterBadgeId,
-          }),
-        }),
+        $set: expect.objectContaining({ personalBestMaxHrs: 10 }),
       }),
-      expect.any(Function),
     );
-    expect(user.personalBestMaxHrs).toBe(10);
-    expect(user.save).toHaveBeenCalled();
   });
 
-  test('adds badge for new user but keeps personal max at 0 when no hours logged', async () => {
+  test('adds badge for new user but does not set record if 0 hours logged', async () => {
     const user = makeUser({ lastWeekTangibleHrs: 0, savedTangibleHrs: [0], personalBestMaxHrs: 0 });
     await checkPersonalMax(personId, user, []);
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(0);
-    expect(user.save).toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
   });
 
-  test('increments badge count when increase conditions are met', async () => {
+  test('updates earnedDate and personalBestMaxHrs when record is broken', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 20,
-      savedTangibleHrs: [10, 8, 15, 12, 25],
+      savedTangibleHrs: [10, 8, 15, 12, 20],
       personalBestMaxHrs: 15,
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
     expect(userProfile.updateOne).toHaveBeenCalledWith(
-      { _id: personId, 'badgeCollection.badge': masterBadgeId },
+      expect.objectContaining({ _id: personId, 'badgeCollection.badge': masterBadgeId }),
       expect.objectContaining({
-        $inc: { 'badgeCollection.$.count': 1 },
-        $push: { 'badgeCollection.$.earnedDate': expect.any(String) },
+        $set: expect.objectContaining({ personalBestMaxHrs: 20 }),
       }),
-      expect.any(Function),
     );
-    expect(user.personalBestMaxHrs).toBe(25);
-    expect(user.save).toHaveBeenCalled();
   });
 
-  test('does not increment badge count when increase conditions are not met', async () => {
+  test('does not update badge when record is not broken', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 10,
       savedTangibleHrs: [10, 8, 15, 12, 10],
@@ -158,11 +148,9 @@ describe('checkPersonalMax', () => {
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
     expect(userProfile.updateOne).not.toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(15);
-    expect(user.save).toHaveBeenCalled();
   });
 
-  test('does not increment badge count when hours tie the previous record', async () => {
+  test('does not update badge when hours tie the previous record', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 15,
       savedTangibleHrs: [10, 8, 15, 12, 15],
@@ -170,10 +158,9 @@ describe('checkPersonalMax', () => {
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
     expect(userProfile.updateOne).not.toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(15);
   });
 
-  test('does not increment badge count when user logs 0 hours', async () => {
+  test('does not update badge when user logs 0 hours', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 0,
       savedTangibleHrs: [10, 8, 0],
@@ -181,10 +168,9 @@ describe('checkPersonalMax', () => {
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
     expect(userProfile.updateOne).not.toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(10);
   });
 
-  test('keeps the first Personal Max badge when duplicates are present', async () => {
+  test('removes duplicate badges when record is not broken', async () => {
     const badge1 = makeBadge();
     const badge2 = makeBadge({ _id: new mongoose.Types.ObjectId() });
     const user = makeUser({
@@ -193,24 +179,34 @@ describe('checkPersonalMax', () => {
       personalBestMaxHrs: 10,
     });
     await checkPersonalMax(personId, user, [badge1, badge2]);
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalledWith(
+      personId,
+      expect.objectContaining({ $pull: expect.anything() }),
+      expect.anything(),
+      expect.anything(),
+    );
     expect(userProfile.updateOne).not.toHaveBeenCalled();
-    expect(user.save).toHaveBeenCalled();
   });
 
-  test('still increments badge count when duplicates are present and conditions are met', async () => {
+  test('removes duplicates and updates badge when record is broken', async () => {
     const badge1 = makeBadge();
     const badge2 = makeBadge({ _id: new mongoose.Types.ObjectId() });
     const user = makeUser({
       lastWeekTangibleHrs: 25,
-      savedTangibleHrs: [10, 8, 20, 30],
+      savedTangibleHrs: [10, 8, 20, 25],
       personalBestMaxHrs: 20,
     });
     await checkPersonalMax(personId, user, [badge1, badge2]);
-    expect(userProfile.updateOne).toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(30);
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+    expect(userProfile.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: personId, 'badgeCollection.badge': masterBadgeId }),
+      expect.objectContaining({
+        $set: expect.objectContaining({ personalBestMaxHrs: 25 }),
+      }),
+    );
   });
 
-  test('persists the max hours from a full 200-entry history', async () => {
+  test('correctly identifies record break with full 200-entry history', async () => {
     const history = Array(199).fill(20);
     const savedTangibleHrs = [...history, 25];
     const user = makeUser({
@@ -219,11 +215,15 @@ describe('checkPersonalMax', () => {
       personalBestMaxHrs: 20,
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
-    expect(user.personalBestMaxHrs).toBe(25);
-    expect(user.save).toHaveBeenCalled();
+    expect(userProfile.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: personId, 'badgeCollection.badge': masterBadgeId }),
+      expect.objectContaining({
+        $set: expect.objectContaining({ personalBestMaxHrs: 25 }),
+      }),
+    );
   });
 
-  test('preserves the previous max when current week does not beat full 200-entry history', async () => {
+  test('does not update when current week does not beat full 200-entry history', async () => {
     const history = Array(199).fill(20);
     history[100] = 30;
     const savedTangibleHrs = [...history, 25];
@@ -234,17 +234,17 @@ describe('checkPersonalMax', () => {
     });
     await checkPersonalMax(personId, user, [makeBadge()]);
     expect(userProfile.updateOne).not.toHaveBeenCalled();
-    expect(user.personalBestMaxHrs).toBe(30);
   });
 
-  test('pushes a new earnedDate entry when badge count increases', async () => {
+  test('replaces earnedDate array rather than appending', async () => {
     const user = makeUser({
       lastWeekTangibleHrs: 30,
-      savedTangibleHrs: [10, 20, 35],
+      savedTangibleHrs: [10, 20, 30],
       personalBestMaxHrs: 20,
     });
     await checkPersonalMax(personId, user, [makeBadge({ earnedDate: ['Jan-01-25', 'Feb-01-25'] })]);
-    const updateArg = userProfile.updateOne.mock.calls[0][1];
-    expect(updateArg.$push['badgeCollection.$.earnedDate']).toEqual(expect.any(String));
+    const setArg = userProfile.updateOne.mock.calls[0][1].$set;
+    expect(Array.isArray(setArg['badgeCollection.$.earnedDate'])).toBe(true);
+    expect(setArg['badgeCollection.$.earnedDate']).toHaveLength(1);
   });
 });
