@@ -15,6 +15,7 @@ const educationTaskSchema = new mongoose.Schema(
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      ref: 'userProfile',
       required: true,
     },
     atomIds: [
@@ -60,6 +61,14 @@ const educationTaskSchema = new mongoose.Schema(
     feedback: {
       type: String,
       trim: true,
+    },
+    suggestedTotalHours: {
+      type: Number,
+      default: 0,
+    },
+    loggedHours: {
+      type: Number,
+      default: 0,
     },
   },
   {
