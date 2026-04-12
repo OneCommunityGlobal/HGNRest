@@ -100,9 +100,9 @@ const createEvent = async (req, res) => {
 
 const registerForEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, userID, profilePic, location } = req.body;
+  const { name, userId, profilePic, location } = req.body;
 
-  if (!name || !userID) {
+  if (!name || !userId) {
     return res.status(400).json({ error: 'name and userID are required' });
   }
 
@@ -118,19 +118,51 @@ const registerForEvent = async (req, res) => {
       return res.status(400).json({ error: 'Event is full' });
     }
 
-    const alreadyRegistered = event.resources.some((r) => r.userID?.toString() === userID);
+    const alreadyRegistered = event.resources.some((r) => r.userID?.toString() === userId);
     if (alreadyRegistered) {
       return res.status(409).json({ error: 'User is already registered for this event' });
     }
 
-    event.resources.push({ name, userID, profilePic, location });
-    event.currentAttendees += 1;
+    const newAttendees = event.currentAttendees + 1;
+    const newStatus = updateEventStatus({ ...event.toObject(), currentAttendees: newAttendees });
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      id,
+      {
+        $push: { resources: { name, userID: userId, profilePic, location } },
+        $inc: { currentAttendees: 1 },
+        $set: { status: newStatus },
+      },
+      { new: true },
+    );
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to register for event', details: error.message });
+  }
+};
+
+const unregisterFromEvent = async (req, res) => {
+  const { id, userId } = req.params;
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const registrantIndex = event.resources.findIndex((r) => r.userID?.toString() === userId);
+    if (registrantIndex === -1) {
+      return res.status(404).json({ error: 'User is not registered for this event' });
+    }
+
+    event.resources.splice(registrantIndex, 1);
+    event.currentAttendees -= 1;
     event.status = updateEventStatus(event);
 
     const updatedEvent = await event.save();
     res.status(200).json(updatedEvent);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to register for event', details: error.message });
+    res.status(500).json({ error: 'Failed to unregister from event', details: error.message });
   }
 };
 
@@ -141,4 +173,5 @@ module.exports = {
   getEventTypes,
   createEvent,
   registerForEvent,
+  unregisterFromEvent,
 };

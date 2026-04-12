@@ -9,5 +9,6 @@ eventRouter.get('/events/types', eventsController.getEventTypes);
 eventRouter.get('/events/locations', eventsController.getEventLocations);
 eventRouter.post('/events', eventsController.createEvent);
 eventRouter.post('/events/:id/register', eventsController.registerForEvent);
+eventRouter.delete('/events/:id/register/:userId', eventsController.unregisterFromEvent);
 
 module.exports = eventRouter;
