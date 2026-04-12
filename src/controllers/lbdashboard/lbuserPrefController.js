@@ -1,4 +1,22 @@
+const mongoose = require('mongoose');
+
 const lbUserPrefController = function (UserPreferences, Notification) {
+  const normalizeObjectId = (value) => {
+    if (typeof value !== 'string') return null;
+
+    const trimmed = value.trim();
+    if (!mongoose.Types.ObjectId.isValid(trimmed)) return null;
+
+    return trimmed;
+  };
+
+  const normalizeObjectIdList = (values) => {
+    if (!Array.isArray(values)) return null;
+
+    const normalizedIds = values.map(normalizeObjectId);
+    return normalizedIds.every(Boolean) ? normalizedIds : null;
+  };
+
   const normalizePhone = (phone) => {
     if (!phone) return { normalized: '', last4: '' };
     const trimmed = String(phone).trim();
@@ -17,12 +35,20 @@ const lbUserPrefController = function (UserPreferences, Notification) {
   const getPreferences = async (req, res) => {
     try {
       const { userId, selectedUserId } = req.body;
+      const normalizedUserId = normalizeObjectId(userId);
+      const normalizedSelectedUserId = selectedUserId
+        ? normalizeObjectId(selectedUserId)
+        : null;
 
-      if (!userId) {
-        return res.status(400).json({ message: 'User ID is required.' });
+      if (!normalizedUserId) {
+        return res.status(400).json({ message: 'A valid user ID is required.' });
       }
 
-      const preferences = await UserPreferences.findOne({ user: userId }).populate(
+      if (selectedUserId && !normalizedSelectedUserId) {
+        return res.status(400).json({ message: 'Selected user ID must be a valid ID.' });
+      }
+
+      const preferences = await UserPreferences.findOne({ user: normalizedUserId }).populate(
         'users.userNotifyingFor',
       );
 
@@ -30,9 +56,9 @@ const lbUserPrefController = function (UserPreferences, Notification) {
         return res.status(404).json({ message: 'Preferences not found for the user.' });
       }
 
-      if (selectedUserId) {
+      if (normalizedSelectedUserId) {
         const selectedUserPref = preferences.users.find(
-          (pref) => pref.userNotifyingFor._id.toString() === selectedUserId,
+          (pref) => pref.userNotifyingFor._id.toString() === normalizedSelectedUserId,
         );
 
         return res.status(200).json(selectedUserPref || { notifyInApp: false, notifyEmail: false });
@@ -50,25 +76,33 @@ const lbUserPrefController = function (UserPreferences, Notification) {
   const updatePreferences = async (req, res) => {
     try {
       const { userId, selectedUserId, notifyInApp, notifyEmail, notifySms, smsPhone } = req.body;
+      const normalizedUserId = normalizeObjectId(userId);
+      const normalizedSelectedUserId = selectedUserId
+        ? normalizeObjectId(selectedUserId)
+        : null;
 
-      if (!userId) {
-        return res.status(400).json({ message: 'User ID is required.' });
+      if (!normalizedUserId) {
+        return res.status(400).json({ message: 'A valid user ID is required.' });
       }
 
-      let preferences = await UserPreferences.findOne({ user: userId });
+      if (selectedUserId && !normalizedSelectedUserId) {
+        return res.status(400).json({ message: 'Selected user ID must be a valid ID.' });
+      }
+
+      let preferences = await UserPreferences.findOne({ user: normalizedUserId });
 
       if (!preferences) {
-        preferences = new UserPreferences({ user: userId, users: [] });
+        preferences = new UserPreferences({ user: normalizedUserId, users: [] });
       }
 
-      if (selectedUserId) {
+      if (normalizedSelectedUserId) {
         const userIndex = preferences.users.findIndex(
-          (user) => user.userNotifyingFor.toString() === selectedUserId,
+          (user) => user.userNotifyingFor.toString() === normalizedSelectedUserId,
         );
 
         if (userIndex === -1) {
           preferences.users.push({
-            userNotifyingFor: selectedUserId,
+            userNotifyingFor: normalizedSelectedUserId,
             notifyInApp: notifyInApp !== undefined ? notifyInApp : false,
             notifyEmail: notifyEmail !== undefined ? notifyEmail : false,
           });
@@ -117,15 +151,17 @@ const lbUserPrefController = function (UserPreferences, Notification) {
   const storeNotification = async (req, res) => {
     try {
       const { userId, senderId, message } = req.body;
+      const normalizedUserId = normalizeObjectId(userId);
+      const normalizedSenderId = normalizeObjectId(senderId);
 
-      if (!userId || !senderId || !message) {
+      if (!normalizedUserId || !normalizedSenderId || !message) {
         return res.status(400).json({ message: 'User ID, Sender ID, and Message are required.' });
       }
 
       const notification = new Notification({
         message,
-        sender: senderId,
-        recipient: userId,
+        sender: normalizedSenderId,
+        recipient: normalizedUserId,
         isSystemGenerated: false,
       });
 
@@ -140,13 +176,14 @@ const lbUserPrefController = function (UserPreferences, Notification) {
   const getUnreadNotifications = async (req, res) => {
     try {
       const { userId } = req.params;
+      const normalizedUserId = normalizeObjectId(userId);
 
-      if (!userId) {
+      if (!normalizedUserId) {
         console.error('❌ User ID is missing in the request.');
-        return res.status(400).json({ message: 'User ID is required.' });
+        return res.status(400).json({ message: 'A valid user ID is required.' });
       }
 
-      const notifications = await Notification.find({ recipient: userId, isRead: false })
+      const notifications = await Notification.find({ recipient: normalizedUserId, isRead: false })
         .sort({ createdTimeStamps: -1 })
         .populate('sender', 'firstName lastName'); // Include sender's name
 
@@ -162,12 +199,13 @@ const lbUserPrefController = function (UserPreferences, Notification) {
   const markNotificationsAsRead = async (req, res) => {
     try {
       const { notificationIds } = req.body;
+      const normalizedNotificationIds = normalizeObjectIdList(notificationIds);
 
-      if (!notificationIds || !Array.isArray(notificationIds)) {
+      if (!normalizedNotificationIds) {
         return res.status(400).json({ message: 'Invalid notification IDs.' });
       }
       const result = await Notification.updateMany(
-        { _id: { $in: notificationIds } },
+        { _id: { $in: normalizedNotificationIds } },
         { isRead: true },
       );
 
