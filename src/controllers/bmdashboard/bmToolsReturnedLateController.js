@@ -2,13 +2,64 @@ const mongoose = require('mongoose');
 
 const bmToolsReturnedLateController = function () {
   const ToolReturn = require('../../models/bmdashboard/toolReturn');
+  const Project = require('../../models/project');
 
   const parseDate = (d) => (d ? new Date(d) : null);
+  const getProjectNameMap = async (projectIds) => {
+    const projectDocs = await Project.find({ _id: { $in: projectIds } }, '_id projectName').lean();
+    const projectNameById = projectDocs.reduce((acc, project) => {
+      acc[project._id.toString()] = project.projectName;
+      return acc;
+    }, {});
+
+    projectIds.forEach((currentProjectId, index) => {
+      if (!projectNameById[currentProjectId]) {
+        projectNameById[currentProjectId] = `Project ${index + 1}`;
+      }
+    });
+
+    return projectNameById;
+  };
+
+  const buildToolStats = (toolData, projectNameById) => {
+    const toolStats = {};
+
+    toolData.forEach((record) => {
+      const projectIdValue = record.projectId?.toString() || '';
+      const statKey = projectIdValue
+        ? `${record.toolName}::${projectIdValue}`
+        : `${record.toolName}::ALL`;
+
+      if (!toolStats[statKey]) {
+        toolStats[statKey] = {
+          toolName: record.toolName,
+          projectId: projectIdValue,
+          projectName: projectNameById[projectIdValue] || '',
+          totalReturns: 0,
+          lateReturns: 0,
+        };
+      }
+
+      toolStats[statKey].totalReturns += record.totalReturns;
+      toolStats[statKey].lateReturns += record.returnedLate;
+    });
+
+    return Object.values(toolStats)
+      .map((stats) => ({
+        toolName: stats.toolName,
+        projectId: stats.projectId,
+        projectName: stats.projectName,
+        totalReturns: stats.totalReturns,
+        lateReturns: stats.lateReturns,
+        percentLate:
+          stats.totalReturns > 0 ? Math.round((stats.lateReturns / stats.totalReturns) * 100) : 0,
+      }))
+      .sort((a, b) => b.percentLate - a.percentLate);
+  };
 
   const getToolsReturnedLate = async (req, res) => {
     try {
       const { projectId, startDate, endDate, tools } = req.query;
-      console.log('Tools Returned Late Query:', { projectId, startDate, endDate, tools });
       const start = parseDate(startDate);
       const end = parseDate(endDate);
       const matchFilter = {};
@@ -38,24 +89,12 @@ const bmToolsReturnedLateController = function () {
           message: 'No tool return data found for the specified criteria.',
         });
       }
-      const toolStats = {};
-      toolData.forEach((record) => {
-        const { toolName } = record;
-        if (!toolStats[toolName]) {
-          toolStats[toolName] = {
-            totalReturns: 0,
-            lateReturns: 0,
-          };
-        }
-        toolStats[toolName].totalReturns += record.totalReturns;
-        toolStats[toolName].lateReturns += record.returnedLate;
-      });
-      const results = Object.entries(toolStats).map(([toolName, stats]) => ({
-        toolName,
-        percentLate:
-          stats.totalReturns > 0 ? Math.round((stats.lateReturns / stats.totalReturns) * 100) : 0,
-      }));
-      results.sort((a, b) => b.percentLate - a.percentLate);
+
+      const projectIds = [
+        ...new Set(toolData.map((record) => record.projectId?.toString()).filter(Boolean)),
+      ];
+      const projectNameById = await getProjectNameMap(projectIds);
+      const results = buildToolStats(toolData, projectNameById);
       res.status(200).json({
         success: true,
         count: results.length,
@@ -72,12 +111,23 @@ const bmToolsReturnedLateController = function () {
 
   const getAvailableProjects = async (req, res) => {
     try {
-      const projects = await ToolReturn.distinct('projectId');
+      const projectIds = await ToolReturn.distinct('projectId');
+      const projects = await Project.find({ _id: { $in: projectIds } }, '_id projectName')
+        .sort({ projectName: 1 })
+        .lean();
+      const knownProjectIds = new Set(projects.map((project) => project._id.toString()));
+      const fallbackProjects = projectIds
+        .filter((projectId) => !knownProjectIds.has(projectId.toString()))
+        .map((projectId, index) => ({
+          _id: projectId,
+          projectName: `Project ${index + 1}`,
+        }));
+      const allProjects = [...projects, ...fallbackProjects];
       res.status(200).json({
         success: true,
-        data: projects.map((id, index) => ({
-          projectId: id.toString(),
-          projectName: `Project ${index + 1}`,
+        data: allProjects.map((project) => ({
+          projectId: project._id.toString(),
+          projectName: project.projectName,
         })),
       });
     } catch (err) {
