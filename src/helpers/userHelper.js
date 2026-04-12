@@ -3427,7 +3427,6 @@ const userHelper = function () {
     sendUserSeparatedEmail,
     sendUserReactivatedAfterSeparation,
     weeklyCompanySummaryEmail,
-    checkPersonalMax,
   };
 };
 
