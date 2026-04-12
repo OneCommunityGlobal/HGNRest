@@ -2,119 +2,123 @@ const TaskComment = require('../models/taskComment');
 const StudentTask = require('../models/studentTask');
 const User = require('../models/userTask');
 
+const findAndValidateUser = async (userId, allowedRole) => {
+  if (!userId) {
+    return { error: { status: 403, message: 'userId required' } };
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return { error: { status: 403, message: 'Invalid userId' } };
+  }
+
+  if (user.role !== allowedRole) {
+    return {
+      error: {
+        status: 403,
+        message:
+          allowedRole === 'student'
+            ? 'Only students can access this data'
+            : 'Only educators can access this data',
+      },
+    };
+  }
+
+  return { user };
+};
+
+const findTaskByTaskId = async (taskId) => {
+  const task = await StudentTask.findOne({ taskId });
+  if (!task) {
+    return { error: { status: 404, message: 'Task does not exist' } };
+  }
+
+  return { task };
+};
+
+const formatComment = (comment) => ({
+  commentId: comment._id.toString(),
+  taskId: comment.taskId,
+  userId: comment.userId?.toString(),
+  commentText: comment.commentText,
+  created_at: comment.created_at,
+});
+
+const getComments = async (filter) => {
+  const comments = await TaskComment.find(filter, { isDeleted: 0, __v: 0 })
+    .sort({ created_at: 1 })
+    .lean();
+
+  return comments.map(formatComment);
+};
+
+const handleServerError = (res, err) => {
+  console.error(err);
+  return res.status(500).json({ message: 'Server error' });
+};
+
 exports.postStudentComments = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { commentText } = req.body;
     const { userId } = req.query;
 
-    if (!userId) return res.status(403).json({ message: 'userId required' });
-    if (!commentText || commentText.trim() === '')
+    const userResult = await findAndValidateUser(userId, 'student');
+    if (userResult.error) {
+      return res.status(userResult.error.status).json({ message: userResult.error.message });
+    }
+
+    if (!commentText || commentText.trim() === '') {
       return res.status(400).json({ message: 'commentText cannot be empty' });
+    }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(403).json({ message: 'Invalid userId' });
-    if (user.role !== 'student')
-      return res.status(403).json({ message: 'Only students can post comments' });
-
-    const task = await StudentTask.findOne({ taskId });
-    if (!task) return res.status(404).json({ message: 'Task not found' });
+    const taskResult = await findTaskByTaskId(taskId);
+    if (taskResult.error) {
+      return res.status(taskResult.error.status).json({ message: taskResult.error.message });
+    }
 
     const comment = await TaskComment.create({
       taskId,
-      userId: user._id,
+      userId: userResult.user._id,
       commentText,
     });
 
-    const cleanedComment = {
-      commentId: comment._id.toString(),
-      taskId: comment.taskId,
-      userId: comment.userId?.toString(),
-      commentText: comment.commentText,
-      created_at: comment.created_at,
+    return res.status(201).json({
+      ...formatComment(comment),
       isDeleted: false,
+    });
+  } catch (err) {
+    return handleServerError(res, err);
+  }
+};
+
+const getStudentComments = (allowedRole) => async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { userId } = req.query;
+
+    const userResult = await findAndValidateUser(userId, allowedRole);
+    if (userResult.error) {
+      return res.status(userResult.error.status).json({ message: userResult.error.message });
+    }
+
+    const taskResult = await findTaskByTaskId(taskId);
+    if (taskResult.error) {
+      return res.status(taskResult.error.status).json({ message: taskResult.error.message });
+    }
+
+    const filter = {
+      taskId,
+      isDeleted: false,
+      ...(allowedRole === 'student' && { userId: userResult.user._id }),
     };
 
-    res.status(201).json(cleanedComment);
+    const comments = await getComments(filter);
+    return res.json(comments);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    return handleServerError(res, err);
   }
 };
 
-exports.getStudentCommentsbyStudent = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { userId } = req.query;
-    console.log('Fetching comments for task:', taskId, 'by user:', userId);
-    const user = await User.findById(userId);
-    if (!user) return res.status(403).json({ message: 'Invalid userId' });
-    if (user.role !== 'student')
-      return res.status(403).json({ message: 'Only students can view this data' });
-
-    const task = await StudentTask.findOne({ taskId });
-    if (!task) return res.status(404).json({ message: 'Task does not exist' });
-
-    const comments = await TaskComment.find(
-      {
-        taskId,
-        userId: user._id,
-        isDeleted: false,
-      },
-      { isDeleted: 0, __v: 0 },
-    )
-      .sort({ created_at: 1 })
-      .lean();
-
-    const cleanedComments = comments.map((c) => ({
-      commentId: c._id.toString(),
-      taskId: c.taskId,
-      userId: c.userId?.toString(),
-      commentText: c.commentText,
-      created_at: c.created_at,
-    }));
-
-    res.json(cleanedComments);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-exports.getStudentCommentsbyEducator = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { userId } = req.query;
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(403).json({ message: 'Invalid userId' });
-    if (user.role !== 'educator')
-      return res.status(403).json({ message: 'Only educators can view this data' });
-
-    const task = await StudentTask.findOne({ taskId });
-    if (!task) return res.status(404).json({ message: 'Task does not exist' });
-
-    const comments = await TaskComment.find(
-      {
-        taskId,
-        isDeleted: false,
-      },
-      { isDeleted: 0, __v: 0 },
-    )
-      .sort({ created_at: 1 })
-      .lean();
-
-    const cleanedComments = comments.map((c) => ({
-      commentId: c._id.toString(),
-      taskId: c.taskId,
-      userId: c.userId?.toString(),
-      commentText: c.commentText,
-      created_at: c.created_at,
-    }));
-
-    res.json(cleanedComments);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+exports.getStudentCommentsbyStudent = getStudentComments('student');
+exports.getStudentCommentsbyEducator = getStudentComments('educator');
