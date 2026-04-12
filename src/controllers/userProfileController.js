@@ -21,8 +21,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
-const task = require('../models/task');
-const team = require('../models/team');
+const Task = require('../models/task');
 const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
@@ -1429,24 +1428,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
-      // Validate and convert userId to ObjectId for proper matching in MongoDB
-      let userIdObject;
-      try {
-        userIdObject = new mongoose.Types.ObjectId(userId);
-      } catch (idError) {
-        // If conversion fails, userId might already be an ObjectId or invalid
-        logger.logInfo(`Invalid userId format for ObjectId conversion: ${userId}`);
-        userIdObject = userId;
+      const matchedUserIds = [userId];
+      if (mongoose.Types.ObjectId.isValid(userId)) {
+        matchedUserIds.push(new mongoose.Types.ObjectId(userId));
       }
       // delete user from task-resources
-      await task.updateMany(
-        { 'resources.userID': userIdObject },
-        { $pull: { resources: { userID: userIdObject } } },
+      await Task.updateMany(
+        { 'resources.userID': { $in: matchedUserIds } },
+        { $pull: { resources: { userID: { $in: matchedUserIds } } } },
       );
       // delete user from teams-members
-      await team.updateMany(
-        { 'members.userId': userIdObject },
-        { $pull: { members: { userId: userIdObject } } },
+      await Team.updateMany(
+        { 'members.userId': { $in: matchedUserIds } },
+        { $pull: { members: { userId: { $in: matchedUserIds } } } },
       );
       res.status(200).send({ message: 'Executed Successfully' });
       auditIfProtectedAccountUpdated({
