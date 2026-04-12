@@ -25,25 +25,43 @@ const hasIndividualPermission = async (userId, action) =>
     .then((doc) => (doc?.permissions?.frontPermissions || []).includes(action))
     .catch(() => false);
 
+const resolveRequestorRole = async (requestorId) =>
+  UserProfile.findById(requestorId)
+    .select('role')
+    .lean()
+    .exec()
+    .then((doc) => (doc ? doc.role : null))
+    .catch(() => null);
+
+const getRequestorIdFromObject = (requestor) =>
+  requestor?.requestorId || requestor?._id || requestor?.userId || requestor?.userid || null;
+
 const normalizeRequestor = async (requestor) => {
   if (!requestor) {
     return null;
   }
 
   if (typeof requestor === 'string') {
-    return UserProfile.findById(requestor)
-      .select('role')
-      .lean()
-      .exec()
-      .then((doc) => (doc ? { requestorId: requestor, role: doc.role } : null))
-      .catch(() => null);
+    const role = await resolveRequestorRole(requestor);
+    return role ? { requestorId: requestor, role } : null;
   }
 
-  if (requestor.requestorId && requestor.role) {
-    return requestor;
+  const requestorId = getRequestorIdFromObject(requestor);
+
+  if (!requestorId) {
+    return null;
   }
 
-  return null;
+  if (requestor.role) {
+    return {
+      ...requestor,
+      requestorId,
+      role: requestor.role,
+    };
+  }
+
+  const role = await resolveRequestorRole(requestorId);
+  return role ? { ...requestor, requestorId, role } : null;
 };
 
 const hasPermission = async (requestor, action) => {

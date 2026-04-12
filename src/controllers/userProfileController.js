@@ -2180,7 +2180,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
-      res.status(403).send('You are not authorized to add blue square');
+      res
+        .status(403)
+        .send(
+          'You are not authorized to add blue square. The requestor must resolve to a user with addInfringements permission.',
+        );
       return;
     }
 

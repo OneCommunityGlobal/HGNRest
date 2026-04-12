@@ -34,6 +34,10 @@ Added functionality to easily parse reasons for Blue Squares using a reasons arr
 2. Run `npm run build` and `npm start` to run this PR locally
 3. Send a POST request to `api/userProfile/:userId/addInfringement` to add an infringement
 
+Important:
+- The `requestor` must be a valid user id or requestor object that resolves to a user with the `addInfringements` permission.
+- For local testing, use a user whose role is `Owner`, `Administrator`, `Manager`, or `Mentor`, or a user with the `addInfringements` front permission.
+
 **Example request body:**
 ```json
 {

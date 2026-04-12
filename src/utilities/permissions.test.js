@@ -72,4 +72,53 @@ describe('hasPermission', () => {
     expect(result).toBe(false);
     expect(Role.findOne).not.toHaveBeenCalled();
   });
+
+  it('accepts a requestor object with only requestorId by resolving the role from the database', async () => {
+    UserProfile.findById
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => ({
+          lean: jest.fn(() => makeExecResult({ role: 'Manager' })),
+        })),
+      }))
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => makeExecResult({ permissions: { removedDefaultPermissions: [] } })),
+      }))
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => makeExecResult({ permissions: { frontPermissions: [] } })),
+      }));
+
+    Role.findOne.mockImplementation(() => makeExecResult({ permissions: ['addInfringements'] }));
+
+    const result = await hasPermission(
+      { requestorId: '690cd7fd078096082baa8061' },
+      'addInfringements',
+    );
+
+    expect(result).toBe(true);
+    expect(UserProfile.findById).toHaveBeenNthCalledWith(1, '690cd7fd078096082baa8061');
+    expect(Role.findOne).toHaveBeenCalledWith({ roleName: 'Manager' });
+  });
+
+  it('accepts legacy requestor objects that use _id', async () => {
+    UserProfile.findById
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => ({
+          lean: jest.fn(() => makeExecResult({ role: 'Owner' })),
+        })),
+      }))
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => makeExecResult({ permissions: { removedDefaultPermissions: [] } })),
+      }))
+      .mockImplementationOnce(() => ({
+        select: jest.fn(() => makeExecResult({ permissions: { frontPermissions: [] } })),
+      }));
+
+    Role.findOne.mockImplementation(() => makeExecResult({ permissions: ['addInfringements'] }));
+
+    const result = await hasPermission({ _id: '690cd7fd078096082baa8061' }, 'addInfringements');
+
+    expect(result).toBe(true);
+    expect(UserProfile.findById).toHaveBeenNthCalledWith(1, '690cd7fd078096082baa8061');
+    expect(Role.findOne).toHaveBeenCalledWith({ roleName: 'Owner' });
+  });
 });
