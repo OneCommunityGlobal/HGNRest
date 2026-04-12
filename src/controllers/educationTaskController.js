@@ -430,7 +430,69 @@ const educationTaskController = function () {
       res.status(500).json({ error: error.message });
     }
   };
-
+  const getTaskSubmissions = async (req, res) => {
+    try {
+      const { status, studentId, lessonPlanId } = req.query;
+  
+      const filter = {};
+  
+      filter.status = { $in: ['completed', 'graded'] };
+  
+      if (status) {
+        if (status === 'completed') {
+          filter.status = 'completed';
+        } else if (status === 'graded') {
+          filter.status = 'graded';
+        }
+      }
+  
+      if (studentId) {
+        filter.studentId = studentId;
+      }
+  
+      if (lessonPlanId) {
+        filter.lessonPlanId = lessonPlanId;
+      }
+  
+      const submissions = await EducationTask.find(filter)
+        .populate('studentId', 'firstName lastName email')
+        .populate('lessonPlanId', 'title')
+        .sort({ completedAt: -1 });
+  
+      const formattedSubmissions = submissions
+        .map((task) => {
+          if (!task.studentId || !task.lessonPlanId) {
+            return null;
+          }
+  
+          return {
+            _id: task._id,
+            studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+            studentEmail: task.studentId.email,
+            taskName: task.name || 'Unnamed Task',
+            taskType: task.type,
+            submissionLinks: task.uploadUrls,
+            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
+            isLate:
+              task.completedAt &&
+              task.dueAt &&
+              new Date(task.completedAt) > new Date(task.dueAt),
+            submittedAt: task.completedAt,
+            assignedAt: task.assignedAt,
+            dueAt: task.dueAt,
+            grade: task.grade,
+            feedback: task.feedback,
+            lessonPlanId: task.lessonPlanId._id,
+            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          };
+        })
+        .filter(Boolean);
+  
+      res.status(200).json(formattedSubmissions);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
   return {
     getEducationTasks,
     getTasksByStudent,
@@ -442,6 +504,7 @@ const educationTaskController = function () {
     updateTaskStatus,
     gradeTask,
     getTasksByStatus,
+    getTaskSubmissions,
     markTaskAsComplete,
   };
 };
