@@ -1,6 +1,6 @@
+const mongoose = require('mongoose');
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
-
 /* ============================================================
    UTILS
    ============================================================ */
@@ -254,9 +254,16 @@ const reorderJobs = async (req, res) => {
     if (!Array.isArray(jobIds) || jobIds.length === 0)
       return res.status(400).json({ error: 'Invalid job order data' });
 
+    const invalidIds = jobIds.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        error: 'Invalid job IDs',
+        invalidIds,
+      });
+    }
     const updateOperations = jobIds.map((jobId, index) => ({
       updateOne: {
-        filter: { _id: jobId },
+        filter: { _id: new mongoose.Types.ObjectId(jobId) },
         update: { $set: { displayOrder: index } },
       },
     }));
@@ -271,6 +278,7 @@ const reorderJobs = async (req, res) => {
       jobs,
     });
   } catch (error) {
+    console.error('Reorder error:', error);
     res.status(500).json({ error: 'Failed to reorder jobs', details: error.message });
   }
 };

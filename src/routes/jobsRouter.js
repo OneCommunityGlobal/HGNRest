@@ -10,10 +10,10 @@ router.get('/summaries', jobsController.getJobSummaries);
 router.get('/', jobsController.getJobs);
 router.get('/categories', jobsController.getCategories);
 router.get('/positions', jobsController.getPositions);
+router.put('/reorder', jobsController.reorderJobs);
 router.get('/:id', jobsController.getJobById);
 router.post('/', jobsController.createJob);
 router.put('/:id', jobsController.updateJob);
 router.delete('/:id', jobsController.deleteJob);
-router.post('/reorder', jobsController.reorderJobs);
 
 module.exports = router;
