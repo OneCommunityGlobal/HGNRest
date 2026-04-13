@@ -154,6 +154,23 @@ const KIInventoryController = () => {
       res.status(400).json({ message: err.message });
     }
   };
+  const getInventoryStats = async (req, res) => {
+    try {
+      // Only fetch the two fields needed for stats — avoids sending full item payloads
+      const items = await KIInventoryItem.find({}, { presentQuantity: 1, reorderAt: 1 }).lean();
+      const totalItems = items.length;
+      const criticalStock = items.filter(i => i.presentQuantity <= i.reorderAt * 0.5).length;
+      const lowStock = items.filter(
+        i => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
+      ).length;
+      res.status(200).json({
+        message: 'Inventory stats fetched successfully.',
+        data: { totalItems, criticalStock, lowStock },
+      });
+    } catch (err) {
+      res.status(500).json({ message: 'Something went wrong while fetching inventory stats.' });
+    }
+  };
   return {
     addItem,
     getItems,
@@ -162,6 +179,7 @@ const KIInventoryController = () => {
     updateOnUsage,
     updateStoredQuantity,
     updateNextHarvest,
+    getInventoryStats,
   };
 };
 module.exports = KIInventoryController;
