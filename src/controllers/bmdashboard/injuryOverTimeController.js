@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 const InjuryOverTime = require('../../models/bmdashboard/buildingInjuryOverTime');
 
+const parseCommaSeparatedValues = (value, mapper = (item) => item) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map(mapper);
+
 exports.getInjuryOverTime = async (req, res) => {
   try {
     const { projectIds, startDate, endDate, types, departments, severities } = req.query;
@@ -8,8 +15,15 @@ exports.getInjuryOverTime = async (req, res) => {
     const query = {};
 
     if (projectIds) {
-      const projectIdArray = projectIds.split(',').map((id) => mongoose.Types.ObjectId(id));
-      query.projectId = { $in: projectIdArray };
+      const projectIdArray = parseCommaSeparatedValues(projectIds);
+
+      if (!projectIdArray.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+        return res.status(400).json({ error: 'One or more projectIds are invalid' });
+      }
+
+      query.projectId = {
+        $in: projectIdArray.map((id) => mongoose.Types.ObjectId(id)),
+      };
     }
 
     if (startDate && endDate) {
@@ -20,18 +34,15 @@ exports.getInjuryOverTime = async (req, res) => {
     }
 
     if (types) {
-      const typesArray = types.split(',');
-      query.injuryType = { $in: typesArray };
+      query.injuryType = { $in: parseCommaSeparatedValues(types) };
     }
 
     if (departments) {
-      const departmentsArray = departments.split(',');
-      query.department = { $in: departmentsArray };
+      query.department = { $in: parseCommaSeparatedValues(departments) };
     }
 
     if (severities) {
-      const severitiesArray = severities.split(',');
-      query.severity = { $in: severitiesArray };
+      query.severity = { $in: parseCommaSeparatedValues(severities) };
     }
 
     const injuries = await InjuryOverTime.aggregate([
@@ -43,9 +54,14 @@ exports.getInjuryOverTime = async (req, res) => {
             severity: '$severity',
             injuryType: '$injuryType',
             department: '$department',
+            month: {
+              $dateToString: {
+                format: '%Y-%m-01',
+                date: '$date',
+              },
+            },
           },
           count: { $sum: '$count' },
-          date: { $first: '$date' },
         },
       },
       {
@@ -55,8 +71,17 @@ exports.getInjuryOverTime = async (req, res) => {
           severity: '$_id.severity',
           injuryType: '$_id.injuryType',
           department: '$_id.department',
-          date: 1,
+          date: { $toDate: '$_id.month' },
           count: 1,
+        },
+      },
+      {
+        $sort: {
+          date: 1,
+          projectId: 1,
+          severity: 1,
+          injuryType: 1,
+          department: 1,
         },
       },
     ]);
