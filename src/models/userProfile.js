@@ -169,6 +169,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
