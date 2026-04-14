@@ -1,4 +1,4 @@
-* eslint-disable quotes */
+/* eslint-disable quotes */
 /* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-console */
