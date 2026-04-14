@@ -22,10 +22,10 @@ module.exports = {
   // Coverage thresholds - Adjusted to match current coverage levels
   coverageThreshold: {
     global: {
-      branches: 8,
-      functions: 18,
-      lines: 15,
-      statements: 15,
+      branches: 9,
+      functions: 23.5,
+      lines: 30,
+      statements: 29.5, // Adjusted to match current coverage (websocket files with ES6 exports)
     },
   },
 
