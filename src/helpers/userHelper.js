@@ -288,6 +288,7 @@ const userHelper = function () {
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      const activeResults = results.filter((user) => user.isActive === true);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       const userProfileResults = await userProfile.find(
         { getWeeklyReport: true },
@@ -306,12 +307,12 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      results.sort((a, b) =>
+      activeResults.sort((a, b) =>
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
-      for (let i = 0; i < results.length; i += 1) {
-        const result = results[i];
+      for (let i = 0; i < activeResults.length; i += 1) {
+        const result = activeResults[i];
         const {
           firstName,
           lastName,
