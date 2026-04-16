@@ -1,5 +1,9 @@
 const { getMapAnalytics, getComparisonData } = require('../services/applicationsService');
-const { getRangeFromQuery, getPreviousRange } = require('../utilities/dateRanges');
+const {
+  getRangeFromQuery,
+  getPreviousRange,
+  getPreviousCustomRange,
+} = require('../utilities/dateRanges');
 const cache = require('../utilities/cache');
 const Application = require('../models/application');
 
@@ -48,10 +52,11 @@ exports.getCountryApplications = async (req, res, next) => {
     // Get map data
     const mapData = await getMapAnalytics(range, roles, { includeMetadata: false });
 
-    // Get comparison data if not custom range and if previous range exists
+    // Comparison: calendar periods use getPreviousRange; rolling date ranges (type custom) use same-length prior window
     let comparisonData = null;
-    if (range.type !== 'custom' && range.type !== 'all') {
-      const previousRange = getPreviousRange(range);
+    if (range.type !== 'all') {
+      const previousRange =
+        range.type === 'custom' ? getPreviousCustomRange(range) : getPreviousRange(range);
       if (previousRange) {
         const comparison = await getComparisonData(range, previousRange, roles);
         comparisonData = comparison.comparisonData;

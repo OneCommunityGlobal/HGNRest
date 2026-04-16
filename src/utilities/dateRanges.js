@@ -81,4 +81,19 @@ function getPreviousRange(current) {
   }
 }
 
-module.exports = { getRangeFromQuery, getPreviousRange };
+/**
+ * For a custom [start, end] window, return the immediately preceding window
+ * of the same duration (used for rolling "last N days" comparisons).
+ */
+function getPreviousCustomRange(range) {
+  if (!range || range.type !== 'custom') return null;
+  const durationMs = range.end.getTime() - range.start.getTime();
+  if (!(durationMs > 0)) return null;
+  return {
+    start: new Date(range.start.getTime() - durationMs),
+    end: new Date(range.end.getTime() - durationMs),
+    type: 'custom',
+  };
+}
+
+module.exports = { getRangeFromQuery, getPreviousRange, getPreviousCustomRange };
