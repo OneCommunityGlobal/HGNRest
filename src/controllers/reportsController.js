@@ -1,14 +1,15 @@
+/* eslint-disable no-console */
 /* eslint-disable consistent-return */
 const fs = require('node:fs');
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-unresolved
-const puppeteer = require('puppeteer');
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
 const { hasPermission } = require('../utilities/permissions');
 const UserProfile = require('../models/userProfile');
 const emailSender = require('../utilities/emailSender');
 const cacheModule = require('../utilities/nodeCache');
+const playwrightLogic = require('../utilities/playwrightUtil');
 
 const cacheUtil = cacheModule();
 
@@ -145,6 +146,11 @@ const reportsController = function () {
         });
       }
     }
+    const cacheKey = `volunteerStatsData_${startDate}_${endDate}_${comparisonStartDate || ''}_${comparisonEndDate || ''}`;
+
+    if (cacheUtil.hasCache(cacheKey)) {
+      return res.status(200).send(cacheUtil.getCache(cacheKey));
+    }
 
     try {
       const [
@@ -228,7 +234,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
+        overviewReportHelper.getTotalActiveTeamCount(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getMapLocations(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
@@ -281,8 +292,7 @@ const reportsController = function () {
           error: 'Invalid date parameters',
         });
       }
-
-      res.status(200).send({
+      const responseData = {
         volunteerNumberStats,
         mentorNumberStats,
         volunteerHoursStats,
@@ -301,7 +311,12 @@ const reportsController = function () {
         volunteersOverAssignedTime,
         completedAssignedHours,
         totalSummariesSubmitted,
-      });
+      };
+
+      cacheUtil.setCache(cacheKey, responseData);
+      cacheUtil.setKeyTimeToLive(cacheKey, 300);
+
+      res.status(200).send(responseData);
     } catch (err) {
       console.error('Backend Error in getVolunteerStatsData:', err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
@@ -783,37 +798,6 @@ const reportsController = function () {
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
-  const puppeteerLogic = async () => {
-    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      console.log('Puppeteer email or password not found in environment variables');
-    }
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    await page.goto(`${REACT_FRONTEND_URL}/login`, { waitUntil: 'networkidle2' });
-    await page.setViewport({
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1.5,
-    });
-    await page.type('input[id="email"]', PUPPETEER_EMAIL, { delay: 100 });
-    await page.type('input[id="password"]', PUPPETEER_PASSWORD, { delay: 100 });
-    await page.click('.btn.btn-primary', { delay: 100 });
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle2' });
-
-    // eslint-disable-next-line no-restricted-syntax
-    await new Promise((resolve) => {
-      setTimeout(resolve, 50000);
-    });
-    // take a screenshot of the page
-    await page.screenshot({ path: 'weeklyCompanySummary.png', fullPage: true });
-    // close the browser
-    await browser.close();
-  };
 
   const sendEmailReport = async (req, res) => {
     try {
@@ -822,7 +806,7 @@ const reportsController = function () {
         return res.status(400).send({ msg: 'Please provide at least one recipient' });
       }
 
-      await puppeteerLogic();
+      await playwrightLogic();
 
       const attachment = {
         filename: 'weeklyCompanySummary.png',
