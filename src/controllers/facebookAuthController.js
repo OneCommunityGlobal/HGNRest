@@ -20,6 +20,8 @@ const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.c
 const appId = process.env.FACEBOOK_APP_ID;
 const appSecret = process.env.FACEBOOK_APP_SECRET;
 
+const sanitizeFbId = (id) => String(id).replace(/[^\d]/g, '');
+
 // ---- Server-side token holding store ----
 // Tokens from OAuth callback are held here (keyed by nonce) until
 // the user selects a page. Entries auto-expire after 10 minutes.
@@ -142,7 +144,7 @@ const handleAuthCallback = async (req, res) => {
 
     // Step 2: Get list of Pages the user manages
     console.log('[FacebookAuth] Fetching user Pages...');
-    const pagesUrl = `${graphBaseUrl}/${userID}/accounts`;
+    const pagesUrl = `${graphBaseUrl}/${sanitizeFbId(userID)}/accounts`;
     const pagesResponse = await axios.get(pagesUrl, {
       params: {
         access_token: longLivedUserToken,
@@ -242,7 +244,7 @@ const connectPage = async (req, res) => {
   try {
     // Verify the token works
     console.log('[FacebookAuth] Verifying page token...');
-    const verifyUrl = `${graphBaseUrl}/${pageId}`;
+    const verifyUrl = `${graphBaseUrl}/${sanitizeFbId(pageId)}`;
     const verifyResponse = await axios.get(verifyUrl, {
       params: {
         access_token: pageAccessToken,

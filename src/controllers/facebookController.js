@@ -1,9 +1,12 @@
 const axios = require('axios');
 const moment = require('moment-timezone');
 const FormData = require('form-data');
+const { Types: MongoTypes } = require('mongoose');
 const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
+
+const sanitizeFbId = (id) => String(id).replace(/[^\d]/g, '');
 
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const PST_TIMEZONE = 'America/Los_Angeles';
@@ -33,7 +36,7 @@ const getRequestor = (req) => {
 const getCredentials = async () => {
   const connection = await FacebookConnection.getActiveConnection();
 
-  if (connection && connection.pageAccessToken) {
+  if (connection?.pageAccessToken) {
     return {
       pageId: connection.pageId,
       pageAccessToken: connection.pageAccessToken,
@@ -72,7 +75,7 @@ const publishToFacebook = async ({
     throw error;
   }
 
-  const targetPageId = pageId || credentials.pageId;
+  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
   const { pageAccessToken } = credentials;
 
   console.log(
@@ -324,7 +327,7 @@ const scheduleFacebookPost = async (req, res) => {
     return;
   }
 
-  const targetPageId = pageId || credentials.pageId;
+  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
 
   const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
 
@@ -406,7 +409,7 @@ const scheduleFacebookPostWithImage = async (req, res) => {
     return;
   }
 
-  const targetPageId = pageId || credentials.pageId;
+  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
 
   const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
 
@@ -474,8 +477,8 @@ const getScheduledPosts = async (req, res) => {
     const scheduledPosts = await ScheduledFacebookPost.find(query)
       .select('-imageData')
       .sort({ scheduledFor: 1 })
-      .skip(parseInt(skip, 10))
-      .limit(parseInt(limit, 10))
+      .skip(Number.parseInt(skip, 10))
+      .limit(Number.parseInt(limit, 10))
       .lean()
       .exec();
     const postsWithImageFlag = scheduledPosts.map((p) => ({
@@ -488,13 +491,74 @@ const getScheduledPosts = async (req, res) => {
     res.status(200).send({
       success: true,
       scheduledPosts: postsWithImageFlag,
-      pagination: { total, limit: parseInt(limit, 10), skip: parseInt(skip, 10) },
+      pagination: { total, limit: Number.parseInt(limit, 10), skip: Number.parseInt(skip, 10) },
     });
   } catch (error) {
     console.error('[FacebookPost] getScheduledPosts error:', error.message);
     res.status(500).send({ error: 'Failed to fetch scheduled posts', details: error.message });
   }
 };
+
+const buildMongoHistoryQuery = (status, postMethod) => {
+  const query = {};
+  query.status = status === 'sent' || status === 'failed' ? status : { $in: ['sent', 'failed'] };
+  if (postMethod === 'direct' || postMethod === 'scheduled') query.postMethod = postMethod;
+  return query;
+};
+
+const fetchFacebookFeedPosts = async (credentials, targetPageId, limit) => {
+  try {
+    const fbEndpoint = `${graphBaseUrl}/${targetPageId}/feed`;
+    const fbResponse = await axios.get(fbEndpoint, {
+      params: {
+        access_token: credentials.pageAccessToken,
+        fields:
+          'id,message,created_time,permalink_url,full_picture,type,shares,reactions.summary(true),comments.summary(true)',
+        limit: Number.parseInt(limit, 10),
+      },
+    });
+    const posts = (fbResponse.data?.data || []).map((post) => ({
+      postId: post.id,
+      message: post.message || '(No text content)',
+      createdTime: post.created_time,
+      permalinkUrl: post.permalink_url,
+      fullPicture: post.full_picture,
+      type: post.type,
+      shares: post.shares?.count || 0,
+      reactions: post.reactions?.summary?.total_count || 0,
+      comments: post.comments?.summary?.total_count || 0,
+      source: 'facebook',
+    }));
+    return { posts, apiError: null };
+  } catch (fbError) {
+    const fbErrorData = fbError.response?.data?.error;
+    console.warn('[FacebookPost] Graph API error:', fbErrorData?.message || fbError.message);
+    let apiError;
+    if (fbErrorData?.code === 10) {
+      apiError =
+        'Facebook API access requires app to be in Live mode. Showing database posts only.';
+    } else if (fbErrorData?.code === 190) {
+      apiError = 'Facebook access token expired. Please reconnect your Facebook Page.';
+    } else {
+      apiError = fbErrorData?.message || fbError.message;
+    }
+    return { posts: [], apiError };
+  }
+};
+
+const mapMongoPostForHistory = (p) => ({
+  _id: p._id,
+  postId: p.postId,
+  message: p.message,
+  createdTime: p.postedAt || p.createdAt,
+  status: p.status,
+  postType: p.postType,
+  postMethod: p.postMethod || 'scheduled',
+  link: p.link,
+  imageUrl: p.imageUrl,
+  lastError: p.lastError,
+  source: 'mongodb',
+});
 
 const getPostHistory = async (req, res) => {
   const requestor = getRequestor(req);
@@ -507,101 +571,36 @@ const getPostHistory = async (req, res) => {
 
   const { limit = 25, source = 'all', pageId, status, postMethod } = req.query;
   const credentials = await getCredentials();
-  const targetPageId = pageId || credentials?.pageId;
+  const targetPageId = sanitizeFbId(pageId || credentials?.pageId || '');
 
   try {
-    const results = { mongoDbPosts: [], facebookPosts: [], combined: [] };
+    let mongoDbPosts = [];
+    let facebookPosts = [];
+    let facebookApiError;
 
-    // 1. Fetch posts from MongoDB
     if (source === 'all' || source === 'mongodb') {
-      const mongoQuery = {};
-
-      if (status && (status === 'sent' || status === 'failed')) {
-        mongoQuery.status = status;
-      } else {
-        mongoQuery.status = { $in: ['sent', 'failed'] };
-      }
-
-      if (postMethod && (postMethod === 'direct' || postMethod === 'scheduled')) {
-        mongoQuery.postMethod = postMethod;
-      }
-
-      results.mongoDbPosts = await ScheduledFacebookPost.find(mongoQuery)
+      mongoDbPosts = await ScheduledFacebookPost.find(buildMongoHistoryQuery(status, postMethod))
         .select('-imageData')
         .sort({ postedAt: -1, createdAt: -1 })
-        .limit(parseInt(limit, 10))
+        .limit(Number.parseInt(limit, 10))
         .lean()
         .exec();
-      console.log(
-        '[FacebookPost] MongoDB posts:',
-        JSON.stringify(results.mongoDbPosts.slice(0, 2), null, 2),
-      );
     }
 
-    // 2. Fetch posts from Facebook Graph API
     if ((source === 'all' || source === 'facebook') && credentials && targetPageId) {
-      try {
-        const fbEndpoint = `${graphBaseUrl}/${targetPageId}/feed`;
-        const fbResponse = await axios.get(fbEndpoint, {
-          params: {
-            access_token: credentials.pageAccessToken,
-            fields:
-              'id,message,created_time,permalink_url,full_picture,type,shares,reactions.summary(true),comments.summary(true)',
-            limit: parseInt(limit, 10),
-          },
-        });
-
-        results.facebookPosts = (fbResponse.data?.data || []).map((post) => ({
-          postId: post.id,
-          message: post.message || '(No text content)',
-          createdTime: post.created_time,
-          permalinkUrl: post.permalink_url,
-          fullPicture: post.full_picture,
-          type: post.type,
-          shares: post.shares?.count || 0,
-          reactions: post.reactions?.summary?.total_count || 0,
-          comments: post.comments?.summary?.total_count || 0,
-          source: 'facebook',
-        }));
-      } catch (fbError) {
-        const fbErrorData = fbError.response?.data?.error;
-        console.warn('[FacebookPost] Graph API error:', fbErrorData?.message || fbError.message);
-
-        if (fbErrorData?.code === 10) {
-          results.facebookApiError =
-            'Facebook API access requires app to be in Live mode. Showing database posts only.';
-        } else if (fbErrorData?.code === 190) {
-          results.facebookApiError =
-            'Facebook access token expired. Please reconnect your Facebook Page.';
-        } else {
-          results.facebookApiError = fbErrorData?.message || fbError.message;
-        }
-      }
+      const { posts, apiError } = await fetchFacebookFeedPosts(credentials, targetPageId, limit);
+      facebookPosts = posts;
+      facebookApiError = apiError;
     }
 
-    // 3. Combine and sort
-    const mongoMapped = results.mongoDbPosts.map((p) => ({
-      _id: p._id,
-      postId: p.postId,
-      message: p.message,
-      createdTime: p.postedAt || p.createdAt,
-      status: p.status,
-      postType: p.postType,
-      postMethod: p.postMethod || 'scheduled',
-      link: p.link,
-      imageUrl: p.imageUrl,
-      lastError: p.lastError,
-      source: 'mongodb',
-    }));
-
-    results.combined = [...mongoMapped, ...results.facebookPosts]
+    const combined = [...mongoDbPosts.map(mapMongoPostForHistory), ...facebookPosts]
       .sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
-      .slice(0, parseInt(limit, 10));
+      .slice(0, Number.parseInt(limit, 10));
 
     res.status(200).send({
       success: true,
-      posts: results.combined,
-      facebookApiError: results.facebookApiError,
+      posts: combined,
+      facebookApiError,
       credentialsSource: credentials?.source || 'none',
     });
   } catch (error) {
@@ -622,6 +621,11 @@ const cancelScheduledPost = async (req, res) => {
 
   if (!postId) {
     res.status(400).send({ error: 'postId is required.' });
+    return;
+  }
+
+  if (!MongoTypes.ObjectId.isValid(postId)) {
+    res.status(400).send({ error: 'Invalid postId format.' });
     return;
   }
 
@@ -662,6 +666,11 @@ const updateScheduledPost = async (req, res) => {
 
   if (!postId) {
     res.status(400).send({ error: 'postId is required.' });
+    return;
+  }
+
+  if (!MongoTypes.ObjectId.isValid(postId)) {
+    res.status(400).send({ error: 'Invalid postId format.' });
     return;
   }
 
