@@ -7,6 +7,44 @@ const PST_TIMEZONE = 'America/Los_Angeles';
 const MAX_POSTS_PER_TICK = 5;
 const MAX_RETRY_ATTEMPTS = 3;
 
+const handlePostError = async (post, error) => {
+  let errorMessage = 'Unknown error';
+  if (typeof error.details === 'string') {
+    errorMessage = error.details;
+  } else if (typeof error.details === 'object' && error.details?.message) {
+    errorMessage = error.details.message;
+  } else if (error.message) {
+    errorMessage = error.message;
+  }
+
+  post.attempts += 1;
+  post.lastError = errorMessage;
+
+  if (post.attempts >= MAX_RETRY_ATTEMPTS) {
+    post.status = 'failed';
+    console.log(
+      `[FacebookScheduler] Permanently failed after ${post.attempts} attempts:`,
+      post._id,
+      '-',
+      errorMessage,
+    );
+  } else {
+    post.status = 'pending';
+    console.log(
+      `[FacebookScheduler] Attempt ${post.attempts}/${MAX_RETRY_ATTEMPTS} failed, will retry:`,
+      post._id,
+      '-',
+      errorMessage,
+    );
+  }
+
+  try {
+    await post.save();
+  } catch (saveError) {
+    console.error('[FacebookScheduler] Failed to save error status:', saveError.message);
+  }
+};
+
 /**
  * Processes the next pending scheduled post.
  * Uses credentials from OAuth connection or falls back to env vars.
@@ -61,44 +99,10 @@ const processNextScheduledPost = async () => {
     console.error('[FacebookScheduler] Error processing post:', error.message);
 
     if (nextPost) {
-      try {
-        let errorMessage = 'Unknown error';
-        if (typeof error.details === 'string') {
-          errorMessage = error.details;
-        } else if (typeof error.details === 'object' && error.details?.message) {
-          errorMessage = error.details.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        nextPost.attempts += 1;
-        nextPost.lastError = errorMessage;
-
-        if (nextPost.attempts >= MAX_RETRY_ATTEMPTS) {
-          nextPost.status = 'failed';
-          console.log(
-            `[FacebookScheduler] Permanently failed after ${nextPost.attempts} attempts:`,
-            nextPost._id,
-            '-',
-            errorMessage,
-          );
-        } else {
-          // Return to pending for retry on next tick
-          nextPost.status = 'pending';
-          console.log(
-            `[FacebookScheduler] Attempt ${nextPost.attempts}/${MAX_RETRY_ATTEMPTS} failed, will retry:`,
-            nextPost._id,
-            '-',
-            errorMessage,
-          );
-        }
-        await nextPost.save();
-      } catch (saveError) {
-        console.error('[FacebookScheduler] Failed to save error status:', saveError.message);
-      }
+      await handlePostError(nextPost, error);
     }
 
-    if (logger && typeof logger.logException === 'function') {
+    if (typeof logger?.logException === 'function') {
       logger.logException(error, 'facebookScheduler.process', {
         scheduledId: nextPost?._id?.toString(),
       });
