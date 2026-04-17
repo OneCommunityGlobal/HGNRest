@@ -30,11 +30,6 @@ const teamcontroller = function (Team) {
         },
       },
       {
-        $match: {
-          isActive: true,
-        },
-      },
-      {
         $group: {
           _id: {
             teamId: '$_id',
