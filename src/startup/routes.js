@@ -167,6 +167,7 @@ const isEmailExistsRouter = require('../routes/isEmailExistsRouter')();
 const jobNotificationListRouter = require('../routes/jobNotificationListRouter');
 const helpCategoryRouter = require('../routes/helpCategoryRouter');
 
+const taskCommentRouter = require('../routes/taskCommentRouter')();
 const materialUtilizationRouter = require('../routes/materialUtilizationRouter');
 
 const userSkillsProfileRouter = require('../routes/userSkillsProfileRouter')(userProfile);
@@ -491,6 +492,7 @@ module.exports = function (app) {
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
+  app.use('/api', taskCommentRouter);
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
   app.use('/api', jobHitsAndApplicationsRoutes);
 
