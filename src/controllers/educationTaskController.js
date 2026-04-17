@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
@@ -294,7 +295,6 @@ const educationTaskController = function () {
     }
   };
 
-
   // Helper function to check and update parent task progress
   const checkAndUpdateParentTaskProgress = async (parentTaskId) => {
     try {
@@ -430,41 +430,43 @@ const educationTaskController = function () {
       res.status(500).json({ error: error.message });
     }
   };
+
   const getTaskSubmissions = async (req, res) => {
     try {
       const { status, studentId, lessonPlanId } = req.query;
-  
+
       const filter = {};
-  
+
+      // Default: show both completed and graded
       filter.status = { $in: ['completed', 'graded'] };
-  
-      if (status) {
-        if (status === 'completed') {
-          filter.status = 'completed';
-        } else if (status === 'graded') {
-          filter.status = 'graded';
-        }
+
+      // Only allow known status values — prevents injection
+      const allowedStatuses = ['completed', 'graded'];
+      if (status && allowedStatuses.includes(status)) {
+        filter.status = status;
       }
-  
-      if (studentId) {
-        filter.studentId = studentId;
+
+      // Validate studentId is a valid MongoDB ObjectId before using it
+      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+        filter.studentId = new mongoose.Types.ObjectId(studentId);
       }
-  
-      if (lessonPlanId) {
-        filter.lessonPlanId = lessonPlanId;
+
+      // Validate lessonPlanId is a valid MongoDB ObjectId before using it
+      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+        filter.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
       }
-  
+
       const submissions = await EducationTask.find(filter)
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
-  
+
       const formattedSubmissions = submissions
         .map((task) => {
           if (!task.studentId || !task.lessonPlanId) {
             return null;
           }
-  
+
           return {
             _id: task._id,
             studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
@@ -474,9 +476,7 @@ const educationTaskController = function () {
             submissionLinks: task.uploadUrls,
             status: task.status === 'completed' ? 'Pending Review' : 'Graded',
             isLate:
-              task.completedAt &&
-              task.dueAt &&
-              new Date(task.completedAt) > new Date(task.dueAt),
+              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
             submittedAt: task.completedAt,
             assignedAt: task.assignedAt,
             dueAt: task.dueAt,
@@ -487,7 +487,7 @@ const educationTaskController = function () {
           };
         })
         .filter(Boolean);
-  
+
       res.status(200).json(formattedSubmissions);
     } catch (error) {
       res.status(500).json({ error: error.message });
