@@ -355,8 +355,9 @@ const disconnectPage = async (req, res) => {
  * POST /api/social/facebook/auth/verify
  */
 const verifyConnection = async (req, res) => {
+  let connection;
   try {
-    const connection = await FacebookConnection.getActiveConnection();
+    connection = await FacebookConnection.getActiveConnection();
 
     if (!connection) {
       return res.status(200).json({ valid: false, reason: 'No active connection' });
@@ -383,7 +384,6 @@ const verifyConnection = async (req, res) => {
   } catch (error) {
     const fbError = error.response?.data?.error;
 
-    const connection = await FacebookConnection.getActiveConnection();
     if (connection) {
       connection.lastError = fbError?.message || error.message;
       await connection.save();

@@ -245,7 +245,6 @@ const permissionsRoles = [
       'postTimeEntry',
       'postFacebookContent',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',

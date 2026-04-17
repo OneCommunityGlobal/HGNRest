@@ -41,7 +41,7 @@ const routes = function () {
   router.route('/social/facebook/auth/callback').post(handleAuthCallback);
   router.route('/social/facebook/auth/connect').post(connectPage);
   router.route('/social/facebook/auth/disconnect').post(disconnectPage);
-  router.route('/social/facebook/auth/verify').post(verifyConnection);
+  router.route('/social/facebook/auth/verify').get(verifyConnection);
 
   // Posting routes
   router
