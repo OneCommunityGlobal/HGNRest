@@ -41,7 +41,7 @@ const buildConditions = ({ search, category, position }) => {
   if (position?.trim()) {
     const safe = escapeRegex(position.trim());
     conditions.push({
-      title: { $regex: safe, $options: 'i' },
+      title: { $regex: `^${safe}`, $options: 'i' },
     });
   }
 
