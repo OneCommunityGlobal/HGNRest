@@ -435,28 +435,54 @@ const educationTaskController = function () {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      const filter = {};
+      // const filter = {};
 
-      // Default: show both completed and graded
-      filter.status = { $in: ['completed', 'graded'] };
+      // // Default: show both completed and graded
+      // filter.status = { $in: ['completed', 'graded'] };
 
-      // Only allow known status values — prevents injection
+      // // Only allow known status values — prevents injection
+      // const allowedStatuses = ['completed', 'graded'];
+      // if (status && allowedStatuses.includes(status)) {
+      //   filter.status = status;
+      // }
+
+      // // Validate studentId is a valid MongoDB ObjectId before using it
+      // if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+      //   filter.studentId = new mongoose.Types.ObjectId(studentId);
+      // }
+
+      // // Validate lessonPlanId is a valid MongoDB ObjectId before using it
+      // if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+      //   filter.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
+      // }
+
+      // const submissions = await EducationTask.find(filter)
+      //   .populate('studentId', 'firstName lastName email')
+      //   .populate('lessonPlanId', 'title')
+      //   .sort({ completedAt: -1 });
+
+      // Build a safe, sanitized filter from scratch
       const allowedStatuses = ['completed', 'graded'];
-      if (status && allowedStatuses.includes(status)) {
-        filter.status = status;
-      }
+      const safeStatus =
+        status && allowedStatuses.includes(status) ? status : { $in: ['completed', 'graded'] };
 
-      // Validate studentId is a valid MongoDB ObjectId before using it
-      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
-        filter.studentId = new mongoose.Types.ObjectId(studentId);
-      }
+      const safeStudentId =
+        studentId && mongoose.Types.ObjectId.isValid(studentId)
+          ? new mongoose.Types.ObjectId(studentId)
+          : null;
 
-      // Validate lessonPlanId is a valid MongoDB ObjectId before using it
-      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
-        filter.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
-      }
+      const safelessonPlanId =
+        lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)
+          ? new mongoose.Types.ObjectId(lessonPlanId)
+          : null;
 
-      const submissions = await EducationTask.find(filter)
+      const safeFilter = {
+        status: safeStatus,
+        ...(safeStudentId && { studentId: safeStudentId }),
+        ...(safelessonPlanId && { lessonPlanId: safelessonPlanId }),
+      };
+
+      const submissions = await EducationTask.find(safeFilter)
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
