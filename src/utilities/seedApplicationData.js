@@ -1,8 +1,18 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 require('dotenv').config();
-
 // Import the Application model
 const Application = require('../models/application');
+
+/** Fisher-Yates shuffle of a shallow copy — unbiased and avoids mutating the source array. */
+function shuffleCopy(items) {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = crypto.randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // Sample data generator
 const generateSampleData = () => {
@@ -71,17 +81,17 @@ const generateSampleData = () => {
     date.setDate(date.getDate() - daysAgo);
 
     // Generate random applications for random countries
-    const numCountries = Math.floor(Math.random() * 5) + 3; // 3-7 countries per day
-    const selectedCountries = countries.sort(() => Math.random() - 0.5).slice(0, numCountries);
+    const numCountries = crypto.randomInt(3, 8); // 3-7 countries per day
+    const selectedCountries = shuffleCopy(countries).slice(0, numCountries);
 
     selectedCountries.forEach((country) => {
-      const numRoles = Math.floor(Math.random() * 3) + 1; // 1-3 roles per country per day
-      const selectedRoles = roles.sort(() => Math.random() - 0.5).slice(0, numRoles);
+      const numRoles = crypto.randomInt(1, 4); // 1-3 roles per country per day
+      const selectedRoles = shuffleCopy(roles).slice(0, numRoles);
 
       selectedRoles.forEach((role) => {
-        const numberOfApplicants = Math.floor(Math.random() * 20) + 1; // 1-20 applicants
+        const numberOfApplicants = crypto.randomInt(1, 21); // 1-20 applicants
         const applicationSource =
-          applicationSources[Math.floor(Math.random() * applicationSources.length)];
+          applicationSources[crypto.randomInt(0, applicationSources.length)];
 
         data.push({
           country: country.code,
@@ -90,7 +100,7 @@ const generateSampleData = () => {
           role,
           timestamp: date,
           numberOfApplicants,
-          jobId: `job-${Math.floor(Math.random() * 100)}`,
+          jobId: `job-${crypto.randomInt(0, 100)}`,
           jobTitle: `${role.charAt(0).toUpperCase() + role.slice(1)} Position`,
           applicationSource,
         });
