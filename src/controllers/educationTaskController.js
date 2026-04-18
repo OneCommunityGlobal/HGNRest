@@ -435,33 +435,6 @@ const educationTaskController = function () {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      // const filter = {};
-
-      // // Default: show both completed and graded
-      // filter.status = { $in: ['completed', 'graded'] };
-
-      // // Only allow known status values — prevents injection
-      // const allowedStatuses = ['completed', 'graded'];
-      // if (status && allowedStatuses.includes(status)) {
-      //   filter.status = status;
-      // }
-
-      // // Validate studentId is a valid MongoDB ObjectId before using it
-      // if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
-      //   filter.studentId = new mongoose.Types.ObjectId(studentId);
-      // }
-
-      // // Validate lessonPlanId is a valid MongoDB ObjectId before using it
-      // if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
-      //   filter.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
-      // }
-
-      // const submissions = await EducationTask.find(filter)
-      //   .populate('studentId', 'firstName lastName email')
-      //   .populate('lessonPlanId', 'title')
-      //   .sort({ completedAt: -1 });
-
-      // Build a safe, sanitized filter from scratch
       const allowedStatuses = ['completed', 'graded'];
       const safeStatus =
         status && allowedStatuses.includes(status) ? status : { $in: ['completed', 'graded'] };
@@ -471,7 +444,7 @@ const educationTaskController = function () {
           ? new mongoose.Types.ObjectId(studentId)
           : null;
 
-      const safelessonPlanId =
+      const safeLessonPlanId =
         lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)
           ? new mongoose.Types.ObjectId(lessonPlanId)
           : null;
@@ -479,7 +452,7 @@ const educationTaskController = function () {
       const safeFilter = {
         status: safeStatus,
         ...(safeStudentId && { studentId: safeStudentId }),
-        ...(safelessonPlanId && { lessonPlanId: safelessonPlanId }),
+        ...(safeLessonPlanId && { lessonPlanId: safeLessonPlanId }),
       };
 
       const submissions = await EducationTask.find(safeFilter)
@@ -492,7 +465,8 @@ const educationTaskController = function () {
           if (!task.studentId || !task.lessonPlanId) {
             return null;
           }
-
+          const lessonId = task.lessonPlanId._id.toString();
+          const lessonTitle = task.lessonPlanId.title || 'Unknown Lesson Plan';
           return {
             _id: task._id,
             studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
@@ -508,8 +482,8 @@ const educationTaskController = function () {
             dueAt: task.dueAt,
             grade: task.grade,
             feedback: task.feedback,
-            lessonPlanId: task.lessonPlanId._id,
-            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+            lessonPlanId: lessonId,
+            lessonPlanTitle: lessonTitle,
           };
         })
         .filter(Boolean);
