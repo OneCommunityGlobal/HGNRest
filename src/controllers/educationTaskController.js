@@ -436,29 +436,77 @@ const educationTaskController = function () {
       const { status, studentId, lessonPlanId } = req.query;
 
       const allowedStatuses = ['completed', 'graded'];
-      const safeStatus =
-        status && allowedStatuses.includes(status) ? status : { $in: ['completed', 'graded'] };
+      const statusIsValid = status && allowedStatuses.includes(status);
+      const studentIdIsValid = studentId && mongoose.Types.ObjectId.isValid(studentId);
+      const lessonPlanIdIsValid = lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId);
 
-      const safeStudentId =
-        studentId && mongoose.Types.ObjectId.isValid(studentId)
-          ? new mongoose.Types.ObjectId(studentId)
-          : null;
+      let submissions;
 
-      const safeLessonPlanId =
-        lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)
-          ? new mongoose.Types.ObjectId(lessonPlanId)
-          : null;
-
-      const safeFilter = {
-        status: safeStatus,
-        ...(safeStudentId && { studentId: safeStudentId }),
-        ...(safeLessonPlanId && { lessonPlanId: safeLessonPlanId }),
-      };
-
-      const submissions = await EducationTask.find(safeFilter)
-        .populate('studentId', 'firstName lastName email')
-        .populate('lessonPlanId', 'title')
-        .sort({ completedAt: -1 });
+      if (studentIdIsValid && lessonPlanIdIsValid && statusIsValid) {
+        submissions = await EducationTask.find({
+          status,
+          studentId: new mongoose.Types.ObjectId(studentId),
+          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (studentIdIsValid && lessonPlanIdIsValid) {
+        submissions = await EducationTask.find({
+          status: { $in: ['completed', 'graded'] },
+          studentId: new mongoose.Types.ObjectId(studentId),
+          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (studentIdIsValid && statusIsValid) {
+        submissions = await EducationTask.find({
+          status,
+          studentId: new mongoose.Types.ObjectId(studentId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (lessonPlanIdIsValid && statusIsValid) {
+        submissions = await EducationTask.find({
+          status,
+          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (studentIdIsValid) {
+        submissions = await EducationTask.find({
+          status: { $in: ['completed', 'graded'] },
+          studentId: new mongoose.Types.ObjectId(studentId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (lessonPlanIdIsValid) {
+        submissions = await EducationTask.find({
+          status: { $in: ['completed', 'graded'] },
+          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else if (statusIsValid) {
+        submissions = await EducationTask.find({
+          status,
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      } else {
+        submissions = await EducationTask.find({
+          status: { $in: ['completed', 'graded'] },
+        })
+          .populate('studentId', 'firstName lastName email')
+          .populate('lessonPlanId', 'title')
+          .sort({ completedAt: -1 });
+      }
 
       const formattedSubmissions = submissions
         .map((task) => {
