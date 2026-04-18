@@ -382,6 +382,10 @@ const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // Actual Cost
 const actualCostRouter = require('../routes/actualCostRouter')();
 
+// Kitchen and Inventory
+const kitchenRecipe = require('../models/kitchenRecipe');
+const kitchenRecipeRouter = require('../routes/kitchenRecipeRouter')(kitchenRecipe);
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -496,7 +500,6 @@ module.exports = function (app) {
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
 
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
 
@@ -563,4 +566,7 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
+  // Kitchen and Inventory
+  app.use('/api', kitchenRecipeRouter);
 };
