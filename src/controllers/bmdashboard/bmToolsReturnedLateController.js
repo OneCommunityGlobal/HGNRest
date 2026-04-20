@@ -4,7 +4,29 @@ const bmToolsReturnedLateController = function () {
   const ToolReturn = require('../../models/bmdashboard/toolReturn');
   const Project = require('../../models/project');
 
-  const parseDate = (d) => (d ? new Date(d) : null);
+  const getSingleQueryValue = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    return typeof value === 'string' ? value.trim() : null;
+  };
+
+  const parseDate = (value) => {
+    const dateValue = getSingleQueryValue(value);
+    if (!dateValue) return null;
+
+    const parsedDate = new Date(dateValue);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  };
+
+  const parseTools = (value) => {
+    const toolsValue = getSingleQueryValue(value);
+    if (!toolsValue) return [];
+
+    return toolsValue
+      .split(',')
+      .map((toolName) => toolName.trim())
+      .filter(Boolean);
+  };
+
   const getProjectNameMap = async (projectIds) => {
     const projectDocs = await Project.find({ _id: { $in: projectIds } }, '_id projectName').lean();
     const projectNameById = projectDocs.reduce((acc, project) => {
@@ -60,25 +82,59 @@ const bmToolsReturnedLateController = function () {
   const getToolsReturnedLate = async (req, res) => {
     try {
       const { projectId, startDate, endDate, tools } = req.query;
+      const normalizedProjectId = getSingleQueryValue(projectId);
       const start = parseDate(startDate);
       const end = parseDate(endDate);
+      const toolList = parseTools(tools);
+
+      if (projectId && !normalizedProjectId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid projectId format.',
+        });
+      }
+
+      if (normalizedProjectId && normalizedProjectId !== 'All') {
+        if (!mongoose.Types.ObjectId.isValid(normalizedProjectId)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid projectId value.',
+          });
+        }
+      }
+
+      if (startDate && !start) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid startDate value.',
+        });
+      }
+
+      if (endDate && !end) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid endDate value.',
+        });
+      }
+
+      if (tools && !getSingleQueryValue(tools)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid tools value.',
+        });
+      }
+
       const matchFilter = {};
-      if (projectId && projectId !== 'All') {
-        matchFilter.projectId = new mongoose.Types.ObjectId(projectId);
+      if (normalizedProjectId && normalizedProjectId !== 'All') {
+        matchFilter.projectId = new mongoose.Types.ObjectId(normalizedProjectId);
       }
       if (start || end) {
         matchFilter.date = {};
         if (start) matchFilter.date.$gte = start;
         if (end) matchFilter.date.$lte = end;
       }
-      if (tools) {
-        const toolList = String(tools)
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        if (toolList.length > 0) {
-          matchFilter.toolName = { $in: toolList };
-        }
+      if (toolList.length > 0) {
+        matchFilter.toolName = { $in: toolList };
       }
       const toolData = await ToolReturn.find(matchFilter).lean();
       if (toolData.length === 0) {
