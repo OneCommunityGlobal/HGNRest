@@ -87,11 +87,51 @@ describe('linkedinPostController', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
+  test('rejects untrusted LinkedIn upload URLs before uploading media', async () => {
+    const controller = linkedinPostController();
+    const req = {
+      body: {
+        content: 'Ship it safely',
+      },
+      files: [
+        {
+          buffer: Buffer.from('image-bytes'),
+          mimetype: 'image/png',
+          originalname: 'test.png',
+          size: 11,
+        },
+      ],
+    };
+    const res = makeRes();
+
+    axios.post.mockResolvedValueOnce({
+      data: {
+        value: {
+          uploadMechanism: {
+            'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest': {
+              uploadUrl: 'https://example.com/upload',
+            },
+          },
+          asset: 'urn:li:digitalmediaAsset:123',
+        },
+      },
+    });
+
+    await controller.postToLinkedin(req, res);
+
+    expect(axios.put).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to post to LinkedIn',
+        error: 'Received an invalid LinkedIn upload URL',
+      }),
+    );
+  });
+
   test('schedules, lists, updates, and deletes a scheduled post', async () => {
     const cancel = jest.fn();
-    schedule.scheduleJob
-      .mockReturnValueOnce({ cancel })
-      .mockReturnValueOnce({ cancel: jest.fn() });
+    schedule.scheduleJob.mockReturnValueOnce({ cancel }).mockReturnValueOnce({ cancel: jest.fn() });
 
     const controller = linkedinPostController();
     const createReq = {

@@ -8,6 +8,20 @@ const summarizeMediaFiles = (mediaFiles = []) =>
     size,
   }));
 
+const isTrustedLinkedInUploadUrl = (uploadUrl) => {
+  try {
+    const parsedUrl = new URL(uploadUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    return (
+      parsedUrl.protocol === 'https:' &&
+      (hostname.endsWith('.linkedin.com') || hostname.endsWith('.licdn.com'))
+    );
+  } catch (error) {
+    return false;
+  }
+};
+
 const normalizeMediaFiles = (mediaFiles = []) =>
   mediaFiles.map((file) => ({
     buffer: file.buffer,
@@ -69,6 +83,10 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
         ];
       const { asset } = registerResponse.data.value;
 
+      if (!isTrustedLinkedInUploadUrl(uploadUrl)) {
+        throw new Error('Received an invalid LinkedIn upload URL');
+      }
+
       await axios.put(uploadUrl, file.buffer, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -81,12 +99,10 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
     }),
   );
 
-  const shareMediaCategory =
-    uploadedAssets.length === 0
-      ? 'NONE'
-      : mediaFiles[0].mimetype.includes('video')
-        ? 'VIDEO'
-        : 'IMAGE';
+  let shareMediaCategory = 'NONE';
+  if (uploadedAssets.length > 0) {
+    shareMediaCategory = mediaFiles[0].mimetype.includes('video') ? 'VIDEO' : 'IMAGE';
+  }
 
   const postData = {
     author: organizationUrn,
@@ -119,7 +135,15 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
   return response.data;
 };
 
-const createScheduledJob = (jobId, content, scheduledDateTime, mediaFiles, organizationUrn, accessToken, scheduledJobs) =>
+const createScheduledJob = (
+  jobId,
+  content,
+  scheduledDateTime,
+  mediaFiles,
+  organizationUrn,
+  accessToken,
+  scheduledJobs,
+) =>
   schedule.scheduleJob(scheduledDateTime, async () => {
     try {
       await publishToLinkedIn(content, mediaFiles, organizationUrn, accessToken);
@@ -262,7 +286,9 @@ const linkedinPostController = () => {
     }
 
     const previousJob = scheduledJobs.get(jobId);
-    const { scheduledDateTime, error } = validateScheduleTime(scheduleTime || previousJob.scheduleTime);
+    const { scheduledDateTime, error } = validateScheduleTime(
+      scheduleTime || previousJob.scheduleTime,
+    );
     if (error) {
       return res.status(400).json({
         success: false,
