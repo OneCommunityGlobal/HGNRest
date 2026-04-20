@@ -43,7 +43,6 @@ const routes = () => {
   linkedinRouter.delete('/scheduledPosts/:jobId', controller.deleteScheduledPost);
   linkedinRouter.put('/scheduledPosts/:jobId', upload.array('media'), controller.updateScheduledPost);
 
-
   return linkedinRouter;
 };
 

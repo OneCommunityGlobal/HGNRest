@@ -6,28 +6,28 @@ const tagSchema = new Schema({
   tagId: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
   tagName: {
     type: String,
     required: true,
-    index: true
+    index: true,
   },
   projectId: {
     type: String,
     required: true,
-    index: true
+    index: true,
   },
   createdAt: {
     type: Date,
     required: true,
     default: Date.now,
-    index: true
+    index: true,
   },
   frequency: {
     type: Number,
-    default: 0
-  }
+    default: 0,
+  },
 });
 
 tagSchema.index({ projectId: 1, createdAt: 1 });

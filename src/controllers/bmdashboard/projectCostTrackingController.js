@@ -1,3 +1,4 @@
+/* eslint-disable no-plusplus */
 const projectCostTrackingController = function (ProjectCostTracking) {
   // Simple linear regression class compatible with older Node.js versions
   class SimpleLinearRegression {
@@ -144,6 +145,8 @@ const projectCostTrackingController = function (ProjectCostTracking) {
             const monthlyGrowth = (finalPredictedValue - lastValue) / 3;
 
             // Generate predictions for the next 3 months with perfect linear growth
+            // eslint-disable-next-line no-plusplus
+
             for (let i = 1; i <= 3; i += 1) {
               const predictedDate = new Date(lastDate);
               predictedDate.setMonth(lastDate.getMonth() + i);

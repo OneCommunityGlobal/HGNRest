@@ -1,3 +1,9 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
@@ -165,10 +171,15 @@ const profileInitialSetupController = function (
       session.endSession();
 
       try {
-        await sendEmailWithAcknowledgment(
+        await emailSender(
           email,
           'NEEDED: Complete your One Community profile setup',
           sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
         );
         return res.status(200).send({ sent: true });
       } catch (emailError) {
@@ -617,45 +628,60 @@ const profileInitialSetupController = function (
    * @returns updated result of the setup invitation record.
    */
   const refreshSetupInvitation = async (req, res) => {
-    const { role } = req.body.requestor;
+    const { role } = req.body.requestor || {};
     const { token, baseUrl } = req.body;
 
-    if (role === 'Administrator' || role === 'Owner') {
-      try {
-        ProfileInitialSetupToken.findOneAndUpdate(
-          { token },
-          {
-            expiration: moment().add(3, 'week'),
-            isCancelled: false,
-          },
-        )
-          .then((result) => {
-            const { email } = result;
-            const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
-            sendEmailWithAcknowledgment(
-              email,
-              'Invitation Link Refreshed: Complete Your One Community Profile Setup',
-              sendRefreshedLinkMessage(link),
-            );
-            return res.status(200).send(result);
-          })
-          .catch((err) => {
-            LOGGER.logException(err);
-            res
-              .status(500)
-              .send(
-                'Internal Error: Please retry. If the problem persists, please contact the administrator',
-              );
-          });
-      } catch (error) {
-        return res
-          .status(500)
-          .send(
-            'Internal Error: Please retry. If the problem persists, please contact the administrator',
-          );
-      }
-    } else {
+    if (role !== 'Administrator' && role !== 'Owner') {
       return res.status(403).send('You are not authorized to refresh setup invitation.');
+    }
+
+    try {
+      const result = await ProfileInitialSetupToken.findOneAndUpdate(
+        { token },
+        {
+          expiration: moment().add(3, 'week'),
+          isCancelled: false,
+        },
+        { new: true }, // optional but recommended
+      );
+
+      if (!result) {
+        return res.status(404).send('Setup invitation not found.');
+      }
+
+      const { email } = result;
+      const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+
+      console.log(email);
+      LOGGER.logInfo(email);
+      console.log(link);
+      LOGGER.logInfo(link);
+
+      let emailResult;
+      try {
+        emailResult = await sendEmailWithAcknowledgment(
+          email,
+          'Invitation Link Refreshed: Complete Your One Community Profile Setup',
+          sendRefreshedLinkMessage(link),
+        );
+        LOGGER.logInfo(`Email send result: ${emailResult}`);
+      } catch (err) {
+        LOGGER.logException(err);
+        return res.status(502).send('Invitation refreshed, but email failed to send.');
+      }
+
+      if (emailResult === 'EMAIL_SENDING_DISABLED') {
+        return res.status(503).send('Invitation refreshed, but email sending is disabled.');
+      }
+
+      return res.status(200).send(result);
+    } catch (err) {
+      LOGGER.logException(err);
+      return res
+        .status(500)
+        .send(
+          'Internal Error: Please retry. If the problem persists, please contact the administrator',
+        );
     }
   };
 

@@ -28,7 +28,7 @@ describe('rolePreset routes', () => {
       console.log('Testing 401 unauthorized access...');
 
       try {
-        const responses = await Promise.all([
+        await Promise.all([
           agent.post('/api/rolePreset').send(reqBody).expect(401),
           agent.get('/api/rolePreset/randomRoleName').send(reqBody).expect(401),
           agent.put(`/api/rolePreset/randomId`).send(reqBody).expect(401),
