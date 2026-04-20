@@ -8,20 +8,6 @@ const summarizeMediaFiles = (mediaFiles = []) =>
     size,
   }));
 
-const isTrustedLinkedInUploadUrl = (uploadUrl) => {
-  try {
-    const parsedUrl = new URL(uploadUrl);
-    const hostname = parsedUrl.hostname.toLowerCase();
-
-    return (
-      parsedUrl.protocol === 'https:' &&
-      (hostname.endsWith('.linkedin.com') || hostname.endsWith('.licdn.com'))
-    );
-  } catch (error) {
-    return false;
-  }
-};
-
 const normalizeMediaFiles = (mediaFiles = []) =>
   mediaFiles.map((file) => ({
     buffer: file.buffer,
@@ -82,12 +68,17 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
           'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'
         ];
       const { asset } = registerResponse.data.value;
+      const parsedUploadUrl = new URL(uploadUrl);
+      const uploadHostname = parsedUploadUrl.hostname.toLowerCase();
+      const isTrustedLinkedInUploadHost =
+        parsedUploadUrl.protocol === 'https:' &&
+        (uploadHostname.endsWith('.linkedin.com') || uploadHostname.endsWith('.licdn.com'));
 
-      if (!isTrustedLinkedInUploadUrl(uploadUrl)) {
+      if (!isTrustedLinkedInUploadHost) {
         throw new Error('Received an invalid LinkedIn upload URL');
       }
 
-      await axios.put(uploadUrl, file.buffer, {
+      await axios.put(parsedUploadUrl.toString(), file.buffer, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': file.mimetype,
