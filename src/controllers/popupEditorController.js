@@ -51,6 +51,12 @@ const popupEditorController = function (PopupEditors) {
     const popupId = req.params.id;
 
     PopupEditors.findById(popupId, (error, popup) => {
+      if (error) {
+        return res.status(500).send({ error });
+      }
+      if (!popup) {
+        return res.status(500).send({ error: 'Popup not found' });
+      }
       popup.popupContent = req.body.popupContent;
       popup
         .save()
