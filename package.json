@@ -85,11 +85,7 @@
     "body-parser": "^1.20.4",
     "card-validator": "^10.0.2",
     "cheerio": "^0.22.0",
-<<<<<<< HEAD
     "cloudinary": "^2.9.0",
-=======
-    "cloudinary": "^2.8.0",
->>>>>>> bd2445f1db0ffef75ce0ac67d52cd75765b2ce6b
     "compression": "^1.8.0",
     "cors": "^2.8.4",
     "cron": "^1.8.2",
