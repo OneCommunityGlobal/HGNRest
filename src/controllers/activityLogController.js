@@ -1,6 +1,6 @@
 const ActivityLog = require('../models/activityLog');
 const UserProfile = require('../models/userProfile');
-const { hasPermission } = require('../utils/permissions');
+const { hasPermission } = require('../utilities/permissions');
 
 const activityLogController = function () {
   async function fetchSupportDailyLog(req, res) {
@@ -10,7 +10,7 @@ const activityLogController = function () {
 
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
 
-      if (await hasPermission(requestor, 'fetchSupportDailyLog') {
+      if (!(await hasPermission(requestor, 'fetchSupportDailyLog'))) {
         return res
           .status(403)
           .json({ error: 'Forbidden: Only support role can access this endpoint' });

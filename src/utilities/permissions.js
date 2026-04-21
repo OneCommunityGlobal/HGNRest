@@ -25,10 +25,13 @@ const hasIndividualPermission = async (userId, action) =>
     .then(({ permissions }) => permissions.frontPermissions.includes(action))
     .catch(false);
 
+// req.body -> requestor, 'fetchSupportDailyLog -> action'
 const hasPermission = async (requestor, action) => {
   const defaultRemoved =
     requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
+
   const roleHasPermission = await hasRolePermission(requestor.role, action);
+
   const individualHasPermission =
     requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
 

@@ -46,6 +46,7 @@ const userProfileSchema = new Schema({
   role: {
     type: String,
     required: true,
+    // enum:['student','educator','support']
   },
   permissions: {
     isAcknowledged: { type: Boolean, default: true },

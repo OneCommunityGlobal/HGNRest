@@ -4,7 +4,7 @@ const routes = function () {
   const activityLogRouter = express.Router();
   const controller = require('../controllers/activityLogController')();
 
-  activityLogRouter.route('/support/:studentId').get(controller.fetchSupportDailyLog);
+  activityLogRouter.route('/support/daily-log/:studentId').get(controller.fetchSupportDailyLog);
 
   return activityLogRouter;
 };
