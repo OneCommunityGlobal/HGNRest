@@ -435,15 +435,10 @@ const educationTaskController = function () {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      const allowedStatuses = ['completed', 'graded'];
-
       const query = {};
 
-      if (status && allowedStatuses.includes(status)) {
-        query.status = status;
-      } else {
-        query.status = { $in: allowedStatuses };
-      }
+      const allowedStatuses = ['completed', 'graded'];
+      query.status = status && allowedStatuses.includes(status) ? status : { $in: allowedStatuses };
 
       if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
         query.studentId = new mongoose.Types.ObjectId(studentId);
@@ -454,6 +449,7 @@ const educationTaskController = function () {
       }
 
       const submissions = await EducationTask.find(query)
+        .setOptions({ sanitizeFilter: true })
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
@@ -465,7 +461,8 @@ const educationTaskController = function () {
           }
 
           return {
-            _id: task._id,
+            // _id: task._id,
+            studentId: task.studentId._id,
             studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
             studentEmail: task.studentId.email,
             taskName: task.name || 'Unnamed Task',
