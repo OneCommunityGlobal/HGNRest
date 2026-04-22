@@ -10,6 +10,9 @@ const updateEventStatus = (event) => {
   return event.status;
 };
 
+const VALID_TYPES = ['Workshop', 'Meeting', 'Webinar', 'Social Gathering'];
+const VALID_LOCATIONS = ['Virtual', 'In person', 'TBD'];
+
 const getEvents = async (req, res) => {
   const { page, limit, type = '', location = '', sortBy = 'date' } = req.query;
 
@@ -18,8 +21,8 @@ const getEvents = async (req, res) => {
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
 
     const query = { isActive: true };
-    if (type) query.type = type;
-    if (location) query.location = location;
+    if (type && VALID_TYPES.includes(type)) query.type = type;
+    if (location && VALID_LOCATIONS.includes(location)) query.location = location;
 
     const totalEvents = await Event.countDocuments(query);
     let events = [];
