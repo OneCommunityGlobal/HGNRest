@@ -435,21 +435,25 @@ const educationTaskController = function () {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      const query = {};
-
       const allowedStatuses = ['completed', 'graded'];
-      query.status = status && allowedStatuses.includes(status) ? status : { $in: allowedStatuses };
+
+      let dbQuery = EducationTask.find().setOptions({ sanitizeFilter: true });
+
+      if (status && allowedStatuses.includes(status)) {
+        dbQuery = dbQuery.where('status').equals(status);
+      } else {
+        dbQuery = dbQuery.where('status').in(allowedStatuses);
+      }
 
       if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
-        query.studentId = new mongoose.Types.ObjectId(studentId);
+        dbQuery = dbQuery.where('studentId').equals(new mongoose.Types.ObjectId(studentId));
       }
 
       if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
-        query.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
+        dbQuery = dbQuery.where('lessonPlanId').equals(new mongoose.Types.ObjectId(lessonPlanId));
       }
 
-      const submissions = await EducationTask.find(query)
-        .setOptions({ sanitizeFilter: true })
+      const submissions = await dbQuery
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
