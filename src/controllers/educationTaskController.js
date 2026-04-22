@@ -436,85 +436,34 @@ const educationTaskController = function () {
       const { status, studentId, lessonPlanId } = req.query;
 
       const allowedStatuses = ['completed', 'graded'];
-      const statusIsValid = status && allowedStatuses.includes(status);
-      const studentIdIsValid = studentId && mongoose.Types.ObjectId.isValid(studentId);
-      const lessonPlanIdIsValid = lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId);
 
-      let submissions;
+      const query = {};
 
-      if (studentIdIsValid && lessonPlanIdIsValid && statusIsValid) {
-        submissions = await EducationTask.find({
-          status,
-          studentId: new mongoose.Types.ObjectId(studentId),
-          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (studentIdIsValid && lessonPlanIdIsValid) {
-        submissions = await EducationTask.find({
-          status: { $in: ['completed', 'graded'] },
-          studentId: new mongoose.Types.ObjectId(studentId),
-          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (studentIdIsValid && statusIsValid) {
-        submissions = await EducationTask.find({
-          status,
-          studentId: new mongoose.Types.ObjectId(studentId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (lessonPlanIdIsValid && statusIsValid) {
-        submissions = await EducationTask.find({
-          status,
-          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (studentIdIsValid) {
-        submissions = await EducationTask.find({
-          status: { $in: ['completed', 'graded'] },
-          studentId: new mongoose.Types.ObjectId(studentId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (lessonPlanIdIsValid) {
-        submissions = await EducationTask.find({
-          status: { $in: ['completed', 'graded'] },
-          lessonPlanId: new mongoose.Types.ObjectId(lessonPlanId),
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
-      } else if (statusIsValid) {
-        submissions = await EducationTask.find({
-          status,
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
+      if (status && allowedStatuses.includes(status)) {
+        query.status = status;
       } else {
-        submissions = await EducationTask.find({
-          status: { $in: ['completed', 'graded'] },
-        })
-          .populate('studentId', 'firstName lastName email')
-          .populate('lessonPlanId', 'title')
-          .sort({ completedAt: -1 });
+        query.status = { $in: allowedStatuses };
       }
+
+      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+        query.studentId = new mongoose.Types.ObjectId(studentId);
+      }
+
+      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+        query.lessonPlanId = new mongoose.Types.ObjectId(lessonPlanId);
+      }
+
+      const submissions = await EducationTask.find(query)
+        .populate('studentId', 'firstName lastName email')
+        .populate('lessonPlanId', 'title')
+        .sort({ completedAt: -1 });
 
       const formattedSubmissions = submissions
         .map((task) => {
           if (!task.studentId || !task.lessonPlanId) {
             return null;
           }
-          const lessonId = task.lessonPlanId._id.toString();
-          const lessonTitle = task.lessonPlanId.title || 'Unknown Lesson Plan';
+
           return {
             _id: task._id,
             studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
@@ -530,8 +479,8 @@ const educationTaskController = function () {
             dueAt: task.dueAt,
             grade: task.grade,
             feedback: task.feedback,
-            lessonPlanId: lessonId,
-            lessonPlanTitle: lessonTitle,
+            lessonPlanId: task.lessonPlanId._id.toString(),
+            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
           };
         })
         .filter(Boolean);
