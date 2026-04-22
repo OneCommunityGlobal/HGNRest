@@ -29,7 +29,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
-      'viewTaskExtensionCount',  // to view task extension count
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -239,6 +239,10 @@ const permissionsRoles = [
       'editTeamCode',
       'totalValidWeeklySummaries',
     ],
+  },
+  {
+    roleName: 'Educator',
+    permissions: ['viewStudentReports', 'exportStudentReports'],
   },
 ];
 

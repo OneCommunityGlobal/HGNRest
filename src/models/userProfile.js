@@ -139,6 +139,31 @@ const userProfileSchema = new Schema({
         ],
         default: [],
       },
+      reasons: {
+        type: [String],
+        default: ['other'],
+        enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
+      },
+      // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
+      manullyAssigned: {
+        type: Boolean,
+        default: false,
+      },
+      // Track who manually assigned the blue square
+      manullyAssignedBy: {
+        firstName: { type: String },
+        lastName: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+      },
+      // Track edit history for the blue square
+      editedBy: [
+        {
+          firstName: { type: String },
+          lastName: { type: String },
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+          date: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
   warnings: [
@@ -210,7 +235,7 @@ const userProfileSchema = new Schema({
   // differentiate between paused and separated accounts for better reporting and handling in the future
   inactiveReason: {
     type: String,
-    enum: ['Paused', 'Separated', 'ScheduledSeparation'],
+    enum: ['Paused', 'Separated', 'ScheduledSeparation', null],
     default: undefined,
   },
   resetPwd: { type: String },

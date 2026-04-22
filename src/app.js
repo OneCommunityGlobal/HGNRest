@@ -1,5 +1,6 @@
 const express = require('express');
 const Sentry = require('@sentry/node');
+const testRoutes = require('./routes/testRoutes');
 
 const app = express();
 const logger = require('./startup/logger');
@@ -14,6 +15,8 @@ app.use(Sentry.Handlers.requestHandler());
 require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
+
+app.use('/api/test', testRoutes);
 
 const helpFeedbackRouter = require('./routes/helpFeedbackRouter');
 const helpRequestRouter = require('./routes/helpRequestRouter');

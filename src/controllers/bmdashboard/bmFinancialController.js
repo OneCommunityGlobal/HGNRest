@@ -248,52 +248,55 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
   const getTotalProjectCost = async (req, res) => {
     try {
       const { projectId } = req.params;
-      if (!mongoose.Types.ObjectId.isValid(projectId)) {
-        return res.status(400).json({ message: 'Invalid project ID' });
-      }
-      const project = await BuildingProject.findById(projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
+
+      const project = await validateAndGetProject(projectId);
+
       const materialsCost = await calculateMaterialsCost(project._id);
       const toolsCost = await calculateToolsCost(project._id);
-      const laboorCost = await calculateLaborCost(project._id);
+      const laborCost = await calculateLaborCost(project._id);
 
-      const totalCost = materialsCost + toolsCost + laboorCost;
-      res.status(200).json({
-        totalCost,
-      });
+      const totalCost = materialsCost + toolsCost + laborCost;
+
+      res.status(200).json({ totalCost });
     } catch (error) {
-      logger.logException(`Error fetching project cost: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
+      logger.logException(error.message);
+      res.status(error.status || 500).json({ message: error.message });
     }
   };
 
   const getCostBreakdown = async (req, res) => {
     try {
       const { projectId } = req.params;
-      if (!mongoose.Types.ObjectId.isValid(projectId)) {
-        return res.status(400).json({ message: 'Invalid project ID' });
-      }
-      const project = await BuildingProject.findById(projectId);
-      if (!project) {
-        logger.logException(`Project with ID ${projectId} not found`);
-        return res.status(404).json({ message: 'Project not found' });
-      }
+
+      const project = await validateAndGetProject(projectId);
+
       const materialsCost = await calculateMaterialsCost(project._id);
       const toolsCost = await calculateToolsCost(project._id);
-      const laboorCost = await calculateLaborCost(project._id);
+      const laborCost = await calculateLaborCost(project._id);
 
       res.status(200).json({
         materialsCost,
-        equipmentCost: toolsCost,
-        laborCost: laboorCost,
+        toolsCost,
+        laborCost,
       });
     } catch (error) {
-      logger.logException(`Error fetching project cost breakdown: ${error.message}`);
-      res.status(500).json({ message: 'Internal server error' });
+      logger.logException(error.message);
+      res.status(error.status || 500).json({ message: error.message });
     }
+  };
+
+  const validateAndGetProject = async (projectId) => {
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      throw { status: 400, message: 'Invalid project ID' };
+    }
+
+    const project = await BuildingProject.findById(projectId);
+
+    if (!project) {
+      throw { status: 404, message: 'Project not found' };
+    }
+
+    return project;
   };
 
   return {
