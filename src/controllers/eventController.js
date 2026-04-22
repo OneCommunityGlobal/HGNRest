@@ -11,7 +11,7 @@ const updateEventStatus = (event) => {
 };
 
 const getEvents = async (req, res) => {
-  const { page = 1, limit = 9, type = '', location = '', sortBy = 'date' } = req.query;
+  const { page, limit, type = '', location = '', sortBy = 'date' } = req.query;
 
   try {
     const validSortFields = ['date', 'title', 'type', 'location', 'currentAttendees'];
@@ -21,15 +21,24 @@ const getEvents = async (req, res) => {
     if (type) query.type = type;
     if (location) query.location = location;
 
-    const pageNumber = Math.max(1, Number(page));
-    const limitNumber = Math.max(1, Number(limit));
-
     const totalEvents = await Event.countDocuments(query);
-    let events = await Event.find(query)
-      .populate('resources.userID')
-      .sort({ [sortField]: 1 })
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+    let events = [];
+    let pageNumber = 1;
+    let limitNumber = totalEvents;
+
+    if (page && limit) {
+      pageNumber = Math.max(1, Number(page));
+      limitNumber = Math.max(1, Number(limit));
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort({ [sortField]: 1 })
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber);
+    } else {
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort({ [sortField]: 1 });
+    }
 
     events = events.map((event) => {
       event.status = updateEventStatus(event);
