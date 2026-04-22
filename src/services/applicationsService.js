@@ -8,11 +8,12 @@ async function aggregateByCountry(range, roles) {
     {
       $addFields: {
         _ts: {
-          $cond: [
-            { $eq: [{ $type: '$timestamp' }, 'string'] },
-            { $toDate: '$timestamp' },
-            '$timestamp',
-          ],
+          $let: {
+            vars: { rawTs: { $ifNull: ['$timestamp', '$createdAt'] } },
+            in: {
+              $cond: [{ $eq: [{ $type: '$$rawTs' }, 'string'] }, { $toDate: '$$rawTs' }, '$$rawTs'],
+            },
+          },
         },
       },
     },
@@ -32,11 +33,12 @@ async function getMapAnalytics(range, roles, options = {}) {
     {
       $addFields: {
         _ts: {
-          $cond: [
-            { $eq: [{ $type: '$timestamp' }, 'string'] },
-            { $toDate: '$timestamp' },
-            '$timestamp',
-          ],
+          $let: {
+            vars: { rawTs: { $ifNull: ['$timestamp', '$createdAt'] } },
+            in: {
+              $cond: [{ $eq: [{ $type: '$$rawTs' }, 'string'] }, { $toDate: '$$rawTs' }, '$$rawTs'],
+            },
+          },
         },
       },
     },
@@ -111,11 +113,16 @@ async function getComparisonData(currentRange, previousRange, roles) {
       {
         $addFields: {
           _ts: {
-            $cond: [
-              { $eq: [{ $type: '$timestamp' }, 'string'] },
-              { $toDate: '$timestamp' },
-              '$timestamp',
-            ],
+            $let: {
+              vars: { rawTs: { $ifNull: ['$timestamp', '$createdAt'] } },
+              in: {
+                $cond: [
+                  { $eq: [{ $type: '$$rawTs' }, 'string'] },
+                  { $toDate: '$$rawTs' },
+                  '$$rawTs',
+                ],
+              },
+            },
           },
         },
       },
@@ -133,11 +140,16 @@ async function getComparisonData(currentRange, previousRange, roles) {
       {
         $addFields: {
           _ts: {
-            $cond: [
-              { $eq: [{ $type: '$timestamp' }, 'string'] },
-              { $toDate: '$timestamp' },
-              '$timestamp',
-            ],
+            $let: {
+              vars: { rawTs: { $ifNull: ['$timestamp', '$createdAt'] } },
+              in: {
+                $cond: [
+                  { $eq: [{ $type: '$$rawTs' }, 'string'] },
+                  { $toDate: '$$rawTs' },
+                  '$$rawTs',
+                ],
+              },
+            },
           },
         },
       },
@@ -214,11 +226,12 @@ async function getRoleStatistics(range) {
     {
       $addFields: {
         _ts: {
-          $cond: [
-            { $eq: [{ $type: '$timestamp' }, 'string'] },
-            { $toDate: '$timestamp' },
-            '$timestamp',
-          ],
+          $let: {
+            vars: { rawTs: { $ifNull: ['$timestamp', '$createdAt'] } },
+            in: {
+              $cond: [{ $eq: [{ $type: '$$rawTs' }, 'string'] }, { $toDate: '$$rawTs' }, '$$rawTs'],
+            },
+          },
         },
       },
     },
