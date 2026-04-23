@@ -14,83 +14,101 @@ const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
 
-const getEvents = async (req, res) => {
-  const { page, limit, type, location, sortBy } = req.query;
-  let safeQuery = {};
+function validateQuery({ type, location, sortBy }) {
+  if (type && !VALID_TYPES.has(type)) {
+    throw new Error('Invalid Type of Event.');
+  }
+
+  if (location && !VALID_LOCATIONS.has(location)) {
+    throw new Error('Invalid Location for the Event.');
+  }
+
+  if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
+    throw new Error('Invalid Sort Field.');
+  }
+}
+
+function buildSafeQuery(location, type) {
+  const query = { isActive: true };
+
+  if (location === 'Virtual') {
+    query.location = 'Virtual';
+  } else if (location === 'In person') {
+    query.location = 'In person';
+  } else if (location === 'TBD') {
+    query.location = 'TBD';
+  }
+
+  if (type === 'Workshop') {
+    query.type = 'Workshop';
+  } else if (type === 'Meeting') {
+    query.type = 'Meeting';
+  } else if (type === 'Webinar') {
+    query.type = 'Webinar';
+  } else if (type === 'Social Gathering') {
+    query.type = 'Social Gathering';
+  }
+
+  return query;
+}
+
+function getPagination(page, limit, total) {
+  if (!page || !limit) {
+    return {
+      pageNumber: 1,
+      limitNumber: total,
+      skip: 0,
+    };
+  }
+
+  const pageNumber = Math.max(1, Number(page));
+  const limitNumber = Math.max(1, Number(limit));
+
+  return {
+    pageNumber,
+    limitNumber,
+    skip: (pageNumber - 1) * limitNumber,
+  };
+}
+
+function formatEvent(event, userId) {
+  event.status = updateEventStatus(event);
+
+  const eventObj = event.toObject();
+  const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
+
+  eventObj.waitlistCount = waitlist.length;
+  eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
+
+  if (userId) {
+    const index = waitlist.findIndex((entry) => entry.userId?.toString() === userId.toString());
+
+    eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
+  }
+
+  return eventObj;
+}
+
+const getEvents = async function (req, res) {
   try {
-    if (type && !VALID_TYPES.has(type)) {
-      return res.status(400).send('Invalid Type of Event.');
-    }
+    const { page, limit, type, location, sortBy } = req.query;
 
-    if (location && !VALID_LOCATIONS.has(location)) {
-      return res.status(400).send('Invalid Location for the Event.');
-    }
+    validateQuery({ type, location, sortBy });
 
-    if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
-      return res.status(400).send('Invalid Type of Event.');
-    }
-
-    let hasPagination = false;
-    if (page && limit) {
-      hasPagination = true;
-    }
-
-    safeQuery = { isActive: true };
-    if (type) {
-      safeQuery.type = type;
-    }
-
-    if (location === 'Virtual') {
-      safeQuery.location = 'Virtual';
-    } else if (location === 'In person') {
-      safeQuery.location = 'In person';
-    } else if (location === 'TBD') {
-      safeQuery.location = 'TBD';
-    }
-
+    const safeQuery = buildSafeQuery(location, type);
     const totalEvents = await Event.countDocuments(safeQuery);
-    let events = [];
-    let pageNumber = 1;
-    let limitNumber = totalEvents;
+    const { pageNumber, limitNumber, skip } = getPagination(page, limit, totalEvents);
 
-    if (hasPagination) {
-      pageNumber = Math.max(1, Number(page));
-      limitNumber = Math.max(1, Number(limit));
+    const events = await Event.find(safeQuery)
+      .populate('resources.userID')
+      .sort(sortBy ? { [sortBy]: 1 } : {})
+      .skip(skip)
+      .limit(limitNumber);
 
-      events = await Event.find(safeQuery)
-        .populate('resources.userID')
-        .sort({ [sortBy]: 1 })
-        .skip((pageNumber - 1) * limitNumber)
-        .limit(limitNumber);
-    } else {
-      events = await Event.find(safeQuery)
-        .populate('resources.userID')
-        .sort({ [sortBy]: 1 });
-    }
-
-    events = events.map((event) => {
-      event.status = updateEventStatus(event);
-
-      const eventObj = event.toObject();
-
-      const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
-
-      eventObj.waitlistCount = waitlist.length;
-      eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
-
-      if (safeQuery.userId) {
-        const index = waitlist.findIndex(
-          (entry) => entry.userId?.toString() === safeQuery.userId.toString(),
-        );
-
-        eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
-      }
-
-      return eventObj;
-    });
+    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
 
     res.json({
-      events,
+      events: formattedEvents,
       pagination: {
         total: totalEvents,
         totalPages: Math.ceil(totalEvents / limitNumber),
@@ -99,12 +117,17 @@ const getEvents = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.message.startsWith('Invalid')) {
+      return res.status(400).send(error.message);
+    }
+
     res.status(500).json({
       error: 'Failed to fetch events',
       details: error.message,
     });
   }
 };
+
 const autoPromoteFromWaitlist = (event) => {
   const promotedUsers = [];
 
