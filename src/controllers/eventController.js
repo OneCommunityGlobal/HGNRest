@@ -12,26 +12,40 @@ const updateEventStatus = (event) => {
 
 const VALID_TYPES = ['Workshop', 'Meeting', 'Webinar', 'Social Gathering'];
 const VALID_LOCATIONS = ['Virtual', 'In person', 'TBD'];
+const VALID_SORT_FIELDS = ['date', 'title', 'type', 'location', 'currentAttendees'];
+
+const sanitizeQuery = (query) => ({
+  page: Number.isInteger(Number(query.page)) ? Math.max(1, Number(query.page)) : 1,
+  limit: Number.isInteger(Number(query.limit))
+    ? Math.min(100, Math.max(1, Number(query.limit)))
+    : 10,
+  type: VALID_TYPES.includes(query.type) ? query.type : undefined,
+  location: VALID_LOCATIONS.includes(query.location) ? query.location : undefined,
+  sortBy: VALID_SORT_FIELDS.includes(query.sortBy) ? query.sortBy : 'date',
+  userId: query.userId && mongoose.Types.ObjectId.isValid(query.userId) ? query.userId : undefined,
+});
 
 const getEvents = async (req, res) => {
-  const { page, limit, type = '', location = '', sortBy = 'date' } = req.query;
+  const safeQuery = sanitizeQuery(req.query);
 
   try {
-    const validSortFields = ['date', 'title', 'type', 'location', 'currentAttendees'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const sortField = safeQuery.sortBy;
 
     const query = { isActive: true };
-    if (type && VALID_TYPES.includes(type)) query.type = type;
-    if (location && VALID_LOCATIONS.includes(location)) query.location = location;
+    if (safeQuery.type) query.type = safeQuery.type;
+    if (safeQuery.location) query.location = safeQuery.location;
 
     const totalEvents = await Event.countDocuments(query);
     let events = [];
     let pageNumber = 1;
     let limitNumber = totalEvents;
 
-    if (page && limit) {
-      pageNumber = Math.max(1, Number(page));
-      limitNumber = Math.max(1, Number(limit));
+    const hasPagination = req.query.page !== undefined && req.query.limit !== undefined;
+
+    if (hasPagination) {
+      pageNumber = safeQuery.page;
+      limitNumber = safeQuery.limit;
+
       events = await Event.find(query)
         .populate('resources.userID')
         .sort({ [sortField]: 1 })
@@ -48,15 +62,14 @@ const getEvents = async (req, res) => {
 
       const eventObj = event.toObject();
 
-      eventObj.waitlistCount = event.waitlist?.length || 0;
+      const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
 
+      eventObj.waitlistCount = waitlist.length;
       eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
 
-      const { userId } = req.query;
-
-      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        const index = event.waitlist.findIndex(
-          (entry) => entry.userId?.toString() === userId.toString(),
+      if (safeQuery.userId) {
+        const index = waitlist.findIndex(
+          (entry) => entry.userId?.toString() === safeQuery.userId.toString(),
         );
 
         eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
@@ -75,10 +88,12 @@ const getEvents = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch events', details: error.message });
+    res.status(500).json({
+      error: 'Failed to fetch events',
+      details: error.message,
+    });
   }
 };
-
 const autoPromoteFromWaitlist = (event) => {
   const promotedUsers = [];
 
