@@ -14,6 +14,7 @@ const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
+const Team = require('../models/team');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 // eslint-disable-next-line no-unused-vars
@@ -41,6 +42,64 @@ const reportsController = require('./reportsController')();
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
+const HOURS_TO_ADD_FOR_END_DATE = 7;
+const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
+const MAX_WEEKLY_SUMMARIES = 4;
+
+const getCurrentWeekSummaryTemplate = () => ({
+  dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
+  summary: '',
+});
+
+const normalizeWeeklySummaries = (weeklySummaries) => {
+  const currentWeekDueDate = moment().tz('America/Los_Angeles').endOf('week');
+  const summaries = Array.isArray(weeklySummaries) ? weeklySummaries : [];
+
+  const normalizedSummaries = summaries
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => {
+      const normalizedDueDate = moment(entry.dueDate);
+      const summary = typeof entry.summary === 'string' ? entry.summary : '';
+      const normalizedEntry = {
+        ...entry,
+        summary,
+      };
+
+      if (normalizedDueDate.isValid()) {
+        normalizedEntry.dueDate = normalizedDueDate.toDate();
+      } else {
+        normalizedEntry.dueDate = currentWeekDueDate.toDate();
+      }
+
+      if (entry.uploadDate) {
+        const normalizedUploadDate = moment(entry.uploadDate);
+        if (normalizedUploadDate.isValid()) {
+          normalizedEntry.uploadDate = normalizedUploadDate.toDate();
+        } else {
+          delete normalizedEntry.uploadDate;
+        }
+      }
+
+      return normalizedEntry;
+    })
+    .sort((left, right) => moment(right.dueDate).valueOf() - moment(left.dueDate).valueOf());
+
+  const hasCurrentWeekEntry = normalizedSummaries.some((entry) =>
+    moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+  );
+
+  if (!hasCurrentWeekEntry) {
+    normalizedSummaries.unshift(getCurrentWeekSummaryTemplate());
+  } else {
+    const currentWeekEntryIndex = normalizedSummaries.findIndex((entry) =>
+      moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+    );
+    const [currentWeekEntry] = normalizedSummaries.splice(currentWeekEntryIndex, 1);
+    normalizedSummaries.unshift(currentWeekEntry);
+  }
+
+  return normalizedSummaries.slice(0, MAX_WEEKLY_SUMMARIES);
+};
 const { COMPANY_TZ } = require('../constants/company');
 const {
   InactiveReason,
@@ -175,6 +234,55 @@ const auditIfProtectedAccountUpdated = async ({
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
+// Module-scope helper: validates userId and queries DB safely with ObjectId
+const fetchUserSkillRadarData = async function (userId, section) {
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    return { error: 'Missing or invalid userId parameter', status: 400 };
+  }
+
+  const userObjectId = mongoose.Types.ObjectId(String(userId));
+  const normalizedSection = (section || 'all').toLowerCase();
+  const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
+
+  let response = await HGNFormResponses.findOne(
+    { 'followUp.user_id': userObjectId },
+    projection,
+  ).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ user_id: userObjectId }, projection).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ _id: userObjectId }, projection).lean();
+
+  if (!response) return { error: 'No skill data found for this user', status: 404 };
+
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const toItems = (obj) =>
+    Object.entries(obj || {})
+      .filter(([k]) => !/^overall$/i.test(k))
+      .map(([name, score]) => ({ name, score: toNum(score) }));
+
+  const fe = toItems(response.frontend);
+  const be = toItems(response.backend);
+
+  let skills;
+  if (normalizedSection === 'frontend') skills = fe;
+  else if (normalizedSection === 'backend') skills = be;
+  else skills = [...fe, ...be];
+
+  return {
+    data: {
+      userId: userObjectId.toString(),
+      section: normalizedSection,
+      maxScore: 10,
+      skills,
+    },
+  };
+};
+
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
   const forbidden = function (res, message) {
@@ -232,7 +340,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
-    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummaries = normalizeWeeklySummaries(req.body.weeklySummaries);
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.weeklySummaryOption = req.body.weeklySummaryOption;
     up.mediaUrl = req.body.mediaUrl || '';
@@ -350,7 +458,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     commonFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
     record.lastModifiedDate = Date.now();
@@ -468,7 +579,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     importantFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
 
@@ -477,7 +591,39 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     if (req.body.teams !== undefined) {
-      record.teams = Array.from(new Set(req.body.teams));
+      const updatedTeams = Array.from(new Set(req.body.teams));
+
+      // Find teams that were removed
+      const removedTeams = record.teams.filter(
+        (teamId) => !updatedTeams.includes(teamId.toString()),
+      );
+
+      // Find teams that were added
+      const addedTeams = updatedTeams.filter(
+        (teamId) => !record.teams.map((t) => t.toString()).includes(teamId),
+      );
+
+      // Remove user from Team's members array for each removed team
+      if (removedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: removedTeams } },
+          { $pull: { members: { userId: mongoose.Types.ObjectId(record._id) } } },
+        );
+      }
+
+      // Add user to Team's members array for each added team
+      if (addedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: addedTeams } },
+          {
+            $push: {
+              members: { userId: mongoose.Types.ObjectId(record._id), addDateTime: new Date() },
+            },
+          },
+        );
+      }
+
+      record.teams = updatedTeams;
     }
 
     await updateProjects(req, record);
@@ -2180,7 +2326,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
-      res.status(403).send('You are not authorized to add blue square');
+      res
+        .status(403)
+        .send(
+          'You are not authorized to add blue square. The requestor must resolve to a user with addInfringements permission.',
+        );
       return;
     }
 
@@ -2203,6 +2353,33 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
+      // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
+      let { reasons } = req.body.blueSquare;
+      if (!Array.isArray(reasons)) {
+        reasons = reasons ? [reasons] : ['other'];
+      }
+      let processedReasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ].filter((r) =>
+        [
+          'time not met',
+          'missing summary',
+          'missed video call',
+          'late reporting',
+          'other',
+        ].includes(r),
+      );
+      if (processedReasons.length === 0) {
+        processedReasons = ['other'];
+      }
+
+      // Get requestor info for manually assigned tracking
+      const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+      let requestorProfile = null;
+      if (requestorId) {
+        requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+      }
+
       const newInfringement = {
         ...req.body.blueSquare,
         date: inputDate,
@@ -2217,7 +2394,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
-        // Maintain backward compatibility
+        // Add reasons array for more detailed categorization
+        reasons: processedReasons,
+        // Track if manually assigned (via API call) vs CRON job
+        manullyAssigned: true,
+        manullyAssignedBy: requestorProfile
+          ? {
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
+          : undefined,
+        // Initialize empty edit history
+        editedBy: [],
       };
 
       // find userData in cache
@@ -2276,6 +2465,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     const { userId, blueSquareId } = req.params;
     const { dateStamp, summary, reasons } = req.body;
 
+    // Get requestor info for edit tracking
+    const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+    let requestorProfile = null;
+    if (requestorId) {
+      requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+    }
+
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -2291,6 +2487,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (Array.isArray(reasons)) {
             blueSquare.reasons = reasons;
           }
+          // Track edit history
+          if (!blueSquare.editedBy) {
+            blueSquare.editedBy = [];
+          }
+          blueSquare.editedBy.push({
+            firstName: requestorProfile?.firstName || 'Unknown',
+            lastName: requestorProfile?.lastName || 'Unknown',
+            userId: requestorId,
+            date: new Date(),
+          });
         }
         return blueSquare;
       });
@@ -2582,14 +2788,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID from requestor object added by middleware
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
 
       const userId = req.body.requestor.requestorId;
 
-      // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
@@ -2741,6 +2945,21 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getUserSkillRadarData = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const section = req.query.section || 'all';
+      const result = await fetchUserSkillRadarData(userId, section);
+      if (result.error) {
+        return res.status(result.status).send({ error: result.error });
+      }
+      return res.status(200).json(result.data);
+    } catch (error) {
+      console.error('Error fetching skill data:', error);
+      return res.status(500).send({ error: error.message });
+    }
+  };
+
   return {
     searchUsersByName,
     postUserProfile,
@@ -2779,6 +2998,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    getUserSkillRadarData,
   };
 };
 
