@@ -10,51 +10,62 @@ const updateEventStatus = (event) => {
   return event.status;
 };
 
-const VALID_TYPES = ['Workshop', 'Meeting', 'Webinar', 'Social Gathering'];
-const VALID_LOCATIONS = ['Virtual', 'In person', 'TBD'];
-const VALID_SORT_FIELDS = ['date', 'title', 'type', 'location', 'currentAttendees'];
-
-const sanitizeQuery = (query) => ({
-  page: Number.isInteger(Number(query.page)) ? Math.max(1, Number(query.page)) : 1,
-  limit: Number.isInteger(Number(query.limit))
-    ? Math.min(100, Math.max(1, Number(query.limit)))
-    : 10,
-  type: VALID_TYPES.includes(query.type) ? query.type : undefined,
-  location: VALID_LOCATIONS.includes(query.location) ? query.location : undefined,
-  sortBy: VALID_SORT_FIELDS.includes(query.sortBy) ? query.sortBy : 'date',
-  userId: query.userId && mongoose.Types.ObjectId.isValid(query.userId) ? query.userId : undefined,
-});
+const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
+const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
+const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
 
 const getEvents = async (req, res) => {
-  const safeQuery = sanitizeQuery(req.query);
-
+  const { page, limit, type, location, sortBy } = req.query;
+  let safeQuery = {};
   try {
-    const sortField = safeQuery.sortBy;
+    if (type && !VALID_TYPES.has(type)) {
+      return res.status(400).send('Invalid Type of Event.');
+    }
 
-    const query = { isActive: true };
-    if (safeQuery.type) query.type = safeQuery.type;
-    if (safeQuery.location) query.location = safeQuery.location;
+    if (location && !VALID_LOCATIONS.has(location)) {
+      return res.status(400).send('Invalid Location for the Event.');
+    }
 
-    const totalEvents = await Event.countDocuments(query);
+    if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
+      return res.status(400).send('Invalid Type of Event.');
+    }
+
+    let hasPagination = false;
+    if (page && limit) {
+      hasPagination = true;
+    }
+
+    safeQuery = { isActive: true };
+    if (type) {
+      safeQuery.type = type;
+    }
+
+    if (location === 'Virtual') {
+      safeQuery.location = 'Virtual';
+    } else if (location === 'In person') {
+      safeQuery.location = 'In person';
+    } else if (location === 'TBD') {
+      safeQuery.location = 'TBD';
+    }
+
+    const totalEvents = await Event.countDocuments(safeQuery);
     let events = [];
     let pageNumber = 1;
     let limitNumber = totalEvents;
 
-    const hasPagination = req.query.page !== undefined && req.query.limit !== undefined;
-
     if (hasPagination) {
-      pageNumber = safeQuery.page;
-      limitNumber = safeQuery.limit;
+      pageNumber = Math.max(1, Number(page));
+      limitNumber = Math.max(1, Number(limit));
 
-      events = await Event.find(query)
+      events = await Event.find(safeQuery)
         .populate('resources.userID')
-        .sort({ [sortField]: 1 })
+        .sort({ [sortBy]: 1 })
         .skip((pageNumber - 1) * limitNumber)
         .limit(limitNumber);
     } else {
-      events = await Event.find(query)
+      events = await Event.find(safeQuery)
         .populate('resources.userID')
-        .sort({ [sortField]: 1 });
+        .sort({ [sortBy]: 1 });
     }
 
     events = events.map((event) => {
