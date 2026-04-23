@@ -84,9 +84,9 @@ describe('bmToolsReturnedLateController', () => {
       lean: jest.fn().mockResolvedValue(records),
     });
     mockProjectFind.mockReturnValue({
-      lean: jest.fn().mockResolvedValue([
-        { _id: { toString: () => validProjectId }, projectName: 'Alpha' },
-      ]),
+      lean: jest
+        .fn()
+        .mockResolvedValue([{ _id: { toString: () => validProjectId }, projectName: 'Alpha' }]),
     });
 
     req.query = {

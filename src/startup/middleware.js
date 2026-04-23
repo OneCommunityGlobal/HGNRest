@@ -89,6 +89,30 @@ module.exports = function (app) {
       return;
     }
 
+    // Public map analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/map-analytics') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public country analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/analytics/country-applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public roles endpoint (no auth required for GET requests)
+    if (req.originalUrl === '/api/analytics/roles' && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public applications analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
     // Skip auth check for PayPal webhook route
 
     if (openPaths.includes(req.path)) {

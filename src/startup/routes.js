@@ -57,6 +57,8 @@ const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
+const mapAnalyticsRouter = require('../routes/mapAnalyticsRouter');
+const countryAnalyticsRouter = require('../routes/countryAnalyticsRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
@@ -489,7 +491,8 @@ module.exports = function (app) {
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
-
+  app.use('/api/map-analytics', mapAnalyticsRouter);
+  app.use('/api/analytics', countryAnalyticsRouter);
   app.use('/job-analytics', jobAnalyticsRouter);
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);

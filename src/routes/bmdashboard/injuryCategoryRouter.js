@@ -8,7 +8,6 @@ const {
   getUniqueInjuryTypes,
   getProjectsWithInjuries,
 } = require('../../controllers/bmdashboard/injuryCategoryController');
-
 const { getInjuryOverTime } = require('../../controllers/bmdashboard/injuryOverTimeController');
 
 router.get('/category-breakdown', getCategoryBreakdown);
