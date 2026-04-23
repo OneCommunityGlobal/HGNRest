@@ -353,6 +353,7 @@ const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes')
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 const bidsRouter = require('../routes/lbdashboard/bidsRouter');
@@ -387,10 +388,16 @@ const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSu
 const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
-
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
-
 const activityLogRouter = require('../routes/activityLogRouter')();
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter')
+
+
+
+const actualCostRouter =require('../routes/actualCostRouter')
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')
+
+
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -598,7 +605,9 @@ module.exports = function (app) {
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
-  app.use('/api/kitchenandinventory/garden', gardenRouter);
+
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
@@ -606,6 +615,7 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
-
-  app.use('/api/kitchenandinventory/recipes', recipeRouter);
+  
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
