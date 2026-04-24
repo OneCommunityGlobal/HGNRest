@@ -21,7 +21,7 @@ const validateAssignAtomsRequest = (req, res) => {
   const { requestor } = req.body;
   const { studentId, atomType, atomTypes } = req.body;
 
-  if (!requestor || !requestor.requestorId) {
+  if (!requestor?.requestorId) {
     res.status(401).json({ error: 'Authentication required' });
     return null;
   }
@@ -192,7 +192,7 @@ const educatorController = function () {
     try {
       const { requestor, studentId, evaluations, message } = req.body;
 
-      if (!requestor || !requestor.requestorId) {
+      if (!requestor?.requestorId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
@@ -237,6 +237,10 @@ const educatorController = function () {
       });
     } catch (error) {
       if (error.message === 'Invalid student ID provided.') {
+        return res.status(400).json({ error: error.message });
+      }
+
+      if (error.message === 'Invalid teacher ID provided.') {
         return res.status(400).json({ error: error.message });
       }
 

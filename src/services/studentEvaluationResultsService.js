@@ -5,6 +5,13 @@ const StudentEvaluation = require('../models/studentEvaluation');
 const EvaluationTask = require('../models/evaluationTask');
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const toObjectId = (id, errorMessage = 'Invalid student ID provided.') => {
+  if (!isValidObjectId(id)) {
+    throw new Error(errorMessage);
+  }
+
+  return new mongoose.Types.ObjectId(id);
+};
 const EXCELLENT_THRESHOLD = 85;
 const PROFICIENT_THRESHOLD = 70;
 const DEVELOPING_THRESHOLD = 50;
@@ -122,15 +129,13 @@ function summarizeCategoryTasks(tasks) {
 }
 
 async function getValidatedStudent(studentId) {
-  if (!isValidObjectId(studentId)) {
-    throw new Error('Invalid student ID provided.');
-  }
+  const studentObjectId = toObjectId(studentId);
 
-  const student = await UserProfile.findById(studentId)
+  const student = await UserProfile.findById(studentObjectId)
     .select('firstName lastName role educationProfiles.student.lastEvaluationResultsViewedAt')
     .lean();
 
-  if (!student || !student.educationProfiles || !student.educationProfiles.student) {
+  if (!student?.educationProfiles?.student) {
     throw new Error('Student profile not found.');
   }
 
@@ -139,8 +144,9 @@ async function getValidatedStudent(studentId) {
 
 async function getStudentEvaluationResults(studentId) {
   await getValidatedStudent(studentId);
+  const studentObjectId = toObjectId(studentId);
 
-  const evaluations = await StudentEvaluation.find({ studentId })
+  const evaluations = await StudentEvaluation.find({ studentId: studentObjectId })
     .sort({ updatedAt: -1, category: 1 })
     .lean();
 
@@ -237,10 +243,11 @@ async function getStudentEvaluationResults(studentId) {
 
 async function getEvaluationResultNotifications(studentId) {
   const student = await getValidatedStudent(studentId);
+  const studentObjectId = toObjectId(studentId);
   const lastViewedAt = student.educationProfiles.student.lastEvaluationResultsViewedAt || null;
 
   const notifications = await Notification.find({
-    recipient: studentId,
+    recipient: studentObjectId,
     type: 'evaluation_results',
   })
     .sort({ createdTimeStamps: -1 })
@@ -261,8 +268,9 @@ async function getEvaluationResultNotifications(studentId) {
 }
 
 async function markEvaluationResultsViewed(studentId, viewedAt = new Date()) {
+  const studentObjectId = toObjectId(studentId);
   const updatedStudent = await UserProfile.findByIdAndUpdate(
-    studentId,
+    studentObjectId,
     {
       $set: {
         'educationProfiles.student.lastEvaluationResultsViewedAt': viewedAt,
@@ -275,7 +283,7 @@ async function markEvaluationResultsViewed(studentId, viewedAt = new Date()) {
 
   await Notification.updateMany(
     {
-      recipient: studentId,
+      recipient: studentObjectId,
       type: 'evaluation_results',
       isRead: false,
     },
@@ -294,12 +302,14 @@ async function publishStudentEvaluationResults({
   message = 'New evaluation results are available.',
 }) {
   await getValidatedStudent(studentId);
+  const studentObjectId = toObjectId(studentId);
+  const teacherObjectId = toObjectId(teacherId, 'Invalid teacher ID provided.');
 
   const persistedEvaluations = await Promise.all(
     evaluations.map(async (evaluation) => {
       const persistedEvaluation = await StudentEvaluation.findOneAndUpdate(
         {
-          studentId,
+          studentId: studentObjectId,
           category: evaluation.category,
         },
         {
@@ -311,7 +321,7 @@ async function publishStudentEvaluationResults({
             percentage: normalizePercentage(evaluation.percentage),
             performanceLevel: evaluation.performanceLevel,
             feedback: evaluation.feedback,
-            publishedBy: teacherId,
+            publishedBy: teacherObjectId,
           },
         },
         {
@@ -347,8 +357,8 @@ async function publishStudentEvaluationResults({
 
   await Notification.create({
     message,
-    sender: teacherId,
-    recipient: studentId,
+    sender: teacherObjectId,
+    recipient: studentObjectId,
     type: 'evaluation_results',
     metadata: {
       categories: persistedEvaluations.map((evaluation) => evaluation.category),
@@ -356,7 +366,7 @@ async function publishStudentEvaluationResults({
     isSystemGenerated: false,
   });
 
-  await UserProfile.findByIdAndUpdate(studentId, {
+  await UserProfile.findByIdAndUpdate(studentObjectId, {
     $set: {
       'educationProfiles.student.lastEvaluationResultsViewedAt': null,
     },
