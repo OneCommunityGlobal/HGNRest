@@ -404,6 +404,9 @@ const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
 
+// Education Portal
+const educatorRoutes = require('../routes/educatorRoutes');
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -594,6 +597,9 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  // Education Portal
+  app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
