@@ -95,9 +95,7 @@ const currentWarningsController = function (currentWarnings) {
 
   const editWarningDescription = async (req, res) => {
     if (
-      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) ||
-      !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) ||
-      !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker')) ||
+      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker'))
     ) {
       res.status(403).send('You are not authorized to edit a WarningTracker.');
@@ -141,9 +139,7 @@ const currentWarningsController = function (currentWarnings) {
 
   const reorderWarningDescriptions = async (req, res) => {
     if (
-      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) ||
-      !(await helper.hasPermission(req.body.requestor, 'reactivateWarningTracker')) ||
-      !(await helper.hasPermission(req.body.requestor, 'deactivateWarningTracker')) ||
+      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker'))
     ) {
       res.status(403).send('You are not authorized to edit the order of the WarningTrackers.');

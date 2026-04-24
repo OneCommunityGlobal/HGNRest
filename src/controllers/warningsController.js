@@ -300,20 +300,19 @@ const updateAllWarnings = async (userId) => {
       return { msg: 'No user records retrieved from database' };
     }
 
-    const updated = await Promise.all(
+    await Promise.all(
       users.map(async (user) => {
         const updatedUserWarnings = await checkIfWarningDescriptionMatchesWarningTrackerTitle(
           user.warnings,
         );
         const userWarnings = await updateWarningsMissingTrackerId(updatedUserWarnings);
-        const updatedUser = await userProfile.findByIdAndUpdate(
+        await userProfile.findByIdAndUpdate(
           user._id,
           { $set: { warnings: userWarnings } },
           { new: true },
         );
         if (userId === user._id.toString()) {
-          userWarningList = userWarnings; // maybe use updatedUser.warnings for a test
-          console.log('user updated warnings: ', updatedUser.warnings);
+          userWarningList = userWarnings;
         }
       }),
     );
