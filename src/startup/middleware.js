@@ -1,16 +1,16 @@
+/* eslint-disable complexity */
+/* eslint-disable no-magic-numbers */
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const express = require('express');
 const config = require('../config');
-
 const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
-
 const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
 
 const { webhookTest } = webhookController(Bids);
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');
-  console.log('Paypal-Auth-Algo:', authHeader);
   if (!authHeader) {
     return res.status(501).json({ error: 'Missing PayPal-Auth-Algo header' });
   }
@@ -28,7 +28,15 @@ function socketMiddleware(socket, next) {
 }
 */
 module.exports = function (app) {
+  // Increase request size limit for image uploads
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
   app.all('*', (req, res, next) => {
+    // 🔹 Allow unauthenticated access for Mastodon test APIs
+    if (req.originalUrl.startsWith('/api/mastodon')) {
+      return next();
+    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
@@ -70,13 +78,37 @@ module.exports = function (app) {
       next();
       return;
     }
-    
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
-       req.originalUrl === '/api/applicant-analytics/track-application') &&
+        req.originalUrl === '/api/applicant-analytics/track-application') &&
       req.method === 'POST'
     ) {
+      next();
+      return;
+    }
+
+    // Public map analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/map-analytics') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public country analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/analytics/country-applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public roles endpoint (no auth required for GET requests)
+    if (req.originalUrl === '/api/analytics/roles' && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public applications analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/applications') && req.method === 'GET') {
       next();
       return;
     }

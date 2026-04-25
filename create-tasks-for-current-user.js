@@ -18,7 +18,8 @@ async function createTasksForCurrentUser() {
 
     console.log('✅ Connected to MongoDB');
 
-    const currentUserId = '68645a7c48658d005501e2f9';
+    // add your user id here to create tasks for that user
+    const currentUserId = '';
 
     // Get existing data
     const subjects = await Subject.find({});
@@ -26,9 +27,16 @@ async function createTasksForCurrentUser() {
     const lessonPlans = await LessonPlan.find({});
     const students = await UserProfile.find({});
 
-    console.log(`Found: ${subjects.length} subjects, ${atoms.length} atoms, ${lessonPlans.length} lesson plans, ${students.length} students`);
+    console.log(
+      `Found: ${subjects.length} subjects, ${atoms.length} atoms, ${lessonPlans.length} lesson plans, ${students.length} students`,
+    );
 
-    if (subjects.length === 0 || atoms.length === 0 || lessonPlans.length === 0 || students.length === 0) {
+    if (
+      subjects.length === 0 ||
+      atoms.length === 0 ||
+      lessonPlans.length === 0 ||
+      students.length === 0
+    ) {
       console.log('❌ Missing data. Need subjects, atoms, lesson plans, and students!');
       return;
     }
@@ -37,7 +45,7 @@ async function createTasksForCurrentUser() {
     await EducationTask.deleteMany({ studentId: currentUserId });
 
     // Filter atoms to only use those with proper fields (subjectId and difficulty)
-    const validAtoms = atoms.filter(atom => atom.subjectId && atom.difficulty);
+    const validAtoms = atoms.filter((atom) => atom.subjectId && atom.difficulty);
     console.log(`Found ${validAtoms.length} atoms with proper fields (subjectId and difficulty)`);
 
     if (validAtoms.length === 0) {
@@ -59,7 +67,7 @@ async function createTasksForCurrentUser() {
         grade: 'pending',
         feedback: null,
         suggestedTotalHours: 2,
-        loggedHours: 0.5
+        loggedHours: 0.5,
       },
       {
         lessonPlanId: lessonPlans[1] ? lessonPlans[1]._id : lessonPlans[0]._id,
@@ -74,7 +82,7 @@ async function createTasksForCurrentUser() {
         grade: 'A',
         feedback: 'Excellent work! Great understanding of the concepts.',
         suggestedTotalHours: 3,
-        loggedHours: 3
+        loggedHours: 3,
       },
       {
         lessonPlanId: lessonPlans[2] ? lessonPlans[2]._id : lessonPlans[0]._id,
@@ -88,7 +96,7 @@ async function createTasksForCurrentUser() {
         grade: 'pending',
         feedback: null,
         suggestedTotalHours: 4,
-        loggedHours: 4
+        loggedHours: 4,
       },
       {
         lessonPlanId: lessonPlans[0]._id,
@@ -103,7 +111,7 @@ async function createTasksForCurrentUser() {
         grade: 'B',
         feedback: 'Good effort, but review the algebraic concepts.',
         suggestedTotalHours: 1,
-        loggedHours: 1
+        loggedHours: 1,
       },
       {
         lessonPlanId: lessonPlans[1] ? lessonPlans[1]._id : lessonPlans[0]._id,
@@ -117,18 +125,19 @@ async function createTasksForCurrentUser() {
         grade: 'pending',
         feedback: null,
         suggestedTotalHours: 8,
-        loggedHours: 0
-      }
+        loggedHours: 0,
+      },
     ]);
 
     console.log(`✅ Created ${educationTasks.length} education tasks for current user`);
     console.log('🎯 Now try the API again!');
-    
+
     // Log the created tasks for verification
     educationTasks.forEach((task, index) => {
-      console.log(`Task ${index + 1}: ${task.type} - ${task.status} - Due: ${task.dueAt.toDateString()}`);
+      console.log(
+        `Task ${index + 1}: ${task.type} - ${task.status} - Due: ${task.dueAt.toDateString()}`,
+      );
     });
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

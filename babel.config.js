@@ -10,7 +10,14 @@ module.exports = {
         useESModules: false,
       },
     ],
+    ['@babel/plugin-transform-logical-assignment-operators'], // <-- needed for ||= and ??=
     ['module-resolver', { root: './src' }],
   ],
-  ignore: ['**/*.test.js', '**/*.spec.js', 'src/test/**'],
+  ignore: [
+    '**/*.test.js',
+    '**/*.spec.js',
+    'src/test/**',
+    'node_modules/puppeteer',
+    'node_modules/puppeteer-core',
+  ],
 };

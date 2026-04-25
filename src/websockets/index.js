@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable operator-linebreak */
 /* eslint-disable consistent-return */
@@ -10,14 +11,12 @@ const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const logger = require('../startup/logger');
-
 const {
   insertNewUser,
   removeConnection,
   broadcastToSameUser,
   hasOtherConn,
 } = require('./TimerService/connectionsHandler');
-
 const { getClient, handleMessage, action } = require('./TimerService/clientsHandler');
 
 /**
@@ -97,8 +96,15 @@ export default () => {
         ws.send(JSON.stringify({ heartbeat: 'pong' }));
         return;
       }
-      const resp = await handleMessage(msg, clients, msg.userId ?? userId);
-      broadcastToSameUser(connections, userId, resp);
+      const result = await handleMessage(msg, clients, msg.userId ?? userId);
+      broadcastToSameUser(connections, userId, result.timerResponse);
+      if (result.timelogEvent) {
+        const timelogEventMessage = JSON.stringify({
+          type: 'TIMELOG_EVENT',
+          data: result.timelogEvent,
+        });
+        broadcastToSameUser(connections, userId, timelogEventMessage);
+      }
     });
 
     /**
@@ -152,6 +158,7 @@ export default () => {
             try {
               if (client?.started && !client?.paused) {
                 logger.logInfo(`[WS] Sending weekly pause to user ${userId} (weekly)`);
+                // eslint-disable-next-line no-await-in-loop
                 await handleMessage({ action: action.WEEK_CLOSE_PAUSE }, clients, userId);
                 broadcastToSameUser(
                   connections,
