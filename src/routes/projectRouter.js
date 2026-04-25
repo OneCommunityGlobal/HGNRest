@@ -8,7 +8,6 @@ const routes = function (project) {
 
   projectRouter.route('/archivedProjects').get(controller.getArchivedProjects);
   projectRouter
-
     .route('/project/:projectId')
     .get(controller.getProjectById)
     .post(controller.putProject)

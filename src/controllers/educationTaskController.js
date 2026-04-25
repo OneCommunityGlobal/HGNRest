@@ -483,9 +483,9 @@ const educationTaskController = function () {
     deleteTask,
     updateTaskStatus,
     gradeTask,
-    markTaskAsComplete,
     getTasksByStatus,
     getTaskSubmissions,
+    markTaskAsComplete,
   };
 };
 
