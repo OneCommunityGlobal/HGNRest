@@ -190,7 +190,6 @@ const checkIfWarningDescriptionMatchesWarningTrackerTitle = (warnings) => {
     warnings = warnings.map((warning) => {
       // If warning has a warningId but description of warning does not match tracker's title, then the warning description is updated
       if (_id.toString() === warning?.warningId && warningTitle !== warning?.description) {
-        // does work
         return { ...warning, description: warningTitle };
       }
       return warning;
