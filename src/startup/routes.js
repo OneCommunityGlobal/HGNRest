@@ -351,9 +351,9 @@ const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(pro
 
 const tagRouter = require('../routes/tagRouter')(tag);
 const educationTaskRouter = require('../routes/educationTaskRouter');
-const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
+const educatorRouter = require('../routes/educatorRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
@@ -623,5 +623,7 @@ module.exports = function (app) {
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
+  // education portal
+  app.use('/api/educator', educatorRouter);
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
