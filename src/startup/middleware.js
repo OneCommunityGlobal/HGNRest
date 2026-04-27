@@ -7,7 +7,7 @@ const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're ge
 
 const { webhookTest } = webhookController(Bids);
 
-const {jwtVerificationLogic} = require('../utilities/jwtVerificationLogic');
+const jwtVerificationLogic = require('../utilities/jwtVerificationLogic');
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');

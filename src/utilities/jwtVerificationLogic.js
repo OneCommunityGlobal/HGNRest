@@ -1,34 +1,37 @@
-const jwt = require('jsonwebtoken');
-const config = require('../config');
 const moment = require('moment');
+const jwt = require('jsonwebtoken');
+const config = require('../config'); 
 
-export const jwtVerificationLogic = (authHeader,res)=>{
-    // 1. Check Header exists
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Unauthorized request: No header' });
-    }
+const jwtVerificationLogic = (authHeader) => {
+  // 1. Check Header exists
+  if (!authHeader) {
+    throw new Error('No header');
+  }
 
-    // 2. Extract Token from header
-    let authToken = authHeader;
-    if (authHeader.startsWith('Bearer ')) {
-      authToken = authHeader.split(' ')[1];
-    } else {
-      return res.status(401).json({ error: 'Invalid token format. Expected Bearer <token>' });
-    }
+  // 2. Extract Token
+  let authToken = authHeader;
+  if (authHeader.startsWith('Bearer ')) {
+    // FIX: Array destructuring (Satisfies prefer-destructuring)
+    [, authToken] = authHeader.split(' ');
+  } else {
+    throw new Error('Invalid token format');
+  }
 
-    // 3. TOKEN VERIFICATION
-    let payload;
-    try {
-      payload = jwt.verify(authToken, config.JWT_SECRET);
-    } catch (error) {
-      return res.status(401).json({ error: 'Invalid token', details: error.message });
-    }
+  // 3. Verify Token
+  // jwt.verify throws an error automatically if secret is wrong or token is forged
+  const payload = jwt.verify(authToken, config.JWT_SECRET);
 
-    // 4. PAYLOAD VALIDATION
-    const isExpired = moment().isAfter(payload.expiryTimestamp);
-    if (!payload || !payload.userid || !payload.role || isExpired) {
-      console.log("Auth failed for payload:", payload ? "Valid format" : "Null");
-      return res.status(401).send('Unauthorized request: Token expired or invalid payload');
-    }
-    return payload;
-}
+  // 4. Validate Payload & Expiry
+  const isExpired = moment().isAfter(payload.expiryTimestamp);
+  if (!payload.userid || !payload.role || isExpired) {
+    // FIX: eslint-disable (Satisfies no-console)
+    // eslint-disable-next-line no-console
+    console.log('Auth failed: Invalid payload or expired');
+    throw new Error('Token expired or invalid payload');
+  }
+
+  return payload; 
+};
+
+// Satisfies import/prefer-default-export if your linter allows module.exports
+module.exports = jwtVerificationLogic;
