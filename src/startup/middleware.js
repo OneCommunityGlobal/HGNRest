@@ -126,9 +126,14 @@ module.exports = function (app) {
     
     //  HEADER EXTRACTION
     const authHeader = req.header('Authorization');
-    const payload = jwtVerificationLogic(authHeader,res);
+    const payload = jwtVerificationLogic(authHeader, res);
+
+    // FIX: If payload is a response object (meaning logic already sent a 401), STOP HERE.
+    // In Express, if res.headersSent is true, a response was already sent to the client.
+    if (res.headersSent) return;
 
     //  ATTACH DATA & CONTINUE
+    // Now we know payload is the valid decoded token
     const requestor = {
       requestorId: payload.userid,
       role: payload.role,
@@ -141,8 +146,6 @@ module.exports = function (app) {
       req.body.requestor = requestor;
     }
 
-    //console.log(`Auth Success: ${payload.userid} accessing ${req.originalUrl}`);
-    
     return next();
   });
 

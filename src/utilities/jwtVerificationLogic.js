@@ -1,37 +1,34 @@
 const moment = require('moment');
+const config = require('../config');
 const jwt = require('jsonwebtoken');
-const config = require('../config'); 
 
-const jwtVerificationLogic = (authHeader) => {
-  // 1. Check Header exists
+const jwtVerificationLogic = (authHeader, res) => {
   if (!authHeader) {
-    throw new Error('No header');
+    return res.status(401).json({ error: 'Unauthorized request: No header' });
   }
 
-  // 2. Extract Token
   let authToken = authHeader;
+  // If it has Bearer, strip it. If not, use it as is.
   if (authHeader.startsWith('Bearer ')) {
-    // FIX: Array destructuring (Satisfies prefer-destructuring)
     [, authToken] = authHeader.split(' ');
-  } else {
-    throw new Error('Invalid token format');
+  } 
+
+  let payload;
+  try {
+    payload = jwt.verify(authToken, config.JWT_SECRET);
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token', details: error.message });
   }
 
-  // 3. Verify Token
-  // jwt.verify throws an error automatically if secret is wrong or token is forged
-  const payload = jwt.verify(authToken, config.JWT_SECRET);
-
-  // 4. Validate Payload & Expiry
+  // Ensure mock date in test is not in the past
   const isExpired = moment().isAfter(payload.expiryTimestamp);
   if (!payload.userid || !payload.role || isExpired) {
-    // FIX: eslint-disable (Satisfies no-console)
     // eslint-disable-next-line no-console
-    console.log('Auth failed: Invalid payload or expired');
-    throw new Error('Token expired or invalid payload');
+    console.log('Auth failed. Expiry:', payload.expiryTimestamp);
+    return res.status(401).send('Unauthorized request: Token expired or invalid payload');
   }
 
-  return payload; 
+  return payload;
 };
 
-// Satisfies import/prefer-default-export if your linter allows module.exports
 module.exports = jwtVerificationLogic;
