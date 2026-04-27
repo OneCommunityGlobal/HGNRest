@@ -182,7 +182,6 @@ const bmConsumableController = function (BuildingConsumable) {
         res.status(200).send(results);
       })
       .catch((error) => {
-        console.log('error: ', error);
         res.status(500).send({ message: error });
       });
   };

@@ -15,6 +15,7 @@ app.use(Sentry.Handlers.requestHandler());
 require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
+require('./startup/session')(app); // Add session before middleware and routes
 
 app.use('/api/test', testRoutes);
 
