@@ -10,6 +10,8 @@ module.exports = function (app) {
     'http://127.0.0.1:3001',
     'http://127.0.0.1:4173',
     'http://127.0.0.1:5173',
+    'https://dev.highestgood.com',
+    'https://highestgoodnetwork.netlify.app',
   ]);
 
   app.use(
