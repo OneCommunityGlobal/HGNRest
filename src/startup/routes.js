@@ -57,6 +57,8 @@ const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
+const mapAnalyticsRouter = require('../routes/mapAnalyticsRouter');
+const countryAnalyticsRouter = require('../routes/countryAnalyticsRouter');
 const weeklySummaryAIPrompt = require('../models/weeklySummaryAIPrompt');
 
 const weeklySummaryEmailAssignment = require('../models/WeeklySummaryEmailAssignment');
@@ -227,6 +229,12 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
+  invTypeBase,
+  materialType,
+  consumableType,
+  reusableType,
+  toolType,
+  equipmentType,
   invTypeHistory,
 );
 
@@ -362,6 +370,7 @@ const webhookRouter = require('../routes/lbdashboard/webhookRouter');
 const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
+const blueskyRouter = require('../routes/blueskyRouter');
 
 const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const applicationRoutes = require('../routes/applications');
@@ -398,6 +407,9 @@ const actualCostRouter =require('../routes/actualCostRouter')
 const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')
 
 
+
+// Education Portal
+const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -464,6 +476,7 @@ module.exports = function (app) {
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/bluesky', blueskyRouter);
 
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
@@ -486,7 +499,8 @@ module.exports = function (app) {
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
-
+  app.use('/api/map-analytics', mapAnalyticsRouter);
+  app.use('/api/analytics', countryAnalyticsRouter);
   app.use('/job-analytics', jobAnalyticsRouter);
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);

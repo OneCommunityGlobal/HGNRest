@@ -36,9 +36,7 @@ const lbUserPrefController = function (UserPreferences, Notification) {
     try {
       const { userId, selectedUserId } = req.body;
       const normalizedUserId = normalizeObjectId(userId);
-      const normalizedSelectedUserId = selectedUserId
-        ? normalizeObjectId(selectedUserId)
-        : null;
+      const normalizedSelectedUserId = selectedUserId ? normalizeObjectId(selectedUserId) : null;
 
       if (!normalizedUserId) {
         return res.status(400).json({ message: 'A valid user ID is required.' });
@@ -77,9 +75,7 @@ const lbUserPrefController = function (UserPreferences, Notification) {
     try {
       const { userId, selectedUserId, notifyInApp, notifyEmail, notifySms, smsPhone } = req.body;
       const normalizedUserId = normalizeObjectId(userId);
-      const normalizedSelectedUserId = selectedUserId
-        ? normalizeObjectId(selectedUserId)
-        : null;
+      const normalizedSelectedUserId = selectedUserId ? normalizeObjectId(selectedUserId) : null;
 
       if (!normalizedUserId) {
         return res.status(400).json({ message: 'A valid user ID is required.' });
