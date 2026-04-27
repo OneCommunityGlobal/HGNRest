@@ -398,7 +398,7 @@ const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
-const activityLogRouter = require('../routes/activityLogRouter')();
+const activityLogRouter = require('../routes/activityLogRouter');
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter')
 
 
@@ -411,8 +411,10 @@ const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventor
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
+  app.use('/api/support/daily-log',activityLogRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -607,15 +609,12 @@ module.exports = function (app) {
 
   app.use('/api/educator/reports', studentReportRouter());
   // education portal
-  app.use('/api/', activityLogRouter);
-  
+
   app.use('/api/education', badgeSystemRouter);
-
   app.use('/api/lp', lessonPlanSubmissionRouter);
-
   app.use('/api/education', browsableLessonPlanRouter);
-
   app.use('/api/educator/reports', downloadReportRouter);
+
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);

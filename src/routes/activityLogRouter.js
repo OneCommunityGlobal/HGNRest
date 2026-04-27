@@ -1,12 +1,11 @@
 const express = require('express');
+const activityLogRouter = express.Router();
+// Invoke the controller factory
+const controller = require('../controllers/activityLogController')();
 
-const routes = function () {
-  const activityLogRouter = express.Router();
-  const controller = require('../controllers/activityLogController')();
+activityLogRouter
+  .route('/:studentId')
+  .get(controller.fetchSupportDailyLog);
 
-  activityLogRouter.route('/support/daily-log/:studentId').get(controller.fetchSupportDailyLog);
-
-  return activityLogRouter;
-};
-
-module.exports = routes;
+// Export the INSTANCE
+module.exports = activityLogRouter;
