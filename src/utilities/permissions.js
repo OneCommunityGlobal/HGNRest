@@ -72,14 +72,14 @@ const hasPermission = async (requestor, action) => {
     return false;
   }
 
-  const defaultRemoved =
-    requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
+  // Extract from normalizedRequestor
+  const { requestorId, role } = normalizedRequestor;
 
-  const roleHasPermission = await hasRolePermission(requestor.role, action);
+  const defaultRemoved = await hasDefaultPermissionRemoved(requestorId, action);
 
-  const individualHasPermission =
-    normalizedRequestor.requestorId &&
-    (await hasIndividualPermission(normalizedRequestor.requestorId, action));
+  const roleHasPermission = await hasRolePermission(role, action);
+
+  const individualHasPermission = await hasIndividualPermission(requestorId, action);
 
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
 };

@@ -99,7 +99,6 @@ module.exports = function (app) {
       return;
     }
     const authToken = req.header(config.REQUEST_AUTHKEY);
-
     let payload = '';
 
     try {
