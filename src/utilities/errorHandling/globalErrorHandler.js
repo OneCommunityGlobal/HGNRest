@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 /* eslint-disable no-unused-vars */
 const { v4: uuidv4 } = require('uuid');
-const { CustomError } = require('./customError');
 const Logger = require('../../startup/logger');
+const { CustomError } = require('./customError');
 
 /**
  * Custom error handler middleware for global unhandled errors. Make it the last middleware since it returns a response and do not call next().

@@ -1,14 +1,14 @@
-const express = require("express");
+const express = require('express');
 
-const routes = function() {
-    // initialize routes 
-    const RentalChartRouter = express.Router();
-    console.log("making router");
-    const rentalChartController = require('../../controllers/bmdashboard/bmRentalChartController')();
+const routes = function () {
+  // initialize routes
+  const RentalChartRouter = express.Router();
+  console.log('making router');
+  const rentalChartController = require('../../controllers/bmdashboard/bmRentalChartController')();
 
-    RentalChartRouter.route('/rentalChart').get(rentalChartController.getAllRentalCosts);
+  RentalChartRouter.route('/rentalChart').get(rentalChartController.getAllRentalCosts);
 
-    return RentalChartRouter;
-}
+  return RentalChartRouter;
+};
 
 module.exports = routes;
