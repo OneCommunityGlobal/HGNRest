@@ -2909,8 +2909,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
       return res.status(200).json(result.data);
     } catch (error) {
-      console.error('Error fetching skill data:', error);
-      return res.status(500).send({ error: error.message });
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 

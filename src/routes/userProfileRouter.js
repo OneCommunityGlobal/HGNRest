@@ -12,10 +12,10 @@ const routes = function (userProfile, project) {
       if (typeof controller.getUserSkillRadarData === 'function') {
         await controller.getUserSkillRadarData(req, res);
       } else {
-        res.status(500).send('Controller function not found');
+        res.status(500).send({ error: 'Internal Error' });
       }
     } catch (err) {
-      res.status(500).send({ error: err.message });
+      res.status(500).send({ error: 'Internal Error' });
     }
   });
 
