@@ -2040,7 +2040,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       return res.status(200).send({ message: 'status updated' });
     } catch (error) {
-      return res.status(500).send(error);
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 
