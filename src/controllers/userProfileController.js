@@ -1180,9 +1180,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
 
       if (verificationUser.bioPosted !== bioPosted) {
-        console.error(
-          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
-        );
+        logger.logInfo('Database update failed while verifying bio status change.');
         return res.status(500).json({ error: 'Failed to update bio status in database.' });
       }
 
@@ -1598,7 +1596,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       await user.save();
 
-      console.log(`✅ Saved ${key} in DB:`, user[key]);
+      logger.logInfo(`Saved ${key} in database.`);
 
       // ================================
       // CACHE INVALIDATION (MERGED)
