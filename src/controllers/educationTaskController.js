@@ -72,7 +72,7 @@ const educationTaskController = function () {
   // Create new task
   const createTask = async (req, res) => {
     try {
-      const { lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
+      const { name, lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
 
       // Validate lesson plan exists
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -103,6 +103,7 @@ const educationTaskController = function () {
       }
 
       const task = new EducationTask({
+        name,
         lessonPlanId,
         studentId,
         atomIds: atomIds || [],
