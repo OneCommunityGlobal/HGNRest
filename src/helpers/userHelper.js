@@ -10,7 +10,9 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable no-restricted-syntax */
 
+const path = require('node:path');
 const fs = require('fs');
+// eslint-disable-next-line import/no-unresolved
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
@@ -31,11 +33,14 @@ const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/mess
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
 const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
+const playwrightLogic = require('../utilities/playwrightUtil');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
-
+const reportHelper = require('./reporthelper')();
 // eslint-disable-next-line no-promise-executor-return
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const COMPANY_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org']; // DO NOT REMOVE - USED IN WEEKLY SUMMARY EMAILS AND BLUE SQUARE CRON
 
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
@@ -283,15 +288,16 @@ const userHelper = function () {
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      const activeResults = results.filter((user) => user.isActive === true);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
-      await userProfile
-        .find({ getWeeklyReport: true }, { email: 1, teamCode: 1, _id: 0 })
-        // eslint-disable-next-line no-shadow
-        .then((results) => {
-          mappedResults = results.map((ele) => ele.email);
-          mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
-          mappedResults = mappedResults.toString();
-        });
+      const userProfileResults = await userProfile.find(
+        { getWeeklyReport: true },
+        { email: 1, teamCode: 1, _id: 0 },
+      );
+
+      mappedResults = userProfileResults.map((ele) => ele.email);
+      mappedResults.push('onecommunityglobal@gmail.com', 'onecommunityhospitality@gmail.com');
+      mappedResults = mappedResults.toString();
 
       let emailBody = '<h2>Weekly Summaries for all active users:</h2>';
 
@@ -301,12 +307,12 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+      activeResults.sort((a, b) =>
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
-      for (let i = 0; i < results.length; i += 1) {
-        const result = results[i];
+      for (let i = 0; i < activeResults.length; i += 1) {
+        const result = activeResults[i];
         const {
           firstName,
           lastName,
@@ -438,7 +444,7 @@ const userHelper = function () {
         emailBody,
         null,
         null,
-        emailString,
+        COMPANY_EMAILS,
       );
     } catch (err) {
       logger.logException(err);
@@ -783,6 +789,16 @@ const userHelper = function () {
                   )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
                 }
 
+                // Determine reasons based on the violation type
+                let reasons = ['other'];
+                if (timeNotMet && !hasWeeklySummary) {
+                  reasons = ['time not met', 'missing summary'];
+                } else if (timeNotMet) {
+                  reasons = ['time not met'];
+                } else if (!hasWeeklySummary) {
+                  reasons = ['missing summary'];
+                }
+
                 const infringement = {
                   date: moment().utc().format('YYYY-MM-DD'),
                   description,
@@ -794,6 +810,11 @@ const userHelper = function () {
                         )
                         .format('YYYY-MM-DD')
                     : null,
+                  // CRON job assigned - not manually assigned
+                  reasons,
+                  manullyAssigned: false,
+                  manullyAssignedBy: undefined,
+                  editedBy: [],
                 };
 
                 // Only assign blue square and send email if the user IS NOT a new user
@@ -865,7 +886,7 @@ const userHelper = function () {
                     'New Infringement Assigned',
                     emailBody,
                     null,
-                    ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+                    COMPANY_EMAILS,
                     status.email,
                     [...new Set([...emailsBCCs])],
                   );
@@ -1923,14 +1944,8 @@ const userHelper = function () {
           administrativeContent,
         ),
         null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
+        COMPANY_EMAILS,
         emailAddress,
-        // Don't change this is to CC!
-        [...new Set([...bccEmails])],
-        null,
-        ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'],
-        emailAddress,
-        // Don't change this is to CC!
         [...new Set([...bccEmails])],
       );
     });
@@ -2326,61 +2341,46 @@ const userHelper = function () {
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
-    let badgeOfType;
-    const duplicateBadges = [];
     const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
+    const lastWeek = user.lastWeekTangibleHrs;
 
     const masterBadges = await badge.find({ type: 'Personal Max' });
-    console.log(`[DEBUG] Found master badges: `);
+    if (!masterBadges.length) return;
 
-    // Check for existing badge in badgeCollection
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      const b = badgeCollection[i];
-      if (b.badge?.type === 'Personal Max') {
-        console.log(`[DEBUG] Found Personal Max badge at index $`);
-        if (!badgeOfType) {
-          badgeOfType = b;
-        } else {
-          duplicateBadges.push(b);
-          console.log(`[DEBUG] Found duplicate Personal Max badge:)}`);
-        }
-        break;
-      }
+    const masterBadgeId = masterBadges[0]._id;
+
+    // Collect all Personal Max badges from the user's collection
+    const personalMaxBadges = badgeCollection.filter((b) => b.badge?.type === 'Personal Max');
+
+    // Remove all duplicates beyond the first
+    for (let i = 1; i < personalMaxBadges.length; i += 1) {
+      await removeDupBadge(personId, personalMaxBadges[i]._id);
     }
 
-    // Remove duplicate badges
-    for (const b of duplicateBadges) {
-      // console.log(`[DEBUG] Removing duplicate badge with ID: ${b._id}`);
-      await removeDupBadge(personId, b._id);
+    const badgeOfType = personalMaxBadges[0] || null;
+
+    // Add badge if user doesn't have one yet
+    if (!badgeOfType) {
+      await addBadge(personId, masterBadgeId);
     }
 
-    // Add new badge if missing
-    if (!badgeOfType && masterBadges.length > 0) {
-      const newBadgeId = masterBadges[0]._id;
-      console.log(`[DEBUG] No existing badge found. Adding new badge ID: ${newBadgeId}`);
-      await addBadge(personId, newBadgeId);
-    }
-
-    const lastWeek = user.lastWeekTangibleHrs;
+    // Compare against all previous weeks (exclude last entry which is the current week)
     const savedHrs = user.savedTangibleHrs || [];
-    const lastSaved = savedHrs[savedHrs.length - 1];
-    const personalBest = user.personalBestMaxHrs;
+    const previousMax = savedHrs.length > 1 ? Math.max(...savedHrs.slice(0, -1)) : 0;
 
-    if (
-      lastWeek &&
-      lastSaved > lastWeek &&
-      lastWeek >= personalBest &&
-      !badgeOfType?.earnedDate?.includes(currentDate)
-    ) {
-      console.log(`[DEBUG] Conditions met to increase badge count`);
-      if (badgeOfType) {
-        await increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
-      }
+    // If last week's hours broke the personal record, update the badge's earnedDate and personalBestMaxHrs
+    if (lastWeek && lastWeek > previousMax) {
+      await userProfile.updateOne(
+        { _id: personId, 'badgeCollection.badge': masterBadgeId },
+        {
+          $set: {
+            'badgeCollection.$.earnedDate': [currentDate],
+            'badgeCollection.$.lastModified': Date.now().toString(),
+            personalBestMaxHrs: lastWeek,
+          },
+        },
+      );
     }
-
-    console.log(`[DEBUG] Updating personal max...`);
-    await updatePersonalMax(personId, user);
-    console.log(`[DEBUG] checkPersonalMax complete for personId: ${personId}`);
   };
 
   // 'Most Hrs in Week'
@@ -3246,6 +3246,44 @@ const userHelper = function () {
     }
   };
 
+  // Weekly Company Summary Email
+  const weeklyCompanySummaryEmail = async () => {
+    console.log('Weekly Company Summary Email');
+    const adminList = await userProfile.find({ jobTitle: 'Administrator' });
+    const recipients = adminList.map((admin) => admin.email);
+    const subject = 'Weekly Company Summary';
+    const message = `<p>Hi Team,</p>
+    <p>Here is the weekly summary of the company.</p>
+    <p>Please refer to the attachment for this weeks Summary Dashboard</p>
+    <p>Best regards,</p>
+    <p>One Community</p>`;
+
+    // generate screenshot
+    await playwrightLogic();
+    console.log('Puppeteer logic completed');
+
+    // create an attachment object
+    const attachment = {
+      filename: 'weeklyCompanySummary.png',
+      content: fs.readFileSync('./weeklyCompanySummary.png'),
+      contentType: 'image/png',
+    };
+
+    await emailSender(
+      recipients,
+      subject,
+      message,
+      attachment,
+      recipients,
+      'onecommunity@gmail.com',
+    );
+    // delete the image
+    fs.unlink('./weeklyCompanySummary.png', (err) => {
+      if (err) throw err;
+      console.log('./weeklyCompanySummary.png was deleted');
+    });
+  };
+
   const sendUserReactivatedAfterSeparation = ({
     firstName,
     lastName,
@@ -3378,6 +3416,7 @@ const userHelper = function () {
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    checkPersonalMax,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
@@ -3388,6 +3427,7 @@ const userHelper = function () {
     getEmailRecipientsForStatusChange,
     sendUserSeparatedEmail,
     sendUserReactivatedAfterSeparation,
+    weeklyCompanySummaryEmail,
   };
 };
 
