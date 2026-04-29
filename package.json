@@ -96,7 +96,7 @@
     "dotenv": "^5.0.1",
     "dropbox": "^10.34.0",
     "express": "^4.22.1",
-    "express-session": "^1.18.1",
+    "express-session": "^1.19.0",
     "express-validator": "^7.0.1",
     "express-ws": "^5.0.2",
     "form-data": "^4.0.5",
