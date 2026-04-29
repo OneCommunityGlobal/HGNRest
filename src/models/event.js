@@ -51,6 +51,15 @@ const EventSchema = new Schema(
     coverImage: { type: String },
     maxAttendees: { type: Number, required: true },
     currentAttendees: { type: Number, default: 0 },
+
+    // WAITLIST FEATURE
+    waitlist: [
+      {
+        userId: { type: mongoose.SchemaTypes.ObjectId, ref: User },
+        joinedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     attendeesThreshold: { type: Number },
     isActive: { type: Boolean, default: true },
   },
