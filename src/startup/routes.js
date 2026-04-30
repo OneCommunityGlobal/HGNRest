@@ -359,7 +359,7 @@ console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
-const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');const educationTaskRouter = require('../routes/educationTaskRouter');
+const educationTaskRouter = require('../routes/educationTaskRouter');
 const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
@@ -562,7 +562,7 @@ module.exports = function (app) {
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
-  app.use('/api/communityportal', NoShowFollowUpRouter );
+  app.use('/api/communityportal', NoShowFollowUpRouter);
 
   // lb dashboard
   app.use('/api/lb', lbListingsRouter);
@@ -602,8 +602,6 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
-<<<<<<< HEAD
-=======
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
@@ -642,5 +640,4 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
->>>>>>> origin/development
 };

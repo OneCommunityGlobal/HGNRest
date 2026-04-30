@@ -19,6 +19,15 @@ const makeSut = () => {
 };
 
 describe('popupEditorController Controller Unit tests', () => {
+  let mockReq;
+  beforeEach(() => {
+    mockReq = {
+      body: {},
+      params: {},
+      query: {},
+      requestor: { requestorId: 'testId' },
+    };
+  });
   afterEach(() => {
     jest.clearAllMocks();
   });

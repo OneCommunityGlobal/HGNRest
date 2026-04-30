@@ -49,52 +49,8 @@ const {
 describe('emailController', () => {
   let req;
   let res;
-
-<<<<<<< HEAD
-  describe('sendEmail function', () => {
-    it.todo('TODO: Fix sendEmail function');
-    // TODO: Fix this
-    // test('should send email successfully', async () => {
-    //   const { sendEmail } = makeSut();
-    //   const mockReq = {
-    //     body: {
-    //       to: 'recipient@example.com',
-    //       subject: 'Test Subject',
-    //       html: '<p>Test Body</p>',
-    //     },
-    //   };
-    //   const response = await sendEmail(mockReqLocal, mockRes);
-    //   assertResMock(200, 'Email sent successfully', response, mockRes);
-    // });
-  });
-  // TODO: Fix this
-  // test('should send email successfully', async () => {
-  //   const { sendEmail } = makeSut();
-  //   const mockReq = {
-  //     body: {
-  //       to: 'recipient@example.com',
-  //       subject: 'Test Subject',
-  //       html: '<p>Test Body</p>',
-  //     },
-  //   };
-  //   const response = await sendEmail(mockReqLocal, mockRes);
-  //   assertResMock(200, 'Email sent successfully', response, mockRes);
-  // });
-});
-
-describe('updateEmailSubscriptions function', () => {
-  test('should handle error when updating email subscriptions', async () => {
-    const { updateEmailSubscriptions } = makeSut();
-
-    userProfile.findOneAndUpdate = jest.fn();
-
-    userProfile.findOneAndUpdate.mockRejectedValue(new Error('Update failed'));
-
-    const updateReq = {
-=======
   beforeEach(() => {
     req = {
->>>>>>> 61eff0cf6e3f3cb3da817d052796dad32db32c67
       body: {
         requestor: { requestorId: 'user-1', email: 'test@example.com' },
       },

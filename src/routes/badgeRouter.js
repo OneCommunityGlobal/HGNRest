@@ -5,11 +5,7 @@ const routes = function (badge) {
 
   const badgeRouter = express.Router();
 
-<<<<<<< HEAD
-  // badgeRouter.get('/badge/awardBadgesTest', controller.awardBadgesTest);
-=======
   badgeRouter.post('/badge/awardNewBadges', controller.awardNewBadges);
->>>>>>> 61eff0cf6e3f3cb3da817d052796dad32db32c67
 
   badgeRouter.route('/badge').get(controller.getAllBadges).post(controller.postBadge);
 
