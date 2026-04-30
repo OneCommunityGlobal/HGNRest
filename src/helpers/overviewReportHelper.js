@@ -1498,101 +1498,72 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Aggregates total number of hours worked across all volunteers within the specified date range
+   * Aggregates total hours worked this week across all active volunteers,
+   * matching the dashboard's getOrgData logic exactly:
+   * - Current week (America/Los_Angeles) date range, ignoring any passed-in date filters
+   * - Only active users with weeklycommittedHours >= 1 and role != Mentor
+   * - Excludes entryType of 'person', 'team', or 'project'
    */
-  async function getTotalHoursWorked(startDate, endDate, comparisonStartDate, comparisonEndDate) {
-    // Validate date parameters
-    const validation = validateDateParameters(
-      startDate,
-      endDate,
-      comparisonStartDate,
-      comparisonEndDate,
-    );
-    if (!validation.isValid) {
-      return { error: validation.error };
-    }
+  async function getTotalHoursWorked() {
+    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
-    if (!comparisonStartDate && !comparisonEndDate) {
-      const data = await TimeEntries.aggregate([
-        {
-          $match: {
-            dateOfWork: {
-              $gte: moment(startDate).format('YYYY-MM-DD'),
-              $lte: moment(endDate).format('YYYY-MM-DD'),
-            },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSeconds: { $sum: '$totalSeconds' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            totalHours: { $divide: ['$totalSeconds', 3600] },
-          },
-        },
-      ]);
-
-      return { current: data[0]?.totalHours || 0 };
-    }
-    const data = await TimeEntries.aggregate([
+    const data = await UserProfile.aggregate([
       {
-        $facet: {
-          currentTotalHours: [
-            {
-              $match: {
-                dateOfWork: {
-                  $gte: moment(startDate).format('YYYY-MM-DD'),
-                  $lte: moment(endDate).format('YYYY-MM-DD'),
-                },
+        $match: {
+          isActive: true,
+          weeklycommittedHours: { $gte: 1 },
+          role: { $ne: 'Mentor' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntryData',
+        },
+      },
+      {
+        $project: {
+          timeEntryData: {
+            $filter: {
+              input: '$timeEntryData',
+              as: 'timeentry',
+              cond: {
+                $and: [
+                  { $gte: ['$$timeentry.dateOfWork', pdtstart] },
+                  { $lte: ['$$timeentry.dateOfWork', pdtend] },
+                  { $not: [{ $in: ['$$timeentry.entryType', ['person', 'team', 'project']] }] },
+                ],
               },
             },
-            {
-              $group: {
-                _id: null,
-                totalSeconds: { $sum: '$totalSeconds' },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                totalHours: { $divide: ['$totalSeconds', 3600] },
-              },
-            },
-          ],
-
-          comparisonTotalHours: [
-            {
-              $match: {
-                dateOfWork: {
-                  $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
-                  $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
-                },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalSeconds: { $sum: '$totalSeconds' },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                totalHours: { $divide: ['$totalSeconds', 3600] },
-              },
-            },
-          ],
+          },
+        },
+      },
+      { $unwind: { path: '$timeEntryData', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          totalSeconds: {
+            $cond: [{ $gte: ['$timeEntryData.totalSeconds', 0] }, '$timeEntryData.totalSeconds', 0],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          time_hrs: { $sum: { $divide: ['$totalSeconds', 3600] } },
+        },
+      },
+      {
+        $group: {
+          _id: 0,
+          totaltime_hrs: { $sum: '$time_hrs' },
         },
       },
     ]);
 
-    const current = data[0].currentTotalHours[0]?.totalHours || 0;
-    const comparison = data[0].comparisonTotalHours[0]?.totalHours || 0;
-    return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
+    return { current: data[0]?.totaltime_hrs || 0 };
   }
 
   /**

@@ -123,13 +123,12 @@ module.exports = function (app) {
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
     }
-    
+
     //  HEADER EXTRACTION
     const authHeader = req.header('Authorization');
     const payload = jwtVerificationLogic(authHeader, res);
 
     // FIX: If payload is a response object (meaning logic already sent a 401), STOP HERE.
-    // In Express, if res.headersSent is true, a response was already sent to the client.
     if (res.headersSent) return;
 
     //  ATTACH DATA & CONTINUE
@@ -137,11 +136,11 @@ module.exports = function (app) {
     const requestor = {
       requestorId: payload.userid,
       role: payload.role,
-      permissions: payload.permissions
+      permissions: payload.permissions,
     };
 
-    req.user = requestor; 
-    
+    req.user = requestor;
+
     if (req.body) {
       req.body.requestor = requestor;
     }

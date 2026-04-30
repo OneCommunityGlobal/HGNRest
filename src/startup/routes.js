@@ -356,12 +356,13 @@ console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const educationTaskRouter = require('../routes/educationTaskRouter');
 const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
-const summaryDashboardRouter = require('../routes/summaryDashboard.routes')
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 const bidsRouter = require('../routes/lbdashboard/bidsRouter');
@@ -372,7 +373,7 @@ const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const blueskyRouter = require('../routes/blueskyRouter');
 
-const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const announcementRouter = require('../routes/announcementRouter')();
 
@@ -399,22 +400,17 @@ const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 const activityLogRouter = require('../routes/activityLogRouter');
-const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter')
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter');
 
-
-
-const actualCostRouter =require('../routes/actualCostRouter')
-const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')
-
-
+const actualCostRouter = require('../routes/actualCostRouter');
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter');
 
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
-
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
-  app.use('/api/support/daily-log',activityLogRouter);
+  app.use('/api/support/daily-log', activityLogRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -604,7 +600,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
-  
+
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
@@ -614,7 +610,6 @@ module.exports = function (app) {
   app.use('/api/lp', lessonPlanSubmissionRouter);
   app.use('/api/education', browsableLessonPlanRouter);
   app.use('/api/educator/reports', downloadReportRouter);
-
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
@@ -628,7 +623,7 @@ module.exports = function (app) {
   app.use('/api', materialCostRouter);
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
-  
+
   // Need to implement gardenRouter
   // app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
