@@ -193,20 +193,24 @@ const progressController = function () {
     try {
       const { studentId, atomId, status, grade, feedback } = req.body;
 
+      // Sanitize inputs to prevent NoSQL injection
+      const sanitizedStudentId = String(studentId);
+      const sanitizedAtomId = String(atomId);
+
       // Validate student exists
-      const student = await UserProfile.findById(studentId);
+      const student = await UserProfile.findById(sanitizedStudentId);
       if (!student) {
         return res.status(404).json({ error: 'Student not found' });
       }
 
       // Validate atom exists
-      const atom = await Atom.findById(atomId);
+      const atom = await Atom.findById(sanitizedAtomId);
       if (!atom) {
         return res.status(404).json({ error: 'Atom not found' });
       }
 
       // Check if progress record already exists
-      const existingProgress = await Progress.findOne({ studentId, atomId });
+      const existingProgress = await Progress.findOne({ studentId: sanitizedStudentId, atomId: sanitizedAtomId });
       if (existingProgress) {
         return res
           .status(400)
@@ -214,8 +218,8 @@ const progressController = function () {
       }
 
       const progress = new Progress({
-        studentId,
-        atomId,
+        studentId: sanitizedStudentId,
+        atomId: sanitizedAtomId,
         status: status || 'not_started',
         grade: grade || 'pending',
         feedback,
@@ -528,9 +532,9 @@ const progressController = function () {
         .select('name description difficulty moleculeType subjectId');
 
       // Find unearned atoms (atoms not in progress records)
-      const progressAtomIds = progressRecords.map((p) => p.atomId?._id.toString()).filter(Boolean);
+      const progressAtomIds = new Set(progressRecords.map((p) => p.atomId?._id.toString()).filter(Boolean));
       const unearnedAtoms = allAtoms
-        .filter((atom) => !progressAtomIds.includes(atom._id.toString()))
+        .filter((atom) => !progressAtomIds.has(atom._id.toString()))
         .map((atom) => ({
           atomId: atom._id,
           name: atom.name,
