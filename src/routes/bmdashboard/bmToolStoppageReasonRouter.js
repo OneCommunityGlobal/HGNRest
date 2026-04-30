@@ -6,12 +6,12 @@ const routes = function (ToolStoppageReason) {
     ToolStoppageReason,
   );
 
-  // GET /api/bm/projects/:id/tools-availability
+  // GET /api/bm/projects/:id/tools-stoppage-reason
   bmToolStoppageReasonRouter
     .route('/bm/projects/:id/tools-stoppage-reason')
     .get(controller.getToolsStoppageReason);
 
-  // GET /api/bm/tools-availability/projects
+  // GET /api/bm/tools-stoppage-reason/projects
   bmToolStoppageReasonRouter
     .route('/bm/tools-stoppage-reason/projects')
     .get(controller.getUniqueProjectIds);
