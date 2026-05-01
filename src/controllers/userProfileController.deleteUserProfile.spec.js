@@ -1,7 +1,12 @@
 jest.mock('../helpers/userHelper', () => () => ({}));
+jest.mock('jsonwebtoken', () => ({
+  sign: jest.fn(),
+}));
 jest.mock('../models/timeentry', () => ({}));
 jest.mock('../models/team', () => ({
-  updateMany: jest.fn(),
+  collection: {
+    updateMany: jest.fn(),
+  },
 }));
 jest.mock('../models/badge', () => ({}));
 jest.mock('../utilities/nodeCache', () =>
@@ -15,7 +20,9 @@ jest.mock('../models/followUp', () => ({
   findOneAndDelete: jest.fn(),
 }));
 jest.mock('../models/task', () => ({
-  updateMany: jest.fn(),
+  collection: {
+    updateMany: jest.fn(),
+  },
 }));
 jest.mock('../models/hgnFormResponse', () => ({}));
 jest.mock('../services/userService', () => ({}));
@@ -38,7 +45,6 @@ const Team = require('../models/team');
 const Task = require('../models/task');
 const followUp = require('../models/followUp');
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
-const { mockReq, mockRes } = require('../test');
 const userProfileController = require('./userProfileController');
 
 describe('userProfileController deleteUserProfile', () => {
@@ -47,6 +53,8 @@ describe('userProfileController deleteUserProfile', () => {
     findById: jest.fn(),
     deleteOne: jest.fn(),
   };
+  let mockReq;
+  let mockRes;
 
   const makeSut = () => userProfileController(mockUserProfileModel, {});
 
@@ -60,19 +68,21 @@ describe('userProfileController deleteUserProfile', () => {
     });
     mockUserProfileModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
     followUp.findOneAndDelete.mockResolvedValue({});
-    Task.updateMany.mockResolvedValue({ modifiedCount: 1 });
-    Team.updateMany.mockResolvedValue({ modifiedCount: 1 });
-    mockRes.status.mockReturnThis();
-
-    mockReq.body = {
-      ...mockReq.body,
-      userId,
-      option: 'delete',
-      role: 'Volunteer',
-      requestor: {
-        ...mockReq.body.requestor,
-        requestorId: '507f1f77bcf86cd799439011',
+    Task.collection.updateMany.mockResolvedValue({ modifiedCount: 1 });
+    Team.collection.updateMany.mockResolvedValue({ modifiedCount: 1 });
+    mockReq = {
+      body: {
+        userId,
+        option: 'delete',
+        role: 'Volunteer',
+        requestor: {
+          requestorId: '507f1f77bcf86cd799439011',
+        },
       },
+    };
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
     };
   });
 
@@ -86,11 +96,11 @@ describe('userProfileController deleteUserProfile', () => {
 
     expect(mockUserProfileModel.deleteOne).toHaveBeenCalledWith({ _id: userId });
     expect(followUp.findOneAndDelete).toHaveBeenCalledWith({ userId });
-    expect(Task.updateMany).toHaveBeenCalledWith(
+    expect(Task.collection.updateMany).toHaveBeenCalledWith(
       { 'resources.userID': { $in: expectedMatchedUserIds } },
       { $pull: { resources: { userID: { $in: expectedMatchedUserIds } } } },
     );
-    expect(Team.updateMany).toHaveBeenCalledWith(
+    expect(Team.collection.updateMany).toHaveBeenCalledWith(
       { 'members.userId': { $in: expectedMatchedUserIds } },
       { $pull: { members: { userId: { $in: expectedMatchedUserIds } } } },
     );

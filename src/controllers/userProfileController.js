@@ -1432,16 +1432,18 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (mongoose.Types.ObjectId.isValid(userId)) {
         matchedUserIds.push(new mongoose.Types.ObjectId(userId));
       }
-      // delete user from task-resources
-      await Task.updateMany(
-        { 'resources.userID': { $in: matchedUserIds } },
-        { $pull: { resources: { userID: { $in: matchedUserIds } } } },
-      );
-      // delete user from teams-members
-      await Team.updateMany(
-        { 'members.userId': { $in: matchedUserIds } },
-        { $pull: { members: { userId: { $in: matchedUserIds } } } },
-      );
+
+      await Promise.all([
+        // Use raw collection updates so string user ids in existing records are not cast away.
+        Task.collection.updateMany(
+          { 'resources.userID': { $in: matchedUserIds } },
+          { $pull: { resources: { userID: { $in: matchedUserIds } } } },
+        ),
+        Team.collection.updateMany(
+          { 'members.userId': { $in: matchedUserIds } },
+          { $pull: { members: { userId: { $in: matchedUserIds } } } },
+        ),
+      ]);
       res.status(200).send({ message: 'Executed Successfully' });
       auditIfProtectedAccountUpdated({
         requestorId: req.body.requestor.requestorId,
