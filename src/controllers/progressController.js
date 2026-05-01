@@ -1,114 +1,7 @@
-const mongoose = require('mongoose');
+// const mongoose = require('mongoose');
 const Progress = require('../models/progress');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
-const EducationStudentProfile = require('../models/educationStudentProfile');
-
-const normalizeToArray = (value) => {
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  if (value === null || value === undefined) {
-    return [];
-  }
-
-  return [value];
-};
-
-const buildManualStudentProgressResponse = (profile) => {
-  const completedAtoms = [];
-  const inProgressAtoms = [];
-  const notStartedAtoms = [];
-
-  const subjects = Array.isArray(profile.subjects) ? profile.subjects : [];
-
-  subjects.forEach((subject) => {
-    const subjectName = subject?.name || 'General';
-    const molecules = Array.isArray(subject?.molecules) ? subject.molecules : [];
-
-    molecules.forEach((molecule, index) => {
-      const status = molecule?.status || 'not_started';
-      const fallbackId = `${subjectName}-${molecule?.label || molecule?.name || index}`
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-');
-
-      const atomData = {
-        atomId: molecule?.atomId || fallbackId,
-        name: molecule?.label || molecule?.name || `Molecule ${index + 1}`,
-        description: molecule?.description || '',
-        difficulty: molecule?.difficulty || 'medium',
-        moleculeType: molecule?.moleculeType || subjectName,
-        subject: subjectName,
-        status,
-        grade: molecule?.grade || (status === 'completed' ? 'A' : 'pending'),
-        timestamp:
-          molecule?.completedAt ||
-          molecule?.startedAt ||
-          profile?.updatedAt ||
-          profile?.createdAt ||
-          null,
-        sourceTask: molecule?.sourceTask
-          ? {
-              reference: molecule.sourceTask,
-              taskType: molecule?.taskType || null,
-              lessonPlan: molecule?.lessonPlan || null,
-              assignedAt: molecule?.assignedAt || null,
-              completedAt: molecule?.completedAt || null,
-            }
-          : null,
-      };
-
-      if (status === 'completed') {
-        completedAtoms.push(atomData);
-      } else if (status === 'in_progress') {
-        inProgressAtoms.push(atomData);
-      } else {
-        notStartedAtoms.push(atomData);
-      }
-    });
-  });
-
-  const summaryTotals = profile?.progressSummary || {};
-  const totalAtomsFallback =
-    completedAtoms.length + inProgressAtoms.length + notStartedAtoms.length;
-
-  return {
-    student: {
-      id: profile._id,
-      firstName: profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : 'Student'),
-      lastName:
-        profile?.lastName || (profile?.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-      email: profile?.email || '',
-      profilePic: profile?.avatarUrl || null,
-      location: profile?.location || '',
-      educationProfile: {
-        learningLevel: profile?.gradeLevel || profile?.learningLevel || null,
-        strengths: normalizeToArray(
-          profile?.strengths ||
-            profile?.educationProfile?.student?.strengths ||
-            profile?.student?.strengths,
-        ),
-        challengingAreas: normalizeToArray(
-          profile?.challengingAreas ||
-            profile?.educationProfile?.student?.challengingAreas ||
-            profile?.student?.challengingAreas,
-        ),
-      },
-    },
-    progress: {
-      completed: completedAtoms,
-      inProgress: inProgressAtoms,
-      notStarted: notStartedAtoms,
-    },
-    summary: {
-      totalCompleted: summaryTotals.totalCompleted ?? completedAtoms.length,
-      totalInProgress: summaryTotals.totalInProgress ?? inProgressAtoms.length,
-      totalNotStarted: summaryTotals.totalNotStarted ?? notStartedAtoms.length,
-      totalAtoms: summaryTotals.totalAtoms ?? totalAtomsFallback,
-    },
-  };
-};
 
 const progressController = function () {
   // Get all progress records
@@ -193,24 +86,20 @@ const progressController = function () {
     try {
       const { studentId, atomId, status, grade, feedback } = req.body;
 
-      // Sanitize inputs to prevent NoSQL injection
-      const sanitizedStudentId = String(studentId);
-      const sanitizedAtomId = String(atomId);
-
       // Validate student exists
-      const student = await UserProfile.findById(sanitizedStudentId);
+      const student = await UserProfile.findById(studentId);
       if (!student) {
         return res.status(404).json({ error: 'Student not found' });
       }
 
       // Validate atom exists
-      const atom = await Atom.findById(sanitizedAtomId);
+      const atom = await Atom.findById(atomId);
       if (!atom) {
         return res.status(404).json({ error: 'Atom not found' });
       }
 
       // Check if progress record already exists
-      const existingProgress = await Progress.findOne({ studentId: sanitizedStudentId, atomId: sanitizedAtomId });
+      const existingProgress = await Progress.findOne({ studentId, atomId });
       if (existingProgress) {
         return res
           .status(400)
@@ -218,8 +107,8 @@ const progressController = function () {
       }
 
       const progress = new Progress({
-        studentId: sanitizedStudentId,
-        atomId: sanitizedAtomId,
+        studentId,
+        atomId,
         status: status || 'not_started',
         grade: grade || 'pending',
         feedback,
@@ -435,156 +324,6 @@ const progressController = function () {
     }
   };
 
-  // Get educator view of student progress with molecules (atoms)
-  const getEducatorStudentProgress = async (req, res) => {
-    try {
-      const { studentId } = req.params;
-
-      let manualProfile = null;
-      if (mongoose.Types.ObjectId.isValid(studentId)) {
-        manualProfile = await EducationStudentProfile.findById(studentId).lean();
-      }
-
-      if (manualProfile) {
-        const response = buildManualStudentProgressResponse(manualProfile);
-        return res.status(200).json(response);
-      }
-
-      const EducationTask = require('../models/educationTask');
-
-      // Validate student exists
-      const student = await UserProfile.findById(studentId).select(
-        'firstName lastName email educationProfiles profilePic location',
-      );
-
-      if (!student) {
-        return res.status(404).json({ error: 'Student not found' });
-      }
-
-      // Get all atoms and their progress for this student
-      const progressRecords = await Progress.find({ studentId })
-        .populate({
-          path: 'atomId',
-          select: 'name description difficulty subjectId moleculeType',
-          populate: {
-            path: 'subjectId',
-            select: 'name',
-          },
-        })
-        .sort({ updatedAt: -1 });
-
-      // Get all tasks for this student to find source task info
-      const tasks = await EducationTask.find({ studentId })
-        .populate('lessonPlanId', 'title theme')
-        .populate('atomIds', 'name');
-
-      // Create a map of atomId to task info
-      const atomToTaskMap = {};
-      tasks.forEach((task) => {
-        if (task.atomIds && task.atomIds.length > 0) {
-          task.atomIds.forEach((atom) => {
-            if (!atomToTaskMap[atom._id]) {
-              atomToTaskMap[atom._id] = {
-                taskId: task._id,
-                taskType: task.type,
-                lessonPlan: task.lessonPlanId ? task.lessonPlanId.title : null,
-                assignedAt: task.assignedAt,
-                completedAt: task.completedAt,
-              };
-            }
-          });
-        }
-      });
-
-      // Categorize atoms by status
-      const completedAtoms = [];
-      const inProgressAtoms = [];
-      const notStartedAtoms = [];
-
-      progressRecords.forEach((progress) => {
-        if (!progress.atomId) return;
-
-        const atomData = {
-          atomId: progress.atomId._id,
-          name: progress.atomId.name,
-          description: progress.atomId.description,
-          difficulty: progress.atomId.difficulty,
-          moleculeType: progress.atomId.moleculeType,
-          subject: progress.atomId.subjectId ? progress.atomId.subjectId.name : null,
-          status: progress.status,
-          grade: progress.grade,
-          timestamp: progress.updatedAt,
-          sourceTask: atomToTaskMap[progress.atomId._id] || null,
-        };
-
-        if (progress.status === 'completed') {
-          completedAtoms.push(atomData);
-        } else if (progress.status === 'in_progress') {
-          inProgressAtoms.push(atomData);
-        } else {
-          notStartedAtoms.push(atomData);
-        }
-      });
-
-      // Get all atoms to show unearned ones
-      const allAtoms = await Atom.find({})
-        .populate('subjectId', 'name')
-        .select('name description difficulty moleculeType subjectId');
-
-      // Find unearned atoms (atoms not in progress records)
-      const progressAtomIds = new Set(progressRecords.map((p) => p.atomId?._id.toString()).filter(Boolean));
-      const unearnedAtoms = allAtoms
-        .filter((atom) => !progressAtomIds.has(atom._id.toString()))
-        .map((atom) => ({
-          atomId: atom._id,
-          name: atom.name,
-          description: atom.description,
-          difficulty: atom.difficulty,
-          moleculeType: atom.moleculeType,
-          subject: atom.subjectId ? atom.subjectId.name : null,
-          status: 'not_started',
-          grade: 'pending',
-          timestamp: null,
-          sourceTask: null,
-        }));
-
-      const locationParts = [];
-      if (student?.location?.city) {
-        locationParts.push(student.location.city);
-      }
-      if (student?.location?.country) {
-        locationParts.push(student.location.country);
-      }
-
-      const response = {
-        student: {
-          id: student._id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          email: student.email,
-          profilePic: student.profilePic || null,
-          location: locationParts.join(', '),
-          educationProfile: student.educationProfiles?.student || null,
-        },
-        progress: {
-          completed: completedAtoms,
-          inProgress: inProgressAtoms,
-          notStarted: notStartedAtoms.concat(unearnedAtoms),
-        },
-        summary: {
-          totalCompleted: completedAtoms.length,
-          totalInProgress: inProgressAtoms.length,
-          totalNotStarted: notStartedAtoms.length + unearnedAtoms.length,
-          totalAtoms: allAtoms.length,
-        },
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  };
-
   return {
     getProgress,
     getProgressByStudent,
@@ -598,7 +337,6 @@ const progressController = function () {
     gradeProgress,
     getProgressByStatus,
     getStudentProgressSummary,
-    getEducatorStudentProgress,
   };
 };
 

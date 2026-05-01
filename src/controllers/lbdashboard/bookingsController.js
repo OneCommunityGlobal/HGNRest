@@ -2,10 +2,6 @@ const paypal = require('@paypal/checkout-server-sdk');
 const nodemailer = require('nodemailer');
 const Joi = require('joi');
 require('dotenv').config();
-const { Types } = require('mongoose');
-
-const ACTIVE_STATUSES = ['pending', 'confirmed'];
-const HOLD_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
 const environment =
   process.env.NODE_ENV === 'production'
@@ -20,7 +16,7 @@ const environment =
 
 const client = new paypal.core.PayPalHttpClient(environment);
 
-const bookingsController = (Booking, Listing, User, BookingHold) => {
+const bookingsController = (Booking, Listing, User) => {
   const calculatePrice = (startDate, endDate, basePrice) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -103,36 +99,6 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
       console.error('Email notification error:', error.message);
     }
   };
-  const hasBookingConflict = async (listingId, startDate, endDate) =>
-    Booking.findOne({
-      listingId,
-      startDate: { $lt: endDate },
-      endDate: { $gt: startDate },
-      status: { $in: ACTIVE_STATUSES },
-    });
-
-  // Check for an active hold by anyone OTHER than the requesting user
-  const hasActiveHold = async (listingId, startDate, endDate, excludeUserId) => {
-    // Validate and sanitize inputs before constructing the query
-    if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(excludeUserId)) {
-      throw new Error('Invalid ID format');
-    }
-
-    const parsedStart = new Date(startDate);
-    const parsedEnd = new Date(endDate);
-
-    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
-      throw new Error('Invalid date format');
-    }
-
-    return BookingHold.findOne({
-      listingId: new Types.ObjectId(listingId),
-      startDate: { $lt: parsedEnd },
-      endDate: { $gt: parsedStart },
-      userId: { $ne: new Types.ObjectId(excludeUserId) },
-      expiresAt: { $gt: new Date() },
-    });
-  };
 
   const createPaymentIntent = async (req, res) => {
     try {
@@ -172,24 +138,6 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
         return res.status(404).json({ error: 'Listing not found' });
       }
 
-      const conflict = await hasBookingConflict(listingId, startDate, endDate);
-      if (conflict) {
-        return res.status(400).json({
-          error: 'Selected dates are unavailable. Please choose different dates.',
-        });
-      }
-
-      // Check for an active hold by someone else
-      const activeHold = await hasActiveHold(listingId, startDate, endDate, userId);
-
-      if (activeHold) {
-        return res.status(409).json({
-          error: 'unavailable_hold',
-          message: `Someone is currently in the booking process for this unit. Choose another one or check back in 15 minutes to see if it becomes available.`,
-          retryAfter: activeHold.expiresAt,
-        });
-      }
-
       const { totalAmount } = calculatePrice(startDate, endDate, listing.price);
 
       const startDateSimple = new Date(startDate).toISOString().split('T')[0];
@@ -213,45 +161,12 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
 
       const order = await client.execute(request);
 
-      // Place a hold now that we have the PayPal order ID
-      const expiresAt = new Date(Date.now() + HOLD_DURATION_MS);
-      // Validate inputs
-      if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(userId)) {
-        throw new Error('Invalid ID format');
-      }
-
-      const parsedStart = new Date(startDate);
-      const parsedEnd = new Date(endDate);
-
-      if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
-        throw new Error('Invalid date format');
-      }
-
-      if (!order?.result?.id || typeof order.result.id !== 'string') {
-        throw new Error('Invalid order ID');
-      }
-      await BookingHold.findOneAndUpdate(
-        {
-          listingId: new Types.ObjectId(listingId),
-          userId: new Types.ObjectId(userId),
-        },
-        {
-          listingId: new Types.ObjectId(listingId),
-          startDate: parsedStart,
-          endDate: parsedEnd,
-          userId: new Types.ObjectId(userId),
-          paypalOrderId: order.result.id,
-          expiresAt,
-        },
-        { upsert: true, new: true },
-      );
       res.status(200).json({
         success: true,
         orderId: order.result.id,
         totalAmount,
         listingId,
         currency,
-        holdExpiresAt: expiresAt, //  use in frontend if want to show a countdown
       });
     } catch (err) {
       console.error('PayPal Error:', err.message);
@@ -367,7 +282,12 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
         });
       }
 
-      const conflict = await hasBookingConflict(listingId, startDateObj, endDateObj);
+      const conflict = await Booking.findOne({
+        listingId,
+        $or: [{ startDate: { $lt: endDateObj }, endDate: { $gt: startDateObj } }],
+        status: { $in: ['pending', 'confirmed'] },
+      });
+
       if (conflict) {
         return res.status(400).json({
           error: 'Selected dates are unavailable. Please choose different dates.',
@@ -385,8 +305,6 @@ const bookingsController = (Booking, Listing, User, BookingHold) => {
       });
 
       await newBooking.save();
-      // Release the hold — booking is confirmed, no need to keep it
-      await BookingHold.deleteOne({ paypalOrderId });
 
       await sendBookingNotifications(newBooking._id);
 

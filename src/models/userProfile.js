@@ -514,4 +514,3 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
-mongoose.model('User', userProfileSchema, 'userProfiles');

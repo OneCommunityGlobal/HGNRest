@@ -33,7 +33,7 @@ module.exports = function (app) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.all('*', (req, res, next) => {
-    // Allow unauthenticated access for Mastodon test APIs
+    // 🔹 Allow unauthenticated access for Mastodon test APIs
     if (req.originalUrl.startsWith('/api/mastodon')) {
       return next();
     }
@@ -75,11 +75,6 @@ module.exports = function (app) {
       return;
     }
     if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
-      next();
-      return;
-    }
-
-    if (req.originalUrl.startsWith('/api/bluesky')) {
       next();
       return;
     }
@@ -156,7 +151,6 @@ module.exports = function (app) {
     req.body.requestor = requestor;
     next();
   });
-
   // Apply PayPal middleware only to specific route
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };

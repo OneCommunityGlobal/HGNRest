@@ -11,10 +11,6 @@ const followUpSchema = new Schema({
     type: Number,
     default: 0,
   },
-  acceptedPercentage: {
-    type: Number,
-    default: 0,
-  },
   taskId: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', required: true },
   userId: {
     type: mongoose.SchemaTypes.ObjectId,
