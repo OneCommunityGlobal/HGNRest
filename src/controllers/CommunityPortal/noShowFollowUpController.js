@@ -64,16 +64,25 @@ const noShowFollowUpEmailController = function () {
         return res.status(400).json({ error: 'Missing required event or participant data.' });
       }
 
-      if (!eventName || !eventDate || !eventTime || !allParticipants) {
-        return res.status(400).json({ error: 'Missing event details or participant list.' });
-      }
+      // Use provided data or fall back to mock data
+      const { noShowParticipantsData } = require('./noShowFollowUpEmailMockData');
 
-      const subject = `Sorry we missed you at ${eventName}`;
+      const resolvedEventName = eventName || noShowParticipantsData.eventName;
+      const resolvedEventDate = eventDate || noShowParticipantsData.eventDate;
+      const resolvedEventTime = eventTime || noShowParticipantsData.eventTime;
+      const resolvedParticipants = allParticipants || noShowParticipantsData.participants;
 
-      const updatedRecipients = allParticipants
+      const subject = `Sorry we missed you at ${resolvedEventName}`;
+
+      const updatedRecipients = resolvedParticipants
         .filter((recipient) => selectedParticipants.includes(recipient.participantID))
         .map((recipient) => {
-          const body = getFollowUpEmailBody(recipient.name, eventName, eventDate, eventTime);
+          const body = getFollowUpEmailBody(
+            recipient.name,
+            resolvedEventName,
+            resolvedEventDate,
+            resolvedEventTime,
+          );
           return { ...recipient, message: body };
         });
 
