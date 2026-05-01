@@ -288,6 +288,7 @@ const userHelper = function () {
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      const activeResults = results.filter((user) => user.isActive === true);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       const userProfileResults = await userProfile.find(
         { getWeeklyReport: true },
@@ -306,11 +307,16 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      results.sort((a, b) =>
+      activeResults.sort((a, b) =>
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
+<<<<<<< sai/pause-user-permission-backend
       for (const result of results) {
+=======
+      for (let i = 0; i < activeResults.length; i += 1) {
+        const result = activeResults[i];
+>>>>>>> development
         const {
           firstName,
           lastName,
@@ -787,6 +793,16 @@ const userHelper = function () {
                   )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
                 }
 
+                // Determine reasons based on the violation type
+                let reasons = ['other'];
+                if (timeNotMet && !hasWeeklySummary) {
+                  reasons = ['time not met', 'missing summary'];
+                } else if (timeNotMet) {
+                  reasons = ['time not met'];
+                } else if (!hasWeeklySummary) {
+                  reasons = ['missing summary'];
+                }
+
                 const infringement = {
                   date: moment().utc().format('YYYY-MM-DD'),
                   description,
@@ -798,6 +814,11 @@ const userHelper = function () {
                         )
                         .format('YYYY-MM-DD')
                     : null,
+                  // CRON job assigned - not manually assigned
+                  reasons,
+                  manullyAssigned: false,
+                  manullyAssignedBy: undefined,
+                  editedBy: [],
                 };
 
                 // Only assign blue square and send email if the user IS NOT a new user
@@ -2324,13 +2345,13 @@ const userHelper = function () {
 
   // 'Personal Max',
   const checkPersonalMax = async function (personId, user, badgeCollection) {
-    let badgeOfType;
-    const duplicateBadges = [];
     const currentDate = moment().tz('America/Los_Angeles').format('MMM-DD-YY');
+    const lastWeek = user.lastWeekTangibleHrs;
 
     const masterBadges = await badge.find({ type: 'Personal Max' });
-    console.log(`[DEBUG] Found master badges: `);
+    if (!masterBadges.length) return;
 
+<<<<<<< sai/pause-user-permission-backend
     // Check for existing badge in badgeCollection
     for (let i = 0; i < badgeCollection.length; i += 1) {
       const b = badgeCollection[i];
@@ -2349,35 +2370,42 @@ const userHelper = function () {
     // Remove duplicate badges
     for (const b of duplicateBadges) {
       await removeDupBadge(personId, b._id);
+=======
+    const masterBadgeId = masterBadges[0]._id;
+
+    // Collect all Personal Max badges from the user's collection
+    const personalMaxBadges = badgeCollection.filter((b) => b.badge?.type === 'Personal Max');
+
+    // Remove all duplicates beyond the first
+    for (let i = 1; i < personalMaxBadges.length; i += 1) {
+      await removeDupBadge(personId, personalMaxBadges[i]._id);
+>>>>>>> development
     }
 
-    // Add new badge if missing
-    if (!badgeOfType && masterBadges.length > 0) {
-      const newBadgeId = masterBadges[0]._id;
-      console.log(`[DEBUG] No existing badge found. Adding new badge ID: ${newBadgeId}`);
-      await addBadge(personId, newBadgeId);
+    const badgeOfType = personalMaxBadges[0] || null;
+
+    // Add badge if user doesn't have one yet
+    if (!badgeOfType) {
+      await addBadge(personId, masterBadgeId);
     }
 
-    const lastWeek = user.lastWeekTangibleHrs;
+    // Compare against all previous weeks (exclude last entry which is the current week)
     const savedHrs = user.savedTangibleHrs || [];
-    const lastSaved = savedHrs[savedHrs.length - 1];
-    const personalBest = user.personalBestMaxHrs;
+    const previousMax = savedHrs.length > 1 ? Math.max(...savedHrs.slice(0, -1)) : 0;
 
-    if (
-      lastWeek &&
-      lastSaved > lastWeek &&
-      lastWeek >= personalBest &&
-      !badgeOfType?.earnedDate?.includes(currentDate)
-    ) {
-      console.log(`[DEBUG] Conditions met to increase badge count`);
-      if (badgeOfType) {
-        await increaseBadgeCount(personId, mongoose.Types.ObjectId(badgeOfType.badge._id));
-      }
+    // If last week's hours broke the personal record, update the badge's earnedDate and personalBestMaxHrs
+    if (lastWeek && lastWeek > previousMax) {
+      await userProfile.updateOne(
+        { _id: personId, 'badgeCollection.badge': masterBadgeId },
+        {
+          $set: {
+            'badgeCollection.$.earnedDate': [currentDate],
+            'badgeCollection.$.lastModified': Date.now().toString(),
+            personalBestMaxHrs: lastWeek,
+          },
+        },
+      );
     }
-
-    console.log(`[DEBUG] Updating personal max...`);
-    await updatePersonalMax(personId, user);
-    console.log(`[DEBUG] checkPersonalMax complete for personId: ${personId}`);
   };
 
   // 'Most Hrs in Week'
@@ -3413,6 +3441,7 @@ const userHelper = function () {
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    checkPersonalMax,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,

@@ -42,6 +42,64 @@ const reportsController = require('./reportsController')();
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
+const HOURS_TO_ADD_FOR_END_DATE = 7;
+const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
+const MAX_WEEKLY_SUMMARIES = 4;
+
+const getCurrentWeekSummaryTemplate = () => ({
+  dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
+  summary: '',
+});
+
+const normalizeWeeklySummaries = (weeklySummaries) => {
+  const currentWeekDueDate = moment().tz('America/Los_Angeles').endOf('week');
+  const summaries = Array.isArray(weeklySummaries) ? weeklySummaries : [];
+
+  const normalizedSummaries = summaries
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => {
+      const normalizedDueDate = moment(entry.dueDate);
+      const summary = typeof entry.summary === 'string' ? entry.summary : '';
+      const normalizedEntry = {
+        ...entry,
+        summary,
+      };
+
+      if (normalizedDueDate.isValid()) {
+        normalizedEntry.dueDate = normalizedDueDate.toDate();
+      } else {
+        normalizedEntry.dueDate = currentWeekDueDate.toDate();
+      }
+
+      if (entry.uploadDate) {
+        const normalizedUploadDate = moment(entry.uploadDate);
+        if (normalizedUploadDate.isValid()) {
+          normalizedEntry.uploadDate = normalizedUploadDate.toDate();
+        } else {
+          delete normalizedEntry.uploadDate;
+        }
+      }
+
+      return normalizedEntry;
+    })
+    .sort((left, right) => moment(right.dueDate).valueOf() - moment(left.dueDate).valueOf());
+
+  const hasCurrentWeekEntry = normalizedSummaries.some((entry) =>
+    moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+  );
+
+  if (!hasCurrentWeekEntry) {
+    normalizedSummaries.unshift(getCurrentWeekSummaryTemplate());
+  } else {
+    const currentWeekEntryIndex = normalizedSummaries.findIndex((entry) =>
+      moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+    );
+    const [currentWeekEntry] = normalizedSummaries.splice(currentWeekEntryIndex, 1);
+    normalizedSummaries.unshift(currentWeekEntry);
+  }
+
+  return normalizedSummaries.slice(0, MAX_WEEKLY_SUMMARIES);
+};
 const { COMPANY_TZ } = require('../constants/company');
 const {
   InactiveReason,
@@ -282,7 +340,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
-    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummaries = normalizeWeeklySummaries(req.body.weeklySummaries);
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.weeklySummaryOption = req.body.weeklySummaryOption;
     up.mediaUrl = req.body.mediaUrl || '';
@@ -400,7 +458,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     commonFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
     record.lastModifiedDate = Date.now();
@@ -518,7 +579,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     importantFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
 
@@ -2338,7 +2402,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
-      res.status(403).send('You are not authorized to add blue square');
+      res
+        .status(403)
+        .send(
+          'You are not authorized to add blue square. The requestor must resolve to a user with addInfringements permission.',
+        );
       return;
     }
 
@@ -2361,6 +2429,33 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
+      // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
+      let { reasons } = req.body.blueSquare;
+      if (!Array.isArray(reasons)) {
+        reasons = reasons ? [reasons] : ['other'];
+      }
+      let processedReasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ].filter((r) =>
+        [
+          'time not met',
+          'missing summary',
+          'missed video call',
+          'late reporting',
+          'other',
+        ].includes(r),
+      );
+      if (processedReasons.length === 0) {
+        processedReasons = ['other'];
+      }
+
+      // Get requestor info for manually assigned tracking
+      const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+      let requestorProfile = null;
+      if (requestorId) {
+        requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+      }
+
       const newInfringement = {
         ...req.body.blueSquare,
         date: inputDate,
@@ -2375,7 +2470,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
-        // Maintain backward compatibility
+        // Add reasons array for more detailed categorization
+        reasons: processedReasons,
+        // Track if manually assigned (via API call) vs CRON job
+        manullyAssigned: true,
+        manullyAssignedBy: requestorProfile
+          ? {
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
+          : undefined,
+        // Initialize empty edit history
+        editedBy: [],
       };
 
       // find userData in cache
@@ -2434,6 +2541,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     const { userId, blueSquareId } = req.params;
     const { dateStamp, summary, reasons } = req.body;
 
+    // Get requestor info for edit tracking
+    const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+    let requestorProfile = null;
+    if (requestorId) {
+      requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+    }
+
     UserProfile.findById(userId, async (err, record) => {
       if (err || !record) {
         res.status(404).send('No valid records found');
@@ -2449,6 +2563,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (Array.isArray(reasons)) {
             blueSquare.reasons = reasons;
           }
+          // Track edit history
+          if (!blueSquare.editedBy) {
+            blueSquare.editedBy = [];
+          }
+          blueSquare.editedBy.push({
+            firstName: requestorProfile?.firstName || 'Unknown',
+            lastName: requestorProfile?.lastName || 'Unknown',
+            userId: requestorId,
+            date: new Date(),
+          });
         }
         return blueSquare;
       });
