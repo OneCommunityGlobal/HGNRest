@@ -1,12 +1,14 @@
 // Mock the FormResponse model
 jest.mock('../models/hgnFormResponse');
+jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
 const FormResponse = require('../models/hgnFormResponse');
-const hgnFormController = require('./hgnFormResponseController');
+const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
+const hgnFormController = require('./hgnFormResponseController');
 
 describe('HgnFormResponseController', () => {
   let mockReq;
@@ -14,165 +16,209 @@ describe('HgnFormResponseController', () => {
   let controller;
 
   beforeEach(() => {
-    // Reset mocks before each test
     jest.clearAllMocks();
 
-    // Setup mock request
     mockReq = {
       params: {},
       body: { requestor: { id: 'tester123' } },
       query: {},
     };
 
-    // Setup mock response
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
 
-    // Initialize controller
     controller = hgnFormController();
     hasPermission.mockResolvedValue(true);
   });
 
-  describe('submitFormResponse', () => {});
+  describe('submitFormResponse', () => {
+    it('should create a new form response when all fields are provided', async () => {
+      mockReq.body = {
+        userInfo: { name: 'John' },
+        general: {},
+        frontend: {},
+        backend: {},
+        followUp: {},
+        user_id: '123',
+      };
 
-  describe('getAllFormResponses', () => {
-    it('should return all form responses successfully', async () => {
-      // Arrange
-      mockReq.body.requestor = { id: 'tester123' };
-      const mockResponses = [
-        {
-          _id: '507f1f77bcf86cd799439011',
-          userInfo: { name: 'John Doe', email: 'john@example.com' },
-          general: { hours: '10-20' },
-          frontend: { overall: '8' },
-          backend: { overall: '7' },
-          followUp: { platform: 'Windows' },
-          user_id: '507f1f77bcf86cd799439011',
-        },
-        {
-          _id: '507f1f77bcf86cd799439012',
-          userInfo: { name: 'Jane Smith', email: 'jane@example.com' },
-          general: { hours: '20-30' },
-          frontend: { overall: '9' },
-          backend: { overall: '8' },
-          followUp: { platform: 'macOS' },
-          user_id: '507f1f77bcf86cd799439012',
-        },
-      ];
+      const saveMock = jest.fn().mockResolvedValue(true);
+      FormResponse.mockImplementation(() => ({
+        ...mockReq.body,
+        save: saveMock,
+      }));
 
-      FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
+      await controller.submitFormResponse(mockReq, mockRes);
 
-      // Act
-      await controller.getAllFormResponses(mockReq, mockRes);
-
-      // Assert
-      expect(FormResponse.find).toHaveBeenCalled();
-      expect(mockRes.json).toHaveBeenCalledWith(mockResponses);
+      expect(saveMock).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userInfo: { name: 'John' },
+          general: {},
+          frontend: {},
+          backend: {},
+          followUp: {},
+          user_id: '123',
+        }),
+      );
     });
 
-    it('should handle database errors when fetching form responses', async () => {
-      mockReq.body.requestor = { id: 'tester123' }; // pass permission gate
-      hasPermission.mockResolvedValue(true);
-      // Arrange
-      const error = new Error('Database connection failed');
-      FormResponse.find = jest.fn().mockRejectedValue(error);
+    it('should return 400 if any required field is missing', async () => {
+      mockReq.body = { userInfo: {}, general: {} }; // missing fields
 
-      // Act
-      await controller.getAllFormResponses(mockReq, mockRes);
+      await controller.submitFormResponse(mockReq, mockRes);
 
-      // Assert
-      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Database connection failed',
+        error: 'All fields (userInfo, general, frontend, backend, followUp, user_id) are required',
       });
     });
   });
 
+  describe('getAllFormResponses', () => {
+    it('should return all form responses successfully', async () => {
+      const mockResponses = [{ _id: '1' }, { _id: '2' }];
+      FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
+
+      await controller.getAllFormResponses(mockReq, mockRes);
+
+      expect(FormResponse.find).toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(mockResponses);
+    });
+
+    it('should return 403 if user is not authorized', async () => {
+      hasPermission.mockResolvedValue(false);
+
+      await controller.getAllFormResponses(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Not authorized' });
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('DB failed');
+      FormResponse.find = jest.fn().mockRejectedValue(error);
+
+      await controller.getAllFormResponses(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB failed' });
+    });
+  });
+
   describe('getRankedResponses', () => {
-    it('should return ranked responses based on specified skills', async () => {
-      // Arrange
-      const skills = 'React,MongoDB';
-      mockReq.query = { skills };
+    it('should return ranked responses based on skills and preferences', async () => {
+      mockReq.query = { skills: 'React,MongoDB', preferences: 'design' };
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: '123', isActive: true },
+        { _id: '456', isActive: true },
+        { _id: '789', isActive: true },
+      ]);
 
       const mockResponses = [
         {
-          _id: '507f1f77bcf86cd799439011',
-          userInfo: { name: 'John Doe', email: 'john@example.com', slack: 'john_doe' },
+          _id: '1',
+          user_id: '123',
+          userInfo: { name: 'John', email: 'john@example.com', slack: 'john' },
           frontend: { React: '8' },
           backend: { MongoDB: '7' },
+          general: {
+            preferences: ['design'],
+            combined_frontend_backend: '8',
+            leadership_skills: '7',
+            leadership_experience: '6',
+            mern_skills: '7',
+          },
         },
         {
-          _id: '507f1f77bcf86cd799439012',
-          userInfo: { name: 'Jane Smith', email: 'jane@example.com', slack: 'jane_smith' },
+          _id: '2',
+          user_id: '456',
+          userInfo: { name: 'Jane', email: 'jane@example.com', slack: 'jane' },
           frontend: { React: '9' },
           backend: { MongoDB: '8' },
+          general: {
+            preferences: ['design', 'management'],
+            combined_frontend_backend: '9',
+            leadership_skills: '8',
+            leadership_experience: '7',
+            mern_skills: '8',
+          },
+        },
+        {
+          _id: '3',
+          user_id: '789',
+          userInfo: { name: 'Alice', email: 'alice@example.com', slack: 'alice' },
+          frontend: { Database: '9' },
+          backend: { MongoDB: '8' },
+          general: {
+            preferences: ['backend', 'management'],
+            combined_frontend_backend: '9',
+            leadership_skills: '8',
+            leadership_experience: '7',
+            mern_skills: '8',
+          },
         },
       ];
 
       FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
 
-      // Act
       await controller.getRankedResponses(mockReq, mockRes);
 
-      // Assert
+      const result = mockRes.json.mock.calls[0][0];
+
       expect(FormResponse.find).toHaveBeenCalled();
-      expect(mockRes.json).toHaveBeenCalledWith([
-        {
-          _id: '507f1f77bcf86cd799439012',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          slack: 'jane_smith',
-          score: 8.5,
-          topSkills: ['React', 'MongoDB'],
-          isTeammate: false,
-          privacy: { email: false, slack: false },
-        },
-        {
-          _id: '507f1f77bcf86cd799439011',
-          name: 'John Doe',
-          email: 'john@example.com',
-          slack: 'john_doe',
-          score: 7.5,
-          topSkills: ['React', 'MongoDB'],
-          isTeammate: false,
-          privacy: { email: false, slack: false },
-        },
+      expect(result[0]._id).toBe('2'); // Jane should be ranked higher
+      expect(result[0].topSkills).toEqual(expect.arrayContaining(['React']));
+      expect(result[1]._id).toBe('1');
+    });
+
+    it('should return all users if no query params are provided', async () => {
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: '123', isActive: true },
+        { _id: '456', isActive: true },
       ]);
-    });
 
-    it('should return 400 error when skills query parameter is missing', async () => {
-      // Arrange
-      mockReq.query = {};
+      const mockResponses = [
+        {
+          _id: '1',
+          user_id: '123',
+          userInfo: { name: 'A' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
+        {
+          _id: '2',
+          user_id: '456',
+          userInfo: { name: 'B' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
+      ];
 
-      // Act
+      FormResponse.find = jest.fn().mockResolvedValue(mockResponses);
+
       await controller.getRankedResponses(mockReq, mockRes);
 
-      // Assert
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Missing skills query',
-      });
-      expect(FormResponse.find).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ _id: '1' }),
+          expect.objectContaining({ _id: '2' }),
+        ]),
+      );
     });
 
-    it('should handle database errors when calculating ranked responses', async () => {
-      // Arrange
-      const skills = 'React,MongoDB';
-      mockReq.query = { skills };
+    it('should handle database errors when ranking users', async () => {
+      FormResponse.find = jest.fn().mockRejectedValue(new Error('DB fail'));
 
-      const error = new Error('Database connection failed');
-      FormResponse.find = jest.fn().mockRejectedValue(error);
-
-      // Act
       await controller.getRankedResponses(mockReq, mockRes);
 
-      // Assert
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Failed to calculate ranked responses',
-      });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Failed to rank users' });
     });
   });
 });

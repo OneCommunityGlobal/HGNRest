@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
@@ -13,7 +14,7 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: { type: [Date], default: [] },
   defaultPassword: {
     type: String,
     required: false, // Not required since it's optional
@@ -128,6 +129,19 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
+
       ccdUsers: {
         type: [
           {
@@ -138,8 +152,34 @@ const userProfileSchema = new Schema({
         ],
         default: [],
       },
+      reasons: {
+        type: [String],
+        default: ['other'],
+        enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
+      },
+      // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
+      manullyAssigned: {
+        type: Boolean,
+        default: false,
+      },
+      // Track who manually assigned the blue square
+      manullyAssignedBy: {
+        firstName: { type: String },
+        lastName: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+      },
+      // Track edit history for the blue square
+      editedBy: [
+        {
+          firstName: { type: String },
+          lastName: { type: String },
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+          date: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -203,6 +243,15 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
+  // used for deactivation/reactivation of accounts, tracking last activity, and updating endDate when account is deactivated
+  lastActivityAt: { type: Date, required: false, index: true },
+  deactivatedAt: { type: Date, required: false, index: true },
+  // differentiate between paused and separated accounts for better reporting and handling in the future
+  inactiveReason: {
+    type: String,
+    enum: ['Paused', 'Separated', 'ScheduledSeparation', null],
+    default: undefined,
+  },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
@@ -256,7 +305,27 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  filterColor: {
+    type: [String],
+    // enum: ['purple', 'green', 'navy', null],
+    default: [],
+    set: (v) => {
+      // if (Array.isArray(v)) return [...new Set(v.filter(Boolean))];
+      // if (typeof v === 'string' && v.trim()) return [v.trim()];
+      // return [];
+      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map((s) => s.trim()))];
+      if (typeof v === 'string') {
+        const parts = v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return [...new Set(parts)];
+      }
+      return [];
+    },
+  },
   trophyFollowedUp: { type: Boolean, default: false },
+  // filterColor: { type: [String], default: [] },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
   teamCodeWarning: { type: Boolean, default: false },
@@ -298,6 +367,7 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -334,6 +404,12 @@ const userProfileSchema = new Schema({
           trim: true,
         },
       ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
+        },
+      ],
     },
     teacher: {
       subjects: [
@@ -349,7 +425,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'UserProfile',
         },
       ],
     },
@@ -374,12 +450,26 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'UserProfile',
         },
       ],
     },
   },
 });
+
+function clearUserCache(doc) {
+  try {
+    const cache = require('../utilities/nodeCache')();
+    if (!cache) return;
+
+    cache.removeCache('allusers_v1');
+    if (doc && doc._id) {
+      cache.removeCache(`user_${doc._id.toString()}`);
+    }
+  } catch (error) {
+    console.error('Cache clear failed:', error.message);
+  }
+}
 
 userProfileSchema.pre('save', function (next) {
   const user = this;
@@ -395,11 +485,21 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
+userProfileSchema.post('save', (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post('deleteOne', { document: true, query: false }, (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post(['findOneAndUpdate', 'findOneAndDelete'], (doc) => {
+  clearUserCache(doc);
+});
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
 userProfileSchema.index({ projects: 1, firstName: 1 });
 userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
+userProfileSchema.index({ lastName: 1 });
 // Add index for weeklySummaries.dueDate to speed up filtering
 userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
 // Add compound index for isActive and createdDate
@@ -414,3 +514,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');

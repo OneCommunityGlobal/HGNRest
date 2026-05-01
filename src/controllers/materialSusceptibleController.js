@@ -1,3 +1,5 @@
+/* eslint-disable import/no-unresolved */
+/* eslint-disable import/extensions */
 const ProjectMaterial = require('../models/projectMaterial');
 
 const createProjectMaterial = async (req, res) => {
