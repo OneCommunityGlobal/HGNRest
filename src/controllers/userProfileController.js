@@ -21,6 +21,7 @@ const Badge = require('../models/badge');
 const yearMonthDayDateValidator = require('../utilities/yearMonthDayDateValidator');
 const cacheClosure = require('../utilities/nodeCache');
 const followUp = require('../models/followUp');
+const Task = require('../models/task');
 const HGNFormResponses = require('../models/hgnFormResponse');
 const userService = require('../services/userService');
 const { hasPermission, canRequestorUpdateUser } = require('../utilities/permissions');
@@ -1228,14 +1229,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       // Verify the update was successful by fetching the user directly from DB
       const verificationUser = await UserProfile.findById(userId, 'bioPosted firstName lastName');
-      console.log(
-        `Database verification - User: ${verificationUser.firstName} ${verificationUser.lastName}, bioPosted: ${verificationUser.bioPosted}`,
-      );
 
       if (verificationUser.bioPosted !== bioPosted) {
-        console.error(
-          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
-        );
+        console.error('WARNING: Database update failed for bio status.');
         return res.status(500).json({ error: 'Failed to update bio status in database.' });
       }
 
@@ -1491,6 +1487,22 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       await UserProfile.deleteOne({ _id: userId });
       // delete followUp for deleted user
       await followUp.findOneAndDelete({ userId });
+      const matchedUserIds = [userId];
+      if (mongoose.Types.ObjectId.isValid(userId)) {
+        matchedUserIds.push(new mongoose.Types.ObjectId(userId));
+      }
+
+      await Promise.all([
+        // Use raw collection updates so string user ids in existing records are not cast away.
+        Task.collection.updateMany(
+          { 'resources.userID': { $in: matchedUserIds } },
+          { $pull: { resources: { userID: { $in: matchedUserIds } } } },
+        ),
+        Team.collection.updateMany(
+          { 'members.userId': { $in: matchedUserIds } },
+          { $pull: { members: { userId: { $in: matchedUserIds } } } },
+        ),
+      ]);
       res.status(200).send({ message: 'Executed Successfully' });
       auditIfProtectedAccountUpdated({
         requestorId: req.body.requestor.requestorId,
