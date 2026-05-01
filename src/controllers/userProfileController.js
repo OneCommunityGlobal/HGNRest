@@ -1165,14 +1165,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       // Verify the update was successful by fetching the user directly from DB
       const verificationUser = await UserProfile.findById(userId, 'bioPosted firstName lastName');
-      console.log(
-        `Database verification - User: ${verificationUser.firstName} ${verificationUser.lastName}, bioPosted: ${verificationUser.bioPosted}`,
-      );
 
       if (verificationUser.bioPosted !== bioPosted) {
-        console.error(
-          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
-        );
+        console.error('WARNING: Database update failed for bio status.');
         return res.status(500).json({ error: 'Failed to update bio status in database.' });
       }
 
