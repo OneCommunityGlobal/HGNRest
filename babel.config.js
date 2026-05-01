@@ -10,7 +10,7 @@ module.exports = {
         useESModules: false,
       },
     ],
-    ['@babel/plugin-proposal-logical-assignment-operators'], // needed for ||= and ??=
+    ['@babel/plugin-transform-logical-assignment-operators'], // <-- needed for ||= and ??=
     ['module-resolver', { root: './src' }],
   ],
   ignore: [

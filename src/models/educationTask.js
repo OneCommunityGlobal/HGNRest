@@ -2,11 +2,6 @@ const mongoose = require('mongoose');
 
 const educationTaskSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
     lessonPlanId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LessonPlan',
@@ -74,9 +69,5 @@ const educationTaskSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
-educationTaskSchema.index({ status: 1 });
-educationTaskSchema.index({ studentId: 1 });
-educationTaskSchema.index({ lessonPlanId: 1 });
-educationTaskSchema.index({ completedAt: -1 });
 
 module.exports = mongoose.model('EducationTask', educationTaskSchema);

@@ -67,25 +67,6 @@ const getEvents = async (req, res) => {
   }
 };
 
-const getEventById = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const event = await Event.findById(id).populate('resources.userID');
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-    event.status = updateEventStatus(event);
-
-    res.json(event);
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to fetch event',
-      details: error.message,
-    });
-  }
-};
-
 const autoPromoteFromWaitlist = (event) => {
   const promotedUsers = [];
 
@@ -246,7 +227,6 @@ const leaveWaitlist = async (req, res) => {
 
 module.exports = {
   getEvents,
-  getEventById,
   getEventLocations,
   getEventTypes,
   createEvent,
