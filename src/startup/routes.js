@@ -54,6 +54,7 @@ const title = require('../models/title');
 const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
+const progressRouter = require('../routes/progressRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -229,6 +230,12 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
+  invTypeBase,
+  materialType,
+  consumableType,
+  reusableType,
+  toolType,
+  equipmentType,
   invTypeHistory,
 );
 
@@ -350,7 +357,7 @@ console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
-const educationTaskRouter = require('../routes/educationTaskRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');const educationTaskRouter = require('../routes/educationTaskRouter');
 const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
@@ -363,8 +370,9 @@ const webhookRouter = require('../routes/lbdashboard/webhookRouter');
 const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
+const blueskyRouter = require('../routes/blueskyRouter');
 
-const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
+const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const announcementRouter = require('../routes/announcementRouter')();
 
@@ -403,6 +411,9 @@ const actualCostRouter = require('../routes/actualCostRouter')();
 const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
+
+// Education Portal
+const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -465,10 +476,12 @@ module.exports = function (app) {
   app.use('/api/questions', hgnformRouter);
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
+  app.use('/api/progress', progressRouter);
   app.use('/api/skills', userSkillTabsRouter);
   app.use('/api/questionnaire-analytics/', questionnaireAnalyticsRouter);
   app.use('/api/applicant-analytics/', applicantAnalyticsRouter);
   app.use('/api/job-notification-list/', jobNotificationListRouter);
+  app.use('/api/bluesky', blueskyRouter);
 
   app.use('/api/projects', projectStatusRouter);
   app.use('/api', projectsGlobalDistributionRouter);
@@ -594,6 +607,9 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  // Education Portal
+  app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
@@ -618,4 +634,6 @@ module.exports = function (app) {
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
+
+  app.use('/api/analytics', analyticsRouter);
 };
