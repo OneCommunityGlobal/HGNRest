@@ -310,8 +310,7 @@ const userHelper = function () {
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
-      for (let i = 0; i < results.length; i += 1) {
-        const result = results[i];
+      for (const result of results) {
         const {
           firstName,
           lastName,
@@ -2337,11 +2336,11 @@ const userHelper = function () {
       const b = badgeCollection[i];
       if (b.badge?.type === 'Personal Max') {
         console.log(`[DEBUG] Found Personal Max badge at index $`);
-        if (!badgeOfType) {
-          badgeOfType = b;
-        } else {
+        if (badgeOfType) {
           duplicateBadges.push(b);
           console.log(`[DEBUG] Found duplicate Personal Max badge:)}`);
+        } else {
+          badgeOfType = b;
         }
         break;
       }
@@ -2349,7 +2348,6 @@ const userHelper = function () {
 
     // Remove duplicate badges
     for (const b of duplicateBadges) {
-      // console.log(`[DEBUG] Removing duplicate badge with ID: ${b._id}`);
       await removeDupBadge(personId, b._id);
     }
 
@@ -2597,15 +2595,15 @@ const userHelper = function () {
     });
 
     let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
-        if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
+    for (const badgeEntry of badgeCollection) {
+      if (badgeEntry.badge?.type === 'Lead a team of X+') {
+        if (badgeOfType && badgeOfType.people <= badgeEntry.badge.people) {
           await removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = badgeCollection[i].badge;
-        } else if (badgeOfType && badgeOfType.people > badgeCollection[i].badge.people) {
-          await removeDupBadge(personId, badgeCollection[i].badge._id);
+          badgeOfType = badgeEntry.badge;
+        } else if (badgeOfType && badgeOfType.people > badgeEntry.badge.people) {
+          await removeDupBadge(personId, badgeEntry.badge._id);
         } else if (!badgeOfType) {
-          badgeOfType = badgeCollection[i].badge;
+          badgeOfType = badgeEntry.badge;
         }
       }
     }
@@ -3396,11 +3394,6 @@ const userHelper = function () {
     } catch (err) {
       console.error('[Manual Resend] Error while resending:', err);
       logger.logException(err);
-    }
-    async function getEmailRecipientsForStatusChange(userId) {
-      // Safe default: avoid breaking pause/resume if email-recipient logic is not implemented yet.
-      // Return empty recipients list to skip sending.
-      return [];
     }
   };
 

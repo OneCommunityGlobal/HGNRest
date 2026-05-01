@@ -64,8 +64,8 @@ describe('Notification controller Unit Tests', () => {
         mockReq.body.requestor.role = role;
         const mockService = jest.fn().mockResolvedValue(mockNotifications);
         notificationService.getNotifications = mockService;
-        const response = await getUserNotifications(mockReq, mockRes);
-        assertResMock(200, mockNotifications, response, mockRes);
+        await expect(getUserNotifications(mockReq, mockRes)).resolves.toBeUndefined();
+        assertResMock(200, mockNotifications, undefined, mockRes);
       },
     );
     test('Ensures getUserNotifications returns 200 and notifications data when notifications are fetched successfully', async () => {
@@ -115,8 +115,8 @@ describe('Notification controller Unit Tests', () => {
         mockReq.body.requestor.role = role;
         const mockService = jest.fn().mockResolvedValue(mockNotifications);
         notificationService.getUnreadUserNotifications = mockService;
-        const response = await getUnreadUserNotifications(mockReq, mockRes);
-        assertResMock(200, mockNotifications, response, mockRes);
+        await expect(getUnreadUserNotifications(mockReq, mockRes)).resolves.toBeUndefined();
+        assertResMock(200, mockNotifications, undefined, mockRes);
       },
     );
     test('Ensures getUnreadUserNotifications returns 200 and notifications data when notifications are fetched successfully', async () => {
