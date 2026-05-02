@@ -311,12 +311,8 @@ const userHelper = function () {
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
-<<<<<<< sai/pause-user-permission-backend
-      for (const result of results) {
-=======
       for (let i = 0; i < activeResults.length; i += 1) {
         const result = activeResults[i];
->>>>>>> development
         const {
           firstName,
           lastName,
@@ -2351,26 +2347,6 @@ const userHelper = function () {
     const masterBadges = await badge.find({ type: 'Personal Max' });
     if (!masterBadges.length) return;
 
-<<<<<<< sai/pause-user-permission-backend
-    // Check for existing badge in badgeCollection
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      const b = badgeCollection[i];
-      if (b.badge?.type === 'Personal Max') {
-        console.log(`[DEBUG] Found Personal Max badge at index $`);
-        if (badgeOfType) {
-          duplicateBadges.push(b);
-          console.log(`[DEBUG] Found duplicate Personal Max badge:)}`);
-        } else {
-          badgeOfType = b;
-        }
-        break;
-      }
-    }
-
-    // Remove duplicate badges
-    for (const b of duplicateBadges) {
-      await removeDupBadge(personId, b._id);
-=======
     const masterBadgeId = masterBadges[0]._id;
 
     // Collect all Personal Max badges from the user's collection
@@ -2379,7 +2355,6 @@ const userHelper = function () {
     // Remove all duplicates beyond the first
     for (let i = 1; i < personalMaxBadges.length; i += 1) {
       await removeDupBadge(personId, personalMaxBadges[i]._id);
->>>>>>> development
     }
 
     const badgeOfType = personalMaxBadges[0] || null;
