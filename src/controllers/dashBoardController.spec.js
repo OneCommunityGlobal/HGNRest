@@ -1,5 +1,4 @@
 jest.mock('uuid/v4');
-// jest.mock('../utilities/emailSender', () => jest.fn());
 jest.mock('../utilities/emailSender', () => ({
   sendEmail: jest.fn().mockResolvedValue(),
 }));

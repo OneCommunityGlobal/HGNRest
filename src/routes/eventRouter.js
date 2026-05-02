@@ -11,4 +11,8 @@ eventRouter.post('/events', eventsController.createEvent);
 eventRouter.post('/events/:id/register', eventsController.registerForEvent);
 eventRouter.delete('/events/:id/register/:userId', eventsController.unregisterFromEvent);
 
+eventRouter.post('/events/:eventId/waitlist', eventsController.joinWaitlist);
+eventRouter.delete('/events/:eventId/waitlist', eventsController.leaveWaitlist);
+eventRouter.post('/events/:eventId/leave', eventsController.leaveEvent);
+
 module.exports = eventRouter;
