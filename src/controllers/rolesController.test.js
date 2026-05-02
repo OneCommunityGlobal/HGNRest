@@ -12,7 +12,7 @@ jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions');
 jest.mock('../utilities/nodeCache');
 
-const cacheManager = require('../utilities/nodeCache');
+// const cacheManager = require('../utilities/nodeCache');
 const authHelper = require('../utilities/permissions');
 const rolesControllerFactory = require('./rolesController');
 
@@ -25,17 +25,18 @@ const mockAuthCheck = (isAuthorized) =>
 
 // eslint-disable-next-line no-unused-vars
 const setupCacheMock = (method, value) => {
-  const cacheService = {
+  // eslint-disable-next-line no-unused-vars
+  const _cacheService = {
     getCache: jest.fn(),
     removeCache: jest.fn(),
     hasCache: jest.fn(),
     setCache: jest.fn(),
   };
 
-  const methodSpy = jest.spyOn(cacheService, method).mockReturnValue(value);
-  cacheManager.mockReturnValue(cacheService);
+  //   const methodSpy = jest.spyOn(cacheService, method).mockReturnValue(value);
+  //   cacheManager.mockReturnValue(cacheService);
 
-  return { methodSpy, cacheService };
+  //   return { methodSpy, cacheService };
 };
 
 const initializeRolesController = () => {
