@@ -27,6 +27,10 @@ app.use('/api/helprequest', helpRequestRouter);
 
 require('./startup/middleware')(app);
 
+const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
+
+app.use('/api', weeklyReportsRouter);
+
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
 
