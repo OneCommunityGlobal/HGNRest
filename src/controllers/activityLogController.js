@@ -10,7 +10,12 @@ const activityLogController = function () {
         return res.status(403).json({ error: "Forbidden: Cannot access another student's log" });
       }
 
-      const logs = await ActivityLog.find({ actor_id: studentId })
+      const authorizedStudentId = requestedStudentId || String(studentId);
+      if (!/^[a-zA-Z0-9_-]+$/.test(authorizedStudentId)) {
+        return res.status(400).json({ error: 'Invalid studentId format' });
+      }
+
+      const logs = await ActivityLog.find({ actor_id: authorizedStudentId })
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id');
 
@@ -25,6 +30,10 @@ const activityLogController = function () {
       const { studentId } = req.params;
 
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
+      if (!/^[a-zA-Z0-9_-]+$/.test(studentId)) {
+        return res.status(400).json({ error: 'Invalid studentId format' });
+      }
 
       const logs = await ActivityLog.find({ actor_id: studentId })
         .sort({ created_at: -1 })
