@@ -72,11 +72,10 @@ function getPagination(page, limit, total) {
 }
 
 function formatEvent(event, userId) {
-  event.status = updateEventStatus(event);
-
   const eventObj = event.toObject();
   const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
 
+  eventObj.status = updateEventStatus(event);
   eventObj.waitlistCount = waitlist.length;
   eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
 
@@ -91,7 +90,7 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy } = req.query;
+    const { page, limit, type, location, sortBy, userId } = req.query;
 
     validateQuery({ type, location, sortBy });
 
@@ -105,7 +104,7 @@ const getEvents = async function (req, res) {
       .skip(skip)
       .limit(limitNumber);
 
-    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
+    const formattedEvents = events.map((event) => formatEvent(event, userId));
 
     res.json({
       events: formattedEvents,
