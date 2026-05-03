@@ -132,11 +132,10 @@ const autoPromoteFromWaitlist = (event) => {
 
   while (event.currentAttendees < event.maxAttendees && event.waitlist.length > 0) {
     const nextEntry = event.waitlist.shift();
-
-    if (!nextEntry?.userId) continue;
-    console.log(`Auto-promoting user from waitlist for event ${event._id}`);
-    event.currentAttendees += 1;
-    promotedUsers.push(nextEntry.userId);
+    if (nextEntry?.userId) {
+      event.currentAttendees += 1;
+      promotedUsers.push(nextEntry.userId);
+    }
   }
 
   return promotedUsers;
@@ -177,7 +176,6 @@ const joinWaitlist = async (req, res) => {
   try {
     const { eventId } = req.params;
     const { userId } = req.body;
-    console.log('Join waitlist request received');
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid userId' });
@@ -206,7 +204,6 @@ const joinWaitlist = async (req, res) => {
       position,
     });
   } catch (error) {
-    console.error('JOIN WAITLIST ERROR:', error);
     res.status(500).json({
       error: 'Failed to join waitlist',
       details: error.message,
@@ -216,7 +213,7 @@ const joinWaitlist = async (req, res) => {
 
 const sendWaitlistNotification = async (user, event) => {
   // TODO: Integrate with real notification service (email/queue)
-  console.log(`Sending waitlist notification for event ${event._id}`);
+  // console.log(`Sending waitlist notification for event ${event._id}`);
 };
 
 const leaveEvent = async (req, res) => {
