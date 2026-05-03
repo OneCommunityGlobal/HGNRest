@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ActivityLog = require('../models/activityLog');
 
 const activityLogController = function () {
@@ -11,11 +12,15 @@ const activityLogController = function () {
       }
 
       const authorizedStudentId = requestedStudentId || String(studentId);
-      if (!/^[a-zA-Z0-9_-]+$/.test(authorizedStudentId)) {
+
+      let objectId;
+      try {
+        objectId = new mongoose.Types.ObjectId(authorizedStudentId);
+      } catch (e) {
         return res.status(400).json({ error: 'Invalid studentId format' });
       }
 
-      const logs = await ActivityLog.find({ actor_id: authorizedStudentId })
+      const logs = await ActivityLog.find({ actor_id: objectId })
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id');
 
@@ -31,11 +36,14 @@ const activityLogController = function () {
 
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
 
-      if (!/^[a-zA-Z0-9_-]+$/.test(studentId)) {
+      let objectId;
+      try {
+        objectId = new mongoose.Types.ObjectId(studentId);
+      } catch (e) {
         return res.status(400).json({ error: 'Invalid studentId format' });
       }
 
-      const logs = await ActivityLog.find({ actor_id: studentId })
+      const logs = await ActivityLog.find({ actor_id: objectId })
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id');
 
