@@ -376,11 +376,11 @@ const studentTaskController = function () {
       const { taskId } = req.params;
       const studentId = req.body.requestor?.requestorId;
 
-      if (!taskId) {
-        return res.status(400).json({ error: 'Task ID is required' });
+      if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+        return res.status(400).json({ error: 'Invalid Task ID' });
       }
-      if (!studentId) {
-        return res.status(400).json({ error: 'Student ID is required' });
+      if (!studentId || !mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'Invalid Student ID' });
       }
 
       const hours = Number(req.body.hours);
@@ -394,7 +394,7 @@ const studentTaskController = function () {
       });
 
       if (!task) {
-        return res.status(404).json({ error: 'Task not found' });
+        return res.status(404).json({ error: 'Task not found or does not belong to you' });
       }
 
       if (task.status === 'completed' || task.status === 'graded') {
@@ -404,23 +404,27 @@ const studentTaskController = function () {
       const cap = task.suggestedTotalHours > 0 ? task.suggestedTotalHours : Infinity;
       const newLoggedHours = Math.min(task.loggedHours + hours, cap);
 
-      task.loggedHours = newLoggedHours;
+      const newStatus =
+        task.status === 'assigned' && newLoggedHours > 0 ? 'in_progress' : task.status;
 
-      // Automatically move to in_progress once any hours are logged
-      if (task.status === 'assigned' && newLoggedHours > 0) {
-        task.status = 'in_progress';
+      const updated = await EducationTask.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(taskId) },
+        { $set: { loggedHours: newLoggedHours, status: newStatus } },
+        { new: true, runValidators: false },
+      );
+
+      if (!updated) {
+        return res.status(404).json({ error: 'Task not found during update' });
       }
 
-      await task.save();
-
       const canMarkDone =
-        task.suggestedTotalHours > 0 && task.loggedHours >= task.suggestedTotalHours;
+        updated.suggestedTotalHours > 0 && updated.loggedHours >= updated.suggestedTotalHours;
 
       return res.status(200).json({
         message: 'Hours logged successfully',
-        loggedHours: task.loggedHours,
-        suggestedTotalHours: task.suggestedTotalHours,
-        status: task.status,
+        loggedHours: updated.loggedHours,
+        suggestedTotalHours: updated.suggestedTotalHours,
+        status: updated.status,
         canMarkDone,
       });
     } catch (error) {
