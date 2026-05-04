@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
@@ -71,7 +72,7 @@ const educationTaskController = function () {
   // Create new task
   const createTask = async (req, res) => {
     try {
-      const { lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
+      const { name, lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
 
       // Validate lesson plan exists
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -102,6 +103,7 @@ const educationTaskController = function () {
       }
 
       const task = new EducationTask({
+        name,
         lessonPlanId,
         studentId,
         atomIds: atomIds || [],
@@ -430,6 +432,66 @@ const educationTaskController = function () {
     }
   };
 
+  const getTaskSubmissions = async (req, res) => {
+    try {
+      const { status, studentId, lessonPlanId } = req.query;
+
+      const allowedStatuses = ['completed', 'graded'];
+
+      let dbQuery = EducationTask.find().setOptions({ sanitizeFilter: true });
+
+      if (status && allowedStatuses.includes(status)) {
+        dbQuery = dbQuery.where('status').equals(status);
+      } else {
+        dbQuery = dbQuery.where('status').in(allowedStatuses);
+      }
+
+      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+        dbQuery = dbQuery.where('studentId').equals(new mongoose.Types.ObjectId(studentId));
+      }
+
+      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+        dbQuery = dbQuery.where('lessonPlanId').equals(new mongoose.Types.ObjectId(lessonPlanId));
+      }
+
+      const submissions = await dbQuery
+        .populate('studentId', 'firstName lastName email')
+        .populate('lessonPlanId', 'title')
+        .sort({ completedAt: -1 });
+
+      const formattedSubmissions = submissions
+        .map((task) => {
+          if (!task.studentId || !task.lessonPlanId) {
+            return null;
+          }
+
+          return {
+            // _id: task._id,
+            studentId: task.studentId._id,
+            studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+            studentEmail: task.studentId.email,
+            taskName: task.name || 'Unnamed Task',
+            taskType: task.type,
+            submissionLinks: task.uploadUrls,
+            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
+            isLate:
+              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
+            submittedAt: task.completedAt,
+            assignedAt: task.assignedAt,
+            dueAt: task.dueAt,
+            grade: task.grade,
+            feedback: task.feedback,
+            lessonPlanId: task.lessonPlanId._id.toString(),
+            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).json(formattedSubmissions);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
   return {
     getEducationTasks,
     getTasksByStudent,
@@ -441,6 +503,7 @@ const educationTaskController = function () {
     updateTaskStatus,
     gradeTask,
     getTasksByStatus,
+    getTaskSubmissions,
     markTaskAsComplete,
   };
 };
