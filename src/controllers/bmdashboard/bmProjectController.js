@@ -1,7 +1,10 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
 const Task = require('../../models/task');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 // TODO: uncomment when executing auth checks
 // const jwt = require('jsonwebtoken');
 // const config = require('../../config');
@@ -131,6 +134,39 @@ const bmMProjectController = function () {
     }
   };
 
+  const fetchProjectsNames = async (req, res) => {
+    try {
+      // Query all active projects from database (unchanged)
+      const projects = await BuildingProject.find(
+        { isActive: true }, // only active projects
+        { _id: 1, name: 1 }, // only select id + name
+      );
+
+      let projectNames = projects.map((proj) => ({
+        projectId: proj._id,
+        projectName: proj.name,
+      }));
+
+      // Optional filtering: only include projects that have issues
+      // Used by Issues Breakdown Chart to avoid showing projects with no data
+      if (req.query.withIssuesOnly === 'true') {
+        // Get distinct project IDs that have issues
+        const projectIdsWithIssues = await BuildingIssue.distinct('projectId');
+        const projectIdsWithIssuesSet = new Set(projectIdsWithIssues.map((id) => id.toString()));
+
+        // Filter to only include projects that have issues
+        projectNames = projectNames.filter((proj) =>
+          projectIdsWithIssuesSet.has(proj.projectId.toString()),
+        );
+      }
+
+      res.status(200).json(projectNames);
+    } catch (error) {
+      console.error('Error in fetchProjectNames:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
     try {
@@ -180,7 +216,7 @@ const bmMProjectController = function () {
     }
   };
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectMembers };
+  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames, fetchProjectMembers };
 };
 
 module.exports = bmMProjectController;

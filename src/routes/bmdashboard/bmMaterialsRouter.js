@@ -5,7 +5,6 @@ const routes = function (buildingMaterial) {
   const controller = require('../../controllers/bmdashboard/bmMaterialsController')(
     buildingMaterial,
   );
-
   materialsRouter
     .route('/materials')
     .get(controller.bmMaterialsList)
@@ -17,7 +16,9 @@ const routes = function (buildingMaterial) {
 
   materialsRouter.route('/updateMaterialStatus').post(controller.bmupdatePurchaseStatus);
 
-  // materialsRouter.route('/materials/:projectId').get(controller.bmGetMaterialSummaryByProject);
+  materialsRouter.route('/materials/stock-out-risk').get(controller.bmGetMaterialStockOutRisk);
+
+  materialsRouter.route('/materials/:projectId').get(controller.bmGetMaterialSummaryByProject);
 
   return materialsRouter;
 };
