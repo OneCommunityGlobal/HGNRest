@@ -6,18 +6,7 @@ const routes = function (userProfile, project) {
   const controller = require('../controllers/userProfileController')(userProfile, project);
   const userProfileRouter = express.Router();
 
-  // Skills radar route
-  userProfileRouter.get('/userProfile/:userId/skills-radar', async (req, res) => {
-    try {
-      if (typeof controller.getUserSkillRadarData === 'function') {
-        await controller.getUserSkillRadarData(req, res);
-      } else {
-        res.status(500).send('Controller function not found');
-      }
-    } catch (err) {
-      res.status(500).send({ error: err.message });
-    }
-  });
+  userProfileRouter.get('/userProfile/:userId/skills-radar', controller.getUserSkillRadarData);
 
   // Other routes (unchanged, just formatted for clarity)
   userProfileRouter
@@ -120,6 +109,7 @@ const routes = function (userProfile, project) {
     .patch(controller.changeUserStatus);
 
   userProfileRouter.route('/userProfile/name/:name').get(controller.getUserByName);
+  userProfileRouter.route('/userProfile/:userId/pause').patch(controller.pauseResumeUser);
   userProfileRouter
     .route('/userProfile/:userId/rehireable')
     .patch(controller.changeUserRehireableStatus);

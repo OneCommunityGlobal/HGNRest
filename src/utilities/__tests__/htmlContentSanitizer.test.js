@@ -37,4 +37,22 @@ describe('htmlContentSanitizer', () => {
     const text = 'Just plain text';
     expect(cleanHtml(text)).toBe(text);
   });
+
+  it('should handle null input gracefully', () => {
+    const dirtyHtml = null;
+    const clean = cleanHtml(dirtyHtml);
+    expect(clean).toBe('');
+  });
+
+  it('should handle undefined input gracefully', () => {
+    const dirtyHtml = undefined;
+    const clean = cleanHtml(dirtyHtml);
+    expect(clean).toBe('');
+  });
+
+  it('should remove disallowed attributes from allowed tags', () => {
+    const dirtyHtml = '<p style="color:red;" onclick="alert(\'xss\')">Test</p>';
+    const clean = cleanHtml(dirtyHtml);
+    expect(clean).toBe('<p>Test</p>');
+  });
 });
