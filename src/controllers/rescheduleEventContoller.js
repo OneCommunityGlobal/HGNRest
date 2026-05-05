@@ -12,14 +12,14 @@ const config = {
   clientSecret: process.env.TEST_CLIENT_SECRET,
   redirectUri: process.env.TEST_REDIRECT_URI,
   refreshToken: process.env.TEST_REFRESH_TOKEN,
-}; //config needs to be modified according to one community email id
+};
 
-const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN || 'http://localhost:5173';
+const PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN || 'https://www.highestgoodnetwork.org';
 
 const OAuth2Client = new google.auth.OAuth2(
   config.clientId,
   config.clientSecret,
-  config.redirectUri
+  config.redirectUri,
 );
 OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
 
@@ -59,7 +59,7 @@ const isYYYYMMDD = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const to12h = (hhmm) => {
   const [H, M] = hhmm.split(':').map(Number);
   const ap = H >= 12 ? 'PM' : 'AM';
-  const h12 = (H % 12) || 12;
+  const h12 = H % 12 || 12;
   return `${h12}:${String(M).padStart(2, '0')} ${ap}`;
 };
 
@@ -67,14 +67,13 @@ function formatOptionHuman({ dateISO, start, end }, tz) {
   const [y, m, d] = dateISO.split('-').map(Number);
   const startMoment = moment.tz(
     { year: y, month: m - 1, day: d, hour: +start.slice(0, 2), minute: +start.slice(3) },
-    tz
+    tz,
   );
   const dateStr = startMoment.format('ddd, MMM D, YYYY');
   return `${dateStr} • ${to12h(start)} – ${to12h(end)} (${tz})`;
 }
 
 const RESCHEDULE_POLLS = new Map();
-const RSVP_TOKENS = new Map();
 const RSVP_VOTES = new Map();
 
 const MOCK_ACTIVITY = {
@@ -85,10 +84,10 @@ const MOCK_ACTIVITY = {
   organizerId: 'org1',
   location: 'San Francisco, CA 94108',
   participants: [
-    { userId: '1', name: 'Alice', email: 'alice@gmail.com' }, 
+    { userId: '1', name: 'Alice', email: 'alice@gmail.com' },
     { userId: '2', name: 'Bob', email: 'bob@gmail.com' },
     { userId: '3', name: 'Jane', email: 'jane@gmail.com' },
-  ], //email address should bemodified to test this
+  ],
 };
 
 async function loadActivity(activityId) {
@@ -119,6 +118,63 @@ async function getParticipantEmails(activity) {
     .filter(Boolean);
 }
 
+function validateRescheduleOptions(options) {
+  if (!Array.isArray(options) || options.length === 0) {
+    return 'options[] is required and must be non-empty';
+  }
+  if (options.length > 5) {
+    return 'At most 5 options allowed';
+  }
+  const invalidOption = options.find(
+    (option) => !option?.dateISO || !option?.start || !option?.end,
+  );
+  if (invalidOption) {
+    return 'Each option must include dateISO, start, end';
+  }
+  const invalidDate = options.find((option) => !isYYYYMMDD(option.dateISO));
+  if (invalidDate) {
+    return 'dateISO must be YYYY-MM-DD';
+  }
+  const invalidTime = options.find((option) => !isHHMM(option.start) || !isHHMM(option.end));
+  if (invalidTime) {
+    return 'start/end must be HH:MM (24h)';
+  }
+  return null;
+}
+
+function buildRescheduleEmail({
+  activity,
+  activityId,
+  activityTitle,
+  options,
+  prevDateLine,
+  reason,
+  timezone,
+}) {
+  const optionsListHtml = options
+    .map((option) => formatOptionHuman(option, timezone))
+    .map((label) => `<li style="margin:8px 0;">${label}</li>`)
+    .join('');
+
+  const rsvpAppUrl = `${PUBLIC_APP_ORIGIN}/communityportal/ReschedulePoll?a=${encodeURIComponent(
+    activityId,
+  )}`;
+
+  return `
+    <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
+      <h2 style="margin:0 0 8px;">Reschedule Notice: ${activityTitle}</h2>
+      <p><strong>Location:</strong> ${activity.location || 'TBA'}</p>
+      <p><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
+      ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+      <p>Please review the new times and submit your choice:</p>
+      <ul>${optionsListHtml}</ul>
+      <div style="margin:20px 0;">
+        <a href="${rsvpAppUrl}" style="background:#1a73e8;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;">Open poll and submit your choice</a>
+      </div>
+    </div>
+  `;
+}
+
 async function rescheduleNotify(req, res) {
   try {
     const { activityId } = req.params;
@@ -129,22 +185,9 @@ async function rescheduleNotify(req, res) {
     if (!activity) return res.status(404).json({ message: 'Activity not found' });
 
     const { options, reason = '', timezone = 'UTC' } = req.body || {};
-    if (!Array.isArray(options) || options.length === 0) {
-      return res.status(400).json({ message: 'options[] is required and must be non-empty' });
-    }
-    if (options.length > 5) {
-      return res.status(400).json({ message: 'At most 5 options allowed' });
-    }
-    for (const o of options) {
-      if (!o?.dateISO || !o?.start || !o?.end) {
-        return res.status(400).json({ message: 'Each option must include dateISO, start, end' });
-      }
-      if (!isYYYYMMDD(o.dateISO)) {
-        return res.status(400).json({ message: 'dateISO must be YYYY-MM-DD' });
-      }
-      if (!isHHMM(o.start) || !isHHMM(o.end)) {
-        return res.status(400).json({ message: 'start/end must be HH:MM (24h)' });
-      }
+    const optionsError = validateRescheduleOptions(options);
+    if (optionsError) {
+      return res.status(400).json({ message: optionsError });
     }
 
     const toList = await getParticipantEmails(activity);
@@ -166,32 +209,15 @@ async function rescheduleNotify(req, res) {
     const activityTitle = activity.title || activity.name || 'Event';
 
     for (const email of toList) {
-      const token = uuidv4();
-      RSVP_TOKENS.set(token, { activityId, email });
-
-      const optionsListHtml = options
-        .map((o) => formatOptionHuman(o, timezone))
-        .map((str) => `<li style="margin:8px 0;">${str}</li>`)
-        .join('');
-
-      const rsvpAppUrl = `${PUBLIC_APP_ORIGIN}/communityportal/ReschedulePoll?a=${encodeURIComponent(
-        activityId
-      )}`;
-
-      const html = `
-        <div style="font-family:Arial,sans-serif;line-height:1.45;color:#222;">
-          <h2 style="margin:0 0 8px;">Reschedule Notice: ${activityTitle}</h2>
-          <p><strong>Location:</strong> ${activity.location || 'TBA'}</p>
-          <p><strong>Previously scheduled for:</strong> ${prevDateLine}</p>
-          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-          <p>Please review the new times and submit your choice:</p>
-          <ul>${optionsListHtml}</ul>
-          <div style="margin:20px 0;">
-            <a href="${rsvpAppUrl}" style="background:#1a73e8;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;">Open poll and submit your choice</a>
-          </div>
-        </div>
-      `;
-
+      const html = buildRescheduleEmail({
+        activity,
+        activityId,
+        activityTitle,
+        options,
+        prevDateLine,
+        reason,
+        timezone,
+      });
       await sendEmail({ to: email, subject: `Reschedule notice for “${activityTitle}”`, html });
     }
 
@@ -243,7 +269,6 @@ async function getReschedulePoll(req, res) {
   }
 }
 
-
 function submitRescheduleVote(req, res) {
   try {
     const { activityId } = req.params;
@@ -276,7 +301,6 @@ function submitRescheduleVote(req, res) {
     return res.status(500).json({ message: 'Server error', error: err?.message || err });
   }
 }
-
 
 module.exports = {
   rescheduleNotify,

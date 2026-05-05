@@ -8,8 +8,6 @@ const routes = function (buildingProject) {
 
   projectRouter.route('/project/:projectId').get(controller.fetchSingleProject);
 
-  // projectRouter.route('/projectsNames').get(controller.fetchProjectsNames);
-
   projectRouter.route('/project/:projectId/users').get(controller.fetchProjectMembers);
 
   return projectRouter;
