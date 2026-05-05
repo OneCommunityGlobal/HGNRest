@@ -48,6 +48,7 @@ const KIInventoryController = () => {
       const items = await KIInventoryItem.find(null, { __v: 0 }).lean().sort({ createdAt: -1 });
       res.status(200).json({ message: 'All Items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res.status(400).json({ message: 'Something went wrong while fetching items.' });
     }
   };
@@ -59,6 +60,7 @@ const KIInventoryController = () => {
         .sort({ createdAt: -1 });
       res.status(200).json({ message: 'Items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res.status(400).json({ message: 'Something went wrong while fetching items.' });
     }
   };
@@ -74,6 +76,7 @@ const KIInventoryController = () => {
         .sort({ presentQuantity: -1 });
       res.status(200).json({ message: 'Preserved stock items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res
         .status(400)
         .json({ message: 'Something went wrong while fetching preserved stock items.' });
@@ -159,15 +162,16 @@ const KIInventoryController = () => {
       // Only fetch the two fields needed for stats — avoids sending full item payloads
       const items = await KIInventoryItem.find({}, { presentQuantity: 1, reorderAt: 1 }).lean();
       const totalItems = items.length;
-      const criticalStock = items.filter(i => i.presentQuantity <= i.reorderAt * 0.5).length;
+      const criticalStock = items.filter((i) => i.presentQuantity <= i.reorderAt * 0.5).length;
       const lowStock = items.filter(
-        i => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
+        (i) => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
       ).length;
       res.status(200).json({
         message: 'Inventory stats fetched successfully.',
         data: { totalItems, criticalStock, lowStock },
       });
     } catch (err) {
+      console.error(err);
       res.status(500).json({ message: 'Something went wrong while fetching inventory stats.' });
     }
   };
