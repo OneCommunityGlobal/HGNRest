@@ -88,7 +88,7 @@ function formatEvent(event, userId) {
   return eventObj;
 }
 
-const getEvents = async function (req, res) {
+const getEvents = async (req, res) => {
   try {
     const { page, limit, type, location, sortBy, userId } = req.query;
 
@@ -122,6 +122,25 @@ const getEvents = async function (req, res) {
 
     res.status(500).json({
       error: 'Failed to fetch events',
+      details: error.message,
+    });
+  }
+};
+
+const getEventById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const event = await Event.findById(id).populate('resources.userID');
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    event.status = updateEventStatus(event);
+
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fetch event',
       details: error.message,
     });
   }
@@ -213,7 +232,6 @@ const joinWaitlist = async (req, res) => {
 
 const sendWaitlistNotification = async (user, event) => {
   // TODO: Integrate with real notification service (email/queue)
-  // console.log(`Sending waitlist notification for event ${event._id}`);
 };
 
 const leaveEvent = async (req, res) => {
@@ -284,6 +302,7 @@ const leaveWaitlist = async (req, res) => {
 
 module.exports = {
   getEvents,
+  getEventById,
   getEventLocations,
   getEventTypes,
   createEvent,
