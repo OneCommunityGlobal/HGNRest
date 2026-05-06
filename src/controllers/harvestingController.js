@@ -43,19 +43,19 @@ const harvestingController = function (HarvestingEvent) {
   const getEvents = async (req, res) => {
     try {
       const { type } = req.query;
+      const VALID_TYPES = ['garden harvesting', 'orchard harvesting'];
 
-      const filter = {};
-      if (type) {
-        const validTypes = ['garden harvesting', 'orchard harvesting'];
-        if (!validTypes.includes(type)) {
-          return res.status(400).send({
-            error: `Invalid type filter. Must be one of: ${validTypes.join(', ')}`,
-          });
-        }
-        filter.type = type;
+      if (type && !VALID_TYPES.includes(type)) {
+        return res.status(400).send({
+          error: `Invalid type filter. Must be one of: ${VALID_TYPES.join(', ')}`,
+        });
       }
 
-      const events = await HarvestingEvent.find(filter).sort({ expected_date: 1 });
+      // Build query from whitelisted values only — never from raw user input
+      const matchedType = VALID_TYPES.find((t) => t === type);
+      const query = matchedType ? { type: matchedType } : {};
+
+      const events = await HarvestingEvent.find(query).sort({ expected_date: 1 });
       return res.status(200).send(events);
     } catch (err) {
       // eslint-disable-next-line no-console
