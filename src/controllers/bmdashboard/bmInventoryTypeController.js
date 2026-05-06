@@ -101,12 +101,13 @@ function bmInventoryTypeController(
                 res.status(201).send(results);
                 if (req.body.customUnit) {
                   try {
+                    const trimmedUnit = req.body.customUnit.trim();
                     const exists = await BuildingUnit.findOne({
-                      unit: { $regex: new RegExp(`^${req.body.customUnit}$`, 'i') },
-                    });
+                      unit: trimmedUnit,
+                    }).collation({ locale: 'en', strength: 2 });
                     if (!exists) {
                       await BuildingUnit.create({
-                        unit: req.body.customUnit,
+                        unit: trimmedUnit,
                         category: 'Material',
                       });
                     }
@@ -174,7 +175,7 @@ function bmInventoryTypeController(
     }
   }
 
-  async function addToolType(req, res) {
+  async function addPurchasableItemType(Model, category, req, res) {
     const {
       name,
       description,
@@ -196,13 +197,13 @@ function bmInventoryTypeController(
     } = req.body;
 
     try {
-      ToolType.find({ name })
+      Model.find({ name })
         .then((result) => {
           if (result.length) {
-            res.status(409).send('Oops!! Tool already exists!');
+            res.status(409).send(`Oops!! ${category} already exists!`);
           } else {
             const newDoc = {
-              category: 'Tool',
+              category,
               name,
               description,
               invoice,
@@ -221,7 +222,7 @@ function bmInventoryTypeController(
               link,
               createdBy: requestorId,
             };
-            ToolType.create(newDoc)
+            Model.create(newDoc)
               .then((results) => {
                 res.status(201).send(results);
               })
@@ -242,72 +243,12 @@ function bmInventoryTypeController(
     }
   }
 
-  async function addReusableType(req, res) {
-    const {
-      name,
-      description,
-      invoice,
-      purchaseRental,
-      fromDate,
-      toDate,
-      condition,
-      phoneNumber,
-      quantity,
-      currency,
-      unitPrice,
-      shippingFee,
-      taxes,
-      totalPriceWithShipping,
-      images,
-      link,
-      requestor: { requestorId },
-    } = req.body;
+  async function addToolType(req, res) {
+    return addPurchasableItemType(ToolType, 'Tool', req, res);
+  }
 
-    try {
-      ReusType.find({ name })
-        .then((result) => {
-          if (result.length) {
-            res.status(409).send('Oops!! Reusable already exists!');
-          } else {
-            const newDoc = {
-              category: 'Reusable',
-              name,
-              description,
-              invoice,
-              purchaseRental,
-              fromDate,
-              toDate,
-              condition,
-              phoneNumber,
-              quantity,
-              currency,
-              unitPrice,
-              shippingFee,
-              taxes,
-              totalPriceWithShipping,
-              images,
-              link,
-              createdBy: requestorId,
-            };
-            ReusType.create(newDoc)
-              .then((results) => {
-                res.status(201).send(results);
-              })
-              .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error.errors.unit.message);
-                } else {
-                  res.status(500).send(error);
-                }
-              });
-          }
-        })
-        .catch((error) => {
-          res.status(500).send(error);
-        });
-    } catch (error) {
-      res.status(500).send(error);
-    }
+  async function addReusableType(req, res) {
+    return addPurchasableItemType(ReusType, 'Reusable', req, res);
   }
 
   async function fetchInventoryByType(req, res) {
@@ -504,15 +445,16 @@ function bmInventoryTypeController(
 
   const addInventoryUnit = async (req, res) => {
     try {
-      const { unit, category } = req.body;
+      const { category } = req.body;
+      const unit = req.body.unit?.trim();
 
       if (!unit) {
         return res.status(400).json({ error: 'Unit is required' });
       }
 
       const exists = await BuildingUnit.findOne({
-        unit: { $regex: new RegExp(`^${unit}$`, 'i') },
-      });
+        unit,
+      }).collation({ locale: 'en', strength: 2 });
       if (exists) {
         return res.status(409).json({ error: 'Unit already exists' });
       }
@@ -536,10 +478,10 @@ function bmInventoryTypeController(
       if (unitName.match(/^[0-9a-fA-F]{24}$/)) {
         deleted = await BuildingUnit.findByIdAndDelete(unitName);
       } else {
-        const decodedUnitName = decodeURIComponent(unitName);
+        const decodedUnitName = decodeURIComponent(unitName).trim();
         deleted = await BuildingUnit.findOneAndDelete({
-          unit: { $regex: new RegExp(`^${decodedUnitName}$`, 'i') },
-        });
+          unit: decodedUnitName,
+        }).collation({ locale: 'en', strength: 2 });
       }
 
       if (!deleted) {
