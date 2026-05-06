@@ -288,6 +288,7 @@ const userHelper = function () {
 
     try {
       const results = await reportHelper.weeklySummaries(weekIndex, weekIndex);
+      const activeResults = results.filter((user) => user.isActive === true);
       // checks for userProfiles who are eligible to receive the weeklySummary Reports
       const userProfileResults = await userProfile.find(
         { getWeeklyReport: true },
@@ -306,12 +307,12 @@ const userHelper = function () {
       const weeklySummaryNotRequiredMessage =
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
-      results.sort((a, b) =>
+      activeResults.sort((a, b) =>
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
-      for (let i = 0; i < results.length; i += 1) {
-        const result = results[i];
+      for (let i = 0; i < activeResults.length; i += 1) {
+        const result = activeResults[i];
         const {
           firstName,
           lastName,
@@ -788,6 +789,16 @@ const userHelper = function () {
                   )} and ending ${pdtEndOfLastWeek.format('dddd M-D-YYYY')}.`;
                 }
 
+                // Determine reasons based on the violation type
+                let reasons = ['other'];
+                if (timeNotMet && !hasWeeklySummary) {
+                  reasons = ['time not met', 'missing summary'];
+                } else if (timeNotMet) {
+                  reasons = ['time not met'];
+                } else if (!hasWeeklySummary) {
+                  reasons = ['missing summary'];
+                }
+
                 const infringement = {
                   date: moment().utc().format('YYYY-MM-DD'),
                   description,
@@ -799,6 +810,11 @@ const userHelper = function () {
                         )
                         .format('YYYY-MM-DD')
                     : null,
+                  // CRON job assigned - not manually assigned
+                  reasons,
+                  manullyAssigned: false,
+                  manullyAssignedBy: undefined,
+                  editedBy: [],
                 };
 
                 // Only assign blue square and send email if the user IS NOT a new user
@@ -2582,15 +2598,15 @@ const userHelper = function () {
     });
 
     let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
-        if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
+    for (const badgeEntry of badgeCollection) {
+      if (badgeEntry.badge?.type === 'Lead a team of X+') {
+        if (badgeOfType && badgeOfType.people <= badgeEntry.badge.people) {
           await removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = badgeCollection[i].badge;
-        } else if (badgeOfType && badgeOfType.people > badgeCollection[i].badge.people) {
-          await removeDupBadge(personId, badgeCollection[i].badge._id);
+          badgeOfType = badgeEntry.badge;
+        } else if (badgeOfType && badgeOfType.people > badgeEntry.badge.people) {
+          await removeDupBadge(personId, badgeEntry.badge._id);
         } else if (!badgeOfType) {
-          badgeOfType = badgeCollection[i].badge;
+          badgeOfType = badgeEntry.badge;
         }
       }
     }
@@ -3400,6 +3416,7 @@ const userHelper = function () {
     getInfringementEmailBody,
     emailWeeklySummariesForAllUsers,
     awardNewBadges,
+    checkPersonalMax,
     checkXHrsForXWeeks,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
@@ -3411,7 +3428,6 @@ const userHelper = function () {
     sendUserSeparatedEmail,
     sendUserReactivatedAfterSeparation,
     weeklyCompanySummaryEmail,
-    checkPersonalMax,
   };
 };
 

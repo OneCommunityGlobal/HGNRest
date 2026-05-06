@@ -49,7 +49,6 @@ const {
 describe('emailController', () => {
   let req;
   let res;
-
   beforeEach(() => {
     req = {
       body: {
