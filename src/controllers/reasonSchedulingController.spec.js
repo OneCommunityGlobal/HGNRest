@@ -1,3 +1,4 @@
+/* eslint-disable no-shadow */
 const moment = require('moment-timezone');
 const { mockReq, mockRes, mockUser } = require('../test');
 const UserModel = require('../models/userProfile');

@@ -1,0 +1,13 @@
+{
+  "comparisonText": "Sample data\nwhile applicant analytics are collected",
+  "total": 120,
+  "sources": [
+    { "name": "Referrals", "value": 35 },
+    { "name": "Job Boards", "value": 28 },
+    { "name": "Social Media", "value": 18 },
+    { "name": "Email Campaigns", "value": 15 },
+    { "name": "Website", "value": 12 },
+    { "name": "Other", "value": 12 }
+  ]
+}
+

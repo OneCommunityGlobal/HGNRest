@@ -18,7 +18,8 @@ const calendarController = function (CalendarEvent, ProcessingProject) {
       const startDate = new Date(yearNum, monthNum - 1, 1);
       const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
 
-      const dateFilter = {
+      // Build query from validated primitives only — never spread user-controlled data
+      const safeQuery = {
         scheduled_date: { $gte: startDate, $lte: endDate },
       };
 
@@ -34,7 +35,7 @@ const calendarController = function (CalendarEvent, ProcessingProject) {
 
       if (moduleFilter === 'kitchen') {
         // Query kitchen events from ProcessingProject collection
-        const kitchenProjects = await ProcessingProject.find(dateFilter).sort({
+        const kitchenProjects = await ProcessingProject.find(safeQuery).sort({
           scheduled_date: 1,
         });
         events = kitchenProjects.map((project) => ({
@@ -49,15 +50,16 @@ const calendarController = function (CalendarEvent, ProcessingProject) {
           status: 'scheduled',
         }));
       } else if (moduleFilter) {
-        // Query a specific non-kitchen module
-        events = await CalendarEvent.find({ ...dateFilter, module: moduleFilter }).sort({
+        // Look up the module from the whitelist — never use raw user value in query
+        const safeModule = validModules.find((m) => m === moduleFilter);
+        events = await CalendarEvent.find({ ...safeQuery, module: safeModule }).sort({
           scheduled_date: 1,
         });
       } else {
         // No filter: query all modules in parallel
         const [calendarEvents, kitchenProjects] = await Promise.all([
-          CalendarEvent.find(dateFilter).sort({ scheduled_date: 1 }),
-          ProcessingProject.find(dateFilter).sort({ scheduled_date: 1 }),
+          CalendarEvent.find(safeQuery).sort({ scheduled_date: 1 }),
+          ProcessingProject.find(safeQuery).sort({ scheduled_date: 1 }),
         ]);
 
         const normalizedKitchen = kitchenProjects.map((project) => ({
