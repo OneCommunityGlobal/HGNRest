@@ -15,7 +15,7 @@ const questionnaireAnalyticsController = function () {
         list.map((skill) => `$${domain}.${skill}`),
       );
 
-      const isSameTeamParam = req.query.isSameTeam;
+      const isSameTeamParam = req.query.isSameTeam?.toLowerCase();
 
       const basePipeline = [
         {
@@ -41,9 +41,17 @@ const questionnaireAnalyticsController = function () {
       ];
 
       if (isSameTeamParam === 'true') {
-        basePipeline.push({ $match: { isSameTeam: true } });
+        basePipeline.push({
+          $match: {
+            $expr: { $gt: [{ $size: { $ifNull: ['$profile.teams', []] } }, 0] },
+          },
+        });
       } else if (isSameTeamParam === 'false') {
-        basePipeline.push({ $match: { isSameTeam: false } });
+        basePipeline.push({
+          $match: {
+            $expr: { $eq: [{ $size: { $ifNull: ['$profile.teams', []] } }, 0] },
+          },
+        });
       }
 
       // Calculate score
