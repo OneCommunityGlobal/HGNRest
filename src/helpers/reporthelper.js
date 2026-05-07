@@ -266,34 +266,23 @@ const reporthelper = function () {
    * @param {Object} results An array of user objects with selected fields.
    * @return {Object} An array of user objects with properly sorted weeklySummaries by due date.
    */
+  // refactor that handles any week index without hardcoded cases
+
   const formatSummaries = function (results) {
     return results.map((user) => {
       const { weeklySummaries: wS } = user;
-      const wSummaries = [];
 
-      if (Array.isArray(wS) && wS.length && wS.length < 3) {
-        // Common cases for the first entry.
-        if (getTheWeek(wS[0].dueDate) === 0) wSummaries[0] = { ...wS[0] };
-        if (getTheWeek(wS[0].dueDate) === 1) {
-          wSummaries[0] = null;
-          wSummaries[1] = { ...wS[0] };
+      if (!Array.isArray(wS) || !wS.length || wS.length >= 3) return user;
+
+      const wSummaries = [];
+      wS.forEach((entry) => {
+        const weekIndex = getTheWeek(entry.dueDate);
+        if (weekIndex >= 0) {
+          wSummaries[weekIndex] = { ...entry };
         }
-        // When single entry.
-        if (wS.length === 1) {
-          // Special case when first entry belongs to week before last.
-          if (getTheWeek(wS[0].dueDate) === 2) {
-            wSummaries[0] = null;
-            wSummaries[1] = null;
-            wSummaries[2] = { ...wS[0] };
-          }
-        } else {
-          // When two entries.
-          if (getTheWeek(wS[1].dueDate) === 1) wSummaries[1] = { ...wS[1] };
-          if (getTheWeek(wS[1].dueDate) === 2) wSummaries[2] = { ...wS[1] };
-        }
-        user = { ...user, weeklySummaries: wSummaries };
-      }
-      return user;
+      });
+
+      return { ...user, weeklySummaries: wSummaries };
     });
   };
 

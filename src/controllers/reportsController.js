@@ -146,6 +146,11 @@ const reportsController = function () {
         });
       }
     }
+    const cacheKey = `volunteerStatsData_${startDate}_${endDate}_${comparisonStartDate || ''}_${comparisonEndDate || ''}`;
+
+    if (cacheUtil.hasCache(cacheKey)) {
+      return res.status(200).send(cacheUtil.getCache(cacheKey));
+    }
 
     try {
       const [
@@ -186,12 +191,7 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getTotalHoursWorked(
-          isoStartDate,
-          isoEndDate,
-          isoComparisonStartDate,
-          isoComparisonEndDate,
-        ),
+        overviewReportHelper.getTotalHoursWorked(),
         overviewReportHelper.getTasksStats(
           isoStartDate,
           isoEndDate,
@@ -229,7 +229,12 @@ const reportsController = function () {
           isoComparisonStartDate,
           isoComparisonEndDate,
         ),
-        overviewReportHelper.getTotalActiveTeamCount(isoEndDate, isoComparisonEndDate),
+        overviewReportHelper.getTotalActiveTeamCount(
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
+        ),
         overviewReportHelper.getMapLocations(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
@@ -282,8 +287,7 @@ const reportsController = function () {
           error: 'Invalid date parameters',
         });
       }
-
-      res.status(200).send({
+      const responseData = {
         volunteerNumberStats,
         mentorNumberStats,
         volunteerHoursStats,
@@ -302,7 +306,12 @@ const reportsController = function () {
         volunteersOverAssignedTime,
         completedAssignedHours,
         totalSummariesSubmitted,
-      });
+      };
+
+      cacheUtil.setCache(cacheKey, responseData);
+      cacheUtil.setKeyTimeToLive(cacheKey, 300);
+
+      res.status(200).send(responseData);
     } catch (err) {
       console.error('Backend Error in getVolunteerStatsData:', err);
       res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
