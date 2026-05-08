@@ -2122,6 +2122,7 @@ const userHelper = function () {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
+
         await checkTotalHrsInCat(personId, user, badgeCollection);
 
         // remove cache after badge asssignment.
