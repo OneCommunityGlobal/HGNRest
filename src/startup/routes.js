@@ -14,6 +14,8 @@ const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
+const processingProject = require('../models/processingProject');
+const calendarEvent = require('../models/calendarEvent');
 const inventoryItemType = require('../models/inventoryItemType');
 const transplantingEvent = require('../models/transplantingEvent');
 const harvestingEvent = require('../models/harvestingEvent');
@@ -162,6 +164,8 @@ const inventoryRouter = require('../routes/inventoryRouter')(
   inventoryItemType,
   project,
 );
+const processingProjectRouter = require('../routes/processingProjectRouter')(processingProject);
+const calendarRouter = require('../routes/calendarRouter')(calendarEvent, processingProject);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
 const transplantingRouter = require('../routes/transplantingRouter')(transplantingEvent);
 const harvestingRouter = require('../routes/harvestingRouter')(harvestingEvent);
@@ -457,6 +461,8 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
+  app.use('/api/kitchenandinventory/processing', processingProjectRouter);
+  app.use('/api/kitchenandinventory/calendar', calendarRouter);
   app.use('/api/kitchenandinventory/transplanting', transplantingRouter);
   app.use('/api/kitchenandinventory/harvesting', harvestingRouter);
   app.use('/api/kitchenandinventory/planting', plantingRouter);
