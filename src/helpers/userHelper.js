@@ -2598,15 +2598,15 @@ const userHelper = function () {
     });
 
     let badgeOfType;
-    for (let i = 0; i < badgeCollection.length; i += 1) {
-      if (badgeCollection[i].badge?.type === 'Lead a team of X+') {
-        if (badgeOfType && badgeOfType.people <= badgeCollection[i].badge.people) {
+    for (const badgeEntry of badgeCollection) {
+      if (badgeEntry.badge?.type === 'Lead a team of X+') {
+        if (badgeOfType && badgeOfType.people <= badgeEntry.badge.people) {
           await removeDupBadge(personId, badgeOfType._id);
-          badgeOfType = badgeCollection[i].badge;
-        } else if (badgeOfType && badgeOfType.people > badgeCollection[i].badge.people) {
-          await removeDupBadge(personId, badgeCollection[i].badge._id);
+          badgeOfType = badgeEntry.badge;
+        } else if (badgeOfType && badgeOfType.people > badgeEntry.badge.people) {
+          await removeDupBadge(personId, badgeEntry.badge._id);
         } else if (!badgeOfType) {
-          badgeOfType = badgeCollection[i].badge;
+          badgeOfType = badgeEntry.badge;
         }
       }
     }
