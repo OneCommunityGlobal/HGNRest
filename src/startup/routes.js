@@ -17,6 +17,11 @@ const inventoryItem = require('../models/inventoryItem');
 const processingProject = require('../models/processingProject');
 const calendarEvent = require('../models/calendarEvent');
 const inventoryItemType = require('../models/inventoryItemType');
+const transplantingEvent = require('../models/transplantingEvent');
+const harvestingEvent = require('../models/harvestingEvent');
+const plantingEvent = require('../models/plantingEvent');
+const trimmingEvent = require('../models/trimmingEvent');
+const cullingEvent = require('../models/cullingEvent');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
@@ -162,6 +167,11 @@ const inventoryRouter = require('../routes/inventoryRouter')(
 const processingProjectRouter = require('../routes/processingProjectRouter')(processingProject);
 const calendarRouter = require('../routes/calendarRouter')(calendarEvent, processingProject);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
+const transplantingRouter = require('../routes/transplantingRouter')(transplantingEvent);
+const harvestingRouter = require('../routes/harvestingRouter')(harvestingEvent);
+const plantingRouter = require('../routes/plantingRouter')(plantingEvent);
+const trimmingRouter = require('../routes/trimmingRouter')(trimmingEvent);
+const cullingRouter = require('../routes/cullingRouter')(cullingEvent);
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
   userProfile,
@@ -453,6 +463,11 @@ module.exports = function (app) {
   app.use('/api', inventoryRouter);
   app.use('/api/kitchenandinventory/processing', processingProjectRouter);
   app.use('/api/kitchenandinventory/calendar', calendarRouter);
+  app.use('/api/kitchenandinventory/transplanting', transplantingRouter);
+  app.use('/api/kitchenandinventory/harvesting', harvestingRouter);
+  app.use('/api/kitchenandinventory/planting', plantingRouter);
+  app.use('/api/kitchenandinventory/trimming', trimmingRouter);
+  app.use('/api/kitchenandinventory/culling', cullingRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
