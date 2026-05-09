@@ -7,8 +7,8 @@ const calendarController = function (CalendarEvent, ProcessingProject) {
         return res.status(400).send({ error: 'Month and year query parameters are required.' });
       }
 
-      const monthNum = parseInt(month, 10);
-      const yearNum = parseInt(year, 10);
+      const monthNum = Number.parseInt(month, 10);
+      const yearNum = Number.parseInt(year, 10);
 
       if (Number.isNaN(monthNum) || Number.isNaN(yearNum) || monthNum < 1 || monthNum > 12) {
         return res.status(400).send({ error: 'Invalid month or year value.' });
