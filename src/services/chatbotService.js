@@ -109,6 +109,35 @@ async function deletePineconeVectorsByHash(fileHash, namespace = '') {
   });
 }
 
+/** Removes vectors for this file with chunkIndex greater than keepCount (after a successful upsert). */
+async function deletePineconeVectorsAfterChunkIndex(fileHash, namespace, keepCount) {
+  if (!PINECONE_API_KEY) throw new Error('PINECONE_API_KEY is not configured.');
+  if (!keepCount || keepCount < 1) return;
+
+  const host =
+    PINECONE_HOST ||
+    `${PINECONE_INDEX_NAME}.svc.${process.env.PINECONE_ENVIRONMENT || 'gcp-starter'}.pinecone.io`;
+  const url = `https://${host}/vectors/delete`;
+
+  const body = {
+    deleteAll: false,
+    filter: {
+      $and: [{ fileHash: { $eq: fileHash } }, { chunkIndex: { $gt: keepCount } }],
+    },
+  };
+
+  if (namespace) body.namespace = namespace;
+
+  await axios.post(url, body, {
+    headers: {
+      'Api-Key': PINECONE_API_KEY,
+      'Content-Type': 'application/json',
+      'X-Pinecone-Api-Version': process.env.PINECONE_API_VERSION || '2024-07',
+    },
+    timeout: 20000,
+  });
+}
+
 async function indexDocumentBuffer({ buffer, filename, fileHash, namespace = '' }) {
   const text = decodeFileText(buffer);
   if (!text) {
@@ -260,39 +289,55 @@ async function reindexByHash({ fileHash, namespace = '' }) {
     throw new Error('Document not found for this namespace and hash.');
   }
 
-  // Reindex by removing existing vectors and marking for re-upload.
-  await deletePineconeVectorsByHash(hash, normalizedNamespace);
-
   const chunks = Array.isArray(doc.chunks) ? doc.chunks.filter(Boolean) : [];
   if (!chunks.length) {
     throw new Error('Document has no stored chunks. Re-upload the file once to enable reindexing.');
   }
 
+  const previousChunkCount =
+    typeof doc.chunkCount === 'number' && doc.chunkCount > 0 ? doc.chunkCount : 0;
+
   doc.status = 'indexing';
   doc.errorMessage = '';
-
-  const chunkCount = await upsertDocumentChunks({
-    chunks,
-    filename: doc.filename,
-    fileHash: doc.fileHash,
-    namespace: normalizedNamespace,
-  });
-
-  doc.status = 'indexed';
-  doc.chunkCount = chunkCount;
-  doc.lastIndexedAt = new Date();
   await doc.save();
 
-  return {
-    message: 'Document reindexed successfully by file hash.',
-    document: {
+  try {
+    const chunkCount = await upsertDocumentChunks({
+      chunks,
       filename: doc.filename,
       fileHash: doc.fileHash,
-      namespace: doc.namespace,
-      status: doc.status,
-      updatedAt: doc.updatedAt,
-    },
-  };
+      namespace: normalizedNamespace,
+    });
+
+    if (previousChunkCount > chunkCount) {
+      try {
+        await deletePineconeVectorsAfterChunkIndex(hash, normalizedNamespace, chunkCount);
+      } catch (orphanErr) {
+        console.warn(`Pinecone orphan cleanup skipped for ${hash}: ${orphanErr.message}`);
+      }
+    }
+
+    doc.status = 'indexed';
+    doc.chunkCount = chunkCount;
+    doc.lastIndexedAt = new Date();
+    await doc.save();
+
+    return {
+      message: 'Document reindexed successfully by file hash.',
+      document: {
+        filename: doc.filename,
+        fileHash: doc.fileHash,
+        namespace: doc.namespace,
+        status: doc.status,
+        updatedAt: doc.updatedAt,
+      },
+    };
+  } catch (err) {
+    doc.status = 'failed';
+    doc.errorMessage = err.message;
+    await doc.save();
+    throw err;
+  }
 }
 
 // --- 1.5. MODAL EMBEDDING SERVICE ---
@@ -493,8 +538,16 @@ async function chatWithHuggingFace(userMessage, contextText, history = []) {
   });
 }
 
+function resolveQueryNamespace(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  if (Object.prototype.hasOwnProperty.call(opts, 'namespace')) {
+    return normalizeNamespace(opts.namespace);
+  }
+  return normalizeNamespace(process.env.PINECONE_NAMESPACE ?? '');
+}
+
 // --- 4. MAIN ORCHESTRATOR ---
-async function getChatbotReply(message, history = []) {
+async function getChatbotReply(message, history = [], options = {}) {
   if (!message || typeof message !== 'string' || !message.trim()) {
     return { reply: 'Please enter a question.', sources: [] };
   }
@@ -505,10 +558,12 @@ async function getChatbotReply(message, history = []) {
     return { reply: 'Chatbot is not fully configured. Set PINECONE_API_KEY.', sources: [] };
   }
 
+  const pineconeNamespace = resolveQueryNamespace(options);
+
   try {
     const rewritten = await rewriteFollowUpQuestion(trimmedMessage, history);
     const embedding = await getEmbedding(rewritten);
-    const matches = await queryPinecone(embedding, { topK: TOP_K });
+    const matches = await queryPinecone(embedding, { topK: TOP_K, namespace: pineconeNamespace });
     const contextText = matches.map((m) => cleanContextText(m.text)).join('\n\n');
 
     const useLLM = !!HUGGINGFACE_API_KEY && matches.length > 0;
@@ -541,7 +596,11 @@ async function getChatbotReply(message, history = []) {
     };
   } catch (err) {
     console.error('Chatbot error:', err.message);
-    return { reply: `Sorry, something went wrong: ${err.message}`, sources: [] };
+    const reply = 'Sorry, something went wrong while processing your request.';
+    if (process.env.NODE_ENV === 'development') {
+      return { reply, sources: [], error: err.message };
+    }
+    return { reply, sources: [] };
   }
 }
 

@@ -32,11 +32,15 @@ const requireDocumentAccess = (req, res, next) => {
 };
 
 router.post('/chatbot/query', (req, res) => {
-  const { message, history } = req.body || {};
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const { message, history } = body;
   const normalizedHistory = Array.isArray(history) ? history : [];
+  const replyOptions = Object.prototype.hasOwnProperty.call(body, 'namespace')
+    ? { namespace: body.namespace }
+    : {};
 
   chatbotService
-    .getChatbotReply(message, normalizedHistory)
+    .getChatbotReply(message, normalizedHistory, replyOptions)
     .then((result) => {
       res.status(200).json(result);
     })
@@ -63,8 +67,8 @@ router.get('/chatbot/documents', requireDocumentAccess, async (req, res) => {
 
 router.post(
   '/chatbot/documents/upload',
-  upload.single('file'),
   requireDocumentAccess,
+  upload.single('file'),
   async (req, res) => {
     try {
       const result = await chatbotService.uploadAndIndexDocument(req.file, req.body || {});

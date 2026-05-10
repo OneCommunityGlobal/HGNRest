@@ -45,7 +45,7 @@ describe('POST /chatbot/query', () => {
     expect(res.status).toBe(200);
     expect(res.body.reply).toBe('Hello from bot');
     expect(res.body.sources).toHaveLength(1);
-    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('What is HGN?', []);
+    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('What is HGN?', [], {});
   });
 
   test('passes conversation history to getChatbotReply', async () => {
@@ -57,7 +57,7 @@ describe('POST /chatbot/query', () => {
 
     await request(app).post('/chatbot/query').send({ message: 'Follow-up', history });
 
-    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Follow-up', history);
+    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Follow-up', history, {});
   });
 
   test('normalizes non-array history to an empty array', async () => {
@@ -67,7 +67,7 @@ describe('POST /chatbot/query', () => {
       .post('/chatbot/query')
       .send({ message: 'Hi', history: 'not-an-array' });
 
-    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Hi', []);
+    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Hi', [], {});
   });
 
   test('treats missing body history as empty array', async () => {
@@ -75,7 +75,17 @@ describe('POST /chatbot/query', () => {
 
     await request(app).post('/chatbot/query').send({ message: 'Hi' });
 
-    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Hi', []);
+    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Hi', [], {});
+  });
+
+  test('passes namespace to getChatbotReply when provided', async () => {
+    chatbotService.getChatbotReply.mockResolvedValue({ reply: 'ok', sources: [] });
+
+    await request(app)
+      .post('/chatbot/query')
+      .send({ message: 'Hi', namespace: 'demo-ns' });
+
+    expect(chatbotService.getChatbotReply).toHaveBeenCalledWith('Hi', [], { namespace: 'demo-ns' });
   });
 
   test('returns 500 when getChatbotReply rejects', async () => {
