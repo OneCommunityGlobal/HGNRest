@@ -662,7 +662,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     const hasChangeStatusPermission = await hasPermission(requestor, 'changeUserStatus');
     const hasFinalDayPermission = await hasPermission(requestor, 'setFinalDay');
-    if (!(hasChangeStatusPermission && hasFinalDayPermission && canEditProtectedAccount)) {
+    const hasPausePermission = await hasPermission(requestor, 'interactWithPauseUserButton');
+    if (
+      !(
+        ((hasChangeStatusPermission && hasFinalDayPermission) || hasPausePermission) &&
+        canEditProtectedAccount
+      )
+    ) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(requestor.email)) {
         logger.logInfo(
           `Unauthorized attempt to change protected user status. Requestor: ${requestor.requestorId} Target: ${userId}`,
@@ -929,7 +935,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
+    if (
+      !(
+        (await checkPermission(req, 'getUserProfiles')) ||
+        (await checkPermission(req, 'interactWithPauseUserButton'))
+      )
+    ) {
       return forbidden(res, 'You are not authorized to view all users');
     }
 
@@ -1233,9 +1244,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
 
       if (verificationUser.bioPosted !== bioPosted) {
-        console.error(
-          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
-        );
+        logger.logInfo('Database update failed while verifying bio status change.');
         return res.status(500).json({ error: 'Failed to update bio status in database.' });
       }
 
@@ -1651,7 +1660,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       await user.save();
 
-      console.log(`✅ Saved ${key} in DB:`, user[key]);
+      logger.logInfo(`Saved ${key} in database.`);
 
       // ================================
       // CACHE INVALIDATION (MERGED)
@@ -1903,7 +1912,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
     return null;
   };
-
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
     const { action, endDate, reactivationDate } = req.body;
@@ -2028,6 +2036,74 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     } catch (error) {
       console.log(error);
       return res.status(500).send(error);
+    }
+  };
+
+  const pauseResumeUser = async function (req, res) {
+    const { userId } = req.params;
+    const activationDate = req.body.reactivationDate;
+    const status = req.body.status === 'Active';
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Bad Request' });
+    }
+
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (
+      !(
+        (await hasPermission(req.body.requestor, 'interactWithPauseUserButton')) &&
+        canEditProtectedAccount
+      )
+    ) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+        logger.logInfo(
+          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+        );
+      }
+      return res.status(403).send('You are not authorized to change user status');
+    }
+
+    cache.removeCache(`user-${userId}`);
+
+    try {
+      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      user.set({
+        isActive: status,
+        reactivationDate: activationDate,
+      });
+
+      await user.save();
+
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((u) => u._id === userId);
+        if (userIdx !== -1) {
+          const userData = allUserData[userIdx];
+          userData.isActive = user.isActive;
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      auditIfProtectedAccountUpdated({
+        requestorId: req.body.requestor.requestorId,
+        updatedRecordEmail: user.email,
+        actionPerformed: 'UserStatusUpdate',
+      });
+
+      return res.status(200).send({ message: 'status updated' });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 
@@ -2421,39 +2497,44 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      // record.infringements = originalinfringements.concat(req.body.blueSquare);
-      record.infringements = originalinfringements.concat(newInfringement);
-      record.infringementCount += 1;
 
-      console.log('Original infringements:', originalinfringements);
-      console.log('Record infringements:', record.infringements);
+      try {
+        // ← KEY FIX: use $push instead of record.save() to avoid overwriting
+        // cron-assigned infringements added between findById and save
+        const status = await UserProfile.findByIdAndUpdate(
+          userid,
+          {
+            $push: { infringements: newInfringement },
+            $inc: { infringementCount: 1 },
+          },
+          { new: true },
+        );
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-            infringements: record.infringements,
-          });
+        await userHelper.notifyInfringements(
+          originalinfringements,
+          status.infringements,
+          status.firstName,
+          status.lastName,
+          status.email,
+          status.role,
+          status.startDate,
+          status.jobTitle[0],
+          status.weeklycommittedHours,
+        );
 
-          // update alluser cache if we have cache
-          if (isUserInCache) {
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
-          }
-        })
-        .catch((error) => res.status(400).send(error));
+        res.status(200).json({
+          _id: status._id,
+          infringements: status.infringements,
+        });
+
+        // update alluser cache if we have cache
+        if (isUserInCache) {
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      } catch (error) {
+        res.status(400).send(error);
+      }
     });
   };
 
@@ -2955,8 +3036,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
       return res.status(200).json(result.data);
     } catch (error) {
-      console.error('Error fetching skill data:', error);
-      return res.status(500).send({ error: error.message });
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 
@@ -2976,6 +3057,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     getTeamMembersofUser,
     getProjectMembers,
     changeUserStatus,
+    pauseResumeUser,
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
