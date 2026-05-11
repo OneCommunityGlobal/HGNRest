@@ -37,14 +37,15 @@ const currentWarningsController = function (currentWarnings) {
     try {
       const response = await currentWarnings.find({}).sort({ order: 1 });
 
+      if (response.length === 0) {
+        return res.status(400).send({ message: 'No records', response: response });
+      }
+
       const missingOrder = response.some(
         (warning) => warning.order === null || warning.order === undefined || warning.order === -1,
       );
 
       const updatedWarnings = missingOrder ? await addMissingOrderValues(response) : response;
-      if (response.length === 0) {
-        return res.status(400).send({ message: 'No records', response: response });
-      }
       return res.status(200).send({ currentWarningDescriptions: updatedWarnings });
     } catch (error) {
       console.log('Entered error of fetch warnings');
