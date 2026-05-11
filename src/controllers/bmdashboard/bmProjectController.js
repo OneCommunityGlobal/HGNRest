@@ -2,7 +2,6 @@
 /* eslint-disable no-shadow */
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-// const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Task = require('../../models/task');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
