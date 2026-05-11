@@ -34,12 +34,6 @@ const assertResMock = (statusCode, message, response) => {
 const mockHasPermission = (value) =>
   jest.spyOn(helper, 'hasPermission').mockImplementation(() => Promise.resolve(value));
 
-// jest.mock('./helper', () => ({
-//   helper: {
-//     hasPermission: jest.fn(),
-//   },
-// }));
-
 describe('current warnings controller module', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -82,7 +76,7 @@ describe('current warnings controller module', () => {
       const hasPermissionSpy = mockHasPermission(false);
       const res = await postNewWarningDescription(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
-      assertResMock(403, 'You are not authorized to add a new WarningTracker.', res, mockRes);
+      assertResMock(403, 'You are not authorized to add a new WarningTracker.', res);
     });
 
     test('Ensure postNewWarningDescription returns error 400 if warning title provided has special character as their first letter', async () => {
@@ -97,7 +91,6 @@ describe('current warnings controller module', () => {
         400,
         { error: 'Warnings cannot have special characters as the first letter' },
         res,
-        mockRes,
       );
     });
   });
@@ -119,7 +112,6 @@ describe('current warnings controller module', () => {
         403,
         'You are not authorized to reactivate a WarningTracker or deactivate warning tracker.',
         res,
-        mockRes,
       );
     });
   });
@@ -131,12 +123,7 @@ describe('current warnings controller module', () => {
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'deleteWarningTracker');
       console.log('mockReq: ', mockReq);
-      assertResMock(
-        403,
-        'You are not authorized to edit the order of the WarningTrackers.',
-        res,
-        mockRes,
-      );
+      assertResMock(403, 'You are not authorized to edit the order of the WarningTrackers.', res);
     });
   });
 });
