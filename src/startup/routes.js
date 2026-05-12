@@ -379,6 +379,7 @@ const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 const bidsRouter = require('../routes/lbdashboard/bidsRouter');
@@ -416,26 +417,19 @@ const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSu
 const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
-
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
+const activityLogRouter = require('../routes/activityLogRouter');
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter');
 
-const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
-// Kitchen and Inventory portal routes
-const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
-const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
-
-// Actual Cost
-const actualCostRouter = require('../routes/actualCostRouter')();
-
-const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
-
-const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
+const actualCostRouter = require('../routes/actualCostRouter');
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter');
 
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
+  app.use('/api/support/daily-log', activityLogRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -635,23 +629,21 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
-  // Education Portal
-  app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
   // education portal
+
   app.use('/api/education', badgeSystemRouter);
-
   app.use('/api/lp', lessonPlanSubmissionRouter);
-
   app.use('/api/education', browsableLessonPlanRouter);
-
   app.use('/api/educator/reports', downloadReportRouter);
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
-  app.use('/api/kitchenandinventory/garden', gardenRouter);
+
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
@@ -660,7 +652,6 @@ module.exports = function (app) {
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
-  app.use('/api/kitchenandinventory/recipes', recipeRouter);
-
-  app.use('/api/analytics', analyticsRouter);
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
