@@ -1,6 +1,68 @@
 const { ObjectId } = require('mongoose').Types;
 
 const toolStoppageReasonController = function (ToolStoppageReason) {
+  const stoppageReasonFields = ['usedForLifetime', 'damaged', 'lost'];
+
+  const createPercentageProjection = (field) => ({
+    $cond: [
+      { $gt: ['$total', 0] },
+      {
+        $round: [
+          {
+            $multiply: [{ $divide: [`$${field}`, '$total'] }, 100],
+          },
+          2,
+        ],
+      },
+      0,
+    ],
+  });
+
+  const buildProjectDateMatchStage = (projectId, startDate, endDate) => {
+    const matchStage = {
+      projectId: new ObjectId(projectId),
+    };
+
+    if (startDate || endDate) {
+      matchStage.date = {};
+
+      if (startDate) {
+        matchStage.date.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        matchStage.date.$lte = new Date(endDate);
+      }
+    }
+
+    return matchStage;
+  };
+
+  const buildProjectIdAggregation = (collectionName, projectNameField) => [
+    {
+      $group: {
+        _id: '$projectId',
+      },
+    },
+    {
+      $lookup: {
+        from: collectionName,
+        localField: '_id',
+        foreignField: '_id',
+        as: 'projectDetails',
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        projectName: { $arrayElemAt: [`$projectDetails.${projectNameField}`, 0] },
+      },
+    },
+    {
+      $sort: { projectName: 1 },
+    },
+  ];
+
   const getToolsStoppageReason = async (req, res) => {
     try {
       const { id: projectId } = req.params;
@@ -10,81 +72,44 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
-      const matchStage = {
-        projectId: new ObjectId(projectId),
-      };
+      const matchStage = buildProjectDateMatchStage(projectId, startDate, endDate);
 
-      if (startDate || endDate) {
-        matchStage.date = {};
-        if (startDate) {
-          matchStage.date.$gte = new Date(startDate);
-        }
-        if (endDate) {
-          matchStage.date.$lte = new Date(endDate);
-        }
-      }
+      const groupSums = stoppageReasonFields.reduce(
+        (accumulator, field) => ({
+          ...accumulator,
+          [field]: { $sum: `$${field}` },
+        }),
+        {},
+      );
+
+      const percentageProjection = stoppageReasonFields.reduce(
+        (accumulator, field) => ({
+          ...accumulator,
+          [field]: createPercentageProjection(field),
+        }),
+        {},
+      );
 
       const results = await ToolStoppageReason.aggregate([
         { $match: matchStage },
         {
           $group: {
             _id: '$toolName',
-            usedForLifetime: { $sum: '$usedForLifetime' },
-            damaged: { $sum: '$damaged' },
-            lost: { $sum: '$lost' },
+            ...groupSums,
           },
         },
         {
           $addFields: {
-            total: { $add: ['$usedForLifetime', '$damaged', '$lost'] },
+            total: {
+              $add: stoppageReasonFields.map((field) => `$${field}`),
+            },
           },
         },
         {
           $project: {
             _id: 0,
             toolName: '$_id',
-            usedForLifetime: {
-              $cond: [
-                { $gt: ['$total', 0] },
-                {
-                  $round: [
-                    {
-                      $multiply: [{ $divide: ['$usedForLifetime', '$total'] }, 100],
-                    },
-                    2,
-                  ],
-                },
-                0,
-              ],
-            },
-            damaged: {
-              $cond: [
-                { $gt: ['$total', 0] },
-                {
-                  $round: [
-                    {
-                      $multiply: [{ $divide: ['$damaged', '$total'] }, 100],
-                    },
-                    2,
-                  ],
-                },
-                0,
-              ],
-            },
-            lost: {
-              $cond: [
-                { $gt: ['$total', 0] },
-                {
-                  $round: [
-                    {
-                      $multiply: [{ $divide: ['$lost', '$total'] }, 100],
-                    },
-                    2,
-                  ],
-                },
-                0,
-              ],
-            },
+            ...percentageProjection,
           },
         },
         { $sort: { toolName: 1 } },
@@ -99,33 +124,10 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      // Use aggregation to get distinct project IDs and lookup their names
-      const results = await ToolStoppageReason.aggregate([
-        {
-          $group: {
-            _id: '$projectId',
-          },
-        },
-        {
-          $lookup: {
-            from: 'buildingProjects',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
-          },
-        },
-        {
-          $sort: { projectName: 1 },
-        },
-      ]);
+      const results = await ToolStoppageReason.aggregate(
+        buildProjectIdAggregation('buildingProjects', 'name'),
+      );
 
-      // Format the response
       const formattedResults = results.map((item) => ({
         projectId: item._id,
         projectName: item.projectName || 'Unknown Project',
