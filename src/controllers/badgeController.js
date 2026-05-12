@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-// const userHelper = require('../helpers/userHelper')();
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -13,10 +13,10 @@ const badgeController = function (Badge) {
    */
   const cache = cacheClosure();
 
-  // const awardBadgesTest = async function (req, res) {
-  //   await userHelper.awardNewBadges();
-  //   res.status(200).send('Badges awarded');
-  // };
+  const awardNewBadges = async function (req, res) {
+    await userHelper.awardNewBadges();
+    res.status(200).send('Badges awarded');
+  };
 
   const getAllBadges = async function (req, res) {
     // console.log(req.body.requestor);  // Retain logging from development branch for debugging
@@ -74,19 +74,6 @@ const badgeController = function (Badge) {
    */
 
   const assignBadges = async function (req, res) {
-    // const canAssignBadges = await helper.hasPermission(req.body.requestor, 'assignBadges');
-    // const canModifyBadgeAmount = await helper.hasPermission(
-    //   req.body.requestor,
-    //   'modifyBadgeAmount',
-    // );
-    // if (!(canAssignBadges || canModifyBadgeAmount)) {
-    //   res.status(403).send('You are not authorized to assign badges.');
-    //   return;
-    // } else if (!canAssignBadges) {
-    //   res.status(403).send('You are not authorized to assign badges.');
-    // } else if (!canModifyBadgeAmount) {
-    //   res.status(403).send('You are not authorized to modify badge amounts.');
-    // }
     if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -354,7 +341,7 @@ const badgeController = function (Badge) {
   };
 
   return {
-    // awardBadgesTest,
+    awardNewBadges,
     getAllBadges,
     assignBadges,
     postBadge,
