@@ -2964,6 +2964,7 @@ const userHelper = function () {
     sendUserCancelledSeparationEmail,
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
+    getTeamManagementEmail,
   };
 };
 
