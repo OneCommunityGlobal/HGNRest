@@ -1,13 +1,13 @@
 /* eslint-disable complexity */
 /* eslint-disable no-magic-numbers */
-
+const jwt = require('jsonwebtoken');
+const moment = require('moment');
 const express = require('express');
+const config = require('../config');
 const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
 const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
 
 const { webhookTest } = webhookController(Bids);
-
-const jwtVerificationLogic = require('../utilities/jwtVerificationLogic');
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');
@@ -123,31 +123,40 @@ module.exports = function (app) {
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
     }
+    if (!req.header('Authorization')) {
+      res.status(401).send({ 'error:': 'Unauthorized request' });
+      return;
+    }
+    const authToken = req.header(config.REQUEST_AUTHKEY);
 
-    //  HEADER EXTRACTION
-    const authHeader = req.header('Authorization');
-    const payload = jwtVerificationLogic(authHeader, res);
+    let payload = '';
 
-    // FIX: If payload is a response object (meaning logic already sent a 401), STOP HERE.
-    if (res.headersSent) return;
-
-    //  ATTACH DATA & CONTINUE
-    // Now we know payload is the valid decoded token
-    const requestor = {
-      requestorId: payload.userid,
-      role: payload.role,
-      permissions: payload.permissions,
-    };
-
-    req.user = requestor;
-
-    if (req.body) {
-      req.body.requestor = requestor;
+    try {
+      payload = jwt.verify(authToken, config.JWT_SECRET);
+    } catch (error) {
+      res.status(401).send('Invalid token');
+      return;
+    }
+    if (
+      !payload ||
+      !payload.expiryTimestamp ||
+      !payload.userid ||
+      !payload.role ||
+      moment().isAfter(payload.expiryTimestamp)
+    ) {
+      res.status(401).send('Unauthorized request');
+      return;
     }
 
-    return next();
+    const requestor = {};
+    requestor.requestorId = payload.userid;
+    requestor.role = payload.role;
+    requestor.permissions = payload.permissions;
+
+    req.body.requestor = requestor;
+    next();
   });
 
-  // PROTECTED ROUTES
+  // Apply PayPal middleware only to specific route
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };
