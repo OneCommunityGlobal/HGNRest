@@ -2089,8 +2089,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         if (userIdx !== -1) {
           const userData = allUserData[userIdx];
           userData.isActive = user.isActive;
-          userData.reactivationDate = null;
-          userData.endDate = null;
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
