@@ -187,7 +187,7 @@ const userHelper = function () {
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
     } else {
-      let hrThisweek = weeklycommittedHours || 0 + coreTeamExtraHour;
+      let hrThisweek = weeklycommittedHours || 0;
       const remainHr = timeRemaining || 0;
       hrThisweek += remainHr;
       finalParagraph = `Please complete ALL owed time this week (${
@@ -552,9 +552,6 @@ const userHelper = function () {
               );
 
               const { timeSpent_hrs: timeSpent } = results[0];
-              const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-              const timeNotMet = timeSpent < weeklycommittedHours;
-              const timeRemaining = weeklycommittedHours - timeSpent;
 
               let isNewUser = false;
               const userStartDate = moment.tz(
@@ -699,6 +696,12 @@ const userHelper = function () {
               // No extra hours is needed if blue squares isn't over 5.
               // length +1 is because new infringement hasn't been created at this stage.
               const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
+              const weeklycommittedHours =
+                user.weeklycommittedHours +
+                (user.missedHours ?? 0) +
+                (person.role === 'Core Team' ? coreTeamExtraHour : 0);
+              const timeNotMet = timeSpent < weeklycommittedHours;
+              const timeRemaining = Math.max(weeklycommittedHours - timeSpent, 0);
               const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
               const utcEndMoment = moment(pdtEndOfLastWeek)
                 .subtract(1, 'day')
@@ -749,7 +752,7 @@ const userHelper = function () {
                       .localeData()
                       .ordinal(
                         oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                      )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
                       2,
                     )} hours.`;
                   } else {
@@ -773,7 +776,7 @@ const userHelper = function () {
                       .localeData()
                       .ordinal(
                         oldInfringements.length + 1,
-                      )} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${timeSpent.toFixed(
+                      )} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${timeSpent.toFixed(
                       2,
                     )} hours.`;
                   } else {
