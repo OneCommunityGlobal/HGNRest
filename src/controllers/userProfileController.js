@@ -2089,6 +2089,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         if (userIdx !== -1) {
           const userData = allUserData[userIdx];
           userData.isActive = user.isActive;
+          userData.reactivationDate = null;
+          userData.endDate = null;
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
@@ -2497,39 +2499,44 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      // record.infringements = originalinfringements.concat(req.body.blueSquare);
-      record.infringements = originalinfringements.concat(newInfringement);
-      record.infringementCount += 1;
 
-      console.log('Original infringements:', originalinfringements);
-      console.log('Record infringements:', record.infringements);
+      try {
+        // ← KEY FIX: use $push instead of record.save() to avoid overwriting
+        // cron-assigned infringements added between findById and save
+        const status = await UserProfile.findByIdAndUpdate(
+          userid,
+          {
+            $push: { infringements: newInfringement },
+            $inc: { infringementCount: 1 },
+          },
+          { new: true },
+        );
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-            infringements: record.infringements,
-          });
+        await userHelper.notifyInfringements(
+          originalinfringements,
+          status.infringements,
+          status.firstName,
+          status.lastName,
+          status.email,
+          status.role,
+          status.startDate,
+          status.jobTitle[0],
+          status.weeklycommittedHours,
+        );
 
-          // update alluser cache if we have cache
-          if (isUserInCache) {
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
-          }
-        })
-        .catch((error) => res.status(400).send(error));
+        res.status(200).json({
+          _id: status._id,
+          infringements: status.infringements,
+        });
+
+        // update alluser cache if we have cache
+        if (isUserInCache) {
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      } catch (error) {
+        res.status(400).send(error);
+      }
     });
   };
 

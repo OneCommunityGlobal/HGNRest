@@ -14,7 +14,14 @@ const popupBackup = require('../models/popupEditorBackup');
 const taskNotification = require('../models/taskNotification');
 const badge = require('../models/badge');
 const inventoryItem = require('../models/inventoryItem');
+const processingProject = require('../models/processingProject');
+const calendarEvent = require('../models/calendarEvent');
 const inventoryItemType = require('../models/inventoryItemType');
+const transplantingEvent = require('../models/transplantingEvent');
+const harvestingEvent = require('../models/harvestingEvent');
+const plantingEvent = require('../models/plantingEvent');
+const trimmingEvent = require('../models/trimmingEvent');
+const cullingEvent = require('../models/cullingEvent');
 const role = require('../models/role');
 const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
@@ -157,7 +164,14 @@ const inventoryRouter = require('../routes/inventoryRouter')(
   inventoryItemType,
   project,
 );
+const processingProjectRouter = require('../routes/processingProjectRouter')(processingProject);
+const calendarRouter = require('../routes/calendarRouter')(calendarEvent, processingProject);
 const timeZoneAPIRouter = require('../routes/timeZoneAPIRoutes')();
+const transplantingRouter = require('../routes/transplantingRouter')(transplantingEvent);
+const harvestingRouter = require('../routes/harvestingRouter')(harvestingEvent);
+const plantingRouter = require('../routes/plantingRouter')(plantingEvent);
+const trimmingRouter = require('../routes/trimmingRouter')(trimmingEvent);
+const cullingRouter = require('../routes/cullingRouter')(cullingEvent);
 const profileInitialSetupRouter = require('../routes/profileInitialSetupRouter')(
   profileInitialSetuptoken,
   userProfile,
@@ -365,6 +379,7 @@ const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 const bidsRouter = require('../routes/lbdashboard/bidsRouter');
@@ -402,26 +417,19 @@ const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSu
 const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
-
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
+const activityLogRouter = require('../routes/activityLogRouter');
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter');
 
-const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
-// Kitchen and Inventory portal routes
-const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
-const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
-
-// Actual Cost
-const actualCostRouter = require('../routes/actualCostRouter')();
-
-const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
-
-const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
+const actualCostRouter = require('../routes/actualCostRouter');
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter');
 
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
+  app.use('/api/support/daily-log', activityLogRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -447,6 +455,13 @@ module.exports = function (app) {
   app.use('/api', taskNotificationRouter);
   app.use('/api', badgeRouter);
   app.use('/api', inventoryRouter);
+  app.use('/api/kitchenandinventory/processing', processingProjectRouter);
+  app.use('/api/kitchenandinventory/calendar', calendarRouter);
+  app.use('/api/kitchenandinventory/transplanting', transplantingRouter);
+  app.use('/api/kitchenandinventory/harvesting', harvestingRouter);
+  app.use('/api/kitchenandinventory/planting', plantingRouter);
+  app.use('/api/kitchenandinventory/trimming', trimmingRouter);
+  app.use('/api/kitchenandinventory/culling', cullingRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
@@ -614,23 +629,21 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
-  // Education Portal
-  app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
   // education portal
+
   app.use('/api/education', badgeSystemRouter);
-
   app.use('/api/lp', lessonPlanSubmissionRouter);
-
   app.use('/api/education', browsableLessonPlanRouter);
-
   app.use('/api/educator/reports', downloadReportRouter);
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
-  app.use('/api/kitchenandinventory/garden', gardenRouter);
+
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
@@ -639,7 +652,6 @@ module.exports = function (app) {
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
-  app.use('/api/kitchenandinventory/recipes', recipeRouter);
-
-  app.use('/api/analytics', analyticsRouter);
+  // Need to implement gardenRouter
+  // app.use('/api/kitchenandinventory/recipes', recipeRouter);
 };
