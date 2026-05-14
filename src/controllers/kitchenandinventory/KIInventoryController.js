@@ -159,16 +159,31 @@ const KIInventoryController = () => {
   };
   const getInventoryStats = async (req, res) => {
     try {
-      // Only fetch the two fields needed for stats — avoids sending full item payloads
-      const items = await KIInventoryItem.find({}, { presentQuantity: 1, reorderAt: 1 }).lean();
+      // Only fetch the fields needed for stats — avoids sending full item payloads
+      const items = await KIInventoryItem.find(
+        {},
+        { presentQuantity: 1, reorderAt: 1, category: 1, expiryDate: 1 },
+      ).lean();
       const totalItems = items.length;
       const criticalStock = items.filter((i) => i.presentQuantity <= i.reorderAt * 0.5).length;
       const lowStock = items.filter(
         (i) => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
       ).length;
+
+      const oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      const preserved = items.filter(
+        (i) => i.category === 'INGREDIENT' && new Date(i.expiryDate) >= oneYearFromNow,
+      ).length;
+
       res.status(200).json({
         message: 'Inventory stats fetched successfully.',
-        data: { totalItems, criticalStock, lowStock },
+        data: {
+          totalItems,
+          criticalStock,
+          lowStock,
+          preserved,
+        },
       });
     } catch (err) {
       console.error(err);
