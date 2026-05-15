@@ -1062,6 +1062,7 @@ const overviewReportHelper = function () {
   }
 
   async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
+
     if (comparisonStartDate && comparisonEndDate) {
       const taskStats = await Task.aggregate([
         {
@@ -1130,11 +1131,6 @@ const overviewReportHelper = function () {
 
     // non-comparison branch
     const taskStats = await Task.aggregate([
-      {
-        $match: {
-          modifiedDatetime: { $gte: startDate, $lte: endDate },
-        },
-      },
       {
         $group: {
           _id: '$status',
