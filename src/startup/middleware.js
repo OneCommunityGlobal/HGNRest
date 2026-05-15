@@ -1,13 +1,13 @@
 /* eslint-disable complexity */
 /* eslint-disable no-magic-numbers */
-const jwt = require('jsonwebtoken');
-const moment = require('moment');
+
 const express = require('express');
-const config = require('../config');
 const webhookController = require('../controllers/lbdashboard/webhookController'); // your new controller
 const { Bids } = require('../models/lbdashboard/bids'); // or wherever you're getting Bids
 
 const { webhookTest } = webhookController(Bids);
+
+const jwtVerificationLogic = require('../utilities/jwtVerificationLogic');
 
 const paypalAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('Paypal-Auth-Algo');
@@ -33,7 +33,7 @@ module.exports = function (app) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.all('*', (req, res, next) => {
-    // 🔹 Allow unauthenticated access for Mastodon test APIs
+    // Allow unauthenticated access for Mastodon test APIs
     if (req.originalUrl.startsWith('/api/mastodon')) {
       return next();
     }
@@ -79,6 +79,11 @@ module.exports = function (app) {
       return;
     }
 
+    if (req.originalUrl.startsWith('/api/bluesky')) {
+      next();
+      return;
+    }
+
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
@@ -89,44 +94,60 @@ module.exports = function (app) {
       return;
     }
 
+    // Public map analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/map-analytics') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public country analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/api/analytics/country-applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public roles endpoint (no auth required for GET requests)
+    if (req.originalUrl === '/api/analytics/roles' && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    // Public applications analytics endpoints (no auth required for GET requests)
+    if (req.originalUrl.startsWith('/applications') && req.method === 'GET') {
+      next();
+      return;
+    }
+
     // Skip auth check for PayPal webhook route
 
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
     }
-    if (!req.header('Authorization')) {
-      res.status(401).send({ 'error:': 'Unauthorized request' });
-      return;
-    }
-    const authToken = req.header(config.REQUEST_AUTHKEY);
 
-    let payload = '';
+    //  HEADER EXTRACTION
+    const authHeader = req.header('Authorization');
+    const payload = jwtVerificationLogic(authHeader, res);
 
-    try {
-      payload = jwt.verify(authToken, config.JWT_SECRET);
-    } catch (error) {
-      res.status(401).send('Invalid token');
-      return;
-    }
-    if (
-      !payload ||
-      !payload.expiryTimestamp ||
-      !payload.userid ||
-      !payload.role ||
-      moment().isAfter(payload.expiryTimestamp)
-    ) {
-      res.status(401).send('Unauthorized request');
-      return;
+    // FIX: If payload is a response object (meaning logic already sent a 401), STOP HERE.
+    if (res.headersSent) return;
+
+    //  ATTACH DATA & CONTINUE
+    // Now we know payload is the valid decoded token
+    const requestor = {
+      requestorId: payload.userid,
+      role: payload.role,
+      permissions: payload.permissions,
+    };
+
+    req.user = requestor;
+
+    if (req.body) {
+      req.body.requestor = requestor;
     }
 
-    const requestor = {};
-    requestor.requestorId = payload.userid;
-    requestor.role = payload.role;
-    requestor.permissions = payload.permissions;
-
-    req.body.requestor = requestor;
-    next();
+    return next();
   });
-  // Apply PayPal middleware only to specific route
+
+  // PROTECTED ROUTES
   app.post('/api/lb/myWebhooks/', paypalAuthMiddleware, webhookTest);
 };

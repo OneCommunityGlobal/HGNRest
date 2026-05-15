@@ -6,7 +6,7 @@ const connectDb = require('../startup/db');
 
 // --- TEST CONFIGURATION ---
 // REPLACE THESE VALUES WITH YOUR TEST DATA
-const TARGET_USER_ID = '1234567890'; // Dashboard -> Dev User Profile -> User ID in URL 
+const TARGET_USER_ID = '1234567890'; // Dashboard -> Dev User Profile -> User ID in URL
 const TESTER_EMAIL = 'recipient@gmail.com'; // Recipient email
 const TESTER_CC = 'cc@gmail.com'; // Mandatory: Enter your test CC email
 const TESTER_BCC = 'bcc@gmail.com'; // Mandatory: Enter your test BCC email
