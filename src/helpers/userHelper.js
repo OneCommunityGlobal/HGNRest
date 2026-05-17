@@ -590,7 +590,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
     ) {
       return true;
     }
@@ -721,12 +721,12 @@ const userHelper = function () {
       if (moment(inf.date).diff(cutOffDate) >= 0) {
         oldInfringements.push(inf);
       } else {
-        break;
+        continue;
       }
     }
 
     if (oldInfringements.length) {
-      userProfile.findByIdAndUpdate(
+      await userProfile.findByIdAndUpdate(
         personId,
         { $push: { oldInfringements: { $each: oldInfringements, $slice: -10 } } },
         { new: true },
@@ -1164,7 +1164,6 @@ const userHelper = function () {
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
-    console.log('ORIGINAL', original);
     if (original.length) {
       const sortedForHistory = [...original].sort((a, b) => new Date(b.date) - new Date(a.date));
 
