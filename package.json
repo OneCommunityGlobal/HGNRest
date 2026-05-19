@@ -113,7 +113,7 @@
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.35",
     "mongodb": "^3.7.3",
-    "mongoose": "^5.13.23",
+    "mongoose": "^6.13.9",
     "mongoose-validator": "^2.1.0",
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
