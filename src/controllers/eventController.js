@@ -72,10 +72,11 @@ function getPagination(page, limit, total) {
 }
 
 function formatEvent(event, userId) {
+  event.status = updateEventStatus(event);
+
   const eventObj = event.toObject();
   const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
 
-  eventObj.status = updateEventStatus(event);
   eventObj.waitlistCount = waitlist.length;
   eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
 
@@ -88,9 +89,9 @@ function formatEvent(event, userId) {
   return eventObj;
 }
 
-const getEvents = async (req, res) => {
+const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy, userId } = req.query;
+    const { page, limit, type, location, sortBy } = req.query;
 
     validateQuery({ type, location, sortBy });
 
@@ -104,7 +105,7 @@ const getEvents = async (req, res) => {
       .skip(skip)
       .limit(limitNumber);
 
-    const formattedEvents = events.map((event) => formatEvent(event, userId));
+    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
 
     res.json({
       events: formattedEvents,
@@ -188,6 +189,74 @@ const createEvent = async (req, res) => {
       error: 'Failed to create event',
       details: error.message,
     });
+  }
+};
+
+const registerForEvent = async (req, res) => {
+  const { id } = req.params;
+  const { name, userId, profilePic, location } = req.body;
+
+  if (!name || !userId) {
+    return res.status(400).json({ error: 'name and userID are required' });
+  }
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    if (!event.isActive) {
+      return res.status(400).json({ error: 'Event is no longer active' });
+    }
+    if (event.currentAttendees >= event.maxAttendees) {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    const alreadyRegistered = event.resources.some((r) => r.userID?.toString() === userId);
+    if (alreadyRegistered) {
+      return res.status(409).json({ error: 'User is already registered for this event' });
+    }
+
+    const newAttendees = event.currentAttendees + 1;
+    const newStatus = updateEventStatus({ ...event.toObject(), currentAttendees: newAttendees });
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      id,
+      {
+        $push: { resources: { name, userID: userId, profilePic, location } },
+        $inc: { currentAttendees: 1 },
+        $set: { status: newStatus },
+      },
+      { new: true },
+    );
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to register for event', details: error.message });
+  }
+};
+
+const unregisterFromEvent = async (req, res) => {
+  const { id, userId } = req.params;
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const registrantIndex = event.resources.findIndex((r) => r.userID?.toString() === userId);
+    if (registrantIndex === -1) {
+      return res.status(404).json({ error: 'User is not registered for this event' });
+    }
+
+    event.resources.splice(registrantIndex, 1);
+    event.currentAttendees -= 1;
+    event.status = updateEventStatus(event);
+
+    const updatedEvent = await event.save();
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to unregister from event', details: error.message });
   }
 };
 
@@ -306,6 +375,8 @@ module.exports = {
   getEventLocations,
   getEventTypes,
   createEvent,
+  registerForEvent,
+  unregisterFromEvent,
   joinWaitlist,
   leaveEvent,
   leaveWaitlist,
