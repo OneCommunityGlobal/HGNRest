@@ -29,6 +29,8 @@ const routes = function (userProfile, project) {
     .get(param('name').exists(), controller.searchUsersByName);
 
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
+  userProfileRouter.route('/userProfile/:userId/projectHistory/').get(controller.getProjectHistory);
+  userProfileRouter.route('/clearAllProjectHistory/').post(controller.postClearProjectHistory);
   userProfileRouter.route('/userProfile/basicInfo').get(controller.getUserProfileBasicInfo);
 
   // Endpoint to retrieve basic user profile information after verifying access permission based on the request source.
