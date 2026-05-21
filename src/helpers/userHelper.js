@@ -1064,8 +1064,8 @@ const userHelper = function () {
   const deleteBlueSquareAfterYear = async () => {
     const nowLA = moment().tz(COMPANY_TZ);
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
-    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
 
+    const cutOffDate = nowLA.clone().subtract(1, 'year').toDate();
     try {
       // Step 1: For active users, move expired infringements to oldInfringements before deleting
       const usersWithExpired = await userProfile.find(
