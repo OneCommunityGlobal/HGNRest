@@ -2844,6 +2844,87 @@ const userHelper = function () {
     }
   };
 
+  const deActivateUser = async () => {
+    try {
+      const emailReceivers = await userProfile.find(
+        { isActive: true, role: { $in: ['Owner'] } },
+        '_id isActive role email',
+      );
+      const recipients = emailReceivers.map((receiver) => receiver.email);
+      const users = await userProfile.find(
+        { isActive: true, endDate: { $exists: true } },
+        '_id isActive endDate isSet finalEmailThreeWeeksSent reactivationDate',
+      );
+      for (let i = 0; i < users.length; i += 1) {
+        const user = users[i];
+        const { endDate, finalEmailThreeWeeksSent } = user;
+        endDate.setHours(endDate.getHours() + 7);
+        if (
+          finalEmailThreeWeeksSent &&
+          moment().isBefore(moment(endDate).subtract(2, 'weeks')) &&
+          moment().isAfter(moment(endDate).subtract(3, 'weeks'))
+        ) {
+          const id = user._id;
+          const person = await userProfile.findById(id);
+          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+          logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
+          person.teams.map(async (teamId) => {
+            const managementEmails = await getTeamManagementEmail(teamId);
+            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+              managementEmails.forEach((management) => {
+                recipients.push(management.email);
+              });
+            }
+          });
+          sendDeactivateEmailBody(
+            person.firstName,
+            person.lastName,
+            lastDay,
+            person.email,
+            recipients,
+            person.isSet,
+            person.reactivationDate,
+            false,
+            true,
+          );
+        } else if (moment().isAfter(moment(endDate).add(1, 'days'))) {
+          try {
+            await userProfile.findByIdAndUpdate(user._id, user.set({ isActive: false }), {
+              new: true,
+            });
+          } catch (err) {
+            logger.logException(err, `Error in deActivateUser. Failed to update User ${user._id}`);
+            continue;
+          }
+          const id = user._id;
+          const person = await userProfile.findById(id);
+          const lastDay = moment(person.endDate).format('YYYY-MM-DD');
+          logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
+          person.teams.map(async (teamId) => {
+            const managementEmails = await getTeamManagementEmail(teamId);
+            if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+              managementEmails.forEach((management) => {
+                recipients.push(management.email);
+              });
+            }
+          });
+          sendDeactivateEmailBody(
+            person.firstName,
+            person.lastName,
+            lastDay,
+            person.email,
+            recipients,
+            person.isSet,
+            person.reactivationDate,
+            undefined,
+          );
+        }
+      }
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in deActivateUser');
+    }
+  };
+
   const getEmailRecipientsForStatusChange = async (userId) => {
     const emailReceivers = await userProfile.find(
       { isActive: true, role: { $in: ['Owner'] } },
