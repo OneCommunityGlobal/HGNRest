@@ -1063,8 +1063,6 @@ const userHelper = function () {
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
 
     const cutOffDate = nowLA.clone().subtract(1, 'year').toDate();
-
-    const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
     try {
       const results = await userProfile.updateMany(
         {},
