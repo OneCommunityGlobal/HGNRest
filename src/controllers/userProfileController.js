@@ -14,6 +14,7 @@ const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
 const TimeEntry = require('../models/timeentry');
+const Team = require('../models/team');
 const logger = require('../startup/logger');
 const Badge = require('../models/badge');
 // eslint-disable-next-line no-unused-vars
@@ -41,6 +42,64 @@ const reportsController = require('./reportsController')();
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
+const HOURS_TO_ADD_FOR_END_DATE = 7;
+const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
+const MAX_WEEKLY_SUMMARIES = 4;
+
+const getCurrentWeekSummaryTemplate = () => ({
+  dueDate: moment().tz('America/Los_Angeles').endOf('week').toDate(),
+  summary: '',
+});
+
+const normalizeWeeklySummaries = (weeklySummaries) => {
+  const currentWeekDueDate = moment().tz('America/Los_Angeles').endOf('week');
+  const summaries = Array.isArray(weeklySummaries) ? weeklySummaries : [];
+
+  const normalizedSummaries = summaries
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => {
+      const normalizedDueDate = moment(entry.dueDate);
+      const summary = typeof entry.summary === 'string' ? entry.summary : '';
+      const normalizedEntry = {
+        ...entry,
+        summary,
+      };
+
+      if (normalizedDueDate.isValid()) {
+        normalizedEntry.dueDate = normalizedDueDate.toDate();
+      } else {
+        normalizedEntry.dueDate = currentWeekDueDate.toDate();
+      }
+
+      if (entry.uploadDate) {
+        const normalizedUploadDate = moment(entry.uploadDate);
+        if (normalizedUploadDate.isValid()) {
+          normalizedEntry.uploadDate = normalizedUploadDate.toDate();
+        } else {
+          delete normalizedEntry.uploadDate;
+        }
+      }
+
+      return normalizedEntry;
+    })
+    .sort((left, right) => moment(right.dueDate).valueOf() - moment(left.dueDate).valueOf());
+
+  const hasCurrentWeekEntry = normalizedSummaries.some((entry) =>
+    moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+  );
+
+  if (!hasCurrentWeekEntry) {
+    normalizedSummaries.unshift(getCurrentWeekSummaryTemplate());
+  } else {
+    const currentWeekEntryIndex = normalizedSummaries.findIndex((entry) =>
+      moment(entry.dueDate).isSame(currentWeekDueDate, 'week'),
+    );
+    const [currentWeekEntry] = normalizedSummaries.splice(currentWeekEntryIndex, 1);
+    normalizedSummaries.unshift(currentWeekEntry);
+  }
+
+  return normalizedSummaries.slice(0, MAX_WEEKLY_SUMMARIES);
+};
 const { COMPANY_TZ } = require('../constants/company');
 const {
   InactiveReason,
@@ -175,6 +234,55 @@ const auditIfProtectedAccountUpdated = async ({
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 
+// Module-scope helper: validates userId and queries DB safely with ObjectId
+const fetchUserSkillRadarData = async function (userId, section) {
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    return { error: 'Missing or invalid userId parameter', status: 400 };
+  }
+
+  const userObjectId = mongoose.Types.ObjectId(String(userId));
+  const normalizedSection = (section || 'all').toLowerCase();
+  const projection = { frontend: 1, backend: 1, 'followUp.user_id': 1, user_id: 1 };
+
+  let response = await HGNFormResponses.findOne(
+    { 'followUp.user_id': userObjectId },
+    projection,
+  ).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ user_id: userObjectId }, projection).lean();
+  if (!response)
+    response = await HGNFormResponses.findOne({ _id: userObjectId }, projection).lean();
+
+  if (!response) return { error: 'No skill data found for this user', status: 404 };
+
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const toItems = (obj) =>
+    Object.entries(obj || {})
+      .filter(([k]) => !/^overall$/i.test(k))
+      .map(([name, score]) => ({ name, score: toNum(score) }));
+
+  const fe = toItems(response.frontend);
+  const be = toItems(response.backend);
+
+  let skills;
+  if (normalizedSection === 'frontend') skills = fe;
+  else if (normalizedSection === 'backend') skills = be;
+  else skills = [...fe, ...be];
+
+  return {
+    data: {
+      userId: userObjectId.toString(),
+      section: normalizedSection,
+      maxScore: 10,
+      skills,
+    },
+  };
+};
+
 // eslint-disable-next-line max-lines-per-function
 const createControllerMethods = function (UserProfile, Project, cache) {
   const forbidden = function (res, message) {
@@ -232,7 +340,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     up.createdDate = req.body.createdDate;
     up.startDate = req.body.startDate ? req.body.startDate : req.body.createdDate;
     up.email = req.body.email;
-    up.weeklySummaries = req.body.weeklySummaries || [{ summary: '' }];
+    up.weeklySummaries = normalizeWeeklySummaries(req.body.weeklySummaries);
     up.weeklySummariesCount = req.body.weeklySummariesCount || 0;
     up.weeklySummaryOption = req.body.weeklySummaryOption;
     up.mediaUrl = req.body.mediaUrl || '';
@@ -350,7 +458,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     commonFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
     record.lastModifiedDate = Date.now();
@@ -468,7 +579,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     importantFields.forEach((fieldName) => {
       if (req.body[fieldName] !== undefined) {
-        record[fieldName] = req.body[fieldName];
+        record[fieldName] =
+          fieldName === 'weeklySummaries'
+            ? normalizeWeeklySummaries(req.body[fieldName])
+            : req.body[fieldName];
       }
     });
 
@@ -477,7 +591,39 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     if (req.body.teams !== undefined) {
-      record.teams = Array.from(new Set(req.body.teams));
+      const updatedTeams = Array.from(new Set(req.body.teams));
+
+      // Find teams that were removed
+      const removedTeams = record.teams.filter(
+        (teamId) => !updatedTeams.includes(teamId.toString()),
+      );
+
+      // Find teams that were added
+      const addedTeams = updatedTeams.filter(
+        (teamId) => !record.teams.map((t) => t.toString()).includes(teamId),
+      );
+
+      // Remove user from Team's members array for each removed team
+      if (removedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: removedTeams } },
+          { $pull: { members: { userId: mongoose.Types.ObjectId(record._id) } } },
+        );
+      }
+
+      // Add user to Team's members array for each added team
+      if (addedTeams.length > 0) {
+        await Team.updateMany(
+          { _id: { $in: addedTeams } },
+          {
+            $push: {
+              members: { userId: mongoose.Types.ObjectId(record._id), addDateTime: new Date() },
+            },
+          },
+        );
+      }
+
+      record.teams = updatedTeams;
     }
 
     await updateProjects(req, record);
@@ -516,7 +662,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     const hasChangeStatusPermission = await hasPermission(requestor, 'changeUserStatus');
     const hasFinalDayPermission = await hasPermission(requestor, 'setFinalDay');
-    if (!(hasChangeStatusPermission && hasFinalDayPermission && canEditProtectedAccount)) {
+    const hasPausePermission = await hasPermission(requestor, 'interactWithPauseUserButton');
+    if (
+      !(
+        ((hasChangeStatusPermission && hasFinalDayPermission) || hasPausePermission) &&
+        canEditProtectedAccount
+      )
+    ) {
       if (PROTECTED_EMAIL_ACCOUNT.includes(requestor.email)) {
         logger.logInfo(
           `Unauthorized attempt to change protected user status. Requestor: ${requestor.requestorId} Target: ${userId}`,
@@ -783,7 +935,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const getUserProfiles = async function (req, res) {
-    if (!(await checkPermission(req, 'getUserProfiles'))) {
+    if (
+      !(
+        (await checkPermission(req, 'getUserProfiles')) ||
+        (await checkPermission(req, 'interactWithPauseUserButton'))
+      )
+    ) {
       return forbidden(res, 'You are not authorized to view all users');
     }
 
@@ -1087,9 +1244,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
 
       if (verificationUser.bioPosted !== bioPosted) {
-        console.error(
-          `WARNING: Database update failed! Expected: ${bioPosted}, Actual: ${verificationUser.bioPosted}`,
-        );
+        logger.logInfo('Database update failed while verifying bio status change.');
         return res.status(500).json({ error: 'Failed to update bio status in database.' });
       }
 
@@ -1505,7 +1660,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       await user.save();
 
-      console.log(`✅ Saved ${key} in DB:`, user[key]);
+      logger.logInfo(`Saved ${key} in database.`);
 
       // ================================
       // CACHE INVALIDATION (MERGED)
@@ -1757,7 +1912,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
     return null;
   };
-
   const changeUserStatus = async function (req, res) {
     const { userId } = req.params;
     const { action, endDate, reactivationDate } = req.body;
@@ -1882,6 +2036,76 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     } catch (error) {
       console.log(error);
       return res.status(500).send(error);
+    }
+  };
+
+  const pauseResumeUser = async function (req, res) {
+    const { userId } = req.params;
+    const activationDate = req.body.reactivationDate;
+    const status = req.body.status === 'Active';
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Bad Request' });
+    }
+
+    const canEditProtectedAccount = await canRequestorUpdateUser(
+      req.body.requestor.requestorId,
+      userId,
+    );
+
+    if (
+      !(
+        (await hasPermission(req.body.requestor, 'interactWithPauseUserButton')) &&
+        canEditProtectedAccount
+      )
+    ) {
+      if (PROTECTED_EMAIL_ACCOUNT.includes(req.body.requestor.email)) {
+        logger.logInfo(
+          `Unauthorized attempt to change protected user status. Requestor: ${req.body.requestor.requestorId} Target: ${userId}`,
+        );
+      }
+      return res.status(403).send('You are not authorized to change user status');
+    }
+
+    cache.removeCache(`user-${userId}`);
+
+    try {
+      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      user.set({
+        isActive: status,
+        reactivationDate: activationDate,
+      });
+
+      await user.save();
+
+      const isUserInCache = cache.hasCache('allusers');
+      if (isUserInCache) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const userIdx = allUserData.findIndex((u) => u._id === userId);
+        if (userIdx !== -1) {
+          const userData = allUserData[userIdx];
+          userData.isActive = user.isActive;
+          userData.reactivationDate = null;
+          userData.endDate = null;
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      auditIfProtectedAccountUpdated({
+        requestorId: req.body.requestor.requestorId,
+        updatedRecordEmail: user.email,
+        actionPerformed: 'UserStatusUpdate',
+      });
+
+      return res.status(200).send({ message: 'status updated' });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 
@@ -2055,7 +2279,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       access: {
         canAccessBMPortal: false,
       },
-      expiryTimestamp: moment_().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+      expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
     };
     const currentRefreshToken = jwt.sign(jwtPayload, JWT_SECRET);
     res.status(200).send({ refreshToken: currentRefreshToken });
@@ -2180,7 +2404,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const addInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'addInfringements'))) {
-      res.status(403).send('You are not authorized to add blue square');
+      res
+        .status(403)
+        .send(
+          'You are not authorized to add blue square. The requestor must resolve to a user with addInfringements permission.',
+        );
       return;
     }
 
@@ -2203,6 +2431,33 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!isValidDate) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
+      // Process reasons array - normalize to lowercase, deduplicate, default to ['other']
+      let { reasons } = req.body.blueSquare;
+      if (!Array.isArray(reasons)) {
+        reasons = reasons ? [reasons] : ['other'];
+      }
+      let processedReasons = [
+        ...new Set(reasons.map((r) => String(r).toLowerCase().trim())),
+      ].filter((r) =>
+        [
+          'time not met',
+          'missing summary',
+          'missed video call',
+          'late reporting',
+          'other',
+        ].includes(r),
+      );
+      if (processedReasons.length === 0) {
+        processedReasons = ['other'];
+      }
+
+      // Get requestor info for manually assigned tracking
+      const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+      let requestorProfile = null;
+      if (requestorId) {
+        requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+      }
+
       const newInfringement = {
         ...req.body.blueSquare,
         date: inputDate,
@@ -2217,7 +2472,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         ].includes(req.body.blueSquare.reason)
           ? req.body.blueSquare.reason
           : 'missingHours',
-        // Maintain backward compatibility
+        // Add reasons array for more detailed categorization
+        reasons: processedReasons,
+        // Track if manually assigned (via API call) vs CRON job
+        manullyAssigned: true,
+        manullyAssignedBy: requestorProfile
+          ? {
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
+          : undefined,
+        // Initialize empty edit history
+        editedBy: [],
       };
 
       // find userData in cache
@@ -2232,89 +2499,123 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
 
       const originalinfringements = record?.infringements ?? [];
-      // record.infringements = originalinfringements.concat(req.body.blueSquare);
-      record.infringements = originalinfringements.concat(newInfringement);
-      record.infringementCount += 1;
 
-      console.log('Original infringements:', originalinfringements);
-      console.log('Record infringements:', record.infringements);
+      try {
+        // ← KEY FIX: use $push instead of record.save() to avoid overwriting
+        // cron-assigned infringements added between findById and save
+        const status = await UserProfile.findByIdAndUpdate(
+          userid,
+          {
+            $push: { infringements: newInfringement },
+            $inc: { infringementCount: 1 },
+          },
+          { new: true },
+        );
 
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-            infringements: record.infringements,
-          });
+        await userHelper.notifyInfringements(
+          originalinfringements,
+          status.infringements,
+          status.firstName,
+          status.lastName,
+          status.email,
+          status.role,
+          status.startDate,
+          status.jobTitle[0],
+          status.weeklycommittedHours,
+        );
 
-          // update alluser cache if we have cache
-          if (isUserInCache) {
-            allUserData.splice(userIdx, 1, userData);
-            cache.setCache('allusers', JSON.stringify(allUserData));
-          }
-        })
-        .catch((error) => res.status(400).send(error));
+        res.status(200).json({
+          _id: status._id,
+          infringements: status.infringements,
+        });
+
+        // update alluser cache if we have cache
+        if (isUserInCache) {
+          allUserData.splice(userIdx, 1, userData);
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      } catch (error) {
+        res.status(400).send(error);
+      }
     });
   };
 
   const editInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'editInfringements'))) {
-      res.status(403).send('You are not authorized to edit blue square');
-      return;
+      return res.status(403).send('You are not authorized to edit blue square');
     }
+
     const { userId, blueSquareId } = req.params;
     const { dateStamp, summary, reasons } = req.body;
 
-    UserProfile.findById(userId, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
-      }
+    const requestorId = req.body.requestor?.requestorId || req.body.requestor;
+    let requestorProfile = null;
+    if (requestorId) {
+      requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
+    }
 
-      const originalinfringements = record?.infringements ?? [];
+    try {
+      // Fetch original for notification comparison only — never used for .save()
+      const original = await UserProfile.findById(userId).select('infringements');
+      if (!original) return res.status(404).send('No valid records found');
 
-      record.infringements = originalinfringements.map((blueSquare) => {
-        if (blueSquare._id.equals(blueSquareId)) {
-          blueSquare.date = dateStamp ?? blueSquare.date;
-          blueSquare.description = summary ?? blueSquare.description;
-          if (Array.isArray(reasons)) {
-            blueSquare.reasons = reasons;
-          }
-        }
-        return blueSquare;
+      const originalinfringements = original.infringements ?? [];
+
+      // Find the existing editedBy array for this blue square
+      const existingSquare = originalinfringements.find((bs) => bs._id.equals(blueSquareId));
+      if (!existingSquare) return res.status(404).send('Blue square not found');
+
+      const updatedEditedBy = [
+        ...(existingSquare.editedBy || []),
+        {
+          firstName: requestorProfile?.firstName || 'Unknown',
+          lastName: requestorProfile?.lastName || 'Unknown',
+          userId: requestorId,
+          date: new Date(),
+        },
+      ];
+
+      // Atomic update — only touches the matched subdocument
+      const updateFields = {
+        'infringements.$[elem].editedBy': updatedEditedBy,
+      };
+      if (dateStamp !== undefined) updateFields['infringements.$[elem].date'] = dateStamp;
+      if (summary !== undefined) updateFields['infringements.$[elem].description'] = summary;
+      if (Array.isArray(reasons)) updateFields['infringements.$[elem].reasons'] = reasons;
+
+      const status = await UserProfile.findByIdAndUpdate(
+        userId,
+        { $set: updateFields },
+        {
+          arrayFilters: [{ 'elem._id': new mongoose.Types.ObjectId(blueSquareId) }],
+          new: true,
+        },
+      );
+
+      if (!status) return res.status(404).send('No valid records found');
+
+      await userHelper.notifyInfringements(
+        originalinfringements,
+        status.infringements,
+        status.firstName,
+        status.lastName,
+        status.email,
+        status.role,
+        status.startDate,
+        status.jobTitle[0],
+        status.weeklycommittedHours,
+      );
+
+      return res.status(200).json({
+        _id: status._id,
+        infringements: status.infringements,
       });
-
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-          });
-        })
-        .catch((error) => res.status(400).send(error));
-    });
+    } catch (error) {
+      return res.status(500).json({
+        message: error?.message || 'Unknown error',
+        name: error?.name,
+      });
+    }
   };
 
   const deleteInfringements = async function (req, res) {
@@ -2329,7 +2630,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!userId || !blueSquareId) {
         return res.status(400).send('Missing userId or blueSquareId');
       }
-
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).send(`Invalid userId: ${userId}`);
       }
@@ -2337,33 +2637,50 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(400).send(`Invalid blueSquareId: ${blueSquareId}`);
       }
 
-      const updated = await UserProfile.findOneAndUpdate(
-        { _id: userId },
+      // Fetch original for notification comparison
+      const original = await UserProfile.findById(userId).select('infringements');
+      if (!original) return res.status(404).send('No valid records found');
+      const originalinfringements = original.infringements ?? [];
+
+      // Single atomic operation — $pull + $inc together, no .save() needed
+      const updated = await UserProfile.findByIdAndUpdate(
+        userId,
         {
           $pull: {
-            infringements: { _id: blueSquareId },
-            oldInfringements: { _id: blueSquareId },
+            infringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
+            oldInfringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
           },
+          $inc: { infringementCount: -1 },
         },
         { new: true },
       );
 
-      if (!updated) {
-        return res.status(404).send('No valid records found');
+      if (!updated) return res.status(404).send('No valid records found');
+
+      // Clamp count to 0 in case it was already 0 — one more atomic op, still no .save()
+      if (updated.infringementCount < 0) {
+        await UserProfile.findByIdAndUpdate(userId, {
+          $set: { infringementCount: 0 },
+        });
       }
 
-      const stillThere =
-        (updated.infringements || []).some((x) => String(x._id) === String(blueSquareId)) ||
-        (updated.oldInfringements || []).some((x) => String(x._id) === String(blueSquareId));
+      await userHelper.notifyInfringements(
+        originalinfringements,
+        updated.infringements,
+        updated.firstName,
+        updated.lastName,
+        updated.email,
+        updated.role,
+        updated.startDate,
+        updated.jobTitle[0],
+        updated.weeklycommittedHours,
+      );
 
-      if (stillThere) {
-        return res.status(500).send('Delete did not persist (still present after update)');
-      }
-
-      updated.infringementCount = Math.max(0, (updated.infringements || []).length);
-      await updated.save();
-
-      return res.status(200).json({ _id: updated._id, deleted: blueSquareId });
+      return res.status(200).json({
+        _id: updated._id,
+        deleted: blueSquareId,
+        infringements: updated.infringements,
+      });
     } catch (error) {
       return res.status(500).json({
         message: error?.message || 'Unknown error',
@@ -2582,14 +2899,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID from requestor object added by middleware
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
 
       const userId = req.body.requestor.requestorId;
 
-      // Get skill parameter
       const skillName = req.params.skill;
       if (!skillName) {
         return res.status(400).send({ message: 'Skill parameter is required' });
@@ -2714,16 +3029,14 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 },
               },
             },
-            userInfo: {
-              userId: user._id,
-              teamCodeWarning,
-            },
+            userId: user._id.toString(),
+            teamCodeWarning,
           };
         }),
       );
 
       // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => x.updateOne);
+      const bulkOps = updatedUsersInfo.map((x) => ({ updateOne: x.updateOne }));
 
       // 2. Execute all updates at once
       if (bulkOps.length > 0) {
@@ -2732,11 +3045,29 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       return res.status(200).send({
         message: 'Team codes updated successfully.',
-        updatedUsers: updatedUsersInfo,
+        updatedUsers: updatedUsersInfo.map(({ userId, teamCodeWarning }) => ({
+          userId,
+          teamCodeWarning,
+        })),
       });
     } catch (error) {
       console.error('Error updating team codes:', error);
       return res.status(500).send({ error: 'An error occurred while updating team codes.' });
+    }
+  };
+
+  const getUserSkillRadarData = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const section = req.query.section || 'all';
+      const result = await fetchUserSkillRadarData(userId, section);
+      if (result.error) {
+        return res.status(result.status).send({ error: result.error });
+      }
+      return res.status(200).json(result.data);
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
     }
   };
 
@@ -2756,6 +3087,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     getTeamMembersofUser,
     getProjectMembers,
     changeUserStatus,
+    pauseResumeUser,
     resetPassword,
     getUserByName,
     getAllUsersWithFacebookLink,
@@ -2778,6 +3110,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
+    getUserSkillRadarData,
   };
 };
 

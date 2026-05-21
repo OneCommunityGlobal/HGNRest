@@ -108,6 +108,7 @@ const permissionsRoles = [
       'accessHgnSkillsDashboard',
       'manageFAQs',
       'setFinalDay',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -243,7 +244,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -298,6 +298,7 @@ const permissionsRoles = [
       'manageHGNAccessSetup',
       'setFinalDay',
       'resendBlueSquareAndSummaryEmails',
+      'interactWithPauseUserButton',
     ],
   },
 ];

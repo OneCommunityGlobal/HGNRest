@@ -1,5 +1,6 @@
 const express = require('express');
 const Sentry = require('@sentry/node');
+const testRoutes = require('./routes/testRoutes');
 
 const app = express();
 const logger = require('./startup/logger');
@@ -10,16 +11,25 @@ logger.init();
 
 app.use(Sentry.Handlers.requestHandler());
 
-// ✅ Mount analytics routes
-const analyticsRoutes = require('./routes/applicantAnalyticsRoutes');
-
-app.use('/api/applicants', analyticsRoutes);
-
 // Then load all other setup
 require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
+require('./startup/session')(app); // Add session before middleware and routes
+
+app.use('/api/test', testRoutes);
+
+const helpFeedbackRouter = require('./routes/helpFeedbackRouter');
+const helpRequestRouter = require('./routes/helpRequestRouter');
+
+app.use('/api/feedback', helpFeedbackRouter);
+app.use('/api/helprequest', helpRequestRouter);
+
 require('./startup/middleware')(app);
+
+const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
+
+app.use('/api', weeklyReportsRouter);
 
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
