@@ -2834,49 +2834,41 @@ const userHelper = function () {
       '_id isActive role email',
     );
     const recipients = emailReceivers.map((receiver) => receiver.email);
-
-    const emailBody = `
-    <p>Management,</p>
-    <p>
-      ${firstName} ${lastName} has been re-activated in the Highest Good Network.
-    </p>
-    <p>Email: ${email}</p>
-    <p>With Gratitude,<br/>One Community</p>
-  `;
-
-    return {
-      changeBadgeCount,
-      getUserName,
-      getTeamMembers,
-      checkTeamCodeMismatch,
-      validateProfilePic,
-      assignBlueSquareForTimeNotMet,
-      applyMissedHourForCoreTeam,
-      deleteBlueSquareAfterYear,
-      reActivateUser,
-      sendDeactivateEmailBody,
-      deActivateUser,
-      notifyInfringements,
-      getInfringementEmailBody,
-      emailWeeklySummariesForAllUsers,
-      awardNewBadges,
-      checkXHrsForXWeeks,
-      getTangibleHoursReportedThisWeekByUserId,
-      deleteExpiredTokens,
-      deleteOldTimeOffRequests,
-      getProfileImagesFromWebsite,
-      sendUserPausedEmail,
-      sendUserSeparatedEmail,
-      sendUserActivatedEmail,
-      sendUserScheduledSeparationEmail,
-      sendUserResumedEmail,
-      sendUserReactivatedAfterSeparation,
-      sendUserCancelledSeparationEmail,
-      finalizeUserEndDates,
-      getEmailRecipientsForStatusChange,
-      getTeamManagementEmail,
-    };
+    return recipients;
   };
 
-  module.exports = userHelper;
+  return {
+    changeBadgeCount,
+    getUserName,
+    getTeamMembers,
+    checkTeamCodeMismatch,
+    validateProfilePic,
+    assignBlueSquareForTimeNotMet,
+    applyMissedHourForCoreTeam,
+    deleteBlueSquareAfterYear,
+    reActivateUser,
+    sendDeactivateEmailBody,
+    deActivateUser,
+    notifyInfringements,
+    getInfringementEmailBody,
+    emailWeeklySummariesForAllUsers,
+    awardNewBadges,
+    checkXHrsForXWeeks,
+    getTangibleHoursReportedThisWeekByUserId,
+    deleteExpiredTokens,
+    deleteOldTimeOffRequests,
+    getProfileImagesFromWebsite,
+    sendUserPausedEmail,
+    sendUserSeparatedEmail,
+    sendUserActivatedEmail,
+    sendUserScheduledSeparationEmail,
+    sendUserResumedEmail,
+    sendUserReactivatedAfterSeparation,
+    sendUserCancelledSeparationEmail,
+    finalizeUserEndDates,
+    getEmailRecipientsForStatusChange,
+    getTeamManagementEmail,
+  };
 };
+
+module.exports = userHelper;
