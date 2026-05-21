@@ -57,6 +57,64 @@ const getCredentials = async () => {
   return null;
 };
 
+const uploadImageToFacebook = async (
+  endpoint,
+  pageAccessToken,
+  imageBuffer,
+  imageMimeType,
+  message,
+) => {
+  const formData = new FormData();
+  formData.append('access_token', pageAccessToken);
+  if (message) formData.append('message', message);
+
+  const extMap = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+  };
+  const ext = extMap[imageMimeType] || 'jpg';
+
+  formData.append('source', imageBuffer, {
+    filename: `upload.${ext}`,
+    contentType: imageMimeType || 'image/jpeg',
+  });
+
+  console.log('[FacebookPost] Uploading image file to:', endpoint);
+  return axios.post(endpoint, formData, {
+    headers: formData.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+};
+
+const postPayloadToFacebook = async (endpoint, pageAccessToken, message, link, imageUrl) => {
+  const payload = { access_token: pageAccessToken };
+  if (message) payload.message = message;
+  if (link) payload.link = link;
+  if (imageUrl) payload.url = imageUrl;
+
+  console.log('[FacebookPost] endpoint:', endpoint);
+  return axios.post(endpoint, payload);
+};
+
+const applyScheduleUpdate = (post, scheduledFor, timezone) => {
+  const targetTimezone = timezone || post.timezone || PST_TIMEZONE;
+  const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
+
+  if (!scheduledMoment.isValid()) {
+    throw new Error('Invalid scheduledFor date/time provided.');
+  }
+
+  if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
+    throw new Error('Scheduled time must be in the future.');
+  }
+
+  post.scheduledFor = scheduledMoment.toDate();
+  if (timezone) post.timezone = timezone;
+};
+
 const publishToFacebook = async ({
   message,
   link,
@@ -106,44 +164,9 @@ const publishToFacebook = async ({
   const endpoint = `${graphBaseUrl}/${targetPageId}/${isPhotoPost ? 'photos' : 'feed'}`;
 
   try {
-    let response;
-
-    if (isDirectUpload) {
-      const formData = new FormData();
-      formData.append('access_token', pageAccessToken);
-      if (message) formData.append('message', message);
-
-      const extMap = {
-        'image/jpeg': 'jpg',
-        'image/png': 'png',
-        'image/gif': 'gif',
-        'image/webp': 'webp',
-      };
-      const ext = extMap[imageMimeType] || 'jpg';
-
-      formData.append('source', imageBuffer, {
-        filename: `upload.${ext}`,
-        contentType: imageMimeType || 'image/jpeg',
-      });
-
-      console.log('[FacebookPost] Uploading image file to:', endpoint);
-      response = await axios.post(endpoint, formData, {
-        headers: formData.getHeaders(),
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      });
-    } else {
-      const payload = {
-        access_token: pageAccessToken,
-      };
-
-      if (message) payload.message = message;
-      if (link) payload.link = link;
-      if (imageUrl) payload.url = imageUrl;
-
-      console.log('[FacebookPost] endpoint:', endpoint);
-      response = await axios.post(endpoint, payload);
-    }
+    const response = isDirectUpload
+      ? await uploadImageToFacebook(endpoint, pageAccessToken, imageBuffer, imageMimeType, message)
+      : await postPayloadToFacebook(endpoint, pageAccessToken, message, link, imageUrl);
 
     return {
       postId: response.data.id,
@@ -630,7 +653,8 @@ const cancelScheduledPost = async (req, res) => {
   }
 
   try {
-    const post = await ScheduledFacebookPost.findById(postId);
+    const safePostId = new MongoTypes.ObjectId(postId);
+    const post = await ScheduledFacebookPost.findById(safePostId);
 
     if (!post) {
       res.status(404).send({ error: 'Scheduled post not found.' });
@@ -644,7 +668,7 @@ const cancelScheduledPost = async (req, res) => {
       return;
     }
 
-    await ScheduledFacebookPost.findByIdAndDelete(postId);
+    await ScheduledFacebookPost.findByIdAndDelete(safePostId);
 
     res.status(200).send({ success: true, message: 'Scheduled post cancelled successfully.' });
   } catch (error) {
@@ -675,7 +699,8 @@ const updateScheduledPost = async (req, res) => {
   }
 
   try {
-    const post = await ScheduledFacebookPost.findById(postId);
+    const safePostId = new MongoTypes.ObjectId(postId);
+    const post = await ScheduledFacebookPost.findById(safePostId);
 
     if (!post) {
       res.status(404).send({ error: 'Scheduled post not found.' });
@@ -690,21 +715,12 @@ const updateScheduledPost = async (req, res) => {
     }
 
     if (scheduledFor) {
-      const targetTimezone = timezone || post.timezone || PST_TIMEZONE;
-      const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
-
-      if (!scheduledMoment.isValid()) {
-        res.status(400).send({ error: 'Invalid scheduledFor date/time provided.' });
+      try {
+        applyScheduleUpdate(post, scheduledFor, timezone);
+      } catch (validationError) {
+        res.status(400).send({ error: validationError.message });
         return;
       }
-
-      if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
-        res.status(400).send({ error: 'Scheduled time must be in the future.' });
-        return;
-      }
-
-      post.scheduledFor = scheduledMoment.toDate();
-      if (timezone) post.timezone = timezone;
     }
 
     if (message !== undefined) post.message = message;

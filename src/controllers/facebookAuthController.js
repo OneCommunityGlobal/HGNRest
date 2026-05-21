@@ -136,11 +136,7 @@ const handleAuthCallback = async (req, res) => {
     const userTokenExpiresIn = tokenResponse.data.expires_in || 5184000; // Default 60 days
     const userTokenExpiresAt = new Date(Date.now() + userTokenExpiresIn * 1000);
 
-    console.log(
-      '[FacebookAuth] Got long-lived user token, expires in:',
-      userTokenExpiresIn,
-      'seconds',
-    );
+    console.log('[FacebookAuth] Token exchange complete.');
 
     // Step 2: Get list of Pages the user manages
     console.log('[FacebookAuth] Fetching user Pages...');
@@ -179,7 +175,7 @@ const handleAuthCallback = async (req, res) => {
       createdAt: Date.now(),
     });
 
-    console.log('[FacebookAuth] Stored pending connection, nonce:', selectionNonce);
+    console.log('[FacebookAuth] Stored pending connection.');
 
     // Return page list WITHOUT tokens
     return res.status(200).json({
@@ -241,6 +237,8 @@ const connectPage = async (req, res) => {
   // Clean up pending entry immediately
   pendingConnections.delete(selectionNonce);
 
+  const sanitizedPageId = sanitizeFbId(pageId);
+
   try {
     // Verify the token works
     console.log('[FacebookAuth] Verifying page token...');
@@ -255,11 +253,11 @@ const connectPage = async (req, res) => {
     const verifiedPageName = verifyResponse.data.name || pageName;
 
     // Remove existing connections for this page
-    await FacebookConnection.deleteMany({ pageId });
+    await FacebookConnection.deleteMany({ pageId: sanitizedPageId });
 
     // Deactivate any other active connections (different pages)
     await FacebookConnection.updateMany(
-      { pageId: { $ne: pageId }, isActive: true },
+      { pageId: { $ne: sanitizedPageId }, isActive: true },
       {
         isActive: false,
         disconnectedBy: {
@@ -291,7 +289,7 @@ const connectPage = async (req, res) => {
 
     await connection.save();
 
-    console.log('[FacebookAuth] Page connected successfully:', pageId, verifiedPageName);
+    console.log('[FacebookAuth] Page connected successfully.');
 
     return res.status(200).json({
       success: true,
