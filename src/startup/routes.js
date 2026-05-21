@@ -80,6 +80,7 @@ const userPermissionChangeLog = require('../models/userPermissionChangeLog');
 const mapLocations = require('../models/mapLocation');
 const buildingProject = require('../models/bmdashboard/buildingProject');
 const buildingNewLesson = require('../models/bmdashboard/buildingNewLesson');
+const buildingToolStoppageReason = require('../models/bmdashboard/buildingToolsStoppage');
 const metIssue = require('../models/bmdashboard/metIssue');
 const projectStatus = require('../models/bmdashboard/project');
 
@@ -283,6 +284,9 @@ const bmIssueRouter = require('../routes/bmdashboard/bmIssueRouter')(buildingIss
 const bmInjuryRouter = require('../routes/bmdashboard/bmInjuryRouter')(injujrySeverity);
 
 const bmExternalTeam = require('../routes/bmdashboard/bmExternalTeamRouter');
+const bmToolStoppageReasonRouter = require('../routes/bmdashboard/bmToolStoppageReasonRouter')(
+  buildingToolStoppageReason,
+);
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
@@ -379,7 +383,6 @@ const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
 const savedFilterRouter = require('../routes/savedFilterRouter')(savedFilter);
-const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
 // lbdashboard
 const bidTermsRouter = require('../routes/lbdashboard/bidTermsRouter');
 const bidsRouter = require('../routes/lbdashboard/bidsRouter');
@@ -417,19 +420,26 @@ const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSu
 const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
-const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
-const activityLogRouter = require('../routes/activityLogRouter');
-const jobHitsAndApplicationsRoutes = require('../routes/jobAnalyticsRouter');
 
-const actualCostRouter = require('../routes/actualCostRouter');
-const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter');
+const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
+
+const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
+// Kitchen and Inventory portal routes
+const kitchenInventoryRouter = require('../routes/kitchenandinventory/KIInventoryRouter')();
+const summaryDashboardRouter = require('../routes/summaryDashboard.routes');
+
+// Actual Cost
+const actualCostRouter = require('../routes/actualCostRouter')();
+
+const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
+
+const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
 
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
-  app.use('/api/support/daily-log', activityLogRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
@@ -553,6 +563,8 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  //app.use('api', bmIssueRouter);
+  app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api', costBreakdownRouter);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
@@ -629,21 +641,23 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
+  // Education Portal
+  app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
   // education portal
-
   app.use('/api/education', badgeSystemRouter);
+
   app.use('/api/lp', lessonPlanSubmissionRouter);
+
   app.use('/api/education', browsableLessonPlanRouter);
+
   app.use('/api/educator/reports', downloadReportRouter);
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
-
-  // Need to implement gardenRouter
-  // app.use('/api/kitchenandinventory/garden', gardenRouter);
+  app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
@@ -652,6 +666,7 @@ module.exports = function (app) {
 
   app.use('/api/lp', lessonPlanSubmissionRouter);
 
-  // Need to implement gardenRouter
-  // app.use('/api/kitchenandinventory/recipes', recipeRouter);
+  app.use('/api/kitchenandinventory/recipes', recipeRouter);
+
+  app.use('/api/analytics', analyticsRouter);
 };

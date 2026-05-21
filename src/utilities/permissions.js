@@ -64,7 +64,6 @@ const normalizeRequestor = async (requestor) => {
   return role ? { ...requestor, requestorId, role } : null;
 };
 
-// req.body -> requestor, 'fetchSupportDailyLog -> action'
 const hasPermission = async (requestor, action) => {
   const normalizedRequestor = await normalizeRequestor(requestor);
 
@@ -72,14 +71,13 @@ const hasPermission = async (requestor, action) => {
     return false;
   }
 
-  // Extract from normalizedRequestor
-  const { requestorId, role } = normalizedRequestor;
-
-  const defaultRemoved = await hasDefaultPermissionRemoved(requestorId, action);
-
-  const roleHasPermission = await hasRolePermission(role, action);
-
-  const individualHasPermission = await hasIndividualPermission(requestorId, action);
+  const defaultRemoved =
+    normalizedRequestor.requestorId &&
+    (await hasDefaultPermissionRemoved(normalizedRequestor.requestorId, action));
+  const roleHasPermission = await hasRolePermission(normalizedRequestor.role, action);
+  const individualHasPermission =
+    normalizedRequestor.requestorId &&
+    (await hasIndividualPermission(normalizedRequestor.requestorId, action));
 
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
 };
