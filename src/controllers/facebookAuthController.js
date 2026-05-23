@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const axios = require('axios');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
@@ -157,7 +158,7 @@ const handleAuthCallback = async (req, res) => {
     }
 
     // Step 3: Store tokens server-side, return only metadata to client
-    const selectionNonce = `${userID}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const selectionNonce = `${userID}_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
 
     pendingConnections.set(selectionNonce, {
       pages: pages.map((p) => ({
