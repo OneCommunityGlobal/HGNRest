@@ -7,18 +7,16 @@ const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
 // const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
 
-// 1. Core initialization
 logger.init();
+
 app.use(Sentry.Handlers.requestHandler());
 
-// 2. Load essential middleware (The "Engine")
+// Then load all other setup
 require('./startup/compression')(app);
 require('./startup/cors')(app);
-require('./startup/bodyParser')(app); // <--- Crucial this runs before routes
+require('./startup/bodyParser')(app);
 require('./startup/session')(app); // Add session before middleware and routes
 
-// 3. Define Routes (The "Destination")
-// It is better to move these INSIDE startup/routes.js, but if they stay here:
 app.use('/api/test', testRoutes);
 
 const helpFeedbackRouter = require('./routes/helpFeedbackRouter');
@@ -28,10 +26,14 @@ app.use('/api/feedback', helpFeedbackRouter);
 app.use('/api/helprequest', helpRequestRouter);
 
 require('./startup/middleware')(app);
-// This handles all other routes and likely has your 404 handler
+
+const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
+
+app.use('/api', weeklyReportsRouter);
+
+// ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);
 
-// 4. Error Handling (The "Safety Net")
 app.use(Sentry.Handlers.errorHandler());
 app.use(globalErrorHandler);
 
