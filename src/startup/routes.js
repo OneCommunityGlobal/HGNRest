@@ -241,6 +241,7 @@ const bmConsumablesRouter = require('../routes/bmdashboard/bmConsumablesRouter')
 );
 const costBreakdown = require('../models/bmdashboard/costBreakdown');
 const costBreakdownRouter = require('../routes/bmdashboard/costBreakdownRouter')(costBreakdown);
+const buildingInventoryUnit = require('../models/bmdashboard/buildingInventoryUnit');
 const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRouter')(
   invTypeBase,
   materialType,
@@ -248,13 +249,8 @@ const bmInventoryTypeRouter = require('../routes/bmdashboard/bmInventoryTypeRout
   reusableType,
   toolType,
   equipmentType,
-  invTypeBase,
-  materialType,
-  consumableType,
-  reusableType,
-  toolType,
-  equipmentType,
   invTypeHistory,
+  buildingInventoryUnit,
 );
 
 const toolAvailabilityRoutes = require('../routes/bmdashboard/bmToolAvailabilityRoutes');
@@ -502,6 +498,7 @@ module.exports = function (app) {
   app.use('/api', collaborationRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
+  app.use('/api/costs', costsRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
   app.use('/api/issues', bmIssuesRouter);

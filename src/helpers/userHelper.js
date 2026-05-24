@@ -1069,9 +1069,8 @@ const userHelper = function () {
         {},
         {
           $pull: {
-            infringements: {
-              date: { $lte: cutOffDate },
-            },
+            infringements: { date: { $lte: cutOffDate } },
+            oldInfringements: { date: { $lte: cutOffDate } }, // clean up old ones too
           },
         },
       );
