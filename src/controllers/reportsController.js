@@ -751,6 +751,7 @@ const reportsController = function () {
       }
 
       const teamCodes = await UserProfile.distinct('teamCode', {
+        isActive: true,
         teamCode: { $nin: [null, ''] },
       });
 
