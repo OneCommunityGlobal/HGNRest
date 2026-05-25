@@ -6,8 +6,10 @@ const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
 const helper = require('../utilities/permissions');
+const TimeEntry = require('../models/timeentry');
 
 const INTERNAL_SERVER_ERROR = 'Internal server error';
+const moment = require('moment-timezone');
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -79,6 +81,67 @@ const teamcontroller = function (Team) {
         Logger.logException(error);
         res.status(500).send(error);
       });
+  };
+
+  const getTeamsCommittedHours = async function (req, res) {
+    try {
+      const { fromDate, toDate } = req.body;
+
+      const teams = await Team.find({ isActive: true }).select('_id teamName members').lean();
+      Logger.logInfo(
+        `Calculating committed hours for ${teams.length} active teams between ${fromDate} and ${toDate}`,
+      );
+      const result = await Promise.all(
+        teams.map(async (teamData) => {
+          const memberIds = teamData.members
+            ?.map((member) => member.userId || member._id)
+            .filter(Boolean);
+
+          const hoursSummary = await TimeEntry.aggregate([
+            {
+              $match: {
+                personId: {
+                  $in: memberIds.map((id) => mongoose.Types.ObjectId(id)),
+                },
+                dateOfWork: {
+                  $gte: moment(fromDate).format('YYYY-MM-DD'),
+                  $lte: moment(toDate).format('YYYY-MM-DD'),
+                },
+                entryType: { $in: ['default', 'person', null] },
+              },
+            },
+            {
+              $group: {
+                _id: '$personId',
+                totalHours: {
+                  $sum: { $divide: ['$totalSeconds', 3600] },
+                },
+              },
+            },
+          ]);
+
+          const committedHours = hoursSummary.reduce((total, user) => total + user.totalHours, 0);
+
+          return {
+            teamId: teamData._id,
+            teamName: teamData.teamName,
+            committedHours: Math.round(committedHours * 10) / 10,
+            membersHours: hoursSummary.map((user) => ({
+              userId: user._id,
+              totalHours: Math.round(user.totalHours * 10) / 10,
+            })),
+          };
+        }),
+      );
+
+      return res.status(200).json(result);
+    } catch (error) {
+      Logger.logException(error);
+      return res.status(500).json({
+        message: 'Error calculating team member hours',
+        error: error.message,
+      });
+    }
   };
 
   const getTeamById = function (req, res) {
@@ -573,6 +636,7 @@ const teamcontroller = function (Team) {
     updateTeamVisibility,
     getAllTeamMembers,
     getTeamMembersSkillsAndContact,
+    getTeamsCommittedHours,
   };
 };
 

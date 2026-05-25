@@ -27,6 +27,73 @@ const projectController = function (Project) {
     }
   };
 
+  const getProjectsCommittedHours = async function (req, res) {
+    try {
+      const { fromDate, toDate } = req.body;
+      logger.logInfo(
+        `Fetching projects with committed hours. Date filter: ${JSON.stringify({ fromDate, toDate })}`,
+      );
+
+      const taskDateFilter = {};
+
+      if (fromDate && toDate) {
+        const start = new Date(fromDate);
+
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+
+        taskDateFilter.$or = [
+          {
+            startedDatetime: { $lte: end },
+            dueDatetime: { $gte: start },
+          },
+          {
+            startedDatetime: { $gte: start, $lte: end },
+          },
+          {
+            dueDatetime: { $gte: start, $lte: end },
+          },
+        ];
+      }
+
+      logger.logInfo(
+        `Fetching projects with committed hours. Date filter: ${JSON.stringify(taskDateFilter)}`,
+      );
+      const projects = await Project.find({ isArchived: { $ne: true } }, '_id projectName');
+
+      const result = await Promise.all(
+        projects.map(async (project) => {
+          const wbsList = await wbs.find({ projectId: project._id }, '_id');
+          const wbsIds = wbsList.map((wbsItem) => wbsItem._id);
+
+          const tasks = await task.find(
+            {
+              wbsId: { $in: wbsIds },
+              ...taskDateFilter,
+            },
+            'estimatedHours',
+          );
+
+          const committedHours = tasks.reduce(
+            (total, taskItem) => total + Number(taskItem.estimatedHours || 0),
+            0,
+          );
+
+          return {
+            projectId: project._id,
+            projectName: project.projectName,
+            committedHours,
+          };
+        }),
+      );
+
+      res.status(200).send(result);
+    } catch (error) {
+      logger.logException(error);
+      res.status(500).send('Error fetching project committed hours.');
+    }
+  };
+
   const getArchivedProjects = async function (req, res) {
     try {
       const archivedProjects = await Project.find(
@@ -667,6 +734,7 @@ const projectController = function (Project) {
     getprojectMembershipSummary,
     searchProjectMembers,
     getProjectsWithActiveUserCounts,
+    getProjectsCommittedHours,
   };
 };
 
