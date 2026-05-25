@@ -6,13 +6,31 @@ const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
 
-const sanitizeFbId = (id) => String(id).replace(/[^\d]/g, '');
-
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const PST_TIMEZONE = 'America/Los_Angeles';
 
+const ALLOWED_POST_STATUSES = ['pending', 'sending', 'sent', 'failed'];
+const ALLOWED_POST_METHODS = ['direct', 'scheduled'];
+
 const fallbackPageId = process.env.FACEBOOK_PAGE_ID;
 const fallbackPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+const sanitizeFbId = (id) => String(id ?? '').replace(/[^\d]/g, '');
+
+const assertValidFbId = (id) => {
+  const cleaned = sanitizeFbId(id);
+  if (!cleaned || !/^\d+$/.test(cleaned)) {
+    const err = new Error('Invalid Facebook Page ID format. Must be numeric.');
+    err.status = 400;
+    throw err;
+  }
+  return cleaned;
+};
+
+const buildGraphPageUrl = (pageId, path) => {
+  const safeId = assertValidFbId(pageId);
+  return `${graphBaseUrl}/${safeId}/${path}`;
+};
 
 /**
  * Extracts requestor from request - handles both body (POST) and query (GET)
@@ -55,6 +73,71 @@ const getCredentials = async () => {
   }
 
   return null;
+};
+
+const parseFormDataRequestor = (req) => {
+  try {
+    return req.body.requestor ? JSON.parse(req.body.requestor) : null;
+  } catch {
+    return req.body.requestor;
+  }
+};
+
+const ensureFacebookPermission = async (requestor, res, errorMessage) => {
+  const canPost = await hasPermission(requestor, 'postFacebookContent');
+  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  if (!canPost && !canSendEmails) {
+    res.status(403).send({ error: errorMessage });
+    return false;
+  }
+  return true;
+};
+
+const buildCreatedBy = (requestor) =>
+  requestor
+    ? {
+        userId: requestor.requestorId,
+        role: requestor.role,
+        permissions: requestor.permissions,
+      }
+    : undefined;
+
+const validateScheduleInput = (req, res, credentials) => {
+  const { scheduledFor, timezone, pageId } = req.body;
+  const targetTimezone = timezone || PST_TIMEZONE;
+
+  if (!moment.tz.zone(targetTimezone)) {
+    res.status(400).send({ error: 'Invalid timezone provided.' });
+    return null;
+  }
+
+  if (!credentials) {
+    res.status(500).send({
+      error: 'Facebook is not connected. Please connect a Facebook Page in settings.',
+    });
+    return null;
+  }
+
+  let targetPageId;
+  try {
+    targetPageId = assertValidFbId(pageId || credentials.pageId);
+  } catch (err) {
+    res.status(err.status || 400).send({ error: err.message });
+    return null;
+  }
+
+  const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
+  if (!scheduledMoment.isValid()) {
+    res.status(400).send({ error: 'Invalid scheduledFor date/time provided.' });
+    return null;
+  }
+
+  if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
+    res.status(400).send({ error: 'Scheduled time must be in the future (PST).' });
+    return null;
+  }
+
+  return { targetPageId, scheduledMoment, targetTimezone };
 };
 
 const uploadImageToFacebook = async (
@@ -133,7 +216,14 @@ const publishToFacebook = async ({
     throw error;
   }
 
-  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
+  let targetPageId;
+  try {
+    targetPageId = assertValidFbId(pageId || credentials.pageId);
+  } catch (err) {
+    if (!err.status) err.status = 400;
+    throw err;
+  }
+
   const { pageAccessToken } = credentials;
 
   console.log(
@@ -142,14 +232,6 @@ const publishToFacebook = async ({
     'pageId:',
     targetPageId,
   );
-
-  if (!targetPageId) {
-    const error = new Error(
-      'No Facebook page id provided. Supply pageId in the request or connect a Page via OAuth.',
-    );
-    error.status = 400;
-    throw error;
-  }
 
   if (!message && !link && !imageUrl && !imageBuffer) {
     const error = new Error(
@@ -161,7 +243,7 @@ const publishToFacebook = async ({
 
   const isDirectUpload = Boolean(imageBuffer);
   const isPhotoPost = isDirectUpload || Boolean(imageUrl);
-  const endpoint = `${graphBaseUrl}/${targetPageId}/${isPhotoPost ? 'photos' : 'feed'}`;
+  const endpoint = buildGraphPageUrl(targetPageId, isPhotoPost ? 'photos' : 'feed');
 
   try {
     const response = isDirectUpload
@@ -215,12 +297,14 @@ const saveDirectPostToHistory = async ({
 };
 
 const postToFacebook = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to post to Facebook.' });
+  if (
+    !(await ensureFacebookPermission(
+      req.body.requestor,
+      res,
+      'You are not authorized to post to Facebook.',
+    ))
+  )
     return;
-  }
 
   const { message, link, imageUrl, pageId } = req.body || {};
 
@@ -235,13 +319,7 @@ const postToFacebook = async (req, res) => {
       pageId: pageId || credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
-      createdBy: req.body.requestor
-        ? {
-            userId: req.body.requestor.requestorId,
-            role: req.body.requestor.role,
-            permissions: req.body.requestor.permissions,
-          }
-        : undefined,
+      createdBy: buildCreatedBy(req.body.requestor),
     });
 
     res.status(200).send({
@@ -257,19 +335,12 @@ const postToFacebook = async (req, res) => {
 };
 
 const postToFacebookWithImage = async (req, res) => {
-  let requestor;
-  try {
-    requestor = req.body.requestor ? JSON.parse(req.body.requestor) : null;
-  } catch {
-    requestor = req.body.requestor;
-  }
+  const requestor = parseFormDataRequestor(req);
 
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to post to Facebook.' });
+  if (
+    !(await ensureFacebookPermission(requestor, res, 'You are not authorized to post to Facebook.'))
+  )
     return;
-  }
 
   const { message, link, pageId } = req.body;
   const imageFile = req.file;
@@ -298,13 +369,7 @@ const postToFacebookWithImage = async (req, res) => {
       pageId: pageId || credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
-      createdBy: requestor
-        ? {
-            userId: requestor.requestorId,
-            role: requestor.role,
-            permissions: requestor.permissions,
-          }
-        : undefined,
+      createdBy: buildCreatedBy(requestor),
     });
 
     res.status(200).send({
@@ -321,14 +386,16 @@ const postToFacebookWithImage = async (req, res) => {
 };
 
 const scheduleFacebookPost = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to schedule Facebook posts.' });
+  if (
+    !(await ensureFacebookPermission(
+      req.body.requestor,
+      res,
+      'You are not authorized to schedule Facebook posts.',
+    ))
+  )
     return;
-  }
 
-  const { message, link, imageUrl, pageId, scheduledFor, timezone } = req.body || {};
+  const { message, link, imageUrl } = req.body || {};
   if (!message && !imageUrl && !link) {
     res.status(400).send({
       error: 'At least one of message, imageUrl, or link is required to schedule a Facebook post.',
@@ -336,33 +403,10 @@ const scheduleFacebookPost = async (req, res) => {
     return;
   }
 
-  const targetTimezone = timezone || PST_TIMEZONE;
-  if (!moment.tz.zone(targetTimezone)) {
-    res.status(400).send({ error: 'Invalid timezone provided.' });
-    return;
-  }
-
   const credentials = await getCredentials();
-  if (!credentials) {
-    res.status(500).send({
-      error: 'Facebook is not connected. Please connect a Facebook Page in settings.',
-    });
-    return;
-  }
-
-  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
-
-  const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
-
-  if (!scheduledMoment.isValid()) {
-    res.status(400).send({ error: 'Invalid scheduledFor date/time provided.' });
-    return;
-  }
-
-  if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
-    res.status(400).send({ error: 'Scheduled time must be in the future (PST).' });
-    return;
-  }
+  const validation = validateScheduleInput(req, res, credentials);
+  if (!validation) return;
+  const { targetPageId, scheduledMoment, targetTimezone } = validation;
 
   try {
     const scheduledPost = new ScheduledFacebookPost({
@@ -372,13 +416,7 @@ const scheduleFacebookPost = async (req, res) => {
       pageId: targetPageId,
       scheduledFor: scheduledMoment.toDate(),
       timezone: targetTimezone,
-      createdBy: req.body.requestor
-        ? {
-            userId: req.body.requestor.requestorId,
-            role: req.body.requestor.role,
-            permissions: req.body.requestor.permissions,
-          }
-        : undefined,
+      createdBy: buildCreatedBy(req.body.requestor),
     });
 
     await scheduledPost.save();
@@ -394,57 +432,29 @@ const scheduleFacebookPost = async (req, res) => {
  * Stores the image in MongoDB until posting time.
  */
 const scheduleFacebookPostWithImage = async (req, res) => {
-  // Parse requestor from form-data
-  let requestor;
-  try {
-    requestor = req.body.requestor ? JSON.parse(req.body.requestor) : null;
-  } catch {
-    requestor = req.body.requestor;
-  }
+  const requestor = parseFormDataRequestor(req);
 
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to schedule Facebook posts.' });
+  if (
+    !(await ensureFacebookPermission(
+      requestor,
+      res,
+      'You are not authorized to schedule Facebook posts.',
+    ))
+  )
     return;
-  }
 
-  const { message, link, scheduledFor, timezone, pageId } = req.body;
+  const { message, link } = req.body;
   const imageFile = req.file;
 
-  // Validate: need either message or image
   if (!message?.trim() && !imageFile) {
     res.status(400).send({ error: 'Message or image is required to schedule a Facebook post.' });
     return;
   }
 
-  const targetTimezone = timezone || PST_TIMEZONE;
-  if (!moment.tz.zone(targetTimezone)) {
-    res.status(400).send({ error: 'Invalid timezone provided.' });
-    return;
-  }
-
   const credentials = await getCredentials();
-  if (!credentials) {
-    res.status(500).send({
-      error: 'Facebook is not connected. Please connect a Facebook Page in settings.',
-    });
-    return;
-  }
-
-  const targetPageId = sanitizeFbId(pageId || credentials.pageId);
-
-  const scheduledMoment = moment.tz(scheduledFor, targetTimezone);
-
-  if (!scheduledMoment.isValid()) {
-    res.status(400).send({ error: 'Invalid scheduledFor date/time provided.' });
-    return;
-  }
-
-  if (!scheduledMoment.isAfter(moment.tz(targetTimezone))) {
-    res.status(400).send({ error: 'Scheduled time must be in the future (PST).' });
-    return;
-  }
+  const validation = validateScheduleInput(req, res, credentials);
+  if (!validation) return;
+  const { targetPageId, scheduledMoment, targetTimezone } = validation;
 
   try {
     const scheduledPost = new ScheduledFacebookPost({
@@ -456,13 +466,7 @@ const scheduleFacebookPostWithImage = async (req, res) => {
       imageData: imageFile?.buffer || null,
       imageMimeType: imageFile?.mimetype || null,
       imageOriginalName: imageFile?.originalname || null,
-      createdBy: requestor
-        ? {
-            userId: requestor.requestorId,
-            role: requestor.role,
-            permissions: requestor.permissions,
-          }
-        : undefined,
+      createdBy: buildCreatedBy(requestor),
     });
 
     await scheduledPost.save();
@@ -487,12 +491,16 @@ const getScheduledPosts = async (req, res) => {
     return;
   }
 
-  const { status, limit = 50, skip = 0 } = req.query;
+  const { status: rawStatus, limit = 50, skip = 0 } = req.query;
+  const safeStatus =
+    typeof rawStatus === 'string' && ALLOWED_POST_STATUSES.includes(rawStatus) ? rawStatus : null;
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 200);
+  const safeSkip = Math.max(Number.parseInt(skip, 10) || 0, 0);
 
   try {
     const query = {};
-    if (status) {
-      query.status = status;
+    if (safeStatus) {
+      query.status = safeStatus;
     } else {
       query.status = { $in: ['pending', 'sending'] };
     }
@@ -500,8 +508,8 @@ const getScheduledPosts = async (req, res) => {
     const scheduledPosts = await ScheduledFacebookPost.find(query)
       .select('-imageData')
       .sort({ scheduledFor: 1 })
-      .skip(Number.parseInt(skip, 10))
-      .limit(Number.parseInt(limit, 10))
+      .skip(safeSkip)
+      .limit(safeLimit)
       .lean()
       .exec();
     const postsWithImageFlag = scheduledPosts.map((p) => ({
@@ -514,7 +522,7 @@ const getScheduledPosts = async (req, res) => {
     res.status(200).send({
       success: true,
       scheduledPosts: postsWithImageFlag,
-      pagination: { total, limit: Number.parseInt(limit, 10), skip: Number.parseInt(skip, 10) },
+      pagination: { total, limit: safeLimit, skip: safeSkip },
     });
   } catch (error) {
     console.error('[FacebookPost] getScheduledPosts error:', error.message);
@@ -524,14 +532,18 @@ const getScheduledPosts = async (req, res) => {
 
 const buildMongoHistoryQuery = (status, postMethod) => {
   const query = {};
-  query.status = status === 'sent' || status === 'failed' ? status : { $in: ['sent', 'failed'] };
-  if (postMethod === 'direct' || postMethod === 'scheduled') query.postMethod = postMethod;
+  const safeStatus =
+    typeof status === 'string' && (status === 'sent' || status === 'failed') ? status : null;
+  query.status = safeStatus || { $in: ['sent', 'failed'] };
+  if (typeof postMethod === 'string' && ALLOWED_POST_METHODS.includes(postMethod)) {
+    query.postMethod = postMethod;
+  }
   return query;
 };
 
 const fetchFacebookFeedPosts = async (credentials, targetPageId, limit) => {
   try {
-    const fbEndpoint = `${graphBaseUrl}/${targetPageId}/feed`;
+    const fbEndpoint = buildGraphPageUrl(targetPageId, 'feed');
     const fbResponse = await axios.get(fbEndpoint, {
       params: {
         access_token: credentials.pageAccessToken,
@@ -593,32 +605,43 @@ const getPostHistory = async (req, res) => {
   }
 
   const { limit = 25, source = 'all', pageId, status, postMethod } = req.query;
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 200);
   const credentials = await getCredentials();
-  const targetPageId = sanitizeFbId(pageId || credentials?.pageId || '');
+
+  let targetPageId = null;
+  let facebookApiError;
+  try {
+    targetPageId = assertValidFbId(pageId || credentials?.pageId);
+  } catch {
+    facebookApiError = 'No valid Facebook Page ID available. Showing database posts only.';
+  }
 
   try {
     let mongoDbPosts = [];
     let facebookPosts = [];
-    let facebookApiError;
 
     if (source === 'all' || source === 'mongodb') {
       mongoDbPosts = await ScheduledFacebookPost.find(buildMongoHistoryQuery(status, postMethod))
         .select('-imageData')
         .sort({ postedAt: -1, createdAt: -1 })
-        .limit(Number.parseInt(limit, 10))
+        .limit(safeLimit)
         .lean()
         .exec();
     }
 
     if ((source === 'all' || source === 'facebook') && credentials && targetPageId) {
-      const { posts, apiError } = await fetchFacebookFeedPosts(credentials, targetPageId, limit);
+      const { posts, apiError } = await fetchFacebookFeedPosts(
+        credentials,
+        targetPageId,
+        safeLimit,
+      );
       facebookPosts = posts;
       facebookApiError = apiError;
     }
 
     const combined = [...mongoDbPosts.map(mapMongoPostForHistory), ...facebookPosts]
       .sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
-      .slice(0, Number.parseInt(limit, 10));
+      .slice(0, safeLimit);
 
     res.status(200).send({
       success: true,
@@ -633,12 +656,14 @@ const getPostHistory = async (req, res) => {
 };
 
 const cancelScheduledPost = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to cancel scheduled posts.' });
+  if (
+    !(await ensureFacebookPermission(
+      req.body.requestor,
+      res,
+      'You are not authorized to cancel scheduled posts.',
+    ))
+  )
     return;
-  }
 
   const { postId } = req.params;
 
@@ -678,12 +703,14 @@ const cancelScheduledPost = async (req, res) => {
 };
 
 const updateScheduledPost = async (req, res) => {
-  const canPost = await hasPermission(req.body.requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(req.body.requestor, 'sendEmails');
-  if (!canPost && !canSendEmails) {
-    res.status(403).send({ error: 'You are not authorized to update scheduled posts.' });
+  if (
+    !(await ensureFacebookPermission(
+      req.body.requestor,
+      res,
+      'You are not authorized to update scheduled posts.',
+    ))
+  )
     return;
-  }
 
   const { postId } = req.params;
   const { message, scheduledFor, timezone, link, imageUrl } = req.body;
