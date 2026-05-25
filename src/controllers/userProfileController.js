@@ -1537,12 +1537,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         },
         {
           path: 'infringements',
-          select: '_id date description createdDate',
-          options: { sort: { date: -1 } },
-        },
-        {
-          path: 'oldInfringements',
-          select: '_id date description createdDate',
+          select:
+            '_id date description createdDate manullyAssigned manullyAssignedBy editedBy ccdUsers reasons reason',
           options: { sort: { date: -1 } },
         },
       ])
@@ -1552,44 +1548,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           return res.status(400).send({ error: 'This is not a valid user' });
         }
 
-        const current = Array.isArray(user.infringements) ? user.infringements : [];
-        const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
-
-        const combined = [...current, ...old];
-
-        // build date -> best record
-        const byDate = new Map();
-
-        for (const inf of combined) {
-          if (!inf?.date) continue;
-
-          const existing = byDate.get(inf.date);
-          if (!existing) {
-            byDate.set(inf.date, inf);
-            continue;
-          }
-
-          const a = inf.createdDate ? new Date(inf.createdDate).getTime() : 0;
-          const b = existing.createdDate ? new Date(existing.createdDate).getTime() : 0;
-
-          if (a > b) {
-            byDate.set(inf.date, inf);
-            continue;
-          }
-
-          const ida = String(inf._id || '');
-          const idb = String(existing._id || '');
-          if (ida > idb) {
-            byDate.set(inf.date, inf);
-          }
-        }
-
-        const infringements = Array.from(byDate.values()).sort((a, b) =>
-          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
-        );
+        const infringements = Array.isArray(user.infringements)
+          ? [...user.infringements].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+          : [];
 
         user.set('infringements', infringements, { strict: false });
-        user.set('oldInfringements', undefined, { strict: false });
 
         cache.setCache(`user-${userid}`, JSON.stringify(user));
         return res.status(200).send(user);
@@ -2505,10 +2468,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           userid,
           {
             $push: { infringements: newInfringement },
-            $inc: { infringementCount: 1 },
           },
           { new: true },
         );
+        await UserProfile.findByIdAndUpdate(userid, {
+          $set: { infringementCount: status.infringements.length },
+        });
 
         await userHelper.notifyInfringements(
           originalinfringements,
@@ -2529,7 +2494,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
         // update alluser cache if we have cache
         if (isUserInCache) {
-          allUserData.splice(userIdx, 1, userData);
+          allUserData.splice(userIdx, 1, status);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
       } catch (error) {
@@ -2648,19 +2613,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             infringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
             oldInfringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
           },
-          $inc: { infringementCount: -1 },
         },
         { new: true },
       );
 
       if (!updated) return res.status(404).send('No valid records found');
 
-      // Clamp count to 0 in case it was already 0 — one more atomic op, still no .save()
-      if (updated.infringementCount < 0) {
-        await UserProfile.findByIdAndUpdate(userId, {
-          $set: { infringementCount: 0 },
-        });
-      }
+      await UserProfile.findByIdAndUpdate(userId, {
+        $set: { infringementCount: updated.infringements.length },
+      });
 
       await userHelper.notifyInfringements(
         originalinfringements,
