@@ -150,10 +150,10 @@ const startFacebookScheduler = () => {
       await checkCredentialsStatus();
 
       let processedCount = 0;
-      while (processedCount < MAX_POSTS_PER_TICK) {
-        const processed = await processNextScheduledPost();
-        if (!processed) break;
-        processedCount += 1;
+      let keepProcessing = true;
+      while (keepProcessing && processedCount < MAX_POSTS_PER_TICK) {
+        keepProcessing = await processNextScheduledPost();
+        if (keepProcessing) processedCount += 1;
       }
       if (processedCount > 0) {
         console.log(`[FacebookScheduler] Processed ${processedCount} post(s) this tick`);
