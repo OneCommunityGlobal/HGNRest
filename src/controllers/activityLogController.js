@@ -1,5 +1,5 @@
 const ActivityLog = require('../models/activityLog');
-const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
+const StudentLog = require('../models/studentLog');
 const { hasPermission } = require('../utilities/permissions');
 
 const activityLogController = function () {
@@ -16,9 +16,12 @@ const activityLogController = function () {
           .json({ error: 'Forbidden: Only support role can access this endpoint' });
       }
 
-      // Fetch logs for the specified student asssuming this student is a assigned to the support staff. Need to add a check for that in the future.
-      const logs = await bmTimeLog.find({ member: studentId }).select('-intervals').lean();
+      // Fetch logs for the specified student asssuming this 
+      // student is a assigned to the support staff. 
+      // Need to add a check for that in the future.
+      const logs = await StudentLog.find({studentId}).sort({date:-1}) ;
 
+      
       // Log the activity of viewing the student's daily log
       await ActivityLog.create({
         actor_id: requestor.requestorId,
@@ -31,6 +34,7 @@ const activityLogController = function () {
       res.json(logs);
 
     } catch (err) {
+      console.log(err);
       res.status(500).json({ error: err.message });
     }
   }
