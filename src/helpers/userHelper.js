@@ -39,6 +39,7 @@ const Timer = require('../models/timer');
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
 const DEFAULT_REPLY_TO = ['jae@onecommunityglobal.org'];
+const { COMPANY_TZ } = require('../constants/company');
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -589,7 +590,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1)
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
     ) {
       return true;
     }
@@ -720,12 +721,12 @@ const userHelper = function () {
       if (moment(inf.date).diff(cutOffDate) >= 0) {
         oldInfringements.push(inf);
       } else {
-        break;
+        continue;
       }
     }
 
     if (oldInfringements.length) {
-      userProfile.findByIdAndUpdate(
+      await userProfile.findByIdAndUpdate(
         personId,
         { $push: { oldInfringements: { $each: oldInfringements, $slice: -10 } } },
         { new: true },
@@ -1068,9 +1069,8 @@ const userHelper = function () {
         {},
         {
           $pull: {
-            infringements: {
-              date: { $lte: cutOffDate },
-            },
+            infringements: { date: { $lte: cutOffDate } },
+            oldInfringements: { date: { $lte: cutOffDate } }, // clean up old ones too
           },
         },
       );
@@ -1163,7 +1163,6 @@ const userHelper = function () {
     const totalInfringements = newCurrent.length;
     let newInfringements = [];
     let historyInfringements = 'No Previous Infringements.';
-    console.log('ORIGINAL', original);
     if (original.length) {
       const sortedForHistory = [...original].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1980,58 +1979,76 @@ const userHelper = function () {
       const categoryHrs = hoursByCategory[category];
 
       const newCatg = category.charAt(0).toUpperCase() + category.slice(1);
+
+      // Get all badges user currently has in this category
       const badgesInCat = badgeCollection.filter(
         (obj) => obj.badge?.type === 'Total Hrs in Category' && obj.badge?.category === newCatg,
       );
 
-      let badgeOfType = badgesInCat.length ? badgesInCat[0].badge : null;
+      // Clean up duplicate badges - keep only one badge per category
+      if (badgesInCat.length > 1) {
+        // Sort badges by totalHrs descending to find the highest
+        const sortedBadges = badgesInCat.sort((a, b) => b.badge.totalHrs - a.badge.totalHrs);
 
-      // Only process one badge per category
-      for (const current of badgesInCat) {
-        const currBadge = current.badge;
-
-        if (current.count > 1) {
-          decreaseBadgeCount(personId, currBadge._id);
-          addBadge(personId, currBadge._id);
-          badgeOfType = currBadge;
-          break;
-        } else if (badgeOfType && badgeOfType.totalHrs > currBadge.totalHrs) {
-          removeDupBadge(personId, currBadge._id);
-        } else if (!badgeOfType) {
-          badgeOfType = currBadge;
+        // Remove all badges except the highest one
+        for (let i = 1; i < sortedBadges.length; i += 1) {
+          await removeDupBadge(personId, sortedBadges[i].badge._id);
         }
+
+        // If the highest badge has count > 1, reset it to 1
+        if (sortedBadges[0].count > 1) {
+          await changeBadgeCount(personId, sortedBadges[0].badge._id, 1);
+        }
+      } else if (badgesInCat.length === 1 && badgesInCat[0].count > 1) {
+        // If single badge has count > 1, reset it to 1
+        await changeBadgeCount(personId, badgesInCat[0].badge._id, 1);
       }
 
-      const results = await badge
+      // Get the current badge user has (after cleanup)
+      const currentBadge = badgesInCat.length > 0 ? badgesInCat[0].badge : null;
+
+      // Get all available badges for this category, sorted by totalHrs descending (highest first)
+      const availableBadges = await badge
         .find({ type: 'Total Hrs in Category', category: newCatg })
         .sort({ totalHrs: -1 });
 
-      if (!Array.isArray(results) || !results.length || !categoryHrs) {
+      if (!Array.isArray(availableBadges) || !availableBadges.length || !categoryHrs) {
         continue;
       }
 
-      for (const elem of results) {
-        if (categoryHrs >= 100 && categoryHrs >= elem.totalHrs) {
-          const alreadyHas = badgesInCat.find(
-            (b) => b.badge._id.toString() === elem._id.toString(),
-          );
-
-          if (alreadyHas) {
-            increaseBadgeCount(personId, elem._id);
-            break;
-          }
-
-          if (badgeOfType && badgeOfType.totalHrs < elem.totalHrs) {
-            replaceBadge(personId, badgeOfType._id, elem._id);
-            break;
-          }
-
-          if (!badgeOfType) {
-            addBadge(personId, elem._id);
-            break;
-          }
+      // Find the highest badge the user qualifies for
+      let highestQualifyingBadge = null;
+      for (const availableBadge of availableBadges) {
+        if (categoryHrs >= 100 && categoryHrs >= availableBadge.totalHrs) {
+          highestQualifyingBadge = availableBadge;
+          break; // Found the highest qualifying badge (list is sorted descending)
         }
       }
+
+      // If user doesn't qualify for any badge, skip
+      if (!highestQualifyingBadge) {
+        continue;
+      }
+
+      // Case 1: User has no badge in this category - add the highest qualifying badge
+      if (!currentBadge) {
+        await addBadge(personId, highestQualifyingBadge._id);
+        continue;
+      }
+
+      // Case 2: User has a badge, check if they now qualify for a higher one
+      if (currentBadge._id.toString() !== highestQualifyingBadge._id.toString()) {
+        // User qualifies for a different badge
+        if (currentBadge.totalHrs < highestQualifyingBadge.totalHrs) {
+          // Replace lower badge with higher badge (upgrade)
+          await replaceBadge(personId, currentBadge._id, highestQualifyingBadge._id);
+        }
+        // If currentBadge.totalHrs > highestQualifyingBadge.totalHrs, do nothing
+        // This means user has a higher badge than they currently qualify for
+        // This shouldn't happen in normal flow (hours are monotonic), but if it does,
+        // we keep the higher badge to prevent downgrades
+      }
+      // Case 3: User already has the correct badge - do nothing
     }
   };
 
@@ -2260,7 +2277,7 @@ const userHelper = function () {
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id}'s final Day is set at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
@@ -2297,7 +2314,7 @@ const userHelper = function () {
           const lastDay = moment(person.endDate).format('YYYY-MM-DD');
           logger.logInfo(`User with id: ${user._id} was de-activated at ${moment().format()}.`);
           person.teams.map(async (teamId) => {
-            const managementEmails = await userHelper.getTeamManagementEmail(teamId);
+            const managementEmails = await getTeamManagementEmail(teamId);
             if (Array.isArray(managementEmails) && managementEmails.length > 0) {
               managementEmails.forEach((management) => {
                 recipients.push(management.email);
@@ -2628,12 +2645,316 @@ const userHelper = function () {
     }
   };
 
+  const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
+    const returnDate = moment(reactivationDate)
+      .tz(COMPANY_TZ)
+      .add(1, 'day') // adding a day to make it clear they return on the day of reactivation
+      .format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has been PAUSED in the Highest Good Network.
+    </p>
+    <p>
+      Please confirm all work has been wrapped up until they return on
+      <strong>${returnDate}</strong>.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserSeparatedEmail = ({ firstName, lastName, email, recipients, endDate }) => {
+    const formattedFinalDay = moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has been DEACTIVATED and made inactive in the Highest Good Network from ${formattedFinalDay} onwards.
+    </p>
+    <p>
+      Please confirm all work has been wrapped up and nothing further is required.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserActivatedEmail = ({ firstName, lastName, email, recipients }) => {
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been activated in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      ${firstName} ${lastName} has been activated in the Highest Good Network.
+    </p>
+    <p>Email: ${email}</p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserScheduledSeparationEmail = ({
+    firstName,
+    lastName,
+    email,
+    endDate,
+    recipients,
+  }) => {
+    const formattedFinalDay = endDate ? moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY') : 'N/A';
+    const subject = `IMPORTANT: ${firstName} ${lastName} has a FINAL DAY scheduled in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName} has a FINAL DAY scheduled in the Highest Good Network.
+    </p>
+    <p>
+      The final day is set for <strong>${formattedFinalDay}</strong>, and they have until the end of this day to continue logging hours.
+    </p>
+    <p>
+      Please begin wrapping up any remaining work as they will be deactivated the following day.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserResumedEmail = ({ firstName, lastName, email, recipients, pausedOn }) => {
+    const formattedPausedOn = pausedOn
+      ? moment(pausedOn).tz(COMPANY_TZ).format('M-D-YYYY')
+      : 'an earlier date';
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been RESUMED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName}, who was previously PAUSED in the Highest Good Network on 
+      ${formattedPausedOn}, has now been RESUMED and is active again.
+    </p>
+    <p>
+      ${firstName} ${lastName} will remain active until they are deactivated, paused again,
+      or a final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserReactivatedAfterSeparation = ({
+    firstName,
+    lastName,
+    email,
+    recipients,
+    previousEndDate,
+  }) => {
+    const formattedPreviousEndDate = moment(previousEndDate).tz(COMPANY_TZ).format('M-D-YYYY');
+    const subject = `IMPORTANT: ${firstName} ${lastName} has been REACTIVATED in the Highest Good Network`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that ${firstName} ${lastName}, who was previously DEACTIVATED from the Highest Good Network on 
+      ${formattedPreviousEndDate}, has now been REACTIVATED.
+    </p>
+    <p>
+      ${firstName} ${lastName} is currently active and will remain so until they are deactivated,
+      paused, or a final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  const sendUserCancelledSeparationEmail = ({
+    firstName,
+    lastName,
+    email,
+    recipients,
+    previousEndDate,
+  }) => {
+    const formattedPreviousEndDate = moment(previousEndDate).tz(COMPANY_TZ).format('M-D-YYYY');
+    const subject = `IMPORTANT: Final Day has been CANCELLED for ${firstName} ${lastName}`;
+
+    const emailBody = `
+    <p>Management,</p>
+    <p>
+      Please note that the previously scheduled FINAL DAY for ${firstName} ${lastName}
+      in the Highest Good Network as ${formattedPreviousEndDate} has now been REMOVED.
+    </p>
+    <p>
+      ${firstName} ${lastName} is currently active and will remain so until they are
+      deactivated, paused, or a new final day is scheduled.
+    </p>
+    <p>With Gratitude,<br/>One Community</p>
+  `;
+
+    emailSender(recipients, subject, emailBody, null, email);
+  };
+
+  async function finalizeUserEndDates() {
+    const now = moment.tz(COMPANY_TZ);
+
+    // 1) Only users who are scheduled for separation (still active)
+    const users = await userProfile.find({
+      isActive: true,
+      endDate: { $ne: null },
+      inactiveReason: InactiveReason.SCHEDULED_SEPARATION,
+      // Safety: should not be a paused user
+      reactivationDate: { $in: [null, undefined] },
+    });
+
+    console.log('Found', users.length, 'scheduled-separation users to process.');
+
+    for (const user of users) {
+      const scheduledEndMoment = moment(user.endDate).tz(COMPANY_TZ).endOf('day');
+      const recipients = await getEmailRecipientsForStatusChange(user._id);
+
+      // 2) 3-week email logic (trigger window starts at start of day, 3 weeks before endDate)
+      if (
+        !user.finalEmailThreeWeeksSent &&
+        now.isSameOrAfter(
+          moment(scheduledEndMoment)
+            .subtract(WEEKS_BEFORE_END_DATE_FOR_EMAIL, 'weeks')
+            .startOf('day'),
+        ) &&
+        now.isBefore(scheduledEndMoment) // only while still pending
+      ) {
+        await sendThreeWeekFinalDayEmail({
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          endDate: user.endDate, // IMPORTANT: email references scheduled endDate
+          recipients,
+        });
+
+        user.finalEmailThreeWeeksSent = true;
+        await user.save();
+      }
+
+      // 3) If endDate hasn't passed yet, skip finalization
+      if (now.isBefore(scheduledEndMoment)) continue;
+
+      // 4) Finalize separation
+      if (user.deactivatedAt) continue; // safety check
+
+      user.deactivatedAt = now.toDate();
+      user.isActive = false;
+      user.inactiveReason = InactiveReason.SEPARATED;
+      user.endDate = resolveEffectiveEndDate(user).toDate();
+      sendUserSeparatedEmail({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        recipients,
+        endDate: user.endDate,
+      });
+      await user.save();
+    }
+  }
+
+  function resolveEffectiveEndDate(user) {
+    // 1) endDate + lastActivityAt → earlier of the two
+    if (user?.endDate && user?.lastActivityAt) {
+      return moment.min(
+        moment(user.endDate).tz(COMPANY_TZ),
+        moment(user.lastActivityAt).tz(COMPANY_TZ),
+      );
+    }
+
+    // 2) no lastActivityAt → use createdDate (normalized to COMPANY_TZ)
+    if (!user?.lastActivityAt && user?.createdDate) {
+      return moment.tz(user.createdDate, 'YYYY-MM-DD', COMPANY_TZ).startOf('day');
+    }
+
+    // 3) only endDate present
+    if (user?.endDate) {
+      return moment(user.endDate).tz(COMPANY_TZ);
+    }
+
+    // 4) only lastActivityAt present
+    if (user?.lastActivityAt) {
+      return moment(user.lastActivityAt).tz(COMPANY_TZ);
+    }
+
+    // 5) fallback → now
+    return moment().tz(COMPANY_TZ);
+  }
+
+  const sendThreeWeekFinalDayEmail = async ({
+    email,
+    firstName,
+    lastName,
+    endDate,
+    recipients,
+  }) => {
+    const subject = `IMPORTANT: Upcoming final day for ${firstName} ${lastName} in the Highest Good Network`;
+
+    const formattedEndDate = moment(endDate).tz(COMPANY_TZ).format('M-D-YYYY');
+
+    const emailBody = `
+    <p>Management,</p>
+
+    <p>
+      Please note that the final day for <strong>${firstName} ${lastName}</strong>
+      in the Highest Good Network is set for <strong>${formattedEndDate}</strong>.
+    </p>
+
+    <p>
+      This is a reminder sent approximately three weeks in advance.
+      Please begin wrapping up any remaining work and transitions with this individual.
+    </p>
+
+    <p>
+      Please note that they will be actively able to log hours until the end of their final day.
+    </p>
+
+    <p>With gratitude,<br/>One Community</p>
+  `;
+    try {
+      await emailSender(recipients, subject, emailBody, null, email, email);
+    } catch (err) {
+      logger.logException(err, 'Failed to send 3-week final day email');
+    }
+  };
+
+  const getEmailRecipientsForStatusChange = async (userId) => {
+    const emailReceivers = await userProfile.find(
+      { isActive: true, role: { $in: ['Owner'] } },
+      '_id isActive role email',
+    );
+    const recipients = emailReceivers.map((receiver) => receiver.email);
+
+    try {
+      const findUser = await userProfile.findById(userId, 'teams');
+      findUser.teams.map(async (teamId) => {
+        const managementEmails = await getTeamManagementEmail(teamId);
+        if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+          managementEmails.forEach((management) => {
+            recipients.push(management.email);
+          });
+        }
+      });
+    } catch (err) {
+      logger.logException(err, 'Unexpected error in finding menagement team');
+    }
+    return recipients;
+  };
+
   return {
     changeBadgeCount,
     getUserName,
     getTeamMembers,
     checkTeamCodeMismatch,
-    getTeamManagementEmail,
     validateProfilePic,
     assignBlueSquareForTimeNotMet,
     applyMissedHourForCoreTeam,
@@ -2650,6 +2971,16 @@ const userHelper = function () {
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
     getProfileImagesFromWebsite,
+    sendUserPausedEmail,
+    sendUserSeparatedEmail,
+    sendUserActivatedEmail,
+    sendUserScheduledSeparationEmail,
+    sendUserResumedEmail,
+    sendUserReactivatedAfterSeparation,
+    sendUserCancelledSeparationEmail,
+    finalizeUserEndDates,
+    getEmailRecipientsForStatusChange,
+    getTeamManagementEmail,
   };
 };
 

@@ -501,6 +501,18 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
       const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
+      // update the projects history
+      const changedProjectHistoryIds = Array.from(new Set(oldProjects.concat(newProjects))).map(
+        (id) => mongoose.Types.ObjectId(id),
+      );
+
+      const existingProjectIds = new Set(record.projectHistory.map((id) => id.toString()));
+
+      const newProjectIds = changedProjectHistoryIds.filter(
+        (id) => !existingProjectIds.has(id.toString()),
+      );
+
+      record.projectHistory.push(...newProjectIds);
       const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
         mongoose.Types.ObjectId(id),
       );
@@ -1539,12 +1551,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         },
         {
           path: 'infringements',
-          select: '_id date description createdDate',
-          options: { sort: { date: -1 } },
-        },
-        {
-          path: 'oldInfringements',
-          select: '_id date description createdDate',
+          select:
+            '_id date description createdDate manullyAssigned manullyAssignedBy editedBy ccdUsers reasons reason',
           options: { sort: { date: -1 } },
         },
       ])
@@ -1554,44 +1562,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           return res.status(400).send({ error: 'This is not a valid user' });
         }
 
-        const current = Array.isArray(user.infringements) ? user.infringements : [];
-        const old = Array.isArray(user.oldInfringements) ? user.oldInfringements : [];
-
-        const combined = [...current, ...old];
-
-        // build date -> best record
-        const byDate = new Map();
-
-        for (const inf of combined) {
-          if (!inf?.date) continue;
-
-          const existing = byDate.get(inf.date);
-          if (!existing) {
-            byDate.set(inf.date, inf);
-            continue;
-          }
-
-          const a = inf.createdDate ? new Date(inf.createdDate).getTime() : 0;
-          const b = existing.createdDate ? new Date(existing.createdDate).getTime() : 0;
-
-          if (a > b) {
-            byDate.set(inf.date, inf);
-            continue;
-          }
-
-          const ida = String(inf._id || '');
-          const idb = String(existing._id || '');
-          if (ida > idb) {
-            byDate.set(inf.date, inf);
-          }
-        }
-
-        const infringements = Array.from(byDate.values()).sort((a, b) =>
-          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
-        );
+        const infringements = Array.isArray(user.infringements)
+          ? [...user.infringements].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+          : [];
 
         user.set('infringements', infringements, { strict: false });
-        user.set('oldInfringements', undefined, { strict: false });
 
         cache.setCache(`user-${userid}`, JSON.stringify(user));
         return res.status(200).send(user);
@@ -2089,6 +2064,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         if (userIdx !== -1) {
           const userData = allUserData[userIdx];
           userData.isActive = user.isActive;
+          userData.reactivationDate = null;
+          userData.endDate = null;
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
@@ -2505,10 +2482,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           userid,
           {
             $push: { infringements: newInfringement },
-            $inc: { infringementCount: 1 },
           },
           { new: true },
         );
+        await UserProfile.findByIdAndUpdate(userid, {
+          $set: { infringementCount: status.infringements.length },
+        });
 
         await userHelper.notifyInfringements(
           originalinfringements,
@@ -2529,7 +2508,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
         // update alluser cache if we have cache
         if (isUserInCache) {
-          allUserData.splice(userIdx, 1, userData);
+          allUserData.splice(userIdx, 1, status);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
       } catch (error) {
@@ -2540,68 +2519,80 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const editInfringements = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'editInfringements'))) {
-      res.status(403).send('You are not authorized to edit blue square');
-      return;
+      return res.status(403).send('You are not authorized to edit blue square');
     }
+
     const { userId, blueSquareId } = req.params;
     const { dateStamp, summary, reasons } = req.body;
 
-    // Get requestor info for edit tracking
     const requestorId = req.body.requestor?.requestorId || req.body.requestor;
     let requestorProfile = null;
     if (requestorId) {
       requestorProfile = await UserProfile.findById(requestorId).select('firstName lastName');
     }
 
-    UserProfile.findById(userId, async (err, record) => {
-      if (err || !record) {
-        res.status(404).send('No valid records found');
-        return;
-      }
+    try {
+      // Fetch original for notification comparison only — never used for .save()
+      const original = await UserProfile.findById(userId).select('infringements');
+      if (!original) return res.status(404).send('No valid records found');
 
-      const originalinfringements = record?.infringements ?? [];
+      const originalinfringements = original.infringements ?? [];
 
-      record.infringements = originalinfringements.map((blueSquare) => {
-        if (blueSquare._id.equals(blueSquareId)) {
-          blueSquare.date = dateStamp ?? blueSquare.date;
-          blueSquare.description = summary ?? blueSquare.description;
-          if (Array.isArray(reasons)) {
-            blueSquare.reasons = reasons;
-          }
-          // Track edit history
-          if (!blueSquare.editedBy) {
-            blueSquare.editedBy = [];
-          }
-          blueSquare.editedBy.push({
-            firstName: requestorProfile?.firstName || 'Unknown',
-            lastName: requestorProfile?.lastName || 'Unknown',
-            userId: requestorId,
-            date: new Date(),
-          });
-        }
-        return blueSquare;
+      // Find the existing editedBy array for this blue square
+      const existingSquare = originalinfringements.find((bs) => bs._id.equals(blueSquareId));
+      if (!existingSquare) return res.status(404).send('Blue square not found');
+
+      const updatedEditedBy = [
+        ...(existingSquare.editedBy || []),
+        {
+          firstName: requestorProfile?.firstName || 'Unknown',
+          lastName: requestorProfile?.lastName || 'Unknown',
+          userId: requestorId,
+          date: new Date(),
+        },
+      ];
+
+      // Atomic update — only touches the matched subdocument
+      const updateFields = {
+        'infringements.$[elem].editedBy': updatedEditedBy,
+      };
+      if (dateStamp !== undefined) updateFields['infringements.$[elem].date'] = dateStamp;
+      if (summary !== undefined) updateFields['infringements.$[elem].description'] = summary;
+      if (Array.isArray(reasons)) updateFields['infringements.$[elem].reasons'] = reasons;
+
+      const status = await UserProfile.findByIdAndUpdate(
+        userId,
+        { $set: updateFields },
+        {
+          arrayFilters: [{ 'elem._id': new mongoose.Types.ObjectId(blueSquareId) }],
+          new: true,
+        },
+      );
+
+      if (!status) return res.status(404).send('No valid records found');
+
+      await userHelper.notifyInfringements(
+        originalinfringements,
+        status.infringements,
+        status.firstName,
+        status.lastName,
+        status.email,
+        status.role,
+        status.startDate,
+        status.jobTitle[0],
+        status.weeklycommittedHours,
+      );
+
+      return res.status(200).json({
+        _id: status._id,
+        infringements: status.infringements,
       });
-
-      record
-        .save()
-        .then(async (results) => {
-          await userHelper.notifyInfringements(
-            originalinfringements,
-            results.infringements,
-            results.firstName,
-            results.lastName,
-            results.email,
-            results.role,
-            results.startDate,
-            results.jobTitle[0],
-            results.weeklycommittedHours,
-          );
-          res.status(200).json({
-            _id: record._id,
-          });
-        })
-        .catch((error) => res.status(400).send(error));
-    });
+    } catch (error) {
+      return res.status(500).json({
+        message: error?.message || 'Unknown error',
+        name: error?.name,
+      });
+    }
   };
 
   const deleteInfringements = async function (req, res) {
@@ -2616,7 +2607,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!userId || !blueSquareId) {
         return res.status(400).send('Missing userId or blueSquareId');
       }
-
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).send(`Invalid userId: ${userId}`);
       }
@@ -2624,33 +2614,46 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(400).send(`Invalid blueSquareId: ${blueSquareId}`);
       }
 
-      const updated = await UserProfile.findOneAndUpdate(
-        { _id: userId },
+      // Fetch original for notification comparison
+      const original = await UserProfile.findById(userId).select('infringements');
+      if (!original) return res.status(404).send('No valid records found');
+      const originalinfringements = original.infringements ?? [];
+
+      // Single atomic operation — $pull + $inc together, no .save() needed
+      const updated = await UserProfile.findByIdAndUpdate(
+        userId,
         {
           $pull: {
-            infringements: { _id: blueSquareId },
-            oldInfringements: { _id: blueSquareId },
+            infringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
+            oldInfringements: { _id: new mongoose.Types.ObjectId(blueSquareId) },
           },
         },
         { new: true },
       );
 
-      if (!updated) {
-        return res.status(404).send('No valid records found');
-      }
+      if (!updated) return res.status(404).send('No valid records found');
 
-      const stillThere =
-        (updated.infringements || []).some((x) => String(x._id) === String(blueSquareId)) ||
-        (updated.oldInfringements || []).some((x) => String(x._id) === String(blueSquareId));
+      await UserProfile.findByIdAndUpdate(userId, {
+        $set: { infringementCount: updated.infringements.length },
+      });
 
-      if (stillThere) {
-        return res.status(500).send('Delete did not persist (still present after update)');
-      }
+      await userHelper.notifyInfringements(
+        originalinfringements,
+        updated.infringements,
+        updated.firstName,
+        updated.lastName,
+        updated.email,
+        updated.role,
+        updated.startDate,
+        updated.jobTitle[0],
+        updated.weeklycommittedHours,
+      );
 
-      updated.infringementCount = Math.max(0, (updated.infringements || []).length);
-      await updated.save();
-
-      return res.status(200).json({ _id: updated._id, deleted: blueSquareId });
+      return res.status(200).json({
+        _id: updated._id,
+        deleted: blueSquareId,
+        infringements: updated.infringements,
+      });
     } catch (error) {
       return res.status(500).json({
         message: error?.message || 'Unknown error',
@@ -2866,6 +2869,25 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(500).send({ error: 'Internal server error' });
     }
   };
+  const getProjectHistory = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await UserProfile.findById(userId);
+      const projectHistory = [...user.projectHistory];
+      res.status(200).send(projectHistory);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const postClearProjectHistory = async function (req, res) {
+    try {
+      const result = await UserProfile.updateMany({}, { $set: { projectHistory: [] } });
+      res.status(200).send({ message: 'Project history cleared for all users', result });
+    } catch (error) {
+      res.status(500).send({ message: 'Error clearing project history', error });
+    }
+  };
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
@@ -3077,6 +3099,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateProfileImageFromWebsite,
     getUserByAutocomplete,
     getUserProfileBasicInfo,
+    getProjectHistory,
+    postClearProjectHistory,
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
