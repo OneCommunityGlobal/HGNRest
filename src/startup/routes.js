@@ -431,11 +431,13 @@ const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
 
+
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
+  app.use('/api/support/daily-log',)
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
