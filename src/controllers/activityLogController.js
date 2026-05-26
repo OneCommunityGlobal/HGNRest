@@ -1,5 +1,5 @@
 const ActivityLog = require('../models/activityLog');
-const UserProfile = require('../models/userProfile');
+const bmTimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const { hasPermission } = require('../utilities/permissions');
 
 const activityLogController = function () {
@@ -16,22 +16,10 @@ const activityLogController = function () {
           .json({ error: 'Forbidden: Only support role can access this endpoint' });
       }
 
-      const studentProfile = await UserProfile.findById(studentId).select('orgId');
-      if (!studentProfile) {
-        return res.status(404).json({ error: 'Student not found' });
-      }
+      // Fetch logs for the specified student asssuming this student is a assigned to the support staff. Need to add a check for that in the future.
+      const logs = await bmTimeLog.find({ member: studentId }).select('-intervals').lean();
 
-      if (String(studentProfile.orgId) !== String(requestor.orgId)) {
-        return res
-          .status(403)
-          .json({ error: 'Forbidden: Cannot access student outside your organization' });
-      }
-
-      // fetch logs
-      const logs = await ActivityLog.find({ actor_id: studentId })
-        .sort({ created_at: -1 })
-        .select('action_type metadata created_at actor_id');
-
+      // Log the activity of viewing the student's daily log
       await ActivityLog.create({
         actor_id: requestor.requestorId,
         action_type: 'view_student_daily_log',
@@ -39,7 +27,9 @@ const activityLogController = function () {
         created_at: new Date(),
       });
 
+      // Return the all logs to the client.
       res.json(logs);
+
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
