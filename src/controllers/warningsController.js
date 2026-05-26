@@ -25,7 +25,6 @@ const checkWarningDescriptions = async () => {
   if (!currentWarningDescriptions || warningsOutdated) {
     await getWarningDescriptions();
   }
-  return warningsOutdated;
 };
 
 const convertObjectToArray = (obj) => {
@@ -287,43 +286,9 @@ const filterWarnings = (
   return { completedData, sendEmail, size };
 };
 
-const updateAllWarnings = async (userId) => {
-  await checkWarningDescriptions();
-  try {
-    let userWarningList = [];
-    const users = await userProfile
-      .find({ isActive: true, firstName: 'Anthony' }, '_id warnings firstName lastName')
-      .lean();
-
-    if (!users) {
-      return { msg: 'No user records retrieved from database' };
-    }
-
-    await Promise.all(
-      users.map(async (user) => {
-        const updatedUserWarnings = await checkIfWarningDescriptionMatchesWarningTrackerTitle(
-          user.warnings,
-        );
-        const userWarnings = await updateWarningsMissingTrackerId(updatedUserWarnings);
-        await userProfile.findByIdAndUpdate(
-          user._id,
-          { $set: { warnings: userWarnings } },
-          { new: true },
-        );
-        if (userId === user._id.toString()) {
-          userWarningList = userWarnings;
-        }
-      }),
-    );
-    return userWarningList;
-  } catch (error) {
-    return { error };
-  }
-};
-
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
-    const warningsOutdated = await checkWarningDescriptions();
+    await checkWarningDescriptions();
 
     const { userId } = req.params;
 
@@ -334,12 +299,22 @@ const warningsController = function (UserProfile) {
         return res.status(400).send({ message: 'no valiud records' });
       }
 
-      let warningsList = record.warnings;
-      if (warningsOutdated) {
-        warningsList = await updateAllWarnings(userId);
-      }
+      const warningsList = record.warnings;
+      const updatedWarningsList = checkIfWarningDescriptionMatchesWarningTrackerTitle(warningsList);
 
-      const { completedData } = filterWarnings(currentWarningDescriptions, warningsList);
+      const userWarnings = updateWarningsMissingTrackerId(updatedWarningsList);
+
+      await userProfile.findByIdAndUpdate(
+        record._id,
+        { $set: { warnings: userWarnings } },
+        { new: true },
+      );
+
+      // const { completedData } = filterWarnings(currentWarningDescriptions, userWarnings);
+      // return res.status(201).send({ warnings: completedData });
+
+      // const { completedData } = filterWarnings(currentWarningDescriptions, warningsList);
+      const { completedData } = filterWarnings(currentWarningDescriptions, userWarnings);
       return res.status(201).send({ warnings: completedData });
     } catch (error) {
       return res.status(401).send({ message: error.message || error });
