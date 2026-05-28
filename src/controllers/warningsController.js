@@ -310,10 +310,6 @@ const warningsController = function (UserProfile) {
         { new: true },
       );
 
-      // const { completedData } = filterWarnings(currentWarningDescriptions, userWarnings);
-      // return res.status(201).send({ warnings: completedData });
-
-      // const { completedData } = filterWarnings(currentWarningDescriptions, warningsList);
       const { completedData } = filterWarnings(currentWarningDescriptions, userWarnings);
       return res.status(201).send({ warnings: completedData });
     } catch (error) {
