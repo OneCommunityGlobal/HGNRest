@@ -1,10 +1,32 @@
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
 
+const canAccessJobFormManagement = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'createFormQuestions')) ||
+  (await hasPermission(requestor, 'editFormQuestions')) ||
+  (await hasPermission(requestor, 'deleteFormQuestions'));
+
+const canCreateFormQuestions = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'createFormQuestions'));
+
+const canEditFormQuestions = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'editFormQuestions'));
+
+const canDeleteFormQuestions = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'deleteFormQuestions'));
+
 const questionSetController = {
   // Get all question sets with optional filtering
   async getAllQuestionSets(req, res) {
     try {
+      if (!(await canAccessJobFormManagement(req.body.requestor))) {
+        return res.status(403).json({ message: 'You are not authorized to view question sets.' });
+      }
+
       const { category, targetRole, isActive, createdBy } = req.query;
       const filter = {};
 
@@ -28,6 +50,10 @@ const questionSetController = {
   // Get a specific question set by ID
   async getQuestionSetById(req, res) {
     try {
+      if (!(await canAccessJobFormManagement(req.body.requestor))) {
+        return res.status(403).json({ message: 'You are not authorized to view question sets.' });
+      }
+
       const { id } = req.params;
 
       const questionSet = await QuestionSet.findById(id)
@@ -49,7 +75,7 @@ const questionSetController = {
   async createQuestionSet(req, res) {
     try {
       // Check permissions
-      if (!(await hasPermission(req.body.requestor, 'createFormQuestions'))) {
+      if (!(await canCreateFormQuestions(req.body.requestor))) {
         return res.status(403).json({ message: 'You are not authorized to create question sets.' });
       }
 
@@ -98,7 +124,7 @@ const questionSetController = {
   async updateQuestionSet(req, res) {
     try {
       // Check permissions
-      if (!(await hasPermission(req.body.requestor, 'editFormQuestions'))) {
+      if (!(await canEditFormQuestions(req.body.requestor))) {
         return res.status(403).json({ message: 'You are not authorized to edit question sets.' });
       }
 
@@ -147,7 +173,7 @@ const questionSetController = {
   async deleteQuestionSet(req, res) {
     try {
       // Check permissions
-      if (!(await hasPermission(req.body.requestor, 'deleteFormQuestions'))) {
+      if (!(await canDeleteFormQuestions(req.body.requestor))) {
         return res.status(403).json({ message: 'You are not authorized to delete question sets.' });
       }
 
@@ -183,6 +209,10 @@ const questionSetController = {
   // Get question sets by category
   async getQuestionSetsByCategory(req, res) {
     try {
+      if (!(await canAccessJobFormManagement(req.body.requestor))) {
+        return res.status(403).json({ message: 'You are not authorized to view question sets.' });
+      }
+
       const { category } = req.params;
 
       const questionSets = await QuestionSet.find({
@@ -203,7 +233,7 @@ const questionSetController = {
   async cloneQuestionSet(req, res) {
     try {
       // Check permissions
-      if (!(await hasPermission(req.body.requestor, 'createFormQuestions'))) {
+      if (!(await canCreateFormQuestions(req.body.requestor))) {
         return res.status(403).json({ message: 'You are not authorized to clone question sets.' });
       }
 

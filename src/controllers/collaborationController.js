@@ -7,6 +7,14 @@ const canEditJobFormContent = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
   (await hasPermission(requestor, 'editFormQuestions'));
 
+const canCreateFormQuestions = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'createFormQuestions'));
+
+const canDeleteFormQuestions = async (requestor) =>
+  (await hasPermission(requestor, 'manageJobForms')) ||
+  (await hasPermission(requestor, 'deleteFormQuestions'));
+
 // Create a new form
 exports.createForm = async (req, res) => {
   try {
@@ -129,6 +137,10 @@ exports.updateFormFormat = async (req, res) => {
 // Get all responses of a form
 exports.getFormResponses = async (req, res) => {
   try {
+    if (!(await hasPermission(req.body.requestor, 'manageJobForms'))) {
+      return res.status(403).json({ message: 'You are not authorized to view form responses.' });
+    }
+
     const { formId } = req.params;
 
     // Check if form exists
@@ -173,6 +185,10 @@ exports.getAllFormsFormat = async (req, res) => {
 // ..
 exports.addQuestion = async (req, res) => {
   try {
+    if (!(await canCreateFormQuestions(req.body.requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to add questions.' });
+    }
+
     const { formId } = req.params;
     const { question, position } = req.body;
 
@@ -208,6 +224,10 @@ exports.addQuestion = async (req, res) => {
 // Update a specific question in a form
 exports.updateQuestion = async (req, res) => {
   try {
+    if (!(await canEditJobFormContent(req.body.requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to update questions.' });
+    }
+
     const { formId, questionIndex } = req.params;
     const updatedQuestion = req.body;
 
@@ -239,6 +259,10 @@ exports.updateQuestion = async (req, res) => {
 // Delete a question from a form
 exports.deleteQuestion = async (req, res) => {
   try {
+    if (!(await canDeleteFormQuestions(req.body.requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to delete questions.' });
+    }
+
     const { formId, questionIndex } = req.params;
 
     // Find the form
@@ -269,6 +293,10 @@ exports.deleteQuestion = async (req, res) => {
 // Reorder questions in a form
 exports.reorderQuestions = async (req, res) => {
   try {
+    if (!(await canEditJobFormContent(req.body.requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to reorder questions.' });
+    }
+
     const { formId } = req.params;
     const { fromIndex, toIndex } = req.body;
 
