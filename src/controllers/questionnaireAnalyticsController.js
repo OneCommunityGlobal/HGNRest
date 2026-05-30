@@ -113,7 +113,7 @@ const questionnaireAnalyticsController = function () {
         // Build all skills
         const allSkills = { ...user.frontend, ...user.backend };
         const skillsArray = Object.entries(allSkills)
-          .map(([k, v]) => ({ k, v: parseFloat(v) || 0 }))
+          .map(([k, v]) => ({ k, v: Number.parseFloat(v) || 0 }))
           .sort((a, b) => b.v - a.v);
         const topSkills = skillsArray.slice(0, 4).map((s) => s.k);
 
