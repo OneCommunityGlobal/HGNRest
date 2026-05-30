@@ -113,6 +113,7 @@ const permissionsRoles = [
       'editFormQuestions',
       'deleteFormQuestions',
       'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -306,6 +307,7 @@ const permissionsRoles = [
       'editFormQuestions',
       'deleteFormQuestions',
       'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];

@@ -5,7 +5,7 @@ const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
 const userProfile = require('../models/userProfile');
-// const { hasPermission } = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
@@ -492,7 +492,6 @@ const projectController = function (Project) {
    */
   const getprojectMembership = async function (req, res) {
     try {
-      // GETs usually have no body; prefer req.user populated by your auth middleware.
       const requestor =
         (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
 
@@ -514,7 +513,7 @@ const projectController = function (Project) {
 
       const results = await userProfile
         .find(
-          { projects: projectId },
+          { projects: mongoose.Types.ObjectId(projectId) },
           { firstName: 1, lastName: 1, profilePic: 1, _id: 1, isActive: 1 },
         )
         .sort({ firstName: 1, lastName: 1 });
@@ -524,6 +523,32 @@ const projectController = function (Project) {
       logger?.logException?.(error);
       return res.status(500).send('Error fetching project members');
     }
+  };
+  const getAllTimeprojectMembership = async function (req, res) {
+    const { projectId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      res.status(400).send('Invalid request');
+      return;
+    }
+    const requestor =
+      (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
+    const getProjMembers = await hasPermission(requestor, 'getProjectMembers');
+    const postTask = await hasPermission(requestor, 'postTask');
+    const updateTask = await hasPermission(requestor, 'updateTask');
+    const suggestTask = await hasPermission(requestor, 'suggestTask');
+    const getId = getProjMembers || postTask || updateTask || suggestTask;
+    userProfile
+      .find(
+        { projectHistory: projectId },
+        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+      )
+      .sort({ firstName: 1, lastName: 1 })
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => {
+        res.status(500).send(error);
+      });
   };
 
   /**
@@ -555,7 +580,6 @@ const projectController = function (Project) {
         res.status(200).json(results);
       })
       .catch((error) => {
-        console.error('Summary query error:', error);
         res.status(500).send(error);
       });
   };
@@ -667,6 +691,7 @@ const projectController = function (Project) {
     getprojectMembershipSummary,
     searchProjectMembers,
     getProjectsWithActiveUserCounts,
+    getAllTimeprojectMembership,
   };
 };
 
