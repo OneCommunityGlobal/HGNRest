@@ -3,9 +3,9 @@ const { hasPermission } = require('../utilities/permissions');
 const {
   sanitizeCategory,
   sanitizeTargetRole,
+  sanitizeObjectIdQuery,
   buildQuestionSetListQuery,
   buildActiveQuestionSetsByCategoryQuery,
-  clearDefaultQuestionSetsInCategory,
 } = require('../utilities/mongoQuerySanitizer');
 
 const canAccessJobFormManagement = async (requestor) =>
@@ -25,6 +25,20 @@ const canEditFormQuestions = async (requestor) =>
 const canDeleteFormQuestions = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
   (await hasPermission(requestor, 'deleteFormQuestions'));
+
+async function unsetOtherDefaultQuestionSets(Model, safeCategory, excludeId = null) {
+  let query = Model.find().where('category').equals(safeCategory).where('isDefault').equals(true);
+  const safeExcludeId = sanitizeObjectIdQuery(excludeId);
+  if (safeExcludeId) {
+    query = query.where('_id').ne(safeExcludeId);
+  }
+  return query.updateMany({ $set: { isDefault: false } });
+}
+
+function resolveSafeCategory(bodyCategory, existingCategory) {
+  const rawCategory = bodyCategory !== undefined ? bodyCategory : existingCategory;
+  return sanitizeCategory(rawCategory);
+}
 
 const questionSetController = {
   // Get all question sets with optional filtering
@@ -93,7 +107,7 @@ const questionSetController = {
 
       // If setting as default, unset other defaults in the same category
       if (isDefault) {
-        await clearDefaultQuestionSetsInCategory(QuestionSet, safeCategory);
+        await unsetOtherDefaultQuestionSets(QuestionSet, safeCategory);
       }
 
       const questionSet = new QuestionSet({
@@ -131,23 +145,27 @@ const questionSetController = {
       }
 
       const { id } = req.params;
+      const safeId = sanitizeObjectIdQuery(id);
+      if (!safeId) {
+        return res.status(400).json({ message: 'Invalid question set id.' });
+      }
+
       const { name, description, category, targetRole, questions, isDefault, isActive } = req.body;
       const lastModifiedBy = req.body.requestor.requestorId;
 
-      const questionSet = await QuestionSet.findById(id);
+      const questionSet = await QuestionSet.findById(safeId);
       if (!questionSet) {
         return res.status(404).json({ message: 'Question set not found' });
       }
 
-      const safeCategory =
-        category !== undefined ? sanitizeCategory(category) : questionSet.category;
-      if (category !== undefined && !safeCategory) {
+      const safeCategory = resolveSafeCategory(category, questionSet.category);
+      if (!safeCategory) {
         return res.status(400).json({ message: 'Invalid category.' });
       }
 
       // If setting as default, unset other defaults in the same category
       if (isDefault && (!questionSet.isDefault || questionSet.category !== safeCategory)) {
-        await clearDefaultQuestionSetsInCategory(QuestionSet, safeCategory, id);
+        await unsetOtherDefaultQuestionSets(QuestionSet, safeCategory, safeId);
       }
 
       // Update fields
