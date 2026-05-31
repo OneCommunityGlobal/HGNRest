@@ -141,10 +141,6 @@ function clearDefaultQuestionSetsInCategory(Model, safeCategory, excludeId = nul
   return mongoQuery.updateMany({ $set: { isDefault: false } });
 }
 
-function resolveIncludeAll(includeAll) {
-  return includeAll === undefined ? true : includeAll;
-}
-
 module.exports = {
   JOB_FORM_CATEGORIES,
   sanitizeQueryString,
@@ -158,5 +154,4 @@ module.exports = {
   buildQuestionSetListQuery,
   buildActiveQuestionSetsByCategoryQuery,
   clearDefaultQuestionSetsInCategory,
-  resolveIncludeAll,
 };
