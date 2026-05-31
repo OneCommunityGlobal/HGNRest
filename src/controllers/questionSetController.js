@@ -26,20 +26,6 @@ const canDeleteFormQuestions = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
   (await hasPermission(requestor, 'deleteFormQuestions'));
 
-async function unsetOtherDefaultQuestionSets(Model, safeCategory, excludeId = null) {
-  let query = Model.find().where('category').equals(safeCategory).where('isDefault').equals(true);
-  const safeExcludeId = sanitizeObjectIdQuery(excludeId);
-  if (safeExcludeId) {
-    query = query.where('_id').ne(safeExcludeId);
-  }
-  return query.updateMany({ $set: { isDefault: false } });
-}
-
-function resolveSafeCategory(bodyCategory, existingCategory) {
-  const rawCategory = bodyCategory !== undefined ? bodyCategory : existingCategory;
-  return sanitizeCategory(rawCategory);
-}
-
 const questionSetController = {
   // Get all question sets with optional filtering
   async getAllQuestionSets(req, res) {
@@ -92,12 +78,12 @@ const questionSetController = {
         return res.status(403).json({ message: 'You are not authorized to create question sets.' });
       }
 
-      const { name, description, category, targetRole, questions, isDefault } = req.body;
+      const { name, description, targetRole, questions, isDefault } = req.body;
       const createdBy = req.body.requestor.requestorId;
-      const safeCategory = sanitizeCategory(category);
+      const validatedCategory = sanitizeCategory(req.body.category);
 
       // Validate required fields
-      if (!name || !safeCategory || !questions || questions.length === 0) {
+      if (!name || !validatedCategory || !questions || questions.length === 0) {
         return res.status(400).json({
           message: 'Name, category, and at least one question are required.',
         });
@@ -107,13 +93,18 @@ const questionSetController = {
 
       // If setting as default, unset other defaults in the same category
       if (isDefault) {
-        await unsetOtherDefaultQuestionSets(QuestionSet, safeCategory);
+        await QuestionSet.find()
+          .where('category')
+          .equals(validatedCategory)
+          .where('isDefault')
+          .equals(true)
+          .updateMany({ $set: { isDefault: false } });
       }
 
       const questionSet = new QuestionSet({
         name,
         description,
-        category: safeCategory,
+        category: validatedCategory,
         targetRole: safeTargetRole,
         questions,
         isDefault: isDefault || false,
@@ -150,28 +141,37 @@ const questionSetController = {
         return res.status(400).json({ message: 'Invalid question set id.' });
       }
 
-      const { name, description, category, targetRole, questions, isDefault, isActive } = req.body;
-      const lastModifiedBy = req.body.requestor.requestorId;
-
       const questionSet = await QuestionSet.findById(safeId);
       if (!questionSet) {
         return res.status(404).json({ message: 'Question set not found' });
       }
 
-      const safeCategory = resolveSafeCategory(category, questionSet.category);
-      if (!safeCategory) {
+      const { name, description, targetRole, questions, isDefault, isActive } = req.body;
+      const lastModifiedBy = req.body.requestor.requestorId;
+      const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(req.body, 'category');
+      const categoryInput = hasCategoryUpdate ? req.body.category : questionSet.category;
+      const validatedCategory = sanitizeCategory(categoryInput);
+
+      if (!validatedCategory) {
         return res.status(400).json({ message: 'Invalid category.' });
       }
 
       // If setting as default, unset other defaults in the same category
-      if (isDefault && (!questionSet.isDefault || questionSet.category !== safeCategory)) {
-        await unsetOtherDefaultQuestionSets(QuestionSet, safeCategory, safeId);
+      if (isDefault && (!questionSet.isDefault || questionSet.category !== validatedCategory)) {
+        await QuestionSet.find()
+          .where('category')
+          .equals(validatedCategory)
+          .where('isDefault')
+          .equals(true)
+          .where('_id')
+          .ne(safeId)
+          .updateMany({ $set: { isDefault: false } });
       }
 
       // Update fields
       if (name !== undefined) questionSet.name = name;
       if (description !== undefined) questionSet.description = description;
-      if (category !== undefined) questionSet.category = safeCategory;
+      if (hasCategoryUpdate) questionSet.category = validatedCategory;
       if (targetRole !== undefined) {
         questionSet.targetRole = sanitizeTargetRole(targetRole) || questionSet.targetRole;
       }
