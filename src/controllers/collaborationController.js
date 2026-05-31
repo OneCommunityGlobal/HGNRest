@@ -2,7 +2,50 @@ const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
-const { buildJobFormsListQuery } = require('../utilities/mongoQuerySanitizer');
+const {
+  sanitizeCategory,
+  parseBooleanQuery,
+  sanitizeObjectIdQuery,
+} = require('../utilities/mongoQuerySanitizer');
+
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+function buildFormUpdateData(body, lastModifiedBy) {
+  const updateData = { lastModifiedBy };
+  const fields = [
+    'title',
+    'description',
+    'category',
+    'questions',
+    'questionSets',
+    'fixedFields',
+    'jobLinks',
+    'settings',
+  ];
+
+  fields.forEach((field) => {
+    if (hasOwn(body, field)) {
+      updateData[field] = body[field];
+    }
+  });
+
+  return updateData;
+}
+
+function resolveIncludeAll(includeAll) {
+  let resolvedIncludeAll = true;
+  if (typeof includeAll === 'boolean') {
+    resolvedIncludeAll = includeAll;
+  }
+  return resolvedIncludeAll;
+}
+
+function selectQuestionsToImport(questionSet, resolvedIncludeAll, selectedQuestions) {
+  if (resolvedIncludeAll) {
+    return questionSet.questions;
+  }
+  return questionSet.questions.filter((_, index) => selectedQuestions.includes(index));
+}
 
 const canEditJobFormContent = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
@@ -91,31 +134,10 @@ exports.updateFormFormat = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to edit forms.' });
     }
 
-    const {
-      title,
-      description,
-      category,
-      questions,
-      questionSets,
-      fixedFields,
-      jobLinks,
-      settings,
-      formId,
-    } = req.body;
+    const { formId } = req.body;
     const lastModifiedBy = req.body.requestor.requestorId;
+    const updateData = buildFormUpdateData(req.body, lastModifiedBy);
 
-    const updateData = { lastModifiedBy };
-
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (category !== undefined) updateData.category = category;
-    if (questions !== undefined) updateData.questions = questions;
-    if (questionSets !== undefined) updateData.questionSets = questionSets;
-    if (fixedFields !== undefined) updateData.fixedFields = fixedFields;
-    if (jobLinks !== undefined) updateData.jobLinks = jobLinks;
-    if (settings !== undefined) updateData.settings = settings;
-
-    // Find and update the form
     const form = await Form.findByIdAndUpdate(formId, updateData, {
       new: true,
       runValidators: true,
@@ -163,7 +185,24 @@ exports.getFormResponses = async (req, res) => {
 // Get formats of all forms
 exports.getAllFormsFormat = async (req, res) => {
   try {
-    const forms = await buildJobFormsListQuery(Form, req.query)
+    let listQuery = Form.find();
+
+    const safeCategory = sanitizeCategory(req.query.category);
+    if (safeCategory) {
+      listQuery = listQuery.where('category').equals(safeCategory);
+    }
+
+    const safeIsActive = parseBooleanQuery(req.query.isActive);
+    if (safeIsActive === true || safeIsActive === false) {
+      listQuery = listQuery.where('isActive').equals(safeIsActive);
+    }
+
+    const safeCreatedBy = sanitizeObjectIdQuery(req.query.createdBy);
+    if (safeCreatedBy) {
+      listQuery = listQuery.where('createdBy').equals(safeCreatedBy);
+    }
+
+    const forms = await listQuery
       .populate('createdBy', 'firstName lastName')
       .populate('lastModifiedBy', 'firstName lastName')
       .populate('questionSets.questionSetId')
@@ -198,7 +237,8 @@ exports.addQuestion = async (req, res) => {
     }
 
     // Insert the question at the specified position or append to the end
-    if (position !== undefined && position >= 0 && position <= form.questions.length) {
+    const hasPosition = hasOwn(req.body, 'position');
+    if (hasPosition && position >= 0 && position <= form.questions.length) {
       form.questions.splice(position, 0, question);
     } else {
       form.questions.push(question);
@@ -292,14 +332,13 @@ exports.reorderQuestions = async (req, res) => {
     }
 
     const { formId } = req.params;
-    const { fromIndex, toIndex } = req.body;
 
-    // Validate input
-    if (fromIndex === undefined || toIndex === undefined) {
+    if (!hasOwn(req.body, 'fromIndex') || !hasOwn(req.body, 'toIndex')) {
       return res.status(400).json({ message: 'From and to indices are required.' });
     }
 
-    // Find the form
+    const { fromIndex, toIndex } = req.body;
+
     const form = await Form.findById(formId);
     if (!form) {
       return res.status(404).json({ message: 'Form not found.' });
@@ -372,10 +411,7 @@ exports.importQuestionsFromSet = async (req, res) => {
 
     const { formId } = req.params;
     const { questionSetId, selectedQuestions, includeAll } = req.body;
-    let resolvedIncludeAll = true;
-    if (typeof includeAll === 'boolean') {
-      resolvedIncludeAll = includeAll;
-    }
+    const resolvedIncludeAll = resolveIncludeAll(includeAll);
 
     const form = await Form.findById(formId);
     if (!form) {
@@ -405,9 +441,11 @@ exports.importQuestionsFromSet = async (req, res) => {
     }
 
     // Import the actual questions
-    const questionsToImport = resolvedIncludeAll
-      ? questionSet.questions
-      : questionSet.questions.filter((_, index) => selectedQuestions.includes(index));
+    const questionsToImport = selectQuestionsToImport(
+      questionSet,
+      resolvedIncludeAll,
+      selectedQuestions || [],
+    );
 
     questionsToImport.forEach((question) => {
       const plain = question.toObject ? question.toObject() : { ...question };
