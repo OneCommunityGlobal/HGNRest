@@ -366,10 +366,78 @@ const studentTaskController = function () {
     }
   };
 
+  /**
+   * POST /student/tasks/:taskId/log-hours
+   * Increments loggedHours for a task, capped at suggestedTotalHours.
+   * Returns updated loggedHours and a canMarkDone eligibility flag.
+   */
+  const logHours = async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const studentId = req.body.requestor?.requestorId;
+
+      if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+        return res.status(400).json({ error: 'Invalid Task ID' });
+      }
+      if (!studentId || !mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'Invalid Student ID' });
+      }
+
+      const hours = Number(req.body.hours);
+      if (!Number.isFinite(hours) || hours <= 0) {
+        return res.status(400).json({ error: 'hours must be a positive number' });
+      }
+
+      const task = await EducationTask.findOne({
+        _id: mongoose.Types.ObjectId(taskId),
+        studentId: mongoose.Types.ObjectId(studentId),
+      });
+
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found or does not belong to you' });
+      }
+
+      if (task.status === 'completed' || task.status === 'graded') {
+        return res.status(400).json({ error: 'Cannot log hours for a completed task' });
+      }
+
+      const cap = task.suggestedTotalHours > 0 ? task.suggestedTotalHours : Infinity;
+      const newLoggedHours = Math.min(task.loggedHours + hours, cap);
+
+      const newStatus =
+        task.status === 'assigned' && newLoggedHours > 0 ? 'in_progress' : task.status;
+
+      const updated = await EducationTask.findOneAndUpdate(
+        { _id: mongoose.Types.ObjectId(taskId) },
+        { $set: { loggedHours: newLoggedHours, status: newStatus } },
+        { new: true, runValidators: false },
+      );
+
+      if (!updated) {
+        return res.status(404).json({ error: 'Task not found during update' });
+      }
+
+      const canMarkDone =
+        updated.suggestedTotalHours > 0 && updated.loggedHours >= updated.suggestedTotalHours;
+
+      return res.status(200).json({
+        message: 'Hours logged successfully',
+        loggedHours: updated.loggedHours,
+        suggestedTotalHours: updated.suggestedTotalHours,
+        status: updated.status,
+        canMarkDone,
+      });
+    } catch (error) {
+      console.error('Error logging hours:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   return {
     getStudentTasks,
     updateTaskProgress,
     uploadFile,
+    logHours,
   };
 };
 

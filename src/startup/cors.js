@@ -11,7 +11,8 @@ module.exports = function (app) {
     'http://127.0.0.1:4173',
     'http://127.0.0.1:5173',
     'https://dev.highestgood.com',
-    'https://highestgoodnetwork.netlify.app',
+    'https://highestgood.com',
+    'https://www.highestgood.com',
   ]);
 
   app.use(
@@ -24,7 +25,7 @@ module.exports = function (app) {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
     }),
   );
 };
