@@ -9,7 +9,7 @@ const {
 
 /** Allowlisted category string; rejects objects and MongoDB operator strings. */
 function readAllowedCategory(rawValue) {
-  if (rawValue == null || typeof rawValue === 'object') {
+  if (rawValue === null || rawValue === undefined || typeof rawValue === 'object') {
     return null;
   }
   const candidate = String(rawValue).trim();
@@ -17,6 +17,38 @@ function readAllowedCategory(rawValue) {
     return null;
   }
   return candidate;
+}
+
+function pickCategoryValue(body, existingCategory) {
+  let categoryValue = existingCategory;
+  if (Object.prototype.hasOwnProperty.call(body, 'category')) {
+    categoryValue = body.category;
+  }
+  return categoryValue;
+}
+
+function applyBodyFieldUpdates(questionSet, body, validatedCategory, hasCategoryUpdate) {
+  if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+    questionSet.name = body.name;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'description')) {
+    questionSet.description = body.description;
+  }
+  if (hasCategoryUpdate) {
+    questionSet.category = validatedCategory;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'targetRole')) {
+    questionSet.targetRole = sanitizeTargetRole(body.targetRole) || questionSet.targetRole;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'questions')) {
+    questionSet.questions = body.questions;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'isDefault')) {
+    questionSet.isDefault = body.isDefault;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'isActive')) {
+    questionSet.isActive = body.isActive;
+  }
 }
 
 async function clearDefaultQuestionSets(Model, allowedCategory, excludeId = null) {
@@ -189,11 +221,12 @@ const questionSetController = {
         return res.status(404).json({ message: 'Question set not found' });
       }
 
-      const { name, description, targetRole, questions, isDefault, isActive } = req.body;
+      const { isDefault } = req.body;
       const lastModifiedBy = req.body.requestor.requestorId;
       const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(req.body, 'category');
-      const categoryInput = hasCategoryUpdate ? req.body.category : questionSet.category;
-      const validatedCategory = readAllowedCategory(categoryInput);
+      const validatedCategory = readAllowedCategory(
+        pickCategoryValue(req.body, questionSet.category),
+      );
 
       if (!validatedCategory) {
         return res.status(400).json({ message: 'Invalid category.' });
@@ -204,16 +237,7 @@ const questionSetController = {
         await clearDefaultQuestionSets(QuestionSet, validatedCategory, safeId);
       }
 
-      // Update fields
-      if (name !== undefined) questionSet.name = name;
-      if (description !== undefined) questionSet.description = description;
-      if (hasCategoryUpdate) questionSet.category = validatedCategory;
-      if (targetRole !== undefined) {
-        questionSet.targetRole = sanitizeTargetRole(targetRole) || questionSet.targetRole;
-      }
-      if (questions !== undefined) questionSet.questions = questions;
-      if (isDefault !== undefined) questionSet.isDefault = isDefault;
-      if (isActive !== undefined) questionSet.isActive = isActive;
+      applyBodyFieldUpdates(questionSet, req.body, validatedCategory, hasCategoryUpdate);
       questionSet.lastModifiedBy = lastModifiedBy;
 
       await questionSet.save();
