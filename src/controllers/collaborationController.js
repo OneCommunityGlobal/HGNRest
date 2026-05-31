@@ -1,59 +1,8 @@
-const mongoose = require('mongoose');
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
-
-const JOB_FORM_CATEGORIES = new Set([
-  'General',
-  'Engineering',
-  'Marketing',
-  'Design',
-  'Management',
-  'Data Analysis',
-  'Content Creation',
-  'Business Development',
-  'Other',
-]);
-
-/** Plain string from query; rejects objects/arrays and MongoDB operator strings. */
-function sanitizeQueryString(value) {
-  if (value === null || value === undefined || typeof value === 'object') return null;
-  const s = String(value).trim();
-  if (!s || s.startsWith('$')) return null;
-  return s;
-}
-
-function parseBooleanQuery(value) {
-  if (value === null || value === undefined || typeof value === 'object') return null;
-  const s = String(value).trim().toLowerCase();
-  if (s === 'true') return true;
-  if (s === 'false') return false;
-  return null;
-}
-
-function sanitizeObjectIdQuery(value) {
-  const s = sanitizeQueryString(value);
-  if (!s || !mongoose.Types.ObjectId.isValid(s)) return null;
-  return s;
-}
-
-function buildJobFormsListFilter(query = {}) {
-  const filter = {};
-  const category = sanitizeQueryString(query.category);
-  if (category && JOB_FORM_CATEGORIES.has(category)) {
-    filter.category = category;
-  }
-  const isActive = parseBooleanQuery(query.isActive);
-  if (isActive !== null) {
-    filter.isActive = isActive;
-  }
-  const createdBy = sanitizeObjectIdQuery(query.createdBy);
-  if (createdBy) {
-    filter.createdBy = createdBy;
-  }
-  return filter;
-}
+const { buildJobFormsListFilter } = require('../utilities/mongoQuerySanitizer');
 
 const canEditJobFormContent = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
@@ -425,6 +374,7 @@ exports.importQuestionsFromSet = async (req, res) => {
 
     const { formId } = req.params;
     const { questionSetId, selectedQuestions, includeAll } = req.body;
+    const resolvedIncludeAll = includeAll ?? true;
 
     const form = await Form.findById(formId);
     if (!form) {
@@ -444,18 +394,17 @@ exports.importQuestionsFromSet = async (req, res) => {
     if (existingQuestionSetIndex === -1) {
       form.questionSets.push({
         questionSetId,
-        includeAll: includeAll !== undefined ? includeAll : true,
+        includeAll: resolvedIncludeAll,
         selectedQuestions: selectedQuestions || [],
       });
     } else {
       // Update existing reference
-      form.questionSets[existingQuestionSetIndex].includeAll =
-        includeAll !== undefined ? includeAll : true;
+      form.questionSets[existingQuestionSetIndex].includeAll = resolvedIncludeAll;
       form.questionSets[existingQuestionSetIndex].selectedQuestions = selectedQuestions || [];
     }
 
     // Import the actual questions
-    const questionsToImport = includeAll
+    const questionsToImport = resolvedIncludeAll
       ? questionSet.questions
       : questionSet.questions.filter((_, index) => selectedQuestions.includes(index));
 

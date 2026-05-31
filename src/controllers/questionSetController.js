@@ -1,5 +1,10 @@
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
+const {
+  sanitizeCategory,
+  sanitizeTargetRole,
+  buildQuestionSetListFilter,
+} = require('../utilities/mongoQuerySanitizer');
 
 const canAccessJobFormManagement = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
@@ -27,13 +32,7 @@ const questionSetController = {
         return res.status(403).json({ message: 'You are not authorized to view question sets.' });
       }
 
-      const { category, targetRole, isActive, createdBy } = req.query;
-      const filter = {};
-
-      if (category) filter.category = category;
-      if (targetRole) filter.targetRole = targetRole;
-      if (isActive !== undefined) filter.isActive = isActive === 'true';
-      if (createdBy) filter.createdBy = createdBy;
+      const filter = buildQuestionSetListFilter(req.query);
 
       const questionSets = await QuestionSet.find(filter)
         .populate('createdBy', 'firstName lastName')
@@ -81,24 +80,30 @@ const questionSetController = {
 
       const { name, description, category, targetRole, questions, isDefault } = req.body;
       const createdBy = req.body.requestor.requestorId;
+      const safeCategory = sanitizeCategory(category);
 
       // Validate required fields
-      if (!name || !category || !questions || questions.length === 0) {
+      if (!name || !safeCategory || !questions || questions.length === 0) {
         return res.status(400).json({
           message: 'Name, category, and at least one question are required.',
         });
       }
 
+      const safeTargetRole = sanitizeTargetRole(targetRole) || 'General';
+
       // If setting as default, unset other defaults in the same category
       if (isDefault) {
-        await QuestionSet.updateMany({ category, isDefault: true }, { isDefault: false });
+        await QuestionSet.updateMany(
+          { category: safeCategory, isDefault: true },
+          { isDefault: false },
+        );
       }
 
       const questionSet = new QuestionSet({
         name,
         description,
-        category,
-        targetRole: targetRole || 'General',
+        category: safeCategory,
+        targetRole: safeTargetRole,
         questions,
         isDefault: isDefault || false,
         createdBy,
@@ -137,10 +142,16 @@ const questionSetController = {
         return res.status(404).json({ message: 'Question set not found' });
       }
 
+      const safeCategory =
+        category !== undefined ? sanitizeCategory(category) : questionSet.category;
+      if (category !== undefined && !safeCategory) {
+        return res.status(400).json({ message: 'Invalid category.' });
+      }
+
       // If setting as default, unset other defaults in the same category
-      if (isDefault && (!questionSet.isDefault || questionSet.category !== category)) {
+      if (isDefault && (!questionSet.isDefault || questionSet.category !== safeCategory)) {
         await QuestionSet.updateMany(
-          { category: category || questionSet.category, isDefault: true, _id: { $ne: id } },
+          { category: safeCategory, isDefault: true, _id: { $ne: id } },
           { isDefault: false },
         );
       }
@@ -148,8 +159,10 @@ const questionSetController = {
       // Update fields
       if (name !== undefined) questionSet.name = name;
       if (description !== undefined) questionSet.description = description;
-      if (category !== undefined) questionSet.category = category;
-      if (targetRole !== undefined) questionSet.targetRole = targetRole;
+      if (category !== undefined) questionSet.category = safeCategory;
+      if (targetRole !== undefined) {
+        questionSet.targetRole = sanitizeTargetRole(targetRole) || questionSet.targetRole;
+      }
       if (questions !== undefined) questionSet.questions = questions;
       if (isDefault !== undefined) questionSet.isDefault = isDefault;
       if (isActive !== undefined) questionSet.isActive = isActive;
@@ -214,9 +227,14 @@ const questionSetController = {
       }
 
       const { category } = req.params;
+      const safeCategory = sanitizeCategory(category);
+
+      if (!safeCategory) {
+        return res.status(400).json({ message: 'Invalid category.' });
+      }
 
       const questionSets = await QuestionSet.find({
-        category,
+        category: safeCategory,
         isActive: true,
       })
         .populate('createdBy', 'firstName lastName')
