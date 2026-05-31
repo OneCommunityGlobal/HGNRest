@@ -2,7 +2,7 @@ const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
-const { buildJobFormsListFilter } = require('../utilities/mongoQuerySanitizer');
+const { buildJobFormsListQuery, resolveIncludeAll } = require('../utilities/mongoQuerySanitizer');
 
 const canEditJobFormContent = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
@@ -163,9 +163,7 @@ exports.getFormResponses = async (req, res) => {
 // Get formats of all forms
 exports.getAllFormsFormat = async (req, res) => {
   try {
-    const filter = buildJobFormsListFilter(req.query);
-
-    const forms = await Form.find(filter)
+    const forms = await buildJobFormsListQuery(Form, req.query)
       .populate('createdBy', 'firstName lastName')
       .populate('lastModifiedBy', 'firstName lastName')
       .populate('questionSets.questionSetId')
@@ -374,7 +372,7 @@ exports.importQuestionsFromSet = async (req, res) => {
 
     const { formId } = req.params;
     const { questionSetId, selectedQuestions, includeAll } = req.body;
-    const resolvedIncludeAll = includeAll ?? true;
+    const resolvedIncludeAll = resolveIncludeAll(includeAll);
 
     const form = await Form.findById(formId);
     if (!form) {

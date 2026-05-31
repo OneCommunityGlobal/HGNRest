@@ -3,7 +3,9 @@ const { hasPermission } = require('../utilities/permissions');
 const {
   sanitizeCategory,
   sanitizeTargetRole,
-  buildQuestionSetListFilter,
+  buildQuestionSetListQuery,
+  buildActiveQuestionSetsByCategoryQuery,
+  clearDefaultQuestionSetsInCategory,
 } = require('../utilities/mongoQuerySanitizer');
 
 const canAccessJobFormManagement = async (requestor) =>
@@ -32,9 +34,7 @@ const questionSetController = {
         return res.status(403).json({ message: 'You are not authorized to view question sets.' });
       }
 
-      const filter = buildQuestionSetListFilter(req.query);
-
-      const questionSets = await QuestionSet.find(filter)
+      const questionSets = await buildQuestionSetListQuery(QuestionSet, req.query)
         .populate('createdBy', 'firstName lastName')
         .populate('lastModifiedBy', 'firstName lastName')
         .sort({ isDefault: -1, createdAt: -1 });
@@ -93,10 +93,7 @@ const questionSetController = {
 
       // If setting as default, unset other defaults in the same category
       if (isDefault) {
-        await QuestionSet.updateMany(
-          { category: safeCategory, isDefault: true },
-          { isDefault: false },
-        );
+        await clearDefaultQuestionSetsInCategory(QuestionSet, safeCategory);
       }
 
       const questionSet = new QuestionSet({
@@ -150,10 +147,7 @@ const questionSetController = {
 
       // If setting as default, unset other defaults in the same category
       if (isDefault && (!questionSet.isDefault || questionSet.category !== safeCategory)) {
-        await QuestionSet.updateMany(
-          { category: safeCategory, isDefault: true, _id: { $ne: id } },
-          { isDefault: false },
-        );
+        await clearDefaultQuestionSetsInCategory(QuestionSet, safeCategory, id);
       }
 
       // Update fields
@@ -227,16 +221,13 @@ const questionSetController = {
       }
 
       const { category } = req.params;
-      const safeCategory = sanitizeCategory(category);
+      const categoryQuery = buildActiveQuestionSetsByCategoryQuery(QuestionSet, category);
 
-      if (!safeCategory) {
+      if (!categoryQuery) {
         return res.status(400).json({ message: 'Invalid category.' });
       }
 
-      const questionSets = await QuestionSet.find({
-        category: safeCategory,
-        isActive: true,
-      })
+      const questionSets = await categoryQuery
         .populate('createdBy', 'firstName lastName')
         .sort({ isDefault: -1, name: 1 });
 
