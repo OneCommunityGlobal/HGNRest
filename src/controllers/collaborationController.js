@@ -1,7 +1,59 @@
+const mongoose = require('mongoose');
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
 const { hasPermission } = require('../utilities/permissions');
+
+const JOB_FORM_CATEGORIES = new Set([
+  'General',
+  'Engineering',
+  'Marketing',
+  'Design',
+  'Management',
+  'Data Analysis',
+  'Content Creation',
+  'Business Development',
+  'Other',
+]);
+
+/** Plain string from query; rejects objects/arrays and MongoDB operator strings. */
+function sanitizeQueryString(value) {
+  if (value === null || value === undefined || typeof value === 'object') return null;
+  const s = String(value).trim();
+  if (!s || s.startsWith('$')) return null;
+  return s;
+}
+
+function parseBooleanQuery(value) {
+  if (value === null || value === undefined || typeof value === 'object') return null;
+  const s = String(value).trim().toLowerCase();
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  return null;
+}
+
+function sanitizeObjectIdQuery(value) {
+  const s = sanitizeQueryString(value);
+  if (!s || !mongoose.Types.ObjectId.isValid(s)) return null;
+  return s;
+}
+
+function buildJobFormsListFilter(query = {}) {
+  const filter = {};
+  const category = sanitizeQueryString(query.category);
+  if (category && JOB_FORM_CATEGORIES.has(category)) {
+    filter.category = category;
+  }
+  const isActive = parseBooleanQuery(query.isActive);
+  if (isActive !== null) {
+    filter.isActive = isActive;
+  }
+  const createdBy = sanitizeObjectIdQuery(query.createdBy);
+  if (createdBy) {
+    filter.createdBy = createdBy;
+  }
+  return filter;
+}
 
 const canEditJobFormContent = async (requestor) =>
   (await hasPermission(requestor, 'manageJobForms')) ||
@@ -162,12 +214,7 @@ exports.getFormResponses = async (req, res) => {
 // Get formats of all forms
 exports.getAllFormsFormat = async (req, res) => {
   try {
-    const { category, isActive, createdBy } = req.query;
-    const filter = {};
-
-    if (category) filter.category = category;
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
-    if (createdBy) filter.createdBy = createdBy;
+    const filter = buildJobFormsListFilter(req.query);
 
     const forms = await Form.find(filter)
       .populate('createdBy', 'firstName lastName')
