@@ -19,14 +19,6 @@ function readAllowedCategory(rawValue) {
   return candidate;
 }
 
-function pickCategoryValue(body, existingCategory) {
-  let categoryValue = existingCategory;
-  if (Object.prototype.hasOwnProperty.call(body, 'category')) {
-    categoryValue = body.category;
-  }
-  return categoryValue;
-}
-
 function applyBodyFieldUpdates(questionSet, body, validatedCategory, hasCategoryUpdate) {
   if (Object.prototype.hasOwnProperty.call(body, 'name')) {
     questionSet.name = body.name;
@@ -224,9 +216,11 @@ const questionSetController = {
       const { isDefault } = req.body;
       const lastModifiedBy = req.body.requestor.requestorId;
       const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(req.body, 'category');
-      const validatedCategory = readAllowedCategory(
-        pickCategoryValue(req.body, questionSet.category),
-      );
+      let categoryValue = questionSet.category;
+      if (hasCategoryUpdate) {
+        categoryValue = req.body.category;
+      }
+      const validatedCategory = readAllowedCategory(categoryValue);
 
       if (!validatedCategory) {
         return res.status(400).json({ message: 'Invalid category.' });
