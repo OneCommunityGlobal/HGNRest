@@ -9,13 +9,6 @@ const {
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
-function resolveSafeCategory(bodyCategory, existingCategory) {
-  if (bodyCategory === undefined) {
-    return sanitizeCategory(existingCategory);
-  }
-  return sanitizeCategory(bodyCategory);
-}
-
 function applyBodyFieldUpdates(questionSet, body, validatedCategory, hasCategoryUpdate) {
   if (hasOwn(body, 'name')) {
     questionSet.name = body.name;
@@ -215,11 +208,10 @@ const questionSetController = {
       const { isDefault } = req.body;
       const lastModifiedBy = req.body.requestor.requestorId;
       const hasCategoryUpdate = hasOwn(req.body, 'category');
-      let bodyCategory;
+      let validatedCategory = sanitizeCategory(questionSet.category);
       if (hasCategoryUpdate) {
-        bodyCategory = req.body.category;
+        validatedCategory = sanitizeCategory(req.body.category);
       }
-      const validatedCategory = resolveSafeCategory(bodyCategory, questionSet.category);
 
       if (!validatedCategory) {
         return res.status(400).json({ message: 'Invalid category.' });
