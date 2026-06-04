@@ -48,7 +48,7 @@ const formSchema = new mongoose.Schema(
         questionType: {
           type: String,
           required: true,
-          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date', 'file'],
+          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date', 'file', 'email'],
         },
         isRequired: { type: Boolean, default: false },
         options: [String],

@@ -1,7 +1,12 @@
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const QuestionSet = require('../models/questionSet');
-const { hasPermission } = require('../utilities/permissions');
+const {
+  canManageJobForms,
+  canCreateFormQuestions,
+  canEditFormQuestions,
+  canDeleteFormQuestions,
+} = require('../utilities/jobFormPermissions');
 const {
   sanitizeCategory,
   parseBooleanQuery,
@@ -47,23 +52,22 @@ function selectQuestionsToImport(questionSet, resolvedIncludeAll, selectedQuesti
   return questionSet.questions.filter((_, index) => selectedQuestions.includes(index));
 }
 
-const canEditJobFormContent = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'editFormQuestions'));
-
-const canCreateFormQuestions = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'createFormQuestions'));
-
-const canDeleteFormQuestions = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'deleteFormQuestions'));
+/** Legacy forms may lack createdBy; set it from the requestor before save. */
+function ensureFormMetadata(form, requestor) {
+  const requestorId = requestor?.requestorId;
+  if (!requestorId) {
+    return;
+  }
+  if (!form.createdBy) {
+    form.createdBy = requestorId;
+  }
+  form.lastModifiedBy = requestorId;
+}
 
 // Create a new form
 exports.createForm = async (req, res) => {
   try {
-    // Check permissions
-    if (!(await hasPermission(req.body.requestor, 'manageJobForms'))) {
+    if (!(await canManageJobForms(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to create forms.' });
     }
 
@@ -130,7 +134,7 @@ exports.getFormFormat = async (req, res) => {
 // Update a form format
 exports.updateFormFormat = async (req, res) => {
   try {
-    if (!(await canEditJobFormContent(req.body.requestor))) {
+    if (!(await canEditFormQuestions(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to edit forms.' });
     }
 
@@ -160,7 +164,7 @@ exports.updateFormFormat = async (req, res) => {
 // Get all responses of a form
 exports.getFormResponses = async (req, res) => {
   try {
-    if (!(await hasPermission(req.body.requestor, 'manageJobForms'))) {
+    if (!(await canManageJobForms(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to view form responses.' });
     }
 
@@ -244,6 +248,7 @@ exports.addQuestion = async (req, res) => {
       form.questions.push(question);
     }
 
+    ensureFormMetadata(form, req.body.requestor);
     await form.save();
     res.status(200).json({
       message: 'Question added successfully.',
@@ -258,12 +263,11 @@ exports.addQuestion = async (req, res) => {
 // Update a specific question in a form
 exports.updateQuestion = async (req, res) => {
   try {
-    if (!(await canEditJobFormContent(req.body.requestor))) {
+    if (!(await canEditFormQuestions(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to update questions.' });
     }
 
     const { formId, questionIndex } = req.params;
-    const updatedQuestion = req.body;
 
     // Find the form
     const form = await Form.findById(formId);
@@ -276,8 +280,11 @@ exports.updateQuestion = async (req, res) => {
       return res.status(400).json({ message: 'Invalid question index.' });
     }
 
-    // Update the question
-    form.questions[questionIndex] = updatedQuestion;
+    // Update the question (exclude requestor metadata from question payload)
+    const { requestor, ...questionPayload } = req.body;
+    form.questions[questionIndex] = questionPayload;
+
+    ensureFormMetadata(form, requestor || req.body.requestor);
     await form.save();
 
     res.status(200).json({
@@ -312,6 +319,7 @@ exports.deleteQuestion = async (req, res) => {
 
     // Remove the question
     form.questions.splice(questionIndex, 1);
+    ensureFormMetadata(form, req.body.requestor);
     await form.save();
 
     res.status(200).json({
@@ -327,7 +335,7 @@ exports.deleteQuestion = async (req, res) => {
 // Reorder questions in a form
 exports.reorderQuestions = async (req, res) => {
   try {
-    if (!(await canEditJobFormContent(req.body.requestor))) {
+    if (!(await canEditFormQuestions(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to reorder questions.' });
     }
 
@@ -358,6 +366,7 @@ exports.reorderQuestions = async (req, res) => {
     const [movedQuestion] = form.questions.splice(fromIndex, 1);
     form.questions.splice(toIndex, 0, movedQuestion);
 
+    ensureFormMetadata(form, req.body.requestor);
     await form.save();
     res.status(200).json({
       message: 'Questions reordered successfully.',
@@ -373,7 +382,7 @@ exports.reorderQuestions = async (req, res) => {
 exports.deleteForm = async (req, res) => {
   try {
     // Check permissions
-    if (!(await hasPermission(req.body.requestor, 'manageJobForms'))) {
+    if (!(await canManageJobForms(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to delete forms.' });
     }
 
@@ -405,7 +414,7 @@ exports.deleteForm = async (req, res) => {
 // Import questions from a question set to a form
 exports.importQuestionsFromSet = async (req, res) => {
   try {
-    if (!(await canEditJobFormContent(req.body.requestor))) {
+    if (!(await canEditFormQuestions(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to import questions.' });
     }
 
@@ -459,7 +468,7 @@ exports.importQuestionsFromSet = async (req, res) => {
     questionSet.usageCount += 1;
     await questionSet.save();
 
-    form.lastModifiedBy = req.body.requestor.requestorId;
+    ensureFormMetadata(form, req.body.requestor);
     await form.save();
     await form.populate('questionSets.questionSetId');
 

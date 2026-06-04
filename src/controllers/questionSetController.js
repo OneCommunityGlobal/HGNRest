@@ -1,5 +1,10 @@
 const QuestionSet = require('../models/questionSet');
-const { hasPermission } = require('../utilities/permissions');
+const {
+  canAccessJobFormManagement,
+  canCreateFormQuestions,
+  canEditFormQuestions,
+  canDeleteFormQuestions,
+} = require('../utilities/jobFormPermissions');
 const {
   sanitizeCategory,
   sanitizeTargetRole,
@@ -57,24 +62,6 @@ async function clearDefaultQuestionSets(Model, allowedCategory, excludeId = null
 
   return clearQuery.updateMany({ $set: { isDefault: false } });
 }
-
-const canAccessJobFormManagement = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'createFormQuestions')) ||
-  (await hasPermission(requestor, 'editFormQuestions')) ||
-  (await hasPermission(requestor, 'deleteFormQuestions'));
-
-const canCreateFormQuestions = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'createFormQuestions'));
-
-const canEditFormQuestions = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'editFormQuestions'));
-
-const canDeleteFormQuestions = async (requestor) =>
-  (await hasPermission(requestor, 'manageJobForms')) ||
-  (await hasPermission(requestor, 'deleteFormQuestions'));
 
 const questionSetController = {
   async getAllQuestionSets(req, res) {

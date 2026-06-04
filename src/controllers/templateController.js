@@ -1,9 +1,20 @@
 const Template = require('../models/TemplateModel');
-const { hasPermission } = require('../utilities/permissions');
+const {
+  canAccessJobFormManagement,
+  canCreateFormQuestions,
+  canEditFormQuestions,
+  canDeleteFormQuestions,
+} = require('../utilities/jobFormPermissions');
+
+const getRequestor = (req) => req.body?.requestor;
 
 // Get all templates
 exports.getAllTemplates = async (req, res) => {
   try {
+    if (!(await canAccessJobFormManagement(getRequestor(req)))) {
+      return res.status(403).json({ message: 'You are not authorized to view templates.' });
+    }
+
     const templates = await Template.find();
     if (templates.length === 0) {
       return res.status(200).json({ templates: [] });
@@ -20,7 +31,7 @@ exports.createTemplate = async (req, res) => {
   try {
     const { name, fields, requestor } = req.body;
 
-    if (!(await hasPermission(requestor, 'createFormQuestions'))) {
+    if (!(await canCreateFormQuestions(requestor))) {
       return res.status(403).json({ message: 'You are not authorized to create templates.' });
     }
 
@@ -52,6 +63,10 @@ exports.createTemplate = async (req, res) => {
 // Get a template by ID
 exports.getTemplateById = async (req, res) => {
   try {
+    if (!(await canAccessJobFormManagement(getRequestor(req)))) {
+      return res.status(403).json({ message: 'You are not authorized to view templates.' });
+    }
+
     const { id } = req.params;
     const template = await Template.findById(id);
     if (!template) {
@@ -70,7 +85,7 @@ exports.updateTemplate = async (req, res) => {
     const { id } = req.params;
     const { name, fields, requestor } = req.body;
 
-    if (!(await hasPermission(requestor, 'editFormQuestions'))) {
+    if (!(await canEditFormQuestions(requestor))) {
       return res.status(403).json({ message: 'You are not authorized to update templates.' });
     }
 
@@ -103,7 +118,7 @@ exports.deleteTemplate = async (req, res) => {
     const { id } = req.params;
     const { requestor } = req.body;
 
-    if (!(await hasPermission(requestor, 'deleteFormQuestions'))) {
+    if (!(await canDeleteFormQuestions(requestor))) {
       return res.status(403).json({ message: 'You are not authorized to delete templates.' });
     }
 
