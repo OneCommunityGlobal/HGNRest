@@ -37,6 +37,7 @@ class EmailBatchService {
 
     // Normalize recipients to { email }
     const normalizedRecipients = normalizeRecipientsToObjects(recipients);
+
     if (normalizedRecipients.length === 0) {
       const error = new Error('At least one recipient is required');
       error.statusCode = 400;
@@ -47,16 +48,15 @@ class EmailBatchService {
     const invalidRecipients = normalizedRecipients.filter(
       (recipient) => !isValidEmailAddress(recipient.email),
     );
+
     if (invalidRecipients.length > 0) {
-      throw new Error(
-        `Invalid email addresses: ${invalidRecipients.map((r) => r.email).join(', ')}`,
-      ); // Include invalid emails in error message
+      const error = new Error('One or more recipient emails are invalid');
+      error.statusCode = 400;
+      error.invalidRecipients = invalidRecipients.map((r) => r.email);
+      throw error;
     }
 
-    // Filter to only valid recipients
-    const validRecipients = normalizedRecipients.filter((recipient) =>
-      isValidEmailAddress(recipient.email),
-    );
+    const validRecipients = normalizedRecipients;
 
     // Check if we have any valid recipients AFTER filtering
     if (validRecipients.length === 0) {
