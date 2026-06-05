@@ -769,6 +769,7 @@ describe('timeOffRequestController.js module', () => {
         duration: timeOffDuration,
         startingDate: timeOffStartingDate,
         reason: timeOffReason,
+        reasonType: 'vacationTime',
       };
 
       const error = new Error('Some error occcurred during operation findByIdAndUpdate()');
