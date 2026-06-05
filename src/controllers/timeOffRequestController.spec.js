@@ -622,6 +622,7 @@ describe('timeOffRequestController.js module', () => {
 
       const mockUpdateData = {
         reason: timeOffReason,
+        reasonType: 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration: timeOffDuration,
@@ -632,6 +633,7 @@ describe('timeOffRequestController.js module', () => {
         duration: timeOffDuration,
         startingDate: timeOffStartingDate,
         reason: timeOffReason,
+        reasonType: 'vacationTime',
       };
 
       const error = 'Time off request not found';
@@ -689,6 +691,7 @@ describe('timeOffRequestController.js module', () => {
 
       const mockUpdateData = {
         reason: timeOffReason,
+        reasonType: 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration: timeOffDuration,
@@ -699,6 +702,7 @@ describe('timeOffRequestController.js module', () => {
         duration: timeOffDuration,
         startingDate: timeOffStartingDate,
         reason: timeOffReason,
+        reasonType: 'vacationTime',
       };
 
       hasPermission.mockImplementation(async () => true);
@@ -754,6 +758,7 @@ describe('timeOffRequestController.js module', () => {
 
       const mockUpdateData = {
         reason: timeOffReason,
+        reasonType: 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration: timeOffDuration,
