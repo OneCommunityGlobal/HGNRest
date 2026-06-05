@@ -48,10 +48,9 @@ class EmailBatchService {
       (recipient) => !isValidEmailAddress(recipient.email),
     );
     if (invalidRecipients.length > 0) {
-      const error = new Error('One or more recipient emails are invalid');
-      error.statusCode = 400;
-      error.invalidRecipients = invalidRecipients.map((r) => r.email);
-      throw error;
+      throw new Error(
+        `Invalid email addresses: ${invalidRecipients.map((r) => r.email).join(', ')}`,
+      ); // Include invalid emails in error message
     }
 
     // Filter to only valid recipients

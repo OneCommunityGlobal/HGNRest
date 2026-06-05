@@ -19,12 +19,19 @@ function isValidEmailAddress(email) {
  */
 function normalizeRecipientsToArray(input) {
   const arr = Array.isArray(input) ? input : [input];
-  const trimmed = arr
-    .map((e) => (typeof e === 'string' ? e.trim() : ''))
-    .filter((e) => e.length > 0);
-  // Dedupe case-insensitively
+
+  const splitEmails = arr.flatMap((e) => {
+    if (typeof e !== 'string') return [];
+
+    return e
+      .split(',') // 🔥 KEY FIX
+      .map((email) => email.trim())
+      .filter(Boolean);
+  });
+
+  // dedupe case-insensitively
   const seen = new Set();
-  return trimmed.filter((e) => {
+  return splitEmails.filter((e) => {
     const key = e.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
@@ -40,18 +47,17 @@ function normalizeRecipientsToArray(input) {
  */
 function normalizeRecipientsToObjects(input) {
   if (!Array.isArray(input)) return [];
-  const emails = input
-    .filter((item) => {
-      if (typeof item === 'string') {
-        return item.trim().length > 0;
-      }
-      return item && typeof item.email === 'string' && item.email.trim().length > 0;
-    })
-    .map((item) => ({
-      email: typeof item === 'string' ? item.trim() : item.email.trim(),
-    }));
 
-  // Dedupe case-insensitively
+  const emails = input.flatMap((item) => {
+    const value = typeof item === 'string' ? item : item?.email || '';
+
+    return value
+      .split(',')
+      .map((email) => email.trim())
+      .filter(Boolean)
+      .map((email) => ({ email }));
+  });
+
   const seen = new Set();
   return emails.filter((obj) => {
     const key = obj.email.toLowerCase();
