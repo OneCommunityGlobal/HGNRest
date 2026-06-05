@@ -2450,8 +2450,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         // Add reasons array for more detailed categorization
         reasons: processedReasons,
         // Track if manually assigned (via API call) vs CRON job
-        manullyAssigned: true,
-        manullyAssignedBy: requestorProfile
+        manuallyAssigned: true,
+        manuallyAssignedBy: requestorProfile
           ? {
               firstName: requestorProfile.firstName,
               lastName: requestorProfile.lastName,

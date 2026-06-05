@@ -158,12 +158,12 @@ const userProfileSchema = new Schema({
         enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
       },
       // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
-      manullyAssigned: {
+      manuallyAssigned: {
         type: Boolean,
         default: false,
       },
       // Track who manually assigned the blue square
-      manullyAssignedBy: {
+      manuallyAssignedBy: {
         firstName: { type: String },
         lastName: { type: String },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
