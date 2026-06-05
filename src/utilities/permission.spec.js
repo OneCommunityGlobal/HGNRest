@@ -1,6 +1,6 @@
+const userService = require('../services/userService');
 const { PROTECTED_EMAIL_ACCOUNT } = require('./constants');
 const { canRequestorUpdateUser } = require('./permissions');
-const userService = require('../services/userService');
 
 // Mock modules
 jest.mock('../startup/logger', () => ({

@@ -1,5 +1,4 @@
 const sentryService = require('../../services/automation/sentryService');
-
 const appAccessService = require('../../services/automation/appAccessService');
 const { checkAppAccess } = require('./utils');
 
