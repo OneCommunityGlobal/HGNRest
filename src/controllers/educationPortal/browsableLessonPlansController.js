@@ -1,12 +1,21 @@
 const mongoose = require('mongoose');
 
 const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfile) {
-  const ALLOWED_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'title', 'difficulty', 'popularity']);
+  const ALLOWED_SORT_FIELDS = new Set([
+    'createdAt',
+    'updatedAt',
+    'title',
+    'difficulty',
+    'popularity',
+  ]);
 
   function parseArrayParam(val) {
     if (!val) return undefined;
     if (Array.isArray(val)) return val;
-    return String(val).split(',').map((s) => s.trim()).filter(Boolean);
+    return String(val)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   const getLessonPlans = async (req, res) => {
@@ -33,7 +42,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       // Handle both singular and plural subject params
       const subjectList = parseArrayParam(subjects || subject);
       if (subjectList && subjectList.length) {
-        filter.subjects = { $in: subjectList.map(s => new RegExp(s, 'i')) };
+        filter.subjects = { $in: subjectList.map((s) => new RegExp(s, 'i')) };
       }
 
       if (difficulty) {
@@ -44,7 +53,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       // Handle both singular and plural tag params
       const tagList = parseArrayParam(tags || tag);
       if (tagList && tagList.length) {
-        filter.tags = { $in: tagList.map(t => new RegExp(t, 'i')) };
+        filter.tags = { $in: tagList.map((t) => new RegExp(t, 'i')) };
       }
 
       if (author && mongoose.Types.ObjectId.isValid(author)) {
@@ -64,8 +73,10 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
 
       // Enhanced search with text index or regex fallback
       if (search) {
-        const hasTextIndex = await BrowsableLessonPlan.collection.indexExists('title_text_description_text_content_text_tags_text');
-        
+        const hasTextIndex = await BrowsableLessonPlan.collection.indexExists(
+          'title_text_description_text_content_text_tags_text',
+        );
+
         if (hasTextIndex) {
           filter.$text = { $search: search };
         } else {
@@ -75,7 +86,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
             { description: regex },
             { content: regex },
             { tags: regex },
-            { subjects: regex }
+            { subjects: regex },
           ];
         }
       }
@@ -136,14 +147,16 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       });
     } catch (error) {
       console.error('Error getting lesson plans:', error);
-      return res.status(500).json({ success: false, error: 'Failed to fetch lesson plans', details: error.message });
+      return res
+        .status(500)
+        .json({ success: false, error: 'Failed to fetch lesson plans', details: error.message });
     }
   };
 
   const getLessonPlanById = async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ success: false, error: 'Invalid lesson plan ID' });
       }
@@ -151,7 +164,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       const lessonPlan = await BrowsableLessonPlan.findByIdAndUpdate(
         id,
         { $inc: { views: 1 } },
-        { new: true }
+        { new: true },
       )
         .populate('author', 'firstName lastName profilePic email')
         .lean();
@@ -170,21 +183,28 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
   const saveStudentInterest = async (req, res) => {
     try {
       const { studentId, lessonPlanId } = req.body;
-      
+
       if (!studentId || !lessonPlanId) {
-        return res.status(400).json({ success: false, error: 'studentId and lessonPlanId are required' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'studentId and lessonPlanId are required' });
       }
-      
-      if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+
+      if (
+        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(lessonPlanId)
+      ) {
         return res.status(400).json({ success: false, error: 'Invalid ID format' });
       }
 
       const lesson = await BrowsableLessonPlan.findByIdAndUpdate(
         lessonPlanId,
         { $inc: { savedCount: 1 } },
-        { new: true }
-      ).select('_id title').lean();
-      
+        { new: true },
+      )
+        .select('_id title')
+        .lean();
+
       if (!lesson) {
         return res.status(404).json({ success: false, error: 'Lesson plan not found' });
       }
@@ -198,7 +218,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
         .populate({
           path: 'educationProfiles.student.savedInterests',
           select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
-          populate: { path: 'author', select: 'firstName lastName' }
+          populate: { path: 'author', select: 'firstName lastName' },
         });
 
       if (!updated) {
@@ -212,7 +232,9 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       });
     } catch (error) {
       console.error('Error saving student interest:', error);
-      return res.status(500).json({ success: false, error: 'Failed to save interest', details: error.message });
+      return res
+        .status(500)
+        .json({ success: false, error: 'Failed to save interest', details: error.message });
     }
   };
 
@@ -220,19 +242,21 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
     try {
       const { lessonPlanId } = req.params;
       const studentId = req.query.studentId || req.body.studentId;
-      
+
       if (!studentId || !lessonPlanId) {
-        return res.status(400).json({ success: false, error: 'studentId and lessonPlanId are required' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'studentId and lessonPlanId are required' });
       }
-      
-      if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+
+      if (
+        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(lessonPlanId)
+      ) {
         return res.status(400).json({ success: false, error: 'Invalid ID format' });
       }
 
-      await BrowsableLessonPlan.findByIdAndUpdate(
-        lessonPlanId,
-        { $inc: { savedCount: -1 } }
-      );
+      await BrowsableLessonPlan.findByIdAndUpdate(lessonPlanId, { $inc: { savedCount: -1 } });
 
       const updated = await UserProfile.findByIdAndUpdate(
         studentId,
@@ -243,7 +267,7 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
         .populate({
           path: 'educationProfiles.student.savedInterests',
           select: 'title description subjects difficulty tags thumbnail createdAt savedCount views',
-          populate: { path: 'author', select: 'firstName lastName' }
+          populate: { path: 'author', select: 'firstName lastName' },
         });
 
       if (!updated) {
@@ -257,18 +281,20 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       });
     } catch (error) {
       console.error('Error removing saved interest:', error);
-      return res.status(500).json({ success: false, error: 'Failed to remove interest', details: error.message });
+      return res
+        .status(500)
+        .json({ success: false, error: 'Failed to remove interest', details: error.message });
     }
   };
 
   const getStudentSavedInterests = async (req, res) => {
     try {
       const studentId = req.query.studentId || req.headers.studentid || req.body.studentId;
-      
+
       if (!studentId) {
         return res.status(400).json({ success: false, error: 'studentId is required' });
       }
-      
+
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         return res.status(400).json({ success: false, error: 'Invalid studentId format' });
       }
@@ -277,8 +303,9 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
         .select('educationProfiles.student.savedInterests firstName lastName')
         .populate({
           path: 'educationProfiles.student.savedInterests',
-          select: 'title description subjects difficulty tags thumbnail createdAt updatedAt savedCount views',
-          populate: { path: 'author', select: 'firstName lastName profilePic' }
+          select:
+            'title description subjects difficulty tags thumbnail createdAt updatedAt savedCount views',
+          populate: { path: 'author', select: 'firstName lastName profilePic' },
         })
         .lean();
 
@@ -298,28 +325,32 @@ const browsableLessonPlansController = function (BrowsableLessonPlan, UserProfil
       });
     } catch (error) {
       console.error('Error fetching saved interests:', error);
-      return res.status(500).json({ success: false, error: 'Failed to fetch saved interests', details: error.message });
+      return res
+        .status(500)
+        .json({ success: false, error: 'Failed to fetch saved interests', details: error.message });
     }
   };
 
   const checkIfSaved = async (req, res) => {
     try {
       const { studentId, lessonPlanId } = req.query;
-      
+
       if (!studentId || !lessonPlanId) {
-        return res.status(400).json({ success: false, error: 'studentId and lessonPlanId are required' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'studentId and lessonPlanId are required' });
       }
 
       const user = await UserProfile.findById(studentId)
         .select('educationProfiles.student.savedInterests')
         .lean();
-      
+
       if (!user) {
         return res.status(404).json({ success: false, error: 'Student not found' });
       }
 
       const savedInterests = user.educationProfiles?.student?.savedInterests || [];
-      const isSaved = savedInterests.some(id => id.toString() === lessonPlanId);
+      const isSaved = savedInterests.some((id) => id.toString() === lessonPlanId);
 
       return res.status(200).json({ success: true, isSaved });
     } catch (error) {

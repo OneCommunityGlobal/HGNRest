@@ -12,7 +12,7 @@ const routes = function (userProfile, timeEntry, task, PromotionEligibility) {
   );
   const router = express.Router();
 
-  router.route('/promotion-eligibility').get(controller.getPromotionEligibilityData);
+  router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
   router.route('/promote-members').post(controller.promoteMembers);
 

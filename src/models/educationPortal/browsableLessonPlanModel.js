@@ -26,7 +26,7 @@ const BrowsableLessonPlanSchema = new mongoose.Schema(
     materials: [{ type: String }],
     metadata: { type: mongoose.Schema.Types.Mixed },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Text index for search functionality
@@ -44,4 +44,8 @@ BrowsableLessonPlanSchema.index({ featured: 1, createdAt: -1 });
 BrowsableLessonPlanSchema.index({ savedCount: -1 });
 BrowsableLessonPlanSchema.index({ views: -1 });
 
-module.exports = mongoose.model('BrowsableLessonPlan', BrowsableLessonPlanSchema, 'browsableLessonPlans');
+module.exports = mongoose.model(
+  'BrowsableLessonPlan',
+  BrowsableLessonPlanSchema,
+  'browsableLessonPlans',
+);
