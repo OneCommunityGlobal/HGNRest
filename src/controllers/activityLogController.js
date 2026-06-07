@@ -25,12 +25,21 @@ const activityLogController = function () {
         }),
     }));
 
+  const sanitizeObjectIds = (values) =>
+    values
+      .filter((v) => mongoose.Types.ObjectId.isValid(v))
+      .map((v) => new mongoose.Types.ObjectId(v));
+
   const resolveAssistedUsers = async (assistedUsersFromClient) => {
     const validAssistanceTypes = ActivityLog.schema
       .path('assisted_users')
       .schema.path('assistance_type').enumValues;
 
-    const userIds = assistedUsersFromClient.map((u) => u.userId);
+    const userIds = sanitizeObjectIds(assistedUsersFromClient.map((u) => u.userId));
+    if (userIds.length !== assistedUsersFromClient.length) {
+      throw new Error('One or more provided userIds are invalid');
+    }
+
     const profiles = await usersProfiles
       .find({ _id: { $in: userIds } })
       .select('firstName lastName');
@@ -57,8 +66,13 @@ const activityLogController = function () {
       const studentId = req.body.requestor.requestorId;
       const requestedStudentId = req.query.studentId;
 
-      if (requestedStudentId && requestedStudentId !== String(studentId)) {
-        return res.status(403).json({ error: "Forbidden: Cannot access another student's log" });
+      if (requestedStudentId) {
+        if (!mongoose.Types.ObjectId.isValid(requestedStudentId)) {
+          return res.status(400).json({ error: 'Invalid studentId format' });
+        }
+        if (requestedStudentId !== String(studentId)) {
+          return res.status(403).json({ error: "Forbidden: Cannot access another student's log" });
+        }
       }
 
       const logs = await ActivityLog.find({ actor_id: studentId })
@@ -192,6 +206,10 @@ const activityLogController = function () {
       const { studentId } = req.params;
       const currentUser = req.body.requestor;
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'Invalid studentId format' });
+      }
 
       if (!validRoles.includes(currentUser.role)) {
         return res.status(403).json({ error: 'Only Educators can view students logs' });

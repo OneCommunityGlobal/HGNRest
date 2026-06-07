@@ -35,6 +35,7 @@ jest.mock('../../startup/logger', () => ({
   logException: jest.fn(),
 }));
 
+const mongoose = require('mongoose');
 const ActivityLog = require('../../models/activityLog');
 const usersProfiles = require('../../models/userProfile');
 const activityLogControllerFactory = require('../activityLogController');
@@ -321,7 +322,7 @@ describe('activityLogController', () => {
       await controller.createStudentDailyLog(req, mockRes);
 
       expect(usersProfiles.find).toHaveBeenCalledWith({
-        _id: { $in: ['65cf6c3706d8ac105827bb30'] },
+        _id: { $in: [expect.any(mongoose.Types.ObjectId)] },
       });
       expect(ActivityLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
