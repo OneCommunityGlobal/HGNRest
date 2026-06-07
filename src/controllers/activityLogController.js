@@ -1,8 +1,11 @@
+const mongoose = require('mongoose');
 const ActivityLog = require('../models/activityLog');
 const usersProfiles = require('../models/userProfile');
+const logger = require('../startup/logger');
 
 const activityLogController = function () {
-  // Format response - only include assisted_users if is_assisted is true
+  const validRoles = ['Educator', 'Administrator'];
+
   const formatLogs = (logs) =>
     logs.map((log) => ({
       log_id: log._id,
@@ -21,6 +24,34 @@ const activityLogController = function () {
           })),
         }),
     }));
+
+  const resolveAssistedUsers = async (assistedUsersFromClient) => {
+    const validAssistanceTypes = ActivityLog.schema
+      .path('assisted_users')
+      .schema.path('assistance_type').enumValues;
+
+    const userIds = assistedUsersFromClient.map((u) => u.userId);
+    const profiles = await usersProfiles
+      .find({ _id: { $in: userIds } })
+      .select('firstName lastName');
+
+    return profiles.map((user) => {
+      const clientObj = assistedUsersFromClient.find((u) => String(u.userId) === String(user._id));
+
+      const { assistanceType } = clientObj;
+      if (!validAssistanceTypes.includes(assistanceType)) {
+        throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
+      }
+
+      return {
+        user_id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        assisted_at: new Date(),
+        assistance_type: assistanceType,
+      };
+    });
+  };
+
   async function fetchStudentDailyLog(req, res) {
     try {
       const studentId = req.body.requestor.requestorId;
@@ -36,9 +67,11 @@ const activityLogController = function () {
 
       res.json(formatLogs(logs));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      logger.logException(err, 'fetchStudentDailyLog', { requestor: req.body.requestor });
+      res.status(500).json({ error: 'An unexpected error occurred' });
     }
   }
+
   async function createStudentDailyLog(req, res) {
     try {
       const currentUser = req.body.requestor;
@@ -54,13 +87,8 @@ const activityLogController = function () {
         return res.status(400).json({ error: 'actionType and entityId are required' });
       }
 
-      // Get valid enums
       const validActionTypes = ActivityLog.schema.path('action_type').enumValues;
-      const validAssistanceTypes = ActivityLog.schema
-        .path('assisted_users')
-        .schema.path('assistance_type').enumValues;
 
-      // Validate actionType
       if (!validActionTypes.includes(actionType)) {
         return res.status(400).json({
           error: `Invalid actionType. Must be one of: ${validActionTypes.join(', ')}`,
@@ -71,14 +99,12 @@ const activityLogController = function () {
       let assistedUsers = null;
 
       if (isAssistedFromClient) {
-        if (!['Educator', 'Administrator'].includes(currentUser.role)) {
-          // Unauthorized user tried to set the flag
+        if (!validRoles.includes(currentUser.role)) {
           return res.status(403).json({
             error: 'Only educators or administrators can set the assisted flag',
           });
         }
 
-        // Authorized user
         isAssisted = true;
 
         if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
@@ -87,32 +113,9 @@ const activityLogController = function () {
           });
         }
 
-        // Fetch and map assisted users
-        const userIds = assistedUsersFromClient.map((u) => u.userId);
-        const usersProfile = await usersProfiles
-          .find({ _id: { $in: userIds } })
-          .select('firstName lastName');
-
-        assistedUsers = usersProfile.map((user) => {
-          const clientObj = assistedUsersFromClient.find(
-            (u) => String(u.userId) === String(user._id),
-          );
-
-          const { assistanceType } = clientObj;
-          if (!validAssistanceTypes.includes(assistanceType)) {
-            throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
-          }
-
-          return {
-            user_id: user._id,
-            name: `${user.firstName} ${user.lastName}`,
-            assisted_at: new Date(),
-            assistance_type: assistanceType,
-          };
-        });
+        assistedUsers = await resolveAssistedUsers(assistedUsersFromClient);
       }
 
-      // Build log object
       const logData = {
         actor_id: currentUser.requestorId,
         action_type: actionType,
@@ -133,19 +136,22 @@ const activityLogController = function () {
         log: responseLog,
       });
     } catch (err) {
-      console.error('Error creating activity log:', err);
-      return res.status(500).json({ error: err.message });
+      logger.logException(err, 'createStudentDailyLog', { requestor: req.body.requestor });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   }
+
   async function updateStudentDailyLog(req, res) {
     try {
       const { logId } = req.params;
       const currentUser = req.body.requestor;
       const { isAssisted: isAssistedFromClient, assistedUsers: assistedUsersFromClient } = req.body;
 
-      if (!logId) return res.status(400).json({ error: 'Missing logId' });
+      if (!logId || !mongoose.Types.ObjectId.isValid(logId)) {
+        return res.status(400).json({ error: 'Invalid or missing logId' });
+      }
 
-      if (!['Educator', 'Administrator'].includes(currentUser.role)) {
+      if (!validRoles.includes(currentUser.role)) {
         return res.status(403).json({
           error: 'Only educators or administrators can update the assisted flag',
         });
@@ -154,7 +160,6 @@ const activityLogController = function () {
       const log = await ActivityLog.findById(logId);
       if (!log) return res.status(404).json({ error: 'Activity log not found' });
 
-      // Prepare assisted users only if isAssisted is true
       let assistedUsers = [];
       if (isAssistedFromClient) {
         if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
@@ -163,35 +168,9 @@ const activityLogController = function () {
           });
         }
 
-        const validAssistanceTypes = ActivityLog.schema
-          .path('assisted_users')
-          .schema.path('assistance_type').enumValues;
-
-        const userIds = assistedUsersFromClient.map((u) => u.userId);
-        const usersProfile = await usersProfiles
-          .find({ _id: { $in: userIds } })
-          .select('firstName lastName');
-
-        assistedUsers = usersProfile.map((user) => {
-          const clientObj = assistedUsersFromClient.find(
-            (u) => String(u.userId) === String(user._id),
-          );
-
-          const { assistanceType } = clientObj;
-          if (!validAssistanceTypes.includes(assistanceType)) {
-            throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
-          }
-
-          return {
-            user_id: user._id,
-            name: `${user.firstName} ${user.lastName}`,
-            assisted_at: new Date(),
-            assistance_type: assistanceType,
-          };
-        });
+        assistedUsers = await resolveAssistedUsers(assistedUsersFromClient);
       }
 
-      // Update log
       log.is_assisted = Boolean(isAssistedFromClient);
       log.assisted_users = assistedUsers;
       await log.save();
@@ -203,17 +182,18 @@ const activityLogController = function () {
         log: formattedLog,
       });
     } catch (err) {
-      console.error('Error updating activity log:', err);
-      return res.status(500).json({ error: err.message });
+      logger.logException(err, 'updateStudentDailyLog', { requestor: req.body.requestor });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   }
+
   async function fetchEducatorDailyLog(req, res) {
     try {
       const { studentId } = req.params;
       const currentUser = req.body.requestor;
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
-      // Add correct rule once you get it so the permission is correct
-      if (currentUser.role !== 'educator' && currentUser.role !== 'Administrator') {
+
+      if (!validRoles.includes(currentUser.role)) {
         return res.status(403).json({ error: 'Only Educators can view students logs' });
       }
 
@@ -223,7 +203,8 @@ const activityLogController = function () {
 
       res.json(formatLogs(logs));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      logger.logException(err, 'fetchEducatorDailyLog', { requestor: req.body.requestor });
+      res.status(500).json({ error: 'An unexpected error occurred' });
     }
   }
 

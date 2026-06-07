@@ -31,6 +31,10 @@ jest.mock('../../models/userProfile', () => {
   return mockUserProfile;
 });
 
+jest.mock('../../startup/logger', () => ({
+  logException: jest.fn(),
+}));
+
 const ActivityLog = require('../../models/activityLog');
 const usersProfiles = require('../../models/userProfile');
 const activityLogControllerFactory = require('../activityLogController');
@@ -152,7 +156,7 @@ describe('activityLogController', () => {
       await resolvePromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB fail' });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
   });
 
@@ -392,7 +396,7 @@ describe('activityLogController', () => {
       await resolvePromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB error' });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
 
     it('returns formatted log in response', async () => {
@@ -432,7 +436,7 @@ describe('activityLogController', () => {
       await controller.updateStudentDailyLog(req, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Missing logId' });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid or missing logId' });
     });
 
     it('returns 403 when non-educator tries to update', async () => {
@@ -616,7 +620,7 @@ describe('activityLogController', () => {
       await resolvePromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB fail' });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
   });
 
@@ -632,7 +636,7 @@ describe('activityLogController', () => {
 
       const req = {
         params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'educator' } },
+        body: { requestor: { role: 'Educator' } },
       };
 
       await controller.fetchEducatorDailyLog(req, mockRes);
@@ -662,7 +666,7 @@ describe('activityLogController', () => {
     it('returns 400 when studentId is missing', async () => {
       const req = {
         params: {},
-        body: { requestor: { role: 'educator' } },
+        body: { requestor: { role: 'Educator' } },
       };
 
       await controller.fetchEducatorDailyLog(req, mockRes);
@@ -694,14 +698,14 @@ describe('activityLogController', () => {
 
       const req = {
         params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'educator' } },
+        body: { requestor: { role: 'Educator' } },
       };
 
       await controller.fetchEducatorDailyLog(req, mockRes);
       await resolvePromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB fail' });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
 
     it('returns formatted logs with correct fields', async () => {
@@ -720,7 +724,7 @@ describe('activityLogController', () => {
 
       const req = {
         params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'educator' } },
+        body: { requestor: { role: 'Educator' } },
       };
 
       await controller.fetchEducatorDailyLog(req, mockRes);
@@ -747,7 +751,7 @@ describe('activityLogController', () => {
 
       const req = {
         params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'educator' } },
+        body: { requestor: { role: 'Educator' } },
       };
 
       await controller.fetchEducatorDailyLog(req, mockRes);
