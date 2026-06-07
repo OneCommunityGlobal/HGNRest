@@ -1383,113 +1383,145 @@ const overviewReportHelper = function () {
     }
 
     // Get all active users with their time entries
-    const usersWithTimeEntries = await UserProfile.aggregate([
-      {
-        $match: {
-          isActive: true,
-        },
-      },
-      {
-        $lookup: {
-          from: 'timeEntries',
-          localField: '_id',
-          foreignField: 'personId',
-          as: 'timeEntries',
-        },
-      },
-      {
-        $match: {
-          'timeEntries.0': { $exists: true }, // Only users with at least one time entry
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          timeEntries: {
-            $filter: {
-              input: '$timeEntries',
-              as: 'entry',
-              cond: {
-                $and: [
-                  {
-                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
-                  },
-                  {
-                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-    ]);
+    // const usersWithTimeEntries = await UserProfile.aggregate([
+    //   {
+    //     $match: {
+    //       isActive: true,
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'timeEntries',
+    //       localField: '_id',
+    //       foreignField: 'personId',
+    //       as: 'timeEntries',
+    //     },
+    //   },
+    //   {
+    //     $match: {
+    //       'timeEntries.0': { $exists: true }, // Only users with at least one time entry
+    //     },
+    //   },
+    //   {
+    //     $project: {
+    //       _id: 1,
+    //       timeEntries: {
+    //         $filter: {
+    //           input: '$timeEntries',
+    //           as: 'entry',
+    //           cond: {
+    //             $and: [
+    //               {
+    //                 $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+    //               },
+    //               {
+    //                 $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+    //               },
+    //             ],
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // ]);
 
-    // Calculate current week start for comparison
-    const currentWeekStart = moment().tz('America/Los_Angeles').startOf('week');
-    const reportStartDate = moment(startDate);
-    const reportEndDate = moment(endDate);
+    // // Calculate current week start for comparison
+    // const currentWeekStart = moment().tz('America/Los_Angeles').startOf('week');
+    // const reportStartDate = moment(startDate);
+    // const reportEndDate = moment(endDate);
 
-    // Process each user to calculate their weekly average
-    const userBuckets = [];
+    // // Process each user to calculate their weekly average
+    // const userBuckets = [];
 
-    for (const user of usersWithTimeEntries) {
-      if (!user.timeEntries || user.timeEntries.length === 0) {
-        continue; // Skip users with no time entries in the date range
-      }
+    // for (const user of usersWithTimeEntries) {
+    //   if (!user.timeEntries || user.timeEntries.length === 0) {
+    //     continue; // Skip users with no time entries in the date range
+    //   }
 
-      // Group time entries by week
-      const weeklyHours = {};
+    //   // Group time entries by week
+    //   const weeklyHours = {};
 
-      for (const entry of user.timeEntries) {
-        const entryDate = moment(entry.dateOfWork);
-        const weekStart = entryDate.clone().startOf('week'); // Sunday
-        const weekEnd = entryDate.clone().endOf('week'); // Saturday
-        const weekKey = weekStart.format('YYYY-MM-DD');
+    //   for (const entry of user.timeEntries) {
+    //     const entryDate = moment(entry.dateOfWork);
+    //     const weekStart = entryDate.clone().startOf('week'); // Sunday
+    //     const weekEnd = entryDate.clone().endOf('week'); // Saturday
+    //     const weekKey = weekStart.format('YYYY-MM-DD');
 
-        // Check if this week should be counted based on the 4+ days rule
-        if (shouldCountWeek(weekStart, weekEnd, reportStartDate, reportEndDate, currentWeekStart)) {
-          if (!weeklyHours[weekKey]) {
-            weeklyHours[weekKey] = 0;
-          }
-          weeklyHours[weekKey] += (entry.totalSeconds || 0) / 3600; // Convert to hours
-        }
-      }
+    //     // Check if this week should be counted based on the 4+ days rule
+    //     if (shouldCountWeek(weekStart, weekEnd, reportStartDate, reportEndDate, currentWeekStart)) {
+    //       if (!weeklyHours[weekKey]) {
+    //         weeklyHours[weekKey] = 0;
+    //       }
+    //       weeklyHours[weekKey] += (entry.totalSeconds || 0) / 3600; // Convert to hours
+    //     }
+    //   }
 
-      // Calculate the weekly average (only for weeks with logged time)
-      const weeksWithTime = Object.keys(weeklyHours);
-      if (weeksWithTime.length > 0) {
-        const totalHours = weeksWithTime.reduce((sum, week) => sum + weeklyHours[week], 0);
-        const weeklyAverage = totalHours / weeksWithTime.length;
+    //   // Calculate the weekly average (only for weeks with logged time)
+    //   const weeksWithTime = Object.keys(weeklyHours);
+    //   if (weeksWithTime.length > 0) {
+    //     const totalHours = weeksWithTime.reduce((sum, week) => sum + weeklyHours[week], 0);
+    //     const weeklyAverage = totalHours / weeksWithTime.length;
 
-        // Assign to bucket
-        const bucket = assignToBucket(weeklyAverage);
-        userBuckets.push(bucket);
-      }
-    }
+    //     // Assign to bucket
+    //     const bucket = assignToBucket(weeklyAverage);
+    //     userBuckets.push(bucket);
+    //   }
+    // }
 
-    // Count users in each bucket
-    const bucketCounts = {
-      10: 0,
-      20: 0,
-      30: 0,
-      40: 0,
-      '40+': 0,
-    };
+    // // Count users in each bucket
+    // const bucketCounts = {
+    //   10: 0,
+    //   20: 0,
+    //   30: 0,
+    //   40: 0,
+    //   '40+': 0,
+    // };
 
-    for (const bucket of userBuckets) {
-      bucketCounts[bucket]++;
-    }
+    // for (const bucket of userBuckets) {
+    //   bucketCounts[bucket]++;
+    // }
 
-    // Format as expected output
-    const hoursStats = [
-      { _id: '10', count: bucketCounts['10'] },
-      { _id: '20', count: bucketCounts['20'] },
-      { _id: '30', count: bucketCounts['30'] },
-      { _id: '40', count: bucketCounts['40'] },
-      { _id: '40+', count: bucketCounts['40+'] },
+    // // Format as expected output
+    // const hoursStats = [
+    //   { _id: '10', count: bucketCounts['10'] },
+    //   { _id: '20', count: bucketCounts['20'] },
+    //   { _id: '30', count: bucketCounts['30'] },
+    //   { _id: '40', count: bucketCounts['40'] },
+    //   { _id: '40+', count: bucketCounts['40+'] },
+    // ];
+
+    // return hoursStats;
+
+
+
+    const usersWithTimeEntries = await UserProfile.find({
+      isActive: true
+    }).select('weeklycommittedHours'); 
+    // Fetch only currently Active users weekly committed hours. 
+
+    let hoursStats = [
+      { _id: 10, count: 0 },
+      { _id: 20, count: 0 },
+      { _id: 30, count: 0 },
+      { _id: 40, count: 0 },
+      { _id: '40+', count: 0 },
     ];
 
+    // Loop over the entries to count users per hours.
+    for (let i = 0; i < usersWithTimeEntries.length; i++) {
+      const hours = usersWithTimeEntries[i].weeklycommittedHours;
+      if (hours >= 10 && hours < 20) {
+        hoursStats[0].count += 1;
+      } else if (hours >= 20 && hours < 30) {
+        hoursStats[1].count += 1;
+      } else if (hours >= 30 && hours < 40) {
+        hoursStats[2].count += 1;
+      } else if (hours === 40) {
+        hoursStats[3].count += 1; // Exactly 40 hours
+      } else if (hours > 40) {
+        hoursStats[4].count += 1; // More than 40 hours ('40+')
+      }
+    }
     return hoursStats;
   }
 
