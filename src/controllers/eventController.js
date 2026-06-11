@@ -10,6 +10,21 @@ const updateEventStatus = (event) => {
   return event.status;
 };
 
+function getMonthRangeAround(inputDate) {
+  const date = new Date(inputDate);
+
+  // Get the first day of 2 months ago
+  const startDate = new Date(date.getFullYear(), date.getMonth() - 2, 1);
+
+  // Get the last day of 2 months from now
+  const endDate = new Date(date.getFullYear(), date.getMonth() + 3, 0);
+
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+  };
+}
+
 const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
@@ -91,21 +106,36 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy } = req.query;
+    const { page, limit, type = '', location = '', sortBy = 'date', date } = req.query;
 
     validateQuery({ type, location, sortBy });
+    const query = buildSafeQuery(location, type);
 
-    const safeQuery = buildSafeQuery(location, type);
-    const totalEvents = await Event.countDocuments(safeQuery);
+    if (date) {
+      const { startDate, endDate } = getMonthRangeAround(date);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+    if (type) query.type = type;
+    if (location) query.location = location;
+
+    const totalEvents = await Event.countDocuments(query);
+
     const { pageNumber, limitNumber, skip } = getPagination(page, limit, totalEvents);
 
-    const events = await Event.find(safeQuery)
-      .populate('resources.userID')
-      .sort(sortBy ? { [sortBy]: 1 } : {})
-      .skip(skip)
-      .limit(limitNumber);
+    let events;
+    if (limit) {
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort(sortBy ? { [sortBy]: 1 } : {})
+        .skip(skip)
+        .limit(limitNumber);
+    } else {
+      events = await Event.find(query)
+        .populate('resources.userID')
+        .sort({ [sortBy]: 1 });
+    }
 
-    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
+    const formattedEvents = events.map((event) => formatEvent(event, query.userId));
 
     res.json({
       events: formattedEvents,
@@ -183,7 +213,10 @@ const createEvent = async (req, res) => {
   try {
     const newEvent = new Event(req.body);
     const savedEvent = await newEvent.save();
-    res.status(201).json(savedEvent);
+    res.status(201).json({
+      status: 'success',
+      message: 'Event details saved successfully',
+    });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to create event',
