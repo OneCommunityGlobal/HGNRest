@@ -1,6 +1,6 @@
 const Listings = require('../../models/lbdashboard/listings');
 const village = require('../../models/lbdashboard/villages');
-const Bookings = require('../../models/lbdashboard/bookings');
+const Bookings = require('../../models/lbdashboard/listingAvailability');
 
 const listOverviewController = function () {
   const getListOverview = async (req, res) => {
