@@ -1433,8 +1433,8 @@ const taskController = function (Task) {
   const getTaskChangeLogs = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ taskId })
@@ -1463,8 +1463,8 @@ const taskController = function (Task) {
 
   const getResolvedTasks = async (req, res) => {
     try {
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({
@@ -1510,8 +1510,8 @@ const taskController = function (Task) {
   const getUserTaskChangeLogs = async (req, res) => {
     try {
       const { userId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ userId })
