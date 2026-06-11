@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Listings = require('../../models/lbdashboard/listings');
 const village = require('../../models/lbdashboard/villages');
 const Bookings = require('../../models/lbdashboard/listingAvailability');
@@ -12,8 +13,12 @@ const listOverviewController = function () {
           .status(400)
           .json({ message: ' Listing Id is missing , please provide the listingId' });
       }
+      if (!mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ message: 'Invalid listingId format' });
+      }
+      const safeListingId = new mongoose.Types.ObjectId(listingId);
       // check if listing exists
-      const listing = await Listings.findById(listingId);
+      const listing = await Listings.findById(safeListingId);
       if (!listing) {
         return res.status(400).json({ message: "Couldn't find listing for the given listingId" });
       }
@@ -51,8 +56,12 @@ const listOverviewController = function () {
           .status(400)
           .json({ message: 'Missing required fields: listingId, rentingFrom, rentingTill' });
       }
+      if (!mongoose.Types.ObjectId.isValid(listingId)) {
+        return res.status(400).json({ message: 'Invalid listingId format' });
+      }
+      const safeListingId = new mongoose.Types.ObjectId(listingId);
       // check if listing exists
-      const listing = await Listings.findById(listingId);
+      const listing = await Listings.findById(safeListingId);
       if (!listing) {
         return res.status(400).json({ message: "Couldn't find listing for the given listingId" });
       }
@@ -66,7 +75,7 @@ const listOverviewController = function () {
       }
       // check for booking conflicts
       const conflictingBooking = await Bookings.findOne({
-        listingId,
+        listingId: safeListingId,
         rentingFrom: { $lt: tillDate },
         rentingTill: { $gt: fromDate },
       });
@@ -78,7 +87,7 @@ const listOverviewController = function () {
       }
       // create booking
       const newBooking = new Bookings({
-        listingId,
+        listingId: safeListingId,
         rentingFrom: new Date(rentingFrom),
         rentingTill: new Date(rentingTill),
       });
