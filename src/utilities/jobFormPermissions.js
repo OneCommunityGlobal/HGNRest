@@ -22,13 +22,13 @@ const canAccessJobFormManagement = async (requestor) =>
   hasAnyJobFormPermission(requestor, Object.values(JOB_FORM_PERMISSIONS));
 
 const canCreateFormQuestions = async (requestor) =>
-  hasAnyJobFormPermission(requestor, [JOB_FORM_PERMISSIONS.MANAGE, JOB_FORM_PERMISSIONS.CREATE]);
+  hasPermission(requestor, JOB_FORM_PERMISSIONS.CREATE);
 
 const canEditFormQuestions = async (requestor) =>
-  hasAnyJobFormPermission(requestor, [JOB_FORM_PERMISSIONS.MANAGE, JOB_FORM_PERMISSIONS.EDIT]);
+  hasPermission(requestor, JOB_FORM_PERMISSIONS.EDIT);
 
 const canDeleteFormQuestions = async (requestor) =>
-  hasAnyJobFormPermission(requestor, [JOB_FORM_PERMISSIONS.MANAGE, JOB_FORM_PERMISSIONS.DELETE]);
+  hasPermission(requestor, JOB_FORM_PERMISSIONS.DELETE);
 
 module.exports = {
   JOB_FORM_PERMISSIONS,

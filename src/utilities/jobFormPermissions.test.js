@@ -24,23 +24,22 @@ describe('jobFormPermissions', () => {
     expect(hasPermission).toHaveBeenCalledWith(requestor, 'manageJobForms');
   });
 
-  it('canCreateFormQuestions allows manageJobForms or createFormQuestions', async () => {
-    hasPermission.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it('canCreateFormQuestions checks createFormQuestions only', async () => {
+    hasPermission.mockResolvedValueOnce(true);
     await expect(canCreateFormQuestions(requestor)).resolves.toBe(true);
-    expect(hasPermission).toHaveBeenNthCalledWith(1, requestor, 'manageJobForms');
-    expect(hasPermission).toHaveBeenNthCalledWith(2, requestor, 'createFormQuestions');
+    expect(hasPermission).toHaveBeenCalledWith(requestor, 'createFormQuestions');
   });
 
-  it('canEditFormQuestions allows manageJobForms or editFormQuestions', async () => {
+  it('canEditFormQuestions checks editFormQuestions only', async () => {
     hasPermission.mockResolvedValueOnce(true);
     await expect(canEditFormQuestions(requestor)).resolves.toBe(true);
-    expect(hasPermission).toHaveBeenCalledWith(requestor, 'manageJobForms');
+    expect(hasPermission).toHaveBeenCalledWith(requestor, 'editFormQuestions');
   });
 
-  it('canDeleteFormQuestions allows manageJobForms or deleteFormQuestions', async () => {
-    hasPermission.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it('canDeleteFormQuestions checks deleteFormQuestions only', async () => {
+    hasPermission.mockResolvedValueOnce(true);
     await expect(canDeleteFormQuestions(requestor)).resolves.toBe(true);
-    expect(hasPermission).toHaveBeenNthCalledWith(2, requestor, 'deleteFormQuestions');
+    expect(hasPermission).toHaveBeenCalledWith(requestor, 'deleteFormQuestions');
   });
 
   it('canAccessJobFormManagement allows any job form permission', async () => {
