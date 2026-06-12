@@ -358,8 +358,7 @@ const educationTaskController = function () {
 
       const filter = {};
 
-      // Support friendly status values from frontend (e.g., "submissions", "pending submissions")
-      // Map them to internal task statuses where applicable.
+      // Default to only educator-relevant statuses (completed = pending review, graded).
       if (status) {
         const statusMap = Object.freeze({
           submissions: 'completed',
@@ -376,6 +375,8 @@ const educationTaskController = function () {
           return res.status(400).json({ error: 'Invalid status filter' });
         }
         filter.status = mappedStatus;
+      } else {
+        filter.status = { $in: ['completed', 'graded'] };
       }
 
       const rawStudentId = studentId || studentIdAlias;
