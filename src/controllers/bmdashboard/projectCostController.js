@@ -1,4 +1,8 @@
-// const regression = require('regression'); // Not currently used
+/* eslint-disable no-restricted-globals */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-else-return */
+/* eslint-disable no-unused-vars */
+const regression = require('regression');
 const mongoose = require('mongoose');
 
 const controller = function (ProjectCost) {
@@ -21,10 +25,10 @@ const controller = function (ProjectCost) {
     }
 
     // Prepare data for regression using only historical actual costs
-    // const data = historicalCosts.map((cost, index) => [index, cost.actualCost || 0]); // Not currently used
+    const data = historicalCosts.map((cost, index) => [index, cost.actualCost || 0]);
 
     // Perform linear regression
-    // const result = regression.linear(data); // Not currently used
+    regression.linear(data);
 
     // Generate predictions for future months
     return costs.map((cost, index) => {
