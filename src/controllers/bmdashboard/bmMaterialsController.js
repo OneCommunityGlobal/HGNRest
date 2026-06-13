@@ -226,6 +226,10 @@ const bmMaterialsController = function (BuildingMaterial) {
       return res.status(400).send('At least one material id is required.');
     }
 
+    if (!materialIds.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).send('One or more material ids are invalid.');
+    }
+
     if (!['hold', 'review', 'notes'].includes(action)) {
       return res.status(400).send('Invalid bulk action.');
     }
