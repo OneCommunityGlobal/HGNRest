@@ -273,18 +273,37 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         query.projectId = { $in: filteredProjectIds };
       }
 
-      const issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate projectId')
-        .populate({
-          path: 'projectId',
-          select: 'projectName name',
-        })
+      let issues = await BuildingIssue.find(query)
+        .select('issueTitle issueDate _id')
+        .populate('projectId')
         .lean();
 
-      const grouped = buildGroupedIssues(issues);
-      const response = buildLongestOpenResponse(grouped);
+      issues = issues.map((issue) => {
+        const durationInMonths = getDurationOpenMonths(issue.issueDate);
+        return {
+          issueName: issue.issueTitle && issue.issueTitle.length > 0 ? issue.issueTitle[0] : null,
+          durationInMonths,
+          issueId: issue._id.toString(),
+          projectId: issue.projectId?._id?.toString() || issue.projectId?.toString(),
+          projectName: issue.projectId?.name || null,
+        };
+      });
 
-      res.json(response);
+      const sortedIssues = issues
+        .sort((a, b) => b.durationInMonths - a.durationInMonths)
+        .map(({ issueName, durationInMonths, issueId, projectId, projectName }) => ({
+          issueName,
+          durationOpen: durationInMonths,
+          issueId,
+          projectId,
+          projectName,
+        }));
+
+      console.log(
+        `[getLongestOpenIssues] Total issues found: ${issues.length}, Returning: ${sortedIssues.length} issues`,
+      );
+
+      res.json(sortedIssues);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
