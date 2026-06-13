@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
@@ -13,7 +14,7 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: { type: [Date], default: [] },
   defaultPassword: {
     type: String,
     required: false, // Not required since it's optional
@@ -103,6 +104,7 @@ const userProfileSchema = new Schema({
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
@@ -151,6 +153,31 @@ const userProfileSchema = new Schema({
         ],
         default: [],
       },
+      reasons: {
+        type: [String],
+        default: ['other'],
+        enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
+      },
+      // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
+      manuallyAssigned: {
+        type: Boolean,
+        default: false,
+      },
+      // Track who manually assigned the blue square
+      manuallyAssignedBy: {
+        firstName: { type: String },
+        lastName: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+      },
+      // Track edit history for the blue square
+      editedBy: [
+        {
+          firstName: { type: String },
+          lastName: { type: String },
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+          date: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
   infringementCount: { type: Number, default: 0 },
@@ -217,6 +244,15 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
+  // used for deactivation/reactivation of accounts, tracking last activity, and updating endDate when account is deactivated
+  lastActivityAt: { type: Date, required: false, index: true },
+  deactivatedAt: { type: Date, required: false, index: true },
+  // differentiate between paused and separated accounts for better reporting and handling in the future
+  inactiveReason: {
+    type: String,
+    enum: ['Paused', 'Separated', 'ScheduledSeparation', null],
+    default: undefined,
+  },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
@@ -270,7 +306,27 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  filterColor: {
+    type: [String],
+    // enum: ['purple', 'green', 'navy', null],
+    default: [],
+    set: (v) => {
+      // if (Array.isArray(v)) return [...new Set(v.filter(Boolean))];
+      // if (typeof v === 'string' && v.trim()) return [v.trim()];
+      // return [];
+      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map((s) => s.trim()))];
+      if (typeof v === 'string') {
+        const parts = v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return [...new Set(parts)];
+      }
+      return [];
+    },
+  },
   trophyFollowedUp: { type: Boolean, default: false },
+  // filterColor: { type: [String], default: [] },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
   teamCodeWarning: { type: Boolean, default: false },
@@ -459,3 +515,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');
