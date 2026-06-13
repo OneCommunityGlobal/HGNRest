@@ -10,7 +10,7 @@ const NodeCache = require('node-cache');
  * @returns {Object} Controller methods
  */
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const {GITHUB_TOKEN} = process.env;
 const BASE_URL = 'https://api.github.com';
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
@@ -52,7 +52,7 @@ const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, 
       const prData = prsResponse.data;
       allPRs = allPRs.concat(prData);
       hasMore = prData.length === 100;
-      page++;
+      page += 1;
     }
     allPRs = allPRs.slice(0, maxPRs);
 
@@ -66,7 +66,7 @@ const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, 
         const reviews = reviewsResponse.data;
         return reviews.map((review) => {
           const reviewer = review.user?.login || 'Unknown';
-          const state = review.state;
+          const {state} = review;
           const submittedAt = review.submitted_at;
 
           if (!reviewer || !submittedAt || !state) return null;
@@ -150,7 +150,7 @@ const fetchGitHubReviews = (HgnFormResponses, UserProfile) => async (org, repo, 
             : state === 'COMMENTED' ? 'Exceptional'
               : 'Did Not Review';
 
-      reviewerSummary[reviewer].counts[mappedState]++;
+      reviewerSummary[reviewer].counts[mappedState] += 1;
     }
 
 

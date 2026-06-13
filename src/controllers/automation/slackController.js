@@ -1,6 +1,6 @@
 const slackService = require('../../services/automation/slackService'); // Import the Slack service
-const { checkAppAccess } = require('./utils');
 const appAccessService = require('../../services/automation/appAccessService');
+const { checkAppAccess } = require('./utils');
 
 // Email validation function
 function validateEmail(email) {

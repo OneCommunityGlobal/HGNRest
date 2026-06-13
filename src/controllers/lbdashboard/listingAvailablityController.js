@@ -21,7 +21,7 @@ const listingAvailablityController = (Availability) => {
   const createListingAvailability = async (req, res) => {
     try {
       const data = req.body;
-      const {listingId} = data;
+      const { listingId } = data;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
@@ -158,10 +158,7 @@ const listingAvailablityController = (Availability) => {
       const allowedUser = userId || req.headers.userid;
       if (
         !allowedUser ||
-        (
-          allowedUser !== String(listing.createdBy) &&
-          allowedUser !== String(listing.updatedBy)
-        )
+        (allowedUser !== String(listing.createdBy) && allowedUser !== String(listing.updatedBy))
       ) {
         return res.status(403).json({ error: 'Not authorized to block dates for this listing' });
       }
@@ -185,7 +182,7 @@ const listingAvailablityController = (Availability) => {
 
   const deleteListingAvailability = async (req, res) => {
     try {
-      const {userId, listingId} = req.body;
+      const { userId, listingId } = req.body;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ error: 'Valid listingId is required in header or body' });
       }
@@ -196,11 +193,10 @@ const listingAvailablityController = (Availability) => {
       if (!listing) {
         return res.status(404).json({ error: 'Listing not found' });
       }
-      if (
-        userId !== String(listing.createdBy) &&
-        userId !== String(listing.updatedBy)
-      ) {
-        return res.status(403).json({ error: 'Not authorized to delete availability for this listing' });
+      if (userId !== String(listing.createdBy) && userId !== String(listing.updatedBy)) {
+        return res
+          .status(403)
+          .json({ error: 'Not authorized to delete availability for this listing' });
       }
       const deleted = await Availability.findOneAndDelete({ listingId });
       if (!deleted) {

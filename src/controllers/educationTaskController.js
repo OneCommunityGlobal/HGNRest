@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan');
 const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
+const IntermediateTask = require('../models/intermediateTask');
 
 const educationTaskController = function () {
   // Get all education tasks
@@ -70,7 +72,7 @@ const educationTaskController = function () {
   // Create new task
   const createTask = async (req, res) => {
     try {
-      const { lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
+      const { name, lessonPlanId, studentId, atomIds, type, dueAt } = req.body;
 
       // Validate lesson plan exists
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -101,6 +103,7 @@ const educationTaskController = function () {
       }
 
       const task = new EducationTask({
+        name,
         lessonPlanId,
         studentId,
         atomIds: atomIds || [],
@@ -293,22 +296,89 @@ const educationTaskController = function () {
     }
   };
 
+  // Helper function to check and update parent task progress
+  const checkAndUpdateParentTaskProgress = async (parentTaskId) => {
+    try {
+      // Get all intermediate tasks for this parent
+      const intermediateTasks = await IntermediateTask.find({ parent_task_id: parentTaskId });
+
+      // If there are no intermediate tasks, return
+      if (intermediateTasks.length === 0) {
+        return;
+      }
+
+      // Check if all intermediate tasks are completed
+      const allCompleted = intermediateTasks.every((task) => task.status === 'completed');
+
+      if (allCompleted) {
+        // Get the parent task
+        const parentTask = await EducationTask.findById(parentTaskId);
+
+        // Only update if parent task is not already completed or graded
+        if (parentTask && parentTask.status !== 'completed' && parentTask.status !== 'graded') {
+          await EducationTask.findByIdAndUpdate(
+            parentTaskId,
+            {
+              status: 'completed',
+              completedAt: new Date(),
+            },
+            { new: true },
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error updating parent task progress:', error);
+    }
+  };
+
   // Mark task as complete
   const markTaskAsComplete = async (req, res) => {
     try {
-      const { taskId, studentId } = req.body;
+      const { taskId, studentId, taskType } = req.body;
       const requestorId = req.body.requestor?.requestorId;
 
       if (!taskId) {
         return res.status(400).json({ error: 'Task ID is required' });
       }
 
-      if (!studentId) {
-        return res.status(400).json({ error: 'Student ID is required' });
-      }
-
       if (!requestorId) {
         return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Handle intermediate tasks
+      if (taskType === 'intermediate') {
+        const intermediateTask = await IntermediateTask.findById(taskId).populate('parent_task_id');
+
+        if (!intermediateTask) {
+          return res.status(404).json({ error: 'Intermediate task not found' });
+        }
+
+        // Check if task is already completed
+        if (intermediateTask.status === 'completed') {
+          return res.status(400).json({ error: 'Task is already completed' });
+        }
+
+        // Update intermediate task status to completed (only update status field)
+        const updatedTask = await IntermediateTask.findByIdAndUpdate(
+          taskId,
+          {
+            $set: { status: 'completed' },
+          },
+          { new: true, runValidators: true },
+        ).populate('parent_task_id', 'type status dueAt studentId lessonPlanId');
+
+        // Check if all intermediate tasks for the parent are completed
+        await checkAndUpdateParentTaskProgress(intermediateTask.parent_task_id);
+
+        return res.status(200).json({
+          message: 'Intermediate task marked as complete successfully',
+          task: updatedTask,
+        });
+      }
+
+      // Handle education tasks (original logic)
+      if (!studentId) {
+        return res.status(400).json({ error: 'Student ID is required' });
       }
 
       // Find the task and verify it belongs to the student
@@ -362,6 +432,66 @@ const educationTaskController = function () {
     }
   };
 
+  const getTaskSubmissions = async (req, res) => {
+    try {
+      const { status, studentId, lessonPlanId } = req.query;
+
+      const allowedStatuses = ['completed', 'graded'];
+
+      let dbQuery = EducationTask.find().setOptions({ sanitizeFilter: true });
+
+      if (status && allowedStatuses.includes(status)) {
+        dbQuery = dbQuery.where('status').equals(status);
+      } else {
+        dbQuery = dbQuery.where('status').in(allowedStatuses);
+      }
+
+      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+        dbQuery = dbQuery.where('studentId').equals(new mongoose.Types.ObjectId(studentId));
+      }
+
+      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
+        dbQuery = dbQuery.where('lessonPlanId').equals(new mongoose.Types.ObjectId(lessonPlanId));
+      }
+
+      const submissions = await dbQuery
+        .populate('studentId', 'firstName lastName email')
+        .populate('lessonPlanId', 'title')
+        .sort({ completedAt: -1 });
+
+      const formattedSubmissions = submissions
+        .map((task) => {
+          if (!task.studentId || !task.lessonPlanId) {
+            return null;
+          }
+
+          return {
+            // _id: task._id,
+            studentId: task.studentId._id,
+            studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+            studentEmail: task.studentId.email,
+            taskName: task.name || 'Unnamed Task',
+            taskType: task.type,
+            submissionLinks: task.uploadUrls,
+            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
+            isLate:
+              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
+            submittedAt: task.completedAt,
+            assignedAt: task.assignedAt,
+            dueAt: task.dueAt,
+            grade: task.grade,
+            feedback: task.feedback,
+            lessonPlanId: task.lessonPlanId._id.toString(),
+            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          };
+        })
+        .filter(Boolean);
+
+      res.status(200).json(formattedSubmissions);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
   return {
     getEducationTasks,
     getTasksByStudent,
@@ -373,6 +503,7 @@ const educationTaskController = function () {
     updateTaskStatus,
     gradeTask,
     getTasksByStatus,
+    getTaskSubmissions,
     markTaskAsComplete,
   };
 };
