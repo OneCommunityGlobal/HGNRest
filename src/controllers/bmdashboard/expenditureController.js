@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 const Expenditure = require('../../models/bmdashboard/expenditure');
+const logger = require('../../startup/logger');
 
 exports.getProjectExpensesPie = async (req, res) => {
   try {
     const { projectId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: 'Invalid project ID' });
+    }
+
     const data = await Expenditure.aggregate([
-      { $match: { projectId: mongoose.Types.ObjectId(projectId) } },
+      { $match: { projectId: new mongoose.Types.ObjectId(projectId) } },
       {
         $group: {
           _id: { type: '$type', category: '$category' },
@@ -22,18 +27,21 @@ exports.getProjectExpensesPie = async (req, res) => {
       result[type].push({ category, amount: item.amount });
     });
 
-    res.json(result);
+    return res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error retrieving expenses pie data.' });
+    logger.logException(error, 'expenditureController.getProjectExpensesPie', {
+      projectId: req.params.projectId,
+    });
+    return res.status(500).json({ message: 'Server error retrieving expenses pie data.' });
   }
 };
-exports.getProjectIdsWithExpenditure = async (req, res) => {
+
+exports.getProjectIdsWithExpenditure = async (_req, res) => {
   try {
     const projectIds = await Expenditure.distinct('projectId');
-    res.status(200).json(projectIds);
+    return res.status(200).json(projectIds);
   } catch (error) {
-    console.error('Error fetching project IDs:', error);
-    res.status(500).json({ message: 'Failed to retrieve project IDs' });
+    logger.logException(error, 'expenditureController.getProjectIdsWithExpenditure');
+    return res.status(500).json({ message: 'Failed to retrieve project IDs' });
   }
 };
