@@ -105,5 +105,4 @@ const attendance = [
   { attendanceID: 1007, eventID: 107, participantID: 7, checkInTime: '12:00 PM', attended: false },
 ];
 
-// export { participants, events, attendance };
 module.exports = { participants, events, attendance };
