@@ -1,10 +1,6 @@
 const mongoose = require('mongoose');
 
-<<<<<<< HEAD
-const {Schema} = mongoose;
-=======
 const { Schema } = mongoose;
->>>>>>> origin/development
 
 const helpCategorySchema = new Schema({
   name: {

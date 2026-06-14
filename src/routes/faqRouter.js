@@ -10,11 +10,6 @@ const Role = require('../models/role');
 // const UnansweredFAQ = require('../models/unansweredFaqs');
 
 const verifyToken = async (req, res, next) => {
-<<<<<<< HEAD
-    const token = req.headers.authorization;
-    if (!token) {
-        return res.status(401).json({ message: 'No token provided' });
-=======
   const token = req.headers.authorization;
   if (!token) {
     return res.status(401).json({ message: 'No token provided' });
@@ -23,7 +18,6 @@ const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, config.JWT_SECRET);
     if (!decoded || !decoded.expiryTimestamp || moment().isAfter(decoded.expiryTimestamp)) {
       return res.status(401).json({ message: 'Token is invalid or expired' });
->>>>>>> origin/development
     }
 
     const role = await Role.findOne({ roleName: decoded.role });

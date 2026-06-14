@@ -2,11 +2,6 @@
 const express = require('express');
 // eslint-disable-next-line no-unused-vars
 const slackController = require('../../controllers/automation/slackController');
-<<<<<<< HEAD
-
-const router = express.Router();
-=======
->>>>>>> origin/development
 
 const router = express.Router();
 const sentryController = require('../../controllers/automation/sentryController');

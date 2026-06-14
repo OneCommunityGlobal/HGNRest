@@ -7,11 +7,7 @@ const {
   getExistingChatsHandler,
   searchUserProfilesHandler,
   markMessagesAsRead,
-<<<<<<< HEAD
-} = require("../../websockets/lbMessaging/lbMessageHandler");
-=======
 } = require('../../websockets/lbMessaging/lbMessageHandler');
->>>>>>> origin/development
 
 const routes = function () {
   const messagesRouter = express.Router();

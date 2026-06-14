@@ -1,11 +1,6 @@
 // src/routes/templateRouter.js
-<<<<<<< HEAD
-const express = require("express");
-const templateController = require("../controllers/templateController");
-=======
 const express = require('express');
 const templateController = require('../controllers/templateController');
->>>>>>> origin/development
 
 const router = express.Router();
 

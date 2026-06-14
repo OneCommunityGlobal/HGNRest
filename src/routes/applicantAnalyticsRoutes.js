@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-const express = require('express');
-=======
 const express = require('express'); //
->>>>>>> origin/development
 
 const router = express.Router();
 const Applicant = require('../models/jobApplicants');

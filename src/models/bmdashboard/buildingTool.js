@@ -3,11 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const buildingTool = new Schema({
-<<<<<<< HEAD
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
-=======
   itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
->>>>>>> origin/development
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   code: { type: Number }, // add function to create code for on-site tool tracking.Not marked as 'required' as it breaks the tool purchase form functionality.
   purchaseStatus: { type: String, enum: ['Rental', 'Purchase'] },

@@ -1108,11 +1108,7 @@ const timeEntrycontroller = function (TimeEntry) {
       ]);
       const result = userHoursSummary.map((entry) => ({
         userId: entry._id,
-<<<<<<< HEAD
-        totalHours: Math.round(entry.totalHours * 10) / 10 // round
-=======
         totalHours: Math.round(entry.totalHours * 10) / 10, // round
->>>>>>> origin/development
       }));
       res.status(200).send(result);
     } catch (error) {

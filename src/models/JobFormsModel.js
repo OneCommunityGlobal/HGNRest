@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-const mongoose = require("mongoose");
-=======
 const mongoose = require('mongoose');
->>>>>>> origin/development
 
 const formSchema = new mongoose.Schema(
   {

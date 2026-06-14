@@ -114,19 +114,10 @@ function informManagerMessage(user) {
   return message;
 }
 
-<<<<<<< HEAD
-const sendEmailWithAcknowledgment = (email, subject, message) =>
-  new Promise((resolve, reject) => {
-    emailSender(email, subject, message, null, null, null, null)
-      .then(resolve)
-      .catch(reject);
-  });
-=======
 const sendEmailWithAcknowledgment = (email, subject, message) => {
   const p = emailSender(email, subject, message, null, null, null, null);
   return p && typeof p.then === 'function' ? p : Promise.resolve('EMAIL_SENDING_DISABLED');
 };
->>>>>>> origin/development
 
 const profileInitialSetupController = function (
   ProfileInitialSetupToken,
@@ -162,8 +153,7 @@ const profileInitialSetupController = function (
         return res.status(400).send({ error: 'EMAIL_IN_USE' });
       }
 
-      await ProfileInitialSetupToken.findOneAndDelete({ email })
-        .session(session);
+      await ProfileInitialSetupToken.findOneAndDelete({ email }).session(session);
 
       const newToken = new ProfileInitialSetupToken({
         token,
@@ -175,9 +165,7 @@ const profileInitialSetupController = function (
         createdDate: Date.now(),
       });
 
-      const savedToken = await newToken.save(
-        { session }
-      );
+      const savedToken = await newToken.save({ session });
       const link = `${baseUrl}/ProfileInitialSetup/${savedToken.token}`;
 
       await session.commitTransaction();
@@ -284,11 +272,7 @@ const profileInitialSetupController = function (
             projectName: 'Orientation and Initial Setup',
           });
 
-<<<<<<< HEAD
-          const newUser = new userProfile();
-=======
           const newUser = new UserProfile();
->>>>>>> origin/development
           newUser.password = req.body.password;
           newUser.role = 'Volunteer';
           newUser.firstName = req.body.firstName;
@@ -357,11 +341,7 @@ const profileInitialSetupController = function (
             isActive: true,
           };
 
-<<<<<<< HEAD
-          res.send({ token }).status(200);
-=======
-          res.status(200).send({ token: jwtToken });
->>>>>>> origin/development
+          res.status(200).send({ token });
 
           const mapEntryResult = await setMapLocation(locationData);
           if (mapEntryResult.type === 'Error') {
@@ -405,11 +385,7 @@ const profileInitialSetupController = function (
         projectName: 'Orientation and Initial Setup',
       });
 
-<<<<<<< HEAD
-      const newUser = new userProfile();
-=======
       const newUser = new UserProfile();
->>>>>>> origin/development
       newUser.password = req.body.password;
       newUser.role = 'Volunteer';
       newUser.firstName = req.body.firstName;
