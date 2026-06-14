@@ -393,6 +393,7 @@ const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRo
 const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
+const xRouter = require('../routes/xRouter');
 const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
@@ -640,6 +641,9 @@ module.exports = function (app) {
 
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
+
+  app.use('/x', xRouter);
+  console.log('X router mounted');
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/reports', studentReportRouter());
