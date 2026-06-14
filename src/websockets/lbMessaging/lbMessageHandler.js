@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-const mongoose = require("mongoose");
-const Message = require("../../models/lbdashboard/message");
-const UserProfile = require("../../models/userProfile");
-=======
 const mongoose = require('mongoose');
 const Message = require('../../models/lbdashboard/message');
 const UserProfile = require('../../models/userProfile');
->>>>>>> origin/development
 
 const sendMessageHandler = async (msg, userId) => {
   try {

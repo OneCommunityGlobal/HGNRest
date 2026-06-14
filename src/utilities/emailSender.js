@@ -303,9 +303,6 @@ const emailSender = (
   emailBccs = null,
   opts = {},
 ) => {
-<<<<<<< HEAD
-  if (!process.env.sendEmail) return Promise.resolve('Email sending disabled');
-=======
   const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
 
@@ -336,7 +333,6 @@ const emailSender = (
       headers: { 'X-Email-Priority': 'high', ...(opts.headers || {}) },
     });
   }
->>>>>>> origin/development
 
   return new Promise((resolve, reject) => {
     const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];

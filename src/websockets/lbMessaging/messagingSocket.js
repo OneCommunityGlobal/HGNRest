@@ -10,12 +10,9 @@ const Message = require('../../models/lbdashboard/message');
 const Notification = require('../../models/notification');
 const UserProfile = require('../../models/userProfile');
 const UserPreference = require('../../models/lbdashboard/userPreferences');
-<<<<<<< HEAD
-=======
 const { queueSmsNotification } = require('../../utilities/smsQueue');
 const emailSender = require('../../utilities/emailSender');
 const { sendMessageHandler, updateMessageStatusHandler } = require('./lbMessageHandler');
->>>>>>> origin/development
 
 const authenticate = (req, res) => {
   const authToken = req.headers?.['sec-websocket-protocol'];
