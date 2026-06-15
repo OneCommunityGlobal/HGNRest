@@ -137,7 +137,9 @@ function parseDateRangeForOpenIssues(startDate, endDate) {
       return { errorResponse: { status: 400, body: { error: 'Invalid date format.' } } };
     }
     if (start > end) {
-      return { errorResponse: { status: 400, body: { error: 'startDate must not be after endDate.' } } };
+      return {
+        errorResponse: { status: 400, body: { error: 'startDate must not be after endDate.' } },
+      };
     }
     const now = new Date();
     if (start > now) {
@@ -145,7 +147,8 @@ function parseDateRangeForOpenIssues(startDate, endDate) {
         errorResponse: {
           status: 400,
           body: {
-            error: 'The selected date range is entirely in the future. No issue data exists for future dates.',
+            error:
+              'The selected date range is entirely in the future. No issue data exists for future dates.',
           },
         },
       };
@@ -349,11 +352,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         setFields.closedDate = null;
       }
 
-      const updated = await BuildingIssue.findByIdAndUpdate(
-        id,
-        { $set: setFields },
-        { new: true },
-      );
+      const updated = await BuildingIssue.findByIdAndUpdate(id, { $set: setFields }, { new: true });
 
       if (!updated) {
         return res.status(404).json({ message: 'Issue not found.' });
@@ -397,7 +396,12 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
 
       if (year !== undefined) {
         const yearNum = Number(year);
-        if (Number.isNaN(yearNum) || !Number.isInteger(yearNum) || yearNum < MIN_YEAR || yearNum > MAX_YEAR) {
+        if (
+          Number.isNaN(yearNum) ||
+          !Number.isInteger(yearNum) ||
+          yearNum < MIN_YEAR ||
+          yearNum > MAX_YEAR
+        ) {
           return res.status(400).json({ error: 'Invalid year. Must be a 4-digit integer.' });
         }
         const startOfYear = new Date(Date.UTC(yearNum, 0, 1));
@@ -531,37 +535,15 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         query.projectId = { $in: filteredProjectIds };
       }
 
-      let issues = await BuildingIssue.find(query)
+      const issues = await BuildingIssue.find(query)
         .select('issueTitle issueDate _id')
         .populate('projectId')
         .lean();
 
-      issues = issues.map((issue) => {
-        const durationInMonths = getDurationOpenMonths(issue.issueDate);
-        return {
-          issueName: issue.issueTitle && issue.issueTitle.length > 0 ? issue.issueTitle[0] : null,
-          durationInMonths,
-          issueId: issue._id.toString(),
-          projectId: issue.projectId?._id?.toString() || issue.projectId?.toString(),
-          projectName: issue.projectId?.name || null,
-        };
-      });
+      const grouped = buildGroupedIssues(issues);
+      const response = buildLongestOpenResponse(grouped);
 
-      const sortedIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .map(({ issueName, durationInMonths, issueId, projectId, projectName }) => ({
-          issueName,
-          durationOpen: durationInMonths,
-          issueId,
-          projectId,
-          projectName,
-        }));
-
-      console.log(
-        `[getLongestOpenIssues] Total issues found: ${issues.length}, Returning: ${sortedIssues.length} issues`,
-      );
-
-      res.json(sortedIssues);
+      res.json(response);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
