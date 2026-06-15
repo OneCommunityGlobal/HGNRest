@@ -501,6 +501,18 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const addedProjects = newProjects.filter((id) => !oldProjects.includes(id));
       const removedProjects = oldProjects.filter((id) => !newProjects.includes(id));
+      // update the projects history
+      const changedProjectHistoryIds = Array.from(new Set(oldProjects.concat(newProjects))).map(
+        (id) => mongoose.Types.ObjectId(id),
+      );
+
+      const existingProjectIds = new Set(record.projectHistory.map((id) => id.toString()));
+
+      const newProjectIds = changedProjectHistoryIds.filter(
+        (id) => !existingProjectIds.has(id.toString()),
+      );
+
+      record.projectHistory.push(...newProjectIds);
       const changedProjectIds = [...addedProjects, ...removedProjects].map((id) =>
         mongoose.Types.ObjectId(id),
       );
@@ -2438,8 +2450,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         // Add reasons array for more detailed categorization
         reasons: processedReasons,
         // Track if manually assigned (via API call) vs CRON job
-        manullyAssigned: true,
-        manullyAssignedBy: requestorProfile
+        manuallyAssigned: true,
+        manuallyAssignedBy: requestorProfile
           ? {
               firstName: requestorProfile.firstName,
               lastName: requestorProfile.lastName,
@@ -2857,6 +2869,25 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(500).send({ error: 'Internal server error' });
     }
   };
+  const getProjectHistory = async function (req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await UserProfile.findById(userId);
+      const projectHistory = [...user.projectHistory];
+      res.status(200).send(projectHistory);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  };
+
+  const postClearProjectHistory = async function (req, res) {
+    try {
+      const result = await UserProfile.updateMany({}, { $set: { projectHistory: [] } });
+      res.status(200).send({ message: 'Project history cleared for all users', result });
+    } catch (error) {
+      res.status(500).send({ message: 'Error clearing project history', error });
+    }
+  };
 
   const getAllMembersSkillsAndContact = async function (req, res) {
     try {
@@ -3068,6 +3099,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     updateProfileImageFromWebsite,
     getUserByAutocomplete,
     getUserProfileBasicInfo,
+    getProjectHistory,
+    postClearProjectHistory,
     updateUserInformation,
     getAllMembersSkillsAndContact,
     replaceTeamCodeForUsers,
