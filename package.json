@@ -121,7 +121,7 @@
     "node-datetime": "^2.0.3",
     "node-fetch": "^2.6.7",
     "node-schedule": "^2.1.1",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^8.0.9",
     "parse-link-header": "^2.0.0",
     "pdfkit": "^0.17.2",
     "playwright": "^1.58.2",
