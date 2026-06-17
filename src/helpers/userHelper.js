@@ -2987,17 +2987,20 @@ const userHelper = function () {
         .subtract(1, 'week')
         .toDate();
 
+      const startStr = moment(startOfLastWeek).format('YYYY-MM-DD');
+      const endStr = moment(endOfLastWeek).format('YYYY-MM-DD');
+
       const usersWithInfringements = await userProfile.find({
         infringements: {
           $elemMatch: {
-            date: {
-              $gte: moment(startOfLastWeek).format('YYYY-MM-DD'),
-              $lte: moment(endOfLastWeek).format('YYYY-MM-DD'),
-            },
+            date: { $gte: startStr, $lte: endStr },
           },
         },
         isActive: true,
       });
+
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
 
       for (const user of usersWithInfringements) {
         const infringement = user.infringements.find((inf) =>
@@ -3005,15 +3008,16 @@ const userHelper = function () {
         );
         if (!infringement) continue;
 
-        // Fetch weekly logs for this user
-        const timeLogs = await TimeLog.find({
-          userId: user._id,
-          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
+        // Use timeEntries (already imported at top of file)
+        const results = await timeEntries.find({
+          personId: user._id,
+          dateOfWork: { $gte: startStr, $lte: endStr },
+          isTangible: true,
         });
 
-        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
+        const totalSeconds = results.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
         const hoursLogged = totalSeconds / 3600;
-        const weeklycommittedHours = user.weeklyComittedHours || 0;
+        const weeklycommittedHours = (user.weeklycommittedHours || 0) + (user.missedHours || 0);
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
         const administrativeContent = {
@@ -3023,34 +3027,29 @@ const userHelper = function () {
           historyInfringements: 'Previously assigned blue square – resend only.',
         };
 
-        let emailBody;
-        if (user.role === 'Core Team' && timeRemaining > 0) {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            timeRemaining,
-            0, // Assuming coreTeamExtraHour is not needed here or is 0
-            null,
-            administrativeContent,
-            weeklycommittedHours,
-          );
-        } else {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            undefined,
-            null,
-            null,
-            administrativeContent,
-          );
-        }
-
-        const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-        const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
+        const emailBody =
+          user.role === 'Core Team' && timeRemaining > 0
+            ? getInfringementEmailBody(
+                user.firstName,
+                user.lastName,
+                infringement,
+                user.infringements.length,
+                timeRemaining,
+                0,
+                null,
+                administrativeContent,
+                weeklycommittedHours,
+              )
+            : getInfringementEmailBody(
+                user.firstName,
+                user.lastName,
+                infringement,
+                user.infringements.length,
+                undefined,
+                null,
+                null,
+                administrativeContent,
+              );
 
         await emailSender(
           user.email,
@@ -3407,6 +3406,7 @@ const userHelper = function () {
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
     getTeamManagementEmail,
+    resendBlueSquareEmailsOnlyForLastWeek,
   };
 };
 
