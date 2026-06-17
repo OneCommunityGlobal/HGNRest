@@ -202,7 +202,7 @@ export default () => {
             });
 
             // Send notification if receiver is active but not in chat with sender
-            if (isReceiverActive && !isReceiverInChat) {
+            if (receiverState.isActive && receiverState.inChatWith !== userId) {
               const userPreference = await UserPreference.findOne({ user: msg.receiver });
               const allowGlobalInApp =
                 userPreference?.notifyInApp === undefined ? true : userPreference.notifyInApp;
