@@ -23,7 +23,7 @@ const userProfileJobs = () => {
         await userhelper.deleteExpiredTokens();
       }
       await userhelper.awardNewBadges();
-      await userhelper.weeklyCompanySummaryEmail();
+      // await userhelper.weeklyCompanySummaryEmail(); - function does not exist, restore when added
     },
     null,
     false,

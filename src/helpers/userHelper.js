@@ -1059,18 +1059,33 @@ const userHelper = function () {
 
   const deleteBlueSquareAfterYear = async () => {
     const nowLA = moment().tz('America/Los_Angeles');
-
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
-
     const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
 
     try {
+      // Step 1: For active users, move expired infringements to oldInfringements before deleting
+      const usersWithExpired = await userProfile.find(
+        {
+          isActive: true,
+          infringements: { $elemMatch: { date: { $lte: cutOffDate } } },
+        },
+        '_id infringements',
+      );
+
+      for (const user of usersWithExpired) {
+        const expired = user.infringements.filter((inf) => inf.date <= cutOffDate);
+        if (expired.length === 0) continue;
+        await userProfile.findByIdAndUpdate(user._id, {
+          $push: { oldInfringements: { $each: expired } },
+        });
+      }
+
+      // Step 2: Pull expired infringements from all users
       const results = await userProfile.updateMany(
         {},
         {
           $pull: {
             infringements: { date: { $lte: cutOffDate } },
-            oldInfringements: { date: { $lte: cutOffDate } }, // clean up old ones too
           },
         },
       );
