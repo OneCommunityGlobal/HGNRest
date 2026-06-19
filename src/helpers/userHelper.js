@@ -1257,16 +1257,12 @@ const userHelper = function () {
       const date = moment();
       const todayDate = date.tz('America/Los_Angeles').format('YYYY-MM-DD');
 
-      let emailsBCCs;
       /* eslint-disable array-callback-return */
       const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-      if (blueSquareBCCs.length > 0) {
-        emailsBCCs = blueSquareBCCs
-          .filter((bcc) => bcc.assignedTo?.isActive)
-          .map((bcc) => bcc.email);
-      } else {
-        emailsBCCs = DEFAULT_BCC_EMAILS;
-      }
+      const emailsBCCs =
+        blueSquareBCCs.length > 0
+          ? blueSquareBCCs.filter((bcc) => bcc.assignedTo?.isActive).map((bcc) => bcc.email)
+          : DEFAULT_BCC_EMAILS;
       console.log('emailsBCCs: ', emailsBCCs);
 
       for (let i = 0; i < users.length; i += 1) {
@@ -1278,8 +1274,7 @@ const userHelper = function () {
           pdtStartOfCurrentWeek,
           pdtEndOfCurrentWeek,
         );
-        const timeSpent =
-          Array.isArray(results) && results[0]?.timeSpent_hrs ? results[0].timeSpent_hrs : 0;
+        const timeSpent = results?.[0]?.timeSpent_hrs ?? 0;
         console.log('timeSpent using results of laborthisweek for last week: ', timeSpent);
 
         const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
