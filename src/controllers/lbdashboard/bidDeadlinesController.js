@@ -31,7 +31,11 @@ const bidsDeadlineController = function (BidDeadlines) {
       if (inEndDate <= inStartDate) {
         return { status: 400, error: 'endDate should be greater than the startDate' };
       }
-      const newBidDeadlinesData = { ...req.body };
+      const newBidDeadlinesData = {
+        listingId,
+        startDate: inStartDate,
+        endDate: inEndDate,
+      };
       const newBidDeadlines = new BidDeadlines(newBidDeadlinesData);
       const savedBidDeadlines = await newBidDeadlines.save();
       return { status: 200, data: savedBidDeadlines };
