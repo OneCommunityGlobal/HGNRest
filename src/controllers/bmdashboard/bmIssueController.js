@@ -256,56 +256,81 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     }
   };
 
-  /* -------------------- LONGEST OPEN ISSUES (FINAL) -------------------- */
+  /* -------------------- LONGEST OPEN ISSUES -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
-      const { dates, projects } = req.query;
+      const { projectIds, startDate, endDate } = req.query;
       const query = { status: 'open' };
-      let filteredProjectIds = getProjectFilterIds(projects);
 
-      filteredProjectIds = await filterProjectIdsByDates(dates, filteredProjectIds);
-
-      if (dates && filteredProjectIds.length === 0) {
-        return res.json([]);
+      if (projectIds) {
+        const ids = projectIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        if (ids.length > 0) query.projectId = { $in: ids };
       }
 
-      if (filteredProjectIds.length) {
-        query.projectId = { $in: filteredProjectIds };
+      if (startDate || endDate) {
+        query.issueDate = {};
+        if (startDate) query.issueDate.$gte = new Date(startDate);
+        if (endDate) query.issueDate.$lte = new Date(endDate);
       }
 
-      let issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate _id')
-        .populate('projectId')
-        .lean();
+      const today = new Date();
+      const issues = await BuildingIssue.find(query).select('issueTitle issueDate').lean();
 
-      issues = issues.map((issue) => {
-        const durationInMonths = getDurationOpenMonths(issue.issueDate);
-        return {
-          issueName: issue.issueTitle && issue.issueTitle.length > 0 ? issue.issueTitle[0] : null,
-          durationInMonths,
-          issueId: issue._id.toString(),
-          projectId: issue.projectId?._id?.toString() || issue.projectId?.toString(),
-          projectName: issue.projectId?.name || null,
-        };
-      });
+      const result = issues
+        .map((issue) => ({
+          issueId: issue._id,
+          title: Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle,
+          daysOpen: Math.floor((today - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24)),
+        }))
+        .sort((a, b) => b.daysOpen - a.daysOpen)
+        .slice(0, 5);
 
-      const sortedIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .map(({ issueName, durationInMonths, issueId, projectId, projectName }) => ({
-          issueName,
-          durationOpen: durationInMonths,
-          issueId,
-          projectId,
-          projectName,
-        }));
-
-      console.log(
-        `[getLongestOpenIssues] Total issues found: ${issues.length}, Returning: ${sortedIssues.length} issues`,
-      );
-
-      res.json(sortedIssues);
+      return res.json({ data: result });
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching longest open issues' });
+      return res.status(500).json({ message: 'Error fetching longest open issues' });
+    }
+  };
+
+  /* -------------------- MOST EXPENSIVE ISSUES -------------------- */
+  const getMostExpensiveIssues = async (req, res) => {
+    try {
+      const { projectIds, startDate, endDate } = req.query;
+      const query = {};
+
+      if (projectIds) {
+        const ids = projectIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        if (ids.length > 0) query.projectId = { $in: ids };
+      }
+
+      if (startDate || endDate) {
+        query.openDate = {};
+        if (startDate) query.openDate.$gte = new Date(startDate);
+        if (endDate) query.openDate.$lte = new Date(endDate);
+      }
+
+      const today = new Date();
+      const issues = await injuryIssue.find(query).select('name openDate totalCost').lean();
+
+      const result = issues
+        .filter((issue) => issue.totalCost != null)
+        .map((issue) => ({
+          issueId: issue._id,
+          title: issue.name,
+          totalCost: issue.totalCost,
+          daysOpen: Math.floor((today - new Date(issue.openDate)) / (1000 * 60 * 60 * 24)),
+        }))
+        .sort((a, b) => b.totalCost - a.totalCost)
+        .slice(0, 5);
+
+      return res.json({ data: result });
+    } catch (error) {
+      return res.status(500).json({ message: 'Error fetching most expensive issues' });
     }
   };
 
@@ -314,6 +339,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     bmPostIssue,
     bmGetIssueChart,
     getLongestOpenIssues,
+    getMostExpensiveIssues,
     bmPostInjuryIssue,
     bmGetInjuryIssue,
     bmDeleteInjuryIssue,
