@@ -45,6 +45,7 @@ const teamcontroller = function (Team) {
               email: '$userProfile.email',
               teamCode: '$userProfile.teamCode',
               addDateTime: '$members.addDateTime',
+              visible: '$members.visible',
             },
           },
           createdDatetime: { $first: '$createdDatetime' },
