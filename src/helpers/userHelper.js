@@ -1059,18 +1059,33 @@ const userHelper = function () {
 
   const deleteBlueSquareAfterYear = async () => {
     const nowLA = moment().tz('America/Los_Angeles');
-
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
-
     const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
 
     try {
+      // Step 1: For active users, move expired infringements to oldInfringements before deleting
+      const usersWithExpired = await userProfile.find(
+        {
+          isActive: true,
+          infringements: { $elemMatch: { date: { $lte: cutOffDate } } },
+        },
+        '_id infringements',
+      );
+
+      for (const user of usersWithExpired) {
+        const expired = user.infringements.filter((inf) => inf.date <= cutOffDate);
+        if (expired.length === 0) continue;
+        await userProfile.findByIdAndUpdate(user._id, {
+          $push: { oldInfringements: { $each: expired } },
+        });
+      }
+
+      // Step 2: Pull expired infringements from all users
       const results = await userProfile.updateMany(
         {},
         {
           $pull: {
             infringements: { date: { $lte: cutOffDate } },
-            oldInfringements: { date: { $lte: cutOffDate } }, // clean up old ones too
           },
         },
       );
@@ -2987,17 +3002,20 @@ const userHelper = function () {
         .subtract(1, 'week')
         .toDate();
 
+      const startStr = moment(startOfLastWeek).format('YYYY-MM-DD');
+      const endStr = moment(endOfLastWeek).format('YYYY-MM-DD');
+
       const usersWithInfringements = await userProfile.find({
         infringements: {
           $elemMatch: {
-            date: {
-              $gte: moment(startOfLastWeek).format('YYYY-MM-DD'),
-              $lte: moment(endOfLastWeek).format('YYYY-MM-DD'),
-            },
+            date: { $gte: startStr, $lte: endStr },
           },
         },
         isActive: true,
       });
+
+      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
+      const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
 
       for (const user of usersWithInfringements) {
         const infringement = user.infringements.find((inf) =>
@@ -3005,15 +3023,16 @@ const userHelper = function () {
         );
         if (!infringement) continue;
 
-        // Fetch weekly logs for this user
-        const timeLogs = await TimeLog.find({
-          userId: user._id,
-          date: { $gte: startOfLastWeek, $lte: endOfLastWeek },
+        // Use timeEntries (already imported at top of file)
+        const results = await timeEntries.find({
+          personId: user._id,
+          dateOfWork: { $gte: startStr, $lte: endStr },
+          isTangible: true,
         });
 
-        const totalSeconds = timeLogs.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
+        const totalSeconds = results.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
         const hoursLogged = totalSeconds / 3600;
-        const weeklycommittedHours = user.weeklyComittedHours || 0;
+        const weeklycommittedHours = (user.weeklycommittedHours || 0) + (user.missedHours || 0);
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
         const administrativeContent = {
@@ -3023,34 +3042,29 @@ const userHelper = function () {
           historyInfringements: 'Previously assigned blue square – resend only.',
         };
 
-        let emailBody;
-        if (user.role === 'Core Team' && timeRemaining > 0) {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            timeRemaining,
-            0, // Assuming coreTeamExtraHour is not needed here or is 0
-            null,
-            administrativeContent,
-            weeklycommittedHours,
-          );
-        } else {
-          emailBody = getInfringementEmailBody(
-            user.firstName,
-            user.lastName,
-            infringement,
-            user.infringements.length,
-            undefined,
-            null,
-            null,
-            administrativeContent,
-          );
-        }
-
-        const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-        const emailsBCCs = blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email);
+        const emailBody =
+          user.role === 'Core Team' && timeRemaining > 0
+            ? getInfringementEmailBody(
+                user.firstName,
+                user.lastName,
+                infringement,
+                user.infringements.length,
+                timeRemaining,
+                0,
+                null,
+                administrativeContent,
+                weeklycommittedHours,
+              )
+            : getInfringementEmailBody(
+                user.firstName,
+                user.lastName,
+                infringement,
+                user.infringements.length,
+                undefined,
+                null,
+                null,
+                administrativeContent,
+              );
 
         await emailSender(
           user.email,
@@ -3407,6 +3421,7 @@ const userHelper = function () {
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
     getTeamManagementEmail,
+    resendBlueSquareEmailsOnlyForLastWeek,
   };
 };
 
