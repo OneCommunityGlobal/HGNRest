@@ -4,7 +4,7 @@ const usersProfiles = require('../models/userProfile');
 const logger = require('../startup/logger');
 
 const activityLogController = function () {
-  const validRoles = ['Educator', 'Administrator'];
+  const validRoles = new Set(['Educator', 'Administrator']);
 
   const formatLogs = (logs) =>
     logs.map((log) => ({
@@ -66,16 +66,21 @@ const activityLogController = function () {
       const studentId = req.body.requestor.requestorId;
       const requestedStudentId = req.query.studentId;
 
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'Invalid studentId format' });
+      }
+      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
+
       if (requestedStudentId) {
         if (!mongoose.Types.ObjectId.isValid(requestedStudentId)) {
           return res.status(400).json({ error: 'Invalid studentId format' });
         }
-        if (requestedStudentId !== String(studentId)) {
+        if (requestedStudentId !== String(sanitizedStudentId)) {
           return res.status(403).json({ error: "Forbidden: Cannot access another student's log" });
         }
       }
 
-      const logs = await ActivityLog.find({ actor_id: studentId })
+      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id is_assisted assisted_users');
 
@@ -113,7 +118,7 @@ const activityLogController = function () {
       let assistedUsers = null;
 
       if (isAssistedFromClient) {
-        if (!validRoles.includes(currentUser.role)) {
+        if (!validRoles.has(currentUser.role)) {
           return res.status(403).json({
             error: 'Only educators or administrators can set the assisted flag',
           });
@@ -165,7 +170,7 @@ const activityLogController = function () {
         return res.status(400).json({ error: 'Invalid or missing logId' });
       }
 
-      if (!validRoles.includes(currentUser.role)) {
+      if (!validRoles.has(currentUser.role)) {
         return res.status(403).json({
           error: 'Only educators or administrators can update the assisted flag',
         });
@@ -210,12 +215,13 @@ const activityLogController = function () {
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         return res.status(400).json({ error: 'Invalid studentId format' });
       }
+      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
 
-      if (!validRoles.includes(currentUser.role)) {
+      if (!validRoles.has(currentUser.role)) {
         return res.status(403).json({ error: 'Only Educators can view students logs' });
       }
 
-      const logs = await ActivityLog.find({ actor_id: studentId })
+      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id is_assisted assisted_users');
 
