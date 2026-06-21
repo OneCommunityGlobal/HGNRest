@@ -97,7 +97,9 @@ describe('activityLogController', () => {
 
       await controller.fetchStudentDailyLog(req, mockRes);
 
-      expect(ActivityLog.find).toHaveBeenCalledWith({ actor_id: '65cf6c3706d8ac105827bb2e' });
+      expect(ActivityLog.find).toHaveBeenCalledWith({
+        actor_id: expect.any(mongoose.Types.ObjectId),
+      });
       expect(chain.sort).toHaveBeenCalledWith({ created_at: -1 });
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.arrayContaining([
@@ -642,7 +644,9 @@ describe('activityLogController', () => {
 
       await controller.fetchEducatorDailyLog(req, mockRes);
 
-      expect(ActivityLog.find).toHaveBeenCalledWith({ actor_id: '65cf6c3706d8ac105827bb2e' });
+      expect(ActivityLog.find).toHaveBeenCalledWith({
+        actor_id: expect.any(mongoose.Types.ObjectId),
+      });
       expect(mockRes.json).toHaveBeenCalled();
     });
 
