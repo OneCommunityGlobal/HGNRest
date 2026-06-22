@@ -434,6 +434,8 @@ const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndA
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
+const activityLogRouter = require('../routes/activityLogRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -638,6 +640,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
+  app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
