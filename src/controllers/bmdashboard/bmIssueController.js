@@ -5,8 +5,6 @@ const MS_PER_MINUTE = 60 * 1000;
 const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 const AVG_DAYS_PER_MONTH = 30.44;
-const MAX_LONGEST_OPEN_ISSUES = 7;
-
 const getProjectFilterIds = (projectsParam) =>
   projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
 
@@ -36,42 +34,6 @@ const getDurationOpenMonths = (issueDate) =>
     (Date.now() - new Date(issueDate)) /
       (MS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY * AVG_DAYS_PER_MONTH),
   );
-
-const buildGroupedIssues = (issues) => {
-  const grouped = {};
-
-  issues.forEach((issue) => {
-    if (!issue.issueDate || !issue.projectId) return;
-
-    const issueName = Array.isArray(issue.issueTitle)
-      ? issue.issueTitle[0]
-      : issue.issueTitle || 'Unknown Issue';
-
-    const projectId = issue.projectId._id.toString();
-    const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
-
-    const durationOpen = getDurationOpenMonths(issue.issueDate);
-
-    if (!grouped[issueName]) grouped[issueName] = {};
-    if (!grouped[issueName][projectId]) {
-      grouped[issueName][projectId] = {
-        projectId,
-        projectName,
-        durationOpen,
-      };
-    }
-  });
-
-  return grouped;
-};
-
-const buildLongestOpenResponse = (grouped) =>
-  Object.entries(grouped)
-    .map(([issueName, projectsById]) => ({
-      issueName,
-      projects: Object.values(projectsById),
-    }))
-    .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
 const omitUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
