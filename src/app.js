@@ -1,11 +1,13 @@
 const express = require('express');
 const Sentry = require('@sentry/node');
 const testRoutes = require('./routes/testRoutes');
-
-const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
-// const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
+const helpFeedbackRouter = require('./routes/helpFeedbackRouter');
+const helpRequestRouter = require('./routes/helpRequestRouter');
+const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
+
+const app = express();
 
 logger.init();
 
@@ -19,15 +21,10 @@ require('./startup/session')(app); // Add session before middleware and routes
 
 app.use('/api/test', testRoutes);
 
-const helpFeedbackRouter = require('./routes/helpFeedbackRouter');
-const helpRequestRouter = require('./routes/helpRequestRouter');
-
 app.use('/api/feedback', helpFeedbackRouter);
 app.use('/api/helprequest', helpRequestRouter);
 
 require('./startup/middleware')(app);
-
-const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
 
 app.use('/api', weeklyReportsRouter);
 
