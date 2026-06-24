@@ -121,7 +121,6 @@ const toolUtilizationController = function (BuildingTool) {
     getInsights,
     exportReport,
   };
->>>>>>> 28c8750e (feat(bm): extend utilization API with modes)
 };
 
 module.exports = toolUtilizationController;
