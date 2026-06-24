@@ -1,7 +1,6 @@
 const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
 const cacheClosure = require('../../utilities/nodeCache');
-const { parseDateFlexibleUTC } = require('../../utilities/bmDateUtils');
 
 const isMongoConnectionError = (error) =>
   error.name === 'MongoNetworkError' ||
@@ -10,6 +9,22 @@ const isMongoConnectionError = (error) =>
   error.message?.includes('ECONNREFUSED') ||
   error.message?.includes('connection') ||
   error.code === 'ETIMEDOUT';
+
+const parseYmdUtc = (s) => {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
+};
+
+const parseDateFlexibleUTC = (s) => {
+  const d1 = parseYmdUtc(s);
+  if (d1) return d1;
+  if (!s) return null;
+  const d2 = new Date(s);
+  return Number.isNaN(d2.getTime()) ? null : d2;
+};
 
 const ERROR_MESSAGES = {
   INVALID_START_DATE: (startDate) =>
