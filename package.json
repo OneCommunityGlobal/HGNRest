@@ -68,7 +68,7 @@
     "@aws-sdk/client-s3": "^3.920.0",
     "@azure/storage-blob": "^12.26.0",
     "@babel/cli": "^7.15.4",
-    "@babel/core": "^7.10.2",
+    "@babel/core": "^7.29.6",
     "@babel/node": "^7.14.9",
     "@babel/plugin-transform-async-to-generator": "^7.10.1",
     "@babel/plugin-transform-runtime": "^7.10.1",
