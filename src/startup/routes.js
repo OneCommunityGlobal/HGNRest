@@ -229,6 +229,9 @@ const materialCostRouter = require('../routes/materialCostRouter')();
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
+  buildingMaterial,
+);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
@@ -548,6 +551,7 @@ module.exports = function (app) {
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmMaterialInsightsRouter);
   app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
