@@ -20,8 +20,16 @@ const createProjectMaterial = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Cost Cannot be less than or 0!' });
   }
 
-  const newProjectMaterial = new ProjectMaterial(projectMaterialbody);
+  const { projectName, toolName, replacedPercentage, date } = projectMaterialbody;
 
+  const safeProjectMaterialData = {
+    projectName,
+    toolName,
+    replacedPercentage,
+    date,
+  };
+
+  const newProjectMaterial = new ProjectMaterial(safeProjectMaterialData);
   try {
     await newProjectMaterial.save();
     res.status(201).json({
