@@ -68,6 +68,12 @@ const listOverviewController = function () {
       // validate date range
       const fromDate = new Date(rentingFrom);
       const tillDate = new Date(rentingTill);
+      if (Number.isNaN(fromDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid date value for rentingFrom' });
+      }
+      if (Number.isNaN(tillDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid date value for rentingTill' });
+      }
       if (fromDate >= tillDate) {
         return res
           .status(400)
