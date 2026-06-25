@@ -8,7 +8,8 @@ const route = function (currentWarnings) {
   currentWarningsRouter
     .route('/currentWarnings')
     .get(controller.getCurrentWarnings)
-    .post(controller.postNewWarningDescription);
+    .post(controller.postNewWarningDescription)
+    .put(controller.reorderWarningDescriptions);
 
   currentWarningsRouter.route('/currentWarnings/edit').put(controller.editWarningDescription);
 

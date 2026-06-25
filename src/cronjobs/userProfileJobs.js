@@ -23,7 +23,7 @@ const userProfileJobs = () => {
         await userhelper.deleteExpiredTokens();
       }
       await userhelper.awardNewBadges();
-      await userhelper.weeklyCompanySummaryEmail();
+      // await userhelper.weeklyCompanySummaryEmail(); - function does not exist, restore when added
     },
     null,
     false,
@@ -44,8 +44,10 @@ const userProfileJobs = () => {
           moment().tz('America/Los_Angeles').format(),
         );
         await userhelper.completeHoursAndMissedSummary();
-        await userhelper.inCompleteHoursEmailFunction();
-        await userhelper.weeklyBlueSquareReminderFunction();
+        await userhelper.weeklyAutoReplyEmailFunction(); // replaces inCompleteHoursEmailFunction + weeklyBlueSquareReminderFunction
+        // Below calls will be removed once the combined function WeeklyAutoReplyEmailFunction is fully working in production
+        // await userhelper.inCompleteHoursEmailFunction();
+        // await userhelper.weeklyBlueSquareReminderFunction();
       } catch (error) {
         console.error('Error during summaryNotSubmittedJobs:', error);
       }
