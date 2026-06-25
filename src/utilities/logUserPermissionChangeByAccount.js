@@ -39,7 +39,7 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     // const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
-    let roleChanged = false;
+    const roleChanged = reason.includes('Role Changed');
     const { userId } = req.params;
     const Permissions = checkPermissionArray(permissions.frontPermissions);
     const removedPermissions = checkPermissionArray(permissions.removedDefaultPermissions); // removed default permissions
@@ -54,7 +54,6 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     if (document) {
       const docPermissions = checkPermissionArray(document.permissions);
       const docRemovedRolePermissions = checkPermissionArray(document.removedRolePermissions);
-      roleChanged = reason.includes('Role Changed');
       const docSavedChanges = [...docPermissions, ...docRemovedRolePermissions];
       const sortedSaved = [...docSavedChanges].sort((a, b) => a.localeCompare(b));
       const sortedChanged = [...changedPermissions].sort((a, b) => a.localeCompare(b));
