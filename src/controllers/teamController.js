@@ -135,10 +135,12 @@ const teamcontroller = function (Team) {
       const deleteteam = record.remove();
 
       Promise.all([removeteamfromprofile, deleteteam])
-        .then(
-          res.status(200).send({ message: 'Team successfully deleted and user profiles updated' }),
-        )
+        .then((result) => {
+          console.log('Promise.all success:', result);
+          res.status(200).send({ message: 'Team successfully deleted and user profiles updated' });
+        })
         .catch((catchError) => {
+          console.log('Promise.all failed:', catchError);
           Logger.logException(error, null, `teamId: ${teamId}`);
           res.status(400).send({ error: catchError });
         });
