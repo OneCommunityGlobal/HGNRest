@@ -13,9 +13,12 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
+        // Unwind members so each member becomes its own document.
+        // preserveNullAndEmptyArrays keeps teams with no members.
         $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
+        // Join each member's userId to their userProfile to get email, teamCode etc.
         $lookup: {
           from: 'userProfiles',
           localField: 'members.userId',
@@ -24,47 +27,34 @@ const teamcontroller = function (Team) {
         },
       },
       {
+        // Flatten the single-element userProfile array.
+        // preserveNullAndEmptyArrays keeps members whose userProfile was deleted.
         $unwind: {
           path: '$userProfile',
-          preserveNullAndEmptyArrays: true, // Ensures that if no userProfile is found, the document is not removed
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
+        // Re-group by teamId only — NOT by userProfile.teamCode.
+        // The previous two-stage group (teamId + teamCode → teamId) was
+        // silently dropping members whose teamCode differed from the majority,
+        // because $first in the second group only kept one bucket's members.
         $group: {
-          _id: {
-            teamId: '$_id',
-            // Keep the raw value that worked in Compass
-            teamCode: '$userProfile.teamCode',
-          },
-          count: { $sum: { $cond: [{ $ifNull: ['$members', false] }, 1, 0] } }, // Count only if members exist
+          _id: '$_id',
+          teamCode: { $first: '$teamCode' },
           teamName: { $first: '$teamName' },
+          isActive: { $first: '$isActive' },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
           members: {
             $push: {
               _id: '$userProfile._id',
-              name: '$userProfile.name',
               email: '$userProfile.email',
               teamCode: '$userProfile.teamCode',
               addDateTime: '$members.addDateTime',
               visible: '$members.visible',
             },
           },
-          createdDatetime: { $first: '$createdDatetime' },
-          modifiedDatetime: { $first: '$modifiedDatetime' },
-          isActive: { $first: '$isActive' },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-      {
-        $group: {
-          _id: '$_id.teamId',
-          teamCode: { $first: '$_id.teamCode' },
-          teamName: { $first: '$teamName' },
-          members: { $first: '$members' },
-          createdDatetime: { $first: '$createdDatetime' },
-          modifiedDatetime: { $first: '$modifiedDatetime' },
-          isActive: { $first: '$isActive' },
         },
       },
       {
@@ -314,73 +304,90 @@ const teamcontroller = function (Team) {
       });
   };
   const updateTeamVisibility = async (req, res) => {
-    const { visibility, teamId, userId, requestor } = req.body;
+    const { visibility, teamId, userId } = req.body;
+
+    console.log('\n=== updateTeamVisibility called ===');
+    console.log('teamId    :', teamId);
+    console.log('userId    :', userId);
+    console.log('visibility:', visibility);
 
     try {
-      const elevatedRoles = ['Owner', 'Admin', 'Core Team'];
+      const teamDoc = await Team.findById(teamId);
+      if (!teamDoc) {
+        console.log('ERROR: No team found for teamId:', teamId);
+        return res.status(400).send({ error: 'No valid records found' });
+      }
 
-      Team.findById(teamId, (error, teamDoc) => {
-        if (error || teamDoc === null) {
-          res.status(400).send('No valid records found');
-          return;
-        }
+      console.log('Team found:', teamDoc.teamName);
+      console.log(
+        'Team.members array:',
+        JSON.stringify(
+          teamDoc.members.map((m) => ({
+            userId: m.userId ? m.userId.toString() : null,
+            visible: m.visible,
+          })),
+          null,
+          2,
+        ),
+      );
 
-        const memberIndex = teamDoc.members.findIndex(
-          (member) => member.userId.toString() === userId,
+      const memberIndex = teamDoc.members.findIndex(
+        (member) => member.userId.toString() === userId,
+      );
+
+      console.log('memberIndex:', memberIndex);
+
+      if (memberIndex === -1) {
+        console.log(
+          'ERROR: userId',
+          userId,
+          'NOT found in Team.members.',
+          '\nAll member userIds:',
+          teamDoc.members.map((m) => m.userId.toString()),
         );
-        if (memberIndex === -1) {
-          res.status(400).send('Member not found in the team.');
-          return;
-        }
+        return res.status(400).send({ error: 'Member not found in the team.' });
+      }
 
-        teamDoc.members[memberIndex].visible = visibility;
-        teamDoc.modifiedDatetime = Date.now();
+      console.log(
+        'Member found at index',
+        memberIndex,
+        ':',
+        JSON.stringify(teamDoc.members[memberIndex]),
+      );
 
-        teamDoc
-          .save()
-          .then(() => {
-            // Additional operations after team.save()
-            const assignlist = [];
-            const unassignlist = [];
-            teamDoc.members.forEach((member) => {
-              if (member.userId.toString() === userId) {
-                // Current user, no need to process further
-                return;
-              }
+      // Persist the new visibility flag on the Team document.
+      // This controls what the admin UI shows (the toggle state).
+      teamDoc.members[memberIndex].visible = visibility;
+      teamDoc.modifiedDatetime = Date.now();
+      await teamDoc.save();
+      console.log('Team saved successfully. visible =', visibility, 'for userId', userId);
 
-              if (visibility || elevatedRoles.includes(requestor.role)) {
-                console.log(`Assigning user: ${member.userId}`);
-                assignlist.push(member.userId);
-              } else {
-                console.log(` Unassigning user: ${member.userId}`);
+      // Enforce visibility by controlling what appears in the toggled user's
+      // own userProfile.teams array.
+      //
+      // The app resolves "who can I see?" by looking up which teams are listed
+      // in the logged-in user's userProfile.teams. So:
+      //   - visible ON  → add teamId back to the toggled user's profile so they
+      //                   can see their teammates again.
+      //   - visible OFF → remove teamId from the toggled user's profile so the
+      //                   team's members disappear from their view.
+      //
+      // Other members are NOT touched — their ability to see this user is
+      // unaffected by this toggle (asymmetric by design).
+      //
+      // NOTE: Elevated roles (Owner, Admin, Core Team) are NOT blocked here.
+      // The toggle can be saved for anyone. The role-based override belongs on
+      // the READ side — i.e. the endpoint that fetches what a logged-in user
+      // can see should ignore the teams filter for elevated roles.
+      if (visibility) {
+        await userProfile.findByIdAndUpdate(userId, { $addToSet: { teams: teamId } });
+      } else {
+        await userProfile.findByIdAndUpdate(userId, { $pull: { teams: teamId } });
+      }
 
-                unassignlist.push(member.userId);
-              }
-            });
-
-            const addTeamToUserProfile = userProfile
-              .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: teamId } })
-              .exec();
-            const removeTeamFromUserProfile = userProfile
-              .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: teamId } })
-              .exec();
-
-            Promise.all([addTeamToUserProfile, removeTeamFromUserProfile])
-              .then(() => {
-                res.status(200).send({ result: 'Done' });
-              })
-
-              .catch((catchError) => {
-                res.status(500).send({ error: catchError });
-              });
-          })
-          .catch((catchError) => {
-            console.error('Error saving team:', catchError);
-            res.status(400).send(catchError);
-          });
-      });
+      return res.status(200).send({ result: 'Done' });
     } catch (error) {
-      res.status(500).send(`Error updating team visibility: ${error.message}`);
+      return res.status(500).send(`Error updating team visibility: ${error.message}`);
     }
   };
 
