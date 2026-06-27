@@ -432,6 +432,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const updateCommonFields = (req, record) => {
     const commonFields = [
       'jobTitle',
+      'email',
       'emailPubliclyAccessible',
       'phoneNumberPubliclyAccessible',
       'profilePic',
@@ -572,7 +573,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     if (!(await hasPermission(req.body.requestor, 'putUserProfileImportantInfo'))) return;
 
     const importantFields = [
-      'email',
       'role',
       'isRehireable',
       'isActive',
@@ -2450,8 +2450,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         // Add reasons array for more detailed categorization
         reasons: processedReasons,
         // Track if manually assigned (via API call) vs CRON job
-        manullyAssigned: true,
-        manullyAssignedBy: requestorProfile
+        manuallyAssigned: true,
+        manuallyAssignedBy: requestorProfile
           ? {
               firstName: requestorProfile.firstName,
               lastName: requestorProfile.lastName,
