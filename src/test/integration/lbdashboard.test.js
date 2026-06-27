@@ -20,9 +20,9 @@ afterEach(async () => {
   await LBUser.deleteMany();
 });
 
-describe('POST /lbdashboard/register', () => {
+describe('POST /api/lbdashboard/register', () => {
   it('should register a user successfully', async () => {
-    const res = await request(app).post('/lbdashboard/register').send({
+    const res = await request(app).post('/api/lbdashboard/register').send({
       firstName: 'John',
       lastName: 'Doe',
       email: 'john@example.com',
@@ -36,7 +36,7 @@ describe('POST /lbdashboard/register', () => {
   });
 
   it('should reject invalid email and password', async () => {
-    const res = await request(app).post('/lbdashboard/register').send({
+    const res = await request(app).post('/api/lbdashboard/register').send({
       firstName: 'Jo',
       lastName: 'Doe',
       email: 'invalid-email',
@@ -50,7 +50,7 @@ describe('POST /lbdashboard/register', () => {
   });
 
   it('should not allow duplicate email', async () => {
-    await request(app).post('/lbdashboard/register').send({
+    await request(app).post('/api/lbdashboard/register').send({
       firstName: 'Jane',
       lastName: 'Doe',
       email: 'jane@example.com',
@@ -58,7 +58,7 @@ describe('POST /lbdashboard/register', () => {
       password: 'Secure1!',
     });
 
-    const res = await request(app).post('/lbdashboard/register').send({
+    const res = await request(app).post('/api/lbdashboard/register').send({
       firstName: 'Jane',
       lastName: 'Smith',
       email: 'jane@example.com',

@@ -17,4 +17,3 @@ injuryCategorySchema.index({ injuryType: 1 });
 injuryCategorySchema.index({ workerCategory: 1 });
 
 module.exports = mongoose.model('InjuryCategory', injuryCategorySchema);
-

@@ -11,17 +11,17 @@ describe('HelpCategoryController', () => {
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
-    
+
     // Setup mock request
     mockReq = {
       body: {},
-      params: {}
+      params: {},
     };
 
     // Setup mock response
     mockRes = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      json: jest.fn(),
     };
   });
 
@@ -31,11 +31,11 @@ describe('HelpCategoryController', () => {
       const mockCategories = [
         { _id: '1', name: 'Getting Started', order: 1, isActive: true },
         { _id: '2', name: 'Advanced Features', order: 2, isActive: true },
-        { _id: '3', name: 'Troubleshooting', order: 3, isActive: true }
+        { _id: '3', name: 'Troubleshooting', order: 3, isActive: true },
       ];
 
       HelpCategory.find = jest.fn().mockReturnValue({
-        sort: jest.fn().mockResolvedValue(mockCategories)
+        sort: jest.fn().mockResolvedValue(mockCategories),
       });
 
       // Act
@@ -52,7 +52,7 @@ describe('HelpCategoryController', () => {
       // Arrange
       const error = new Error('Database connection failed');
       HelpCategory.find = jest.fn().mockReturnValue({
-        sort: jest.fn().mockRejectedValue(error)
+        sort: jest.fn().mockRejectedValue(error),
       });
 
       // Act
@@ -62,11 +62,10 @@ describe('HelpCategoryController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         message: 'Error fetching help categories',
-        error: error.message
+        error: error.message,
       });
     });
   });
-
 
   describe('updateHelpCategory', () => {
     it('should update an existing help category successfully', async () => {
@@ -75,9 +74,9 @@ describe('HelpCategoryController', () => {
       const updateData = {
         name: 'Updated Category',
         order: 10,
-        isActive: false
+        isActive: false,
       };
-      
+
       mockReq.params = { id: categoryId };
       mockReq.body = updateData;
 
@@ -85,7 +84,7 @@ describe('HelpCategoryController', () => {
         _id: categoryId,
         name: 'Updated Category',
         order: 10,
-        isActive: false
+        isActive: false,
       };
 
       HelpCategory.findByIdAndUpdate = jest.fn().mockResolvedValue(updatedCategory);
@@ -94,11 +93,9 @@ describe('HelpCategoryController', () => {
       await helpCategoryController.updateHelpCategory(mockReq, mockRes);
 
       // Assert
-      expect(HelpCategory.findByIdAndUpdate).toHaveBeenCalledWith(
-        categoryId,
-        updateData,
-        { new: true }
-      );
+      expect(HelpCategory.findByIdAndUpdate).toHaveBeenCalledWith(categoryId, updateData, {
+        new: true,
+      });
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(updatedCategory);
     });
@@ -108,9 +105,9 @@ describe('HelpCategoryController', () => {
       const categoryId = 'non-existent-id';
       const updateData = {
         name: 'Updated Category',
-        order: 10
+        order: 10,
       };
-      
+
       mockReq.params = { id: categoryId };
       mockReq.body = updateData;
 
@@ -120,14 +117,12 @@ describe('HelpCategoryController', () => {
       await helpCategoryController.updateHelpCategory(mockReq, mockRes);
 
       // Assert
-      expect(HelpCategory.findByIdAndUpdate).toHaveBeenCalledWith(
-        categoryId,
-        updateData,
-        { new: true }
-      );
+      expect(HelpCategory.findByIdAndUpdate).toHaveBeenCalledWith(categoryId, updateData, {
+        new: true,
+      });
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
-        message: 'Help category not found'
+        message: 'Help category not found',
       });
     });
 
@@ -136,9 +131,9 @@ describe('HelpCategoryController', () => {
       const categoryId = 'existing-id';
       const updateData = {
         name: 'Updated Category',
-        order: 10
+        order: 10,
       };
-      
+
       mockReq.params = { id: categoryId };
       mockReq.body = updateData;
 
@@ -152,7 +147,7 @@ describe('HelpCategoryController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         message: 'Error updating help category',
-        error: error.message
+        error: error.message,
       });
     });
   });

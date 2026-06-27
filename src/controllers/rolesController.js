@@ -1,9 +1,9 @@
 const UserProfile = require('../models/userProfile');
-const cacheClosure = require('../utilities/nodeCache');
+// const cacheClosure = require('../utilities/nodeCache');
 const { hasPermission } = require('../utilities/permissions');
 
 const rolesController = function (Role) {
-  const cache = cacheClosure();
+  // const cache = cacheClosure();
   const getAllRoles = function (req, res) {
     Role.find({})
       .then((results) => res.status(200).send(results))
@@ -71,29 +71,27 @@ const rolesController = function (Role) {
 
   const deleteRoleById = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'deleteRole'))) {
-      res.status(403).send('You are not authorized to delete roles.');
-      return;
+      return res.status(403).send('You are not authorized to delete roles.');
     }
 
     const { roleId } = req.params;
+
     try {
       const role = await Role.findById(roleId);
-      await role.remove();
-      await UserProfile.updateMany({ role: role.roleName }, { role: 'Volunteer' });
-
-      if (cache.hasCache('allusers')) {
-        const allUserData = JSON.parse(cache.getCache('allusers'));
-        allUserData.forEach((user) => {
-          if (user.role === role.roleName) {
-            user.role = 'Volunteer';
-            cache.removeCache(`user-${user._id}`);
-          }
-        });
-        cache.setCache('allusers', JSON.stringify(allUserData));
+      if (!role) {
+        return res.status(404).send({ error: 'Role not found' });
       }
-      res.status(200).send({ message: 'Deleted role' });
+
+      const roleToDelete = role.roleName;
+      await Role.deleteOne({ _id: roleId });
+      await UserProfile.updateMany({ role: roleToDelete }, { $set: { role: 'Volunteer' } });
+
+      return res.status(200).send({
+        message: `Deleted role "${roleToDelete}" and reassigned affected users to Volunteer`,
+      });
     } catch (error) {
-      res.status(400).send({ error });
+      console.error('Error deleting role:', error);
+      return res.status(500).send({ error: 'Failed to delete role' });
     }
   };
 

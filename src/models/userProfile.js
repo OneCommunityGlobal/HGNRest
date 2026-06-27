@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
@@ -13,7 +14,20 @@ const today = new Date();
 
 const userProfileSchema = new Schema({
   // Updated filed
-  summarySubmissionDates: [{ type: Date }],
+  summarySubmissionDates: { type: [Date], default: [] },
+  defaultPassword: {
+    type: String,
+    required: false, // Not required since it's optional
+    validate: {
+      validator(v) {
+        if (!v) return true; // Allow empty values
+        const passwordregex = /(?=^.{8,}$)((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/;
+        return passwordregex.test(v);
+      },
+      message:
+        '{VALUE} is not a valid password! Password should be at least 8 characters long with uppercase, lowercase, and number/special character.',
+    },
+  },
   password: {
     type: String,
     required: true,
@@ -90,6 +104,7 @@ const userProfileSchema = new Schema({
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
@@ -115,8 +130,57 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+
+      reason: {
+        type: String,
+        enum: [
+          'missingHours',
+          'missingSummary',
+          'missingBothHoursAndSummary',
+          'vacationTime',
+          'other',
+        ],
+        required: false,
+      },
+
+      ccdUsers: {
+        type: [
+          {
+            firstName: { type: String },
+            lastName: { type: String },
+            email: { type: String, required: true },
+          },
+        ],
+        default: [],
+      },
+      reasons: {
+        type: [String],
+        default: ['other'],
+        enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
+      },
+      // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
+      manuallyAssigned: {
+        type: Boolean,
+        default: false,
+      },
+      // Track who manually assigned the blue square
+      manuallyAssignedBy: {
+        firstName: { type: String },
+        lastName: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+      },
+      // Track edit history for the blue square
+      editedBy: [
+        {
+          firstName: { type: String },
+          lastName: { type: String },
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+          date: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
+  infringementCount: { type: Number, default: 0 },
   warnings: [
     {
       date: { type: String, required: true },
@@ -131,6 +195,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -180,6 +245,15 @@ const userProfileSchema = new Schema({
   weeklySummariesCount: { type: Number, default: 0 },
   mediaUrl: { type: String },
   endDate: { type: Date, required: false },
+  // used for deactivation/reactivation of accounts, tracking last activity, and updating endDate when account is deactivated
+  lastActivityAt: { type: Date, required: false, index: true },
+  deactivatedAt: { type: Date, required: false, index: true },
+  // differentiate between paused and separated accounts for better reporting and handling in the future
+  inactiveReason: {
+    type: String,
+    enum: ['Paused', 'Separated', 'ScheduledSeparation', null],
+    default: undefined,
+  },
   resetPwd: { type: String },
   collaborationPreference: { type: String },
   personalBestMaxHrs: { type: Number, default: 0 },
@@ -233,7 +307,27 @@ const userProfileSchema = new Schema({
   isVisible: { type: Boolean, default: true },
   weeklySummaryOption: { type: String },
   bioPosted: { type: String, default: 'default' },
+  filterColor: {
+    type: [String],
+    // enum: ['purple', 'green', 'navy', null],
+    default: [],
+    set: (v) => {
+      // if (Array.isArray(v)) return [...new Set(v.filter(Boolean))];
+      // if (typeof v === 'string' && v.trim()) return [v.trim()];
+      // return [];
+      if (Array.isArray(v)) return [...new Set(v.filter(Boolean).map((s) => s.trim()))];
+      if (typeof v === 'string') {
+        const parts = v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return [...new Set(parts)];
+      }
+      return [];
+    },
+  },
   trophyFollowedUp: { type: Boolean, default: false },
+  // filterColor: { type: [String], default: [] },
   isFirstTimelog: { type: Boolean, default: true },
   badgeCount: { type: Number, default: 0 },
   teamCodeWarning: { type: Boolean, default: false },
@@ -275,7 +369,109 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
+
+  infringementCCList: [
+    {
+      email: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String },
+      role: { type: String },
+      assignedTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+    },
+  ],
+  // Education-specific profiles
+  educationProfiles: {
+    student: {
+      cohortId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cohort',
+      },
+      enrollmentDate: {
+        type: Date,
+      },
+      learningLevel: {
+        type: String,
+        enum: ['beginner', 'intermediate', 'advanced'],
+        default: 'beginner',
+      },
+      strengths: [
+        {
+          type: String,
+          trim: true,
+        },
+      ],
+      challengingAreas: [
+        {
+          type: String,
+          trim: true,
+        },
+      ],
+      savedInterests: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BrowsableLessonPlan',
+        },
+      ],
+    },
+    teacher: {
+      subjects: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Subject',
+        },
+      ],
+      officeHours: {
+        type: String,
+        trim: true,
+      },
+      assignedStudents: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'UserProfile',
+        },
+      ],
+    },
+    programManager: {
+      managedPrograms: [
+        {
+          type: String,
+          trim: true,
+        },
+      ],
+      region: {
+        type: String,
+        trim: true,
+      },
+    },
+    learningSupport: {
+      level: {
+        type: String,
+        enum: ['junior', 'senior', 'lead'],
+        default: 'junior',
+      },
+      assignedTeachers: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'UserProfile',
+        },
+      ],
+    },
+  },
 });
+
+function clearUserCache(doc) {
+  try {
+    const cache = require('../utilities/nodeCache')();
+    if (!cache) return;
+
+    cache.removeCache('allusers_v1');
+    if (doc && doc._id) {
+      cache.removeCache(`user_${doc._id.toString()}`);
+    }
+  } catch (error) {
+    console.error('Cache clear failed:', error.message);
+  }
+}
 
 userProfileSchema.pre('save', function (next) {
   const user = this;
@@ -291,11 +487,21 @@ userProfileSchema.pre('save', function (next) {
     .catch((error) => next(error));
 });
 
+userProfileSchema.post('save', (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post('deleteOne', { document: true, query: false }, (doc) => {
+  clearUserCache(doc);
+});
+userProfileSchema.post(['findOneAndUpdate', 'findOneAndDelete'], (doc) => {
+  clearUserCache(doc);
+});
 userProfileSchema.index({ teamCode: 1 });
 userProfileSchema.index({ email: 1 });
 userProfileSchema.index({ projects: 1, firstName: 1 });
 userProfileSchema.index({ projects: 1, lastName: 1 });
 userProfileSchema.index({ isActive: 1 });
+userProfileSchema.index({ lastName: 1 });
 // Add index for weeklySummaries.dueDate to speed up filtering
 userProfileSchema.index({ 'weeklySummaries.dueDate': 1 });
 // Add compound index for isActive and createdDate
@@ -310,3 +516,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');

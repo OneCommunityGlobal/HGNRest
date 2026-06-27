@@ -79,6 +79,11 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      // Job Form Management
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
     ],
   },
   {
@@ -204,7 +209,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -240,6 +244,10 @@ const permissionsRoles = [
       'editTeamCode',
       'totalValidWeeklySummaries',
     ],
+  },
+  {
+    roleName: 'Educator',
+    permissions: ['viewStudentReports', 'exportStudentReports'],
   },
 ];
 
