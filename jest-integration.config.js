@@ -3,7 +3,7 @@
 // config.testMatch = ['**/*.test.js'];
 // module.exports = config;
 
-const path = require('path');
+const path = require('node:path');
 const baseConfig = require('./jest.config');
 
 module.exports = {

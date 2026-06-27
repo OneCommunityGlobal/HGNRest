@@ -3,7 +3,7 @@ const LBUser = require('../../models/lbdashboard/LBuser');
 
 const validateInput = (data) => {
   const errors = {};
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*]{8,}$/;
 
   if (!data.firstName || data.firstName.length < 2 || /[^a-zA-Z]/.test(data.firstName)) {
