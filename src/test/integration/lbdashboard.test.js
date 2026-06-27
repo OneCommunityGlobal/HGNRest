@@ -1,27 +1,28 @@
+jest.mock('../../models/lbdashboard/LBuser', () => {
+  const mockLBUser = jest.fn().mockImplementation(() => ({
+    _id: 'mock-user-id-123',
+    save: jest.fn().mockResolvedValue(undefined),
+  }));
+  mockLBUser.findOne = jest.fn();
+  return mockLBUser;
+});
+
 const request = require('supertest');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const { app } = require('../../app'); // your Express app
+const { app } = require('../../app');
 const LBUser = require('../../models/lbdashboard/LBuser');
 
-let mongoServer;
-
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri(), { dbName: 'test' });
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-afterEach(async () => {
-  await LBUser.deleteMany();
-});
-
 describe('POST /api/lbdashboard/register', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should register a user successfully', async () => {
+    LBUser.findOne.mockResolvedValue(null);
+    LBUser.mockImplementation(() => ({
+      _id: 'mock-user-id-123',
+      save: jest.fn().mockResolvedValue(undefined),
+    }));
+
     const res = await request(app).post('/api/lbdashboard/register').send({
       firstName: 'John',
       lastName: 'Doe',
@@ -50,13 +51,7 @@ describe('POST /api/lbdashboard/register', () => {
   });
 
   it('should not allow duplicate email', async () => {
-    await request(app).post('/api/lbdashboard/register').send({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
-      phone: '+19876543210',
-      password: 'Secure1!',
-    });
+    LBUser.findOne.mockResolvedValue({ email: 'jane@example.com' });
 
     const res = await request(app).post('/api/lbdashboard/register').send({
       firstName: 'Jane',

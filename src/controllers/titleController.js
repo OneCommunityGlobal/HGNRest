@@ -1,10 +1,9 @@
-
+const mongoose = require('mongoose');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfile = require('../models/userProfile');
 const projectModel = require('../models/project');
 const userProfileController = require('./userProfileController');
-
 
 const controller = userProfileController(userProfile, projectModel);
 
@@ -59,7 +58,9 @@ const titlecontroller = function (Title) {
   }
   async function checkProjectExists(projectID) {
     try {
-      const Foundproject = await Project.findOne({ _id: projectID }).exec();
+      if (!mongoose.Types.ObjectId.isValid(projectID)) return false;
+      const safeId = new mongoose.Types.ObjectId(String(projectID));
+      const Foundproject = await Project.findOne({ _id: safeId }).exec();
       return !!Foundproject;
     } catch (error) {
       console.error('Error checking if project exists:', error);
@@ -295,7 +296,6 @@ const titlecontroller = function (Title) {
         res.status(500).send(error);
       });
   };
-
 
   return {
     getAllTitles,
