@@ -144,8 +144,6 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const setOwnRequested = req.body.requestor.requestorId === req.body.requestFor;
-      console.log('Has role permission:', hasRolePermission);
-      console.log('Is setting own request:', setOwnRequested);
 
       if (
         !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
@@ -156,12 +154,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         return;
       }
 
-      const { duration, startingDate, reason, requestFor } = req.body;
-
-      console.log('Duration:', duration);
-      console.log('Starting Date:', startingDate);
-      console.log('Reason:', reason);
-      console.log('Request For:', requestFor);
+      const { duration, startingDate, reason, reasonType, requestFor } = req.body;
       if (!duration || !startingDate || !reason || !requestFor) {
         res.status(400).send('bad request');
         return;
@@ -174,6 +167,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const newTimeOffRequest = new TimeOffRequest();
       newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor);
       newTimeOffRequest.reason = reason;
+      newTimeOffRequest.reasonType = reasonType || 'vacationTime';
       newTimeOffRequest.startingDate = startDate.toDate();
       newTimeOffRequest.endingDate = endDate.toDate();
       newTimeOffRequest.duration = Number(duration);
@@ -258,7 +252,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
       }
-      const { duration, startingDate, reason } = req.body;
+      const { duration, startingDate, reason, reasonType } = req.body;
       if (!duration || !startingDate || !reason || !requestId) {
         res.status(400).send('bad request');
         return;
@@ -270,6 +264,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const updateData = {
         reason,
+        reasonType: reasonType || 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration,

@@ -351,6 +351,7 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
+const questionSetRouter = require('../routes/questionSetRouter');
 
 // summary dashboard routes
 const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
@@ -436,6 +437,8 @@ const educatorRoutes = require('../routes/educatorRoutes');
 
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
+const activityLogRouter = require('../routes/activityLogRouter')();
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -498,6 +501,7 @@ module.exports = function (app) {
 
   app.use('/api', formRouter);
   app.use('/api', collaborationRouter);
+  app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
   app.use('/api/costs', costsRouter);
@@ -641,6 +645,7 @@ module.exports = function (app) {
   app.use('/api/lb', SMSRouter);
   app.use('/api/educator/reports', classAggregationRouter);
 
+  app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
