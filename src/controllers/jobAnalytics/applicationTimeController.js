@@ -27,8 +27,21 @@ const applicationTimeController = function () {
     }
   };
 
+  const getUniqueRoles = async (req, res) => {
+    try {
+      const uniqueRoles = await ApplicationTimeModel.distinct('role');
+      return res.status(200).json({
+        data: uniqueRoles,
+        count: uniqueRoles.length,
+      });
+    } catch (error) {
+      res.status(400).json({ error: 'failed to fetch roles. Please try again later.' });
+    }
+  };
+
   return {
     getApplicationTimes,
+    getUniqueRoles,
   };
 };
 
