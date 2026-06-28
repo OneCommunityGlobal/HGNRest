@@ -435,6 +435,8 @@ const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndA
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
+// Class Aggregation Reports
+const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
 
 module.exports = function (app) {
@@ -641,13 +643,14 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api/educator/reports', classAggregationRouter);
 
   app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
-  app.use('/api/educator/reports', studentReportRouter());
+  app.use('/api/educator/report', studentReportRouter());
   // education portal
   app.use('/api/education', badgeSystemRouter);
 
@@ -655,7 +658,7 @@ module.exports = function (app) {
 
   app.use('/api/education', browsableLessonPlanRouter);
 
-  app.use('/api/educator/reports', downloadReportRouter);
+  app.use('/api/educator/reportdownload', downloadReportRouter);
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
