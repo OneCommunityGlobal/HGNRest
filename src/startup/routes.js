@@ -539,7 +539,7 @@ module.exports = function (app) {
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/api/map-analytics', mapAnalyticsRouter);
   app.use('/api/analytics', countryAnalyticsRouter);
-  app.use('/job-analytics', jobAnalyticsRouter);
+  app.use('/api/job-analytics-router', jobAnalyticsRouter);
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
