@@ -50,7 +50,7 @@ const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
     const currentDate = new Date(Date.now());
-    return moment(currentDate).tz('America/Los_Angeles').format('MMM-DD-YY');
+    return moment(currentDate).tz(COMPANY_TZ).format('MMM-DD-YY');
   };
 
   const getTeamMembers = function (user) {
@@ -324,7 +324,7 @@ const userHelper = function () {
    * @return {void}
    */
   const emailWeeklySummariesForAllUsers = async (weekIndex = 1) => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const currentFormattedDate = moment().tz(COMPANY_TZ).format();
     /* eslint-disable no-undef */
     logger.logInfo(
       `Job for emailing all users' weekly summaries starting at ${currentFormattedDate}`,
@@ -409,9 +409,7 @@ const userHelper = function () {
             weeklySummaryMessage = `
         <div>
           <b>Weekly Summary</b>
-          (for the week ending on <b>${moment(dueDate)
-            .tz('America/Los_Angeles')
-            .format('YYYY-MMM-DD')}</b>):
+          (for the week ending on <b>${moment(dueDate).tz(COMPANY_TZ).format('YYYY-MMM-DD')}</b>):
         </div>
         <div data-pdfmake="{&quot;margin&quot;:[20,0,20,0]}" ${colorStyle}>
           ${summary}
@@ -494,7 +492,7 @@ const userHelper = function () {
           weeklySummaries: {
             $each: [
               {
-                dueDate: moment().tz('America/Los_Angeles').endOf('week'),
+                dueDate: moment().tz(COMPANY_TZ).endOf('week'),
                 summary: '',
               },
             ],
@@ -849,16 +847,13 @@ const userHelper = function () {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
-      const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+      const currentFormattedDate = moment().tz(COMPANY_TZ).format();
       logger.logInfo(
         `Job for assigning blue square for commitment not met starting at ${currentFormattedDate}`,
       );
 
-      const pdtStartOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week');
-      const pdtEndOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+      const pdtStartOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week');
+      const pdtEndOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
       const users = await userProfile.find(
         { isActive: true },
@@ -937,20 +932,20 @@ const userHelper = function () {
 
   const applyMissedHourForCoreTeam = async () => {
     try {
-      const currentDate = moment().tz('America/Los_Angeles').format();
+      const currentDate = moment().tz(COMPANY_TZ).format();
 
       logger.logInfo(
         `Job for applying missed hours for Core Team members starting at ${currentDate}`,
       );
 
       const startOfLastWeek = moment()
-        .tz('America/Los_Angeles')
+        .tz(COMPANY_TZ)
         .startOf('week')
         .subtract(1, 'week')
         .format('YYYY-MM-DD');
 
       const endOfLastWeek = moment()
-        .tz('America/Los_Angeles')
+        .tz(COMPANY_TZ)
         .endOf('week')
         .subtract(1, 'week')
         .format('YYYY-MM-DD');
@@ -1058,7 +1053,7 @@ const userHelper = function () {
   };
 
   const deleteBlueSquareAfterYear = async () => {
-    const nowLA = moment().tz('America/Los_Angeles');
+    const nowLA = moment().tz(COMPANY_TZ);
     logger.logInfo(`Job for deleting blue squares older than 1 year starting at ${nowLA.format()}`);
     const cutOffDate = nowLA.clone().subtract(1, 'year').format('YYYY-MM-DD');
 
@@ -1092,7 +1087,7 @@ const userHelper = function () {
 
       logger.logInfo(
         `Job deleting blue squares older than 1 year finished at ${moment()
-          .tz('America/Los_Angeles')
+          .tz(COMPANY_TZ)
           .format()} \nResult: ${JSON.stringify(results)}`,
       );
     } catch (err) {
@@ -1152,16 +1147,16 @@ const userHelper = function () {
    * Returns { pdtStartOfLastWeek, pdtEndOfLastWeek } for the previous PDT week.
    */
   const getLastWeekRange = () => ({
-    pdtStartOfLastWeek: moment().tz('America/Los_Angeles').startOf('week').subtract(1, 'week'),
-    pdtEndOfLastWeek: moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week'),
+    pdtStartOfLastWeek: moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week'),
+    pdtEndOfLastWeek: moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week'),
   });
 
   /**
    * Returns how many full months the user has been on the team (PDT-aware).
    */
   const getNumMonthsOnTeam = (user) => {
-    const currentDate = moment().tz('America/Los_Angeles');
-    const startDate = moment(user.startDate).tz('America/Los_Angeles');
+    const currentDate = moment().tz(COMPANY_TZ);
+    const startDate = moment(user.startDate).tz(COMPANY_TZ);
     const startOfMonth = startDate.clone().startOf('month');
     const currentMonthStart = currentDate.clone().startOf('month');
     const daysIntoStart = startDate.diff(startOfMonth, 'days');
@@ -1238,6 +1233,137 @@ const userHelper = function () {
       console.error(err);
       return 'error';
     }
+  };
+
+  /**
+   * Single unified auto-reply function implementing Jae's priority hierarchy.
+   * Replaces inCompleteHoursEmailFunction + weeklyBlueSquareReminderFunction.
+   * Sends at most ONE email per user, using the highest-priority matching template.
+   *
+   * Priority order:
+   * 1. Met hours, missed summary → handled by completeHoursAndMissedSummary (separate)
+   * 2. 85–99% hours → MISSED_HOURS_BY_<15%
+   * 3. 4th blue square → 4TH_BLUE_SQUARE / SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE
+   * 4. 3rd BS, < 2 months → <2MON_THREE_BLUESQUARE
+   * 5. 2nd BS, < 2 months → <2MON_TWO_BLUESQUARE
+   * 6. 2nd BS, < 1 month → <1MON_TWO_BLUESQUARE
+   * 7. 1st BS, < 1 month → <1MON_ONE_BLUESQUARE
+   * 8. 65–84.9% hours → COMPLETED_HOURS_65%_84.9%
+   * 9. 25–64.9% hours, 2+ months → COMPLETED_HOURS_25%_64.9%
+   */
+  const weeklyAutoReplyEmailFunction = async (emailConfig = {}) => {
+    try {
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
+      const users = await userProfile.find(
+        query,
+        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq',
+      );
+
+      const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
+      // Compute once — all blue squares from this Sunday's assignment run share this date
+      const assignmentDate = moment().tz(COMPANY_TZ).startOf('week').format('YYYY-MM-DD');
+      const resolvedBCCs = await resolveBCCs(emailConfig);
+
+      for (const user of users) {
+        const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+
+        // Skip users who already received a priority-1 email from
+        // completeHoursAndMissedSummary() — they met hours but missed summary.
+        const metHours = weeklycommittedHours > 0 && timeSpent >= weeklycommittedHours;
+        const hasSummary =
+          user?.weeklySummaryOption === 'Not Required' ||
+          user?.weeklySummaryNotReq ||
+          (Array.isArray(user.weeklySummaries) &&
+            user.weeklySummaries.length > 1 &&
+            !!user.weeklySummaries[1].summary);
+        if (metHours && !hasSummary) continue; // handled by completeHoursAndMissedSummary
+
+        const numMonths = getNumMonthsOnTeam(user);
+        const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
+
+        const templateKey = resolveAutoReplyTemplate(
+          timeSpent,
+          weeklycommittedHours,
+          numMonths,
+          user.infringements.length,
+          hasTodayBlueSquare,
+          hasTimeOff,
+        );
+
+        if (!templateKey) continue;
+
+        console.log(`[autoReply] ${user.email} → ${templateKey}`);
+        await sendBlueSquareEmail(
+          emailConfig,
+          user,
+          pdtStartOfLastWeek,
+          WeeklyReminderEmailBody(templateKey, user.firstName),
+          resolvedBCCs,
+        );
+      }
+    } catch (error) {
+      console.error('Error in weeklyAutoReplyEmailFunction:', error);
+    }
+  };
+
+  /**
+   * Picks the single highest-priority template for a user, or null if none applies.
+   */
+  const resolveAutoReplyTemplate = (
+    timeSpent,
+    weeklycommittedHours,
+    numMonths,
+    infringementCount,
+    hasTodayBlueSquare,
+    hasTimeOff,
+  ) => {
+    const pct = weeklycommittedHours > 0 ? timeSpent / weeklycommittedHours : 0;
+    const nearMiss = pct >= 0.85 && pct < 1.0; // 85–99%
+    const mediumMiss = pct >= 0.65 && pct < 0.85; // 65–84.9%
+    const lowHours = pct >= 0.25 && pct < 0.65; // 25–64.9%
+    const metHours = pct >= 1.0;
+
+    // Priority 1: Met hours + missed summary → handled entirely by
+    // completeHoursAndMissedSummary(). Skip those users here to avoid
+    // double-emailing. They will have metHours=true and no blue square today.
+    if (metHours) return null;
+
+    // Priority 2: 85–99% hours, got a blue square today, fewer than 4 total
+    if (nearMiss && hasTodayBlueSquare && infringementCount < 4) {
+      return 'MISSED_HOURS_BY_<15%';
+    }
+
+    // Priority 3: 4th blue square (beats all lower priorities regardless of hours bucket)
+    if (infringementCount === 4 && hasTodayBlueSquare) {
+      return hasTimeOff ? 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE' : '4TH_BLUE_SQUARE';
+    }
+
+    // Priorities 4–7: early-team-member patterns.
+    // Only applies when a blue square was received today, no time off,
+    // and not a near/medium miss (those have their own emails below).
+    if (hasTodayBlueSquare && !hasTimeOff && !nearMiss && !mediumMiss) {
+      // Order matters: more specific (shorter tenure) checked first
+      if (infringementCount === 3 && numMonths < 2) return '<2MON_THREE_BLUESQUARE'; // P4
+      if (infringementCount === 2 && numMonths < 1) return '<1MON_TWO_BLUESQUARE'; // P6 (narrower, so first)
+      if (infringementCount === 2 && numMonths < 2) return '<2MON_TWO_BLUESQUARE'; // P5
+      if (infringementCount === 1 && numMonths < 1) return '<1MON_ONE_BLUESQUARE'; // P7
+    }
+
+    // Priority 8: 65–84.9% hours, got a blue square today
+    if (mediumMiss && hasTodayBlueSquare) {
+      return 'COMPLETED_HOURS_65%_84.9%';
+    }
+
+    // Priority 9: 25–64.9% hours, 2+ months on team, got a blue square today
+    if (lowHours && hasTodayBlueSquare && numMonths >= 2) {
+      return 'COMPLETED_HOURS_25%_64.9%';
+    }
+
+    return null;
   };
 
   const WeeklyReminderEmailBody = (templateNo, firstName) => {
@@ -1374,47 +1500,49 @@ const userHelper = function () {
     }
   };
 
-  const inCompleteHoursEmailFunction = async (emailConfig = {}) => {
-    try {
-      const query = emailConfig.targetUserId
-        ? { _id: emailConfig.targetUserId }
-        : { isActive: true };
-      const users = await userProfile.find(
-        query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate',
-      );
+  // Will be removed once the combined function WeeklyAutoReplyEmailFunction is fully working in production
 
-      const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
-      const todayDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
-      const resolvedBCCs = await resolveBCCs(emailConfig);
+  // const inCompleteHoursEmailFunction = async (emailConfig = {}) => {
+  //   try {
+  //     const query = emailConfig.targetUserId
+  //       ? { _id: emailConfig.targetUserId }
+  //       : { isActive: true };
+  //     const users = await userProfile.find(
+  //       query,
+  //       '_id weeklycommittedHours missedHours email firstName infringements startDate',
+  //     );
 
-      for (const user of users) {
-        const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const numMonths = getNumMonthsOnTeam(user);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === todayDate);
+  //     const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
+  //     const todayDate = moment().tz(COMPANY_TZ).format('YYYY-MM-DD');
+  //     const resolvedBCCs = await resolveBCCs(emailConfig);
 
-        const templateKey = resolveIncompleteHoursTemplate(
-          timeSpent,
-          weeklycommittedHours,
-          numMonths,
-          user.infringements.length,
-          hasTodayBlueSquare,
-        );
-        if (!templateKey) continue;
+  //     for (const user of users) {
+  //       const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+  //       const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+  //       const numMonths = getNumMonthsOnTeam(user);
+  //       const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === todayDate);
 
-        await sendBlueSquareEmail(
-          emailConfig,
-          user,
-          pdtStartOfLastWeek,
-          WeeklyReminderEmailBody(templateKey, user.firstName),
-          resolvedBCCs,
-        );
-      }
-    } catch (error) {
-      console.error('Error in inCompleteHoursEmailFunction:', error);
-    }
-  };
+  //       const templateKey = resolveIncompleteHoursTemplate(
+  //         timeSpent,
+  //         weeklycommittedHours,
+  //         numMonths,
+  //         user.infringements.length,
+  //         hasTodayBlueSquare,
+  //       );
+  //       if (!templateKey) continue;
+
+  //       await sendBlueSquareEmail(
+  //         emailConfig,
+  //         user,
+  //         pdtStartOfLastWeek,
+  //         WeeklyReminderEmailBody(templateKey, user.firstName),
+  //         resolvedBCCs,
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error('Error in inCompleteHoursEmailFunction:', error);
+  //   }
+  // };
 
   /**
    * Pure helper — picks the right template key for inCompleteHoursEmailFunction,
@@ -1441,52 +1569,54 @@ const userHelper = function () {
     return null;
   };
 
-  const weeklyBlueSquareReminderFunction = async (emailConfig = {}) => {
-    try {
-      const query = emailConfig.targetUserId
-        ? { _id: emailConfig.targetUserId }
-        : { isActive: true };
-      const users = await userProfile.find(
-        query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate',
-      );
+  // Will be removed once the combined function WeeklyAutoReplyEmailFunction is fully working in production
 
-      const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
-      const todayDate = moment().tz('America/Los_Angeles').format('YYYY-MM-DD');
-      const resolvedBCCs = await resolveBCCs(emailConfig);
+  // const weeklyBlueSquareReminderFunction = async (emailConfig = {}) => {
+  //   try {
+  //     const query = emailConfig.targetUserId
+  //       ? { _id: emailConfig.targetUserId }
+  //       : { isActive: true };
+  //     const users = await userProfile.find(
+  //       query,
+  //       '_id weeklycommittedHours missedHours email firstName infringements startDate',
+  //     );
 
-      for (const user of users) {
-        const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        if (timeSpent == null) continue;
+  //     const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
+  //     const todayDate = moment().tz(COMPANY_TZ).format('YYYY-MM-DD');
+  //     const resolvedBCCs = await resolveBCCs(emailConfig);
 
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-        const numMonths = getNumMonthsOnTeam(user);
-        const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === todayDate);
+  //     for (const user of users) {
+  //       const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+  //       if (timeSpent == null) continue;
 
-        const templateKey = resolveReminderTemplate(
-          timeSpent,
-          weeklycommittedHours,
-          numMonths,
-          user.infringements.length,
-          hasTodayBlueSquare,
-          hasTimeOff,
-        );
-        if (!templateKey) continue;
+  //       const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+  //       const numMonths = getNumMonthsOnTeam(user);
+  //       const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+  //       const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === todayDate);
 
-        console.log(`Entered ${templateKey} part`);
-        await sendBlueSquareEmail(
-          emailConfig,
-          user,
-          pdtStartOfLastWeek,
-          WeeklyReminderEmailBody(templateKey, user.firstName),
-          resolvedBCCs,
-        );
-      }
-    } catch (error) {
-      console.error('Error in weeklyBlueSquareReminderFunction:', error);
-    }
-  };
+  //       const templateKey = resolveReminderTemplate(
+  //         timeSpent,
+  //         weeklycommittedHours,
+  //         numMonths,
+  //         user.infringements.length,
+  //         hasTodayBlueSquare,
+  //         hasTimeOff,
+  //       );
+  //       if (!templateKey) continue;
+
+  //       console.log(`Entered ${templateKey} part`);
+  //       await sendBlueSquareEmail(
+  //         emailConfig,
+  //         user,
+  //         pdtStartOfLastWeek,
+  //         WeeklyReminderEmailBody(templateKey, user.firstName),
+  //         resolvedBCCs,
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error('Error in weeklyBlueSquareReminderFunction:', error);
+  //   }
+  // };
 
   /**
    * Pure helper — picks the right template key for weeklyBlueSquareReminderFunction,
@@ -1524,7 +1654,7 @@ const userHelper = function () {
   };
 
   const reActivateUser = async () => {
-    const currentFormattedDate = moment().tz('America/Los_Angeles').format();
+    const currentFormattedDate = moment().tz(COMPANY_TZ).format();
 
     logger.logInfo(
       `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`,
@@ -1553,9 +1683,7 @@ const userHelper = function () {
             { new: true },
           );
           logger.logInfo(
-            `User with id: ${user._id} was re-acticated at ${moment()
-              .tz('America/Los_Angeles')
-              .format()}.`,
+            `User with id: ${user._id} was re-acticated at ${moment().tz(COMPANY_TZ).format()}.`,
           );
           const id = user._id;
           const person = await userProfile.findById(id);
@@ -2136,8 +2264,8 @@ const userHelper = function () {
   const getAllWeeksData = async (personId, user) => {
     const userId = mongoose.Types.ObjectId(personId);
     const weeksData = [];
-    const currentDate = moment().tz('America/Los_Angeles');
-    const startDate = moment(user.createdDate).tz('America/Los_Angeles');
+    const currentDate = moment().tz(COMPANY_TZ);
+    const startDate = moment(user.createdDate).tz(COMPANY_TZ);
     const numWeeks = Math.ceil(currentDate.diff(startDate, 'days') / 7);
 
     // iterate through weeks to get hours of each week
@@ -2195,7 +2323,7 @@ const userHelper = function () {
     }
     await badge.findOne({ type: 'Personal Max' }).then((results) => {
       const currentDate = moment(moment().format('MM-DD-YYYY'), 'MM-DD-YYYY')
-        .tz('America/Los_Angeles')
+        .tz(COMPANY_TZ)
         .format('MMM-DD-YY');
       if (
         user.lastWeekTangibleHrs &&
@@ -2593,8 +2721,8 @@ const userHelper = function () {
   const getTangibleHoursReportedThisWeekByUserId = function (personId) {
     const userId = mongoose.Types.ObjectId(personId);
 
-    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    const pdtstart = moment().tz(COMPANY_TZ).startOf('week').format('YYYY-MM-DD');
+    const pdtend = moment().tz(COMPANY_TZ).endOf('week').format('YYYY-MM-DD');
 
     return timeEntries
       .find(
@@ -2792,7 +2920,7 @@ const userHelper = function () {
   };
 
   const deleteOldTimeOffRequests = async () => {
-    const endOfLastWeek = moment().tz('America/Los_Angeles').endOf('week').subtract(1, 'week');
+    const endOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
     const utcEndMoment = moment(endOfLastWeek).subtract(1, 'day').add(1, 'second');
     try {
@@ -2991,16 +3119,8 @@ const userHelper = function () {
 
   const resendBlueSquareEmailsOnlyForLastWeek = async () => {
     try {
-      const startOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .startOf('week')
-        .subtract(1, 'week')
-        .toDate();
-      const endOfLastWeek = moment()
-        .tz('America/Los_Angeles')
-        .endOf('week')
-        .subtract(1, 'week')
-        .toDate();
+      const startOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week').toDate();
+      const endOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week').toDate();
 
       const startStr = moment(startOfLastWeek).format('YYYY-MM-DD');
       const endStr = moment(endOfLastWeek).format('YYYY-MM-DD');
@@ -3397,8 +3517,9 @@ const userHelper = function () {
     applyMissedHourForCoreTeam,
     deleteBlueSquareAfterYear,
     completeHoursAndMissedSummary,
-    inCompleteHoursEmailFunction,
-    weeklyBlueSquareReminderFunction,
+    // inCompleteHoursEmailFunction,
+    // weeklyBlueSquareReminderFunction,
+    weeklyAutoReplyEmailFunction,
     reActivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
