@@ -824,6 +824,8 @@ const userHelper = function () {
           replyTo: status.email,
           bcc: emailsBCCs,
           startDate: person.startDate,
+          recipientUserId: String(status._id),
+          weekStart: pdtStartOfLastWeek.format('YYYY-MM-DD'),
         });
       } else if (!timeNotMet && !hasWeeklySummary) {
         usersRequiringBlueSqNotification.push(personId);
@@ -899,7 +901,11 @@ const userHelper = function () {
           email.cc,
           email.replyTo,
           email.bcc,
-          { type: 'blue_square_assignment' },
+          {
+            type: 'blue_square_assignment',
+            recipientUserId: email.recipientUserId,
+            weekStart: email.weekStart,
+          },
         );
       }
 
