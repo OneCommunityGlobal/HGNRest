@@ -412,6 +412,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [
