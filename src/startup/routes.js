@@ -266,6 +266,7 @@ const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskP
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 
 // lb dashboard
+const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
@@ -597,6 +598,7 @@ module.exports = function (app) {
   app.use('/api/communityportal', NoShowFollowUpRouter);
 
   // lb dashboard
+  app.use('/api/lbdashboard', lbRegisterRouter);
   app.use('/api/lb', lbListingsRouter);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api', eventRouter);
@@ -618,6 +620,7 @@ module.exports = function (app) {
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
+
   app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
