@@ -21,4 +21,5 @@ const routes = function (buildingIssue, injuryIssue) {
 
   return IssueRouter;
 };
+
 module.exports = routes;
