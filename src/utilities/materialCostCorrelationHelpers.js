@@ -576,7 +576,7 @@ function buildProjectsMap(mergedData, projectMap, materialTypeMap) {
     if (!projectsMap.has(projectIdStr)) {
       projectsMap.set(projectIdStr, {
         projectId: projectIdStr,
-        projectName: projectMap.get(projectIdStr) || projectIdStr,
+        projectName: projectMap.get(projectIdStr) || 'Unknown Project',
         totals: {
           quantityUsed: 0,
           totalCost: 0,
@@ -589,7 +589,7 @@ function buildProjectsMap(mergedData, projectMap, materialTypeMap) {
 
     const project = projectsMap.get(projectIdStr);
     const materialInfo = materialTypeMap.get(materialTypeIdStr) || {
-      name: materialTypeIdStr,
+      name: 'Unknown Material Type',
       unit: '',
     };
 
@@ -716,7 +716,7 @@ async function buildCostCorrelationResponse(usageData, costData, requestParams, 
         if (!projectsMap.has(idStr)) {
           projectsMap.set(idStr, {
             projectId: idStr,
-            projectName: projectMap.get(idStr) || idStr,
+            projectName: projectMap.get(idStr) || 'Unknown Project',
             totals: {
               quantityUsed: 0,
               totalCost: 0,
