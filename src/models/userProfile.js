@@ -104,6 +104,7 @@ const userProfileSchema = new Schema({
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
@@ -158,12 +159,12 @@ const userProfileSchema = new Schema({
         enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
       },
       // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
-      manullyAssigned: {
+      manuallyAssigned: {
         type: Boolean,
         default: false,
       },
       // Track who manually assigned the blue square
-      manullyAssignedBy: {
+      manuallyAssignedBy: {
         firstName: { type: String },
         lastName: { type: String },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
@@ -194,6 +195,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -514,3 +516,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');

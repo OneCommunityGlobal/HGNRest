@@ -10,51 +10,105 @@ const updateEventStatus = (event) => {
   return event.status;
 };
 
-const getEvents = async (req, res) => {
-  const { page = 1, limit = 9, type = '', location = '', sortBy = 'date' } = req.query;
+const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
+const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
+const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
 
+function validateQuery({ type, location, sortBy }) {
+  if (type && !VALID_TYPES.has(type)) {
+    throw new Error('Invalid Type of Event.');
+  }
+
+  if (location && !VALID_LOCATIONS.has(location)) {
+    throw new Error('Invalid Location for the Event.');
+  }
+
+  if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
+    throw new Error('Invalid Sort Field.');
+  }
+}
+
+function buildSafeQuery(location, type) {
+  const query = { isActive: true };
+
+  if (location === 'Virtual') {
+    query.location = 'Virtual';
+  } else if (location === 'In person') {
+    query.location = 'In person';
+  } else if (location === 'TBD') {
+    query.location = 'TBD';
+  }
+
+  if (type === 'Workshop') {
+    query.type = 'Workshop';
+  } else if (type === 'Meeting') {
+    query.type = 'Meeting';
+  } else if (type === 'Webinar') {
+    query.type = 'Webinar';
+  } else if (type === 'Social Gathering') {
+    query.type = 'Social Gathering';
+  }
+
+  return query;
+}
+
+function getPagination(page, limit, total) {
+  if (!page || !limit) {
+    return {
+      pageNumber: 1,
+      limitNumber: total,
+      skip: 0,
+    };
+  }
+
+  const pageNumber = Math.max(1, Number(page));
+  const limitNumber = Math.max(1, Number(limit));
+
+  return {
+    pageNumber,
+    limitNumber,
+    skip: (pageNumber - 1) * limitNumber,
+  };
+}
+
+function formatEvent(event, userId) {
+  event.status = updateEventStatus(event);
+
+  const eventObj = event.toObject();
+  const waitlist = Array.isArray(event.waitlist) ? event.waitlist : [];
+
+  eventObj.waitlistCount = waitlist.length;
+  eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
+
+  if (userId) {
+    const index = waitlist.findIndex((entry) => entry.userId?.toString() === userId.toString());
+
+    eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
+  }
+
+  return eventObj;
+}
+
+const getEvents = async function (req, res) {
   try {
-    const validSortFields = ['date', 'title', 'type', 'location', 'currentAttendees'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const { page, limit, type, location, sortBy } = req.query;
 
-    const query = { isActive: true };
-    if (type) query.type = type;
-    if (location) query.location = location;
+    validateQuery({ type, location, sortBy });
 
-    const pageNumber = Math.max(1, Number(page));
-    const limitNumber = Math.max(1, Number(limit));
+    const safeQuery = buildSafeQuery(location, type);
+    const totalEvents = await Event.countDocuments(safeQuery);
+    const { pageNumber, limitNumber, skip } = getPagination(page, limit, totalEvents);
 
-    const totalEvents = await Event.countDocuments(query);
-    let events = await Event.find(query)
+    const events = await Event.find(safeQuery)
       .populate('resources.userID')
-      .sort({ [sortField]: 1 })
-      .skip((pageNumber - 1) * limitNumber)
+      .sort(sortBy ? { [sortBy]: 1 } : {})
+      .skip(skip)
       .limit(limitNumber);
 
-    events = events.map((event) => {
-      event.status = updateEventStatus(event);
-
-      const eventObj = event.toObject();
-
-      eventObj.waitlistCount = event.waitlist?.length || 0;
-
-      eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
-
-      const { userId } = req.query;
-
-      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        const index = event.waitlist.findIndex(
-          (entry) => entry.userId?.toString() === userId.toString(),
-        );
-
-        eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
-      }
-
-      return eventObj;
-    });
+    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
 
     res.json({
-      events,
+      events: formattedEvents,
       pagination: {
         total: totalEvents,
         totalPages: Math.ceil(totalEvents / limitNumber),
@@ -63,7 +117,33 @@ const getEvents = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch events', details: error.message });
+    if (error.message.startsWith('Invalid')) {
+      return res.status(400).send(error.message);
+    }
+
+    res.status(500).json({
+      error: 'Failed to fetch events',
+      details: error.message,
+    });
+  }
+};
+
+const getEventById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const event = await Event.findById(id).populate('resources.userID');
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    event.status = updateEventStatus(event);
+
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fetch event',
+      details: error.message,
+    });
   }
 };
 
@@ -72,11 +152,10 @@ const autoPromoteFromWaitlist = (event) => {
 
   while (event.currentAttendees < event.maxAttendees && event.waitlist.length > 0) {
     const nextEntry = event.waitlist.shift();
-
-    if (!nextEntry?.userId) continue;
-    console.log(`Auto-promoting user from waitlist for event ${event._id}`);
-    event.currentAttendees += 1;
-    promotedUsers.push(nextEntry.userId);
+    if (nextEntry?.userId) {
+      event.currentAttendees += 1;
+      promotedUsers.push(nextEntry.userId);
+    }
   }
 
   return promotedUsers;
@@ -113,11 +192,78 @@ const createEvent = async (req, res) => {
   }
 };
 
+const registerForEvent = async (req, res) => {
+  const { id } = req.params;
+  const { name, userId, profilePic, location } = req.body;
+
+  if (!name || !userId) {
+    return res.status(400).json({ error: 'name and userID are required' });
+  }
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    if (!event.isActive) {
+      return res.status(400).json({ error: 'Event is no longer active' });
+    }
+    if (event.currentAttendees >= event.maxAttendees) {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    const alreadyRegistered = event.resources.some((r) => r.userID?.toString() === userId);
+    if (alreadyRegistered) {
+      return res.status(409).json({ error: 'User is already registered for this event' });
+    }
+
+    const newAttendees = event.currentAttendees + 1;
+    const newStatus = updateEventStatus({ ...event.toObject(), currentAttendees: newAttendees });
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      id,
+      {
+        $push: { resources: { name, userID: userId, profilePic, location } },
+        $inc: { currentAttendees: 1 },
+        $set: { status: newStatus },
+      },
+      { new: true },
+    );
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to register for event', details: error.message });
+  }
+};
+
+const unregisterFromEvent = async (req, res) => {
+  const { id, userId } = req.params;
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const registrantIndex = event.resources.findIndex((r) => r.userID?.toString() === userId);
+    if (registrantIndex === -1) {
+      return res.status(404).json({ error: 'User is not registered for this event' });
+    }
+
+    event.resources.splice(registrantIndex, 1);
+    event.currentAttendees -= 1;
+    event.status = updateEventStatus(event);
+
+    const updatedEvent = await event.save();
+    res.status(200).json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to unregister from event', details: error.message });
+  }
+};
+
 const joinWaitlist = async (req, res) => {
   try {
     const { eventId } = req.params;
     const { userId } = req.body;
-    console.log('Join waitlist request received');
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid userId' });
@@ -146,7 +292,6 @@ const joinWaitlist = async (req, res) => {
       position,
     });
   } catch (error) {
-    console.error('JOIN WAITLIST ERROR:', error);
     res.status(500).json({
       error: 'Failed to join waitlist',
       details: error.message,
@@ -156,7 +301,6 @@ const joinWaitlist = async (req, res) => {
 
 const sendWaitlistNotification = async (user, event) => {
   // TODO: Integrate with real notification service (email/queue)
-  console.log(`Sending waitlist notification for event ${event._id}`);
 };
 
 const leaveEvent = async (req, res) => {
@@ -227,9 +371,12 @@ const leaveWaitlist = async (req, res) => {
 
 module.exports = {
   getEvents,
+  getEventById,
   getEventLocations,
   getEventTypes,
   createEvent,
+  registerForEvent,
+  unregisterFromEvent,
   joinWaitlist,
   leaveEvent,
   leaveWaitlist,
