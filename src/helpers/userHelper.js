@@ -579,7 +579,8 @@ const userHelper = function () {
       person.totalTangibleHrs === 0 &&
       person.totalIntangibleHrs === 0 &&
       timeSpent === 0 &&
-      userStartDate.isAfter(pdtStartOfLastWeek)
+      userStartDate.isAfter(pdtStartOfLastWeek) &&
+      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1 // only Tuesday+ gets a pass
     ) {
       return true;
     }
