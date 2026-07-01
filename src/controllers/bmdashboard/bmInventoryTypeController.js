@@ -745,6 +745,8 @@ function bmInventoryTypeController(
     addToolType,
     updateNameAndUnit,
     fetchInvUnits,
+    addInvUnit,
+    deleteInvUnit,
     fetchInventoryByType,
     fetchInvTypeHistory,
     deleteInvType: deleteById(InvType),
