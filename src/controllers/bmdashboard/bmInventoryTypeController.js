@@ -802,6 +802,7 @@ function bmInventoryTypeController(
     updateNameAndUnit,
     fetchInvUnitsFromJson,
     fetchInventoryByType,
+    fetchInvTypeHistory,
     deleteInvType: deleteById(InvType),
     updateInvType: updateInventoryTypeById(InvType),
   };
