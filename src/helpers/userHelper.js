@@ -1377,7 +1377,7 @@ const userHelper = function () {
     switch (templateNo) {
       case 'MISSED_HOURS_BY_<15%':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>You completed close enough to your total hours for us to remove this blue square. Please be sure to complete the minimum or more of your hours from now on though.</div>
             <div><br></div>
@@ -1387,7 +1387,7 @@ const userHelper = function () {
           </div>`;
       case 'COMPLETED_HOURS_65%_84.9%':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>We're checking in to see if everything is ok with you. You completed most but not all of your hours this last week. Is everything ok?</div>
             <div><br></div>
@@ -1399,7 +1399,7 @@ const userHelper = function () {
           </div>`;
       case 'COMPLETED_HOURS_25%_64.9%':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>This email is checking in to see if everything is ok with you. You completed some but not all of your hours this last week. Is everything ok? Is there a reason you didn't use the blue square scheduler on your Profile Page to schedule the week off?</div>
             <div><br></div>
@@ -1411,7 +1411,7 @@ const userHelper = function () {
           </div>`;
       case '<1MON_ONE_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>It's very unusual for someone to get a blue square in their first few weeks on the team. This email is to check in with you to see if everything is ok and if you are still wanting to volunteer with us.</div>
             <div><br></div>
@@ -1423,7 +1423,7 @@ const userHelper = function () {
           </div>`;
       case '<2MON_TWO_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>We noticed that you've received <strong>two blue squares</strong> within your first couple of months on the team, which is somewhat unusual. We're reaching out to check in, understand what happened, and see if this role still aligns with your interests, availability, and energy.</div>
             <div><br></div>
@@ -1437,7 +1437,7 @@ const userHelper = function () {
           </div>`;
       case '<1MON_TWO_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>We noticed that you've received <strong>two blue squares</strong> within your first few weeks on the team, which is quite unusual. When this happens, we start to wonder whether this position is the right fit for you and if you still wish to continue volunteering with us.</div>
             <div><br></div>
@@ -1453,7 +1453,7 @@ const userHelper = function () {
           </div>`;
       case '<2MON_THREE_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>It's very unusual for people to get 3 blue squares in less than 2 months on the team. We're writing to check in with you to see if A) everything is OK and B) if you still have the time and desire to continue with us?</div>
             <div><br></div>
@@ -1467,7 +1467,7 @@ const userHelper = function () {
           </div>`;
       case '4TH_BLUE_SQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>We wanted to reach out because you've received <strong>four blue squares</strong>. As you may know, we allow a maximum of <strong>five</strong>, so we want to ensure you're aware that you are nearing the limit.</div>
             <div><br></div>
@@ -1479,7 +1479,7 @@ const userHelper = function () {
           </div>`;
       case 'SCHEDULED_TIME_OFF':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated.</div>
             <div><br></div>
@@ -1489,7 +1489,7 @@ const userHelper = function () {
           </div>`;
       case 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE':
         return `<div style="font-family: Arial, sans-serif;">
-            Good Morning ${firstName},
+            Good Morning, ${firstName},
             <div><br></div>
             <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated. And as you may know, we allow a maximum of <strong>five</strong> blue squares.</div>
             <div><br></div>
