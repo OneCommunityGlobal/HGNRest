@@ -219,12 +219,7 @@ const costsRouter = require('../routes/costsRouter')(costs);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
-
 const meetingRouter = require('../routes/meetingRouter')(meeting);
-
-// const form=require('../models/forms')
-// const formResponse=require('../models/formResponse')
-// const formRouter=require('../routes/formRouter')(form,formResponse);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
 const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
@@ -507,12 +502,7 @@ module.exports = function (app) {
   app.use('/api', materialUtilizationRouter);
 
   app.use('/api', formRouter);
-
   app.use('/api', meetingRouter);
-  app.use('/api/jobs', jobsRouter);
-
-  app.use('/api', formRouter);
-
   app.use('/api', collaborationRouter);
   app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
@@ -601,11 +591,6 @@ module.exports = function (app) {
   app.use('/api/bm', bmInjuryRouter);
   app.use('/api', bmProjectRiskProfileRouter);
 
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('api', bmIssueRouter);
-
-  app.use('/api/lb', bidPropertyRouter);
-  app.use('/api/lb', userBidRouter);
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
 
