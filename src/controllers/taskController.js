@@ -13,7 +13,24 @@ const followUp = require('../models/followUp');
 const logger = require('../startup/logger');
 
 const taskController = function (Task) {
-  const getTasks = (req, res) => {
+  const canSeeTaskExtensionCount = async (requestor) =>
+    (await hasPermission(requestor, 'seeNumberOfTimesTimeAdded')) ||
+    (await hasPermission(requestor, 'viewTaskExtensionCount'));
+
+  const removeTaskExtensionCounts = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(removeTaskExtensionCounts);
+      return value;
+    }
+    if (value && typeof value === 'object') {
+      if (Object.prototype.hasOwnProperty.call(value, 'deadlineCount')) {
+        delete value.deadlineCount;
+      }
+      Object.values(value).forEach(removeTaskExtensionCounts);
+    }
+    return value;
+  };
+  const getTasks = async (req, res) => {
     const { level } = req.params;
 
     let query = {
@@ -32,19 +49,25 @@ const taskController = function (Task) {
       };
     }
 
-    Task.find(query)
-      .populate('createdBy', 'firstName lastName email') // <-- added
-      .lean()
-      .then((results) => {
-        const withCreator = results.map((t) => ({
-          ...t,
-          creatorName: t.createdBy
-            ? [t.createdBy.firstName, t.createdBy.lastName].filter(Boolean).join(' ').trim()
-            : undefined,
-        }));
-        return res.status(200).send(withCreator);
-      })
-      .catch((error) => res.status(404).send(error));
+    try {
+      const results = await Task.find(query)
+        .populate('createdBy', 'firstName lastName email')
+        .lean();
+
+      const withCreator = results.map((t) => ({
+        ...t,
+        creatorName: t.createdBy
+          ? [t.createdBy.firstName, t.createdBy.lastName].filter(Boolean).join(' ').trim()
+          : undefined,
+      }));
+
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+      return res
+        .status(200)
+        .send(canSeeCount ? withCreator : removeTaskExtensionCounts(withCreator));
+    } catch (error) {
+      return res.status(404).send(error);
+    }
   };
 
   const getWBSId = (req, res) => {
@@ -1071,6 +1094,9 @@ const taskController = function (Task) {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+      if (!canSeeCount) removeTaskExtensionCounts(task);
+
       return res.status(200).send(task);
     } catch (error) {
       return res.status(500).send({ error: 'Internal Server Error', details: error.message });
@@ -1267,12 +1293,16 @@ const taskController = function (Task) {
 
       if (teamsData && teamsData.length > 0) {
         await attachCreatorNames(teamsData);
-        return res.status(200).send(teamsData);
+        const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+        return res.status(200).send(canSeeCount ? teamsData : removeTaskExtensionCounts(teamsData));
       }
 
       const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
       await attachCreatorNames(singleUserData);
-      return res.status(200).send(singleUserData);
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+      return res
+        .status(200)
+        .send(canSeeCount ? singleUserData : removeTaskExtensionCounts(singleUserData));
     } catch (error) {
       console.log(error);
       return res.status(400).send({ error });
