@@ -391,6 +391,7 @@ const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
+const activityRouter = require('../routes/activityRouter');
 const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
@@ -594,6 +595,8 @@ module.exports = function (app) {
   //community portal
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
 
   // lb dashboard

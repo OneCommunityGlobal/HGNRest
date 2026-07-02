@@ -11,6 +11,8 @@ const routes = function (badge) {
 
   badgeRouter.route('/badge/:badgeId').delete(controller.deleteBadge).put(controller.putBadge);
 
+  badgeRouter.route('/badge/assign/bulk').post(controller.assignBadgesBulk);
+
   badgeRouter.route('/badge/assign/:userId').put(controller.assignBadges);
 
   badgeRouter
