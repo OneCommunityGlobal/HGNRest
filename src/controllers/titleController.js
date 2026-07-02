@@ -1,10 +1,10 @@
+const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfile = require('../models/userProfile');
-const projectModel = require('../models/project');
 const userProfileController = require('./userProfileController');
 
-const controller = userProfileController(userProfile, projectModel);
+const controller = userProfileController(userProfile, Project);
 const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
@@ -125,20 +125,10 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    // title
-    //   .save()
-    //   .then((results) => res.status(200).send(results))
-    //   .catch((error) => res.status(404).send(error));
-
-    try {
-      const savedTitle = await title.save();
-
-      await userProfile.updateMany({}, { $addToSet: { teamCodes: title.teamCode } });
-
-      res.status(200).send(savedTitle);
-    } catch (error) {
-      res.status(500).send(error);
-    }
+    title
+      .save()
+      .then((results) => res.status(200).send(results))
+      .catch((error) => res.status(404).send(error));
   };
 
   const updateTitlesOrder = async function (req, res) {
@@ -146,7 +136,7 @@ const titlecontroller = function (Title) {
       const { orderData } = req.body;
       console.log('Received order data:', orderData);
 
-      await Promise.all(
+      const updates = await Promise.all(
         orderData.map(async ({ id, order }) => {
           const updated = await Title.findByIdAndUpdate(id, { order }, { new: true });
           console.log('Updated title:', updated);
