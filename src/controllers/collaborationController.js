@@ -1,5 +1,7 @@
+const mongoose = require('mongoose');
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
+const upload = require('../middleware/multerMiddleware');
 const QuestionSet = require('../models/questionSet');
 const {
   canManageJobForms,
@@ -160,6 +162,94 @@ exports.updateFormFormat = async (req, res) => {
     res.status(500).json({ message: 'Error updating form format.', error });
   }
 };
+
+// Submit a job application for a form (public — applicants)
+exports.submitJobApplication = async (req, res) => {
+  try {
+    const { formId } = req.params;
+    let payload = {};
+    try {
+      payload = JSON.parse(req.body.payload || '{}');
+    } catch (parseError) {
+      return res.status(400).json({ message: 'Invalid application payload.' });
+    }
+
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ message: 'Form not found.' });
+    }
+
+    const { applicantName, applicantEmail, answers: answersPayload = [], profile = {} } = payload;
+    if (!applicantEmail || !String(applicantEmail).trim()) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const fileByField = {};
+    (req.files || []).forEach((file) => {
+      fileByField[file.fieldname] = file;
+    });
+
+    const builtAnswers = answersPayload.map(({ questionId, answer }) => {
+      const qIdStr = questionId ? String(questionId) : '';
+      const uploaded = qIdStr ? fileByField[`questionFile_${qIdStr}`] : null;
+      if (uploaded) {
+        return {
+          questionId: questionId || new mongoose.Types.ObjectId(),
+          answer: {
+            fileName: uploaded.originalname,
+            mimeType: uploaded.mimetype,
+            size: uploaded.size,
+          },
+        };
+      }
+      return {
+        questionId: questionId || new mongoose.Types.ObjectId(),
+        answer,
+      };
+    });
+
+    const { resume } = fileByField;
+    if (resume) {
+      builtAnswers.push({
+        questionId: new mongoose.Types.ObjectId(),
+        answer: {
+          type: 'resume',
+          fileName: resume.originalname,
+          mimeType: resume.mimetype,
+          size: resume.size,
+        },
+      });
+    }
+
+    builtAnswers.push({
+      questionId: new mongoose.Types.ObjectId(),
+      answer: {
+        type: 'applicantProfile',
+        applicantName,
+        applicantEmail,
+        ...profile,
+      },
+    });
+
+    const submission = new Response({
+      formId,
+      respondent: String(applicantEmail).trim(),
+      answers: builtAnswers,
+    });
+
+    await submission.save();
+
+    res.status(201).json({
+      message: 'Application submitted successfully.',
+      responseId: submission._id,
+    });
+  } catch (error) {
+    console.error('Error submitting job application:', error);
+    res.status(500).json({ message: 'Error submitting application.', error: error.message });
+  }
+};
+
+exports.submitJobApplicationMiddleware = upload.any();
 
 // Get all responses of a form
 exports.getFormResponses = async (req, res) => {
