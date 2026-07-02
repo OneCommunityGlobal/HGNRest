@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 const listings = new Schema({
   title: { type: String, required: true, maxLength: 255 },

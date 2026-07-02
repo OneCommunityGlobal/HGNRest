@@ -31,6 +31,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
       'postTeam',
@@ -45,6 +46,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       // User Profile
+      'accessPRTeamDashboard',
       'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
@@ -107,6 +109,15 @@ const permissionsRoles = [
       'manageFAQs',
       // Meeting
       'scheduleMeetings',
+      'setFinalDay',
+      // Job Form Management (Permissions Management > Job Form Management)
+      // manageJobForms: full form/template management
+      // createFormQuestions | editFormQuestions | deleteFormQuestions: granular access
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -193,6 +204,7 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
+      'accessPRTeamDashboard',
       'postRole',
       'deleteRole',
       'putRole',
@@ -201,7 +213,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -224,6 +235,7 @@ const permissionsRoles = [
       'assignProjectToUsers',
       'importTask',
       'postTask',
+      'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       'updateTask',
       'swapTask',
@@ -242,7 +254,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -252,6 +263,7 @@ const permissionsRoles = [
       'putUserProfileImportantInfo',
       'updateSummaryRequirements',
       'deleteUserProfile',
+      'reorderJobs',
       'addInfringements',
       'editInfringements',
       'deleteInfringements',
@@ -279,7 +291,6 @@ const permissionsRoles = [
       'scheduleMeetings',
       'requestBio',
 
-
       // Title
       'seeQSC',
       'addNewTitle',
@@ -295,6 +306,15 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
+      'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
+      // Job Form Management (Permissions Management > Job Form Management)
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];
@@ -304,6 +324,16 @@ const createInitialPermissions = async () => {
   const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
+
+  // One-time assignment: Add resendBlueSquareAndSummaryEmails permission to Jae
+  const jaeProfile = await User.findOne({ email: 'jae@onecommunityglobal.org' });
+  if (
+    jaeProfile &&
+    !jaeProfile.permissions.frontPermissions.includes('resendBlueSquareAndSummaryEmails')
+  ) {
+    jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
+    await jaeProfile.save();
+  }
 
   // Get Roles From DB
   const allRoles = await Role.find();

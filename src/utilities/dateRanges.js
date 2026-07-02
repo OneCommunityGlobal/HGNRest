@@ -1,0 +1,99 @@
+const {
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
+  subWeeks,
+  subMonths,
+  subYears,
+} = require('date-fns');
+
+const ALLOWED = new Set(['weekly', 'monthly', 'yearly', 'all']);
+
+function isISOLike(v) {
+  return typeof v === 'string' && !Number.isNaN(Date.parse(v));
+}
+
+/**
+ * Strict parser:
+ * - either filter in weekly|monthly|yearly
+ * - or both startDate & endDate (ISO-like)
+ * Otherwise throws { status: 422, message }
+ */
+function getRangeFromQuery(q = {}) {
+  const filter = String(q.filter || '').toLowerCase();
+
+  if (q.startDate || q.endDate) {
+    if (!isISOLike(q.startDate) || !isISOLike(q.endDate)) {
+      const err = new Error('startDate and endDate must be ISO date strings.');
+      err.status = 422;
+      throw err;
+    }
+    return { start: new Date(q.startDate), end: new Date(q.endDate), type: 'custom' };
+  }
+
+  if (!filter) {
+    const err = new Error(
+      'Missing required query: filter=weekly|monthly|yearly|all (or provide startDate & endDate).',
+    );
+    err.status = 422;
+    throw err;
+  }
+  if (!ALLOWED.has(filter)) {
+    const err = new Error('Invalid filter. Allowed: weekly, monthly, yearly, all.');
+    err.status = 422;
+    throw err;
+  }
+
+  const now = new Date();
+  switch (filter) {
+    case 'weekly':
+      return { start: startOfWeek(now), end: endOfWeek(now), type: 'weekly' };
+    case 'yearly':
+      return { start: startOfYear(now), end: endOfYear(now), type: 'yearly' };
+    case 'all':
+      // Return a very wide range for "all time" - from 2020 to now
+      return { start: new Date('2020-01-01'), end: now, type: 'all' };
+    case 'monthly':
+    default:
+      return { start: startOfMonth(now), end: endOfMonth(now), type: 'monthly' };
+  }
+}
+
+function getPreviousRange(current) {
+  switch (current.type) {
+    case 'weekly':
+      return { start: subWeeks(current.start, 1), end: subWeeks(current.end, 1), type: 'weekly' };
+    case 'monthly':
+      return {
+        start: subMonths(current.start, 1),
+        end: subMonths(current.end, 1),
+        type: 'monthly',
+      };
+    case 'yearly':
+      return { start: subYears(current.start, 1), end: subYears(current.end, 1), type: 'yearly' };
+    case 'all':
+      return null; // 'all' time has no previous period to compare
+    default:
+      return null; // 'custom' not comparable
+  }
+}
+
+/**
+ * For a custom [start, end] window, return the immediately preceding window
+ * of the same duration (used for rolling "last N days" comparisons).
+ */
+function getPreviousCustomRange(range) {
+  if (!range || range.type !== 'custom') return null;
+  const durationMs = range.end.getTime() - range.start.getTime();
+  if (!(durationMs > 0)) return null;
+  return {
+    start: new Date(range.start.getTime() - durationMs),
+    end: new Date(range.end.getTime() - durationMs),
+    type: 'custom',
+  };
+}
+
+module.exports = { getRangeFromQuery, getPreviousRange, getPreviousCustomRange };

@@ -1,3 +1,9 @@
+/* eslint-disable prefer-destructuring */
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-continue */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-else-return */
 const mongoose = require('mongoose');
 
 const bmToolController = (BuildingTool, ToolType) => {
@@ -134,12 +140,14 @@ const bmToolController = (BuildingTool, ToolType) => {
           purchaseRecord: [newPurchaseRecord],
         };
 
+        // eslint-disable-next-line no-await-in-loop
         BuildingTool.create(newDoc)
           .then(() => res.status(201).send())
           .catch((error) => res.status(500).send(error));
         return;
       }
 
+      // eslint-disable-next-line no-await-in-loop
       BuildingTool.findOneAndUpdate(
         { _id: mongoose.Types.ObjectId(doc._id) },
         { $push: { purchaseRecord: newPurchaseRecord } },
@@ -163,80 +171,156 @@ const bmToolController = (BuildingTool, ToolType) => {
       return res.status(500).send({ errors, results });
     }
 
-    for (const type of typesArray) {
-      const toolName = type.toolName;
-      const toolCodes = type.toolCodes;
-      const codeMap = {};
-      toolCodes.forEach((obj) => {
-        codeMap[obj.value] = obj.label;
-      });
+    await Promise.all(
+      typesArray.map(async (type) => {
+        const { toolName } = type;
+        const { toolCodes } = type;
+        const codeMap = {};
+        toolCodes.forEach((obj) => {
+          codeMap[obj.value] = obj.label;
+        });
 
-      try {
-        const toolTypeDoc = await ToolType.findOne({ _id: mongoose.Types.ObjectId(type.toolType) });
-        if (!toolTypeDoc) {
-          errors.push({ message: `Tool type ${toolName} with id ${type.toolType} was not found.` });
-          continue;
-        }
-        const availableItems = toolTypeDoc.available;
-        const usingItems = toolTypeDoc.using;
-
-        for (const toolItem of type.toolItems) {
-          const buildingToolDoc = await BuildingTool.findOne({
-            _id: mongoose.Types.ObjectId(toolItem),
+        try {
+          const toolTypeDoc = await ToolType.findOne({
+            _id: mongoose.Types.ObjectId(type.toolType),
           });
-          if (!buildingToolDoc) {
-            errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
-            continue;
+          if (!toolTypeDoc) {
+            errors.push({
+              message: `Tool type ${toolName} with id ${type.toolType} was not found.`,
+            });
+            return;
           }
+          const availableItems = toolTypeDoc.available;
+          const usingItems = toolTypeDoc.using;
 
-          if (action === 'Check Out' && availableItems.length > 0) {
-            const foundIndex = availableItems.indexOf(toolItem);
-            if (foundIndex >= 0) {
-              availableItems.splice(foundIndex, 1);
-              usingItems.push(toolItem);
-            } else {
-              errors.push({
-                message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
+          await Promise.all(
+            type.toolItems.map(async (toolItem) => {
+              const buildingToolDoc = await BuildingTool.findOne({
+                _id: mongoose.Types.ObjectId(toolItem),
               });
-              continue;
-            }
-          }
+              if (!buildingToolDoc) {
+                errors.push({ message: `${toolName} with id ${toolItem} was not found.` });
+                return;
+              }
 
-          if (action === 'Check In' && usingItems.length > 0) {
-            const foundIndex = usingItems.indexOf(toolItem);
-            if (foundIndex >= 0) {
-              usingItems.splice(foundIndex, 1);
-              availableItems.push(toolItem);
-            } else {
-              errors.push({
-                message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
+              if (action === 'Check Out' && availableItems.length > 0) {
+                const foundIndex = availableItems.indexOf(toolItem);
+                if (foundIndex >= 0) {
+                  availableItems.splice(foundIndex, 1);
+                  usingItems.push(toolItem);
+                } else {
+                  errors.push({
+                    message: `${toolName} with code ${codeMap[toolItem]} is not available for ${action}`,
+                  });
+                  return;
+                }
+              }
+
+              if (action === 'Check In' && usingItems.length > 0) {
+                const foundIndex = usingItems.indexOf(toolItem);
+                if (foundIndex >= 0) {
+                  usingItems.splice(foundIndex, 1);
+                  availableItems.push(toolItem);
+                } else {
+                  errors.push({
+                    message: `${toolName} ${codeMap[toolItem]} is not available for ${action}`,
+                  });
+                  return;
+                }
+              }
+
+              const newRecord = {
+                date,
+                createdBy: requestor,
+                responsibleUser: buildingToolDoc.userResponsible,
+                type: action,
+              };
+
+              buildingToolDoc.logRecord.push(newRecord);
+              buildingToolDoc.save();
+              results.push({
+                message: `${action} successful for ${toolName} ${codeMap[toolItem]}`,
               });
-              continue;
-            }
-          }
+            }),
+          );
 
-          const newRecord = {
-            date: date,
-            createdBy: requestor,
-            responsibleUser: buildingToolDoc.userResponsible,
-            type: action,
-          };
-
-          buildingToolDoc.logRecord.push(newRecord);
-          buildingToolDoc.save();
-          results.push({ message: `${action} successful for ${toolName} ${codeMap[toolItem]}` });
+          await toolTypeDoc.save();
+        } catch (error) {
+          errors.push({ message: `Error for tool type ${type}: ${error.message}` });
         }
-
-        await toolTypeDoc.save();
-      } catch (error) {
-        errors.push({ message: `Error for tool type ${type}: ${error.message}` });
-      }
-    }
+      }),
+    );
 
     if (errors.length > 0) {
       return res.status(404).send({ errors, results });
-    } else {
-      return res.status(200).send({ errors, results });
+    }
+    return res.status(200).send({ errors, results });
+  };
+
+  // --- UPDATED FIX FOR EDIT TOOL FEATURE ---
+  const updateToolById = async (req, res) => {
+    const { toolId } = req.params;
+    const { name, status, condition } = req.body;
+    const requestorId = req.body.requestor?.requestorId || '6868351899da83323cc7a695';
+
+    try {
+      // 1. Update the Tool Item (Condition + Log)
+      const newUpdateEntry = {
+        date: new Date(),
+        createdBy: requestorId,
+        condition,
+      };
+
+      const tool = await BuildingTool.findByIdAndUpdate(
+        toolId,
+        {
+          $set: { condition },
+          $push: { updateRecord: newUpdateEntry },
+        },
+        { new: true },
+      );
+
+      if (!tool) return res.status(404).send({ message: 'Tool not found.' });
+
+      // 2. Update the Parent Tool Type in 'buildinginventorytypes'
+      if (tool.itemType) {
+        // Resolve the parent ID
+        const typeId = tool.itemType._id ? tool.itemType._id : tool.itemType;
+        const typeObjectId = mongoose.Types.ObjectId(typeId);
+        const toolObjectId = mongoose.Types.ObjectId(toolId);
+
+        // ACCESS RAW COLLECTION DIRECTLY to bypass Model naming mismatch
+        // (Fixes the bug where updating ToolType updated 0 documents)
+        // Get the collection name dynamically from the model if possible, or fallback
+        const collectionName = ToolType.collection.name || 'buildingInventoryTypes';
+        const collection = mongoose.connection.collection(collectionName);
+
+        // A. Update Name if provided
+        if (name) {
+          await collection.updateOne({ _id: typeObjectId }, { $set: { name } });
+        }
+
+        // B. Atomic Swap: Remove from BOTH arrays
+        await collection.updateOne(
+          { _id: typeObjectId },
+          { $pull: { using: toolObjectId, available: toolObjectId } },
+        );
+
+        // C. Add to the CORRECT array
+        if (status === 'Using') {
+          await collection.updateOne({ _id: typeObjectId }, { $addToSet: { using: toolObjectId } });
+        } else if (status === 'Available') {
+          await collection.updateOne(
+            { _id: typeObjectId },
+            { $addToSet: { available: toolObjectId } },
+          );
+        }
+      }
+
+      res.status(200).send({ message: 'Tool updated successfully', tool });
+    } catch (error) {
+      console.error('Backend Error:', error);
+      res.status(500).send({ message: 'Internal Error', error: error.message });
     }
   };
 
@@ -245,6 +329,7 @@ const bmToolController = (BuildingTool, ToolType) => {
     fetchSingleTool,
     bmPurchaseTools,
     bmLogTools,
+    updateToolById,
   };
 };
 

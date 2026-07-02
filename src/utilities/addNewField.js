@@ -18,7 +18,6 @@ mongoose.Promise = Promise;
   try {
     // remove 'weeklycommittedHoursHistory' field from all user
     await userProfile.updateMany({}, { $unset: { weeklycommittedHoursHistory: '' } });
-    console.log('Field removed successfully.');
   } catch (error) {
     logger.logException('Error removing field:', error);
   }
@@ -69,8 +68,8 @@ const checkNewField = async () => {
 
     // 2. Iterate over each user profile
     await Promise.all(
-      userProfiles.map(async (user) => {
-        console.log(`name=${user.firstName},${user.weeklycommittedHoursHistory[0].dateChanged}`);
+      userProfiles.map(async () => {
+        // Processing user
       }),
     );
   } catch (error) {
@@ -81,9 +80,7 @@ const checkNewField = async () => {
 
 const run = function () {
   //   console.log('connect db');
-  const uri = `mongodb://${process.env.user}:${encodeURIComponent(process.env.password)}@${
-    process.env.cluster
-  }/${process.env.dbName}?ssl=true&replicaSet=${process.env.replicaSetName}&authSource=admin`;
+  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
     .connect(uri, {
