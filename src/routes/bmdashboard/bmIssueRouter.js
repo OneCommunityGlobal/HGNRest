@@ -18,6 +18,8 @@ const routes = function (buildingIssue, injuryIssue) {
   IssueRouter.route('/issues/:id').delete(controller.bmDeleteInjuryIssue);
 
   IssueRouter.route('/issue/issue-chart').get(controller.bmGetIssueChart);
+  IssueRouter.route('/issues/open').get(controller.bmGetOpenIssue);
+  IssueRouter.route('/issues/projects').get(controller.getUniqueProjectIds);
 
   return IssueRouter;
 };
