@@ -1,8 +1,14 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const logger = require('../startup/logger');
-
 const UserProfile = require('../models/userProfile');
+
+const toObjectId = (value) => {
+  if (!mongoose.Types.ObjectId.isValid(value)) {
+    return null;
+  }
+  return mongoose.Types.ObjectId(value);
+};
 
 const meetingController = function (Meeting) {
   const postMeeting = async function (req, res) {
@@ -26,54 +32,56 @@ const meetingController = function (Meeting) {
     try {
       await Promise.all(
         req.body.participantList.map(async (userProfileId) => {
-          if (!mongoose.Types.ObjectId.isValid(userProfileId)) {
+          const participantObjectId = toObjectId(userProfileId);
+          if (!participantObjectId) {
             throw new Error('Invalid participant ID');
           }
-          const userProfileExists = await UserProfile.exists({ _id: userProfileId });
+          const userProfileExists = await UserProfile.exists({ _id: participantObjectId });
           if (!userProfileExists) {
             throw new Error('Participant ID does not exist');
           }
         }),
       );
-      if (!mongoose.Types.ObjectId.isValid(req.body.organizer)) {
+      const organizerObjectId = toObjectId(req.body.organizer);
+      if (!organizerObjectId) {
         throw new Error('Invalid organizer ID');
       }
-      const organizerExists = await UserProfile.exists({ _id: req.body.organizer });
+      const organizerExists = await UserProfile.exists({ _id: organizerObjectId });
       if (!organizerExists) {
         throw new Error('Organizer ID does not exist');
       }
+
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        const dateTimeString = `${req.body.dateOfMeeting} ${req.body.startHour}:${req.body.startMinute} ${req.body.startTimePeriod}`;
+        const dateTimeISO = moment(dateTimeString, 'YYYY-MM-DD hh:mm A').toISOString();
+
+        const meeting = new Meeting();
+        meeting.dateTime = dateTimeISO;
+        meeting.duration = req.body.duration;
+        meeting.organizer = organizerObjectId;
+        meeting.participantList = req.body.participantList.map((participant) => ({
+          participant: toObjectId(participant),
+          notificationIsRead: false,
+        }));
+        meeting.location = req.body.location;
+        meeting.locationDetails = req.body.locationDetails;
+        meeting.notes = req.body.notes;
+
+        await meeting.save({ session });
+        await session.commitTransaction();
+        session.endSession();
+        res.status(201).json({ message: 'Meeting saved successfully' });
+      } catch (err) {
+        await session.abortTransaction();
+        logger.logException(err);
+        return res.status(500).send({ error: err.toString() });
+      } finally {
+        session.endSession();
+      }
     } catch (error) {
       return res.status(400).send({ error: `Bad request: ${error.message}` });
-    }
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      const dateTimeString = `${req.body.dateOfMeeting} ${req.body.startHour}:${req.body.startMinute} ${req.body.startTimePeriod}`;
-      const dateTimeISO = moment(dateTimeString, 'YYYY-MM-DD hh:mm A').toISOString();
-
-      const meeting = new Meeting();
-      meeting.dateTime = dateTimeISO;
-      meeting.duration = req.body.duration;
-      meeting.organizer = req.body.organizer;
-      meeting.participantList = req.body.participantList.map((participant) => ({
-        participant,
-        notificationIsRead: false,
-      }));
-      meeting.location = req.body.location;
-      meeting.locationDetails = req.body.locationDetails;
-      meeting.notes = req.body.notes;
-
-      await meeting.save({ session });
-      await session.commitTransaction();
-      session.endSession();
-      res.status(201).json({ message: 'Meeting saved successfully' });
-    } catch (err) {
-      await session.abortTransaction();
-      logger.logException(err);
-      return res.status(500).send({ error: err.toString() });
-    } finally {
-      session.endSession();
     }
   };
 
@@ -118,8 +126,13 @@ const meetingController = function (Meeting) {
   const markMeetingAsRead = async function (req, res) {
     try {
       const { meetingId, recipient } = req.params;
+      const meetingObjectId = toObjectId(meetingId);
+      const recipientObjectId = toObjectId(recipient);
+      if (!meetingObjectId || !recipientObjectId) {
+        return res.status(400).json({ error: 'Invalid meeting or recipient ID' });
+      }
       const result = await Meeting.updateOne(
-        { _id: meetingId, 'participantList.participant': recipient },
+        { _id: meetingObjectId, 'participantList.participant': recipientObjectId },
         { $set: { 'participantList.$.notificationIsRead': true } },
       );
       if (result.nModified === 0) {
@@ -135,10 +148,11 @@ const meetingController = function (Meeting) {
   const getAllMeetingsByOrganizer = async function (req, res) {
     try {
       const { organizerId } = req.query;
-      if (!mongoose.Types.ObjectId.isValid(organizerId)) {
+      const organizerObjectId = toObjectId(organizerId);
+      if (!organizerObjectId) {
         return res.status(400).json({ error: 'Invalid organizer userId' });
       }
-      const userProfileExists = await UserProfile.exists({ _id: organizerId });
+      const userProfileExists = await UserProfile.exists({ _id: organizerObjectId });
       if (!userProfileExists) {
         throw new Error('Organizer ID does not exist');
       }
@@ -148,7 +162,7 @@ const meetingController = function (Meeting) {
         {
           $match: {
             dateTime: { $gt: currentTime },
-            organizer: mongoose.Types.ObjectId(organizerId),
+            organizer: organizerObjectId,
           },
         },
         {
@@ -174,7 +188,11 @@ const meetingController = function (Meeting) {
   const getCalendarInvite = async (req, res) => {
     try {
       const { meetingId } = req.params;
-      const meeting = await Meeting.findById(meetingId).populate('organizer');
+      const meetingObjectId = toObjectId(meetingId);
+      if (!meetingObjectId) {
+        return res.status(400).json({ error: 'Invalid meeting ID' });
+      }
+      const meeting = await Meeting.findById(meetingObjectId).populate('organizer');
 
       if (!meeting) {
         return res.status(404).json({ error: 'Meeting not found' });
@@ -217,13 +235,16 @@ const meetingController = function (Meeting) {
   const getUpcomingMeetingForParticipant = async (req, res) => {
     try {
       const { participantId } = req.params;
+      const participantObjectId = toObjectId(participantId);
+      if (!participantObjectId) {
+        return res.status(400).json({ error: 'Invalid participant ID' });
+      }
 
-      // First, fetch meetings for this participant from your collection (you can adjust this query to your schema)
       const meetings = await Meeting.aggregate([
         { $unwind: '$participantList' },
         {
           $match: {
-            'participantList.participant': mongoose.Types.ObjectId(participantId),
+            'participantList.participant': participantObjectId,
             'participantList.notificationIsRead': false,
           },
         },
@@ -257,14 +278,16 @@ const meetingController = function (Meeting) {
         );
       });
 
-
       if (!upcomingUnreadMeetings.length) {
         return res.status(404).json({ error: 'No upcoming unread meetings within next 3 days' });
       }
 
       // Step 3: Get full meetings with organizer populated
-    const meetingIds = upcomingUnreadMeetings.map((m) => m._id);
-    const fullMeetings = await Meeting.find({ _id: { $in: meetingIds } }).populate('organizer', 'firstName lastName');
+      const meetingIds = upcomingUnreadMeetings.map((m) => m._id);
+      const fullMeetings = await Meeting.find({ _id: { $in: meetingIds } }).populate(
+        'organizer',
+        'firstName lastName',
+      );
 
       // Prepare result with organizer full names
       const result = fullMeetings.map((meeting) => ({
@@ -277,7 +300,7 @@ const meetingController = function (Meeting) {
         location: meeting.location,
         locationDetails: meeting.locationDetails,
         notes: meeting.notes,
-        participant: participantId,
+        participant: participantObjectId,
       }));
       return res.status(200).json({ upComingMeetings: result });
     } catch (error) {
