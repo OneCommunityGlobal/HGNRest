@@ -1,11 +1,37 @@
-const mongoose = require('mongoose');
+const { ObjectId } = require('mongoose').Types;
+const { endOfDay } = require('date-fns');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const logger = require('../../startup/logger');
 
-const MS_PER_MINUTE = 60 * 1000;
+const SECONDS_PER_MINUTE = 60;
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = SECONDS_PER_MINUTE * MS_PER_SECOND;
 const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 const AVG_DAYS_PER_MONTH = 30.44;
 const MAX_LONGEST_OPEN_ISSUES = 7;
+
+const VALID_TAGS = ['In-person', 'Virtual'];
+const VALID_STATUSES = ['open', 'closed'];
+const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality / functionality'];
+
+const MIN_YEAR = 1000;
+const MAX_YEAR = 9999;
+
+const MAX_ISSUE_TITLE_LENGTH = 50;
+const MAX_ISSUE_TEXT_LENGTH = 500;
+const MAX_IMAGE_URL_LENGTH = 2048;
+const MAX_PERSON_FIELD_LENGTH = 200;
+
+const toSanitizedStringArray = (value, maxLen) => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const out = value
+    .filter((item) => item !== null && item !== undefined)
+    .map((item) => String(item).slice(0, maxLen));
+  return out.length > 0 ? out : null;
+};
+
+const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
 
 const getProjectFilterIds = (projectsParam) =>
   projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
@@ -86,19 +112,153 @@ const buildInjuryIssuePayload = (body = {}) =>
     totalCost: body.totalCost,
   });
 
-const buildBuildingIssuePayload = (body = {}) =>
-  omitUndefined({
-    createdDate: body.createdDate,
-    issueDate: body.issueDate,
-    createdBy: body.createdBy,
-    staffInvolved: body.staffInvolved,
-    issueTitle: body.issueTitle,
-    issueText: body.issueText,
-    issueType: body.issueType,
-    imageUrl: body.imageUrl,
-    projectId: body.projectId,
-    status: body.status,
-  });
+const buildBuildingIssuePayload = (body = {}) => ({
+  createdDate: body.createdDate,
+  issueDate: body.issueDate,
+  createdBy: body.createdBy,
+  staffInvolved: body.staffInvolved,
+  issueTitle: body.issueTitle,
+  issueText: body.issueText,
+  issueType: body.issueType,
+  imageUrl: body.imageUrl,
+  projectId: body.projectId,
+  status: body.status,
+  tag: body.tag,
+});
+
+function parseDateRangeForOpenIssues(startDate, endDate) {
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime())) {
+      return { errorResponse: { status: 400, body: { error: 'Invalid date format.' } } };
+    }
+    if (Number.isNaN(end.getTime())) {
+      return { errorResponse: { status: 400, body: { error: 'Invalid date format.' } } };
+    }
+    if (start > end) {
+      return {
+        errorResponse: { status: 400, body: { error: 'startDate must not be after endDate.' } },
+      };
+    }
+    const now = new Date();
+    if (start > now) {
+      return {
+        errorResponse: {
+          status: 400,
+          body: {
+            error:
+              'The selected date range is entirely in the future. No issue data exists for future dates.',
+          },
+        },
+      };
+    }
+    const effectiveEnd = end > now ? endOfDay(now) : endOfDay(end);
+    return {
+      queryPart: {
+        $and: [{ createdDate: { $lte: effectiveEnd } }, { $or: buildOpenOrClosedAfter(start) }],
+      },
+    };
+  }
+  if (startDate) {
+    const start = new Date(startDate);
+    if (Number.isNaN(start.getTime())) {
+      return { errorResponse: { status: 400, body: { error: 'Invalid date format.' } } };
+    }
+    return { queryPart: { $or: buildOpenOrClosedAfter(start) } };
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    if (Number.isNaN(end.getTime())) {
+      return { errorResponse: { status: 400, body: { error: 'Invalid date format.' } } };
+    }
+    return { queryPart: { createdDate: { $lte: endOfDay(end) } } };
+  }
+  return null;
+}
+
+function validateTagForQuery(tag) {
+  const tagIdx = VALID_TAGS.indexOf(typeof tag === 'string' ? tag : '');
+  if (tagIdx === -1) {
+    return {
+      errorResponse: {
+        status: 400,
+        body: { error: `Invalid tag. Allowed values: ${VALID_TAGS.join(', ')}.` },
+      },
+    };
+  }
+  return { tag: VALID_TAGS[tagIdx] };
+}
+
+function buildOpenIssuesQuery({ projectIds, startDate, endDate, tag }) {
+  const query = {};
+
+  if (projectIds) {
+    const validProjectIds = projectIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+    if (validProjectIds.length > 0) {
+      query.projectId = { $in: validProjectIds };
+    }
+  }
+
+  if (startDate || endDate) {
+    const dateResult = parseDateRangeForOpenIssues(startDate, endDate);
+    if (dateResult?.errorResponse) {
+      return dateResult;
+    }
+    if (dateResult && dateResult.queryPart) {
+      Object.assign(query, dateResult.queryPart);
+    }
+  } else {
+    query.status = 'open';
+  }
+
+  if (tag) {
+    const tagResult = validateTagForQuery(tag);
+    if (tagResult.errorResponse) {
+      return tagResult;
+    }
+    query.tag = tagResult.tag;
+  }
+
+  return { query };
+}
+
+function validatePostBody(body) {
+  if (body.tag !== undefined) {
+    const tagIdx = VALID_TAGS.indexOf(typeof body.tag === 'string' ? body.tag : '');
+    if (tagIdx === -1) {
+      return { error: `Invalid tag. Allowed values: ${VALID_TAGS.join(', ')}.` };
+    }
+  }
+  if (body.status !== undefined) {
+    const statusIdx = VALID_STATUSES.indexOf(typeof body.status === 'string' ? body.status : '');
+    if (statusIdx === -1) {
+      return { error: `Invalid status. Allowed values: ${VALID_STATUSES.join(', ')}.` };
+    }
+  }
+  if (body.issueDate !== undefined) {
+    const d = new Date(body.issueDate);
+    if (Number.isNaN(d.getTime())) {
+      return { error: 'Invalid issueDate.' };
+    }
+  }
+  if (body.projectId !== undefined) {
+    if (!ObjectId.isValid(body.projectId)) {
+      return { error: 'Invalid projectId.' };
+    }
+  }
+  if (body.cost !== undefined) {
+    const cost = Number(body.cost);
+    if (Number.isNaN(cost)) {
+      return { error: 'Invalid cost.' };
+    }
+  }
+  return null;
+}
 
 const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
@@ -111,70 +271,172 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     }
   };
 
-  /* -------------------- ISSUE CHART (MULTI-YEAR) -------------------- */
-  const bmGetIssueChart = async (req, res) => {
+  /* -------------------- GET OPEN ISSUES -------------------- */
+  const bmGetOpenIssue = async (req, res) => {
     try {
-      const { issueType, year } = req.query;
-      const matchQuery = {};
-
-      if (issueType) matchQuery.issueType = issueType;
-
-      if (year) {
-        matchQuery.issueDate = {
-          $gte: new Date(`${year}-01-01T00:00:00Z`),
-          $lte: new Date(`${year}-12-31T23:59:59Z`),
-        };
+      const built = buildOpenIssuesQuery(req.query);
+      if (built.errorResponse) {
+        return res.status(built.errorResponse.status).json(built.errorResponse.body);
       }
-
-      const pipeline = [
-        { $match: matchQuery },
-        {
-          $group: {
-            _id: {
-              issueType: '$issueType',
-              year: { $year: '$issueDate' },
-            },
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $group: {
-            _id: '$_id.issueType',
-            years: {
-              $push: {
-                year: '$_id.year',
-                count: '$count',
-              },
-            },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ];
-
-      const data = await mongoose.model('buildingIssue').aggregate(pipeline);
-
-      const result = data.reduce((acc, item) => {
-        acc[item._id] = {};
-        item.years.forEach((y) => {
-          acc[item._id][y.year] = y.count;
-        });
-        return acc;
-      }, {});
-
-      res.status(200).json(result);
+      const results = await BuildingIssue.find(built.query);
+      return res.json(results || []);
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error });
+      logger.logException(error, { context: 'bmGetOpenIssue' });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  /* -------------------- GET UNIQUE PROJECT IDS -------------------- */
+  const getUniqueProjectIds = async (req, res) => {
+    try {
+      const results = await BuildingIssue.aggregate([
+        { $group: { _id: '$projectId' } },
+        {
+          $lookup: {
+            from: 'buildingProjects',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'projectDetails',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
+          },
+        },
+        { $sort: { projectName: 1 } },
+      ]);
+
+      const formattedResults = results.map((item) => ({
+        projectId: item._id,
+        projectName: item.projectName || 'Unknown Project',
+      }));
+
+      return res.json(formattedResults);
+    } catch (error) {
+      logger.logException(error, { context: 'getUniqueProjectIds' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   };
 
   /* -------------------- POST ISSUE -------------------- */
   const bmPostIssue = async (req, res) => {
     try {
+      const validationError = validatePostBody(req.body);
+      if (validationError) {
+        return res.status(400).json(validationError);
+      }
       const issuePayload = buildBuildingIssuePayload(req.body);
       const issue = await BuildingIssue.create(issuePayload);
-      res.status(201).json(issue);
+      return res.status(201).json(issue);
     } catch (error) {
-      res.status(500).json(error);
+      return res.status(500).json(error);
+    }
+  };
+
+  /* -------------------- UPDATE ISSUE -------------------- */
+  const bmUpdateIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      if (!updateData || typeof updateData !== 'object' || Array.isArray(updateData)) {
+        return res.status(400).json({ message: 'Invalid update data.' });
+      }
+
+      const setFields = { ...updateData };
+      if (setFields.status === 'closed') {
+        setFields.closedDate = new Date();
+      } else if (setFields.status === 'open') {
+        setFields.closedDate = null;
+      }
+
+      const updated = await BuildingIssue.findByIdAndUpdate(id, { $set: setFields }, { new: true });
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Issue not found.' });
+      }
+
+      return res.json(updated);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  };
+
+  /* -------------------- DELETE ISSUE -------------------- */
+  const bmDeleteIssue = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await BuildingIssue.findByIdAndDelete(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Issue not found.' });
+      }
+      return res.json({ message: 'Issue deleted successfully.' });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  };
+
+  /* -------------------- ISSUE CHART -------------------- */
+  const bmGetIssueChart = async (req, res) => {
+    try {
+      const { issueType, year } = req.query;
+
+      const match = {};
+
+      if (issueType !== undefined) {
+        if (typeof issueType !== 'string' || !VALID_ISSUE_TYPES.includes(issueType)) {
+          return res.status(400).json({
+            error: `Invalid issueType. Allowed values: ${VALID_ISSUE_TYPES.join(', ')}.`,
+          });
+        }
+        match.issueType = issueType;
+      }
+
+      if (year !== undefined) {
+        const yearNum = Number(year);
+        if (
+          Number.isNaN(yearNum) ||
+          !Number.isInteger(yearNum) ||
+          yearNum < MIN_YEAR ||
+          yearNum > MAX_YEAR
+        ) {
+          return res.status(400).json({ error: 'Invalid year. Must be a 4-digit integer.' });
+        }
+        const startOfYear = new Date(Date.UTC(yearNum, 0, 1));
+        const endOfYear = new Date(Date.UTC(yearNum, 11, 31, 23, 59, 59, 999));
+        match.issueDate = { $gte: startOfYear, $lte: endOfYear };
+      }
+
+      const pipeline = [
+        { $match: match },
+        {
+          $group: {
+            _id: '$issueType',
+            years: {
+              $push: {
+                year: { $year: '$issueDate' },
+                count: 1,
+              },
+            },
+          },
+        },
+      ];
+
+      const results = await BuildingIssue.aggregate(pipeline);
+
+      const formatted = {};
+      results.forEach((item) => {
+        formatted[item._id] = {};
+        item.years.forEach(({ year: y, count }) => {
+          formatted[item._id][y] = (formatted[item._id][y] || 0) + count;
+        });
+      });
+
+      return res.status(200).json(formatted);
+    } catch (error) {
+      return res.status(500).json({ message: 'Server error', error });
     }
   };
 
@@ -256,7 +518,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     }
   };
 
-  /* -------------------- LONGEST OPEN ISSUES (FINAL) -------------------- */
+  /* -------------------- LONGEST OPEN ISSUES -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
       const { dates, projects } = req.query;
@@ -273,37 +535,15 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         query.projectId = { $in: filteredProjectIds };
       }
 
-      let issues = await BuildingIssue.find(query)
+      const issues = await BuildingIssue.find(query)
         .select('issueTitle issueDate _id')
         .populate('projectId')
         .lean();
 
-      issues = issues.map((issue) => {
-        const durationInMonths = getDurationOpenMonths(issue.issueDate);
-        return {
-          issueName: issue.issueTitle && issue.issueTitle.length > 0 ? issue.issueTitle[0] : null,
-          durationInMonths,
-          issueId: issue._id.toString(),
-          projectId: issue.projectId?._id?.toString() || issue.projectId?.toString(),
-          projectName: issue.projectId?.name || null,
-        };
-      });
+      const grouped = buildGroupedIssues(issues);
+      const response = buildLongestOpenResponse(grouped);
 
-      const sortedIssues = issues
-        .sort((a, b) => b.durationInMonths - a.durationInMonths)
-        .map(({ issueName, durationInMonths, issueId, projectId, projectName }) => ({
-          issueName,
-          durationOpen: durationInMonths,
-          issueId,
-          projectId,
-          projectName,
-        }));
-
-      console.log(
-        `[getLongestOpenIssues] Total issues found: ${issues.length}, Returning: ${sortedIssues.length} issues`,
-      );
-
-      res.json(sortedIssues);
+      res.json(response);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching longest open issues' });
     }
@@ -311,9 +551,13 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
 
   return {
     bmGetIssue,
+    bmGetOpenIssue,
     bmPostIssue,
+    bmUpdateIssue,
+    bmDeleteIssue,
     bmGetIssueChart,
     getLongestOpenIssues,
+    getUniqueProjectIds,
     bmPostInjuryIssue,
     bmGetInjuryIssue,
     bmDeleteInjuryIssue,
