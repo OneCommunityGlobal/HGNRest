@@ -104,15 +104,37 @@ describe('checkTeamCodeMismatch', () => {
     expect(await checkTeamCodeMismatch(user)).toBe(false);
   });
 
-  test('returns true on mismatch', async () => {
-    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ' }]);
+  test('returns true on mismatch when suffix matches but full code differs', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ123' }]);
 
     const user = {
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(true);
+  });
+
+  test('returns false when full team code matches', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'ABC123' }]);
+
+    const user = {
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+  });
+
+  test('returns false when suffix differs', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ456' }]);
+
+    const user = {
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
   });
 
   test('returns false on exception', async () => {
