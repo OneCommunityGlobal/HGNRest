@@ -23,4 +23,10 @@ router.patch('/jobforms/:formId/questions/:questionIndex', formController.update
 router.delete('/jobforms/:formId/questions/:questionIndex', formController.deleteQuestion);
 router.put('/jobforms/:formId/questions/reorder', formController.reorderQuestions);
 
+// Form management routes
+router.delete('/jobforms/:formId', formController.deleteForm);
+
+// Question set integration routes
+router.post('/jobforms/:formId/import-questions', formController.importQuestionsFromSet);
+
 module.exports = router;

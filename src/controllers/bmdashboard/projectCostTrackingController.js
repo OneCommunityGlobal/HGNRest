@@ -1,3 +1,4 @@
+/* eslint-disable no-plusplus */
 const projectCostTrackingController = function (ProjectCostTracking) {
   // Simple linear regression class compatible with older Node.js versions
   class SimpleLinearRegression {

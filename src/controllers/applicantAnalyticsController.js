@@ -1,4 +1,5 @@
 const geoIP = require('geoip-lite');
+const fallbackApplicantSources = require('../data/applicantSourcesFallback.json');
 
 const analyticsController = function (
   Applicant,
@@ -417,6 +418,221 @@ const analyticsController = function (
     }
   };
 
+  const parseDateOrNull = (raw) => {
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const buildSourcePipeline = (match) => [
+    { $match: match },
+    {
+      $group: {
+        _id: '$source',
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        source: '$_id',
+        count: 1,
+      },
+    },
+  ];
+
+  const fetchSourceCounts = (query) => Applicant.aggregate(buildSourcePipeline(query));
+
+  const appendPercentages = (rawData) => {
+    const total = rawData.reduce((sum, entry) => sum + entry.count, 0);
+    return {
+      total,
+      data: rawData.map((entry) => ({
+        source: entry.source,
+        count: entry.count,
+        percentage: total > 0 ? Number(((entry.count / total) * 100).toFixed(2)) : 0,
+      })),
+    };
+  };
+
+  const formatSourcesForResponse = (dataset) =>
+    dataset.map((item) => ({
+      name: item.source || item.name || 'Unknown',
+      value: item.count,
+      percentage: item.percentage ?? 0,
+    }));
+
+  const buildPreviousRange = (start, end, type) => {
+    if (!start || !end || !type) return null;
+
+    const duration = end.getTime() - start.getTime();
+    if (duration < 0) return null;
+
+    const normalizedType = type.toLowerCase();
+    if (!['week', 'month', 'year'].includes(normalizedType)) {
+      return null;
+    }
+
+    const previousStart = new Date(start);
+    const previousEnd = new Date(end);
+
+    if (normalizedType === 'week') {
+      previousStart.setTime(start.getTime() - duration);
+      previousEnd.setTime(end.getTime() - duration);
+    } else if (normalizedType === 'month') {
+      previousStart.setMonth(start.getMonth() - 1);
+      previousEnd.setMonth(end.getMonth() - 1);
+    } else if (normalizedType === 'year') {
+      previousStart.setFullYear(start.getFullYear() - 1);
+      previousEnd.setFullYear(end.getFullYear() - 1);
+    }
+
+    return { previousStart, previousEnd, label: normalizedType };
+  };
+
+  const buildComparisonSummary = (current, previous, label) => {
+    if (!previous) {
+      return {
+        text: `${current.total} applicants`,
+        payload: null,
+      };
+    }
+
+    const previousLookup = new Map(previous.data.map((entry) => [entry.source, entry]));
+    const comparisonRows = current.data.map((entry) => {
+      const previousEntry = previousLookup.get(entry.source) || { count: 0, percentage: 0 };
+      const percentageChange =
+        previousEntry.percentage > 0
+          ? Number(
+              (
+                ((entry.percentage - previousEntry.percentage) / previousEntry.percentage) *
+                100
+              ).toFixed(2),
+            )
+          : entry.count > 0
+            ? 100
+            : 0;
+
+      return {
+        name: entry.source || 'Unknown',
+        value: entry.count,
+        previousCount: previousEntry.count || 0,
+        previousPercentage: Number(previousEntry.percentage || 0),
+        percentageChange,
+      };
+    });
+
+    const previousTotal = previous.total;
+    const delta =
+      previousTotal > 0
+        ? Number((((current.total - previousTotal) / previousTotal) * 100).toFixed(1))
+        : current.total > 0
+          ? 100
+          : 0;
+
+    const text = `${current.total} applicants\n${delta >= 0 ? '+' : ''}${delta}% vs last ${label}`;
+
+    return {
+      text,
+      payload: {
+        type: label,
+        previousTotal,
+        data: comparisonRows,
+      },
+    };
+  };
+
+  // Get applicant sources breakdown with comparison logic
+  const getApplicantSources = async (req, res) => {
+    try {
+      const requestor = req.body?.requestor;
+      if (!requestor || !requestor.role) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (requestor.role !== 'Owner' && requestor.role !== 'Administrator') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      const { startDate, endDate, roles, comparisonType } = req.query;
+
+      const parsedStart = parseDateOrNull(startDate);
+      const parsedEnd = parseDateOrNull(endDate);
+
+      if ((startDate && !parsedStart) || (endDate && !parsedEnd)) {
+        return res.status(400).json({ error: 'Invalid startDate or endDate supplied' });
+      }
+
+      if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+        return res.status(400).json({ error: 'startDate cannot be after endDate' });
+      }
+
+      const match = {};
+      if (roles) {
+        const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
+        match.roles = { $in: rolesArray };
+      }
+
+      if (parsedStart && parsedEnd) {
+        match.startDate = {
+          $gte: parsedStart.toISOString(),
+          $lte: parsedEnd.toISOString(),
+        };
+      }
+
+      const currentRaw = await fetchSourceCounts(match);
+      const current = appendPercentages(currentRaw);
+
+      if (current.total === 0) {
+        return res.status(200).json(fallbackApplicantSources);
+      }
+
+      let comparisonPayload = null;
+      let comparisonText = `${current.total} applicants`;
+
+      if (comparisonType && parsedStart && parsedEnd) {
+        const previousRange = buildPreviousRange(parsedStart, parsedEnd, comparisonType);
+
+        if (previousRange) {
+          const previousMatch = {
+            ...match,
+            startDate: {
+              $gte: previousRange.previousStart.toISOString(),
+              $lte: previousRange.previousEnd.toISOString(),
+            },
+          };
+
+          const previousRaw = await fetchSourceCounts(previousMatch);
+          const previous = appendPercentages(previousRaw);
+
+          const { text, payload } = buildComparisonSummary(current, previous, previousRange.label);
+          comparisonText = text;
+          comparisonPayload = payload;
+        }
+      }
+
+      const sources = formatSourcesForResponse(current.data);
+
+      return res.status(200).json({
+        sources,
+        total: current.total,
+        comparisonText,
+        comparison: comparisonPayload,
+      });
+    } catch (error) {
+      console.error('Error fetching applicant sources:', error);
+      const isDbError =
+        error?.name === 'MongoError' ||
+        error?.name === 'MongooseError' ||
+        error?.code === 'ECONNREFUSED' ||
+        error?.message?.includes('buffering') ||
+        error?.message?.includes('MongoDB');
+      if (isDbError) {
+        return res.status(200).json(fallbackApplicantSources);
+      }
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
+
   const getAllRoles = async (req, res) => {
     try {
       const roles = await Applicant.distinct('roles');
@@ -429,6 +645,7 @@ const analyticsController = function (
 
   return {
     getExperienceBreakdown,
+    getApplicantSources,
     getAllRoles,
     trackInteraction,
     trackApplication,

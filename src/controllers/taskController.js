@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable radix */
 const mongoose = require('mongoose');
 const WBS = require('../models/wbs');
 const Project = require('../models/project');
@@ -31,7 +33,17 @@ const taskController = function (Task) {
     }
 
     Task.find(query)
-      .then((results) => res.status(200).send(results))
+      .populate('createdBy', 'firstName lastName email') // <-- added
+      .lean()
+      .then((results) => {
+        const withCreator = results.map((t) => ({
+          ...t,
+          creatorName: t.createdBy
+            ? [t.createdBy.firstName, t.createdBy.lastName].filter(Boolean).join(' ').trim()
+            : undefined,
+        }));
+        return res.status(200).send(withCreator);
+      })
       .catch((error) => res.status(404).send(error));
   };
 
@@ -267,17 +279,7 @@ const taskController = function (Task) {
   };
 
   const fixTasksLocal = (tasks) => {
-    /**
-     * Based on frontend,  5 props are missing from the task modal:
-     *    hasChild,
-     *    childrenQty,
-     *    createdDatetime,
-     *    modifiedDatetime,
-     *    classification.  // not sure what this classification is for
-     * task._id will also be assigned for better referencing
-     */
-
-    // adds _id prop to task, and converts resources to correct format
+    // (unchanged)
     const tasksWithId = tasks.map((task) => {
       const _id = new mongoose.Types.ObjectId();
       const resources = task.resources.map((resource) => {
@@ -292,72 +294,62 @@ const taskController = function (Task) {
       };
     });
 
-    // update tasks makes sure its parentIds and mother props are correct assigned,
     tasksWithId.forEach((task) => {
       const taskNumArr = task.num.split('.');
       switch (task.level) {
-        case 1: // task.num is x, no parentId1 or mother
-          task.parentId1 = null; // no parent so its value is null
+        case 1:
+          task.parentId1 = null;
           task.parentId2 = null;
           task.parentId3 = null;
           task.mother = null;
           break;
-        case 2: // task.num is x.x, only has one level of parent (x)
-          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id; // task of parentId1 has num prop of x
+        case 2:
+          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id;
           task.parentId2 = null;
           task.parentId3 = null;
-          task.mother = task.parentId1; // parent task num prop is x
+          task.mother = task.parentId1;
           break;
-        case 3: // task.num is x.x.x, has two levels of parent (parent: x.x and grandparent: x)
-          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id; // task of parentId1 has num prop of x
+        case 3:
+          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id;
           task.parentId2 = tasksWithId.find(
             (pTask) => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
-          )._id; // task of parentId2 has num prop of x.x
+          )._id;
           task.parentId3 = null;
-          task.mother = task.parentId2; // parent task num prop is x.x
+          task.mother = task.parentId2;
           break;
-        case 4: // task.num is x.x.x.x, has three levels of parent (x.x.x, x.x and x)
-          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id; // x
+        case 4:
+          task.parentId1 = tasksWithId.find((pTask) => pTask.num === taskNumArr[0])._id;
           task.parentId2 = tasksWithId.find(
             (pTask) => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}`,
-          )._id; // x.x
+          )._id;
           task.parentId3 = tasksWithId.find(
             (pTask) => pTask.num === `${taskNumArr[0]}.${taskNumArr[1]}.${taskNumArr[2]}`,
-          )._id; // x.x.x
-          task.mother = task.parentId3; // parent task num prop is x.x.x
+          )._id;
+          task.mother = task.parentId3;
           break;
         default:
       }
     });
 
-    // create an array of four empty arrays
     const tasksFromSameLevelArr = Array(4)
       .fill(null)
       .map(() => []);
 
-    // sort them out into an array of four arrays based on their levels
     tasksWithId.forEach((task) => {
       tasksFromSameLevelArr[task.level - 1].push(task);
     });
 
-    // reverse taskArr so that order is level 4, 3, 2, 1 tasks at index of 0, 1, 2, 3;
-    // then add hasChild, childrenQty props to task, and sum lower level tasks data to higher level tasks;
     tasksFromSameLevelArr.reverse().forEach((tasksFromSameLevel, i) => {
       if (i === 0) {
-        // level 4 tasks (lowest level) has no child task
         tasksFromSameLevel.forEach((task) => {
           task.hasChild = false;
           task.childrenQty = 0;
         });
       } else {
-        // level 3 to 1 tasks updates their props based on child from lower level tasks, process order from 3 to 1 ensures thorough data gathering
         tasksFromSameLevel.forEach((task) => {
-          // keep track of the priority points based on child task priority and the total number of child tasks
           let priorityPts = 0;
-          // iterate through lower level tasks
           tasksFromSameLevelArr[i - 1].forEach((childTask) => {
             if (childTask.mother === task._id) {
-              // update related props
               task.hasChild = true;
               task.hoursBest += childTask.hoursBest;
               task.hoursWorst += childTask.hoursWorst;
@@ -376,7 +368,6 @@ const taskController = function (Task) {
                 },
                 [...task.resources],
               );
-              // add priority pts for task.priority
               if (childTask.priority === 'Primary') {
                 priorityPts += 3;
               } else if (childTask.priority === 'Secondary') {
@@ -384,7 +375,6 @@ const taskController = function (Task) {
               } else {
                 priorityPts += 1;
               }
-              // add num of children
             }
           });
           const averagePts = priorityPts / task.childrenQty;
@@ -419,6 +409,7 @@ const taskController = function (Task) {
         wbsId,
         createdDatetime,
         modifiedDatetime,
+        createdBy: req.body?.requestor?.requestorId || undefined, // <-- set if available
       });
 
       _task
@@ -454,14 +445,12 @@ const taskController = function (Task) {
 
     try {
       if (parentId) {
-        // This is a subtask — find its parent
         const parentTask = await Task.findById(parentId);
         if (!parentTask) {
           return res.status(400).send({ error: 'Invalid parent task ID provided.' });
         }
 
         level = parentTask.level + 1;
-        // Find siblings under same parent to generate WBS number
         const siblings = await Task.find({ mother: parentId });
         const nextIndex = siblings.length
           ? Math.max(...siblings.map((s) => parseInt(s.num.split('.')[level - 1] || 0, 10))) + 1
@@ -532,12 +521,11 @@ const taskController = function (Task) {
       const _task = new Task({
         ...task,
         wbsId,
-        num, // Assign calculated num
+        num,
         level,
         createdDatetime,
         modifiedDatetime,
-        categoryOverride,
-        categoryLocked,
+        createdBy: req.body?.requestor?.requestorId || undefined, // <-- set creator
       });
 
       const saveTask = _task.save();
@@ -545,7 +533,6 @@ const taskController = function (Task) {
         currentwbs.modifiedDatetime = Date.now();
         return currentwbs.save();
       });
-      // Posting a task will update the related project - Sucheta
       const saveProject = WBS.findById(wbsId).then((currentwbs) => {
         Project.findById(currentwbs.projectId).then((currentProject) => {
           currentProject.modifiedDatetime = Date.now();
@@ -554,7 +541,20 @@ const taskController = function (Task) {
       });
 
       Promise.all([saveTask, saveWbs, saveProject])
-        .then((results) => res.status(201).send(results[0])) // send task with generated num
+        .then(async ([savedTask]) => {
+          const populatedTask = await Task.findById(savedTask._id)
+            .populate('createdBy', 'firstName lastName email') // <-- populate before sending
+            .lean();
+
+          console.log(
+            '✅ Task created by:',
+            populatedTask?.createdBy
+              ? `${populatedTask.createdBy.firstName || ''} ${populatedTask.createdBy.lastName || ''}`.trim()
+              : 'Unknown',
+          );
+
+          return res.status(201).send(populatedTask);
+        })
         .catch((errors) => {
           res.status(400).send(errors);
         });
@@ -661,7 +661,7 @@ const taskController = function (Task) {
       const fromLastLvl = parseInt(fromNumArr.pop(), 10);
       const toLastLvl = parseInt(toNumArr.pop(), 10);
 
-      const leadingLvls = fromNumArr.length ? fromNumArr.join('.').concat('.') : ''; // in a format of x, x.x, or x.x.x, also could be '' if move level one tasks
+      const leadingLvls = fromNumArr.length ? fromNumArr.join('.').concat('.') : '';
 
       const changingNums = [];
       for (
@@ -737,7 +737,7 @@ const taskController = function (Task) {
     await followUp.findOneAndDelete({ taskId });
 
     Promise.all([removeChildTasks, updateMotherChildrenQty])
-      .then(() => res.status(200).send({ message: 'Task successfully deleted' })) // no need to resetNum(taskId, mother);
+      .then(() => res.status(200).send({ message: 'Task successfully deleted' }))
       .catch((errors) => res.status(400).send(errors));
   };
 
@@ -775,7 +775,8 @@ const taskController = function (Task) {
   const updateTask = async (req, res) => {
     if (
       !(await hasPermission(req.body.requestor, 'updateTask')) &&
-      !(await hasPermission(req.body.requestor, 'removeUserFromTask'))
+      !(await hasPermission(req.body.requestor, 'removeUserFromTask')) &&
+      !(await hasPermission(req.body.requestor, 'canDeleteTask'))
     ) {
       res.status(403).send({ error: 'You are not authorized to update Task.' });
       return;
@@ -813,16 +814,10 @@ const taskController = function (Task) {
       }
     } catch (userError) {
       console.warn('Warning: Could not fetch user for change tracking:', userError.message);
-      // Continue without user tracking in case of timeout
     }
 
-    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
+    // WBS/Project modifiedDatetime updates are handled after the task update completes (below) so
+    // callers and tests can observe the calls synchronously in the update flow.
 
     try {
       // IF CATEGORY IS BEING UPDATED, UPDATE BOTH FLAGS
@@ -873,60 +868,81 @@ const taskController = function (Task) {
         }
       }
 
-      // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
-      Task.findById(taskId).then((currentTask) => {
-        WBS.findById(currentTask.wbsId).then((currentwbs) => {
-          currentwbs.modifiedDatetime = Date.now();
-          return currentwbs.save();
-        });
-      });
+      // WBS/Project modifiedDatetime update is handled after the update completes (see below)
 
-      Task.findById(taskId).then((currentTask) => {
-        WBS.findById(currentTask.wbsId).then((currentwbs) => {
-          Project.findById(currentwbs.projectId).then((currentProject) => {
-            currentProject.modifiedDatetime = Date.now();
-            return currentProject.save();
-          });
-        });
-      });
+      // Prevent changing createdBy via updates
+      if ('createdBy' in req.body) {
+        delete req.body.createdBy;
+      }
 
-      const updatedTask = await Task.findOneAndUpdate(
-        { _id: mongoose.Types.ObjectId(taskId) },
+      Task.findOneAndUpdate(
+        { _id: taskId },
         { ...req.body, modifiedDatetime: Date.now() },
-        { new: true },
-      );
+        { new: true, runValidators: true },
+      )
+        .then(async (updatedTask) => {
+          // Ensure WBS and Project modifiedDatetime are updated and awaited so tests observe the calls
+          try {
+            const updatedObj =
+              updatedTask && typeof updatedTask.toObject === 'function'
+                ? updatedTask.toObject()
+                : updatedTask;
+            const wbsIdToUse =
+              updatedObj?.wbsId || updatedObj?.wbs || (oldTask && (oldTask.wbsId || oldTask.wbs));
+            if (wbsIdToUse) {
+              const currentwbs = await WBS.findById(wbsIdToUse);
+              if (currentwbs) {
+                currentwbs.modifiedDatetime = Date.now();
+                await currentwbs.save();
+                const currentProject = await Project.findById(currentwbs.projectId);
+                if (currentProject) {
+                  currentProject.modifiedDatetime = Date.now();
+                  await currentProject.save();
+                }
+              }
+            }
+          } catch (err) {
+            logger.logException(err);
+          }
 
-      if (!updatedTask) {
-        logger.warn(`[Category Override] Task ${taskId} not found during update`);
-        return res.status(404).send({ error: 'Task not found' });
-      }
+          console.log('DEBUG: logging check', {
+            hasOldTask: !!oldTask,
+            hasUser: !!user,
+            taskChangeTrackerType: typeof TaskChangeTracker,
+            hasLogFn: !!TaskChangeTracker && !!TaskChangeTracker.logChanges,
+          });
 
-      logger.logInfo(
-        `[Category Override] Task ${taskId} updated successfully. categoryOverride: ${updatedTask.categoryOverride}, category: "${updatedTask.category}"`,
-      );
+          try {
+            const safeUser = user || { _id: null, firstName: 'Unknown', lastName: '', email: '' };
+            if (
+              oldTask &&
+              typeof TaskChangeTracker !== 'undefined' &&
+              TaskChangeTracker.logChanges
+            ) {
+              await TaskChangeTracker.logChanges(
+                taskId,
+                oldTask.toObject ? oldTask.toObject() : oldTask,
+                updatedTask.toObject ? updatedTask.toObject() : updatedTask,
+                safeUser,
+                req,
+              );
+            }
+          } catch (logError) {
+            console.warn('Warning: Could not log task changes:', logError.message);
+            // Continue without logging - don't fail the update
+          }
 
-      // Log the changes - only if we have user and TaskChangeTracker is available
-      try {
-        if (
-          oldTask &&
-          user &&
-          typeof TaskChangeTracker !== 'undefined' &&
-          TaskChangeTracker.logChanges
-        ) {
-          await TaskChangeTracker.logChanges(
-            taskId,
-            oldTask.toObject(),
-            updatedTask.toObject(),
-            user,
-            req,
-          );
-        }
-      } catch (logError) {
-        console.warn('Warning: Could not log task changes:', logError.message);
-        // Continue without logging - don't fail the update
-      }
+          res.status(201).send(updatedTask);
+        })
+        .catch((error) => {
+          // Check if it's a specific error that should return 404
+          if (error && error.error === 'No valid records found') {
+            return res.status(404).send(error);
+          }
 
-      res.status(201).send(updatedTask);
+          logger.logException(error);
+          res.status(500).send({ error: error.message });
+        });
     } catch (error) {
       // Check if it's a specific error that should return 404
       if (error && error.error === 'No valid records found') {
@@ -935,6 +951,34 @@ const taskController = function (Task) {
 
       logger.logException(error);
       res.status(500).send({ error: error.message });
+    }
+  };
+
+  const deleteTaskById = async (req, res) => {
+    try {
+      const { taskId, userId } = req.params;
+
+      if (!taskId || !userId) {
+        return res.status(400).send({ error: 'taskId and userId are required' });
+      }
+
+      if (!(await hasPermission(req.body.requestor, 'deleteTask'))) {
+        return res.status(403).send({ error: 'Not authorized to delete tasks.' });
+      }
+      const task = await Task.findById(taskId);
+      if (!task) {
+        return res.status(404).send({ error: 'Task not found' });
+      }
+
+      task.resources = task.resources.filter((r) => r.userID.toString() !== userId);
+      await task.save();
+
+      return res.status(200).send({
+        message: 'Task removed from user successfully',
+      });
+    } catch (err) {
+      console.error('Error removing user from task:', err);
+      return res.status(500).send({ error: 'Internal server error' });
     }
   };
 
@@ -996,31 +1040,39 @@ const taskController = function (Task) {
     try {
       const taskId = req.params.id;
 
-      // Ensure the task ID is provided
       if (!taskId || taskId === 'undefined') {
         return res.status(400).send({ error: 'Task ID is missing' });
       }
 
-      const task = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime');
+      const taskDoc = await Task.findById(taskId, '-__v  -createdDatetime -modifiedDatetime')
+        .populate('createdBy', 'firstName lastName email') // <-- added
+        .lean();
 
-      if (!task) {
+      if (!taskDoc) {
         return res.status(400).send({ error: 'This is not a valid task' });
       }
 
-      // Fetch the resource names for all resources
-      const resourceNamesPromises = task.resources.map((resource) =>
+      const task = {
+        ...taskDoc,
+        creatorName: taskDoc.createdBy
+          ? [taskDoc.createdBy.firstName, taskDoc.createdBy.lastName]
+              .filter(Boolean)
+              .join(' ')
+              .trim()
+          : undefined,
+      };
+
+      const resourceNamesPromises = (task.resources || []).map((resource) =>
         taskHelper.getUserProfileFirstAndLastName(resource.userID),
       );
       const resourceNames = await Promise.all(resourceNamesPromises);
 
-      // Update the task's resources with the fetched names
-      task.resources.forEach((resource, index) => {
+      (task.resources || []).forEach((resource, index) => {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
       return res.status(200).send(task);
     } catch (error) {
-      // Generic error message, you can adjust as needed
       return res.status(500).send({ error: 'Internal Server Error', details: error.message });
     }
   };
@@ -1049,19 +1101,16 @@ const taskController = function (Task) {
   const getTasksByUserId = async (req, res) => {
     const { userId } = req.params;
     try {
+      // 1) Run your existing aggregation (no creator $lookup here)
       const tasks = await Task.aggregate()
         .match({
           resources: {
             $elemMatch: {
               userID: mongoose.Types.ObjectId(userId),
-              completedTask: {
-                $ne: true,
-              },
+              completedTask: { $ne: true },
             },
           },
-          isActive: {
-            $ne: false,
-          },
+          isActive: { $ne: false },
         })
         .lookup({
           from: 'wbs',
@@ -1092,34 +1141,146 @@ const taskController = function (Task) {
         .addFields({
           projectName: '$project.projectName',
         })
-        .project({
-          wbs: 0,
-          project: 0,
+        .project({ wbs: 0, project: 0 })
+        .allowDiskUse(true);
+
+      // 2) Enrich with creatorName safely (no dependency on collection string)
+      const creatorIds = [
+        ...new Set(
+          tasks
+            .map((t) => t.createdBy)
+            .filter(Boolean)
+            .map((id) => id.toString()),
+        ),
+      ];
+
+      if (creatorIds.length) {
+        const profiles = await UserProfile.find(
+          { _id: { $in: creatorIds.map((x) => mongoose.Types.ObjectId(x)) } },
+          'firstName lastName email',
+        ).lean();
+
+        const nameById = new Map(
+          profiles.map((u) => [
+            u._id.toString(),
+            `${(u.firstName || '').trim()} ${(u.lastName || '').trim()}`.trim() || u.email || '',
+          ]),
+        );
+
+        tasks.forEach((t) => {
+          const k = t.createdBy && t.createdBy.toString();
+          const name = k && nameById.get(k);
+          if (name) t.creatorName = name;
         });
-      res.status(200).send(tasks);
+      }
+
+      return res.status(200).send(tasks);
     } catch (error) {
-      res.status(400).send(error);
+      return res.status(400).send(error);
     }
   };
+
+  // Attach creatorName to each task in an array/tree shape returned by the helpers
+  async function attachCreatorNames(items) {
+    // Flatten out all tasks we can find (handles both "teamsData" and "singleUserData" shapes)
+    const collectTasks = (arr) => {
+      const out = [];
+      arr.forEach((block) => {
+        // common shapes we’ve seen:
+        //  - block.tasks: array of tasks
+        //  - block: could itself be a task
+        if (Array.isArray(block?.tasks)) out.push(...block.tasks);
+        else if (block && block.taskName && (block._id || block.id)) out.push(block);
+      });
+      return out;
+    };
+
+    const allTasks = collectTasks(items);
+    if (!allTasks.length) return items;
+
+    // Collect distinct createdBy ids (accepts object or id)
+    const ids = [
+      ...new Set(
+        allTasks
+          .map((t) => {
+            if (t.createdBy && t.createdBy._id) {
+              return String(t.createdBy._id);
+            }
+            if (t.createdBy) {
+              return String(t.createdBy);
+            }
+            return null;
+          })
+          .filter(Boolean),
+      ),
+    ];
+
+    if (!ids.length) return items;
+
+    const profiles = await UserProfile.find(
+      { _id: { $in: ids } },
+      'firstName lastName email',
+    ).lean();
+
+    const nameMap = new Map(
+      profiles.map((p) => {
+        const name = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
+        return [String(p._id), name || p.email || 'Unknown'];
+      }),
+    );
+
+    // Mutate in place: add creatorName and (if useful) a light createdBy object
+    allTasks.forEach((t) => {
+      let id = null;
+      if (t.createdBy && t.createdBy._id) {
+        id = String(t.createdBy._id);
+      } else if (t.createdBy) {
+        id = String(t.createdBy);
+      }
+
+      if (id && nameMap.has(id)) {
+        t.creatorName = nameMap.get(id);
+        // if createdBy was just an id, keep it but also add light object for UI that reads it
+        if (
+          typeof t.createdBy === 'string' ||
+          (typeof t.createdBy === 'object' && !t.createdBy.firstName)
+        ) {
+          const prof = profiles.find((p) => String(p._id) === id);
+          if (prof)
+            t.createdBy = {
+              _id: prof._id,
+              firstName: prof.firstName,
+              lastName: prof.lastName,
+              email: prof.email,
+            };
+        }
+      }
+    });
+
+    return items;
+  }
 
   const getTasksForTeamsByUser = async (req, res) => {
     const userId = mongoose.Types.ObjectId(req.params.userId);
     try {
       const teamsData = await taskHelper.getTasksForTeams(userId, req.body.requestor);
-      if (teamsData.length > 0) {
-        res.status(200).send(teamsData);
-      } else {
-        const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
-        res.status(200).send(singleUserData);
+
+      if (teamsData && teamsData.length > 0) {
+        await attachCreatorNames(teamsData);
+        return res.status(200).send(teamsData);
       }
+
+      const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
+      await attachCreatorNames(singleUserData);
+      return res.status(200).send(singleUserData);
     } catch (error) {
-      res.status(400).send({ error });
+      console.log(error);
+      return res.status(400).send({ error });
     }
   };
 
   const updateTaskStatus = async (req, res) => {
     const { taskId } = req.params;
-    // Updating a task will update the modifiedDateandTime of project and wbs - Sucheta
     Task.findById(taskId).then((currentTask) => {
       WBS.findById(currentTask.wbsId).then((currentwbs) => {
         currentwbs.modifiedDatetime = Date.now();
@@ -1354,6 +1515,7 @@ const taskController = function (Task) {
     deleteTask,
     getTaskById,
     updateTask,
+    deleteTaskById,
     importTask,
     fixTasks,
     updateAllParents,
