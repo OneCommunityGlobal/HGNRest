@@ -51,6 +51,8 @@ const routes = function (
     .get(controller.fetchSingleInventoryType)
     .put(controller.updateNameAndUnit);
 
+  inventoryTypeRouter.route('/invtypes/:type/:invtypeId').delete(controller.deleteSingleInvType);
+
   inventoryTypeRouter
     .route('/inventoryUnits')
     .get(controller.fetchInvUnits)

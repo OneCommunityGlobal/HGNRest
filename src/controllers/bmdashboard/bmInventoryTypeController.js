@@ -659,55 +659,50 @@ function bmInventoryTypeController(
       let updatedList;
 
       // Handle different types with their respective models
-      if (type === 'Equipments') {
+      if (type === 'equipments') {
         deletedResult = await EquipType.findByIdAndDelete(invtypeId);
         if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
+          res.status(404).json({ error: 'Equipment does not exist' });
           return;
         }
         updatedList = await EquipType.find();
-      } else if (type === 'Materials') {
+      } else if (type === 'materials') {
         deletedResult = await MatType.findByIdAndDelete(invtypeId);
         if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
+          res.status(404).json({ error: 'Material does not exist' });
           return;
         }
         updatedList = await MatType.find();
-      } else if (type === 'Consumables') {
+      } else if (type === 'consumables') {
         deletedResult = await ConsType.findByIdAndDelete(invtypeId);
         if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
+          res.status(404).json({ error: 'Consumables does not exist' });
           return;
         }
         updatedList = await ConsType.find();
-      } else if (type === 'Tools') {
+      } else if (type === 'tools') {
         deletedResult = await ToolType.findByIdAndDelete(invtypeId);
         if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
+          res.status(404).json({ error: 'Tool does not exist' });
           return;
         }
         updatedList = await ToolType.find();
-      } else if (type === 'Reusables') {
+      } else if (type === 'reusables') {
         deletedResult = await ReusType.findByIdAndDelete(invtypeId);
         if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
+          res.status(404).json({ error: 'Reusable does not exist' });
           return;
         }
         updatedList = await ReusType.find();
       } else {
-        // Fallback to InvType for unknown types
-        deletedResult = await InvType.findByIdAndDelete(invtypeId);
-        if (!deletedResult) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
-          return;
-        }
-        updatedList = await InvType.find({ category: type });
+        throw new Error(
+          `Unsupported inventory type: "${type}". Expected one of: materials, consumables, tools, reusables, equipments.`,
+        );
       }
-
       // send the updated list
       res.status(200).json(updatedList);
     } catch (error) {
-      res.status(500).send(error);
+      res.status(400).send(error.message);
     }
   };
 
@@ -751,6 +746,7 @@ function bmInventoryTypeController(
     fetchInvTypeHistory,
     deleteInvType: deleteById(InvType),
     updateInvType: updateInventoryTypeById(InvType),
+    deleteSingleInvType,
   };
 }
 
