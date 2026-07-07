@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const studentMetricsSchema = new Schema({
-  studentId: { type: String, required: true, index: true },
+  studentId: { type: String, required: true, unique: true, index: true },
   metrics: {
     averageScore: { type: Number, default: 0 },
     totalTimeSpentMinutes: { type: Number, default: 0 },
