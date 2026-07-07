@@ -42,7 +42,7 @@ const taskHelper = function () {
       const isRequestorOwnerLike = await hasPermission(requestor, 'seeUsersInDashboard');
       const userAsRequestor = { role: userRole, requestorId: userId };
       const isUserOwnerLike = await hasPermission(userAsRequestor, 'seeUsersInDashboard');
-       const elevatedRoles = ['Owner', 'Admin', 'coreteam'];
+      const elevatedRoles = ['Owner', 'Admin', 'coreteam'];
 
       switch (true) {
         case isRequestorOwnerLike && isUserOwnerLike: {
@@ -56,6 +56,7 @@ const taskHelper = function () {
                 lastName: 1,
                 weeklycommittedHours: 1,
                 weeklySummaryOption: 1,
+                weeklySummariesCount: 1,
                 timeOffFrom: 1,
                 timeOffTill: 1,
                 teamCode: 1,
@@ -69,12 +70,12 @@ const taskHelper = function () {
                 select: 'teamName',
               },
             ]);
-             console.log(`📊 Found ${teamMembers.length} ALL active users (full admin access)`);
+          console.log(`📊 Found ${teamMembers.length} ALL active users (full admin access)`);
           break;
         }
-      
+
         case isRequestorOwnerLike && !isUserOwnerLike: {
-            console.log('🔍 Case 2: Requestor has owner-like permissions but user does not');
+          console.log('🔍 Case 2: Requestor has owner-like permissions but user does not');
           const teamsResult = await team.find(
             { 'members.userId': { $in: [userid] } },
             { members: 1 },
@@ -95,6 +96,7 @@ const taskHelper = function () {
                 lastName: 1,
                 weeklycommittedHours: 1,
                 weeklySummaryOption: 1,
+                weeklySummariesCount: 1,
                 timeOffFrom: 1,
                 timeOffTill: 1,
                 teamCode: 1,
@@ -110,11 +112,10 @@ const taskHelper = function () {
             ]);
           break;
         }
-        
-          
-       default: {
-         console.log('🔍 Case 3: Default case - checking shared teams with visibility rules');
-  
+
+        default: {
+          console.log('🔍 Case 3: Default case - checking shared teams with visibility rules');
+
           const sharedTeamsResult = await team.find(
             { 'members.userId': { $all: [userid, requestorId] } },
             { members: 1 },
@@ -125,9 +126,11 @@ const taskHelper = function () {
             _myTeam.members.forEach((teamMember) => {
               if (teamMember.userId.equals(userid) && teamMember.visible) hasTeamVisibility = true;
             });
-            
+
             if (elevatedRoles.includes(requestor.role) || hasTeamVisibility) {
-              console.log(`✅ Access granted to team members: hasTeamVisibility=${hasTeamVisibility}, requestorRole=${requestor.role}`);
+              console.log(
+                `✅ Access granted to team members: hasTeamVisibility=${hasTeamVisibility}, requestorRole=${requestor.role}`,
+              );
 
               _myTeam.members.forEach((teamMember) => {
                 if (!teamMember.userId.equals(userid)) {
@@ -136,8 +139,6 @@ const taskHelper = function () {
               });
             }
           });
-
-
 
           teamMembers = await userProfile
             .find(
@@ -148,6 +149,7 @@ const taskHelper = function () {
                 lastName: 1,
                 weeklycommittedHours: 1,
                 weeklySummaryOption: 1,
+                weeklySummariesCount: 1,
                 timeOffFrom: 1,
                 timeOffTill: 1,
                 teamCode: 1,
@@ -249,6 +251,7 @@ const taskHelper = function () {
           name: `${teamMember.firstName} ${teamMember.lastName}`,
           weeklycommittedHours: teamMember.weeklycommittedHours,
           weeklySummaryOption: teamMember.weeklySummaryOption || null,
+          weeklySummariesCount: teamMember.weeklySummariesCount,
           totaltangibletime_hrs: tangible / 3600,
           totaltime_hrs: total / 3600,
           tasks: taskByPerson[teamMember._id.toString()] || [],

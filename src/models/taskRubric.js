@@ -15,8 +15,8 @@ const taskRubricSchema = new Schema({
       validator(v) {
         return v && typeof v === 'object' && v.criteria && v.weights && v.descriptions;
       },
-      message: 'Rubric JSON must contain criteria, weights, and descriptions'
-    }
+      message: 'Rubric JSON must contain criteria, weights, and descriptions',
+    },
   },
   created_at: {
     type: Date,
@@ -30,7 +30,7 @@ const taskRubricSchema = new Schema({
   },
 });
 
-taskRubricSchema.pre('save', function(next) {
+taskRubricSchema.pre('save', function (next) {
   this.updated_at = Date.now();
   next();
 });
