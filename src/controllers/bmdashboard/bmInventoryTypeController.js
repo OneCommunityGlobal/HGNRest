@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// eslint-disable-next-line max-lines-per-function
 function bmInventoryTypeController(
   InvType,
   MatType,
@@ -552,102 +553,84 @@ function bmInventoryTypeController(
     const { type, invtypeId } = req.params;
     const { name, description, unit, fuel } = req.body;
 
-    // Handle Equipment type specifically
-    if (type === 'Equipments') {
-      // send back errors if required fields are missing
-      if (name?.length === 0 || description?.length === 0) {
-        res.status(400).json({ error: 'Name and description are required.' });
-        return;
-      }
-
-      try {
-        // find Equipment by id, and update name, description, fuelType
-        const updatedEquipType = await EquipType.findByIdAndUpdate(
-          invtypeId,
-          { name, description, fuelType: fuel },
-          { new: true, runValidators: true },
-        );
-        if (!updatedEquipType) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
-          return;
+    try {
+      if (type === 'materials') {
+        if (name?.trim() === '' || description?.trim() === '' || unit?.trim() === '') {
+          return res.status(400).json({ error: 'Name, description, and unit are required.' });
         }
 
-        res.status(200).json(updatedEquipType);
-      } catch (error) {
-        res.status(500).send(error);
-      }
-    } else if (type === 'Materials') {
-      // Handle Material type with unit field
-      // send back errors if required fields are missing
-      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
-        res.status(400).json({ error: 'Name, description, and unit are required.' });
-        return;
-      }
-
-      try {
-        // find Material by id, and update name, description, unit
         const updatedMaterialType = await MatType.findByIdAndUpdate(
           invtypeId,
           { name, description, unit },
           { new: true, runValidators: true },
         );
         if (!updatedMaterialType) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
-          return;
+          return res.status(404).json({ error: 'Material does not exist' });
         }
 
         res.status(200).json(updatedMaterialType);
-      } catch (error) {
-        res.status(500).send(error);
-      }
-    } else if (type === 'Consumables') {
-      // Handle Consumable type with unit field
-      // send back errors if required fields are missing
-      if (name?.length === 0 || description?.length === 0 || unit?.length === 0) {
-        res.status(400).json({ error: 'Name, description, and unit are required.' });
-        return;
-      }
+      } else if (type === 'consumables') {
+        if (name?.trim() === '' || description?.trim() === '' || unit?.length === '') {
+          return res.status(400).json({ error: 'Name, description, and unit are required.' });
+        }
 
-      try {
-        // find Consumable by id, and update name, description, unit
         const updatedConsumableType = await ConsType.findByIdAndUpdate(
           invtypeId,
           { name, description, unit },
           { new: true, runValidators: true },
         );
         if (!updatedConsumableType) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
-          return;
+          return res.status(404).json({ error: 'Consumable does not exist' });
         }
 
         res.status(200).json(updatedConsumableType);
-      } catch (error) {
-        res.status(500).send(error);
-      }
-    } else {
-      // Handle other types (Reusables, Tools) with original logic
-      // send back errors if required fields are missing
-      if (name?.length === 0 || description?.length === 0) {
-        res.status(400).json({ error: 'Name and description are required.' });
-        return;
-      }
+      } else if (type === 'equipments') {
+        if (name?.trim() === '' || description?.trim() === '' || fuel?.trim() === '') {
+          return res.status(400).json({ error: 'Name, description, and fuel type are required.' });
+        }
+        const updatedEquipType = await EquipType.findByIdAndUpdate(
+          invtypeId,
+          { name, description, fuelType: fuel },
+          { new: true, runValidators: true },
+        );
+        if (!updatedEquipType) {
+          return res.status(404).json({ error: 'Equipment does not exist' });
+        }
 
-      try {
-        // find invType by id, and update name, description
-        const updatedInvType = await InvType.findByIdAndUpdate(
+        res.status(200).json(updatedEquipType);
+      } else if (type === 'reusables') {
+        if (name?.trim() === '' || description?.trim() === '') {
+          return res.status(400).json({ error: 'Name and description are required.' });
+        }
+
+        const updatedReusType = await ReusType.findByIdAndUpdate(
           invtypeId,
           { name, description },
           { new: true, runValidators: true },
         );
-        if (!updatedInvType) {
-          res.status(404).json({ error: 'invTypeId does not exist' });
-          return;
+        if (!updatedReusType) {
+          return res.status(404).json({ error: 'Reusable does not exist' });
         }
 
-        res.status(200).json(updatedInvType);
-      } catch (error) {
-        res.status(500).send(error);
+        res.status(200).json(updatedReusType);
+      } else if (type === 'tools') {
+        if (name?.trim() === '' || description?.trim() === '') {
+          return res.status(400).json({ error: 'Name and description are required.' });
+        }
+
+        const updatedToolType = await ToolType.findByIdAndUpdate(
+          invtypeId,
+          { name, description },
+          { new: true, runValidators: true },
+        );
+        if (!updatedToolType) {
+          return res.status(404).json({ error: 'Reusable does not exist' });
+        }
+
+        res.status(200).json(updatedToolType);
       }
+    } catch (error) {
+      res.status(500).send(error);
     }
   };
 
@@ -747,6 +730,7 @@ function bmInventoryTypeController(
     deleteInvType: deleteById(InvType),
     updateInvType: updateInventoryTypeById(InvType),
     deleteSingleInvType,
+    updateSingleInvType,
   };
 }
 
