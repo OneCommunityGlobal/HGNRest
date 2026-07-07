@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const VALID_FUEL_TYPES = ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'];
+
 // eslint-disable-next-line max-lines-per-function
 function bmInventoryTypeController(
   InvType,
@@ -318,8 +320,7 @@ function bmInventoryTypeController(
     const requestorId = requestor?.requestorId || null;
 
     // Validate and set default fuel type if not provided
-    const validFuelTypes = ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'];
-    const finalFuelType = fuelType && validFuelTypes.includes(fuelType) ? fuelType : 'Diesel';
+    const finalFuelType = fuelType && VALID_FUEL_TYPES.includes(fuelType) ? fuelType : 'Diesel';
 
     try {
       EquipType.find({ name })
@@ -630,6 +631,12 @@ function bmInventoryTypeController(
         res.status(200).json(updatedToolType);
       }
     } catch (error) {
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          error: `Invalid fuel type. Please choose ${VALID_FUEL_TYPES.join(', ')}.`,
+        });
+      }
+
       res.status(500).send(error);
     }
   };
