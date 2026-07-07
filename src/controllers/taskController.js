@@ -1306,7 +1306,7 @@ const taskController = function (Task) {
         <p>The following task is available to review:</p>
         <p><b>${taskName}</b></p>
         <p>Thank you,</p>
-        <p>One Community</p>`;
+        <p>One Community Admin Team</p>`;
 
     return text;
   };
