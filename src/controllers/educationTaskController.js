@@ -309,7 +309,18 @@ const educationTaskController = function () {
 
     // Letter grade calculation based on grade scale
     if (gradeScale && typeof gradeScale === 'object') {
-      const scale = gradeScale.toObject ? gradeScale.toObject() : gradeScale;
+      // Normalize the scale to a plain object. When it comes from the request
+      // body it is already a plain object, but when it is read back from the DB
+      // it is a Mongoose Map (which has no .toObject() and is not enumerable via
+      // Object.entries), so convert it explicitly.
+      let scale;
+      if (gradeScale instanceof Map) {
+        scale = Object.fromEntries(gradeScale);
+      } else if (typeof gradeScale.toObject === 'function') {
+        scale = gradeScale.toObject();
+      } else {
+        scale = gradeScale;
+      }
 
       // Sort grade thresholds in descending order and find first match
       const sortedGrades = Object.entries(scale).sort((a, b) => b[1] - a[1]);
