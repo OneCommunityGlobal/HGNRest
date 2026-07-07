@@ -79,6 +79,11 @@ module.exports = function (app) {
       return;
     }
 
+    if (/^\/api\/jobforms\/[^/]+\/responses$/.test(req.originalUrl) && req.method === 'POST') {
+      next();
+      return;
+    }
+
     if (req.originalUrl.startsWith('/api/bluesky')) {
       next();
       return;
