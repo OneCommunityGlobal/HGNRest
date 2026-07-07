@@ -24,7 +24,7 @@ const sendSlackInvite = async (recipientEmail) => {
   try {
     await emailSender([recipientEmail], subject, message);
   } catch (error) {
-    throw new Error(`Slack: Error sending invite email - ${error.message}`);
+    throw new Error(`Slack: Error sending invite email`);
   }
 };
 

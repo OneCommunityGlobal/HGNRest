@@ -1,10 +1,23 @@
+/* eslint-disable no-console */
 const mongoose = require('mongoose');
-const logger = require('./logger');
 const userProfile = require('../models/userProfile');
 const initialPermissions = require('../utilities/createInitialPermissions');
+const logger = require('./logger');
 require('dotenv').config();
 
 mongoose.Promise = Promise;
+mongoose.set('useCreateIndex', true);
+mongoose.set('useFindAndModify', false);
+
+/* 👇 ADD HERE */
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+});
+/* 👆 ADD HERE */
 
 const afterConnect = async () => {
   try {
@@ -12,8 +25,6 @@ const afterConnect = async () => {
       firstName: { $regex: process.env.TIME_ARCHIVE_FIRST_NAME, $options: 'i' },
       lastName: { $regex: process.env.TIME_ARCHIVE_LAST_NAME, $options: 'i' },
     });
-
-    console.log('connected to mongodb');
 
     await initialPermissions();
     if (!user) {
@@ -36,12 +47,12 @@ const afterConnect = async () => {
 };
 
 module.exports = function () {
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
+  const appName = process.env.appName || 'HGNRest';
+  const uri = `mongodb+srv://${encodeURIComponent(process.env.user)}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
   mongoose
     .connect(uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      useFindAndModify: false,
     })
     .then(afterConnect)
     .catch((err) => logger.logException(err));

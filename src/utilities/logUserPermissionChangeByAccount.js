@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 const moment = require('moment-timezone');
 const UserPermissionChangeLog = require('../models/userPermissionChangeLog');
 const UserProfile = require('../models/userProfile');
@@ -15,24 +16,42 @@ const findLatestRelatedLog = (userId) =>
       });
   });
 
-const logUserPermissionChangeByAccount = async (req) => {
-  const { permissions, firstName, lastName, requestor } = req.body;
+//
+
+const logUserPermissionChangeByAccount = async (req, user) => {
+  const { permissions, requestor } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
 
   try {
+    if (!permissions || !requestor?.requestorId) {
+      return;
+    }
+
+    const Permissions = Array.isArray(permissions.frontPermissions)
+      ? permissions.frontPermissions
+      : [];
+    const { userId } = req.params;
+
+    // Fetch requestor email (may be null if requestor deleted)
+    const requestorDoc = await UserProfile.findById(requestor.requestorId)
+      .select('email')
+      .lean()
+      .exec();
+    const requestorEmail = requestorDoc?.email ?? 'unknown';
+
+    const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
-    const { userId } = req.params;
-    const Permissions = permissions.frontPermissions;
-    const requestorEmailId = await UserProfile.findById(requestor.requestorId)
-      .select('email')
-      .exec();
+
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
       const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      // no new changes in permissions list from last update
-      if (JSON.stringify(docPermissions.sort()) === JSON.stringify(Permissions.sort())) {
+      // const sortedDoc = [...docPermissions].sort();
+      const sortedDoc = [...docPermissions].sort((a, b) => a.localeCompare(b));
+      // const sortedCurrent = [...Permissions].sort();
+      const sortedCurrent = [...Permissions].sort((a, b) => a.localeCompare(b));
+      if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
         return;
       }
       permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
@@ -41,10 +60,10 @@ const logUserPermissionChangeByAccount = async (req) => {
       permissionsAdded = Permissions;
     }
 
-    // no permission added nor removed
     if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
       return;
     }
+
     const logEntry = new UserPermissionChangeLog({
       logDateTime: dateTime,
       userId,
@@ -53,11 +72,10 @@ const logUserPermissionChangeByAccount = async (req) => {
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
-      requestorEmail: requestorEmailId.email,
+      requestorEmail,
     });
 
     await logEntry.save();
-    console.log('Permission change logged successfully');
   } catch (error) {
     console.error('Error logging permission change:', error);
   }

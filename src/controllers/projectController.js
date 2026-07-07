@@ -5,7 +5,7 @@ const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
 const userProfile = require('../models/userProfile');
-// const { hasPermission } = require('../utilities/permissions');
+const { hasPermission } = require('../utilities/permissions');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
@@ -24,6 +24,19 @@ const projectController = function (Project) {
     } catch (error) {
       logger.logException(error);
       res.status(404).send('Error fetching projects. Please try again.');
+    }
+  };
+
+  const getArchivedProjects = async function (req, res) {
+    try {
+      const archivedProjects = await Project.find(
+        { isArchived: true },
+        'projectName isActive category modifiedDatetime membersModifiedDatetime isArchived',
+      ).sort({ modifiedDatetime: -1 });
+      res.status(200).send(archivedProjects);
+    } catch (error) {
+      logger.logException(error);
+      res.status(404).send('Error fetching archived projects. Please try again.');
     }
   };
 
@@ -114,11 +127,21 @@ const projectController = function (Project) {
   };
 
   const putProject = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
-      res.status(403).send('You are not authorized to make changes in the projects.');
-      return;
+    // console.log("PUT body:", req.body);
+    if (!(await helper.hasPermission(req.body.requestor, 'editProject'))) {
+      if (!(await helper.hasPermission(req.body.requestor, 'putProject'))) {
+        res.status(403).send('You are not authorized to make changes in the projects.');
+        return;
+      }
     }
-    const { projectName, category, isActive, _id: projectId, isArchived } = req.body;
+    const {
+      projectName,
+      category,
+      isActive,
+      _id: projectId,
+      isArchived,
+      inventoryModifiedDatetime,
+    } = req.body;
     const sameNameProejct = await Project.find({
       projectName,
       _id: { $ne: projectId },
@@ -133,34 +156,223 @@ const projectController = function (Project) {
       const targetProject = await Project.findById(projectId);
       if (!targetProject) {
         res.status(400).send('No valid records found');
+        await session.abortTransaction();
         return;
       }
-      targetProject.projectName = projectName;
-      targetProject.category = category;
-      targetProject.isActive = isActive;
+
+      // STORE ORIGINAL CATEGORY BEFORE UPDATE
+      const originalCategory = targetProject.category;
+      logger.logInfo(
+        `[Category Cascade] Project ${projectId} update started. Original category: ${originalCategory}, New category: ${category}`,
+      );
+
+      targetProject.projectName = projectName ?? targetProject.projectName;
+      targetProject.category = category ?? targetProject.category;
+      targetProject.isActive = isActive !== undefined ? isActive : targetProject.isActive;
       targetProject.modifiedDatetime = Date.now();
-      if (isArchived) {
+      targetProject.isArchived = isArchived !== undefined ? isArchived : targetProject.isArchived;
+      targetProject.inventoryModifiedDatetime =
+        inventoryModifiedDatetime ?? targetProject.inventoryModifiedDatetime;
+
+      // IF CATEGORY CHANGED, CASCADE TO NON-OVERRIDDEN TASKS
+      if (category && originalCategory !== category) {
+        logger.logInfo(
+          `[Category Cascade] Category changed from "${originalCategory}" to "${category}". Starting cascade...`,
+        );
+
+        // Get all WBS for this project
+        const projectWBSIds = await wbs.find({ projectId }, '_id', { session });
+        const wbsIds = projectWBSIds.map((w) => w._id);
+
+        logger.logInfo(`[Category Cascade] Found ${wbsIds.length} WBS for project ${projectId}`);
+        logger.logInfo(`[Category Cascade] WBS IDs: ${JSON.stringify(wbsIds)}`);
+
+        if (wbsIds.length > 0) {
+          // First, let's see ALL tasks for these WBS
+          const allTasks = await task.find(
+            { wbsId: { $in: wbsIds } },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+              wbsId: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] Total tasks found in WBS: ${allTasks.length}`);
+          allTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}, WBS: ${t.wbsId}`,
+            );
+          });
+
+          // Count tasks by lock status (this is what determines cascade behavior)
+          const lockedTrue = allTasks.filter((t) => t.categoryLocked === true).length;
+          const lockedFalse = allTasks.filter((t) => t.categoryLocked === false).length;
+          const lockedUndefined = allTasks.filter((t) => t.categoryLocked === undefined).length;
+
+          logger.logInfo(
+            `[Category Cascade] Lock stats - Locked: ${lockedTrue}, Unlocked: ${lockedFalse}, Undefined: ${lockedUndefined}`,
+          );
+
+          // Update all tasks that are NOT locked (categoryLocked = false or undefined)
+          // Also update categoryOverride to false since they now match project category
+          const updateResult = await task.updateMany(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [
+                { categoryLocked: { $exists: false } }, // Old tasks without the field
+                { categoryLocked: false }, // Tasks explicitly unlocked
+              ],
+            },
+            {
+              category,
+              categoryOverride: false, // These tasks now match project category
+              modifiedDatetime: Date.now(),
+            },
+            { session },
+          );
+
+          logger.logInfo(`[Category Cascade] updateMany result: ${JSON.stringify(updateResult)}`);
+          logger.logInfo(
+            `[Category Cascade] Updated ${updateResult.modifiedCount} tasks with new category "${category}"`,
+          );
+          logger.logInfo(
+            `[Category Cascade] Matched ${updateResult.matchedCount} tasks (unlocked), Modified ${updateResult.modifiedCount} tasks`,
+          );
+
+          // Verify the update by checking tasks again
+          const updatedTasks = await task.find(
+            {
+              wbsId: { $in: wbsIds },
+              $or: [{ categoryLocked: { $exists: false } }, { categoryLocked: false }],
+            },
+            {
+              taskName: 1,
+              category: 1,
+              categoryOverride: 1,
+              categoryLocked: 1,
+            },
+            { session },
+          );
+
+          logger.logInfo(
+            `[Category Cascade] After update verification - ${updatedTasks.length} unlocked tasks:`,
+          );
+          updatedTasks.forEach((t) => {
+            logger.logInfo(
+              `[Category Cascade]   Task: "${t.taskName}", Category NOW: "${t.category}", Override: ${t.categoryOverride}, Locked: ${t.categoryLocked}`,
+            );
+          });
+        } else {
+          logger.logInfo(`[Category Cascade] No WBS found, skipping task updates`);
+        }
+      } else {
+        logger.logInfo(
+          `[Category Cascade] Category unchanged or empty, skipping cascade. Category: "${category}", Original: "${originalCategory}"`,
+        );
+      }
+
+      // if (isArchived) {
+      //   logger.logInfo(`[Category Cascade] Project ${projectId} is being archived`);
+      //   targetProject.isArchived = isArchived;
+      //   // deactivate wbs within target project
+      //   await wbs.updateMany({ projectId }, { isActive: false }, { session });
+      //   // deactivate tasks within affected wbs
+      //   const deactivatedwbsIds = await wbs.find({ projectId }, '_id');
+      //   await task.updateMany(
+      //     { wbsId: { $in: deactivatedwbsIds } },
+      //     { isActive: false },
+      //     { session },
+      //   );
+      //   // remove project from userprofiles.projects array
+      //   await userProfile.updateMany(
+      //     { projects: projectId },
+      //     { $pull: { projects: projectId } },
+      //     { session },
+      //   );
+      //   // deactivate timeentry for affected tasks
+      //   await timeentry.updateMany({ projectId }, { isActive: false }, { session });
+      // } else {
+      //   // reactivate wbs within target project
+      //   await wbs.updateMany({ projectId }, { isActive: true }, { session });
+      //   // reactivate tasks within affected wbs
+      //   const activatedwbsIds = await wbs.find({ projectId }, '_id');
+      //   await task.updateMany({ wbsId: { $in: activatedwbsIds } }, { isActive: true }, { session });
+
+      //   // readd project from userprofiles.projects array
+      //   await userProfile.updateMany(
+      //     { projects: { $ne: projectId } },
+      //     { $addToSet: { projects: projectId } },
+      //     { session },
+      //   );
+      //   // activate timeentry for affected tasks
+      //   await timeentry.updateMany({ projectId }, { isActive: true }, { session });
+      // }
+      // 🔹 Run archive/unarchive logic only when the archive status actually changes
+      if (typeof isArchived !== 'undefined' && targetProject.isArchived !== isArchived) {
+        logger.logInfo(
+          `[Category Cascade] Project ${projectId} is being ${isArchived ? 'archived' : 'unarchived'}`,
+        );
         targetProject.isArchived = isArchived;
-        // deactivate wbs within target project
-        await wbs.updateMany({ projectId }, { isActive: false }, { session });
-        // deactivate tasks within affected wbs
-        const deactivatedwbsIds = await wbs.find({ projectId }, '_id');
-        await task.updateMany(
-          { wbsId: { $in: deactivatedwbsIds } },
-          { isActive: false },
-          { session },
+
+        if (isArchived) {
+          // deactivate wbs within target project
+          await wbs.updateMany({ projectId }, { isActive: false }, { session });
+
+          // deactivate tasks within affected wbs
+          const deactivatedWbsIds = await wbs.find({ projectId }, '_id');
+          await task.updateMany(
+            { wbsId: { $in: deactivatedWbsIds } },
+            { isActive: false },
+            { session },
+          );
+
+          // remove project from userprofiles.projects array
+          await userProfile.updateMany(
+            { projects: projectId },
+            { $pull: { projects: projectId } },
+            { session },
+          );
+
+          // deactivate timeentry for affected tasks
+          await timeentry.updateMany({ projectId }, { isActive: false }, { session });
+
+          logger.logInfo(`[Category Cascade] Project ${projectId} archived successfully.`);
+        } else {
+          // reactivate wbs within target project
+          await wbs.updateMany({ projectId }, { isActive: true }, { session });
+
+          // reactivate tasks within affected wbs
+          const activatedWbsIds = await wbs.find({ projectId }, '_id');
+          await task.updateMany(
+            { wbsId: { $in: activatedWbsIds } },
+            { isActive: true },
+            { session },
+          );
+
+          // readd project to userprofiles.projects array
+          await userProfile.updateMany(
+            { projects: { $ne: projectId } },
+            { $addToSet: { projects: projectId } },
+            { session },
+          );
+
+          // activate timeentry for affected tasks
+          await timeentry.updateMany({ projectId }, { isActive: true }, { session });
+
+          logger.logInfo(`[Category Cascade] Project ${projectId} unarchived successfully.`);
+        }
+      } else {
+        logger.logInfo(
+          `[Category Cascade] Archive status unchanged for project ${projectId}, skipping archive/unarchive cascade.`,
         );
-        // remove project from userprofiles.projects array
-        await userProfile.updateMany(
-          { projects: projectId },
-          { $pull: { projects: projectId } },
-          { session },
-        );
-        // deactivate timeentry for affected tasks
-        await timeentry.updateMany({ projectId }, { isActive: false }, { session });
       }
       await targetProject.save({ session });
       await session.commitTransaction();
+      logger.logInfo(`[Category Cascade] Project ${projectId} update completed successfully`);
       res.status(200).send(targetProject);
     } catch (error) {
       await session.abortTransaction();
@@ -190,10 +402,12 @@ const projectController = function (Project) {
         return;
       }
       const { projects } = user;
-      const projectList = await Project.find(
-        { _id: { $in: projects }, isActive: { $ne: false } },
-        '_id projectName category',
-      );
+
+      const projectList =
+        (await Project.find(
+          { _id: { $in: projects }, isActive: { $ne: false } },
+          '_id projectName category',
+        )) || [];
       const result = projectList
         .map((p) => {
           p = p.toObject();
@@ -252,8 +466,12 @@ const projectController = function (Project) {
         });
 
         const assignPromise = userProfile
-          .updateMany({ _id: { $in: assignlist } }, { $addToSet: { projects: project._id } })
+          .updateMany(
+            { _id: { $in: assignlist } },
+            { $addToSet: { projects: project._id, projectHistory: project._id } },
+          )
           .exec();
+
         const unassignPromise = userProfile
           .updateMany({ _id: { $in: unassignlist } }, { $pull: { projects: project._id } })
           .exec();
@@ -280,7 +498,6 @@ const projectController = function (Project) {
    */
   const getprojectMembership = async function (req, res) {
     try {
-      // GETs usually have no body; prefer req.user populated by your auth middleware.
       const requestor =
         (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
 
@@ -302,7 +519,7 @@ const projectController = function (Project) {
 
       const results = await userProfile
         .find(
-          { projects: projectId },
+          { projects: mongoose.Types.ObjectId(projectId) },
           { firstName: 1, lastName: 1, profilePic: 1, _id: 1, isActive: 1 },
         )
         .sort({ firstName: 1, lastName: 1 });
@@ -312,6 +529,32 @@ const projectController = function (Project) {
       logger?.logException?.(error);
       return res.status(500).send('Error fetching project members');
     }
+  };
+  const getAllTimeprojectMembership = async function (req, res) {
+    const { projectId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      res.status(400).send('Invalid request');
+      return;
+    }
+    const requestor =
+      (req.user && (req.user._id || req.user.id)) || req.query?.requestor || req.body?.requestor;
+    const getProjMembers = await hasPermission(requestor, 'getProjectMembers');
+    const postTask = await hasPermission(requestor, 'postTask');
+    const updateTask = await hasPermission(requestor, 'updateTask');
+    const suggestTask = await hasPermission(requestor, 'suggestTask');
+    const getId = getProjMembers || postTask || updateTask || suggestTask;
+    userProfile
+      .find(
+        { projectHistory: projectId },
+        { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+      )
+      .sort({ firstName: 1, lastName: 1 })
+      .then((results) => {
+        res.status(200).send(results);
+      })
+      .catch((error) => {
+        res.status(500).send(error);
+      });
   };
 
   /**
@@ -340,11 +583,9 @@ const projectController = function (Project) {
       )
 
       .then((results) => {
-        console.log(`Found ${results.length} project members (summary)`);
         res.status(200).json(results);
       })
       .catch((error) => {
-        console.error('Summary query error:', error);
         res.status(500).send(error);
       });
   };
@@ -357,6 +598,34 @@ const projectController = function (Project) {
     const { projectId, query } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      //    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      //   res.status(400).send('Invalid request');
+      //   return;
+      // }
+
+      const getProjMembers = await helper.hasPermission(req.body.requestor, 'getProjectMembers');
+
+      // // If a user has permission to post, edit, or suggest tasks, they also have the ability to assign resources to those tasks.
+      // // Therefore, the _id field must be included when retrieving the user profile for project members (resources).
+      const postTask = await helper.hasPermission(req.body.requestor, 'postTask');
+      const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
+      const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
+
+      // eslint-disable-next-line no-unused-vars
+      const getId = getProjMembers || postTask || updateTask || suggestTask;
+
+      // userProfile
+      //   .find(
+      //     { projects: projectId },
+      //     { firstName: 1, lastName: 1, isActive: 1, profilePic: 1, _id: getId },
+      //   )
+      //   .sort({ firstName: 1, lastName: 1 })
+      //   .then((results) => {
+      //     res.status(200).send(results);
+      //   })
+      //   .catch((error) => {
+      //     res.status(500).send(error);
+      //   });
       return res.status(400).send('Invalid project ID');
     }
     // Sanitize user input and escape special characters
@@ -424,9 +693,11 @@ const projectController = function (Project) {
     getUserProjects,
     assignProjectToUsers,
     getprojectMembership,
+    getArchivedProjects,
     getprojectMembershipSummary,
     searchProjectMembers,
     getProjectsWithActiveUserCounts,
+    getAllTimeprojectMembership,
   };
 };
 

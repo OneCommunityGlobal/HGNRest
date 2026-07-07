@@ -1,3 +1,5 @@
+/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable import/no-unresolved */
 const { Dropbox } = require('dropbox');
 const fetch = require('isomorphic-fetch');
 require('dotenv').config();

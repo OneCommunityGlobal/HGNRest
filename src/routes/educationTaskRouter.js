@@ -11,12 +11,6 @@ const routes = function () {
     .post(controller.createTask);
 
   educationTaskRouter
-    .route('/education-tasks/:id')
-    .get(controller.getTaskById)
-    .put(controller.updateTask)
-    .delete(controller.deleteTask);
-
-  educationTaskRouter
     .route('/education-tasks/student/:studentId')
     .get(controller.getTasksByStudent);
 
@@ -26,9 +20,27 @@ const routes = function () {
 
   educationTaskRouter.route('/education-tasks/status/:status').get(controller.getTasksByStatus);
 
-  educationTaskRouter.route('/education-tasks/:id/status').put(controller.updateTaskStatus);
+  // Student self-service: mark a (read-only or intermediate) task as complete
+  educationTaskRouter
+    .route('/education-tasks/student/mark-complete')
+    .post(controller.markTaskAsComplete);
 
-  educationTaskRouter.route('/education-tasks/:id/grade').put(controller.gradeTask);
+  // Accept both PUT (this feature) and PATCH (development) for status/grade updates
+  educationTaskRouter
+    .route('/education-tasks/:id/status')
+    .put(controller.updateTaskStatus)
+    .patch(controller.updateTaskStatus);
+
+  educationTaskRouter
+    .route('/education-tasks/:id/grade')
+    .put(controller.gradeTask)
+    .patch(controller.gradeTask);
+
+  educationTaskRouter
+    .route('/education-tasks/:id')
+    .get(controller.getTaskById)
+    .put(controller.updateTask)
+    .delete(controller.deleteTask);
 
   // Educator review routes
   educationTaskRouter
@@ -36,7 +48,7 @@ const routes = function () {
     .get(controller.getSubmissionForReview)
     .post(controller.updateSubmissionGrade);
 
-  educationTaskRouter.route('/educator/task-submissions').get(controller.getTaskSubmissions);
+  educationTaskRouter.route('/educator/task-submissions').get(controller.getReviewSubmissions);
 
   return educationTaskRouter;
 };

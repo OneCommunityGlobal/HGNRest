@@ -1,3 +1,5 @@
+/* eslint-disable no-shadow */
+/* eslint-disable */
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const { hasPermission } = require('../utilities/permissions');
@@ -75,6 +77,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
   const notifyAdmins = async (startDate, endDate, userId, action = '', reason = null) => {
     try {
       const user = await UserProfile.findById(userId, 'firstName lastName');
+
       if (!user) {
         console.error(`User with ID ${userId} not found.`);
         return;
@@ -94,8 +97,11 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const uniqueUserIdsArray = Object.keys(uniqueUserIds);
 
+      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
       const userProfiles = await UserProfile.find({
         _id: { $in: uniqueUserIdsArray },
+        isActive: true,
+        role: { $in: rolesToInclude },
       });
 
       const ownerAcc = await UserProfile.find({
@@ -104,7 +110,6 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         .select('email')
         .exec();
 
-      const rolesToInclude = ['Manager', 'Mentor', 'Administrator'];
       const userEmails = userProfiles
         .map((userProfile) => {
           if (rolesToInclude.includes(userProfile.role)) {
@@ -114,7 +119,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         })
         .filter((email) => email !== null);
 
-      ownerAcc.forEach((owner) => userEmails.push(owner.email));
+      ownerAcc.forEach((user) => userEmails.push(user.email));
 
       if (Array.isArray(userEmails) && userEmails.length > 0) {
         await Promise.all(
@@ -149,7 +154,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         return;
       }
 
-      const { duration, startingDate, reason, requestFor } = req.body;
+      const { duration, startingDate, reason, reasonType, requestFor } = req.body;
       if (!duration || !startingDate || !reason || !requestFor) {
         res.status(400).send('bad request');
         return;
@@ -162,16 +167,20 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const newTimeOffRequest = new TimeOffRequest();
       newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor);
       newTimeOffRequest.reason = reason;
+      newTimeOffRequest.reasonType = reasonType || 'vacationTime';
       newTimeOffRequest.startingDate = startDate.toDate();
       newTimeOffRequest.endingDate = endDate.toDate();
       newTimeOffRequest.duration = Number(duration);
 
       const savedRequest = await newTimeOffRequest.save();
+      console.log('Saved Request:', savedRequest);
 
       res.status(201).send(savedRequest);
       if (savedRequest && setOwnRequested) {
         await notifyUser(requestFor);
+        console.log('User notified:', requestFor);
         await notifyAdmins(startingDate, endDate, requestFor, '', savedRequest.reason);
+        console.log('Admins notified for request:', requestFor);
       }
     } catch (error) {
       console.error('Error in setTimeOffRequest:', error); // Debugging
@@ -231,15 +240,19 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
   const updateTimeOffRequestById = async (req, res) => {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
+      const requestId = req.params.id;
+      const document = await TimeOffRequest.findById(requestId);
+      const updateOwnRequest = document?.requestFor.toString() === req.body.requestor.requestorId;
+
       if (
         !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
-        !hasRolePermission
+        !hasRolePermission &&
+        !updateOwnRequest
       ) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
       }
-      const requestId = req.params.id;
-      const { duration, startingDate, reason } = req.body;
+      const { duration, startingDate, reason, reasonType } = req.body;
       if (!duration || !startingDate || !reason || !requestId) {
         res.status(400).send('bad request');
         return;
@@ -251,6 +264,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const updateData = {
         reason,
+        reasonType: reasonType || 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration,
@@ -266,6 +280,15 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       }
 
       res.status(200).send(updatedRequest);
+      if (updateOwnRequest) {
+        await notifyUser(updatedRequest.requestFor, 'update');
+        await notifyAdmins(
+          updatedRequest.startingDate,
+          updatedRequest.endingDate,
+          updatedRequest.requestFor,
+          'update',
+        );
+      }
     } catch (error) {
       res.status(500).send(error);
     }
