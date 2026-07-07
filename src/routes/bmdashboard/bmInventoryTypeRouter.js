@@ -49,7 +49,6 @@ const routes = function (
   inventoryTypeRouter
     .route('/invtypes/materials/:invtypeId')
     .get(controller.fetchSingleInventoryType);
-  // .put(controller.updateNameAndUnit);
 
   inventoryTypeRouter
     .route('/invtypes/:type/:invtypeId')
