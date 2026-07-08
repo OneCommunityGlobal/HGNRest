@@ -1357,7 +1357,8 @@ const overviewReportHelper = function () {
     if (weeklyAverage <= 20) return '20';
     if (weeklyAverage <= 30) return '30';
     if (weeklyAverage <= 40) return '40';
-    return '40+';
+    if (weeklyAverage <= 50) return '50';
+    return '50+';
   }
 
   /**
@@ -1367,7 +1368,7 @@ const overviewReportHelper = function () {
    * - Week is Sunday to Saturday
    * - Count week only if 4+ days in range (exception: current week always counts)
    * - Round user's average to upper bucket limit
-   * - Buckets: 10, 20, 30, 40, 40+
+   * - Buckets: 10, 20, 30, 40, 50, 50+
    */
   async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
     // Validate date parameters
@@ -1473,7 +1474,8 @@ const overviewReportHelper = function () {
       20: 0,
       30: 0,
       40: 0,
-      '40+': 0,
+      50: 0,
+      '50+': 0,
     };
 
     for (const bucket of userBuckets) {
@@ -1486,7 +1488,8 @@ const overviewReportHelper = function () {
       { _id: '20', count: bucketCounts['20'] },
       { _id: '30', count: bucketCounts['30'] },
       { _id: '40', count: bucketCounts['40'] },
-      { _id: '40+', count: bucketCounts['40+'] },
+      { _id: '50', count: bucketCounts['50'] },
+      { _id: '50+', count: bucketCounts['50+'] },
     ];
 
     return hoursStats;
