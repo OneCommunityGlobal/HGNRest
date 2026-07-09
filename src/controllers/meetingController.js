@@ -147,7 +147,7 @@ const meetingController = function (Meeting) {
 
   const getAllMeetingsByOrganizer = async function (req, res) {
     try {
-      const { organizerId } = req.query;
+      const { organizerId } = req.params;
       const organizerObjectId = toObjectId(organizerId);
       if (!organizerObjectId) {
         return res.status(400).json({ error: 'Invalid organizer userId' });
@@ -200,7 +200,7 @@ const meetingController = function (Meeting) {
 
       const organizerFullName = `${meeting.organizer.firstName} ${meeting.organizer.lastName}`;
       const startDate = new Date(meeting.dateTime);
-      const endDate = new Date(startDate.getTime() + meeting.duration * 1000);
+      const endDate = new Date(startDate.getTime() + meeting.duration * 60 * 1000);
       const formatDate = (date) =>
         date
           .toISOString()
