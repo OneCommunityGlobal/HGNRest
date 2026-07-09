@@ -1,9 +1,14 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-shadow */
+/* eslint-disable no-undef */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
 const emailSender = require('../utilities/emailSender');
-
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
@@ -24,20 +29,20 @@ function sendLinkMessage(Link) {
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
 function sendRefreshedLinkMessage(Link) {
   const message = `<p>Hello,</p>
-    <p>You setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
+    <p>Your setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup by:</p>   
     <p><a href="${Link}">Click to Complete Profile</a>  </p>
     <p><b>Please complete the profile setup within 21 days of this invite. </b></p>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
@@ -47,7 +52,7 @@ function sendCancelLinkMessage() {
     <p>If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
@@ -104,7 +109,7 @@ function informManagerMessage(user) {
     </table> 
     <br>
     <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
@@ -166,10 +171,15 @@ const profileInitialSetupController = function (
       session.endSession();
 
       try {
-        await sendEmailWithAcknowledgment(
+        await emailSender(
           email,
           'NEEDED: Complete your One Community profile setup',
           sendLinkMessage(link),
+          null,
+          null,
+          null,
+          null,
+          { priority: 'high', type: 'general' },
         );
         return res.status(200).send({ sent: true });
       } catch (emailError) {
@@ -618,49 +628,60 @@ const profileInitialSetupController = function (
    * @returns updated result of the setup invitation record.
    */
   const refreshSetupInvitation = async (req, res) => {
-    const { role } = req.body.requestor;
+    const { role } = req.body.requestor || {};
     const { token, baseUrl } = req.body;
 
-    if (role === 'Administrator' || role === 'Owner') {
-      try {
-        ProfileInitialSetupToken.findOneAndUpdate(
-          { token },
-          {
-            expiration: moment().add(3, 'week'),
-            isCancelled: false,
-          },
-        )
-          .then((result) => {
-            const { email } = result;
-            console.log(email);
-            LOGGER.logInfo(email);
-            const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
-            console.log(link);
-            LOGGER.logInfo(link);
-            sendEmailWithAcknowledgment(
-              email,
-              'Invitation Link Refreshed: Complete Your One Community Profile Setup',
-              sendRefreshedLinkMessage(link),
-            );
-            return res.status(200).send(result);
-          })
-          .catch((err) => {
-            LOGGER.logException(err);
-            res
-              .status(500)
-              .send(
-                'Internal Error: Please retry. If the problem persists, please contact the administrator',
-              );
-          });
-      } catch (error) {
-        return res
-          .status(500)
-          .send(
-            'Internal Error: Please retry. If the problem persists, please contact the administrator',
-          );
-      }
-    } else {
+    if (role !== 'Administrator' && role !== 'Owner') {
       return res.status(403).send('You are not authorized to refresh setup invitation.');
+    }
+
+    try {
+      const result = await ProfileInitialSetupToken.findOneAndUpdate(
+        { token },
+        {
+          expiration: moment().add(3, 'week'),
+          isCancelled: false,
+        },
+        { new: true }, // optional but recommended
+      );
+
+      if (!result) {
+        return res.status(404).send('Setup invitation not found.');
+      }
+
+      const { email } = result;
+      const link = `${baseUrl}/ProfileInitialSetup/${result.token}`;
+
+      console.log(email);
+      LOGGER.logInfo(email);
+      console.log(link);
+      LOGGER.logInfo(link);
+
+      let emailResult;
+      try {
+        emailResult = await sendEmailWithAcknowledgment(
+          email,
+          'Invitation Link Refreshed: Complete Your One Community Profile Setup',
+          sendRefreshedLinkMessage(link),
+        );
+        LOGGER.logInfo(`Email send result: ${emailResult}`);
+      } catch (err) {
+        LOGGER.logException(err);
+        return res.status(502).send('Invitation refreshed, but email failed to send.');
+      }
+
+      if (emailResult === 'EMAIL_SENDING_DISABLED') {
+        return res.status(503).send('Invitation refreshed, but email sending is disabled.');
+      }
+
+      return res.status(200).send(result);
+    } catch (err) {
+      LOGGER.logException(err);
+      return res
+        .status(500)
+        .send(
+          'Internal Error: Please retry. If the problem persists, please contact the administrator',
+        );
     }
   };
 

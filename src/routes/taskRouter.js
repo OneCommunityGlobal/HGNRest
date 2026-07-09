@@ -25,6 +25,8 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/task/updateAllParents/:wbsId/').put(controller.updateAllParents);
 
+  taskRouter.route('/task/deleteTask/:taskId/:userId').delete(controller.deleteTaskById);
+
   taskRouter.route('/tasks/swap/').put(controller.swap);
 
   taskRouter.route('/tasks/update/num').put(controller.updateNum);
@@ -37,6 +39,7 @@ const routes = function (task, userProfile) {
 
   taskRouter.route('/tasks/reviewreq/:userId').post(controller.sendReviewReq);
 
+  taskRouter.route('/tasks/replicate/:id').post(controller.replicateTasks);
   taskRouter.route('/tasks/fix-overrides/:wbsId').post(controller.fixTaskOverrides);
 
   // New routes for task change logs

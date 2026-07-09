@@ -1,3 +1,4 @@
+/* eslint-disable arrow-body-style */
 const mongoose = require('mongoose');
 // const { MongoMemoryServer } = require('mongodb-memory-server');
 const bmToolController = require('../bmToolController');

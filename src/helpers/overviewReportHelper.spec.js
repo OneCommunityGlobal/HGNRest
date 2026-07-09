@@ -1,12 +1,12 @@
+/* eslint-disable no-unused-vars */
 const overviewReportHelper = require('./overviewReportHelper');
 // const UserProfile = require('../models/userProfile');
 
-// eslint-disable-next-line no-unused-vars
-const makeSut = () => {
-  const { getVolunteerNumberStats } = overviewReportHelper();
+// const makeSut = () => {
+//   const { getVolunteerNumberStats } = overviewReportHelper();
 
-  return { getVolunteerNumberStats };
-};
+//   return { getVolunteerNumberStats };
+// };
 
 describe('overviewReportHelper tests', () => {
   it('Fix this test suite', () => {});
