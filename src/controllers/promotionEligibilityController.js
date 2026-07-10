@@ -34,7 +34,7 @@ const promotionEligibilityController = function (
 
     try {
       const users = await UserProfile.find(
-        { isActive: true },
+        { isActive: true, role: { $ne: 'Promoted Reviewer' } },
         '_id firstName lastName weeklycommittedHours createdDate',
       );
 
