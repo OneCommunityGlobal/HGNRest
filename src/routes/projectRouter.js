@@ -26,6 +26,10 @@ const routes = function (project) {
     .get(controller.getprojectMembership);
 
   projectRouter
+    .route('/project/:projectId/alltimeusers/')
+    .get(controller.getAllTimeprojectMembership);
+
+  projectRouter
     .route('/project/:projectId/users/summary')
     .get(controller.getprojectMembershipSummary);
 
