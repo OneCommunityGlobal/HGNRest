@@ -3,6 +3,7 @@ const Activity = require('../models/activity');
 const LessonPlan = require('../models/lessonPlan');
 const Subject = require('../models/subject');
 const Atom = require('../models/atom');
+
 const activityController = function () {
   // Get all activities
   const getActivities = async (req, res) => {

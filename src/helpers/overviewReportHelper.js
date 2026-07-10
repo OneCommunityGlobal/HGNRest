@@ -1101,7 +1101,6 @@ const overviewReportHelper = function () {
   }
 
   async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
-
     if (comparisonStartDate && comparisonEndDate) {
       const taskStats = await Task.aggregate([
         {

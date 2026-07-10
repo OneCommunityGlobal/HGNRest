@@ -22,4 +22,3 @@ const router = function () {
 };
 
 module.exports = router;
-
