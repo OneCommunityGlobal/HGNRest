@@ -1502,9 +1502,13 @@ const overviewReportHelper = function () {
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
    * - Excludes entryType of 'person', 'team', or 'project'
    */
-  async function getTotalHoursWorked() {
-    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+  async function getTotalHoursWorked(startDate, endDate) {
+    const pdtstart = startDate
+      ? moment(startDate).format('YYYY-MM-DD')
+      : moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = endDate
+      ? moment(endDate).format('YYYY-MM-DD')
+      : moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     const data = await UserProfile.aggregate([
       {
