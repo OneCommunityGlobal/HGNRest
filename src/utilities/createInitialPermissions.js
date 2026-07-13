@@ -108,6 +108,14 @@ const permissionsRoles = [
       'accessHgnSkillsDashboard',
       'manageFAQs',
       'setFinalDay',
+      // Job Form Management (Permissions Management > Job Form Management)
+      // manageJobForms: full form/template management
+      // createFormQuestions | editFormQuestions | deleteFormQuestions: granular access
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -243,7 +251,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -298,6 +305,12 @@ const permissionsRoles = [
       'manageHGNAccessSetup',
       'setFinalDay',
       'resendBlueSquareAndSummaryEmails',
+      // Job Form Management (Permissions Management > Job Form Management)
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];

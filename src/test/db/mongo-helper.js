@@ -19,7 +19,7 @@ module.exports.dbConnect = async () => {
     }
 
     // Try to use a real MongoDB connection if available, otherwise use a simple in-memory approach
-    const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/test';
+    const mongoUri = process.env.MONGODB_LOCAL_TEST_URI || 'mongodb://localhost:27017/test';
 
     console.log('Using MongoDB URI:', mongoUri);
 
