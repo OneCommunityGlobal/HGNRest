@@ -7,11 +7,22 @@ jest.mock('../utilities/permissions', () => ({
 
 const { hasPermission } = require('../utilities/permissions');
 
-const MockResourceRequest = {
-  findById: jest.fn(),
-  find: jest.fn(),
-  prototype: { save: jest.fn() },
-};
+function createPopulateChain(result) {
+  const chain = {
+    populate: jest.fn(),
+    then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+    catch: (fn) => Promise.resolve(result).catch(fn),
+  };
+  chain.populate.mockReturnValue(chain);
+  return chain;
+}
+
+function MockResourceRequest(data) {
+  Object.assign(this, data);
+}
+MockResourceRequest.prototype.save = jest.fn();
+MockResourceRequest.findById = jest.fn();
+MockResourceRequest.find = jest.fn();
 
 const MockUserProfile = {
   findById: jest.fn(),
@@ -52,15 +63,17 @@ describe('resourceRequestController', () => {
 
     const res = mockResponse();
 
-    MockResourceRequest.prototype.save = jest.fn().mockResolvedValue({
+    MockResourceRequest.prototype.save.mockResolvedValue({
       _id: 'req1',
       educator_id: '123',
     });
 
-    MockResourceRequest.findById = jest.fn().mockResolvedValue({
-      _id: 'req1',
-      educator_id: '123',
-    });
+    MockResourceRequest.findById.mockReturnValue(
+      createPopulateChain({
+        _id: 'req1',
+        educator_id: '123',
+      })
+    );
 
     await controller.createResourceRequest(req, res);
 
@@ -79,15 +92,17 @@ describe('resourceRequestController', () => {
 
     const res = mockResponse();
 
-    MockResourceRequest.prototype.save = jest.fn().mockResolvedValue({
+    MockResourceRequest.prototype.save.mockResolvedValue({
       _id: 'req2',
       status: 'pending',
     });
 
-    MockResourceRequest.findById = jest.fn().mockResolvedValue({
-      _id: 'req2',
-      status: 'pending',
-    });
+    MockResourceRequest.findById.mockReturnValue(
+      createPopulateChain({
+        _id: 'req2',
+        status: 'pending',
+      })
+    );
 
     await controller.createResourceRequest(req, res);
 
@@ -134,27 +149,32 @@ describe('resourceRequestController', () => {
   test('PM updates status successfully', async () => {
     hasPermission.mockResolvedValue(true);
 
+    const validId = new mongoose.Types.ObjectId().toHexString();
+
     const req = mockRequest(
       {
         requestor: { _id: 'pm1', role: 'Program Manager' },
         status: 'approved',
       },
-      { id: 'req1' }
+      { id: validId }
     );
 
     const res = mockResponse();
 
     const existing = {
-      _id: 'req1',
+      _id: validId,
       status: 'pending',
-      save: jest.fn().mockResolvedValue({ _id: 'req1', status: 'approved' }),
+      save: jest.fn().mockResolvedValue({ _id: validId, status: 'approved' }),
     };
 
-    MockResourceRequest.findById.mockResolvedValueOnce(existing);
-    MockResourceRequest.findById.mockResolvedValueOnce({
-      _id: 'req1',
-      status: 'approved',
-    });
+    MockResourceRequest.findById
+      .mockReturnValueOnce(Promise.resolve(existing))
+      .mockReturnValueOnce(
+        createPopulateChain({
+          _id: validId,
+          status: 'approved',
+        })
+      );
 
     await controller.updatePMResourceRequestStatus(req, res);
 
