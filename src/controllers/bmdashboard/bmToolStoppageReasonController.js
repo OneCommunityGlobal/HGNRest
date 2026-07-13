@@ -1,6 +1,7 @@
 const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
 const cacheClosure = require('../../utilities/nodeCache');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const isMongoConnectionError = (error) =>
   error.name === 'MongoNetworkError' ||
@@ -118,6 +119,15 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
+      }
+
+      const projectExists = await BuildingProject.exists({ _id: projectId });
+      if (!projectExists) {
+        return res.status(404).json({
+          success: false,
+          error: ERROR_MESSAGES.PROJECT_NOT_FOUND(projectId),
+          executionTimeMs: Date.now() - startTime,
+        });
       }
 
       const parsedStartDate = startDate ? parseDateFlexibleUTC(startDate) : null;
