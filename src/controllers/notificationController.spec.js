@@ -1,7 +1,7 @@
-const notificationController = require('./notificationController');
 const Notification = require('../models/notification');
 const notificationService = require('../services/notificationService');
 const { mockReq, mockRes, assertResMock } = require('../test');
+const notificationController = require('./notificationController');
 
 const makeSut = () => {
   const {
@@ -24,6 +24,8 @@ const makeSut = () => {
 };
 
 describe('Notification controller Unit Tests', () => {
+  const privilegedRoles = ['Administrator', 'Owner'];
+
   beforeEach(() => {
     mockReq.params.userId = '65cf6c3706d8ac105827bb2e';
     mockReq.body.requestor.role = 'Administrator';
@@ -45,13 +47,27 @@ describe('Notification controller Unit Tests', () => {
       const response = await getUserNotifications(mockReq, mockRes);
       assertResMock(400, errorMsg, response, mockRes);
     });
-    test('Ensures getUserNotifications returns error 403 if userId does not match requestorId', async () => {
+    test('Ensures getUserNotifications returns error 403 if userId does not match requestorId and requestor is not Admin or Owner', async () => {
       const { getUserNotifications } = makeSut();
       const errorMsg = { error: 'Unauthorized request' };
       mockReq.body.requestor.requestorId = 'differentUserId';
+      mockReq.body.requestor.role = 'Volunteer';
       const response = await getUserNotifications(mockReq, mockRes);
       assertResMock(403, errorMsg, response, mockRes);
     });
+    test.each(privilegedRoles)(
+      'Ensures getUserNotifications returns 200 if userId does not match requestorId but requestor is %s',
+      async (role) => {
+        const { getUserNotifications } = makeSut();
+        const mockNotifications = [{ id: '123', message: 'Notification Test 1' }];
+        mockReq.body.requestor.requestorId = 'differentUserId';
+        mockReq.body.requestor.role = role;
+        const mockService = jest.fn().mockResolvedValue(mockNotifications);
+        notificationService.getNotifications = mockService;
+        await expect(getUserNotifications(mockReq, mockRes)).resolves.toBeUndefined();
+        assertResMock(200, mockNotifications, undefined, mockRes);
+      },
+    );
     test('Ensures getUserNotifications returns 200 and notifications data when notifications are fetched successfully', async () => {
       const { getUserNotifications } = makeSut();
       const mockNotifications = [
@@ -82,13 +98,27 @@ describe('Notification controller Unit Tests', () => {
       const response = await getUnreadUserNotifications(mockReq, mockRes);
       assertResMock(400, errorMsg, response, mockRes);
     });
-    test('Ensures getUnreadUserNotifications returns error 403 if userId does not match requestorId', async () => {
+    test('Ensures getUnreadUserNotifications returns error 403 if userId does not match requestorId and requestor is not Admin or Owner', async () => {
       const { getUnreadUserNotifications } = makeSut();
       const errorMsg = { error: 'Unauthorized request' };
       mockReq.body.requestor.requestorId = 'differentUserId';
+      mockReq.body.requestor.role = 'Volunteer';
       const response = await getUnreadUserNotifications(mockReq, mockRes);
       assertResMock(403, errorMsg, response, mockRes);
     });
+    test.each(privilegedRoles)(
+      'Ensures getUnreadUserNotifications returns 200 if userId does not match requestorId but requestor is %s',
+      async (role) => {
+        const { getUnreadUserNotifications } = makeSut();
+        const mockNotifications = [{ id: '123', message: 'Notification Test 1' }];
+        mockReq.body.requestor.requestorId = 'differentUserId';
+        mockReq.body.requestor.role = role;
+        const mockService = jest.fn().mockResolvedValue(mockNotifications);
+        notificationService.getUnreadUserNotifications = mockService;
+        await expect(getUnreadUserNotifications(mockReq, mockRes)).resolves.toBeUndefined();
+        assertResMock(200, mockNotifications, undefined, mockRes);
+      },
+    );
     test('Ensures getUnreadUserNotifications returns 200 and notifications data when notifications are fetched successfully', async () => {
       const { getUnreadUserNotifications } = makeSut();
       const mockNotifications = [
