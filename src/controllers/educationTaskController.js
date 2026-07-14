@@ -83,6 +83,55 @@ const educationTaskController = () => {
   };
 
   /**
+   * Resolve target students from groupId or studentId
+   */
+  const resolveTargetStudents = async (groupId, studentId, userId) => {
+    if (groupId) {
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return { error: 'Invalid group ID', status: 400, students: [], groupName: null };
+      }
+
+      const group = await StudentGroup.findById(groupId);
+      if (!group) {
+        return { error: 'Group not found', status: 404, students: [], groupName: null };
+      }
+
+      if (group.educator_id.toString() !== userId) {
+        return {
+          error: 'Unauthorized to assign this group',
+          status: 403,
+          students: [],
+          groupName: null,
+        };
+      }
+
+      const members = await StudentGroupMember.find({ group_id: groupId }).select('student_id');
+      const students = members.map((m) => m.student_id);
+
+      if (!students.length) {
+        return { error: 'No members in this group', status: 400, students: [], groupName: null };
+      }
+
+      return { students, groupName: group.name };
+    }
+
+    if (studentId) {
+      const student = await UserProfile.findById(studentId);
+      if (!student) {
+        return { error: 'Student not found', status: 404, students: [], groupName: null };
+      }
+      return { students: [studentId], groupName: null };
+    }
+
+    return {
+      error: 'Must provide studentId or groupId',
+      status: 400,
+      students: [],
+      groupName: null,
+    };
+  };
+
+  /**
    * Create tasks (single student or group)
    */
   const createTask = async (req, res) => {
@@ -93,33 +142,23 @@ const educationTaskController = () => {
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
       if (!lessonPlan) return res.status(404).json({ error: 'Lesson plan not found' });
 
+      // Validate type
+      const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
+      if (!validTaskTypes.includes(type)) {
+        return res
+          .status(400)
+          .json({ error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` });
+      }
+
       // Determine target students
-      let targetStudents = [];
-      let groupName;
+      const { targetStudents, groupName } = await resolveTargetStudents(
+        groupId,
+        studentId,
+        req.user,
+      );
 
-      if (groupId) {
-        const group = await StudentGroup.findById(groupId);
-        if (!group) return res.status(404).json({ error: 'Group not found' });
-
-        // Authorization: educator owns group
-        if (group.educator_id.toString() !== req.user) {
-          return res.status(403).json({ error: 'Unauthorized to assign this group' });
-        }
-
-        const members = await StudentGroupMember.find({ group_id: groupId }).select('student_id');
-        targetStudents = members.map((m) => m.student_id);
-
-        if (!targetStudents.length) {
-          return res.status(400).json({ error: 'No members in this group' });
-        }
-
-        groupName = group.name;
-      } else if (studentId) {
-        const student = await UserProfile.findById(studentId);
-        if (!student) return res.status(404).json({ error: 'Student not found' });
-        targetStudents = [studentId];
-      } else {
-        return res.status(400).json({ error: 'Must provide studentId or groupId' });
+      if (targetStudents.error) {
+        return res.status(targetStudents.status).json({ error: targetStudents.error });
       }
 
       // Validate atoms
@@ -130,16 +169,8 @@ const educationTaskController = () => {
         }
       }
 
-      // Validate type
-      const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
-      if (!validTaskTypes.includes(type)) {
-        return res
-          .status(400)
-          .json({ error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` });
-      }
-
       // Insert tasks
-      const tasksToInsert = targetStudents.map((id) => ({
+      const tasksToInsert = targetStudents.students.map((id) => ({
         lessonPlanId,
         studentId: id,
         atomIds: atomIds || [],

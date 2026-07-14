@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const StudentGroup = require('../models/studentGroup');
 const StudentGroupMember = require('../models/studentGroupMember');
 const UserProfile = require('../models/userProfile');
@@ -43,12 +42,10 @@ exports.createGroup = async (req, res) => {
     });
 
     // Filter out invalid IDs and convert to ObjectId
-    const members = studentIds
-      .filter((id) => id)
-      .map((studentId) => ({
-        group_id: group._id,
-        student_id: mongoose.Types.ObjectId(studentId),
-      }));
+    const members = studentIds.filter(Boolean).map((studentId) => ({
+      group_id: group._id,
+      student_id: mongoose.Types.ObjectId(studentId),
+    }));
 
     if (members.length > 0) {
       // Use ordered: false to continue inserting even if duplicates exist
@@ -67,7 +64,7 @@ exports.createGroup = async (req, res) => {
 exports.getGroups = async (req, res) => {
   try {
     const currentUser = req.body.requestor;
-    if (!currentUser || !currentUser.requestorId) {
+    if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -90,8 +87,12 @@ exports.getGroupMembers = async (req, res) => {
     const currentUser = req.body.requestor;
     const { groupId } = req.params;
 
-    if (!currentUser || !currentUser.requestorId) {
+    if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ error: 'Invalid group ID' });
     }
 
     const group = await StudentGroup.findOne({
@@ -126,6 +127,10 @@ exports.addMembers = async (req, res) => {
     if (!currentUser?.requestorId) return res.status(401).json({ error: 'Unauthorized' });
     if (!studentIds.length) return res.status(400).json({ error: 'No students provided' });
 
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ error: 'Invalid group ID' });
+    }
+
     // Find the group and verify ownership
     const group = await StudentGroup.findOne({
       _id: groupId,
@@ -141,11 +146,11 @@ exports.addMembers = async (req, res) => {
     const existingMembers = await StudentGroupMember.find({ group_id: groupId }).select(
       'student_id',
     );
-    const existingIds = existingMembers.map((m) => m.student_id.toString());
+    const existingIds = new Set(existingMembers.map((m) => m.student_id.toString()));
 
     // Filter out students already in the group
     const newMembers = validIds
-      .filter((id) => !existingIds.includes(id))
+      .filter((id) => !existingIds.has(id))
       .map((id) => ({
         group_id: mongoose.Types.ObjectId(groupId),
         student_id: mongoose.Types.ObjectId(id),
@@ -178,6 +183,10 @@ exports.removeMembers = async (req, res) => {
     if (!studentIds.length)
       return res.status(400).json({ error: 'No students provided for removal' });
 
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ error: 'Invalid group ID' });
+    }
+
     const group = await StudentGroup.findOne({
       _id: groupId,
       educator_id: currentUser.requestorId,
@@ -208,8 +217,12 @@ exports.updateGroup = async (req, res) => {
     const { groupId } = req.params;
     const { name, description } = req.body;
 
-    if (!currentUser || !currentUser.requestorId) {
+    if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ error: 'Invalid group ID' });
     }
 
     const group = await StudentGroup.findOneAndUpdate(
@@ -237,8 +250,12 @@ exports.deleteGroup = async (req, res) => {
     const currentUser = req.body.requestor;
     const { groupId } = req.params;
 
-    if (!currentUser || !currentUser.requestorId) {
+    if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ error: 'Invalid group ID' });
     }
 
     const group = await StudentGroup.findOneAndDelete({
