@@ -87,11 +87,11 @@ const educationTaskController = () => {
    */
   const resolveTargetStudents = async (groupId, studentId, userId) => {
     if (groupId) {
-      const validGroupId = new mongoose.Types.ObjectId(groupId);
-      if (!validGroupId) {
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
         return { error: 'Invalid group ID', status: 400, students: [], groupName: null };
       }
 
+      const validGroupId = new mongoose.Types.ObjectId(groupId);
       const group = await StudentGroup.findById(validGroupId);
       if (!group) {
         return { error: 'Group not found', status: 404, students: [], groupName: null };
@@ -154,15 +154,13 @@ const educationTaskController = () => {
       }
 
       // Determine target students
-      const { targetStudents, groupName } = await resolveTargetStudents(
-        groupId,
-        studentId,
-        req.user,
-      );
+      const result = await resolveTargetStudents(groupId, studentId, req.user);
 
-      if (targetStudents.error) {
-        return res.status(targetStudents.status).json({ error: targetStudents.error });
+      if (result.error) {
+        return res.status(result.status).json({ error: result.error });
       }
+
+      const { students: targetStudents, groupName } = result;
 
       // Validate atoms
       if (atomIds && atomIds.length > 0) {
@@ -173,7 +171,7 @@ const educationTaskController = () => {
       }
 
       // Insert tasks
-      const tasksToInsert = targetStudents.students.map((id) => ({
+      const tasksToInsert = targetStudents.map((id) => ({
         lessonPlanId,
         studentId: id,
         atomIds: atomIds || [],
