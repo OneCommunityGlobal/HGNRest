@@ -8,6 +8,10 @@ const WishlistSchema = new mongoose.Schema({
       required: true,
     },
   ],
+  createdBy: {
+    type: String, // or ObjectId if this should reference a user
+    required: false,
+  },
   addedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'userProfile',
@@ -19,4 +23,4 @@ const WishlistSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('wishlist', WishlistSchema);
+module.exports = mongoose.model('Wishlist', WishlistSchema);

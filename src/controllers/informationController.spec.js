@@ -6,8 +6,8 @@ jest.mock('../utilities/nodeCache');
 const cache = require('../utilities/nodeCache');
 const Information = require('../models/information');
 const escapeRegex = require('../utilities/escapeRegex');
-const informationController = require('./informationController');
 const { mockReq, mockRes, assertResMock } = require('../test');
+const informationController = require('./informationController');
 
 /* eslint-disable no-unused-vars */
 /* eslint-disable prefer-promise-reject-errors */

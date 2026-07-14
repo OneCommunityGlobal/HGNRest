@@ -27,7 +27,6 @@ router.get('/', async (req, res) => {
     const { start, end } = getDateRange(startDate, endDate);
 
     const query = { datePosted: { $gte: start, $lte: end } };
-    console.log('MongoDB query:', query);
 
     const jobs = await JobPosting.find(query);
     res.json(jobs.map(calcConversionRate));
@@ -44,7 +43,6 @@ router.get('/top-converted', async (req, res) => {
     const { start, end } = getDateRange(startDate, endDate);
 
     const query = { datePosted: { $gte: start, $lte: end } };
-    console.log('MongoDB query:', query);
 
     const jobs = await JobPosting.find(query);
     const sorted = jobs
@@ -68,16 +66,11 @@ router.get('/least-converted', async (req, res) => {
       datePosted: { $gte: start, $lte: end },
     });
 
-    console.log('Jobs fetched:', jobs.length);
-
     const jobsWithConversion = jobs.map(calcConversionRate);
-    console.log('Jobs with conversion rates:', jobsWithConversion);
 
     const sorted = jobsWithConversion
       .sort((a, b) => a.conversionRate - b.conversionRate)
       .slice(0, parseInt(limit, 10));
-
-    console.log('Sorted least converted:', sorted);
 
     res.json(sorted);
   } catch (error) {

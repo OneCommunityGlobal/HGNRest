@@ -1,4 +1,4 @@
-test.todo("Fix badge router test");
+test.todo('Fix badge router test');
 // const request = require('supertest');
 // const { jwtPayload } = require('../test');
 // const { app } = require('../app');

@@ -2,7 +2,9 @@ const express = require('express');
 
 module.exports = function (Availability) {
   const router = express.Router();
-  const controller = require('../../controllers/lbdashboard/listingAvailablityController')(Availability);
+  const controller = require('../../controllers/lbdashboard/listingAvailablityController')(
+    Availability,
+  );
 
   router.get('/listing/availability', controller.getListingAvailablity);
   router.post('/listing/availability', controller.createListingAvailability);
