@@ -87,11 +87,12 @@ const educationTaskController = () => {
    */
   const resolveTargetStudents = async (groupId, studentId, userId) => {
     if (groupId) {
-      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      const validGroupId = new mongoose.Types.ObjectId(groupId);
+      if (!validGroupId) {
         return { error: 'Invalid group ID', status: 400, students: [], groupName: null };
       }
 
-      const group = await StudentGroup.findById(groupId);
+      const group = await StudentGroup.findById(validGroupId);
       if (!group) {
         return { error: 'Group not found', status: 404, students: [], groupName: null };
       }
@@ -105,7 +106,9 @@ const educationTaskController = () => {
         };
       }
 
-      const members = await StudentGroupMember.find({ group_id: groupId }).select('student_id');
+      const members = await StudentGroupMember.find({ group_id: validGroupId }).select(
+        'student_id',
+      );
       const students = members.map((m) => m.student_id);
 
       if (!students.length) {

@@ -68,8 +68,9 @@ exports.getGroups = async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
     const groups = await StudentGroup.find({
-      educator_id: currentUser.requestorId,
+      educator_id: educatorId,
     }).sort({ createdAt: -1 });
 
     res.status(200).json(groups);
@@ -95,9 +96,12 @@ exports.getGroupMembers = async (req, res) => {
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
+    const validGroupId = new mongoose.Types.ObjectId(groupId);
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
+
     const group = await StudentGroup.findOne({
-      _id: groupId,
-      educator_id: currentUser.requestorId,
+      _id: validGroupId,
+      educator_id: educatorId,
     });
 
     if (!group) {
@@ -105,7 +109,7 @@ exports.getGroupMembers = async (req, res) => {
     }
 
     const members = await StudentGroupMember.find({
-      group_id: groupId,
+      group_id: validGroupId,
     }).populate('student_id', 'firstName lastName');
 
     res.status(200).json(members);
@@ -131,10 +135,13 @@ exports.addMembers = async (req, res) => {
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
+    const validGroupId = new mongoose.Types.ObjectId(groupId);
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
+
     // Find the group and verify ownership
     const group = await StudentGroup.findOne({
-      _id: groupId,
-      educator_id: currentUser.requestorId,
+      _id: validGroupId,
+      educator_id: educatorId,
     });
     if (!group) return res.status(403).json({ error: 'Unauthorized access to group' });
 
@@ -143,7 +150,7 @@ exports.addMembers = async (req, res) => {
     if (!validIds.length) return res.status(400).json({ error: 'No valid student IDs provided' });
 
     // Get existing members of the group
-    const existingMembers = await StudentGroupMember.find({ group_id: groupId }).select(
+    const existingMembers = await StudentGroupMember.find({ group_id: validGroupId }).select(
       'student_id',
     );
     const existingIds = new Set(existingMembers.map((m) => m.student_id.toString()));
@@ -152,7 +159,7 @@ exports.addMembers = async (req, res) => {
     const newMembers = validIds
       .filter((id) => !existingIds.has(id))
       .map((id) => ({
-        group_id: mongoose.Types.ObjectId(groupId),
+        group_id: validGroupId,
         student_id: mongoose.Types.ObjectId(id),
       }));
 
@@ -187,9 +194,12 @@ exports.removeMembers = async (req, res) => {
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
+    const validGroupId = new mongoose.Types.ObjectId(groupId);
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
+
     const group = await StudentGroup.findOne({
-      _id: groupId,
-      educator_id: currentUser.requestorId,
+      _id: validGroupId,
+      educator_id: educatorId,
     });
     if (!group) return res.status(403).json({ error: 'Unauthorized access to group' });
 
@@ -198,7 +208,7 @@ exports.removeMembers = async (req, res) => {
       .map((id) => mongoose.Types.ObjectId(id));
 
     const result = await StudentGroupMember.deleteMany({
-      group_id: mongoose.Types.ObjectId(groupId),
+      group_id: validGroupId,
       student_id: { $in: objectIds },
     });
 
@@ -225,8 +235,11 @@ exports.updateGroup = async (req, res) => {
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
+    const validGroupId = new mongoose.Types.ObjectId(groupId);
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
+
     const group = await StudentGroup.findOneAndUpdate(
-      { _id: groupId, educator_id: currentUser.requestorId },
+      { _id: validGroupId, educator_id: educatorId },
       { name, description },
       { new: true },
     );
@@ -258,16 +271,19 @@ exports.deleteGroup = async (req, res) => {
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
-    const group = await StudentGroup.findOneAndDelete({
-      _id: groupId,
-      educator_id: currentUser.requestorId,
+    const validGroupId = new mongoose.Types.ObjectId(groupId);
+    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
+
+    const group = await StudentGroup.findOne({
+      _id: validGroupId,
+      educator_id: educatorId,
     });
 
     if (!group) {
       return res.status(403).json({ error: 'Unauthorized access to group' });
     }
 
-    await StudentGroupMember.deleteMany({ group_id: groupId });
+    await StudentGroupMember.deleteMany({ group_id: validGroupId });
 
     res.status(204).send();
   } catch (err) {

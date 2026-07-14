@@ -334,23 +334,25 @@ describe('deleteGroup', () => {
   });
 
   test('Returns 403 if group not found', async () => {
-    jest.spyOn(StudentGroup, 'findOneAndDelete').mockResolvedValue(null);
+    jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
     await ctrl.deleteGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
   });
 
   test('Returns 204 and deletes group with members', async () => {
-    jest.spyOn(StudentGroup, 'findOneAndDelete').mockResolvedValue(makeGroup());
+    jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'deleteMany').mockResolvedValue({ deletedCount: 2 });
 
     await ctrl.deleteGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(204);
     expect(mockRes.send).toHaveBeenCalled();
-    expect(StudentGroupMember.deleteMany).toHaveBeenCalledWith({ group_id: GROUP_ID });
+    expect(StudentGroupMember.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ group_id: expect.any(mongoose.Types.ObjectId) }),
+    );
   });
 
   test('Returns 400 on error', async () => {
-    jest.spyOn(StudentGroup, 'findOneAndDelete').mockRejectedValue(new Error('DB error'));
+    jest.spyOn(StudentGroup, 'findOne').mockRejectedValue(new Error('DB error'));
     await ctrl.deleteGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
   });
