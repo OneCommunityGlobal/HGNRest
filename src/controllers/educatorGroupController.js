@@ -28,7 +28,8 @@ exports.createGroup = async (req, res) => {
     if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    if (currentUser.role !== 'Administrator') {
+    const allowedRoles = ['Educator', 'Manager', 'Administrator'];
+    if (!allowedRoles.includes(currentUser.role)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -236,19 +237,24 @@ exports.updateGroup = async (req, res) => {
     }
 
     const validGroupId = new mongoose.Types.ObjectId(groupId);
-    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
 
-    const group = await StudentGroup.findOneAndUpdate(
-      { _id: validGroupId, educator_id: educatorId },
+    const group = await StudentGroup.findOne({ _id: validGroupId });
+
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (group.educator_id.toString() !== currentUser.requestorId) {
+      return res.status(403).json({ error: 'Unauthorized access to group' });
+    }
+
+    const updated = await StudentGroup.findOneAndUpdate(
+      { _id: validGroupId },
       { name, description },
       { new: true },
     );
 
-    if (!group) {
-      return res.status(403).json({ error: 'Unauthorized access to group' });
-    }
-
-    res.status(200).json(group);
+    res.status(200).json(updated);
   } catch (err) {
     console.error('UPDATE GROUP ERROR:', err);
     res.status(400).json({ error: err.message });
@@ -272,18 +278,19 @@ exports.deleteGroup = async (req, res) => {
     }
 
     const validGroupId = new mongoose.Types.ObjectId(groupId);
-    const educatorId = new mongoose.Types.ObjectId(currentUser.requestorId);
 
-    const group = await StudentGroup.findOne({
-      _id: validGroupId,
-      educator_id: educatorId,
-    });
+    const group = await StudentGroup.findOne({ _id: validGroupId });
 
     if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (group.educator_id.toString() !== currentUser.requestorId) {
       return res.status(403).json({ error: 'Unauthorized access to group' });
     }
 
     await StudentGroupMember.deleteMany({ group_id: validGroupId });
+    await StudentGroup.deleteOne({ _id: validGroupId });
 
     res.status(204).send();
   } catch (err) {

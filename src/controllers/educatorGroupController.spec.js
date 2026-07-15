@@ -75,10 +75,30 @@ describe('createGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 403 if not Administrator', async () => {
+  test('Returns 403 if role is not elevated', async () => {
     mockReq.body.requestor.role = 'Volunteer';
     await ctrl.createGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
+  });
+
+  test('Returns 201 if role is Educator', async () => {
+    mockReq.body.requestor.role = 'Educator';
+    const group = makeGroup();
+    jest.spyOn(StudentGroup, 'create').mockResolvedValue(group);
+    jest.spyOn(StudentGroupMember, 'insertMany').mockResolvedValue([]);
+
+    await ctrl.createGroup(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(201);
+  });
+
+  test('Returns 201 if role is Manager', async () => {
+    mockReq.body.requestor.role = 'Manager';
+    const group = makeGroup();
+    jest.spyOn(StudentGroup, 'create').mockResolvedValue(group);
+    jest.spyOn(StudentGroupMember, 'insertMany').mockResolvedValue([]);
+
+    await ctrl.createGroup(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(201);
   });
 
   test('Returns 400 if name is missing', async () => {
@@ -300,14 +320,24 @@ describe('updateGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 403 if group not found', async () => {
-    jest.spyOn(StudentGroup, 'findOneAndUpdate').mockResolvedValue(null);
+  test('Returns 404 if group not found', async () => {
+    jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
+    await ctrl.updateGroup(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(404);
+  });
+
+  test('Returns 403 if educator_id does not match', async () => {
+    jest
+      .spyOn(StudentGroup, 'findOne')
+      .mockResolvedValue(makeGroup({ educator_id: '507f1f77bcf86cd799439099' }));
     await ctrl.updateGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
   });
 
   test('Returns 200 with updated group', async () => {
     const updated = makeGroup({ name: 'Updated Group', description: 'Updated description' });
+    jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroup, 'findOneAndUpdate').mockResolvedValue(updated);
 
     await ctrl.updateGroup(mockReq, mockRes);
@@ -316,7 +346,7 @@ describe('updateGroup', () => {
   });
 
   test('Returns 400 on error', async () => {
-    jest.spyOn(StudentGroup, 'findOneAndUpdate').mockRejectedValue(new Error('DB error'));
+    jest.spyOn(StudentGroup, 'findOne').mockRejectedValue(new Error('DB error'));
     await ctrl.updateGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
   });
@@ -333,21 +363,34 @@ describe('deleteGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 403 if group not found', async () => {
+  test('Returns 404 if group not found', async () => {
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
     await ctrl.deleteGroup(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(404);
+  });
+
+  test('Returns 403 if educator_id does not match', async () => {
+    jest
+      .spyOn(StudentGroup, 'findOne')
+      .mockResolvedValue(makeGroup({ educator_id: '507f1f77bcf86cd799439099' }));
+    await ctrl.deleteGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
   });
 
   test('Returns 204 and deletes group with members', async () => {
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'deleteMany').mockResolvedValue({ deletedCount: 2 });
+    jest.spyOn(StudentGroup, 'deleteOne').mockResolvedValue({ deletedCount: 1 });
 
     await ctrl.deleteGroup(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(204);
     expect(mockRes.send).toHaveBeenCalled();
     expect(StudentGroupMember.deleteMany).toHaveBeenCalledWith(
       expect.objectContaining({ group_id: expect.any(mongoose.Types.ObjectId) }),
+    );
+    expect(StudentGroup.deleteOne).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: expect.any(mongoose.Types.ObjectId) }),
     );
   });
 
