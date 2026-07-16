@@ -444,12 +444,12 @@ const activityLogRouter = require('../routes/activityLogRouter')();
 const resourceRequest = require('../models/resourceRequest');
 const resourceRequestController = require('../controllers/resourceRequestController')(
   resourceRequest,
-  userProfile
+  userProfile,
 );
 const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   resourceRequest,
   userProfile,
-  resourceRequestController
+  resourceRequestController,
 );
 
 module.exports = function (app) {
@@ -684,6 +684,10 @@ module.exports = function (app) {
 
   // Education Portal
   app.use('/api/student/profile', educationProfileRouter);
+
+  app.use('/api', materialCostRouter);
+
+  app.use('/api/lp', lessonPlanSubmissionRouter);
 
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
