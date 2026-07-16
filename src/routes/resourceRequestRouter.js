@@ -16,7 +16,7 @@ const handleValidationErrors = (req, res, next) => {
   return next();
 };
 
-module.exports = function (ResourceRequest, UserProfile, controller) {
+module.exports = function resourceRequestRoutes(ResourceRequest, UserProfile, controller) {
   const router = express.Router();
 
   const ALLOWED_STATUSES = ['pending', 'approved', 'denied'];

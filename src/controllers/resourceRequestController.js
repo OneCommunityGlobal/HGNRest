@@ -1,11 +1,11 @@
 const { hasPermission } = require('../utilities/permissions');
 const { sanitizeQueryString, sanitizeObjectIdQuery } = require('../utilities/mongoQuerySanitizer');
 
-const ALLOWED_STATUSES = ['pending', 'approved', 'denied'];
+const ALLOWED_STATUSES = new Set(['pending', 'approved', 'denied']);
 
 const sanitizeStatus = (raw) => {
   const s = sanitizeQueryString(raw);
-  if (!s || !ALLOWED_STATUSES.includes(s)) return null;
+  if (!s || !ALLOWED_STATUSES.has(s)) return null;
   return s;
 };
 
@@ -57,6 +57,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(201).send(populated);
     } catch (err) {
+      console.log('Error creating resource request:', err.message);
       return res.status(500).send('Error creating resource request.');
     }
   };
@@ -94,6 +95,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(requests);
     } catch (err) {
+      console.log('Error fetching educator requests:', err.message);
       return res.status(500).send('Error fetching educator requests.');
     }
   };
@@ -138,6 +140,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(requests);
     } catch (err) {
+      console.log('Error fetching resource requests:', err.message);
       return res.status(500).send('Error fetching resource requests.');
     }
   };
@@ -189,6 +192,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(populated);
     } catch (err) {
+      console.log('Error updating resource request:', err.message);
       return res.status(500).send('Error updating resource request.');
     }
   };
