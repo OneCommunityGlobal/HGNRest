@@ -33,7 +33,6 @@ function mockRequest(body = {}, params = {}, query = {}) {
     body,
     params,
     query,
-    requestor: body.requestor,
   };
 }
 
@@ -56,7 +55,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(true);
 
     const req = mockRequest({
-      requestor: { _id: '123', role: 'Educator' },
+      requestor: { requestorId: '123', role: 'Educator' },
       request_title: 'Need supplies',
       request_details: 'Markers and charts',
     });
@@ -72,7 +71,7 @@ describe('resourceRequestController', () => {
       createPopulateChain({
         _id: 'req1',
         educator_id: '123',
-      })
+      }),
     );
 
     await controller.createResourceRequest(req, res);
@@ -84,7 +83,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(true);
 
     const req = mockRequest({
-      requestor: { _id: '123', role: 'Educator' },
+      requestor: { requestorId: '123', role: 'Educator' },
       request_title: 'Need laptop',
       request_details: 'Macbook',
       status: 'approved',
@@ -101,7 +100,7 @@ describe('resourceRequestController', () => {
       createPopulateChain({
         _id: 'req2',
         status: 'pending',
-      })
+      }),
     );
 
     await controller.createResourceRequest(req, res);
@@ -113,7 +112,7 @@ describe('resourceRequestController', () => {
   test('PM fetches all requests', async () => {
     hasPermission.mockResolvedValue(true);
 
-    const req = mockRequest({ requestor: { _id: 'pm1', role: 'Program Manager' } });
+    const req = mockRequest({ requestor: { requestorId: 'pm1', role: 'Program Manager' } });
 
     const res = mockResponse();
 
@@ -137,7 +136,7 @@ describe('resourceRequestController', () => {
   test('educator cannot access PM endpoint', async () => {
     hasPermission.mockResolvedValue(false);
 
-    const req = mockRequest({ requestor: { _id: '123', role: 'Educator' } });
+    const req = mockRequest({ requestor: { requestorId: '123', role: 'Educator' } });
 
     const res = mockResponse();
 
@@ -153,10 +152,10 @@ describe('resourceRequestController', () => {
 
     const req = mockRequest(
       {
-        requestor: { _id: 'pm1', role: 'Program Manager' },
+        requestor: { requestorId: 'pm1', role: 'Program Manager' },
         status: 'approved',
       },
-      { id: validId }
+      { id: validId },
     );
 
     const res = mockResponse();
@@ -167,17 +166,73 @@ describe('resourceRequestController', () => {
       save: jest.fn().mockResolvedValue({ _id: validId, status: 'approved' }),
     };
 
-    MockResourceRequest.findById
-      .mockReturnValueOnce(Promise.resolve(existing))
-      .mockReturnValueOnce(
-        createPopulateChain({
-          _id: validId,
-          status: 'approved',
-        })
-      );
+    MockResourceRequest.findById.mockReturnValueOnce(Promise.resolve(existing)).mockReturnValueOnce(
+      createPopulateChain({
+        _id: validId,
+        status: 'approved',
+      }),
+    );
 
     await controller.updatePMResourceRequestStatus(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('unauthenticated request returns 401', async () => {
+    const req = mockRequest({});
+    const res = mockResponse();
+
+    await controller.createResourceRequest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  test('non-educator cannot create request', async () => {
+    hasPermission.mockResolvedValue(false);
+
+    const req = mockRequest({
+      requestor: { requestorId: '456', role: 'Volunteer' },
+      request_title: 'Test',
+      request_details: 'Test details',
+    });
+
+    const res = mockResponse();
+
+    await controller.createResourceRequest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  test('missing request_title returns 400', async () => {
+    hasPermission.mockResolvedValue(true);
+
+    const req = mockRequest({
+      requestor: { requestorId: '123', role: 'Educator' },
+      request_details: 'Some details',
+    });
+
+    const res = mockResponse();
+
+    await controller.createResourceRequest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('invalid ObjectId returns 400 on PM update', async () => {
+    hasPermission.mockResolvedValue(true);
+
+    const req = mockRequest(
+      {
+        requestor: { requestorId: 'pm1', role: 'Program Manager' },
+        status: 'approved',
+      },
+      { id: 'invalid-id' },
+    );
+
+    const res = mockResponse();
+
+    await controller.updatePMResourceRequestStatus(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });

@@ -1,42 +1,44 @@
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 
+const ALLOWED_STATUSES = ['pending', 'approved', 'denied'];
+
+const sanitizeString = (str) => (typeof str === 'string' ? str.trim() : '');
+
 const resourceRequestController = (ResourceRequest, UserProfile) => {
-  // Helper: Validate ObjectId
   const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-  /**
-   * Create a new resource request (Educator only)
-   */
   const createResourceRequest = async (req, res) => {
     try {
-      const requestor = req.requestor || req.body.requestor;
+      const { requestor } = req.body;
 
-      if (!requestor?._id) {
+      if (!requestor?.requestorId) {
         return res.status(401).send('Authentication required.');
       }
 
-      const educatorId = requestor._id;
-
       const isEducator =
-        requestor.role === 'Educator' ||
-        (await hasPermission(requestor, 'createResourceRequests'));
+        requestor.role === 'Educator' || (await hasPermission(requestor, 'createResourceRequests'));
 
       if (!isEducator) {
         return res.status(403).send('Only educators can submit resource requests.');
       }
 
-      const { request_title, request_details } = req.body;
+      const { request_title: rawTitle, request_details: rawDetails } = req.body;
+      const requestTitle = sanitizeString(rawTitle);
+      const requestDetails = sanitizeString(rawDetails);
 
-      if (!request_title || !request_details) {
+      if (!requestTitle || !requestDetails) {
         return res.status(400).send('Request title and details are required.');
       }
 
-      // Educators CANNOT set or override status
+      if (requestTitle.length > 200 || requestDetails.length > 2000) {
+        return res.status(400).send('Request title or details exceed maximum length.');
+      }
+
       const newRequest = new ResourceRequest({
-        educator_id: educatorId,
-        request_title,
-        request_details,
+        educator_id: requestor.requestorId,
+        request_title: requestTitle,
+        request_details: requestDetails,
         status: 'pending',
       });
 
@@ -48,33 +50,28 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(201).send(populated);
     } catch (err) {
-      console.error('Error in createResourceRequest:', err);
       return res.status(500).send('Error creating resource request.');
     }
   };
 
-  /**
-   * Get resource requests for the logged-in educator
-   */
   const getEducatorResourceRequests = async (req, res) => {
     try {
-      const requestor = req.requestor || req.body.requestor;
+      const { requestor } = req.body;
 
-      if (!requestor?._id) {
+      if (!requestor?.requestorId) {
         return res.status(401).send('Authentication required.');
       }
 
       const isEducator =
-        requestor.role === 'Educator' ||
-        (await hasPermission(requestor, 'createResourceRequests'));
+        requestor.role === 'Educator' || (await hasPermission(requestor, 'createResourceRequests'));
 
       if (!isEducator) {
         return res.status(403).send('Only educators can view their resource requests.');
       }
 
-      const filter = { educator_id: requestor._id };
+      const filter = { educator_id: requestor.requestorId };
 
-      if (req.query.status) {
+      if (req.query.status && ALLOWED_STATUSES.includes(req.query.status)) {
         filter.status = req.query.status;
       }
 
@@ -84,19 +81,15 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(requests);
     } catch (err) {
-      console.error('Error in getEducatorResourceRequests:', err);
       return res.status(500).send('Error fetching educator requests.');
     }
   };
 
-  /**
-   * PM: View all resource requests
-   */
   const getPMResourceRequests = async (req, res) => {
     try {
-      const requestor = req.requestor || req.body.requestor;
+      const { requestor } = req.body;
 
-      if (!requestor?._id) {
+      if (!requestor?.requestorId) {
         return res.status(401).send('Authentication required.');
       }
 
@@ -110,14 +103,15 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       const filter = {};
 
-      if (req.query.status) filter.status = req.query.status;
+      if (req.query.status && ALLOWED_STATUSES.includes(req.query.status)) {
+        filter.status = req.query.status;
+      }
       if (req.query.educator_id && isValidId(req.query.educator_id)) {
         filter.educator_id = req.query.educator_id;
       }
 
-      // Pagination
-      const limit = Number(req.query.limit) || 20;
-      const page = Number(req.query.page) || 1;
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const page = Math.max(Number(req.query.page) || 1, 1);
 
       const requests = await ResourceRequest.find(filter)
         .sort({ createdAt: -1 })
@@ -128,19 +122,15 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(requests);
     } catch (err) {
-      console.error('Error in getPMResourceRequests:', err);
       return res.status(500).send('Error fetching resource requests.');
     }
   };
 
-  /**
-   * PM: Update request status
-   */
   const updatePMResourceRequestStatus = async (req, res) => {
     try {
-      const requestor = req.requestor || req.body.requestor;
+      const { requestor } = req.body;
 
-      if (!requestor?._id) {
+      if (!requestor?.requestorId) {
         return res.status(401).send('Authentication required.');
       }
 
@@ -160,7 +150,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       const newStatus = req.body.status;
 
-      if (!['approved', 'denied', 'pending'].includes(newStatus)) {
+      if (!ALLOWED_STATUSES.includes(newStatus)) {
         return res.status(400).send('Invalid status value.');
       }
 
@@ -171,7 +161,7 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
       }
 
       request.status = newStatus;
-      request.pm_id = requestor._id;
+      request.pm_id = requestor.requestorId;
 
       const updated = await request.save();
 
@@ -181,7 +171,6 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       return res.status(200).send(populated);
     } catch (err) {
-      console.error('Error in updatePMResourceRequestStatus:', err);
       return res.status(500).send('Error updating resource request.');
     }
   };
