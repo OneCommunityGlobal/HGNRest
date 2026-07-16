@@ -1,5 +1,4 @@
 const resourceRequestController = require('./resourceRequestController');
-const mongoose = require('mongoose');
 
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
@@ -290,7 +289,7 @@ describe('resourceRequestController', () => {
 
     expect(MockResourceRequest.find).toHaveBeenCalledWith(
       expect.objectContaining({
-        educator_id: expect.any(mongoose.Types.ObjectId),
+        educator_id: EDUCATOR_ID,
       }),
     );
     expect(res.status).toHaveBeenCalledWith(200);
