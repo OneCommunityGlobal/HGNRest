@@ -24,9 +24,9 @@ const listings = new Schema({
   status: { type: String, required: true, enum: ['draft', 'complete'], default: 'draft' },
   village: { type: mongoose.SchemaTypes.ObjectId, ref: 'villages', required: true },
   coordinates: {
-    type: [Number],  // Format: [longitude, latitude]
-    index: '2dsphere'
-  }
+    type: [Number], // Format: [longitude, latitude]
+    index: '2dsphere',
+  },
 });
 
 listings.path('coordinates').validate((value) => {
@@ -38,8 +38,10 @@ listings.path('coordinates').validate((value) => {
   return (
     typeof longitude === 'number' &&
     typeof latitude === 'number' &&
-    longitude >= -180 && longitude <= 180 &&
-    latitude >= -90 && latitude <= 90
+    longitude >= -180 &&
+    longitude <= 180 &&
+    latitude >= -90 &&
+    latitude <= 90
   );
 }, 'Coordinates must be in [longitude, latitude] format and within valid ranges');
 

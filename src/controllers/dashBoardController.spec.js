@@ -1,15 +1,18 @@
 jest.mock('uuid/v4');
-jest.mock('../utilities/emailSender', () => jest.fn());
+jest.mock('../utilities/emailSender', () => ({
+  sendEmail: jest.fn().mockResolvedValue(),
+}));
 
 const uuidv4 = require('uuid/v4');
 const emailSender = require('../utilities/emailSender');
 const { mockReq, mockRes, assertResMock } = require('../test');
-const forgotPwdController = require('./forgotPwdcontroller');
 const UserProfile = require('../models/userProfile');
 const escapeRegex = require('../utilities/escapeRegex');
+const forgotPwdController = require('./forgotPwdcontroller');
 
 uuidv4.mockReturnValue('');
-emailSender.mockImplementation(() => Promise.resolve());
+// emailSender.mockImplementation(() => Promise.resolve());
+emailSender.sendEmail.mockResolvedValue();
 
 // const flushPromises = () => new Promise(setImmediate);
 
@@ -20,7 +23,7 @@ function getEmailMessageForForgotPassword(user, ranPwd) {
     <p>Use it now to log in. Then store it in a safe place or change it on your Profile Page to something easier for you to remember. </p>
     <p>If it wasn’t you that requested this password change, you can ignore this email. Otherwise, use the password above to log in and you’ll be directed to the “Change Password” page where you can set a new custom one. </p>
     <p>Thank you,<p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
 }
 
 const makeSut = () => {
@@ -114,7 +117,7 @@ describe('Unit Tests for forgotPwdcontroller.js', () => {
 
       expect(mockUser.set).toHaveBeenCalledWith({ resetPwd: temporaryPassword });
       expect(mockUser.save).toHaveBeenCalled();
-      expect(emailSender).toHaveBeenCalledWith(
+      expect(emailSender.sendEmail).toHaveBeenCalledWith(
         mockUser.email,
         'Account Password change',
         expectedEmailMessage,
