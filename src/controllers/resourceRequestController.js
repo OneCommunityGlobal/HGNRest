@@ -5,9 +5,20 @@ const ALLOWED_STATUSES = ['pending', 'approved', 'denied'];
 
 const sanitizeString = (str) => (typeof str === 'string' ? str.trim() : '');
 
-const resourceRequestController = (ResourceRequest, UserProfile) => {
-  const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+const sanitizeStatus = (raw) => {
+  if (typeof raw !== 'string') return null;
+  const val = raw.trim();
+  return ALLOWED_STATUSES.includes(val) ? String(val) : null;
+};
 
+const sanitizeObjectId = (raw) => {
+  if (typeof raw !== 'string') return null;
+  const val = raw.trim();
+  if (!mongoose.Types.ObjectId.isValid(val)) return null;
+  return new mongoose.Types.ObjectId(val);
+};
+
+const resourceRequestController = (ResourceRequest, UserProfile) => {
   const createResourceRequest = async (req, res) => {
     try {
       const { requestor } = req.body;
@@ -35,8 +46,13 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
         return res.status(400).send('Request title or details exceed maximum length.');
       }
 
+      const educatorId = sanitizeObjectId(requestor.requestorId);
+      if (!educatorId) {
+        return res.status(400).send('Invalid educator ID.');
+      }
+
       const newRequest = new ResourceRequest({
-        educator_id: requestor.requestorId,
+        educator_id: educatorId,
         request_title: requestTitle,
         request_details: requestDetails,
         status: 'pending',
@@ -69,10 +85,16 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
         return res.status(403).send('Only educators can view their resource requests.');
       }
 
-      const filter = { educator_id: requestor.requestorId };
+      const educatorId = sanitizeObjectId(requestor.requestorId);
+      if (!educatorId) {
+        return res.status(400).send('Invalid educator ID.');
+      }
 
-      if (req.query.status && ALLOWED_STATUSES.includes(req.query.status)) {
-        filter.status = req.query.status;
+      const filter = { educator_id: educatorId };
+
+      const status = sanitizeStatus(req.query.status);
+      if (status) {
+        filter.status = status;
       }
 
       const requests = await ResourceRequest.find(filter)
@@ -103,11 +125,14 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
 
       const filter = {};
 
-      if (req.query.status && ALLOWED_STATUSES.includes(req.query.status)) {
-        filter.status = req.query.status;
+      const status = sanitizeStatus(req.query.status);
+      if (status) {
+        filter.status = status;
       }
-      if (req.query.educator_id && isValidId(req.query.educator_id)) {
-        filter.educator_id = req.query.educator_id;
+
+      const educatorId = sanitizeObjectId(req.query.educator_id);
+      if (educatorId) {
+        filter.educator_id = educatorId;
       }
 
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
@@ -142,15 +167,13 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
         return res.status(403).send('Only PMs can update resource requests.');
       }
 
-      const requestId = req.params.id;
-
-      if (!isValidId(requestId)) {
+      const requestId = sanitizeObjectId(req.params.id);
+      if (!requestId) {
         return res.status(400).send('Invalid request ID.');
       }
 
-      const newStatus = req.body.status;
-
-      if (!ALLOWED_STATUSES.includes(newStatus)) {
+      const newStatus = sanitizeStatus(req.body.status);
+      if (!newStatus) {
         return res.status(400).send('Invalid status value.');
       }
 
@@ -161,7 +184,11 @@ const resourceRequestController = (ResourceRequest, UserProfile) => {
       }
 
       request.status = newStatus;
-      request.pm_id = requestor.requestorId;
+
+      const pmId = sanitizeObjectId(requestor.requestorId);
+      if (pmId) {
+        request.pm_id = pmId;
+      }
 
       const updated = await request.save();
 

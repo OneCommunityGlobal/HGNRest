@@ -43,6 +43,10 @@ function mockResponse() {
   return res;
 }
 
+const EDUCATOR_ID = 'aabbccddeeff001122334455';
+const PM_ID = '112233445566778899001122';
+const REQUEST_ID = 'aabbccddeeff00112233a1b2';
+
 describe('resourceRequestController', () => {
   let controller;
 
@@ -55,7 +59,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(true);
 
     const req = mockRequest({
-      requestor: { requestorId: '123', role: 'Educator' },
+      requestor: { requestorId: EDUCATOR_ID, role: 'Educator' },
       request_title: 'Need supplies',
       request_details: 'Markers and charts',
     });
@@ -63,14 +67,14 @@ describe('resourceRequestController', () => {
     const res = mockResponse();
 
     MockResourceRequest.prototype.save.mockResolvedValue({
-      _id: 'req1',
-      educator_id: '123',
+      _id: REQUEST_ID,
+      educator_id: EDUCATOR_ID,
     });
 
     MockResourceRequest.findById.mockReturnValue(
       createPopulateChain({
-        _id: 'req1',
-        educator_id: '123',
+        _id: REQUEST_ID,
+        educator_id: EDUCATOR_ID,
       }),
     );
 
@@ -83,7 +87,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(true);
 
     const req = mockRequest({
-      requestor: { requestorId: '123', role: 'Educator' },
+      requestor: { requestorId: EDUCATOR_ID, role: 'Educator' },
       request_title: 'Need laptop',
       request_details: 'Macbook',
       status: 'approved',
@@ -92,13 +96,13 @@ describe('resourceRequestController', () => {
     const res = mockResponse();
 
     MockResourceRequest.prototype.save.mockResolvedValue({
-      _id: 'req2',
+      _id: REQUEST_ID,
       status: 'pending',
     });
 
     MockResourceRequest.findById.mockReturnValue(
       createPopulateChain({
-        _id: 'req2',
+        _id: REQUEST_ID,
         status: 'pending',
       }),
     );
@@ -112,7 +116,7 @@ describe('resourceRequestController', () => {
   test('PM fetches all requests', async () => {
     hasPermission.mockResolvedValue(true);
 
-    const req = mockRequest({ requestor: { requestorId: 'pm1', role: 'Program Manager' } });
+    const req = mockRequest({ requestor: { requestorId: PM_ID, role: 'Program Manager' } });
 
     const res = mockResponse();
 
@@ -136,7 +140,7 @@ describe('resourceRequestController', () => {
   test('educator cannot access PM endpoint', async () => {
     hasPermission.mockResolvedValue(false);
 
-    const req = mockRequest({ requestor: { requestorId: '123', role: 'Educator' } });
+    const req = mockRequest({ requestor: { requestorId: EDUCATOR_ID, role: 'Educator' } });
 
     const res = mockResponse();
 
@@ -148,27 +152,25 @@ describe('resourceRequestController', () => {
   test('PM updates status successfully', async () => {
     hasPermission.mockResolvedValue(true);
 
-    const validId = new mongoose.Types.ObjectId().toHexString();
-
     const req = mockRequest(
       {
-        requestor: { requestorId: 'pm1', role: 'Program Manager' },
+        requestor: { requestorId: PM_ID, role: 'Program Manager' },
         status: 'approved',
       },
-      { id: validId },
+      { id: REQUEST_ID },
     );
 
     const res = mockResponse();
 
     const existing = {
-      _id: validId,
+      _id: REQUEST_ID,
       status: 'pending',
-      save: jest.fn().mockResolvedValue({ _id: validId, status: 'approved' }),
+      save: jest.fn().mockResolvedValue({ _id: REQUEST_ID, status: 'approved' }),
     };
 
     MockResourceRequest.findById.mockReturnValueOnce(Promise.resolve(existing)).mockReturnValueOnce(
       createPopulateChain({
-        _id: validId,
+        _id: REQUEST_ID,
         status: 'approved',
       }),
     );
@@ -191,7 +193,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(false);
 
     const req = mockRequest({
-      requestor: { requestorId: '456', role: 'Volunteer' },
+      requestor: { requestorId: EDUCATOR_ID, role: 'Volunteer' },
       request_title: 'Test',
       request_details: 'Test details',
     });
@@ -207,7 +209,7 @@ describe('resourceRequestController', () => {
     hasPermission.mockResolvedValue(true);
 
     const req = mockRequest({
-      requestor: { requestorId: '123', role: 'Educator' },
+      requestor: { requestorId: EDUCATOR_ID, role: 'Educator' },
       request_details: 'Some details',
     });
 
@@ -223,7 +225,7 @@ describe('resourceRequestController', () => {
 
     const req = mockRequest(
       {
-        requestor: { requestorId: 'pm1', role: 'Program Manager' },
+        requestor: { requestorId: PM_ID, role: 'Program Manager' },
         status: 'approved',
       },
       { id: 'invalid-id' },
@@ -234,5 +236,88 @@ describe('resourceRequestController', () => {
     await controller.updatePMResourceRequestStatus(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('getEducatorResourceRequests filters by status', async () => {
+    hasPermission.mockResolvedValue(true);
+
+    const req = mockRequest(
+      { requestor: { requestorId: EDUCATOR_ID, role: 'Educator' } },
+      {},
+      { status: 'approved' },
+    );
+
+    const res = mockResponse();
+
+    MockResourceRequest.find.mockReturnValue({
+      sort: () => ({
+        populate: () => createPopulateChain([]),
+      }),
+    });
+
+    await controller.getEducatorResourceRequests(req, res);
+
+    expect(MockResourceRequest.find).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'approved' }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('getPMResourceRequests filters by educator_id', async () => {
+    hasPermission.mockResolvedValue(true);
+
+    const req = mockRequest(
+      { requestor: { requestorId: PM_ID, role: 'Program Manager' } },
+      {},
+      { educator_id: EDUCATOR_ID },
+    );
+
+    const res = mockResponse();
+
+    MockResourceRequest.find.mockReturnValue({
+      sort: () => ({
+        skip: () => ({
+          limit: () => ({
+            populate: () => ({
+              populate: () => [],
+            }),
+          }),
+        }),
+      }),
+    });
+
+    await controller.getPMResourceRequests(req, res);
+
+    expect(MockResourceRequest.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        educator_id: expect.any(mongoose.Types.ObjectId),
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('invalid status query param is ignored', async () => {
+    hasPermission.mockResolvedValue(true);
+
+    const req = mockRequest(
+      { requestor: { requestorId: EDUCATOR_ID, role: 'Educator' } },
+      {},
+      { status: 'malicious-value' },
+    );
+
+    const res = mockResponse();
+
+    MockResourceRequest.find.mockReturnValue({
+      sort: () => ({
+        populate: () => createPopulateChain([]),
+      }),
+    });
+
+    await controller.getEducatorResourceRequests(req, res);
+
+    expect(MockResourceRequest.find).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: expect.anything() }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 });
