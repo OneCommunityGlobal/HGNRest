@@ -77,7 +77,7 @@ async function start({ userId, taskId = null, hours, minutes, note = '' }) {
 async function pause({ userId }) {
   assertObjectId(userId, 'userId');
   const timer = await getActiveTimer(userId);
-  if (!timer || timer.status !== 'running') {
+  if (timer?.status !== 'running') {
     const e = new Error('Timer is not running');
     e.status = 409;
     throw e;
@@ -95,7 +95,7 @@ async function pause({ userId }) {
 async function resume({ userId }) {
   assertObjectId(userId, 'userId');
   const timer = await getActiveTimer(userId);
-  if (!timer || timer.status !== 'paused') {
+  if (timer?.status !== 'paused') {
     const e = new Error('Timer is not paused');
     e.status = 409;
     throw e;
