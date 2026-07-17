@@ -3,7 +3,10 @@ const Educator = require('../models/pmEducators');
 const PMNotification = require('../models/pmNotification');
 
 const isObjId = (s) => /^[a-f0-9]{24}$/i.test(String(s || ''));
-const sanitizeMessage = (msg) => String(msg || '').replace(/\s+/g, ' ').trim();
+const sanitizeMessage = (msg) =>
+  String(msg || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 async function resolveRecipients(educatorIds = [], all = false) {
   const raw = Array.isArray(educatorIds) ? educatorIds.map(String).filter(Boolean) : [];
@@ -31,7 +34,9 @@ async function resolveRecipients(educatorIds = [], all = false) {
 
   const asObjIds = raw.map((id) => new mongoose.Types.ObjectId(id));
   const found = asObjIds.length
-    ? await Educator.find({ _id: { $in: asObjIds } }).select('_id').lean()
+    ? await Educator.find({ _id: { $in: asObjIds } })
+        .select('_id')
+        .lean()
     : [];
   const foundSet = new Set(found.map((d) => String(d._id)));
   const validIds = raw.filter((id) => foundSet.has(id));
@@ -45,7 +50,8 @@ async function previewNotification(req, res) {
     const { educatorIds, all, message } = req.body || {};
     const msg = sanitizeMessage(message);
     if (!msg) return res.status(400).json({ error: 'message is required' });
-    if (msg.length > 1000) return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
+    if (msg.length > 1000)
+      return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
 
     const { mode, attempted, validIds, unknownIds } = await resolveRecipients(educatorIds, all);
     if (attempted === 0 && all !== true) {
@@ -59,6 +65,7 @@ async function previewNotification(req, res) {
       message: msg,
     });
   } catch (err) {
+    console.error('previewNotification error:', err);
     res.status(500).json({ error: 'Failed to preview notification' });
   }
 }
@@ -68,14 +75,14 @@ async function sendNotification(req, res) {
     const { educatorIds, all, message } = req.body || {};
     const msg = sanitizeMessage(message);
     if (!msg) return res.status(400).json({ error: 'message is required' });
-    if (msg.length > 1000) return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
+    if (msg.length > 1000)
+      return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
 
     const { mode, attempted, validIds, unknownIds } = await resolveRecipients(educatorIds, all);
     if (attempted === 0 && all !== true) {
       return res.status(400).json({ error: 'Provide at least one educatorId or set all=true' });
     }
 
-  
     if (mode === 'mock') {
       return res.status(201).json({
         ok: true,
@@ -112,6 +119,7 @@ async function sendNotification(req, res) {
       summary: { attempted, sentTo: validIds.length, unknownIds, all: !!all },
     });
   } catch (err) {
+    console.error('sendNotification error:', err);
     res.status(500).json({ error: 'Failed to send notification' });
   }
 }
