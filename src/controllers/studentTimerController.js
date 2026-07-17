@@ -1,7 +1,7 @@
-const timerSvc = require("../services/studentTimerService");
+const timerSvc = require('../services/studentTimerService');
 
 function userIdFrom(req) {
-  return req.headers["x-user-id"] || (req.user && req.user._id);
+  return req.headers['x-user-id'] || req.user?._id;
 }
 
 function ok(res, data) {
