@@ -286,6 +286,109 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     }
   };
 
+  const bmGetIssuesBreakdown = async (req, res) => {
+    try {
+      const { projects, startDate, endDate } = req.query;
+
+      const query = {};
+
+      if (projects) {
+        const projectIds = projects
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => ObjectId.isValid(id))
+          .map((id) => new ObjectId(id));
+
+        if (projectIds.length > 0) {
+          query.projectId = { $in: projectIds };
+        }
+      }
+
+      if (startDate || endDate) {
+        query.issueDate = {};
+
+        if (startDate) {
+          const start = new Date(startDate);
+
+          if (Number.isNaN(start.getTime())) {
+            return res.status(400).json({ error: 'Invalid startDate format.' });
+          }
+
+          query.issueDate.$gte = start;
+        }
+
+        if (endDate) {
+          const end = new Date(endDate);
+
+          if (Number.isNaN(end.getTime())) {
+            return res.status(400).json({ error: 'Invalid endDate format.' });
+          }
+
+          query.issueDate.$lte = endOfDay(end);
+        }
+      }
+
+      const results = await BuildingIssue.aggregate([
+        { $match: query },
+        {
+          $lookup: {
+            from: 'buildingProjects',
+            localField: 'projectId',
+            foreignField: '_id',
+            as: 'projectDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$projectDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $group: {
+            _id: '$projectId',
+            projectName: {
+              $first: {
+                $ifNull: ['$projectDetails.name', 'Unknown Project'],
+              },
+            },
+            equipmentIssues: {
+              $sum: {
+                $cond: [{ $eq: ['$issueType', 'Equipment'] }, 1, 0],
+              },
+            },
+            laborIssues: {
+              $sum: {
+                $cond: [{ $eq: ['$issueType', 'Labor'] }, 1, 0],
+              },
+            },
+            materialIssues: {
+              $sum: {
+                $cond: [{ $eq: ['$issueType', 'Materials'] }, 1, 0],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            projectId: '$_id',
+            projectName: 1,
+            'Equipment Issues': '$equipmentIssues',
+            'Labor Issues': '$laborIssues',
+            'Materials Issues': '$materialIssues',
+          },
+        },
+        { $sort: { projectName: 1 } },
+      ]);
+
+      return res.status(200).json(results);
+    } catch (error) {
+      logger.logException(error, { context: 'bmGetIssuesBreakdown' });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   /* -------------------- GET UNIQUE PROJECT IDS -------------------- */
   const getUniqueProjectIds = async (req, res) => {
     try {
@@ -556,6 +659,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     bmUpdateIssue,
     bmDeleteIssue,
     bmGetIssueChart,
+    bmGetIssuesBreakdown,
     getLongestOpenIssues,
     getUniqueProjectIds,
     bmPostInjuryIssue,
