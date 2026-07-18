@@ -645,6 +645,11 @@ const timeEntrycontroller = function (TimeEntry) {
         }
       }
 
+      if (timeEntry.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
+      }
+
       await session.commitTransaction();
       pendingEmailCollection.forEach((emailHandler) => emailHandler());
       return res.status(200).send({
