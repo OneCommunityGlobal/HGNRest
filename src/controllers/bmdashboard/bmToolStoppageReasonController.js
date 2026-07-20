@@ -57,6 +57,17 @@ const handleControllerError = (
   });
 };
 
+const SLOW_QUERY_THRESHOLD_MS = 1000;
+
+const logSlowQuery = (functionName, executionTimeMs, context = {}) => {
+  if (executionTimeMs > SLOW_QUERY_THRESHOLD_MS) {
+    Logger.logInfo(`Slow query detected in ${functionName}: ${executionTimeMs}ms`, {
+      ...context,
+      executionTimeMs,
+    });
+  }
+};
+
 const toolStoppageReasonController = function (ToolStoppageReason) {
   const cache = cacheClosure();
   const stoppageReasonFields = ['usedForLifetime', 'damaged', 'lost'];
@@ -186,15 +197,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       ]);
 
       const executionTimeMs = Date.now() - startTime;
-
-      if (executionTimeMs > 1000) {
-        Logger.logInfo(`Slow query detected in getToolsStoppageReason: ${executionTimeMs}ms`, {
-          projectId,
-          startDate,
-          endDate,
-          executionTimeMs,
-        });
-      }
+      logSlowQuery('getToolsStoppageReason', executionTimeMs, { projectId, startDate, endDate });
 
       return res.json({
         success: true,
@@ -260,12 +263,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
       }));
 
       const executionTimeMs = Date.now() - startTime;
-
-      if (executionTimeMs > 1000) {
-        Logger.logInfo(`Slow query detected in getUniqueProjectIds: ${executionTimeMs}ms`, {
-          executionTimeMs,
-        });
-      }
+      logSlowQuery('getUniqueProjectIds', executionTimeMs);
 
       const response = {
         success: true,
