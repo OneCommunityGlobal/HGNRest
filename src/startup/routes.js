@@ -38,7 +38,6 @@ const hgnFormResponses = require('../models/hgnFormResponse');
 const listings = require('../models/lbdashboard/listings');
 const biddingHome = require('../models/lbdashboard/biddings');
 const village = require('../models/lbdashboard/villages');
-const event = require('../models/event');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
@@ -324,7 +323,6 @@ const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
 );
 const weeklyGradingRouter = require('../routes/prAnalytics/weeklyGradingRouter')(WeeklyGrading);
 
-const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
   userProfile,
@@ -396,6 +394,7 @@ const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRo
 const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
+const educatorGroupRouter = require('../routes/educatorGroupRoutes');
 const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
@@ -526,6 +525,7 @@ module.exports = function (app) {
   app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
   app.use('/api', emailTemplateRouter);
+  app.use('/api/educator', educatorGroupRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
@@ -568,15 +568,18 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api', costBreakdownRouter);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
+
+  // app.use('/api/bm', bmOrgLocation);
+  app.use('api', bmIssueRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
@@ -601,8 +604,6 @@ module.exports = function (app) {
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
   app.use('/api/lb', lbListingsRouter);
-  app.use('/api/bm', bmIssueRouter);
-  app.use('/api', eventRouter);
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
