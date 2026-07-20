@@ -2,7 +2,7 @@ const { ObjectId } = require('mongoose').Types;
 const Logger = require('../../startup/logger');
 const cacheClosure = require('../../utilities/nodeCache');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
-const { parseYmdUtc, parseDateFlexibleUTC } = require('../../utilities/bmDateUtils');
+const { parseDateFlexibleUTC } = require('../../utilities/bmDateUtils');
 
 const isMongoConnectionError = (error) =>
   error.name === 'MongoNetworkError' ||
