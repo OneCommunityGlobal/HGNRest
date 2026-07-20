@@ -1011,38 +1011,12 @@ const overviewReportHelper = function () {
    * NOTE: This shows ALL active users regardless of createdDate to provide
    * a complete picture of current role distribution in the organization
    */
-  async function getRoleDistributionStats(
-    startDate,
-    endDate,
-    comparisonStartDate,
-    comparisonEndDate,
-  ) {
+  async function getRoleDistributionStats() {
     // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users
-    const buildMatch = () => ({ isActive: true });
-
-    // If comparison dates provided, return both current and comparison facets
-    if (comparisonStartDate && comparisonEndDate) {
-      const roleStats = await UserProfile.aggregate([
-        {
-          $facet: {
-            current: [{ $match: buildMatch() }, { $group: { _id: '$role', count: { $sum: 1 } } }],
-            comparison: [
-              { $match: buildMatch() },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
-          },
-        },
-      ]);
-
-      return {
-        current: roleStats[0]?.current || [],
-        comparison: roleStats[0]?.comparison || [],
-      };
-    }
-
-    // No comparison: return same shape as before (array of {_id: role, count})
-    const matchStage = buildMatch();
+    // This ensures all current roles are displayed, not just recently created users.
+    // Role distribution is a live snapshot, not a time-series metric, so comparison
+    // periods do not apply here — always return a flat array of {_id: role, count}.
+    const matchStage = { isActive: true };
     const result = await UserProfile.aggregate([
       { $match: matchStage },
       { $group: { _id: '$role', count: { $sum: 1 } } },
