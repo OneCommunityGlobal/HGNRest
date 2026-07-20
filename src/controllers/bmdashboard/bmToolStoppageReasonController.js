@@ -3,6 +3,7 @@ const Logger = require('../../startup/logger');
 const cacheClosure = require('../../utilities/nodeCache');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const { parseDateFlexibleUTC } = require('../../utilities/bmDateUtils');
+const { getUniqueProjectsWithNames } = require('../../utilities/bmProjectAggregation');
 
 const isMongoConnectionError = (error) =>
   error.name === 'MongoNetworkError' ||
@@ -238,29 +239,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
         return res.json({ ...cachedData, executionTimeMs, cached: true });
       }
 
-      const results = await ToolStoppageReason.aggregate([
-        { $group: { _id: '$projectId' } },
-        {
-          $lookup: {
-            from: 'buildingProjects',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
-          },
-        },
-        { $sort: { projectName: 1 } },
-      ]);
-
-      const formattedResults = results.map((item) => ({
-        projectId: item._id,
-        projectName: item.projectName || 'Unknown Project',
-      }));
+      const formattedResults = await getUniqueProjectsWithNames(ToolStoppageReason);
 
       const executionTimeMs = Date.now() - startTime;
       logSlowQuery('getUniqueProjectIds', executionTimeMs);
