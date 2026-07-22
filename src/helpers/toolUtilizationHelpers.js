@@ -429,7 +429,8 @@ const generateRecommendations = (utilizationData) =>
 
 // ─── stripInternalDetails ───
 const stripInternalDetails = (item) => {
-  const { toolGroupDetails: _toolGroupDetails, ...publicFields } = item;
+  const publicFields = { ...item };
+  delete publicFields.toolGroupDetails;
   return publicFields;
 };
 
