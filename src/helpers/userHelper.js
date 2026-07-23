@@ -33,12 +33,9 @@ const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
-const BlueSquareEmailAssignmentModel = require('../models/BlueSquareEmailAssignment');
-const Timer = require('../models/timer');
 
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
-const DEFAULT_REPLY_TO = ['jae@onecommunityglobal.org'];
 const { COMPANY_TZ } = require('../constants/company');
 
 const delay = (ms) =>
@@ -292,14 +289,14 @@ const userHelper = function () {
       }
     }
     // add administrative content
-    const text = `Dear <b>${firstName} ${lastName}</b>,
+    const text = `Good Morning <b>${firstName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
         ${descrInfringement}
         ${finalParagraph}
-        <p>Thank you,<p>
-        <p>One Community</p>
+        <p>With Gratitude,<p>
+        <p>One Community Admin Team</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <hr style="border-top: 1px dashed #000;"/>
@@ -755,7 +752,7 @@ const userHelper = function () {
       requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${startingDateStr}, To ${endingDateStr}, due to: <b>${requestForTimeOffreason}</b></span>`;
     }
 
-    if (timeNotMet || !hasWeeklySummary) {
+    if ((timeNotMet || !hasWeeklySummary) && !hasTimeOffRequest) {
       const description = buildInfringementDescription(
         person,
         timeNotMet,
@@ -1103,7 +1100,7 @@ const userHelper = function () {
 
   const missedSummaryTemplate = (firstname) =>
     `<div style="font-family: Arial, sans-serif;">
-    Dear ${firstname},
+    Good Morning ${firstname},
     <div><br></div>
     <div>When you read this, please input your summary into the software. When you do, please be sure to put it in using the tab for "Last Week".</div>
     <div><br></div>
@@ -1111,9 +1108,8 @@ const userHelper = function () {
     <div><br></div>
     <div><strong>Reply all</strong> to this email once you've done this, so I know to review what you've submitted. Do this before tomorrow (Monday) at 3 PM (Pacific Time) and I'll remove this blue square.</div>
     <div><br></div>
-    <div>With Gratitude,</div>
-    <div><br></div>
-    <div>One Community</div>
+    <p>With Gratitude,<p>
+    <p>One Community Admin Team</p>
   </div>`;
 
   /**
@@ -1339,7 +1335,7 @@ const userHelper = function () {
     if (metHours) return null;
 
     // Priority 2: 85–99% hours, got a blue square today, fewer than 4 total
-    if (nearMiss && hasTodayBlueSquare && infringementCount < 4) {
+    if (nearMiss && hasTodayBlueSquare && infringementCount < 4 && !hasTimeOff) {
       return 'MISSED_HOURS_BY_<15%';
     }
 
@@ -1380,9 +1376,8 @@ const userHelper = function () {
             <div><br></div>
             <div>You completed close enough to your total hours for us to remove this blue square. Please be sure to complete the minimum or more of your hours from now on though.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case 'COMPLETED_HOURS_65%_84.9%':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1392,9 +1387,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Please <strong>reply all</strong> to let us know.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,<p>
+            <p>One Community Admin Team</p>
           </div>`;
       case 'COMPLETED_HOURS_25%_64.9%':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1404,9 +1398,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Please <strong>reply all</strong> to let us know.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case '<1MON_ONE_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1416,9 +1409,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Please <strong>reply all</strong> to let us know.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case '<2MON_TWO_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1430,9 +1422,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Looking forward to your response.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case '<1MON_TWO_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1446,9 +1437,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Looking forward to your response.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case '<2MON_THREE_BLUESQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1460,9 +1450,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Looking forward to your response.</div>
             <div><br></div>
-            <div>Sincerely,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>Sincerely,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case '4TH_BLUE_SQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1472,9 +1461,8 @@ const userHelper = function () {
             <div><br></div>
             <div>We appreciate your contributions and hope to see you avoiding any further blue squares. Please let us know if you have any concerns or need support in this.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case 'SCHEDULED_TIME_OFF':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1482,9 +1470,8 @@ const userHelper = function () {
             <div><br></div>
             <div>Thank you for scheduling off the time you needed. Advanced notice like this is helpful and appreciated.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,</p>
+            <p>One Community Admin Team</p>
           </div>`;
       case 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE':
         return `<div style="font-family: Arial, sans-serif;">
@@ -1496,9 +1483,8 @@ const userHelper = function () {
             <div><br></div>
             <div>We appreciate your contributions, please let us know if you have any concerns or need support in this.</div>
             <div><br></div>
-            <div>With Gratitude,</div>
-            <div><br></div>
-            <div>One Community</div>
+            <p>With Gratitude,<p>
+            <p>One Community Admin Team</p>
           </div>`;
       default:
         console.error(`Unknown email template: ${templateNo}`);
@@ -2771,8 +2757,7 @@ const userHelper = function () {
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part until they return on ${moment(reactivationDate).format('M-D-YYYY')}. </p>
 
       <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && sendThreeWeeks) {
       const subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
@@ -2780,12 +2765,10 @@ const userHelper = function () {
 
       <p>Please note that the final day for ${firstName} ${lastName} has been set in the Highest Good Network as ${moment(endDate).format('M-D-YYYY')}.</p>
       <p>This is more than 3 weeks from now, but you should still start confirming all your work is being wrapped up with this individual and nothing further will be needed on their part after this date. </p>
-
       <p>An additional reminder email will be sent in their final 2 weeks.</p>
 
       <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet && followup) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
@@ -2795,8 +2778,7 @@ const userHelper = function () {
       <p> This is coming up soon. For a smooth transition, please confirm all your work is wrapped up with this individual and nothing further will be needed on their part after this date. </p>
 
       <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate && isSet) {
       subject = `IMPORTANT: The last day for ${firstName} ${lastName} has been set in the Highest Good Network`;
@@ -2806,8 +2788,7 @@ const userHelper = function () {
       <p> For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     } else if (endDate) {
       subject = `IMPORTANT: ${firstName} ${lastName} has been deactivated in the Highest Good Network`;
@@ -2817,8 +2798,7 @@ const userHelper = function () {
       <p>For a smooth transition, Please confirm all your work with this individual has been wrapped up and nothing further is needed on their part. </p>
 
       <p>With Gratitude, </p>
-
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
       emailSender(email, subject, emailBody, null, recipients, email);
     }
   };

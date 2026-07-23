@@ -65,13 +65,10 @@ const getDurationOpenMonths = (issueDate) =>
 
 const buildGroupedIssues = (issues) => {
   const grouped = {};
-
   issues.forEach((issue) => {
     if (!issue.issueDate || !issue.projectId) return;
-
-    const issueName = Array.isArray(issue.issueTitle)
-      ? issue.issueTitle[0]
-      : issue.issueTitle || 'Unknown Issue';
+    const rawTitle = Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle;
+    const issueName = rawTitle || 'Unknown Issue';
 
     const projectId = issue.projectId._id.toString();
     const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
@@ -93,10 +90,15 @@ const buildGroupedIssues = (issues) => {
 
 const buildLongestOpenResponse = (grouped) =>
   Object.entries(grouped)
-    .map(([issueName, projectsById]) => ({
-      issueName,
-      projects: Object.values(projectsById),
-    }))
+    .flatMap(([issueName, projectsById]) =>
+      Object.values(projectsById).map((project) => ({
+        issueName,
+        projectId: project.projectId,
+        projectName: project.projectName,
+        durationOpen: project.durationOpen,
+      })),
+    )
+    .sort((a, b) => b.durationOpen - a.durationOpen)
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
 const omitUndefined = (obj) =>
