@@ -68,10 +68,8 @@ const getRetryDelayMs = (err, attempt) => {
     }
   }
 
-  // Exponential backoff with light jitter.
-  const expo = BASE_RETRY_DELAY_MS * 2 ** attempt;
-  const jitter = Math.floor(Math.random() * 250);
-  return expo + jitter;
+  // Deterministic exponential backoff (no Math.random — Sonar S2245).
+  return BASE_RETRY_DELAY_MS * 2 ** attempt + attempt * 50;
 };
 
 const githubGet = async (url, headers, attempt = 0) => {

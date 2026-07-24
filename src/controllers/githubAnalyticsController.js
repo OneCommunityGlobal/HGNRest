@@ -8,6 +8,13 @@ const fetchGitHubReviews = require('../services/analytics/fetchGithubReviews')(
 const VALID_DURATIONS = ['lastWeek', 'last2weeks', 'lastMonth', 'allTime'];
 const VALID_SORTS = ['asc', 'desc'];
 
+const createEmptyCounts = () => ({
+  Exceptional: 0,
+  Sufficient: 0,
+  'Needs Changes': 0,
+  'Did Not Review': 0,
+});
+
 const getTotalReviews = (counts = {}) => Object.values(counts).reduce((acc, val) => acc + val, 0);
 
 const mergeReviewerResults = (repoResults) => {
@@ -21,12 +28,7 @@ const mergeReviewerResults = (repoResults) => {
         reviewer: entry.reviewer,
         isMentor: entry.isMentor === true,
         team: entry.team || null,
-        counts: {
-          Exceptional: 0,
-          Sufficient: 0,
-          'Needs Changes': 0,
-          'Did Not Review': 0,
-        },
+        counts: createEmptyCounts(),
       };
     }
 
@@ -78,7 +80,7 @@ const getGitHubReviews = async (req, res) => {
     if (teamFilter) {
       const normalizedTeam = teamFilter.toLowerCase();
       combinedResults = combinedResults.filter(
-        (entry) => entry.team && entry.team.toLowerCase() === normalizedTeam,
+        (entry) => entry.team?.toLowerCase() === normalizedTeam,
       );
     }
 
