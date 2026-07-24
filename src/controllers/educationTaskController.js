@@ -234,7 +234,15 @@ const educationTaskController = () => {
 
       // Validate status
       if (status) {
-        const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
+        const validStatuses = [
+          'assigned',
+          'in_progress',
+          'submitted',
+          'in_review',
+          'changes_requested',
+          'completed',
+          'graded',
+        ];
         if (!validStatuses.includes(status)) {
           return res
             .status(400)
@@ -288,7 +296,15 @@ const educationTaskController = () => {
       const task = await EducationTask.findById(id);
       if (!task) return res.status(404).json({ error: 'Task not found' });
 
-      const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
+      const validStatuses = [
+        'assigned',
+        'in_progress',
+        'submitted',
+        'in_review',
+        'changes_requested',
+        'completed',
+        'graded',
+      ];
       if (!validStatuses.includes(status)) {
         return res
           .status(400)
@@ -300,11 +316,13 @@ const educationTaskController = () => {
         completedAt = new Date();
       }
 
-      const updatedTask = await EducationTask.findByIdAndUpdate(
-        id,
-        { status, completedAt },
-        { new: true },
-      )
+      const statusUpdate = { status, completedAt };
+      if (status === 'submitted' && task.status !== 'submitted') {
+        statusUpdate.submittedAt = new Date();
+        statusUpdate.reviewStatus = 'pending_review';
+      }
+
+      const updatedTask = await EducationTask.findByIdAndUpdate(id, statusUpdate, { new: true })
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
         .populate('atomIds', 'name description difficulty');
@@ -507,7 +525,21 @@ const educationTaskController = () => {
     try {
       const { status, studentId, lessonPlanId } = req.query;
 
-      const allowedStatuses = ['completed', 'graded'];
+      const allowedStatuses = [
+        'submitted',
+        'in_review',
+        'changes_requested',
+        'completed',
+        'graded',
+      ];
+
+      const statusLabels = {
+        submitted: 'Pending Review',
+        in_review: 'In Review',
+        changes_requested: 'Changes Requested',
+        completed: 'Pending Review',
+        graded: 'Graded',
+      };
 
       let dbQuery = EducationTask.find().setOptions({ sanitizeFilter: true });
 
@@ -528,7 +560,7 @@ const educationTaskController = () => {
       const submissions = await dbQuery
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
-        .sort({ completedAt: -1 });
+        .sort({ submittedAt: -1, completedAt: -1 });
 
       const formattedSubmissions = submissions
         .map((task) => {
@@ -537,21 +569,24 @@ const educationTaskController = () => {
           }
 
           return {
-            // _id: task._id,
+            _id: task._id,
             studentId: task.studentId._id,
             studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
             studentEmail: task.studentId.email,
             taskName: task.name || 'Unnamed Task',
             taskType: task.type,
             submissionLinks: task.uploadUrls,
-            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
+            status: statusLabels[task.status] || task.status,
+            reviewStatus: task.reviewStatus,
             isLate:
-              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
-            submittedAt: task.completedAt,
+              (task.submittedAt || task.completedAt) &&
+              task.dueAt &&
+              new Date(task.submittedAt || task.completedAt) > new Date(task.dueAt),
+            submittedAt: task.submittedAt || task.completedAt,
             assignedAt: task.assignedAt,
             dueAt: task.dueAt,
             grade: task.grade,
-            feedback: task.feedback,
+            feedback: task.feedback || task.collaborativeFeedback,
             lessonPlanId: task.lessonPlanId._id.toString(),
             lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
           };

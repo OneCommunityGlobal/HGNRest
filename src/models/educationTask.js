@@ -29,10 +29,24 @@ const educationTaskSchema = new mongoose.Schema(
       required: true,
       enum: ['read', 'write', 'practice', 'quiz', 'project'],
     },
+    weightage: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
     status: {
       type: String,
       required: true,
-      enum: ['assigned', 'in_progress', 'completed', 'graded'],
+      enum: [
+        'assigned',
+        'in_progress',
+        'submitted',
+        'in_review',
+        'changes_requested',
+        'completed',
+        'graded',
+      ],
       default: 'assigned',
     },
     assignedAt: {
@@ -42,6 +56,9 @@ const educationTaskSchema = new mongoose.Schema(
     dueAt: {
       type: Date,
       required: true,
+    },
+    submittedAt: {
+      type: Date,
     },
     completedAt: {
       type: Date,
@@ -61,6 +78,95 @@ const educationTaskSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    reviewStatus: {
+      type: String,
+      enum: ['not_submitted', 'pending_review', 'in_review', 'changes_requested', 'graded'],
+      default: 'not_submitted',
+    },
+    reviewStartedAt: {
+      type: Date,
+    },
+    reviewedAt: {
+      type: Date,
+    },
+    lastSavedAt: {
+      type: Date,
+    },
+    totalMarks: {
+      type: Number,
+      default: 100,
+    },
+    marksGiven: {
+      type: Number,
+    },
+    collaborativeFeedback: {
+      type: String,
+      trim: true,
+    },
+    privateNotes: {
+      type: String,
+      trim: true,
+    },
+    pageComments: [
+      {
+        pageNumber: {
+          type: Number,
+          required: true,
+        },
+        comment: {
+          type: String,
+          required: true,
+        },
+        isPrivate: {
+          type: Boolean,
+          default: false,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        createdBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'userProfile',
+        },
+      },
+    ],
+    changeRequests: [
+      {
+        requestedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        requestedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'userProfile',
+          required: true,
+        },
+        resolved: {
+          type: Boolean,
+          default: false,
+        },
+        resolvedAt: {
+          type: Date,
+        },
+      },
+    ],
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+    draftSaved: {
+      type: Boolean,
+      default: false,
+    },
     suggestedTotalHours: {
       type: Number,
       default: 0,
@@ -78,5 +184,6 @@ educationTaskSchema.index({ status: 1 });
 educationTaskSchema.index({ studentId: 1 });
 educationTaskSchema.index({ lessonPlanId: 1 });
 educationTaskSchema.index({ completedAt: -1 });
+educationTaskSchema.index({ reviewStatus: 1 });
 
 module.exports = mongoose.model('EducationTask', educationTaskSchema);
