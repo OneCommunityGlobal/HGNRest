@@ -3,24 +3,110 @@ const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan'); // eslint-disable-line no-unused-vars
 const UserProfile = require('../models/userProfile'); // eslint-disable-line no-unused-vars
 
+const REVIEWABLE_STATUSES = ['submitted', 'in_review', 'changes_requested', 'graded'];
+const SUBMIT_ACTIONS = ['mark_as_graded', 'request_changes'];
+
+const buildStudentName = (student) => {
+  if (!student || !(student.firstName || student.lastName)) {
+    return 'Unknown Student';
+  }
+  return `${student.firstName || ''} ${student.lastName || ''}`.trim();
+};
+
+const resolveReviewerId = (requestorId) =>
+  mongoose.Types.ObjectId.isValid(requestorId)
+    ? requestorId
+    : new mongoose.Types.ObjectId(requestorId);
+
+const getTotalMarks = (submission) => (submission.totalMarks > 0 ? submission.totalMarks : 100);
+
+const validateMarksGiven = (marksGiven, totalMarks) => {
+  if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
+    return { ok: false, message: 'Marks given must be a valid number' };
+  }
+  if (marksGiven < 0 || marksGiven > totalMarks) {
+    return { ok: false, message: `Marks given must be between 0 and ${totalMarks}` };
+  }
+  return { ok: true };
+};
+
+const calculateGrade = (marksGiven, totalMarks) => {
+  if (typeof totalMarks !== 'number' || Number.isNaN(totalMarks) || totalMarks <= 0) {
+    throw new TypeError('totalMarks must be a positive number');
+  }
+
+  if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
+    throw new TypeError('marksGiven must be a number');
+  }
+
+  const percentage = (marksGiven / totalMarks) * 100;
+  if (percentage >= 90) return 'A';
+  if (percentage >= 80) return 'B';
+  if (percentage >= 70) return 'C';
+  if (percentage >= 60) return 'D';
+  return 'F';
+};
+
+const applyMarkAsGraded = (submission, { marksGiven, grade, reviewerId, now }) => {
+  if (marksGiven === undefined && !grade) {
+    return { error: 'Either marks or grade must be provided to mark as graded', status: 400 };
+  }
+
+  const totalMarks = getTotalMarks(submission);
+
+  if (marksGiven !== undefined) {
+    const validation = validateMarksGiven(marksGiven, totalMarks);
+    if (!validation.ok) {
+      return { error: validation.message, status: 400 };
+    }
+  }
+
+  const finalGrade =
+    marksGiven !== undefined && !grade ? calculateGrade(marksGiven, totalMarks) : grade;
+
+  submission.status = 'graded';
+  submission.reviewStatus = 'graded';
+  submission.marksGiven = marksGiven;
+  submission.grade = finalGrade;
+  submission.reviewedAt = now;
+  submission.reviewedBy = reviewerId;
+  submission.completedAt = now;
+  submission.draftSaved = false;
+
+  return null;
+};
+
+const applyRequestChanges = (submission, { collaborativeFeedback, reviewerId, now }) => {
+  if (!collaborativeFeedback) {
+    return { error: 'Feedback is required when requesting changes', status: 400 };
+  }
+
+  submission.status = 'changes_requested';
+  submission.reviewStatus = 'changes_requested';
+  // Clear prior grading when moving back to changes_requested
+  submission.grade = 'pending';
+  submission.marksGiven = null;
+  submission.reviewedAt = null;
+  submission.completedAt = null;
+
+  submission.changeRequests.push({
+    requestedAt: now,
+    reason: collaborativeFeedback,
+    requestedBy: reviewerId,
+    resolved: false,
+  });
+
+  return null;
+};
+
+const maybeStartReview = (target) => {
+  if (target.reviewStatus === 'pending_review') {
+    target.reviewStatus = 'in_review';
+    target.reviewStartedAt = new Date();
+  }
+};
+
 const educationTaskReviewController = function () {
-  const calculateGrade = (marksGiven, totalMarks) => {
-    if (typeof totalMarks !== 'number' || Number.isNaN(totalMarks) || totalMarks <= 0) {
-      throw new Error('totalMarks must be a positive number');
-    }
-
-    if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
-      throw new Error('marksGiven must be a number');
-    }
-
-    const percentage = (marksGiven / totalMarks) * 100;
-    if (percentage >= 90) return 'A';
-    if (percentage >= 80) return 'B';
-    if (percentage >= 70) return 'C';
-    if (percentage >= 60) return 'D';
-    return 'F';
-  };
-
   const getSubmissionForReview = async (req, res) => {
     try {
       const { submissionId } = req.params;
@@ -40,7 +126,7 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Submission not found' });
       }
 
-      if (!['submitted', 'in_review', 'changes_requested', 'graded'].includes(submission.status)) {
+      if (!REVIEWABLE_STATUSES.includes(submission.status)) {
         return res.status(400).json({
           message: 'This task has not been submitted yet',
           currentStatus: submission.status,
@@ -63,15 +149,11 @@ const educationTaskReviewController = function () {
         });
       }
 
-      const studentName = `${submission.studentId.firstName || ''} ${
-        submission.studentId.lastName || ''
-      }`.trim();
-
       const response = {
         _id: submission._id,
         student: {
           id: submission.studentId._id,
-          name: studentName || 'Unknown Student',
+          name: buildStudentName(submission.studentId),
           email: submission.studentId.email,
           profilePic: submission.studentId.profilePic,
         },
@@ -110,7 +192,7 @@ const educationTaskReviewController = function () {
           reviewedBy: submission.reviewedBy
             ? {
                 id: submission.reviewedBy._id,
-                name: `${submission.reviewedBy.firstName} ${submission.reviewedBy.lastName}`,
+                name: buildStudentName(submission.reviewedBy),
               }
             : null,
           lastSavedAt: submission.lastSavedAt,
@@ -156,30 +238,19 @@ const educationTaskReviewController = function () {
       }
 
       if (pageComments !== undefined && Array.isArray(pageComments)) {
-        const updatedComments = pageComments.map((pc) => ({
+        updates.pageComments = pageComments.map((pc) => ({
           ...pc,
           createdBy: pc.createdBy || req.body.requestor?.requestorId,
           createdAt: pc.createdAt || new Date(),
           updatedAt: new Date(),
         }));
-        updates.pageComments = updatedComments;
       }
 
       if (marksGiven !== undefined) {
-        if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
-          return res.status(400).json({
-            message: 'Marks given must be a valid number',
-          });
+        const validation = validateMarksGiven(marksGiven, getTotalMarks(submission));
+        if (!validation.ok) {
+          return res.status(400).json({ message: validation.message });
         }
-
-        const totalMarks = submission.totalMarks > 0 ? submission.totalMarks : 100;
-
-        if (marksGiven < 0 || marksGiven > totalMarks) {
-          return res.status(400).json({
-            message: `Marks given must be between 0 and ${totalMarks}`,
-          });
-        }
-
         updates.marksGiven = marksGiven;
       }
 
@@ -231,7 +302,7 @@ const educationTaskReviewController = function () {
       }
 
       const newComment = {
-        pageNumber: parseInt(pageNumber, 10),
+        pageNumber: Number.parseInt(pageNumber, 10),
         comment,
         isPrivate: isPrivate || false,
         createdBy: req.body.requestor.requestorId,
@@ -242,11 +313,7 @@ const educationTaskReviewController = function () {
       submission.pageComments.push(newComment);
       submission.lastSavedAt = new Date();
       submission.draftSaved = true;
-
-      if (submission.reviewStatus === 'pending_review') {
-        submission.reviewStatus = 'in_review';
-        submission.reviewStartedAt = new Date();
-      }
+      maybeStartReview(submission);
 
       await submission.save();
       await submission.populate('pageComments.createdBy', 'firstName lastName');
@@ -304,7 +371,6 @@ const educationTaskReviewController = function () {
       if (comment !== undefined) commentToUpdate.comment = comment;
       if (isPrivate !== undefined) commentToUpdate.isPrivate = isPrivate;
       commentToUpdate.updatedAt = new Date();
-
       submission.lastSavedAt = new Date();
 
       await submission.save();
@@ -383,15 +449,11 @@ const educationTaskReviewController = function () {
         });
       }
 
-      const reviewerId = mongoose.Types.ObjectId.isValid(req.body.requestor.requestorId)
-        ? req.body.requestor.requestorId
-        : new mongoose.Types.ObjectId(req.body.requestor.requestorId);
-
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
         return res.status(400).json({ message: 'Invalid submission ID' });
       }
 
-      if (!action || !['mark_as_graded', 'request_changes'].includes(action)) {
+      if (!action || !SUBMIT_ACTIONS.includes(action)) {
         return res.status(400).json({
           message: 'Action must be either "mark_as_graded" or "request_changes"',
         });
@@ -404,63 +466,14 @@ const educationTaskReviewController = function () {
       }
 
       const now = new Date();
+      const reviewerId = resolveReviewerId(req.body.requestor.requestorId);
+      const actionResult =
+        action === 'mark_as_graded'
+          ? applyMarkAsGraded(submission, { marksGiven, grade, reviewerId, now })
+          : applyRequestChanges(submission, { collaborativeFeedback, reviewerId, now });
 
-      if (action === 'mark_as_graded') {
-        if (marksGiven === undefined && !grade) {
-          return res.status(400).json({
-            message: 'Either marks or grade must be provided to mark as graded',
-          });
-        }
-
-        const totalMarks = submission.totalMarks > 0 ? submission.totalMarks : 100;
-
-        if (marksGiven !== undefined) {
-          if (typeof marksGiven !== 'number' || Number.isNaN(marksGiven)) {
-            return res.status(400).json({
-              message: 'Marks given must be a valid number',
-            });
-          }
-          if (marksGiven < 0 || marksGiven > totalMarks) {
-            return res.status(400).json({
-              message: `Marks given must be between 0 and ${totalMarks}`,
-            });
-          }
-        }
-
-        let finalGrade = grade;
-        if (marksGiven !== undefined && !grade) {
-          finalGrade = calculateGrade(marksGiven, totalMarks);
-        }
-
-        submission.status = 'graded';
-        submission.reviewStatus = 'graded';
-        submission.marksGiven = marksGiven;
-        submission.grade = finalGrade;
-        submission.reviewedAt = now;
-        submission.reviewedBy = reviewerId;
-        submission.completedAt = now;
-        submission.draftSaved = false;
-      } else if (action === 'request_changes') {
-        if (!collaborativeFeedback) {
-          return res.status(400).json({
-            message: 'Feedback is required when requesting changes',
-          });
-        }
-
-        submission.status = 'changes_requested';
-        submission.reviewStatus = 'changes_requested';
-        // Clear prior grading when moving back to changes_requested
-        submission.grade = 'pending';
-        submission.marksGiven = null;
-        submission.reviewedAt = null;
-        submission.completedAt = null;
-
-        submission.changeRequests.push({
-          requestedAt: now,
-          reason: collaborativeFeedback,
-          requestedBy: reviewerId,
-          resolved: false,
-        });
+      if (actionResult) {
+        return res.status(actionResult.status).json({ message: actionResult.error });
       }
 
       if (collaborativeFeedback) submission.collaborativeFeedback = collaborativeFeedback;
@@ -474,12 +487,6 @@ const educationTaskReviewController = function () {
         .populate('lessonPlanId', 'title')
         .lean();
 
-      const student = populatedSubmission?.studentId;
-      const studentName =
-        student && (student.firstName || student.lastName)
-          ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-          : 'Unknown Student';
-
       return res.status(200).json({
         message:
           action === 'mark_as_graded'
@@ -491,7 +498,7 @@ const educationTaskReviewController = function () {
           reviewStatus: submission.reviewStatus,
           grade: submission.grade,
           marksGiven: submission.marksGiven ?? null,
-          studentName,
+          studentName: buildStudentName(populatedSubmission?.studentId),
           assignmentName: submission.name || populatedSubmission?.lessonPlanId?.title || 'Untitled',
         },
       });
