@@ -255,10 +255,63 @@ describe('fetchGithubReviews service', () => {
       expect.stringContaining('/repos/OneCommunityGlobal/HGNRest/pulls'),
       expect.objectContaining({
         headers: expect.objectContaining({
-          Authorization: 'token test-token',
+          Authorization: 'Bearer test-token',
           Accept: 'application/vnd.github+json',
         }),
       }),
     );
+  });
+
+  test('retries review fetch on 403 then succeeds', async () => {
+    jest.useFakeTimers();
+
+    axios.get
+      .mockResolvedValueOnce({ data: [{ number: 42 }] })
+      .mockRejectedValueOnce({
+        response: { status: 403, headers: {} },
+        message: 'Request failed with status code 403',
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            user: { login: 'retry-user' },
+            state: 'APPROVED',
+            submitted_at: dayjs().toISOString(),
+          },
+        ],
+      });
+
+    const resultPromise = fetchGitHubReviews('OneCommunityGlobal', 'HGNRest', 'allTime');
+    await jest.runAllTimersAsync();
+    const result = await resultPromise;
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        reviewer: 'retry-user',
+        counts: expect.objectContaining({ Sufficient: 1 }),
+      }),
+    ]);
+    // 1 PR list + 1 failed review + 1 successful retry
+    expect(axios.get).toHaveBeenCalledTimes(3);
+
+    jest.useRealTimers();
+  });
+
+  test('mapWithConcurrency respects concurrency limit', async () => {
+    const { mapWithConcurrency } = fetchGitHubReviewsFactory._test;
+    let active = 0;
+    let maxActive = 0;
+
+    await mapWithConcurrency([1, 2, 3, 4, 5, 6], 2, async (value) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      active -= 1;
+      return value * 2;
+    });
+
+    expect(maxActive).toBeLessThanOrEqual(2);
   });
 });

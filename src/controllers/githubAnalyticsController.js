@@ -65,7 +65,13 @@ const getGitHubReviews = async (req, res) => {
   const teamFilter = typeof team === 'string' && team.trim() ? team.trim() : null;
 
   try {
-    const allData = await Promise.all(repos.map((repo) => fetchGitHubReviews(org, repo, duration)));
+    // Fetch repos sequentially so both don't compete for GitHub rate limits at once.
+    const allData = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const repo of repos) {
+      // eslint-disable-next-line no-await-in-loop
+      allData.push(await fetchGitHubReviews(org, repo, duration));
+    }
 
     let combinedResults = mergeReviewerResults(allData);
 
