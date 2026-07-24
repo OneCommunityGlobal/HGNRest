@@ -3,8 +3,8 @@ const EducationTask = require('../models/educationTask');
 const LessonPlan = require('../models/lessonPlan'); // eslint-disable-line no-unused-vars
 const UserProfile = require('../models/userProfile'); // eslint-disable-line no-unused-vars
 
-const REVIEWABLE_STATUSES = ['submitted', 'in_review', 'changes_requested', 'graded'];
-const SUBMIT_ACTIONS = ['mark_as_graded', 'request_changes'];
+const REVIEWABLE_STATUSES = new Set(['submitted', 'in_review', 'changes_requested', 'graded']);
+const SUBMIT_ACTIONS = new Set(['mark_as_graded', 'request_changes']);
 
 const buildStudentName = (student) => {
   if (!student || !(student.firstName || student.lastName)) {
@@ -126,7 +126,7 @@ const educationTaskReviewController = function () {
         return res.status(404).json({ message: 'Submission not found' });
       }
 
-      if (!REVIEWABLE_STATUSES.includes(submission.status)) {
+      if (!REVIEWABLE_STATUSES.has(submission.status)) {
         return res.status(400).json({
           message: 'This task has not been submitted yet',
           currentStatus: submission.status,
@@ -453,7 +453,7 @@ const educationTaskReviewController = function () {
         return res.status(400).json({ message: 'Invalid submission ID' });
       }
 
-      if (!action || !SUBMIT_ACTIONS.includes(action)) {
+      if (!action || !SUBMIT_ACTIONS.has(action)) {
         return res.status(400).json({
           message: 'Action must be either "mark_as_graded" or "request_changes"',
         });
