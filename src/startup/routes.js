@@ -125,6 +125,7 @@ const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+const meeting = require('../models/meeting');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 const userStateRouter = require('../routes/userState');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
@@ -217,6 +218,7 @@ const costsRouter = require('../routes/costsRouter')(costs);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
+const meetingRouter = require('../routes/meetingRouter')(meeting);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
 const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
@@ -503,6 +505,7 @@ module.exports = function (app) {
   app.use('/api', materialUtilizationRouter);
 
   app.use('/api', formRouter);
+  app.use('/api', meetingRouter);
   app.use('/api', collaborationRouter);
   app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
