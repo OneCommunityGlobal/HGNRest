@@ -226,6 +226,7 @@ const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRout
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
 const materialCostRouter = require('../routes/materialCostRouter')();
+const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRoutes');
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
@@ -552,6 +553,7 @@ module.exports = function (app) {
   app.use('/api', taskCommentRouter);
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
   app.use('/api', jobHitsAndApplicationsRoutes);
+  app.use('/api/analytics', applicationTimeRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
