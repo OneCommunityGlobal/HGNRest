@@ -1,9 +1,14 @@
 function isEducator(user) {
-  return user?.role === 'Educator' || user?.permissions?.includes('educator');
+  return user?.role === 'Educator' || user?.permissions?.includes('createResourceRequests');
 }
 
 function isPM(user) {
-  return user?.role === 'Project Manager' || user?.permissions?.includes('manageResourceRequests');
+  return (
+    user?.role === 'Program Manager' ||
+    user?.role === 'Owner' ||
+    user?.role === 'Administrator' ||
+    user?.permissions?.includes('manageResourceRequests')
+  );
 }
 
 module.exports = { isEducator, isPM };

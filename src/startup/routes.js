@@ -661,6 +661,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
+  app.use('/api', resourceRequestRouter);
   app.use('/api/lb', listOverviewRouter);
   app.use('/api/educator/reports', classAggregationRouter);
 
@@ -693,6 +694,4 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
-
-  app.use('/api', resourceRequestRouter);
 };
