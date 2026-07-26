@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ps eww *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(gh pr *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:patch-diff.githubusercontent.com)",
+      "Bash(npx lint-staged *)",
+      "Bash(npx eslint *)",
+      "Bash(echo \"---exit $?---\")",
+      "Bash(npx prettier *)",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
 const Atom = require('../models/atom');
 const Subject = require('../models/subject');
 
+// eslint-disable-next-line max-lines-per-function
 const atomController = function () {
   // Get all atoms
   const getAtoms = async (req, res) => {
@@ -37,11 +37,11 @@ const atomController = function () {
       const atom = await Atom.findById(id)
         .populate('subjectId', 'name iconUrl')
         .populate('prerequisites', 'name description difficulty');
-      
+
       if (!atom) {
         return res.status(404).json({ error: 'Atom not found' });
       }
-      
+
       res.status(200).json(atom);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -51,14 +51,14 @@ const atomController = function () {
   // Create new atom
   const createAtom = async (req, res) => {
     try {
-      const { 
-        subjectId, 
-        name, 
-        description, 
-        difficulty, 
-        prerequisites, 
-        learningStrategies, 
-        learningTools 
+      const {
+        subjectId,
+        name,
+        description,
+        difficulty,
+        prerequisites,
+        learningStrategies,
+        learningTools,
       } = req.body;
 
       // Validate subject exists
@@ -82,7 +82,7 @@ const atomController = function () {
         difficulty: difficulty || 'beginner',
         prerequisites: prerequisites || [],
         learningStrategies: learningStrategies || [],
-        learningTools: learningTools || []
+        learningTools: learningTools || [],
       });
 
       const savedAtom = await atom.save();
@@ -105,14 +105,14 @@ const atomController = function () {
   const updateAtom = async (req, res) => {
     try {
       const { id } = req.params;
-      const { 
-        subjectId, 
-        name, 
-        description, 
-        difficulty, 
-        prerequisites, 
-        learningStrategies, 
-        learningTools 
+      const {
+        subjectId,
+        name,
+        description,
+        difficulty,
+        prerequisites,
+        learningStrategies,
+        learningTools,
       } = req.body;
 
       const atom = await Atom.findById(id);
@@ -131,9 +131,7 @@ const atomController = function () {
 
         // Remove from old subject
         if (oldSubject) {
-          oldSubject.atomIds = oldSubject.atomIds.filter(
-            atomId => !atomId.equals(id)
-          );
+          oldSubject.atomIds = oldSubject.atomIds.filter((atomId) => !atomId.equals(id));
           await oldSubject.save();
         }
 
@@ -152,18 +150,19 @@ const atomController = function () {
 
       const updatedAtom = await Atom.findByIdAndUpdate(
         id,
-        { 
-          subjectId, 
-          name, 
-          description, 
-          difficulty, 
-          prerequisites, 
-          learningStrategies, 
-          learningTools 
+        {
+          subjectId,
+          name,
+          description,
+          difficulty,
+          prerequisites,
+          learningStrategies,
+          learningTools,
         },
-        { new: true, runValidators: true }
-      ).populate('subjectId', 'name iconUrl')
-       .populate('prerequisites', 'name description difficulty');
+        { new: true, runValidators: true },
+      )
+        .populate('subjectId', 'name iconUrl')
+        .populate('prerequisites', 'name description difficulty');
 
       res.status(200).json(updatedAtom);
     } catch (error) {
@@ -184,17 +183,15 @@ const atomController = function () {
       // Remove from subject's atomIds array
       const subject = await Subject.findById(atom.subjectId);
       if (subject) {
-        subject.atomIds = subject.atomIds.filter(
-          atomId => !atomId.equals(id)
-        );
+        subject.atomIds = subject.atomIds.filter((atomId) => !atomId.equals(id));
         await subject.save();
       }
 
       // Check if atom is a prerequisite for other atoms
       const dependentAtoms = await Atom.find({ prerequisites: id });
       if (dependentAtoms.length > 0) {
-        return res.status(400).json({ 
-          error: 'Cannot delete atom that is a prerequisite for other atoms' 
+        return res.status(400).json({
+          error: 'Cannot delete atom that is a prerequisite for other atoms',
         });
       }
 
@@ -226,8 +223,8 @@ const atomController = function () {
     createAtom,
     updateAtom,
     deleteAtom,
-    getAtomsByDifficulty
+    getAtomsByDifficulty,
   };
 };
 
-module.exports = atomController; 
+module.exports = atomController;

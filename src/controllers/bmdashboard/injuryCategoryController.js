@@ -1,5 +1,7 @@
+/* eslint-disable camelcase */
 const mongoose = require('mongoose');
 const InjuryCategory = require('../../models/bmdashboard/buildingInjury');
+const { parseYmdUtc, parseDateFlexibleUTC } = require('../../utilities/bmDateUtils');
 
 // ---------- helpers ----------
 const parseCSV = (s = '') =>
@@ -8,22 +10,6 @@ const parseCSV = (s = '') =>
     .map((v) => v.trim())
     .filter(Boolean);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const parseYmdUtc = (s) => {
-  if (!s) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
-  if (!m) return null;
-  const [, y, mo, d] = m;
-  return new Date(Date.UTC(+y, +mo - 1, +d, 0, 0, 0, 0));
-};
-
-const parseDateFlexibleUTC = (s) => {
-  const d1 = parseYmdUtc(s);
-  if (d1) return d1;
-  if (!s) return null;
-  const d2 = new Date(s);
-  return Number.isNaN(d2.getTime()) ? null : d2;
-};
 
 const parseObjectIdsCSV = (s = '') =>
   parseCSV(s)

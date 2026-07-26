@@ -7,14 +7,25 @@ const currentWarnings = require('../models/currentWarnings');
 const emailSender = require('../utilities/emailSender');
 const userHelper = require('../helpers/userHelper')();
 const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
+const {
+  clearOutdatedWarningsFlag,
+  areWarningsInfoOutdated,
+} = require('../utilities/warningsCache');
 
 let currentWarningDescriptions = null;
 async function getWarningDescriptions() {
-  currentWarningDescriptions = await currentWarnings.find(
-    { activeWarning: true },
-    { warningTitle: 1, _id: 0, abbreviation: 1 },
-  );
+  currentWarningDescriptions = await currentWarnings
+    .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+    .sort({ order: 1 });
+  clearOutdatedWarningsFlag();
 }
+
+const checkWarningDescriptions = async () => {
+  const warningsOutdated = areWarningsInfoOutdated();
+  if (!currentWarningDescriptions || warningsOutdated) {
+    await getWarningDescriptions();
+  }
+};
 
 const convertObjectToArray = (obj) => {
   const arr = [];
@@ -28,6 +39,7 @@ const convertObjectToArray = (obj) => {
 async function getUserRoleByEmail(user) {
   const recipients = ['jae@onecommunityglobal.org'];
   for (const teamId of user.teams) {
+    // eslint-disable-next-line no-await-in-loop
     const managementEmails = await userHelper.getTeamManagementEmail(teamId);
     if (Array.isArray(managementEmails) && managementEmails.length > 0) {
       managementEmails.forEach((management) => {
@@ -86,7 +98,7 @@ const sendEmailToUser = async (
          <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
          <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
          <p>With Gratitude,</p>
-         <p>One Community</p>`;
+         <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue blue square') {
     subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -95,7 +107,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue two warnings blue square') {
     subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -104,7 +116,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue two warnings') {
     subject = `IMPORTANT: Please read this email and take note so you don’t get a blue square`;
     bccList = null;
@@ -115,7 +127,7 @@ const sendEmailToUser = async (
     <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and will likely result in a blue square being issued if it happens again.</p>
     <p>The Admin member who issued this warning is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue warning and blue square') {
     subject = `IMPORTANT: You have been issued a blue square and a warning`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -124,7 +136,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue blue square and warning') {
     subject = `IMPORTANT: You have been issued a blue square and a warning`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -133,7 +145,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   }
 
   emailSender(
@@ -170,6 +182,31 @@ const sortByColorAndDate = (a, b) => {
   }
 
   return colorComparison;
+};
+
+const checkIfWarningDescriptionMatchesWarningTrackerTitle = (warnings) => {
+  for (const { warningTitle, _id } of currentWarningDescriptions) {
+    warnings = warnings.map((warning) => {
+      // If warning has a warningId but description of warning does not match tracker's title, then the warning description is updated
+      if (_id.toString() === warning?.warningId && warningTitle !== warning?.description) {
+        return { ...warning, description: warningTitle };
+      }
+      return warning;
+    });
+  }
+  return warnings;
+};
+
+const updateWarningsMissingTrackerId = (warnings) => {
+  for (const { warningTitle, _id } of currentWarningDescriptions) {
+    warnings = warnings.map((warning) => {
+      if (!warning?.warningId && warningTitle === warning?.description) {
+        return { ...warning, warningId: _id };
+      }
+      return warning;
+    });
+  }
+  return warnings;
 };
 
 const filterWarnings = (
@@ -237,12 +274,12 @@ const filterWarnings = (
   });
 
   const completedData = [];
-
-  for (const { warningTitle, abbreviation } of warningDescriptions) {
+  for (const { warningTitle, abbreviation, order } of warningDescriptions) {
     completedData.push({
       title: warningTitle,
       warnings: warns[warningTitle] ? warns[warningTitle] : [],
       abbreviation: abbreviation || null,
+      order,
     });
   }
 
@@ -251,20 +288,29 @@ const filterWarnings = (
 
 const warningsController = function (UserProfile) {
   const getWarningsByUserId = async function (req, res) {
-    if (!currentWarningDescriptions) {
-      await getWarningDescriptions();
-    }
+    await checkWarningDescriptions();
 
     const { userId } = req.params;
 
     try {
-      const record = await UserProfile.findById(userId);
+      const record = await UserProfile.findById(userId).lean();
 
       if (!record || !record.warnings) {
         return res.status(400).send({ message: 'no valiud records' });
       }
 
-      const { completedData } = filterWarnings(currentWarningDescriptions, record.warnings);
+      const warningsList = record.warnings;
+      const updatedWarningsList = checkIfWarningDescriptionMatchesWarningTrackerTitle(warningsList);
+
+      const userWarnings = updateWarningsMissingTrackerId(updatedWarningsList);
+
+      await userProfile.findByIdAndUpdate(
+        record._id,
+        { $set: { warnings: userWarnings } },
+        { new: true },
+      );
+
+      const { completedData } = filterWarnings(currentWarningDescriptions, userWarnings);
       return res.status(201).send({ warnings: completedData });
     } catch (error) {
       return res.status(401).send({ message: error.message || error });
@@ -300,7 +346,7 @@ const warningsController = function (UserProfile) {
 
       return res.status(201).send({ message: 'success', warnings: completedData });
     } catch (error) {
-      console.log('error', error);
+      // Error handled
     }
   };
 
@@ -313,7 +359,12 @@ const warningsController = function (UserProfile) {
       const { userId } = req.params;
       const { warningsArray, issueBlueSquare, monitorData, iconId, color, date, description } =
         req.body;
-
+      let warningId = '';
+      for (const { warningTitle, _id } of currentWarningDescriptions) {
+        if (warningTitle === description) {
+          warningId = _id;
+        }
+      }
       const record = await UserProfile.findById(userId);
 
       if (!record || !record.warnings) {
@@ -337,7 +388,7 @@ const warningsController = function (UserProfile) {
 
       const updateData = warningsArray
         ? { $push: { warnings: { $each: warningsArray } } }
-        : { $push: { warnings: { userId, iconId, color, date, description } } };
+        : { $push: { warnings: { userId, iconId, color, date, description, warningId } } };
 
       const updatedWarnings = await UserProfile.findByIdAndUpdate({ _id: userId }, updateData, {
         new: true,

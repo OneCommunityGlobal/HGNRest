@@ -1,3 +1,4 @@
+/* eslint-disable arrow-body-style */
 // Mock the BuildingProject model
 const mockAggregate = jest.fn();
 const mockFindById = jest.fn();
