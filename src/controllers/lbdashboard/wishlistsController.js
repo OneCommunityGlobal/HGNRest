@@ -1,12 +1,16 @@
+const mongoose = require('mongoose');
 const Wishlist = require('../../models/lbdashboard/wishlists');
 const Listing = require('../../models/lbdashboard/listings');
 const Village = require('../../models/lbdashboard/villages');
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 const wishlistController = {
   getWishlist: async (req, res) => {
     try {
       const { userId } = req.query;
       if (!userId) return res.status(400).json({ message: 'userId is required' });
+      if (!isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid userId' });
       const wishlist = await Wishlist.findOne({ userId }).populate(
         'listingId',
         'title images description price amenities village',
@@ -45,6 +49,8 @@ const wishlistController = {
       const { listingId } = req.body;
       if (!userId || !listingId)
         return res.status(400).json({ message: 'userId and listingId required' });
+      if (!isValidObjectId(userId) || !isValidObjectId(listingId))
+        return res.status(400).json({ message: 'Invalid userId or listingId' });
 
       const listingExists = await Listing.findById(listingId);
       if (!listingExists) return res.status(404).json({ message: 'Listing not found' });
@@ -69,6 +75,8 @@ const wishlistController = {
       const { listingId } = req.params;
       if (!userId || !listingId)
         return res.status(400).json({ message: 'userId and listingId required' });
+      if (!isValidObjectId(userId) || !isValidObjectId(listingId))
+        return res.status(400).json({ message: 'Invalid userId or listingId' });
 
       const wishlist = await Wishlist.findOne({ userId });
       if (!wishlist) return res.status(404).json({ message: 'Wishlist not found' });
