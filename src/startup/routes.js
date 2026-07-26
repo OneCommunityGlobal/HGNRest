@@ -129,6 +129,8 @@ const meeting = require('../models/meeting');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 const userStateRouter = require('../routes/userState');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
+const productionIdentityRouter = require('../routes/productionIdentityRouter');
+const productionWebhookRouter = require('../routes/productionWebhookRouter');
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -449,6 +451,8 @@ module.exports = function (app) {
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
+  app.use('/api', productionIdentityRouter);
+  app.use('/api', productionWebhookRouter);
   app.use('/api', projectRouter);
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
