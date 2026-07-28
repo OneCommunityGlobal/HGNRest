@@ -1,5 +1,5 @@
-const Team = require('../models/team');
 const mongoose = require('mongoose');
+const Team = require('../models/team');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfile = require('../models/userProfile');
@@ -161,7 +161,7 @@ const titlecontroller = function (Title) {
       const { orderData } = req.body;
       console.log('Received order data:', orderData);
 
-      const updates = await Promise.all(
+      await Promise.all(
         orderData.map(async ({ id, order }) => {
           const updated = await Title.findByIdAndUpdate(id, { order }, { new: true });
           console.log('Updated title:', updated);
