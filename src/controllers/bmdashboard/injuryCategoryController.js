@@ -8,7 +8,7 @@ const parseCSV = (s = '') =>
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean);
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeProjectName = (s = '') => String(s).trim().toLowerCase();
 
 const parseYmdUtc = (s) => {
   if (!s) return null;
@@ -69,7 +69,20 @@ const buildMatch = ({
 
   const names = parseCSV(projectNames || projectName);
   if (names.length) {
-    match.$or = names.map((n) => ({ projectName: { $regex: new RegExp(escapeRe(n), 'i') } }));
+    match.$or = names.map((n) => ({
+      $expr: {
+        $eq: [
+          {
+            $toLower: {
+              $trim: {
+                input: { $ifNull: ['$projectName', ''] },
+              },
+            },
+          },
+          normalizeProjectName(n),
+        ],
+      },
+    }));
   }
 
   const invalidDate =
@@ -148,8 +161,23 @@ exports.getProjectsWithInjuries = async (req, res) => {
 
     const projects = await InjuryCategory.aggregate([
       { $match: match },
-      { $addFields: { _nameTrim: { $trim: { input: { $ifNull: ['$projectName', ''] } } } } },
-      { $group: { _id: '$projectId', names: { $addToSet: '$_nameTrim' } } },
+      {
+        $addFields: {
+          _nameTrim: { $trim: { input: { $ifNull: ['$projectName', ''] } } },
+          _nameNormalized: {
+            $toLower: { $trim: { input: { $ifNull: ['$projectName', ''] } } },
+          },
+        },
+      },
+      { $match: { _nameTrim: { $type: 'string', $ne: '' } } },
+      // Group by displayed name because legacy injury rows can reuse one projectId for different names.
+      {
+        $group: {
+          _id: '$_nameNormalized',
+          names: { $addToSet: '$_nameTrim' },
+          projectIds: { $addToSet: '$projectId' },
+        },
+      },
       {
         $project: {
           _id: 1,
@@ -160,6 +188,13 @@ exports.getProjectsWithInjuries = async (req, res) => {
                 as: 'n',
                 cond: { $ne: ['$$n', ''] },
               },
+            },
+          },
+          projectIds: {
+            $map: {
+              input: '$projectIds',
+              as: 'projectId',
+              in: { $toString: '$$projectId' },
             },
           },
         },
@@ -185,10 +220,15 @@ exports.getProjectsWithInjuries = async (req, res) => {
 // }
 exports.getInjuryTrendData = async (req, res) => {
   try {
-    const { projectId, startDate, endDate } = req.query || {};
+    const { projectId, projectName, startDate, endDate } = req.query || {};
 
-    // Build match using existing helpers for date parsing/validation
-    const { match, invalidDate } = buildMatch({ projectIds: projectId, startDate, endDate });
+    // Legacy injury rows can reuse an ID across names, so combine ID and exact name filters when both exist.
+    const { match, invalidDate } = buildMatch({
+      projectIds: projectId,
+      projectName,
+      startDate,
+      endDate,
+    });
     if (invalidDate)
       return res
         .status(400)
