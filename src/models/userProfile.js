@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  copiedAiPrompt: { type: Date, default: Date.now() },
+  copiedAiPrompt: { type: Date, default: Date.now },
   emailSubscriptions: {
     type: Boolean,
     default: false,
@@ -195,6 +195,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -411,6 +412,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [

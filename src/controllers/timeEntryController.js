@@ -114,7 +114,7 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       <p><b>Hours Logged : ${hoursLogged.toFixed(2)}</b></p>
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
     emailSender(
       userProfile.email,
       'Logged more hours than estimated for a task',
@@ -420,7 +420,7 @@ const addEditHistory = async (
           .localeData()
           .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
         <p>Thank you,<p>
-        <p>One Community</p>
+        <p>One Community Admin Team</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <hr style="border-top: 1px dashed #000;"/>
