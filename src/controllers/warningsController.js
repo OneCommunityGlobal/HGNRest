@@ -98,7 +98,7 @@ const sendEmailToUser = async (
          <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and may result in a blue square being issued if it happens again.</p>
          <p>The Admin member who issued the warning is ${monitorData.firstName} ${monitorData.lastName} and their email is ${monitorData.email}. Please comment on your Google Doc and tag them using this email if you have any questions.</p>
          <p>With Gratitude,</p>
-         <p>One Community</p>`;
+         <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue blue square') {
     subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -107,7 +107,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue two warnings blue square') {
     subject = `IMPORTANT: You have been issued a blue square`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -116,7 +116,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue two warnings') {
     subject = `IMPORTANT: Please read this email and take note so you don’t get a blue square`;
     bccList = null;
@@ -127,7 +127,7 @@ const sendEmailToUser = async (
     <p>Moving forward, please ensure you don’t create situations where we need to keep doing this for you. Repeated requests for the same thing require unnecessary administrative attention and will likely result in a blue square being issued if it happens again.</p>
     <p>The Admin member who issued this warning is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue warning and blue square') {
     subject = `IMPORTANT: You have been issued a blue square and a warning`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -136,7 +136,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   } else if (sendEmail === 'issue blue square and warning') {
     subject = `IMPORTANT: You have been issued a blue square and a warning`;
     emailTemplate = `<p>Hello ${currentUserName},</p>
@@ -145,7 +145,7 @@ const sendEmailToUser = async (
     <p>Please carefully review the previous communications you’ve received to fully understand what is being requested. If anything is unclear, feel free to ask questions—the Admin team is here to help.</p>
     <p>The Admin member who issued this blue square is ${monitorData.firstName} ${monitorData.lastName} and can be reached at ${monitorData.email}. If you have any questions, please comment on your Google Doc and tag them using this email.</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   }
 
   emailSender(
