@@ -793,8 +793,7 @@ describe('Building Issue Controller', () => {
       const result = res.json.mock.calls[0][0];
       expect(result).toHaveLength(1);
       expect(result[0].issueName).toBe('Old Issue');
-      expect(result[0].projects).toHaveLength(1);
-      expect(result[0].projects[0].durationOpen).toBeGreaterThan(0);
+      expect(result[0].durationOpen).toBeGreaterThan(0);
     });
 
     it('should filter by projects when provided', async () => {
@@ -849,12 +848,15 @@ describe('Building Issue Controller', () => {
 
       const result = res.json.mock.calls[0][0];
       expect(result).toHaveLength(7);
-      // Response is capped at 7 items; each item has issueName and projects with durationOpen
+      // Response is capped at 7 items; each item is a flat object with issueName and durationOpen
       result.forEach((item) => {
         expect(item.issueName).toBeDefined();
-        expect(item.projects).toHaveLength(1);
-        expect(typeof item.projects[0].durationOpen).toBe('number');
+        expect(typeof item.durationOpen).toBe('number');
       });
+      // Confirm results are actually sorted longest-to-shortest
+      for (let i = 1; i < result.length; i += 1) {
+        expect(result[i - 1].durationOpen).toBeGreaterThanOrEqual(result[i].durationOpen);
+      }
     });
 
     it('should format duration correctly for months', async () => {
@@ -874,7 +876,7 @@ describe('Building Issue Controller', () => {
       await controller.getLongestOpenIssues(req, res);
 
       const result = res.json.mock.calls[0][0];
-      expect(result[0].projects[0].durationOpen).toBeGreaterThanOrEqual(2);
+      expect(result[0].durationOpen).toBeGreaterThanOrEqual(2);
     });
 
     it('should return 500 error when database error occurs', async () => {
