@@ -431,7 +431,8 @@ function calculateTotalCostK(totalCost) {
 function objectIdToString(id) {
   if (id === null || id === undefined) return '';
   if (typeof id === 'string') return id;
-  if (typeof id.toString === 'function') return id.toString();
+  if (id instanceof mongoose.Types.ObjectId) return id.toHexString();
+  if (typeof id === 'object' && typeof id.toString === 'function') return id.toString();
   return '';
 }
 

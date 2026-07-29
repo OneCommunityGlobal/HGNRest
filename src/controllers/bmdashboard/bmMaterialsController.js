@@ -28,6 +28,213 @@ const DECIMAL_PRECISION = 4;
 const DAYS_IN_WEEK = 7;
 const DAYS_IN_TWO_WEEKS = 14;
 
+/** @returns {{ status: number, message: string, field: string }|null} Validation error or null if valid. */
+const validatePurchaseMaterialsBody = function (body) {
+  const {
+    primaryId: projectId,
+    secondaryId: matTypeId,
+    quantity,
+    priority,
+    requestor: { requestorId } = {},
+  } = body || {};
+  if (!projectId) return { status: 400, message: 'Project is required', field: 'projectId' };
+  if (!matTypeId) return { status: 400, message: 'Material is required', field: 'matTypeId' };
+  if (!quantity && quantity !== 0)
+    return { status: 400, message: 'Quantity is required', field: 'quantity' };
+  if (!priority) return { status: 400, message: 'Priority is required', field: 'priority' };
+  if (!requestorId)
+    return { status: 400, message: 'Requestor information is required', field: 'requestorId' };
+  if (!mongoose.Types.ObjectId.isValid(projectId))
+    return { status: 400, message: 'Invalid project ID format', field: 'projectId' };
+  if (!mongoose.Types.ObjectId.isValid(matTypeId))
+    return { status: 400, message: 'Invalid material ID format', field: 'matTypeId' };
+  if (!mongoose.Types.ObjectId.isValid(requestorId))
+    return { status: 400, message: 'Invalid requestor ID format', field: 'requestorId' };
+  const quantityNum = Number(quantity);
+  if (Number.isNaN(quantityNum))
+    return { status: 400, message: 'Quantity must be a valid number', field: 'quantity' };
+  if (quantityNum <= 0)
+    return { status: 400, message: 'Quantity must be greater than 0', field: 'quantity' };
+  const validPriorities = ['Low', 'Medium', 'High'];
+  if (!validPriorities.includes(priority))
+    return {
+      status: 400,
+      message: 'Priority must be one of: Low, Medium, High',
+      field: 'priority',
+    };
+  return null;
+};
+
+/**
+ * Handle date range parsing errors and return appropriate HTTP response.
+ *
+ * @param {Object} error - Error object from date parsing
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object|undefined} Response object if error handled, undefined otherwise
+ */
+const handleDateRangeError = function (error, req, res) {
+  // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
+  if (error.type === 'DATE_PARSE_ERROR') {
+    return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
+  }
+  if (error.type === 'DATE_RANGE_ERROR') {
+    return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+  }
+  return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+};
+
+/**
+ * Handle query parameter validation errors and return appropriate HTTP response.
+ *
+ * @param {Object} error - Error object from parameter validation
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object|undefined} Response object if error handled, undefined otherwise
+ */
+const handleQueryParamError = function (error, req, res) {
+  // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
+  if (error.type === 'OBJECTID_VALIDATION_ERROR' || error.type === 'NAME_RESOLUTION_ERROR') {
+    return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+  }
+  return undefined;
+};
+
+/**
+ * Extract and resolve query parameters (IDs and names) to ObjectId arrays.
+ * Handles both ID-based and name-based parameters, resolving names to IDs.
+ *
+ * @param {Object} req - Express request object
+ * @returns {Promise<{projectIds: string[], materialTypeIds: string[]}>} Resolved ID arrays
+ * @throws {Object} Structured error objects for validation/resolution failures
+ */
+const extractAndResolveQueryParams = async function (req) {
+  // Parse ID parameters (if provided)
+  const projectIdsFromParam = parseMultiSelectQueryParam(req, 'projectId', true);
+  const materialTypeIdsFromParam = parseMultiSelectQueryParam(req, 'materialType', true);
+
+  // Parse name parameters (if provided, no ObjectId validation)
+  const projectNames = parseMultiSelectQueryParam(req, 'projectName', false);
+  const materialNames = parseMultiSelectQueryParam(req, 'materialName', false);
+
+  let projectIds = projectIdsFromParam;
+  let materialTypeIds = materialTypeIdsFromParam;
+
+  // Resolve names to IDs if provided
+  if (projectNames.length > 0) {
+    const resolvedProjectIds = await resolveProjectNamesToIds(projectNames, BuildingProject);
+    projectIds = [...projectIdsFromParam, ...resolvedProjectIds];
+  }
+
+  if (materialNames.length > 0) {
+    const resolvedMaterialIds = await resolveMaterialNamesToIds(materialNames, invTypeBase);
+    materialTypeIds = [...materialTypeIdsFromParam, ...resolvedMaterialIds];
+  }
+
+  // Remove duplicates from combined arrays
+  return {
+    projectIds: [...new Set(projectIds)],
+    materialTypeIds: [...new Set(materialTypeIds)],
+  };
+};
+
+const DAYS_IN_STOCK_RISK_PERIOD = 30;
+const SENTINEL_NO_USAGE_DATA = 999;
+
+/** @returns {{ query: Object }|{ error: { status: number, body: Object }}} */
+const buildStockOutRiskQuery = function (projectIds) {
+  const query = {};
+  if (!projectIds || projectIds === 'all' || typeof projectIds !== 'string') {
+    return { query };
+  }
+  const projectIdArray = projectIds
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+  if (projectIdArray.length === 0) return { query };
+  const validProjectIds = projectIdArray
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (validProjectIds.length > 0) {
+    query.project = { $in: validProjectIds };
+    return { query };
+  }
+  return {
+    error: {
+      status: 400,
+      body: {
+        error: 'Invalid project IDs provided',
+        details: 'All provided project IDs are invalid',
+      },
+    },
+  };
+};
+
+const isValidMaterialForStockRisk = function (material) {
+  return (
+    material &&
+    typeof material.stockAvailable === 'number' &&
+    material.stockAvailable > 0 &&
+    material.project?._id &&
+    material.itemType?._id
+  );
+};
+
+const computeUsageFromUpdateRecords = function (updateRecords, thirtyDaysAgo, now) {
+  const records = Array.isArray(updateRecords) ? updateRecords : [];
+  let totalUsage = 0;
+  const usageByDate = {};
+  records.forEach((record) => {
+    if (!record?.date) return;
+    const recordDate = new Date(record.date);
+    if (Number.isNaN(recordDate.getTime())) return;
+    if (recordDate < thirtyDaysAgo || recordDate > now) return;
+    const dateKey = recordDate.toISOString().split('T')[0];
+    const quantityUsed = Number.parseFloat(record.quantityUsed) || 0;
+    if (quantityUsed > 0) {
+      usageByDate[dateKey] = (usageByDate[dateKey] || 0) + quantityUsed;
+      totalUsage += quantityUsed;
+    }
+  });
+  return { totalUsage };
+};
+
+const computeAverageDailyAndDaysOut = function (material, totalUsage) {
+  const daysInPeriod = DAYS_IN_STOCK_RISK_PERIOD;
+  let averageDailyUsage = totalUsage > 0 ? totalUsage / daysInPeriod : 0;
+  if (averageDailyUsage === 0 && material.stockUsed > 0) {
+    averageDailyUsage = Number.parseFloat(material.stockUsed) / daysInPeriod;
+  }
+  const daysUntilStockOut =
+    averageDailyUsage > 0
+      ? Math.floor(material.stockAvailable / averageDailyUsage)
+      : SENTINEL_NO_USAGE_DATA;
+  return { averageDailyUsage, daysUntilStockOut };
+};
+
+const buildStockOutRiskItem = function (material, averageDailyUsage, daysUntilStockOut) {
+  return {
+    materialName: material.itemType.name || 'Unknown Material',
+    materialId: material.itemType._id.toString(),
+    projectId: material.project._id.toString(),
+    projectName: material.project.name || 'Unknown Project',
+    stockAvailable: Number.parseFloat(material.stockAvailable.toFixed(2)),
+    averageDailyUsage: Number.parseFloat(averageDailyUsage.toFixed(2)),
+    daysUntilStockOut: Math.max(0, daysUntilStockOut),
+    unit: material.itemType.unit || '',
+  };
+};
+
+const getStockOutRiskErrorResponse = function (err) {
+  if (err.name === 'CastError' || err.name === 'ValidationError') {
+    return { statusCode: 400, errorMessage: 'Invalid request parameters' };
+  }
+  if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+    return { statusCode: 503, errorMessage: 'Database error' };
+  }
+  return { statusCode: 500, errorMessage: 'Internal Server Error' };
+};
+
 // eslint-disable-next-line max-lines-per-function
 const bmMaterialsController = function (BuildingMaterial) {
   const bmMaterialsList = async function _matsList(req, res) {
@@ -63,43 +270,6 @@ const bmMaterialsController = function (BuildingMaterial) {
     } catch (err) {
       res.json(err);
     }
-  };
-
-  /** @returns {{ status: number, message: string, field: string }|null} Validation error or null if valid. */
-  const validatePurchaseMaterialsBody = function (body) {
-    const {
-      primaryId: projectId,
-      secondaryId: matTypeId,
-      quantity,
-      priority,
-      requestor: { requestorId } = {},
-    } = body || {};
-    if (!projectId) return { status: 400, message: 'Project is required', field: 'projectId' };
-    if (!matTypeId) return { status: 400, message: 'Material is required', field: 'matTypeId' };
-    if (!quantity && quantity !== 0)
-      return { status: 400, message: 'Quantity is required', field: 'quantity' };
-    if (!priority) return { status: 400, message: 'Priority is required', field: 'priority' };
-    if (!requestorId)
-      return { status: 400, message: 'Requestor information is required', field: 'requestorId' };
-    if (!mongoose.Types.ObjectId.isValid(projectId))
-      return { status: 400, message: 'Invalid project ID format', field: 'projectId' };
-    if (!mongoose.Types.ObjectId.isValid(matTypeId))
-      return { status: 400, message: 'Invalid material ID format', field: 'matTypeId' };
-    if (!mongoose.Types.ObjectId.isValid(requestorId))
-      return { status: 400, message: 'Invalid requestor ID format', field: 'requestorId' };
-    const quantityNum = Number(quantity);
-    if (Number.isNaN(quantityNum))
-      return { status: 400, message: 'Quantity must be a valid number', field: 'quantity' };
-    if (quantityNum <= 0)
-      return { status: 400, message: 'Quantity must be greater than 0', field: 'quantity' };
-    const validPriorities = ['Low', 'Medium', 'High'];
-    if (!validPriorities.includes(priority))
-      return {
-        status: 400,
-        message: 'Priority must be one of: Low, Medium, High',
-        field: 'priority',
-      };
-    return null;
   };
 
   const performMaterialPurchase = async function (body, quantityNum, res) {
@@ -237,13 +407,15 @@ const bmMaterialsController = function (BuildingMaterial) {
         );
       }
 
-      let newStockUsed = +material.stockUsed + parseFloat(quantityUsed);
-      let newStockWasted = +material.stockWasted + parseFloat(quantityWasted);
+      let newStockUsed = +material.stockUsed + Number.parseFloat(quantityUsed);
+      let newStockWasted = +material.stockWasted + Number.parseFloat(quantityWasted);
       let newAvailable =
-        +material.stockAvailable - parseFloat(quantityUsed) - parseFloat(quantityWasted);
-      newStockUsed = parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
-      newStockWasted = parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
-      newAvailable = parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
+        +material.stockAvailable -
+        Number.parseFloat(quantityUsed) -
+        Number.parseFloat(quantityWasted);
+      newStockUsed = Number.parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
+      newStockWasted = Number.parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
+      newAvailable = Number.parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
       if (newAvailable < 0) {
         errorFlag = true;
         break;
@@ -432,7 +604,7 @@ const bmMaterialsController = function (BuildingMaterial) {
       let usageIncreasePercent = 0;
       if (usedLastWeek > 0) {
         usageIncreasePercent = ((usedThisWeek - usedLastWeek) / usedLastWeek) * 100;
-        usageIncreasePercent = parseFloat(usageIncreasePercent.toFixed(2));
+        usageIncreasePercent = Number.parseFloat(usageIncreasePercent.toFixed(2));
       }
 
       res.status(200).json({
@@ -479,79 +651,6 @@ const bmMaterialsController = function (BuildingMaterial) {
 
     // Fallback: today's start-of-day UTC
     return normalizeStartDate(new Date(), true);
-  };
-
-  /**
-   * Handle date range parsing errors and return appropriate HTTP response.
-   *
-   * @param {Object} error - Error object from date parsing
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @returns {Object|undefined} Response object if error handled, undefined otherwise
-   */
-  const handleDateRangeError = function (error, req, res) {
-    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
-    if (error.type === 'DATE_PARSE_ERROR') {
-      return res.status(HTTP_STATUS_UNPROCESSABLE_ENTITY).json({ error: error.message });
-    }
-    if (error.type === 'DATE_RANGE_ERROR') {
-      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
-    }
-    return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
-  };
-
-  /**
-   * Handle query parameter validation errors and return appropriate HTTP response.
-   *
-   * @param {Object} error - Error object from parameter validation
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @returns {Object|undefined} Response object if error handled, undefined otherwise
-   */
-  const handleQueryParamError = function (error, req, res) {
-    // Validation errors are expected and return proper HTTP responses - no need to log as exceptions
-    if (error.type === 'OBJECTID_VALIDATION_ERROR' || error.type === 'NAME_RESOLUTION_ERROR') {
-      return res.status(HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
-    }
-    return undefined;
-  };
-
-  /**
-   * Extract and resolve query parameters (IDs and names) to ObjectId arrays.
-   * Handles both ID-based and name-based parameters, resolving names to IDs.
-   *
-   * @param {Object} req - Express request object
-   * @returns {Promise<{projectIds: string[], materialTypeIds: string[]}>} Resolved ID arrays
-   * @throws {Object} Structured error objects for validation/resolution failures
-   */
-  const extractAndResolveQueryParams = async function (req) {
-    // Parse ID parameters (if provided)
-    const projectIdsFromParam = parseMultiSelectQueryParam(req, 'projectId', true);
-    const materialTypeIdsFromParam = parseMultiSelectQueryParam(req, 'materialType', true);
-
-    // Parse name parameters (if provided, no ObjectId validation)
-    const projectNames = parseMultiSelectQueryParam(req, 'projectName', false);
-    const materialNames = parseMultiSelectQueryParam(req, 'materialName', false);
-
-    let projectIds = projectIdsFromParam;
-    let materialTypeIds = materialTypeIdsFromParam;
-
-    // Resolve names to IDs if provided
-    if (projectNames.length > 0) {
-      const resolvedProjectIds = await resolveProjectNamesToIds(projectNames, BuildingProject);
-      projectIds = [...projectIdsFromParam, ...resolvedProjectIds];
-    }
-
-    if (materialNames.length > 0) {
-      const resolvedMaterialIds = await resolveMaterialNamesToIds(materialNames, invTypeBase);
-      materialTypeIds = [...materialTypeIdsFromParam, ...resolvedMaterialIds];
-    }
-
-    // Remove duplicates from combined arrays
-    return {
-      projectIds: [...new Set(projectIds)],
-      materialTypeIds: [...new Set(materialTypeIds)],
-    };
   };
 
   const bmGetMaterialCostCorrelation = async function (req, res) {
@@ -660,103 +759,6 @@ const bmMaterialsController = function (BuildingMaterial) {
       });
       return res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ error: 'Internal server error' });
     }
-  };
-
-  const DAYS_IN_STOCK_RISK_PERIOD = 30;
-  const SENTINEL_NO_USAGE_DATA = 999;
-
-  /** @returns {{ query: Object }|{ error: { status: number, body: Object }}} */
-  const buildStockOutRiskQuery = function (projectIds) {
-    const query = {};
-    if (!projectIds || projectIds === 'all' || typeof projectIds !== 'string') {
-      return { query };
-    }
-    const projectIdArray = projectIds
-      .split(',')
-      .map((id) => id.trim())
-      .filter((id) => id.length > 0);
-    if (projectIdArray.length === 0) return { query };
-    const validProjectIds = projectIdArray
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
-    if (validProjectIds.length > 0) {
-      query.project = { $in: validProjectIds };
-      return { query };
-    }
-    return {
-      error: {
-        status: 400,
-        body: {
-          error: 'Invalid project IDs provided',
-          details: 'All provided project IDs are invalid',
-        },
-      },
-    };
-  };
-
-  const isValidMaterialForStockRisk = function (material) {
-    return (
-      material &&
-      typeof material.stockAvailable === 'number' &&
-      material.stockAvailable > 0 &&
-      material.project?._id &&
-      material.itemType?._id
-    );
-  };
-
-  const computeUsageFromUpdateRecords = function (updateRecords, thirtyDaysAgo, now) {
-    const records = Array.isArray(updateRecords) ? updateRecords : [];
-    let totalUsage = 0;
-    const usageByDate = {};
-    records.forEach((record) => {
-      if (!record?.date) return;
-      const recordDate = new Date(record.date);
-      if (Number.isNaN(recordDate.getTime())) return;
-      if (recordDate < thirtyDaysAgo || recordDate > now) return;
-      const dateKey = recordDate.toISOString().split('T')[0];
-      const quantityUsed = parseFloat(record.quantityUsed) || 0;
-      if (quantityUsed > 0) {
-        usageByDate[dateKey] = (usageByDate[dateKey] || 0) + quantityUsed;
-        totalUsage += quantityUsed;
-      }
-    });
-    return { totalUsage };
-  };
-
-  const computeAverageDailyAndDaysOut = function (material, totalUsage) {
-    const daysInPeriod = DAYS_IN_STOCK_RISK_PERIOD;
-    let averageDailyUsage = totalUsage > 0 ? totalUsage / daysInPeriod : 0;
-    if (averageDailyUsage === 0 && material.stockUsed > 0) {
-      averageDailyUsage = parseFloat(material.stockUsed) / daysInPeriod;
-    }
-    const daysUntilStockOut =
-      averageDailyUsage > 0
-        ? Math.floor(material.stockAvailable / averageDailyUsage)
-        : SENTINEL_NO_USAGE_DATA;
-    return { averageDailyUsage, daysUntilStockOut };
-  };
-
-  const buildStockOutRiskItem = function (material, averageDailyUsage, daysUntilStockOut) {
-    return {
-      materialName: material.itemType.name || 'Unknown Material',
-      materialId: material.itemType._id.toString(),
-      projectId: material.project._id.toString(),
-      projectName: material.project.name || 'Unknown Project',
-      stockAvailable: parseFloat(material.stockAvailable.toFixed(2)),
-      averageDailyUsage: parseFloat(averageDailyUsage.toFixed(2)),
-      daysUntilStockOut: Math.max(0, daysUntilStockOut),
-      unit: material.itemType.unit || '',
-    };
-  };
-
-  const getStockOutRiskErrorResponse = function (err) {
-    if (err.name === 'CastError' || err.name === 'ValidationError') {
-      return { statusCode: 400, errorMessage: 'Invalid request parameters' };
-    }
-    if (err.name === 'MongoError' || err.name === 'MongoServerError') {
-      return { statusCode: 503, errorMessage: 'Database error' };
-    }
-    return { statusCode: 500, errorMessage: 'Internal Server Error' };
   };
 
   const bmGetMaterialStockOutRisk = async function (req, res) {

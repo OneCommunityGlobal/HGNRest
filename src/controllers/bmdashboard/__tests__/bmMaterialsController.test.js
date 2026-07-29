@@ -22,6 +22,8 @@ jest.mock(
     aggregateMaterialUsage: jest.fn(),
     aggregateMaterialCost: jest.fn(),
     buildCostCorrelationResponse: jest.fn(),
+    resolveProjectNamesToIds: jest.fn().mockResolvedValue([]),
+    resolveMaterialNamesToIds: jest.fn().mockResolvedValue([]),
   }),
   { virtual: true },
 );
