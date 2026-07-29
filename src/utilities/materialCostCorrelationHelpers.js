@@ -432,7 +432,16 @@ function objectIdToString(id) {
   if (id === null || id === undefined) return '';
   if (typeof id === 'string') return id;
   if (id instanceof mongoose.Types.ObjectId) return id.toHexString();
-  if (typeof id === 'object') return String(id);
+  if (typeof id === 'object' && typeof id.toHexString === 'function') {
+    return id.toHexString();
+  }
+  if (
+    typeof id === 'object' &&
+    typeof id.toString === 'function' &&
+    id.toString !== Object.prototype.toString
+  ) {
+    return id.toString();
+  }
   return '';
 }
 
