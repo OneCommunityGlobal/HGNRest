@@ -58,6 +58,8 @@ const {
   aggregateMaterialUsage: mockAggregateMaterialUsage,
   aggregateMaterialCost: mockAggregateMaterialCost,
   buildCostCorrelationResponse: mockBuildCostCorrelationResponse,
+  resolveProjectNamesToIds: mockResolveProjectNamesToIds,
+  resolveMaterialNamesToIds: mockResolveMaterialNamesToIds,
 } = require('../../../utilities/materialCostCorrelationHelpers');
 const { logException: mockLogException } = require('../../../startup/logger');
 
@@ -69,6 +71,7 @@ const mockThen = jest.fn().mockImplementation((callback) => {
 });
 const mockCatch = jest.fn();
 const mockPopulate = jest.fn().mockReturnThis();
+const mockLean = jest.fn().mockReturnThis();
 const mockFind = jest.fn().mockReturnThis();
 const mockFindOne = jest.fn();
 const mockCreate = jest.fn();
@@ -87,6 +90,7 @@ const BuildingMaterial = {
   findOneAndUpdate: mockFindOneAndUpdate,
   updateOne: mockUpdateOne,
   populate: mockPopulate,
+  lean: mockLean,
   exec: mockExec,
   aggregate: mockAggregate,
 };
@@ -97,6 +101,7 @@ beforeEach(() => {
   mockExec.mockReturnValue({ then: mockThen });
   mockFind.mockReturnThis();
   mockPopulate.mockReturnThis();
+  mockLean.mockReturnThis();
 });
 
 describe('bmMaterialsController', () => {
@@ -269,6 +274,184 @@ describe('bmMaterialsController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.send).toHaveBeenCalled();
     });
+
+    it('should return 500 if create fails', async () => {
+      mockFindOne.mockResolvedValue(null);
+      mockCreate.mockImplementation(() => ({
+        then() {
+          return {
+            catch(callback) {
+              callback(new Error('create failed'));
+            },
+          };
+        },
+      }));
+
+      const req = {
+        body: {
+          primaryId: validProjectId,
+          secondaryId: validMatTypeId,
+          quantity: 50,
+          priority: 'Low',
+          brand: 'BrandX',
+          requestor: { requestorId: validRequestorId },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it('should return 500 if update fails', async () => {
+      mockFindOne.mockResolvedValue({ _id: '507f1f77bcf86cd799439014' });
+      mockFindOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockReturnValue({
+          then() {
+            return {
+              catch(callback) {
+                callback(new Error('update failed'));
+              },
+            };
+          },
+        }),
+      });
+
+      const req = {
+        body: {
+          primaryId: validProjectId,
+          secondaryId: validMatTypeId,
+          quantity: 50,
+          priority: 'Low',
+          brand: 'BrandX',
+          requestor: { requestorId: validRequestorId },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    describe('validatePurchaseMaterialsBody branches', () => {
+      const baseBody = {
+        primaryId: validProjectId,
+        secondaryId: validMatTypeId,
+        quantity: 50,
+        priority: 'Low',
+        brand: 'BrandX',
+        requestor: { requestorId: validRequestorId },
+      };
+
+      const makeRes = () => ({
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn().mockReturnThis(),
+      });
+
+      it.each([
+        [
+          'missing primaryId',
+          { ...baseBody, primaryId: undefined },
+          { message: 'Project is required', field: 'projectId' },
+        ],
+        [
+          'missing secondaryId',
+          { ...baseBody, secondaryId: undefined },
+          { message: 'Material is required', field: 'matTypeId' },
+        ],
+        [
+          'missing quantity',
+          { ...baseBody, quantity: undefined },
+          { message: 'Quantity is required', field: 'quantity' },
+        ],
+        [
+          'missing priority',
+          { ...baseBody, priority: undefined },
+          { message: 'Priority is required', field: 'priority' },
+        ],
+        [
+          'missing requestorId',
+          { ...baseBody, requestor: {} },
+          { message: 'Requestor information is required', field: 'requestorId' },
+        ],
+        [
+          'invalid projectId format',
+          { ...baseBody, primaryId: 'not-valid' },
+          { message: 'Invalid project ID format', field: 'projectId' },
+        ],
+        [
+          'invalid matTypeId format',
+          { ...baseBody, secondaryId: 'not-valid' },
+          { message: 'Invalid material ID format', field: 'matTypeId' },
+        ],
+        [
+          'invalid requestorId format',
+          { ...baseBody, requestor: { requestorId: 'not-valid' } },
+          { message: 'Invalid requestor ID format', field: 'requestorId' },
+        ],
+        [
+          'non-numeric quantity',
+          { ...baseBody, quantity: 'abc' },
+          { message: 'Quantity must be a valid number', field: 'quantity' },
+        ],
+        [
+          'zero-or-negative quantity',
+          { ...baseBody, quantity: -5 },
+          { message: 'Quantity must be greater than 0', field: 'quantity' },
+        ],
+        [
+          'invalid priority value',
+          { ...baseBody, priority: 'Urgent' },
+          { message: 'Priority must be one of: Low, Medium, High', field: 'priority' },
+        ],
+      ])('should return 400 for %s', async (_desc, body, expected) => {
+        const req = { body };
+        const res = makeRes();
+
+        await controller.bmPurchaseMaterials(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining(expected));
+        expect(mockFindOne).not.toHaveBeenCalled();
+      });
+
+      it('should accept a quantity of exactly 0 as provided (not "missing")', async () => {
+        mockFindOne.mockResolvedValue(null);
+        mockCreate.mockImplementation(() => ({
+          then(callback) {
+            callback();
+            return { catch: jest.fn() };
+          },
+        }));
+
+        const req = { body: { ...baseBody, quantity: 0 } };
+        const res = makeRes();
+
+        await controller.bmPurchaseMaterials(req, res);
+
+        // quantity=0 passes the "required" check but fails the "greater than 0" check
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Quantity must be greater than 0',
+            field: 'quantity',
+          }),
+        );
+      });
+    });
   });
 
   describe('bmPostMaterialUpdateRecord', () => {
@@ -371,6 +554,247 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith(
         expect.stringContaining('exceeds the total stock available'),
       );
+    });
+
+    it('should convert percent-based quantityUsed and quantityWasted to actual values', async () => {
+      mockUpdateOne.mockReturnValue({
+        then(callback) {
+          callback({ nModified: 1 });
+          return { catch: jest.fn() };
+        },
+      });
+
+      const material = {
+        _id: validMaterialId,
+        stockAvailable: 100,
+        stockUsed: 0,
+        stockWasted: 0,
+      };
+
+      const req = {
+        body: {
+          material,
+          quantityUsed: 10, // 10% of 100 = 10
+          quantityWasted: 5, // 5% of 100 = 5
+          date: '2023-01-01',
+          requestor: { requestorId: 'user123' },
+          QtyUsedLogUnit: 'percent',
+          QtyWastedLogUnit: 'percent',
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateRecord(req, res);
+
+      expect(mockUpdateOne).toHaveBeenCalledWith(
+        { _id: expect.any(mongoose.Types.ObjectId) },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            stockUsed: 10,
+            stockWasted: 5,
+            stockAvailable: 85,
+          }),
+        }),
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should return 500 when updateOne fails', async () => {
+      mockUpdateOne.mockReturnValue({
+        then() {
+          return {
+            catch(callback) {
+              callback(new Error('update failed'));
+            },
+          };
+        },
+      });
+
+      const material = {
+        _id: validMaterialId,
+        stockAvailable: 100,
+        stockUsed: 20,
+        stockWasted: 10,
+      };
+
+      const req = {
+        body: {
+          material,
+          quantityUsed: 5,
+          quantityWasted: 2,
+          date: '2023-01-01',
+          requestor: { requestorId: 'user123' },
+          QtyUsedLogUnit: 'unit',
+          QtyWastedLogUnit: 'unit',
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateRecord(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith({ message: expect.any(Error) });
+    });
+  });
+
+  describe('bmPostMaterialUpdateBulk', () => {
+    const validMaterialId1 = '507f1f77bcf86cd799439021';
+    const validMaterialId2 = '507f1f77bcf86cd799439022';
+
+    it('should update multiple materials successfully', async () => {
+      mockUpdateOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ nModified: 1 }) });
+
+      const req = {
+        body: {
+          upadateMaterials: [
+            {
+              material: {
+                _id: validMaterialId1,
+                stockAvailable: 100,
+                stockUsed: 0,
+                stockWasted: 0,
+              },
+              quantityUsed: 10,
+              quantityWasted: 5,
+              QtyUsedLogUnit: 'unit',
+              QtyWastedLogUnit: 'unit',
+              date: '2023-01-01',
+            },
+            {
+              material: { _id: validMaterialId2, stockAvailable: 50, stockUsed: 0, stockWasted: 0 },
+              quantityUsed: 5,
+              quantityWasted: 0,
+              QtyUsedLogUnit: 'unit',
+              QtyWastedLogUnit: 'unit',
+              date: '2023-01-01',
+            },
+          ],
+          requestor: { requestorId: 'user123' },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateBulk(req, res);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockUpdateOne).toHaveBeenCalledTimes(2);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith(
+        expect.objectContaining({ result: expect.stringContaining('2 Material records') }),
+      );
+    });
+
+    it('should return 500 when resulting stock available would be negative', async () => {
+      const req = {
+        body: {
+          upadateMaterials: [
+            {
+              material: { _id: validMaterialId1, stockAvailable: 10, stockUsed: 0, stockWasted: 0 },
+              quantityUsed: 20,
+              quantityWasted: 0,
+              QtyUsedLogUnit: 'unit',
+              QtyWastedLogUnit: 'unit',
+              date: '2023-01-01',
+            },
+          ],
+          requestor: { requestorId: 'user123' },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateBulk(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith('Stock quantities submitted seems to be invalid');
+      expect(mockUpdateOne).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when a material._id is not a valid ObjectId', async () => {
+      const req = {
+        body: {
+          upadateMaterials: [
+            {
+              material: {
+                _id: 'not-a-valid-objectid',
+                stockAvailable: 100,
+                stockUsed: 0,
+                stockWasted: 0,
+              },
+              quantityUsed: 10,
+              quantityWasted: 0,
+              QtyUsedLogUnit: 'unit',
+              QtyWastedLogUnit: 'unit',
+              date: '2023-01-01',
+            },
+          ],
+          requestor: { requestorId: 'user123' },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateBulk(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith('Stock quantities submitted seems to be invalid');
+      expect(mockUpdateOne).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when one of the bulk updates fails', async () => {
+      mockUpdateOne.mockReturnValue({
+        exec: jest.fn().mockRejectedValue(new Error('bulk update failed')),
+      });
+
+      const req = {
+        body: {
+          upadateMaterials: [
+            {
+              material: {
+                _id: validMaterialId1,
+                stockAvailable: 100,
+                stockUsed: 0,
+                stockWasted: 0,
+              },
+              quantityUsed: 10,
+              quantityWasted: 0,
+              QtyUsedLogUnit: 'unit',
+              QtyWastedLogUnit: 'unit',
+              date: '2023-01-01',
+            },
+          ],
+          requestor: { requestorId: 'user123' },
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn(),
+      };
+
+      await controller.bmPostMaterialUpdateBulk(req, res);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(expect.any(Error));
     });
   });
 
@@ -488,6 +912,144 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith(
         expect.stringContaining("can only be updated from 'Pending'"),
       );
+    });
+
+    it('should return 404 if the purchase record is missing from the material', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439abc';
+      const mockMaterial = {
+        purchaseRecord: [{ _id: 'some-other-id', status: 'Pending' }],
+      };
+      mockFindOne.mockResolvedValue(mockMaterial);
+
+      const req = {
+        body: {
+          purchaseId: validPurchaseId,
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.send).toHaveBeenCalledWith('Purchase record not found');
+    });
+
+    it('should approve a purchase, increment stockBought, and return 200', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439abd';
+      const mockMaterial = {
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+      };
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
+
+      const req = {
+        body: {
+          purchaseId: validPurchaseId,
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
+        {
+          $set: { 'purchaseRecord.$.status': 'Approved' },
+          $inc: { stockBought: 30 },
+        },
+        { new: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
+    });
+
+    it('should reject a purchase without incrementing stockBought', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439abe';
+      const mockMaterial = {
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+      };
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue({ status: 'Rejected' });
+
+      const req = {
+        body: {
+          purchaseId: validPurchaseId,
+          status: 'Rejected',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
+        { $set: { 'purchaseRecord.$.status': 'Rejected' } },
+        { new: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith('Purchase rejected successfully');
+    });
+
+    it('should return 500 when findOneAndUpdate fails to apply the update', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439abf';
+      const mockMaterial = {
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+      };
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue(null);
+
+      const req = {
+        body: {
+          purchaseId: validPurchaseId,
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith('Failed to apply purchase status update to material.');
+    });
+
+    it('should return 500 on an unexpected error', async () => {
+      const validPurchaseId = '507f1f77bcf86cd799439ac0';
+      mockFindOne.mockRejectedValue(new Error('Database error'));
+
+      const req = {
+        body: {
+          purchaseId: validPurchaseId,
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+
+      await controller.bmupdatePurchaseStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(expect.any(Error));
     });
   });
 
@@ -751,6 +1313,23 @@ describe('bmMaterialsController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
       });
+
+      it('should return 400 for a date range error with an unrecognized type', async () => {
+        const error = {
+          type: 'SOME_OTHER_ERROR_TYPE',
+          message: 'Unrecognized date error',
+        };
+        mockParseAndNormalizeDateRangeUTC.mockImplementationOnce(() => {
+          throw error;
+        });
+
+        mockReq.query = { startDate: '2024-01-01', endDate: '2024-01-31' };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+      });
     });
 
     describe('Category 4: Aggregation Errors', () => {
@@ -933,6 +1512,91 @@ describe('bmMaterialsController', () => {
       });
     });
 
+    describe('Category 11: Name-based query parameter resolution', () => {
+      it('should resolve projectName to project IDs and merge with projectId', async () => {
+        mockParseMultiSelectQueryParam.mockImplementation((req, param) => {
+          if (param === 'projectId') return ['507f1f77bcf86cd799439011'];
+          if (param === 'projectName') return ['Project One'];
+          return [];
+        });
+        mockResolveProjectNamesToIds.mockResolvedValueOnce(['507f1f77bcf86cd799439099']);
+
+        mockReq.query = {
+          projectName: 'Project One',
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockResolveProjectNamesToIds).toHaveBeenCalledWith(
+          ['Project One'],
+          expect.any(Object),
+        );
+        expect(mockAggregateMaterialUsage).toHaveBeenCalledWith(
+          BuildingMaterial,
+          expect.objectContaining({
+            projectIds: expect.arrayContaining([
+              '507f1f77bcf86cd799439011',
+              '507f1f77bcf86cd799439099',
+            ]),
+          }),
+          expect.any(Object),
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should resolve materialName to material type IDs and merge with materialType', async () => {
+        mockParseMultiSelectQueryParam.mockImplementation((req, param) => {
+          if (param === 'materialType') return ['507f1f77bcf86cd799439012'];
+          if (param === 'materialName') return ['Cement'];
+          return [];
+        });
+        mockResolveMaterialNamesToIds.mockResolvedValueOnce(['507f1f77bcf86cd799439098']);
+
+        mockReq.query = {
+          materialName: 'Cement',
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockResolveMaterialNamesToIds).toHaveBeenCalledWith(['Cement'], expect.any(Object));
+        expect(mockAggregateMaterialUsage).toHaveBeenCalledWith(
+          BuildingMaterial,
+          expect.objectContaining({
+            materialTypeIds: expect.arrayContaining([
+              '507f1f77bcf86cd799439012',
+              '507f1f77bcf86cd799439098',
+            ]),
+          }),
+          expect.any(Object),
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should return 400 when projectName resolution throws a NAME_RESOLUTION_ERROR', async () => {
+        mockParseMultiSelectQueryParam.mockImplementation((req, param) => {
+          if (param === 'projectName') return ['Unknown Project'];
+          return [];
+        });
+        const error = {
+          type: 'NAME_RESOLUTION_ERROR',
+          message: 'Could not resolve project name(s)',
+        };
+        mockResolveProjectNamesToIds.mockRejectedValueOnce(error);
+
+        mockReq.query = { projectName: 'Unknown Project' };
+
+        await controller.bmGetMaterialCostCorrelation(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockRes.json).toHaveBeenCalledWith({ error: error.message });
+        expect(mockLogException).not.toHaveBeenCalled();
+      });
+    });
+
     describe('Category 9: Edge Cases', () => {
       it('should handle empty results gracefully', async () => {
         mockAggregateMaterialUsage.mockResolvedValueOnce([]);
@@ -1053,6 +1717,315 @@ describe('bmMaterialsController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(500);
         expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal server error' });
       });
+    });
+  });
+
+  describe('bmGetMaterialSummaryByProject', () => {
+    let mockReq;
+    let mockRes;
+
+    beforeEach(() => {
+      mockLogException.mockClear();
+      mockReq = {
+        params: { projectId: '507f1f77bcf86cd799439011' },
+        query: {},
+        method: 'GET',
+        path: '/api/bmdashboard/materials/summary/507f1f77bcf86cd799439011',
+      };
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+    });
+
+    it('should return 400 for an invalid projectId', async () => {
+      mockReq.params.projectId = 'invalid-id';
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid projectId' });
+      expect(mockFind).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for an invalid materialType', async () => {
+      mockReq.query.materialType = 'invalid-material-id';
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid materialId' });
+    });
+
+    it('should aggregate available, used, and wasted materials', async () => {
+      mockFind.mockResolvedValueOnce([
+        { stockAvailable: 10, stockUsed: 5, stockWasted: 1, updateRecord: [] },
+        { stockAvailable: 20, stockUsed: 15, stockWasted: 2, updateRecord: [] },
+      ]);
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        availableMaterials: 30,
+        usedMaterials: 20,
+        wastedMaterials: 3,
+        increaseOverLastWeek: 0,
+      });
+    });
+
+    it('should filter by materialType when a valid materialType is provided', async () => {
+      mockReq.query.materialType = '507f1f77bcf86cd799439099';
+      mockFind.mockResolvedValueOnce([]);
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockFind).toHaveBeenCalledWith(
+        expect.objectContaining({
+          itemType: expect.any(mongoose.Types.ObjectId),
+        }),
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should calculate a positive usage increase percentage week-over-week', async () => {
+      const now = new Date();
+      const thisWeekDate = new Date(now);
+      thisWeekDate.setDate(now.getDate() - 1);
+      const lastWeekDate = new Date(now);
+      lastWeekDate.setDate(now.getDate() - 10);
+
+      mockFind.mockResolvedValueOnce([
+        {
+          stockAvailable: 5,
+          stockUsed: 30,
+          stockWasted: 0,
+          updateRecord: [
+            { date: thisWeekDate, quantityUsed: 20 },
+            { date: lastWeekDate, quantityUsed: 10 },
+          ],
+        },
+      ]);
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      const [[response]] = mockRes.json.mock.calls;
+      expect(response.increaseOverLastWeek).toBe(100);
+    });
+
+    it('should filter to only materials with increased usage when increaseOverLastWeek=true', async () => {
+      mockReq.query.increaseOverLastWeek = 'true';
+      const now = new Date();
+      const thisWeekDate = new Date(now);
+      thisWeekDate.setDate(now.getDate() - 1);
+      const lastWeekDate = new Date(now);
+      lastWeekDate.setDate(now.getDate() - 10);
+
+      mockFind.mockResolvedValueOnce([
+        {
+          stockAvailable: 5,
+          stockUsed: 20,
+          stockWasted: 0,
+          updateRecord: [{ date: thisWeekDate, quantityUsed: 20 }],
+        },
+        {
+          stockAvailable: 5,
+          stockUsed: 5,
+          stockWasted: 0,
+          updateRecord: [{ date: lastWeekDate, quantityUsed: 20 }],
+        },
+      ]);
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      const [[response]] = mockRes.json.mock.calls;
+      expect(response.availableMaterials).toBe(5);
+      expect(response.usedMaterials).toBe(20);
+    });
+
+    it('should log and return 500 on database error', async () => {
+      const error = new Error('Database error');
+      mockFind.mockRejectedValueOnce(error);
+
+      await controller.bmGetMaterialSummaryByProject(mockReq, mockRes);
+
+      expect(mockLogException).toHaveBeenCalledWith(
+        error,
+        'bmGetMaterialSummaryByProject',
+        expect.objectContaining({
+          method: mockReq.method,
+          path: mockReq.path,
+          params: mockReq.params,
+          query: mockReq.query,
+        }),
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
+    });
+  });
+
+  describe('bmGetMaterialStockOutRisk', () => {
+    let mockReq;
+    let mockRes;
+
+    beforeEach(() => {
+      mockReq = { query: {} };
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+    });
+
+    it('should return 400 when project IDs are provided but all invalid', async () => {
+      mockReq.query.projectIds = 'not-valid-1,not-valid-2';
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Invalid project IDs provided',
+        details: 'All provided project IDs are invalid',
+      });
+      expect(mockFind).not.toHaveBeenCalled();
+    });
+
+    it('should query without a project filter when projectIds is "all"', async () => {
+      mockReq.query.projectIds = 'all';
+      mockExec.mockResolvedValueOnce([]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockFind).toHaveBeenCalledWith({});
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should filter by valid project IDs', async () => {
+      mockReq.query.projectIds = '507f1f77bcf86cd799439011';
+      mockExec.mockResolvedValueOnce([]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockFind).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: { $in: [expect.any(mongoose.Types.ObjectId)] },
+        }),
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should skip materials missing project or itemType references', async () => {
+      mockExec.mockResolvedValueOnce([
+        { stockAvailable: 10, project: null, itemType: { _id: 'x' } },
+        { stockAvailable: 10, project: { _id: 'p1' }, itemType: null },
+        { stockAvailable: 0, project: { _id: 'p1' }, itemType: { _id: 'x' } },
+      ]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should compute usage-based days until stock out and sort ascending', async () => {
+      const now = new Date();
+      const recentDate = new Date(now);
+      recentDate.setDate(now.getDate() - 5);
+
+      mockExec.mockResolvedValueOnce([
+        {
+          stockAvailable: 300,
+          stockUsed: 0,
+          project: { _id: 'p1', name: 'Project One' },
+          itemType: { _id: 'm1', name: 'Cement', unit: 'bags' },
+          updateRecord: [{ date: recentDate, quantityUsed: 30 }],
+        },
+        {
+          stockAvailable: 10,
+          stockUsed: 0,
+          project: { _id: 'p2', name: 'Project Two' },
+          itemType: { _id: 'm2', name: 'Sand', unit: 'kg' },
+          updateRecord: [{ date: recentDate, quantityUsed: 30 }],
+        },
+      ]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      const [[result]] = mockRes.json.mock.calls;
+      expect(result).toHaveLength(2);
+      expect(result[0].materialId).toBe('m2');
+      expect(result[1].materialId).toBe('m1');
+      expect(result[0].daysUntilStockOut).toBeLessThan(result[1].daysUntilStockOut);
+    });
+
+    it('should fall back to stockUsed when there is no usage in updateRecord', async () => {
+      mockExec.mockResolvedValueOnce([
+        {
+          stockAvailable: 30,
+          stockUsed: 30,
+          project: { _id: 'p1', name: 'Project One' },
+          itemType: { _id: 'm1', name: 'Cement', unit: 'bags' },
+          updateRecord: [],
+        },
+      ]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      const [[result]] = mockRes.json.mock.calls;
+      expect(result).toHaveLength(1);
+      expect(result[0].averageDailyUsage).toBeGreaterThan(0);
+    });
+
+    it('should exclude materials with no usage data at all', async () => {
+      mockExec.mockResolvedValueOnce([
+        {
+          stockAvailable: 30,
+          stockUsed: 0,
+          project: { _id: 'p1', name: 'Project One' },
+          itemType: { _id: 'm1', name: 'Cement', unit: 'bags' },
+          updateRecord: [],
+        },
+      ]);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith([]);
+    });
+
+    it('should return 400 on CastError', async () => {
+      const error = new Error('bad cast');
+      error.name = 'CastError';
+      mockExec.mockRejectedValueOnce(error);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid request parameters' });
+    });
+
+    it('should return 503 on MongoServerError', async () => {
+      const error = new Error('mongo down');
+      error.name = 'MongoServerError';
+      mockExec.mockRejectedValueOnce(error);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+
+    it('should return 500 on an unrecognized error', async () => {
+      const error = new Error('unknown failure');
+      mockExec.mockRejectedValueOnce(error);
+
+      await controller.bmGetMaterialStockOutRisk(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
     });
   });
 });
