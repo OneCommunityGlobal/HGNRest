@@ -35,6 +35,11 @@ const educationTaskSchema = new mongoose.Schema(
       enum: ['assigned', 'in_progress', 'completed', 'graded'],
       default: 'assigned',
     },
+    submissionStatus: {
+      type: String,
+      enum: ['Unsubmitted', 'Submitted', 'Grade Updated', 'Grade Posted'],
+      default: 'Unsubmitted',
+    },
     assignedAt: {
       type: Date,
       default: Date.now,
@@ -54,8 +59,34 @@ const educationTaskSchema = new mongoose.Schema(
     ],
     grade: {
       type: String,
-      enum: ['A', 'B', 'C', 'D', 'F', 'pending'],
       default: 'pending',
+    },
+    marks: {
+      type: Number,
+      min: 0,
+    },
+    maxMarks: {
+      type: Number,
+      min: 0,
+    },
+    gradeType: {
+      type: String,
+      enum: ['letter', 'numeric'],
+      default: 'letter',
+    },
+    gradeScale: {
+      type: Map,
+      of: Number,
+    },
+    educatorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+    gradeUpdatedAt: {
+      type: Date,
+    },
+    gradePostedAt: {
+      type: Date,
     },
     feedback: {
       type: String,
