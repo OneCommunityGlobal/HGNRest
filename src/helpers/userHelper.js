@@ -43,6 +43,11 @@ const delay = (ms) =>
     setTimeout(() => resolve(), ms);
   });
 
+function mergeHours(array1, array2) {
+  const tempHours = [...array1, ...array2];
+  return tempHours;
+}
+
 const userHelper = function () {
   // Update format to "MMM-DD-YY" from "YYYY-MMM-DD" (Confirmed with Jae)
   const earnedDateBadge = () => {
@@ -2131,7 +2136,7 @@ const userHelper = function () {
         continue;
       }
 
-      const alreadyHasBadge = badgesOfType.find(
+      const alreadyHasBadge = badgesOfType.some(
         (b) => b._id.toString() === candidateBadge._id.toString(),
       );
 
@@ -2187,16 +2192,6 @@ const userHelper = function () {
     }
     return weeksData;
   };
-
-  const getMaxHrs = async (personId, user) => {
-    const weeksdata = await getAllWeeksData(personId, user);
-    return Math.max(...weeksdata);
-  };
-
-  function mergeHours(array1, array2) {
-    const tempHours = [...array1, ...array2];
-    return tempHours;
-  }
 
   const updatePersonalMax = async (personId, user) => {
     //
@@ -2497,7 +2492,7 @@ const userHelper = function () {
 
       for (const elem of results) {
         if (categoryHrs >= 100 && categoryHrs >= elem.totalHrs) {
-          const alreadyHas = badgesInCat.find(
+          const alreadyHas = badgesInCat.some(
             (b) => b.badge._id.toString() === elem._id.toString(),
           );
 
@@ -2600,7 +2595,7 @@ const userHelper = function () {
   };
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
-    const leaderRoles = ['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team'];
+    const leaderRoles = new Set(['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team']);
     const approvedRoles = ['Mentor', 'Manager'];
     if (!approvedRoles.includes(user.role)) return;
     const teams = await getAllTeamMembers(personId);
@@ -2611,7 +2606,7 @@ const userHelper = function () {
     teams.forEach((team) => {
       // Filter out leaders and duplicates from each team
       const nonLeaderMembers = team.members.filter((member) => {
-        if (leaderRoles.includes(member.role)) return false;
+        if (leaderRoles.has(member.role)) return false;
         if (uniqueMembers.has(member.userId.toString())) return false;
         uniqueMembers.add(member.userId.toString());
         return true;
@@ -3496,6 +3491,16 @@ const userHelper = function () {
     awardNewBadges,
     checkPersonalMax,
     checkXHrsForXWeeks,
+    checkMinHoursMultiple,
+    checkTotalHrsInCat,
+    checkNoInfringementStreak,
+    checkLeadTeamOfXplus,
+    checkMostHrsWeek,
+    checkXHrsInOneWeek,
+    updatePersonalMax,
+    getAllTeamMembers,
+    getAllWeeksData,
+    mergeHours,
     getTangibleHoursReportedThisWeekByUserId,
     deleteExpiredTokens,
     deleteOldTimeOffRequests,
