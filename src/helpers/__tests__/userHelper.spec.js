@@ -273,6 +273,21 @@ describe('checkMinHoursMultiple', () => {
     expect(userProfile.updateOne).toHaveBeenCalled();
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
+
+  test('removes a lower badge in place (count 1) before adding the qualifying one', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    const lowerId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 2 }]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+    const badgeCollection = [
+      { count: 1, badge: { _id: lowerId, multiple: 1, type: 'Minimum Hours Multiple' } },
+    ];
+
+    await checkMinHoursMultiple(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
 });
 
 describe('checkTotalHrsInCat', () => {
@@ -350,6 +365,67 @@ describe('checkTotalHrsInCat', () => {
     expect(userProfile.updateOne).toHaveBeenCalled();
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
+
+  test('defaults hoursByCategory to empty when missing on the user', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    await checkTotalHrsInCat(personId, {}, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does nothing when category hours are below the qualifying threshold', async () => {
+    badge.find.mockReturnValue(
+      makeQuery([{ _id: new mongoose.Types.ObjectId(), totalHrs: 100, category: 'Food' }]),
+    );
+
+    const user = { hoursByCategory: { food: 50 } };
+    await checkTotalHrsInCat(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('removes a lower-ranked owned badge for the same category', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { hoursByCategory: { food: 0 } };
+    const higherId = new mongoose.Types.ObjectId();
+    const lowerId = new mongoose.Types.ObjectId();
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: higherId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 100 },
+      },
+      {
+        count: 1,
+        badge: { _id: lowerId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 50 },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('takes no action when the owned badge already outranks the qualifying one', async () => {
+    const ownedId = new mongoose.Types.ObjectId();
+    const lowerBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: lowerBadgeId, totalHrs: 100, category: 'Food' }]));
+
+    const user = { hoursByCategory: { food: 150 } };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: ownedId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 200 },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
 });
 
 describe('checkNoInfringementStreak', () => {
@@ -357,6 +433,7 @@ describe('checkNoInfringementStreak', () => {
 
   beforeEach(() => {
     userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
     badge.find.mockReset();
   });
 
@@ -397,6 +474,112 @@ describe('checkNoInfringementStreak', () => {
     await checkNoInfringementStreak(personId, user, []);
 
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('deduplicates multiple owned streak badges down to the best one', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { createdDate: new Date(), infringements: [] };
+    const badgeCollection = [
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 6 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 12 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 3 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalledWith({ type: 'No Infringement Streak' });
+  });
+
+  test('replaces the owned badge with a different qualifying streak badge', async () => {
+    const ownedId = new mongoose.Types.ObjectId();
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: newBadgeId, months: 1 }]));
+
+    const user = {
+      createdDate: moment().subtract(2, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+    const badgeCollection = [
+      { badge: { _id: ownedId, type: 'No Infringement Streak', months: 1 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('does not award a badge when not enough time has elapsed yet', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 6 }]));
+
+    const user = {
+      createdDate: moment().subtract(1, 'months').toDate(),
+      infringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not award a badge after a recent infringement', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 6 }]));
+
+    const user = {
+      createdDate: moment().subtract(8, 'months').toDate(),
+      infringements: [{ date: moment().subtract(1, 'months').toDate() }],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('ends the streak check without replacing when the badge already matches', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, months: 1 }]));
+
+    const user = {
+      createdDate: moment().subtract(2, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+    const badgeCollection = [
+      { badge: { _id: badgeId, type: 'No Infringement Streak', months: 1 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('does not award a longer streak badge when the user was recently created', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 13 }]));
+
+    const user = {
+      createdDate: moment().subtract(1, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not award a longer streak badge after a recent old infringement', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 13 }]));
+
+    const user = {
+      createdDate: moment().subtract(14, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [{ date: moment().subtract(1, 'days').toDate() }],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -485,6 +668,119 @@ describe('checkLeadTeamOfXplus', () => {
 
     expect(userProfile.updateOne).toHaveBeenCalled();
   });
+
+  test('filters out leader-role and duplicate members when sizing the team', async () => {
+    const leaderId = new mongoose.Types.ObjectId();
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [
+          { userId: leaderId, role: 'Manager' },
+          { userId: memberId, role: 'Volunteer' },
+          { userId: memberId, role: 'Volunteer' },
+        ],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalledWith(expect.objectContaining({ people: { $lte: 1 } }));
+  });
+
+  test('skips badgeCollection entries that are not team-size badges', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [{ badge: { type: 'Personal Max' } }];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('deduplicates multiple owned team-size badges', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 1 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 5 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 2 } },
+    ];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('does nothing when no team-size badge qualifies', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { role: 'Manager' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('leaves the badge alone when the owned one already qualifies', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const ownedBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: ownedBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [
+      { badge: { _id: ownedBadgeId, type: 'Lead a team of X+', people: 1 } },
+    ];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
 });
 
 describe('getAllWeeksData', () => {
@@ -553,6 +849,28 @@ describe('checkPersonalMax', () => {
 
     expect(userProfile.updateOne).toHaveBeenCalled();
   });
+
+  test('does not update when last week did not break the record', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 10, savedTangibleHrs: [30, 20, 10] };
+    const badgeCollection = [{ _id: masterId, badge: { _id: masterId, type: 'Personal Max' } }];
+
+    await checkPersonalMax(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('defaults savedTangibleHrs to empty when missing on the user', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 0 };
+    await checkPersonalMax(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
 });
 
 describe('checkMostHrsWeek', () => {
@@ -560,6 +878,7 @@ describe('checkMostHrsWeek', () => {
 
   beforeEach(() => {
     userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
     badge.findOne.mockReset();
     userProfile.aggregate.mockReset();
   });
@@ -581,6 +900,48 @@ describe('checkMostHrsWeek', () => {
 
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
+
+  test('returns early when no badge type is configured', async () => {
+    badge.findOne.mockResolvedValue(null);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.aggregate).not.toHaveBeenCalled();
+  });
+
+  test('returns early when no active-user results are found', async () => {
+    badge.findOne.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
+    userProfile.aggregate.mockResolvedValue([]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does nothing when the user is not the top performer', async () => {
+    badge.findOne.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
+    userProfile.aggregate.mockResolvedValue([{ maxHours: 40 }]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('increases count when the badge is already owned', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.findOne.mockResolvedValue({ _id: badgeId });
+    userProfile.aggregate.mockResolvedValue([{ maxHours: 15 }]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    const badgeCollection = [{ badge: { _id: badgeId, type: 'Most Hrs in Week' } }];
+
+    await checkMostHrsWeek(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
 });
 
 describe('checkXHrsInOneWeek', () => {
@@ -588,6 +949,7 @@ describe('checkXHrsInOneWeek', () => {
 
   beforeEach(() => {
     userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
     badge.find.mockReset();
   });
 
@@ -599,6 +961,33 @@ describe('checkXHrsInOneWeek', () => {
     await checkXHrsInOneWeek(personId, user, []);
 
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('skips non-matching candidates before finding the right one', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(
+      makeQuery([
+        { _id: new mongoose.Types.ObjectId(), totalHrs: 20 },
+        { _id: badgeId, totalHrs: 10 },
+      ]),
+    );
+
+    const user = { savedTangibleHrs: [5, 10] };
+    await checkXHrsInOneWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('increases count when the matching badge is already owned', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, totalHrs: 10 }]));
+
+    const user = { savedTangibleHrs: [5, 10] };
+    const badgeCollection = [{ badge: { _id: badgeId, type: 'X Hours for X Week Streak' } }];
+
+    await checkXHrsInOneWeek(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
   });
 });
 
@@ -675,5 +1064,81 @@ describe('checkXHrsForXWeeks', () => {
     await checkXHrsForXWeeks(personId, user, badgeCollection);
 
     expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('delegates to checkXHrsInOneWeek for a single-week streak', async () => {
+    const oneWeekBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: oneWeekBadgeId, totalHrs: 5 }]));
+
+    const user = { savedTangibleHrs: [3, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('stops counting the streak once hours differ', async () => {
+    badge.find.mockResolvedValue([]);
+
+    const user = { savedTangibleHrs: [3, 5, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('returns when no matching streak badges exist', async () => {
+    badge.find.mockResolvedValue([]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('returns early when badgeCollection is not an array', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    await checkXHrsForXWeeks(personId, user, null);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('skips malformed entries and falls through when totalHrs does not match', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      null,
+      { badge: null },
+      {
+        count: 1,
+        badge: { _id: new mongoose.Types.ObjectId(), badgeName: 'Other', totalHrs: 99, weeks: 1 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('leaves a badge alone when its week requirement already meets the streak', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    const ownedBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: ownedBadgeId, badgeName: 'Other Badge', totalHrs: 5, weeks: 5 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
 });

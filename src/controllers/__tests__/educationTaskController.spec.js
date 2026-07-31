@@ -250,6 +250,59 @@ describe('createTask', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
   });
+
+  test('returns 400 for a malformed groupId', async () => {
+    LessonPlan.findById.mockResolvedValue({ _id: 'lp1' });
+    const res = mockRes();
+
+    await controller.createTask({ body: { ...baseBody, groupId: 'not-an-id' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('returns 404 when the group does not exist', async () => {
+    const groupId = new mongoose.Types.ObjectId().toString();
+    LessonPlan.findById.mockResolvedValue({ _id: 'lp1' });
+    StudentGroup.findById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await controller.createTask({ body: { ...baseBody, groupId } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test('returns 403 when the requesting user does not own the group', async () => {
+    const groupId = new mongoose.Types.ObjectId().toString();
+    LessonPlan.findById.mockResolvedValue({ _id: 'lp1' });
+    StudentGroup.findById.mockResolvedValue({
+      _id: groupId,
+      name: 'Group A',
+      educator_id: { toString: () => 'someone-else' },
+    });
+    const res = mockRes();
+
+    await controller.createTask({ body: { ...baseBody, groupId }, user: 'educator1' }, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  test('returns 400 when the group has no members', async () => {
+    const groupId = new mongoose.Types.ObjectId().toString();
+    LessonPlan.findById.mockResolvedValue({ _id: 'lp1' });
+    StudentGroup.findById.mockResolvedValue({
+      _id: groupId,
+      name: 'Group A',
+      educator_id: { toString: () => 'educator1' },
+    });
+    StudentGroupMember.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([]),
+    });
+    const res = mockRes();
+
+    await controller.createTask({ body: { ...baseBody, groupId }, user: 'educator1' }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
 });
 
 describe('updateTask', () => {
@@ -532,6 +585,221 @@ describe('updateSubmissionGrade', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
   });
+
+  test('does not compute a grade when marks are negative', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { marks: -5, maxMarks: 100, action: 'update' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.not.objectContaining({ grade: expect.anything() }),
+      expect.any(Object),
+    );
+  });
+
+  test('computes a numeric grade as a percentage when gradeType is numeric', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      {
+        params: { submissionId: 'x' },
+        body: { marks: 45, maxMarks: 50, gradeType: 'numeric', action: 'update' },
+      },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ grade: '90.00' }),
+      expect.any(Object),
+    );
+  });
+
+  test('applies a custom plain-object grade scale', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      {
+        params: { submissionId: 'x' },
+        body: {
+          marks: 72,
+          maxMarks: 100,
+          action: 'update',
+          gradeScale: { Excellent: 90, Pass: 70, Fail: 0 },
+        },
+      },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ grade: 'Pass' }),
+      expect.any(Object),
+    );
+  });
+
+  test('applies a grade scale already stored as a Map on the task', async () => {
+    EducationTask.findById.mockResolvedValue({
+      _id: 'x',
+      gradeScale: new Map([
+        ['Excellent', 90],
+        ['Pass', 70],
+        ['Fail', 0],
+      ]),
+    });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { marks: 95, maxMarks: 100, action: 'update' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ grade: 'Excellent' }),
+      expect.any(Object),
+    );
+  });
+
+  test('applies a grade scale exposed via a Mongoose-style toObject method', async () => {
+    EducationTask.findById.mockResolvedValue({
+      _id: 'x',
+      gradeScale: { toObject: () => ({ Excellent: 90, Pass: 70, Fail: 0 }) },
+    });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { marks: 95, maxMarks: 100, action: 'update' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ grade: 'Excellent' }),
+      expect.any(Object),
+    );
+  });
+
+  test('resolves educatorId from req.user when no explicit educatorId is sent', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      {
+        params: { submissionId: 'x' },
+        body: { feedback: 'ok', action: 'update' },
+        user: { _id: 'educatorFromReqUser' },
+      },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ educatorId: 'educatorFromReqUser' }),
+      expect.any(Object),
+    );
+  });
+
+  test('does not set educatorId when it cannot be resolved from anywhere', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { feedback: 'ok', action: 'update' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.not.objectContaining({ educatorId: expect.anything() }),
+      expect.any(Object),
+    );
+  });
+
+  test('falls back to the existing marks/maxMarks on the task when not provided', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x', marks: 90, maxMarks: 100 });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { feedback: 'ok', action: 'update' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.objectContaining({ grade: 'A' }),
+      expect.any(Object),
+    );
+  });
+
+  test('does not force status to graded when publishing a pending grade', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { feedback: 'ok', action: 'publish' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.not.objectContaining({ status: 'graded' }),
+      expect.any(Object),
+    );
+  });
+
+  test('leaves submissionStatus untouched for an unrecognized action', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x' });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      { params: { submissionId: 'x' }, body: { feedback: 'ok' } },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.not.objectContaining({ submissionStatus: expect.anything() }),
+      expect.any(Object),
+    );
+  });
+
+  test('does not overwrite gradeUpdatedAt when publishing a grade that already has one', async () => {
+    EducationTask.findById.mockResolvedValue({ _id: 'x', gradeUpdatedAt: new Date('2020-01-01') });
+    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x' }));
+    const res = mockRes();
+
+    await controller.updateSubmissionGrade(
+      {
+        params: { submissionId: 'x' },
+        body: { marks: 90, maxMarks: 100, action: 'publish' },
+      },
+      res,
+    );
+
+    expect(EducationTask.findByIdAndUpdate).toHaveBeenCalledWith(
+      'x',
+      expect.not.objectContaining({ gradeUpdatedAt: expect.anything() }),
+      expect.any(Object),
+    );
+  });
 });
 
 describe('getReviewSubmissions', () => {
@@ -551,6 +819,31 @@ describe('getReviewSubmissions', () => {
       }),
     );
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('applies status and submissionStatus filters when provided', async () => {
+    EducationTask.find.mockReturnValue(makeChain([]));
+    const res = mockRes();
+
+    await controller.getReviewSubmissions(
+      { query: { status: 'graded', submissionStatus: 'Grade Posted' } },
+      res,
+    );
+
+    expect(EducationTask.find).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'graded', submissionStatus: 'Grade Posted' }),
+    );
+  });
+
+  test('returns 500 on unexpected error', async () => {
+    EducationTask.find.mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const res = mockRes();
+
+    await controller.getReviewSubmissions({ query: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });
 
@@ -610,5 +903,133 @@ describe('getTaskSubmissions', () => {
     await controller.getTaskSubmissions({ query: { studentId: 'not-an-id' } }, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('accepts student_id as an alias for studentId', async () => {
+    const studentId = new mongoose.Types.ObjectId().toString();
+    EducationTask.find.mockReturnValue(makeChain([]));
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: { student_id: studentId } }, res);
+
+    expect(EducationTask.find).toHaveBeenCalledWith(
+      expect.objectContaining({ studentId: expect.any(mongoose.Types.ObjectId) }),
+    );
+  });
+
+  test('accepts courseId as an alias for lessonPlanId', async () => {
+    const courseId = new mongoose.Types.ObjectId().toString();
+    EducationTask.find.mockReturnValue(makeChain([]));
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: { courseId } }, res);
+
+    expect(EducationTask.find).toHaveBeenCalledWith(
+      expect.objectContaining({ lessonPlanId: expect.any(mongoose.Types.ObjectId) }),
+    );
+  });
+
+  test('accepts course_id as an alias for lessonPlanId', async () => {
+    const course_id = new mongoose.Types.ObjectId().toString();
+    EducationTask.find.mockReturnValue(makeChain([]));
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: { course_id } }, res);
+
+    expect(EducationTask.find).toHaveBeenCalledWith(
+      expect.objectContaining({ lessonPlanId: expect.any(mongoose.Types.ObjectId) }),
+    );
+  });
+
+  test('rejects an invalid courseId filter', async () => {
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: { courseId: 'not-an-id' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('drops submissions missing a populated student or lesson plan', async () => {
+    EducationTask.find.mockReturnValue(
+      makeChain([
+        { _id: 't1', studentId: null, lessonPlanId: { title: 'Lesson' } },
+        { _id: 't2', studentId: { _id: 's1' }, lessonPlanId: null },
+      ]),
+    );
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: {} }, res);
+
+    expect(res.json).toHaveBeenCalledWith([]);
+  });
+
+  test('fills in defaults for a minimal submission and flags it graded', async () => {
+    EducationTask.find.mockReturnValue(
+      makeChain([
+        {
+          _id: 't1',
+          studentId: { _id: 's1', firstName: 'A', lastName: 'B' },
+          lessonPlanId: { _id: 'lp1' },
+          status: 'graded',
+        },
+      ]),
+    );
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: {} }, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload[0].taskName).toBe('Unnamed Task');
+    expect(payload[0].status).toBe('Graded');
+    expect(payload[0].submissionLinks).toEqual([]);
+    expect(payload[0].lessonPlanTitle).toBe('Unknown Lesson Plan');
+    expect(payload[0].late).toBe(false);
+    expect(payload[0].overdue).toBeFalsy();
+  });
+
+  test('flags a submission as late when completed after the due date', async () => {
+    const dueAt = new Date('2026-01-01T00:00:00Z');
+    const completedAt = new Date('2026-01-05T00:00:00Z');
+    EducationTask.find.mockReturnValue(
+      makeChain([
+        {
+          _id: 't1',
+          studentId: { _id: 's1', firstName: 'A', lastName: 'B' },
+          lessonPlanId: { title: 'Lesson' },
+          status: 'completed',
+          dueAt,
+          completedAt,
+        },
+      ]),
+    );
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: {} }, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload[0].late).toBe(true);
+    expect(payload[0].lateByMs).toBeGreaterThan(0);
+  });
+
+  test('flags an assigned task as overdue when past its due date without a submission', async () => {
+    const dueAt = new Date('2000-01-01T00:00:00Z');
+    EducationTask.find.mockReturnValue(
+      makeChain([
+        {
+          _id: 't1',
+          studentId: { _id: 's1', firstName: 'A', lastName: 'B' },
+          lessonPlanId: { title: 'Lesson' },
+          status: 'assigned',
+          dueAt,
+        },
+      ]),
+    );
+    const res = mockRes();
+
+    await controller.getTaskSubmissions({ query: { status: 'pending' } }, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload[0].overdue).toBe(true);
+    expect(payload[0].late).toBe(false);
   });
 });
