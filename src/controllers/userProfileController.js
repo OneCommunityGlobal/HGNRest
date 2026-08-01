@@ -432,6 +432,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const updateCommonFields = (req, record) => {
     const commonFields = [
       'jobTitle',
+      'email',
       'emailPubliclyAccessible',
       'phoneNumberPubliclyAccessible',
       'profilePic',
@@ -572,7 +573,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     if (!(await hasPermission(req.body.requestor, 'putUserProfileImportantInfo'))) return;
 
     const importantFields = [
-      'email',
       'role',
       'isRehireable',
       'isActive',
