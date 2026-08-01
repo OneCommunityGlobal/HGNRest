@@ -93,6 +93,26 @@ describe('toolReplacementController', () => {
       ]);
     });
 
+    it('returns a null projectName when projectId is not populated', async () => {
+      createQueryChain([
+        {
+          _id: '1',
+          toolName: 'Hammer',
+          requirementSatisfiedPercentage: 20,
+          projectId: VALID_PROJECT_ID,
+          date: new Date('2025-06-15'),
+        },
+      ]);
+      const req = makeReq();
+      const res = makeRes();
+
+      await controller.getToolReplacement(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([
+        expect.objectContaining({ projectId: VALID_PROJECT_ID, projectName: null }),
+      ]);
+    });
+
     it('filters by date range, tools, and projectId using chained where()', async () => {
       const chain = createQueryChain([]);
       const req = makeReq({

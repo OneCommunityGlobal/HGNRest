@@ -24,17 +24,67 @@ const parseToolNames = (value) => {
     .filter(Boolean);
 };
 
+const parseDateRange = (startDateParam, endDateParam) => {
+  const startDate = startDateParam ? parseDate(startDateParam) : null;
+  const endDate = endDateParam ? parseDate(endDateParam) : null;
+
+  if (startDateParam && !startDate) return { error: 'Invalid startDate' };
+  if (endDateParam && !endDate) return { error: 'Invalid endDate' };
+  if (startDate && endDate && startDate > endDate) {
+    return { error: 'Invalid date range: startDate must be before endDate' };
+  }
+
+  return { startDate, endDate };
+};
+
+// Query params are coerced to strings so objects/operators cannot be injected
+const parseFilters = (query) => {
+  const dateRange = parseDateRange(
+    getSingleQueryValue(query.startDate),
+    getSingleQueryValue(query.endDate),
+  );
+  if (dateRange.error) return { error: dateRange.error };
+
+  const projectIdParam = getSingleQueryValue(query.projectId);
+  if (projectIdParam && !mongoose.Types.ObjectId.isValid(projectIdParam)) {
+    return { error: 'Invalid projectId format' };
+  }
+
+  return {
+    filters: {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      toolNames: parseToolNames(getSingleQueryValue(query.tools)),
+      projectId: projectIdParam,
+    },
+  };
+};
+
+// Chained where() keeps user input out of raw filter objects
+// (avoids Sonar NoSQL injection: constructing DB queries from user-controlled data)
+const buildToolReplacementQuery = ({ startDate, endDate, toolNames, projectId }) => {
+  let dbQuery = ToolReplacement.find().setOptions({ sanitizeFilter: true });
+
+  if (startDate) dbQuery = dbQuery.where('date').gte(startDate);
+  if (endDate) dbQuery = dbQuery.where('date').lte(endDate);
+  if (toolNames.length > 0) dbQuery = dbQuery.where('toolName').in(toolNames);
+  if (projectId) {
+    dbQuery = dbQuery.where('projectId').equals(new mongoose.Types.ObjectId(projectId));
+  }
+
+  return dbQuery;
+};
+
 const formatToolReplacement = (doc) => {
   const project = doc.projectId;
-  const projectId = project && project._id ? project._id : project;
-  const projectName = project && typeof project === 'object' ? project.name || null : null;
+  const isPopulated = project && typeof project === 'object' && project._id;
 
   return {
     _id: doc._id,
     toolName: doc.toolName,
     requirementSatisfiedPercentage: doc.requirementSatisfiedPercentage,
-    projectId,
-    projectName,
+    projectId: isPopulated ? project._id : project,
+    projectName: isPopulated ? project.name || null : null,
     date: doc.date,
   };
 };
@@ -42,54 +92,11 @@ const formatToolReplacement = (doc) => {
 const toolReplacementController = function () {
   const getToolReplacement = async (req, res) => {
     try {
-      // Coerce query params to strings so objects/operators cannot be injected
-      const startDateParam = getSingleQueryValue(req.query.startDate);
-      const endDateParam = getSingleQueryValue(req.query.endDate);
-      const toolsParam = getSingleQueryValue(req.query.tools);
-      const projectIdParam = getSingleQueryValue(req.query.projectId);
-
-      const startDate = startDateParam ? parseDate(startDateParam) : null;
-      const endDate = endDateParam ? parseDate(endDateParam) : null;
-
-      if (startDateParam && !startDate) {
-        return res.status(400).json({ error: 'Invalid startDate' });
-      }
-      if (endDateParam && !endDate) {
-        return res.status(400).json({ error: 'Invalid endDate' });
-      }
-      if (startDate && endDate && startDate > endDate) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid date range: startDate must be before endDate' });
-      }
-
-      if (projectIdParam && !mongoose.Types.ObjectId.isValid(projectIdParam)) {
-        return res.status(400).json({ error: 'Invalid projectId format' });
-      }
-
-      // Build query via chained where() so user input is never passed as a raw filter object
-      // (avoids Sonar NoSQL injection: constructing DB queries from user-controlled data)
-      let dbQuery = ToolReplacement.find().setOptions({ sanitizeFilter: true });
-
-      if (startDate && endDate) {
-        dbQuery = dbQuery.where('date').gte(startDate).lte(endDate);
-      } else if (startDate) {
-        dbQuery = dbQuery.where('date').gte(startDate);
-      } else if (endDate) {
-        dbQuery = dbQuery.where('date').lte(endDate);
-      }
-
-      const toolNames = parseToolNames(toolsParam);
-      if (toolNames.length > 0) {
-        dbQuery = dbQuery.where('toolName').in(toolNames);
-      }
-
-      if (projectIdParam) {
-        dbQuery = dbQuery.where('projectId').equals(new mongoose.Types.ObjectId(projectIdParam));
-      }
+      const { error, filters } = parseFilters(req.query);
+      if (error) return res.status(400).json({ error });
 
       // Ascending by % requirement satisfied so tools most in need appear first
-      const results = await dbQuery
+      const results = await buildToolReplacementQuery(filters)
         .populate('projectId', 'name')
         .sort({
           requirementSatisfiedPercentage: 1,
@@ -98,8 +105,8 @@ const toolReplacementController = function () {
         .lean();
 
       return res.status(200).json(results.map(formatToolReplacement));
-    } catch (error) {
-      console.error('Error fetching tool replacement data: ', error);
+    } catch (err) {
+      console.error('Error fetching tool replacement data: ', err);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   };
