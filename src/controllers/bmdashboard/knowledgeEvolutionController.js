@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
-const StudentTask = require('../../models/bmdashboard/studentTask');
+const Progress = require('../../models/progress');
 
 exports.getKnowledgeEvolution = async (req, res) => {
   try {
-    const studentId = req.query.studentId || req.user?.id;
+    const studentId = req.query.studentId || req.body?.requestor?.requestorId;
 
     if (!studentId) {
       return res.status(400).json({ message: 'studentId is required' });
     }
 
-    const data = await StudentTask.aggregate([
+    const data = await Progress.aggregate([
       {
         $match: {
           studentId: new mongoose.Types.ObjectId(studentId),
@@ -18,22 +18,13 @@ exports.getKnowledgeEvolution = async (req, res) => {
 
       {
         $lookup: {
-          from: 'educationtasks',
-          localField: 'taskId',
-          foreignField: '_id',
-          as: 'taskInfo',
-        },
-      },
-      { $unwind: '$taskInfo' },
-
-      {
-        $lookup: {
           from: 'atoms',
-          localField: 'taskInfo.atomIds',
+          localField: 'atomId',
           foreignField: '_id',
           as: 'atomInfo',
         },
       },
+      { $unwind: '$atomInfo' },
 
       {
         $lookup: {
@@ -43,81 +34,20 @@ exports.getKnowledgeEvolution = async (req, res) => {
           as: 'subjectInfo',
         },
       },
+      { $unwind: '$subjectInfo' },
 
       {
-        $lookup: {
-          from: 'studentatoms',
-          let: { atomIds: '$taskInfo.atomIds', stuId: '$studentId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [{ $in: ['$atomId', '$$atomIds'] }, { $eq: ['$studentId', '$$stuId'] }],
-                },
-              },
-            },
-          ],
-          as: 'studentAtomInfo',
-        },
-      },
-
-      {
-        $addFields: {
+        $group: {
+          _id: '$subjectInfo._id',
+          subjectName: { $first: '$subjectInfo.name' },
           atoms: {
-            $map: {
-              input: '$atomInfo',
-              as: 'atom',
-              in: {
-                atomId: '$$atom._id',
-                atomName: '$$atom.name',
-                color: '$$atom.difficulty',
-                atomStatus: {
-                  $ifNull: [
-                    {
-                      $arrayElemAt: [
-                        {
-                          $map: {
-                            input: {
-                              $filter: {
-                                input: '$studentAtomInfo',
-                                as: 'sa',
-                                cond: { $eq: ['$$sa.atomId', '$$atom._id'] },
-                              },
-                            },
-                            as: 'sa',
-                            in: '$$sa.status',
-                          },
-                        },
-                        0,
-                      ],
-                    },
-                    'not_started',
-                  ],
-                },
-                taskStatus: '$status',
-              },
+            $push: {
+              atomId: '$atomInfo._id',
+              atomName: '$atomInfo.name',
+              color: '$atomInfo.difficulty',
+              atomStatus: '$status',
             },
           },
-        },
-      },
-
-      {
-        $unwind: '$atoms',
-      },
-      {
-        $group: {
-          _id: '$atoms.atomId',
-          subjectId: { $first: { $arrayElemAt: ['$subjectInfo._id', 0] } },
-          subjectName: { $first: { $arrayElemAt: ['$subjectInfo.name', 0] } },
-          atoms: { $push: '$atoms' },
-        },
-      },
-
-      {
-        $group: {
-          _id: '$subjectId',
-          subjectName: { $first: '$subjectName' },
-          atoms: { $push: { $arrayElemAt: ['$atoms', 0] } },
         },
       },
 
