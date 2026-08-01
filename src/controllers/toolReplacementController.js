@@ -1,53 +1,80 @@
 const mongoose = require('mongoose');
 const ToolReplacement = require('../models/toolReplacement');
 
-const isValidDate = (value) => {
-  const date = new Date(value);
-  return !Number.isNaN(date.getTime());
+const getSingleQueryValue = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  return typeof value === 'string' ? value.trim() : null;
+};
+
+const parseDate = (value) => {
+  const dateValue = getSingleQueryValue(value);
+  if (!dateValue) return null;
+
+  const parsedDate = new Date(dateValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const parseToolNames = (value) => {
+  const toolsValue = getSingleQueryValue(value);
+  if (!toolsValue) return [];
+
+  return toolsValue
+    .split(',')
+    .map((toolName) => toolName.trim())
+    .filter(Boolean);
 };
 
 const toolReplacementController = function () {
   const getToolReplacement = async (req, res) => {
     try {
-      const { startDate, endDate, tools, projectId } = req.query;
-      const query = {};
+      // Coerce query params to strings so objects/operators cannot be injected
+      const startDateParam = getSingleQueryValue(req.query.startDate);
+      const endDateParam = getSingleQueryValue(req.query.endDate);
+      const toolsParam = getSingleQueryValue(req.query.tools);
+      const projectIdParam = getSingleQueryValue(req.query.projectId);
 
-      if (startDate || endDate) {
-        if (startDate && !isValidDate(startDate)) {
-          return res.status(400).json({ error: 'Invalid startDate' });
-        }
-        if (endDate && !isValidDate(endDate)) {
-          return res.status(400).json({ error: 'Invalid endDate' });
-        }
-        if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-          return res
-            .status(400)
-            .json({ error: 'Invalid date range: startDate must be before endDate' });
-        }
+      const startDate = startDateParam ? parseDate(startDateParam) : null;
+      const endDate = endDateParam ? parseDate(endDateParam) : null;
 
-        query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+      if (startDateParam && !startDate) {
+        return res.status(400).json({ error: 'Invalid startDate' });
+      }
+      if (endDateParam && !endDate) {
+        return res.status(400).json({ error: 'Invalid endDate' });
+      }
+      if (startDate && endDate && startDate > endDate) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid date range: startDate must be before endDate' });
       }
 
-      if (tools && tools.length > 0) {
-        query.toolName = {
-          $in: tools
-            .split(',')
-            .map((tool) => tool.trim())
-            .filter(Boolean),
-        };
+      if (projectIdParam && !mongoose.Types.ObjectId.isValid(projectIdParam)) {
+        return res.status(400).json({ error: 'Invalid projectId format' });
       }
 
-      if (projectId) {
-        if (!mongoose.Types.ObjectId.isValid(projectId)) {
-          return res.status(400).json({ error: 'Invalid projectId format' });
-        }
-        query.projectId = projectId;
+      // Build query via chained where() so user input is never passed as a raw filter object
+      // (avoids Sonar NoSQL injection: constructing DB queries from user-controlled data)
+      let dbQuery = ToolReplacement.find().setOptions({ sanitizeFilter: true });
+
+      if (startDate && endDate) {
+        dbQuery = dbQuery.where('date').gte(startDate).lte(endDate);
+      } else if (startDate) {
+        dbQuery = dbQuery.where('date').gte(startDate);
+      } else if (endDate) {
+        dbQuery = dbQuery.where('date').lte(endDate);
+      }
+
+      const toolNames = parseToolNames(toolsParam);
+      if (toolNames.length > 0) {
+        dbQuery = dbQuery.where('toolName').in(toolNames);
+      }
+
+      if (projectIdParam) {
+        dbQuery = dbQuery.where('projectId').equals(new mongoose.Types.ObjectId(projectIdParam));
       }
 
       // Ascending by % requirement satisfied so tools most in need appear first
-      const results = await ToolReplacement.find(query).sort({
+      const results = await dbQuery.sort({
         requirementSatisfiedPercentage: 1,
         toolName: 1,
       });

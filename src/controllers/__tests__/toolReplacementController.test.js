@@ -2,6 +2,7 @@ jest.mock('../../models/toolReplacement', () => ({
   find: jest.fn(),
 }));
 
+const mongoose = require('mongoose');
 const ToolReplacement = require('../../models/toolReplacement');
 const toolReplacementController = require('../toolReplacementController');
 
@@ -16,10 +17,18 @@ const makeRes = () => {
   return res;
 };
 
-const mockFindSort = (results) => {
-  const sort = jest.fn().mockResolvedValue(results);
-  ToolReplacement.find.mockReturnValue({ sort });
-  return sort;
+const createQueryChain = (results) => {
+  const chain = {
+    setOptions: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    gte: jest.fn().mockReturnThis(),
+    lte: jest.fn().mockReturnThis(),
+    in: jest.fn().mockReturnThis(),
+    equals: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockResolvedValue(results),
+  };
+  ToolReplacement.find.mockReturnValue(chain);
+  return chain;
 };
 
 describe('toolReplacementController', () => {
@@ -36,14 +45,15 @@ describe('toolReplacementController', () => {
         { toolName: 'Hammer', requirementSatisfiedPercentage: 20 },
         { toolName: 'Drill', requirementSatisfiedPercentage: 45 },
       ];
-      const sort = mockFindSort(mockData);
+      const chain = createQueryChain(mockData);
       const req = makeReq();
       const res = makeRes();
 
       await controller.getToolReplacement(req, res);
 
-      expect(ToolReplacement.find).toHaveBeenCalledWith({});
-      expect(sort).toHaveBeenCalledWith({
+      expect(ToolReplacement.find).toHaveBeenCalledWith();
+      expect(chain.setOptions).toHaveBeenCalledWith({ sanitizeFilter: true });
+      expect(chain.sort).toHaveBeenCalledWith({
         requirementSatisfiedPercentage: 1,
         toolName: 1,
       });
@@ -51,8 +61,8 @@ describe('toolReplacementController', () => {
       expect(res.json).toHaveBeenCalledWith(mockData);
     });
 
-    it('filters by date range, tools, and projectId', async () => {
-      const sort = mockFindSort([]);
+    it('filters by date range, tools, and projectId using chained where()', async () => {
+      const chain = createQueryChain([]);
       const req = makeReq({
         startDate: '2024-01-01',
         endDate: '2024-01-31',
@@ -63,15 +73,30 @@ describe('toolReplacementController', () => {
 
       await controller.getToolReplacement(req, res);
 
-      expect(ToolReplacement.find).toHaveBeenCalledWith({
-        date: {
-          $gte: new Date('2024-01-01'),
-          $lte: new Date('2024-01-31'),
-        },
-        toolName: { $in: ['Hammer', 'Drill'] },
-        projectId: VALID_PROJECT_ID,
+      expect(chain.where).toHaveBeenCalledWith('date');
+      expect(chain.gte).toHaveBeenCalledWith(new Date('2024-01-01'));
+      expect(chain.lte).toHaveBeenCalledWith(new Date('2024-01-31'));
+      expect(chain.where).toHaveBeenCalledWith('toolName');
+      expect(chain.in).toHaveBeenCalledWith(['Hammer', 'Drill']);
+      expect(chain.where).toHaveBeenCalledWith('projectId');
+      expect(chain.equals).toHaveBeenCalledWith(expect.any(mongoose.Types.ObjectId));
+      expect(chain.equals.mock.calls[0][0].toString()).toBe(VALID_PROJECT_ID);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('ignores non-string query params to prevent NoSQL injection', async () => {
+      const chain = createQueryChain([]);
+      const req = makeReq({
+        tools: { $gt: '' },
+        projectId: { $ne: null },
+        startDate: { $gt: '2020-01-01' },
       });
-      expect(sort).toHaveBeenCalled();
+      const res = makeRes();
+
+      await controller.getToolReplacement(req, res);
+
+      expect(chain.where).not.toHaveBeenCalled();
+      expect(chain.sort).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -122,7 +147,14 @@ describe('toolReplacementController', () => {
     });
 
     it('returns 500 when the query fails', async () => {
+      createQueryChain([]);
       ToolReplacement.find.mockReturnValue({
+        setOptions: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        equals: jest.fn().mockReturnThis(),
         sort: jest.fn().mockRejectedValue(new Error('DB error')),
       });
       const req = makeReq();
