@@ -11,6 +11,7 @@ const toolReplacementSchema = new mongoose.Schema({
   },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
+    ref: 'buildingProject',
     required: true,
   },
   date: {

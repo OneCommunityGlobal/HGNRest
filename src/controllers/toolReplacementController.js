@@ -24,6 +24,21 @@ const parseToolNames = (value) => {
     .filter(Boolean);
 };
 
+const formatToolReplacement = (doc) => {
+  const project = doc.projectId;
+  const projectId = project && project._id ? project._id : project;
+  const projectName = project && typeof project === 'object' ? project.name || null : null;
+
+  return {
+    _id: doc._id,
+    toolName: doc.toolName,
+    requirementSatisfiedPercentage: doc.requirementSatisfiedPercentage,
+    projectId,
+    projectName,
+    date: doc.date,
+  };
+};
+
 const toolReplacementController = function () {
   const getToolReplacement = async (req, res) => {
     try {
@@ -74,12 +89,15 @@ const toolReplacementController = function () {
       }
 
       // Ascending by % requirement satisfied so tools most in need appear first
-      const results = await dbQuery.sort({
-        requirementSatisfiedPercentage: 1,
-        toolName: 1,
-      });
+      const results = await dbQuery
+        .populate('projectId', 'name')
+        .sort({
+          requirementSatisfiedPercentage: 1,
+          toolName: 1,
+        })
+        .lean();
 
-      return res.status(200).json(results);
+      return res.status(200).json(results.map(formatToolReplacement));
     } catch (error) {
       console.error('Error fetching tool replacement data: ', error);
       return res.status(500).json({ error: 'Internal Server Error' });

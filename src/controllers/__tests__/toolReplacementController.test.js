@@ -25,7 +25,9 @@ const createQueryChain = (results) => {
     lte: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
     equals: jest.fn().mockReturnThis(),
-    sort: jest.fn().mockResolvedValue(results),
+    populate: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(results),
   };
   ToolReplacement.find.mockReturnValue(chain);
   return chain;
@@ -40,10 +42,22 @@ describe('toolReplacementController', () => {
   });
 
   describe('getToolReplacement', () => {
-    it('returns tools sorted by requirementSatisfiedPercentage ascending', async () => {
+    it('returns tools sorted by requirementSatisfiedPercentage ascending with projectName', async () => {
       const mockData = [
-        { toolName: 'Hammer', requirementSatisfiedPercentage: 20 },
-        { toolName: 'Drill', requirementSatisfiedPercentage: 45 },
+        {
+          _id: '1',
+          toolName: 'Hammer',
+          requirementSatisfiedPercentage: 20,
+          projectId: { _id: VALID_PROJECT_ID, name: 'Building 1' },
+          date: new Date('2025-06-15'),
+        },
+        {
+          _id: '2',
+          toolName: 'Drill',
+          requirementSatisfiedPercentage: 45,
+          projectId: { _id: VALID_PROJECT_ID, name: 'Building 1' },
+          date: new Date('2025-06-15'),
+        },
       ];
       const chain = createQueryChain(mockData);
       const req = makeReq();
@@ -53,12 +67,30 @@ describe('toolReplacementController', () => {
 
       expect(ToolReplacement.find).toHaveBeenCalledWith();
       expect(chain.setOptions).toHaveBeenCalledWith({ sanitizeFilter: true });
+      expect(chain.populate).toHaveBeenCalledWith('projectId', 'name');
       expect(chain.sort).toHaveBeenCalledWith({
         requirementSatisfiedPercentage: 1,
         toolName: 1,
       });
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(mockData);
+      expect(res.json).toHaveBeenCalledWith([
+        {
+          _id: '1',
+          toolName: 'Hammer',
+          requirementSatisfiedPercentage: 20,
+          projectId: VALID_PROJECT_ID,
+          projectName: 'Building 1',
+          date: mockData[0].date,
+        },
+        {
+          _id: '2',
+          toolName: 'Drill',
+          requirementSatisfiedPercentage: 45,
+          projectId: VALID_PROJECT_ID,
+          projectName: 'Building 1',
+          date: mockData[1].date,
+        },
+      ]);
     });
 
     it('filters by date range, tools, and projectId using chained where()', async () => {
@@ -96,7 +128,7 @@ describe('toolReplacementController', () => {
       await controller.getToolReplacement(req, res);
 
       expect(chain.where).not.toHaveBeenCalled();
-      expect(chain.sort).toHaveBeenCalled();
+      expect(chain.lean).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -147,7 +179,6 @@ describe('toolReplacementController', () => {
     });
 
     it('returns 500 when the query fails', async () => {
-      createQueryChain([]);
       ToolReplacement.find.mockReturnValue({
         setOptions: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
@@ -155,7 +186,9 @@ describe('toolReplacementController', () => {
         lte: jest.fn().mockReturnThis(),
         in: jest.fn().mockReturnThis(),
         equals: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockRejectedValue(new Error('DB error')),
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(new Error('DB error')),
       });
       const req = makeReq();
       const res = makeRes();
