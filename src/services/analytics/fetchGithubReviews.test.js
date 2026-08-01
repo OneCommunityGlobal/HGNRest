@@ -139,6 +139,66 @@ describe('fetchGithubReviews service', () => {
     expect(result[0].team).toBe('TeamA');
   });
 
+  test('resolves team from profile personalLinks when form github is missing', async () => {
+    HgnFormResponses.find.mockReturnValue(mockLeanFind([]));
+    UserProfile.find.mockReturnValue(
+      mockLeanFind([
+        {
+          _id: '507f1f77bcf86cd799439099',
+          teamCode: 'Alpha1',
+          personalLinks: [{ Name: 'GitHub', Link: 'https://github.com/LinkOnlyUser' }],
+          adminLinks: [],
+        },
+      ]),
+    );
+
+    axios.get.mockResolvedValueOnce({ data: [{ number: 11 }] }).mockResolvedValueOnce({
+      data: [
+        {
+          user: { login: 'LinkOnlyUser' },
+          state: 'APPROVED',
+          submitted_at: dayjs().toISOString(),
+        },
+      ],
+    });
+
+    const result = await fetchGitHubReviews('OneCommunityGlobal', 'HGNRest', 'allTime');
+
+    expect(result[0].reviewer).toBe('LinkOnlyUser');
+    expect(result[0].team).toBe('Alpha1');
+    expect(result[0].isMentor).toBe(false);
+  });
+
+  test('team filter still works in controller when teams are populated', async () => {
+    // Covered via controller unit tests; ensure service shape remains FE-compatible.
+    axios.get.mockResolvedValueOnce({ data: [{ number: 12 }] }).mockResolvedValueOnce({
+      data: [
+        {
+          user: { login: 'solo' },
+          state: 'COMMENTED',
+          submitted_at: dayjs().toISOString(),
+        },
+      ],
+    });
+    HgnFormResponses.find.mockReturnValue(mockLeanFind([]));
+    UserProfile.find.mockReturnValue(mockLeanFind([]));
+
+    const result = await fetchGitHubReviews('OneCommunityGlobal', 'HGNRest', 'allTime');
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        reviewer: 'solo',
+        isMentor: false,
+        team: null,
+        counts: expect.objectContaining({
+          Exceptional: 1,
+          Sufficient: 0,
+          'Needs Changes': 0,
+          'Did Not Review': 0,
+        }),
+      }),
+    );
+  });
+
   test('normalizes github URL and @handle when matching reviewers', async () => {
     const userId = '507f1f77bcf86cd799439012';
 

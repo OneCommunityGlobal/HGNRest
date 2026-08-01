@@ -114,6 +114,106 @@ const mapWithConcurrency = async (items, concurrency, worker) => {
   return results;
 };
 
+const normalizeTeamCode = (teamCode) => {
+  if (!teamCode || typeof teamCode !== 'string') return null;
+  const trimmed = teamCode.trim();
+  return trimmed || null;
+};
+
+const extractGithubUsernamesFromProfile = (profile) => {
+  const links = [...(profile.personalLinks || []), ...(profile.adminLinks || [])];
+  const usernames = new Set();
+
+  links.forEach((link) => {
+    const normalized = normalizeGithubUsername(link?.Link);
+    if (normalized) usernames.add(normalized);
+  });
+
+  return [...usernames];
+};
+
+/**
+ * Resolve GitHub usernames -> teamCode using:
+ * 1) HGN form github handles linked to user profiles
+ * 2) UserProfile personalLinks / adminLinks that contain github.com/...
+ */
+const buildGithubToTeamMap = async (HgnFormResponses, UserProfile, reviewerLogins = []) => {
+  const githubToTeam = new Map();
+  const normalizedReviewers = new Set(
+    reviewerLogins.map((login) => normalizeGithubUsername(login)).filter(Boolean),
+  );
+
+  const formResponses = await HgnFormResponses.find({
+    'userInfo.github': { $exists: true, $nin: [null, ''] },
+  })
+    .select('userInfo.github user_id')
+    .lean();
+
+  const githubToUserId = new Map();
+  formResponses.forEach((form) => {
+    const normalized = normalizeGithubUsername(form.userInfo?.github);
+    if (normalized && form.user_id) {
+      githubToUserId.set(normalized, form.user_id);
+    }
+  });
+
+  const matchedUserIds = [
+    ...new Set(
+      [...normalizedReviewers]
+        .map((name) => githubToUserId.get(name))
+        .filter(Boolean)
+        .map((id) => String(id)),
+    ),
+  ];
+
+  if (matchedUserIds.length) {
+    const userProfiles = await UserProfile.find({ _id: { $in: matchedUserIds } })
+      .select('teamCode')
+      .lean();
+
+    const userIdToTeam = new Map(
+      userProfiles.map((profile) => [String(profile._id), normalizeTeamCode(profile.teamCode)]),
+    );
+
+    githubToUserId.forEach((userId, githubUsername) => {
+      if (!normalizedReviewers.has(githubUsername)) return;
+      const team = userIdToTeam.get(String(userId));
+      if (team) {
+        githubToTeam.set(githubUsername, team);
+      }
+    });
+  }
+
+  const unresolved = [...normalizedReviewers].filter((name) => !githubToTeam.has(name));
+  if (!unresolved.length) {
+    return githubToTeam;
+  }
+
+  // Fallback: match GitHub handles stored in profile personal/admin links.
+  const profilesWithGithubLinks = await UserProfile.find({
+    teamCode: { $exists: true, $nin: [null, ''] },
+    $or: [
+      { 'personalLinks.Link': { $regex: /github\.com/i } },
+      { 'adminLinks.Link': { $regex: /github\.com/i } },
+    ],
+  })
+    .select('teamCode personalLinks adminLinks')
+    .lean();
+
+  profilesWithGithubLinks.forEach((profile) => {
+    const team = normalizeTeamCode(profile.teamCode);
+    if (!team) return;
+
+    extractGithubUsernamesFromProfile(profile).forEach((username) => {
+      if (normalizedReviewers.has(username) && !githubToTeam.has(username)) {
+        githubToTeam.set(username, team);
+      }
+    });
+  });
+
+  return githubToTeam;
+};
+
 /**
  * Fetch and aggregate GitHub PR review data for a single repo.
  * Team filter and sort are applied in the controller after merging repos.
@@ -125,7 +225,8 @@ const mapWithConcurrency = async (items, concurrency, worker) => {
 const fetchGitHubReviews =
   (HgnFormResponses, UserProfile) =>
   async (org, repo, duration = 'allTime') => {
-    const cacheKey = `${org}_${repo}_${duration}`;
+    // v2: bust old cache entries that often stored team=null before improved lookup.
+    const cacheKey = `v2_${org}_${repo}_${duration}`;
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
@@ -192,53 +293,22 @@ const fetchGitHubReviews =
 
       const allReviewData = reviewArrays.flat();
       const uniqueReviewers = [...new Set(allReviewData.map((r) => r.reviewer))];
-
-      // Batch-load form responses and profiles so team lookup is reliable and not N+1.
-      const formResponses = await HgnFormResponses.find({
-        'userInfo.github': { $exists: true, $nin: [null, ''] },
-      })
-        .select('userInfo.github user_id')
-        .lean();
-
-      const githubToUserId = new Map();
-      formResponses.forEach((form) => {
-        const normalized = normalizeGithubUsername(form.userInfo?.github);
-        if (normalized && form.user_id) {
-          githubToUserId.set(normalized, form.user_id);
-        }
-      });
-
-      const matchedUserIds = uniqueReviewers
-        .map((name) => githubToUserId.get(normalizeGithubUsername(name)))
-        .filter(Boolean);
-
-      const userProfiles = matchedUserIds.length
-        ? await UserProfile.find({ _id: { $in: matchedUserIds } })
-            .select('teamCode')
-            .lean()
-        : [];
-
-      const userIdToTeam = new Map(
-        userProfiles.map((profile) => [
-          String(profile._id),
-          profile.teamCode && String(profile.teamCode).trim()
-            ? String(profile.teamCode).trim()
-            : null,
-        ]),
+      const githubToTeam = await buildGithubToTeamMap(
+        HgnFormResponses,
+        UserProfile,
+        uniqueReviewers,
       );
 
       const reviewerSummary = {};
 
       allReviewData.forEach(({ reviewer, state }) => {
         if (!reviewerSummary[reviewer]) {
-          const userId = githubToUserId.get(normalizeGithubUsername(reviewer));
-          const team = userId ? userIdToTeam.get(String(userId)) || null : null;
-
+          const normalized = normalizeGithubUsername(reviewer);
           reviewerSummary[reviewer] = {
             reviewer,
             // Spec: default false until mentor source-of-truth issue is resolved.
             isMentor: false,
-            team,
+            team: (normalized && githubToTeam.get(normalized)) || null,
             counts: EMPTY_COUNTS(),
           };
         }
@@ -259,6 +329,8 @@ fetchGitHubReviews.clearCache = () => cache.flushAll();
 fetchGitHubReviews._test = {
   mapWithConcurrency,
   isRetryableGithubError,
+  normalizeGithubUsername,
+  buildGithubToTeamMap,
   REVIEW_FETCH_CONCURRENCY,
   MAX_RETRIES,
 };
