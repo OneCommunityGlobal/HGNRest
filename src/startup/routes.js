@@ -326,6 +326,7 @@ const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
   userProfile,
 );
 const weeklyGradingRouter = require('../routes/prAnalytics/weeklyGradingRouter')(WeeklyGrading);
+const githubAnalyticsRouter = require('../routes/githubAnalyticsRouter');
 
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
@@ -644,6 +645,7 @@ module.exports = function (app) {
   app.use('/api', prInsightsRouter);
   app.use('/api', weeklyGradingRouter);
   app.use('/api', prGradingConfigRouter);
+  app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', lbWishlistsRouter);
