@@ -46,6 +46,28 @@ const route = function () {
 
   reportsRouter.route('/reports/teamcodes').get(controller.getReportTeamCodes);
 
+  // TEMPORARY DEBUG ROUTE -- remove once infringement date investigation is done
+  reportsRouter.get('/reports/debug/infringement-dates', async (req, res) => {
+    try {
+      const UserProfile = require('../models/userProfile');
+      const results = await UserProfile.aggregate([
+        { $unwind: '$infringements' },
+        {
+          $project: {
+            _id: 0,
+            date: '$infringements.date',
+            description: '$infringements.description',
+          },
+        },
+        { $sort: { date: -1 } },
+        { $limit: 20 },
+      ]);
+      res.json(results);
+    } catch (err) {
+      res.status(500).json({ msg: 'Debug query failed', error: err.message });
+    }
+  });
+
   return reportsRouter;
 };
 

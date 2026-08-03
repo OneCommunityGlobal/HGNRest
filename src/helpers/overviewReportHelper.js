@@ -719,6 +719,8 @@ const overviewReportHelper = function () {
     isoComparisonStartDate,
     isoComparisonEndDate,
   ) {
+    const laTimeZone = 'America/Los_Angeles';
+
     const getData = async (startDate, endDate) =>
       UserProfile.aggregate([
         {
@@ -727,20 +729,177 @@ const overviewReportHelper = function () {
           },
         },
         {
+          // Robust date parsing: infringements.date may be stored as a proper
+          // ISO string ("2025-01-15" / "2025-01-15T00:00:00.000Z"), or as the
+          // same "Jan-15-25" style short-date string used elsewhere in this
+          // file for badgeCollection.earnedDate (see getTotalBadgesAwardedCount
+          // below). A bare `$convert`/`$toDate` only understands ISO strings,
+          // so non-ISO values were silently failing to parse (onError: null)
+          // and getting filtered out by the `$ne: null` match below -- which
+          // made real infringements disappear from Blue Square Stats without
+          // any error. This mirrors the badge-date fix already in this file.
+          $addFields: {
+            'infringements.fixedDateString': {
+              $cond: {
+                if: {
+                  $regexMatch: {
+                    input: '$infringements.date',
+                    regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                  },
+                },
+                then: {
+                  $concat: [
+                    { $substr: ['$infringements.date', 0, 6] },
+                    '-20',
+                    { $substr: ['$infringements.date', 7, 2] },
+                  ],
+                },
+                else: '$infringements.date',
+              },
+            },
+          },
+        },
+        {
           $addFields: {
             'infringements.parsedDate': {
-              $convert: {
-                input: '$infringements.date',
-                to: 'date',
-                onError: null,
-                onNull: null,
+              $switch: {
+                branches: [
+                  {
+                    // Already a Date object (e.g. legacy documents)
+                    case: { $eq: [{ $type: '$infringements.date' }, 'date'] },
+                    then: '$infringements.date',
+                  },
+                  {
+                    // ISO-format string with a time component. Date-only values
+                    // are handled separately below so they can be parsed in LA
+                    // time instead of UTC.
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^\d{4}-\d{2}-\d{2}T/,
+                      },
+                    },
+                    then: {
+                      $convert: {
+                        input: '$infringements.fixedDateString',
+                        to: 'date',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // Date-only ISO string (YYYY-MM-DD) from report filters.
+                    // Parse it in the company timezone so weekly boundaries
+                    // match the dashboard's LA-based week windows.
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^\d{4}-\d{2}-\d{2}$/,
+                      },
+                    },
+                    then: {
+                      $dateFromString: {
+                        dateString: '$infringements.fixedDateString',
+                        timezone: laTimeZone,
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // "Jan-15-2025" short-date string (after the $concat fix above)
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                      },
+                    },
+                    then: {
+                      $dateFromString: {
+                        dateString: '$infringements.fixedDateString',
+                        format: '%b-%d-%Y',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // Fallback for legacy JS Date string formats such as
+                    // "Wed Nov 19 2025 00:00:00 GMT+0000 (GMT)".
+                    case: { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                    then: {
+                      $dateFromString: {
+                        dateString: {
+                          $arrayElemAt: [
+                            {
+                              $split: [
+                                { $substr: ['$infringements.fixedDateString', 4, 100] },
+                                ' (',
+                              ],
+                            },
+                            0,
+                          ],
+                        },
+                        format: '%b %d %Y %H:%M:%S GMT%z',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                ],
+                default: null,
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            'infringements.effectiveDate': {
+              $cond: {
+                if: {
+                  $and: [
+                    {
+                      $regexMatch: {
+                        input: '$infringements.appliesToWeekStart',
+                        regex: /^\d{4}-\d{2}-\d{2}$/,
+                      },
+                    },
+                  ],
+                },
+                then: {
+                  $dateFromString: {
+                    dateString: '$infringements.appliesToWeekStart',
+                    timezone: laTimeZone,
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+                else: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ['$infringements.parsedDate', null] },
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex:
+                              /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
+                          },
+                        },
+                      ],
+                    },
+                    then: { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                    else: '$infringements.parsedDate',
+                  },
+                },
               },
             },
           },
         },
         {
           $match: {
-            'infringements.parsedDate': {
+            'infringements.effectiveDate': {
               $ne: null,
               $gte: startDate,
               $lte: endDate,
@@ -824,20 +983,177 @@ const overviewReportHelper = function () {
           },
         },
         {
+          // Robust date parsing: infringements.date may be stored as a proper
+          // ISO string ("2025-01-15" / "2025-01-15T00:00:00.000Z"), or as the
+          // same "Jan-15-25" style short-date string used elsewhere in this
+          // file for badgeCollection.earnedDate (see getTotalBadgesAwardedCount
+          // below). A bare `$convert`/`$toDate` only understands ISO strings,
+          // so non-ISO values were silently failing to parse (onError: null)
+          // and getting filtered out by the `$ne: null` match below -- which
+          // made real infringements disappear from Blue Square Stats without
+          // any error. This mirrors the badge-date fix already in this file.
+          $addFields: {
+            'infringements.fixedDateString': {
+              $cond: {
+                if: {
+                  $regexMatch: {
+                    input: '$infringements.date',
+                    regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                  },
+                },
+                then: {
+                  $concat: [
+                    { $substr: ['$infringements.date', 0, 6] },
+                    '-20',
+                    { $substr: ['$infringements.date', 7, 2] },
+                  ],
+                },
+                else: '$infringements.date',
+              },
+            },
+          },
+        },
+        {
           $addFields: {
             'infringements.parsedDate': {
-              $convert: {
-                input: '$infringements.date',
-                to: 'date',
-                onError: null,
-                onNull: null,
+              $switch: {
+                branches: [
+                  {
+                    // Already a Date object (e.g. legacy documents)
+                    case: { $eq: [{ $type: '$infringements.date' }, 'date'] },
+                    then: '$infringements.date',
+                  },
+                  {
+                    // ISO-format string with a time component. Date-only values
+                    // are handled separately below so they can be parsed in LA
+                    // time instead of UTC.
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^\d{4}-\d{2}-\d{2}T/,
+                      },
+                    },
+                    then: {
+                      $convert: {
+                        input: '$infringements.fixedDateString',
+                        to: 'date',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // Date-only ISO string (YYYY-MM-DD) from report filters.
+                    // Parse it in the company timezone so weekly boundaries
+                    // match the dashboard's LA-based week windows.
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^\d{4}-\d{2}-\d{2}$/,
+                      },
+                    },
+                    then: {
+                      $dateFromString: {
+                        dateString: '$infringements.fixedDateString',
+                        timezone: laTimeZone,
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // "Jan-15-2025" short-date string (after the $concat fix above)
+                    case: {
+                      $regexMatch: {
+                        input: '$infringements.fixedDateString',
+                        regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                      },
+                    },
+                    then: {
+                      $dateFromString: {
+                        dateString: '$infringements.fixedDateString',
+                        format: '%b-%d-%Y',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                  {
+                    // Fallback for legacy JS Date string formats such as
+                    // "Wed Nov 19 2025 00:00:00 GMT+0000 (GMT)".
+                    case: { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                    then: {
+                      $dateFromString: {
+                        dateString: {
+                          $arrayElemAt: [
+                            {
+                              $split: [
+                                { $substr: ['$infringements.fixedDateString', 4, 100] },
+                                ' (',
+                              ],
+                            },
+                            0,
+                          ],
+                        },
+                        format: '%b %d %Y %H:%M:%S GMT%z',
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                  },
+                ],
+                default: null,
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            'infringements.effectiveDate': {
+              $cond: {
+                if: {
+                  $and: [
+                    {
+                      $regexMatch: {
+                        input: '$infringements.appliesToWeekStart',
+                        regex: /^\d{4}-\d{2}-\d{2}$/,
+                      },
+                    },
+                  ],
+                },
+                then: {
+                  $dateFromString: {
+                    dateString: '$infringements.appliesToWeekStart',
+                    timezone: laTimeZone,
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+                else: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ['$infringements.parsedDate', null] },
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex:
+                              /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
+                          },
+                        },
+                      ],
+                    },
+                    then: { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                    else: '$infringements.parsedDate',
+                  },
+                },
               },
             },
           },
         },
         {
           $match: {
-            'infringements.parsedDate': {
+            'infringements.effectiveDate': {
               $ne: null,
               $gte: startDate,
               $lte: endDate,
