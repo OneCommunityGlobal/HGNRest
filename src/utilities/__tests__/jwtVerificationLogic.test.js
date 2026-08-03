@@ -1,13 +1,14 @@
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
-const config = require('../config');
-const jwtVerificationLogic = require('./jwtVerificationLogic');
+const config = require('../../config');
+const jwtVerificationLogic = require('../jwtVerificationLogic');
 
-// Mock external dependencies
-jest.mock('jsonwebtoken');
-jest.mock('../config', () => ({
+// Mock config matching the exact path
+jest.mock('../../config', () => ({
   JWT_SECRET: 'test-secret-key',
 }));
+jest.mock('jsonwebtoken');
+
 
 describe('jwtVerificationLogic', () => {
   let mockRes;
