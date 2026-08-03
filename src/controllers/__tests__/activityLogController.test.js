@@ -690,7 +690,7 @@ describe('activityLogController', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Only Educators can view students logs',
+        error: 'You are not authorized to view students logs',
       });
     });
 
