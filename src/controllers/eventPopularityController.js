@@ -86,7 +86,8 @@ const eventPopularityController = () => {
         if (endDate) query.date.$lte = new Date(endDate);
       }
 
-      if (format) {
+      const ALLOWED_FORMATS = ['Virtual', 'In person'];
+      if (typeof format === 'string' && ALLOWED_FORMATS.includes(format)) {
         query.location = format;
       }
 
