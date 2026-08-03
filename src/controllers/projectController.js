@@ -402,10 +402,12 @@ const projectController = function (Project) {
         return;
       }
       const { projects } = user;
-      const projectList = await Project.find(
-        { _id: { $in: projects }, isActive: { $ne: false } },
-        '_id projectName category',
-      );
+
+      const projectList =
+        (await Project.find(
+          { _id: { $in: projects }, isActive: { $ne: false } },
+          '_id projectName category',
+        )) || [];
       const result = projectList
         .map((p) => {
           p = p.toObject();
@@ -464,8 +466,12 @@ const projectController = function (Project) {
         });
 
         const assignPromise = userProfile
-          .updateMany({ _id: { $in: assignlist } }, { $addToSet: { projects: project._id } })
+          .updateMany(
+            { _id: { $in: assignlist } },
+            { $addToSet: { projects: project._id, projectHistory: project._id } },
+          )
           .exec();
+
         const unassignPromise = userProfile
           .updateMany({ _id: { $in: unassignlist } }, { $pull: { projects: project._id } })
           .exec();

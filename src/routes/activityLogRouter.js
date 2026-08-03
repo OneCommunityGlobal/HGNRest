@@ -1,11 +1,14 @@
 const express = require('express');
-const activityLogRouter = express.Router();
-// Invoke the controller factory
-const controller = require('../controllers/activityLogController')();
 
-activityLogRouter
-  .route('/:studentId')
-  .get(controller.fetchSupportDailyLog);
+const routes = function () {
+  const activityLogRouter = express.Router();
+  const controller = require('../controllers/activityLogController')();
+  activityLogRouter.route('/student/daily-log').get(controller.fetchStudentDailyLog);
+  activityLogRouter.route('/educator/daily-log/:studentId').get(controller.fetchEducatorDailyLog);
+  activityLogRouter.route('/support/daily-log/:studentId').get(controller.fetchSupportDailyLog);
+  activityLogRouter.route('/student/daily-log').post(controller.createStudentDailyLog);
+  activityLogRouter.route('/student/daily-log/:logId').put(controller.updateStudentDailyLog);
+  return activityLogRouter;
+};
 
-// Export the INSTANCE
-module.exports = activityLogRouter;
+module.exports = routes;
