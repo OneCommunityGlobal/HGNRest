@@ -3,24 +3,27 @@ const moment = require('moment');
 const config = require('../../config');
 const jwtVerificationLogic = require('../jwtVerificationLogic');
 
-// Mock config matching the exact path
 jest.mock('../../config', () => ({
   JWT_SECRET: 'test-secret-key',
 }));
-jest.mock('jsonwebtoken');
-
 
 describe('jwtVerificationLogic', () => {
   let mockRes;
+  let verifySpy;
 
   beforeEach(() => {
-    // Reset mock response object before each test
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
       send: jest.fn().mockReturnThis(),
     };
-    jest.clearAllMocks();
+
+    // Spy on jwt.verify method directly
+    verifySpy = jest.spyOn(jwt, 'verify');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('Header Validation', () => {
@@ -44,11 +47,11 @@ describe('jwtVerificationLogic', () => {
         expiryTimestamp: moment().add(1, 'hour').valueOf(),
       };
 
-      jwt.verify.mockReturnValue(validPayload);
+      verifySpy.mockReturnValue(validPayload);
 
       const result = jwtVerificationLogic(rawToken, mockRes);
 
-      expect(jwt.verify).toHaveBeenCalledWith(rawToken, config.JWT_SECRET);
+      expect(verifySpy).toHaveBeenCalledWith(rawToken, config.JWT_SECRET);
       expect(result).toEqual(validPayload);
     });
 
@@ -61,17 +64,17 @@ describe('jwtVerificationLogic', () => {
         expiryTimestamp: moment().add(1, 'hour').valueOf(),
       };
 
-      jwt.verify.mockReturnValue(validPayload);
+      verifySpy.mockReturnValue(validPayload);
 
       const result = jwtVerificationLogic(authHeader, mockRes);
 
-      expect(jwt.verify).toHaveBeenCalledWith(token, config.JWT_SECRET);
+      expect(verifySpy).toHaveBeenCalledWith(token, config.JWT_SECRET);
       expect(result).toEqual(validPayload);
     });
 
     it('should return 401 when jwt.verify throws an error', () => {
       const jwtError = new Error('jwt expired');
-      jwt.verify.mockImplementation(() => {
+      verifySpy.mockImplementation(() => {
         throw jwtError;
       });
 
@@ -92,7 +95,7 @@ describe('jwtVerificationLogic', () => {
         role: 'admin',
         expiryTimestamp: moment().add(1, 'hour').valueOf(),
       };
-      jwt.verify.mockReturnValue(invalidPayload);
+      verifySpy.mockReturnValue(invalidPayload);
 
       const result = jwtVerificationLogic('Bearer token', mockRes);
 
@@ -108,7 +111,7 @@ describe('jwtVerificationLogic', () => {
         userid: 'user123',
         expiryTimestamp: moment().add(1, 'hour').valueOf(),
       };
-      jwt.verify.mockReturnValue(invalidPayload);
+      verifySpy.mockReturnValue(invalidPayload);
 
       const result = jwtVerificationLogic('Bearer token', mockRes);
 
@@ -125,7 +128,7 @@ describe('jwtVerificationLogic', () => {
         role: 'admin',
         expiryTimestamp: moment().subtract(1, 'hour').valueOf(),
       };
-      jwt.verify.mockReturnValue(expiredPayload);
+      verifySpy.mockReturnValue(expiredPayload);
 
       const result = jwtVerificationLogic('Bearer token', mockRes);
 
@@ -142,7 +145,7 @@ describe('jwtVerificationLogic', () => {
         role: 'user',
         expiryTimestamp: moment().add(10, 'minutes').valueOf(),
       };
-      jwt.verify.mockReturnValue(validPayload);
+      verifySpy.mockReturnValue(validPayload);
 
       const result = jwtVerificationLogic('Bearer valid.token', mockRes);
 
