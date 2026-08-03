@@ -86,9 +86,14 @@ const eventPopularityController = () => {
         if (endDate) query.date.$lte = new Date(endDate);
       }
 
-      const ALLOWED_FORMATS = ['Virtual', 'In person'];
-      if (typeof format === 'string' && ALLOWED_FORMATS.includes(format)) {
-        query.location = format;
+      let safeFormat;
+      if (format === 'Virtual') {
+        safeFormat = 'Virtual';
+      } else if (format === 'In person') {
+        safeFormat = 'In person';
+      }
+      if (safeFormat) {
+        query.location = safeFormat;
       }
 
       const events = await Event.find(query).lean();
