@@ -218,7 +218,7 @@ const activityLogController = function () {
       const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
 
       if (!validRoles.has(currentUser.role)) {
-        return res.status(403).json({ error: 'Only Educators can view students logs' });
+        return res.status(403).json({ error: 'You are not authorized to view students logs' });
       }
 
       const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
@@ -232,34 +232,7 @@ const activityLogController = function () {
     }
   }
 
-  async function fetchSupportDailyLog(req, res) {
-    try {
-      const { studentId } = req.params;
-      const currentUser = req.body.requestor;
-      if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
-
-      if (!mongoose.Types.ObjectId.isValid(studentId)) {
-        return res.status(400).json({ error: 'Invalid studentId format' });
-      }
-      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
-
-      if (!validRoles.has(currentUser.role)) {
-        return res.status(403).json({ error: 'Only Support can view students logs' });
-      }
-
-      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
-        .sort({ created_at: -1 })
-        .select('action_type metadata created_at actor_id is_assisted assisted_users');
-
-      res.json(formatLogs(logs));
-    } catch (err) {
-      logger.logException(err, 'fetchSupportDailyLog', { requestor: req.body.requestor });
-      res.status(500).json({ error: 'An unexpected error occurred' });
-    }
-  }
-
   return {
-    fetchSupportDailyLog,
     fetchStudentDailyLog,
     fetchEducatorDailyLog,
     createStudentDailyLog,

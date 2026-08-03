@@ -5,7 +5,7 @@ const routes = function () {
   const controller = require('../controllers/activityLogController')();
   activityLogRouter.route('/student/daily-log').get(controller.fetchStudentDailyLog);
   activityLogRouter.route('/educator/daily-log/:studentId').get(controller.fetchEducatorDailyLog);
-  activityLogRouter.route('/support/daily-log/:studentId').get(controller.fetchSupportDailyLog);
+  activityLogRouter.route('/support/daily-log/:studentId').get(controller.fetchEducatorDailyLog);
   activityLogRouter.route('/student/daily-log').post(controller.createStudentDailyLog);
   activityLogRouter.route('/student/daily-log/:logId').put(controller.updateStudentDailyLog);
   return activityLogRouter;
