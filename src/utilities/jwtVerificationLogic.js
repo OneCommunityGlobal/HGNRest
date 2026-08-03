@@ -23,8 +23,6 @@ const jwtVerificationLogic = (authHeader, res) => {
   // Ensure mock date in test is not in the past
   const isExpired = moment().isAfter(payload.expiryTimestamp);
   if (!payload.userid || !payload.role || isExpired) {
-    // eslint-disable-next-line no-console
-    console.log('Auth failed. Expiry:', payload.expiryTimestamp);
     return res.status(401).send('Unauthorized request: Token expired or invalid payload');
   }
 
