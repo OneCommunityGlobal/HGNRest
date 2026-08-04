@@ -627,8 +627,8 @@ describe('activityLogController', () => {
     });
   });
 
-  // ─── fetchEducatorDailyLog ──────────────────────────────────────────
-  describe('fetchEducatorDailyLog', () => {
+ // ─── fetchStudentDailyLogsByStaff ──────────────────────────────────
+  describe('fetchStudentDailyLogsByStaff', () => {
     it('returns logs for a student when educator is authorized', async () => {
       const logs = [buildMockLog()];
       const chain = {
@@ -642,7 +642,7 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Educator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       expect(ActivityLog.find).toHaveBeenCalledWith({
         actor_id: expect.any(mongoose.Types.ObjectId),
@@ -663,7 +663,25 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Administrator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalled();
+    });
+
+    it('returns logs for a student when support is authorized', async () => {
+      const logs = [buildMockLog()];
+      const chain = {
+        sort: jest.fn().mockReturnThis(),
+        select: jest.fn().mockResolvedValue(logs),
+      };
+      ActivityLog.find.mockReturnValue(chain);
+
+      const req = {
+        params: { studentId: '65cf6c3706d8ac105827bb2e' },
+        body: { requestor: { role: 'Support' } },
+      };
+
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       expect(mockRes.json).toHaveBeenCalled();
     });
@@ -674,23 +692,23 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Educator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Missing studentId' });
     });
 
-    it('returns 403 when user is not an educator or administrator', async () => {
+    it('returns 403 when user is not authorized', async () => {
       const req = {
         params: { studentId: '65cf6c3706d8ac105827bb2e' },
         body: { requestor: { role: 'Volunteer' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'You are not authorized to view students logs',
+        error: 'You are not authorized to view student logs',
       });
     });
 
@@ -706,7 +724,7 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Educator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
       await resolvePromises();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
@@ -732,7 +750,7 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Educator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       const response = mockRes.json.mock.calls[0][0];
       expect(response[0]).toEqual(
@@ -759,7 +777,7 @@ describe('activityLogController', () => {
         body: { requestor: { role: 'Educator' } },
       };
 
-      await controller.fetchEducatorDailyLog(req, mockRes);
+      await controller.fetchStudentDailyLogsByStaff(req, mockRes);
 
       const response = mockRes.json.mock.calls[0][0];
       expect(response[0].is_assisted).toBe(true);

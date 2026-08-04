@@ -4,7 +4,11 @@ const usersProfiles = require('../models/userProfile');
 const logger = require('../startup/logger');
 
 const activityLogController = function () {
-  const validRoles = new Set(['Educator', 'Administrator','Support']);
+  // Roles allowed to set/update assisted flags
+  const managementRoles = new Set(['Educator', 'Administrator']);
+
+  // Roles authorized to read student daily logs
+  const staffReadRoles = new Set(['Educator', 'Administrator', 'Support']);
 
   const formatLogs = (logs) =>
     logs.map((log) => ({
@@ -84,10 +88,38 @@ const activityLogController = function () {
         .sort({ created_at: -1 })
         .select('action_type metadata created_at actor_id is_assisted assisted_users');
 
-      res.json(formatLogs(logs));
+      return res.json(formatLogs(logs));
     } catch (err) {
       logger.logException(err, 'fetchStudentDailyLog', { requestor: req.body.requestor });
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
+    }
+  }
+
+  async function fetchStudentDailyLogsByStaff(req, res) {
+    try {
+      const { studentId } = req.params;
+      const currentUser = req.body.requestor;
+
+      if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'Invalid studentId format' });
+      }
+
+      if (!staffReadRoles.has(currentUser?.role)) {
+        return res.status(403).json({ error: 'You are not authorized to view student logs' });
+      }
+
+      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
+
+      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
+        .sort({ created_at: -1 })
+        .select('action_type metadata created_at actor_id is_assisted assisted_users');
+
+      return res.json(formatLogs(logs));
+    } catch (err) {
+      logger.logException(err, 'fetchStudentDailyLogsByStaff', { requestor: req.body.requestor });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   }
 
@@ -118,7 +150,7 @@ const activityLogController = function () {
       let assistedUsers = null;
 
       if (isAssistedFromClient) {
-        if (!validRoles.has(currentUser.role)) {
+        if (!managementRoles.has(currentUser?.role)) {
           return res.status(403).json({
             error: 'Only educators or administrators can set the assisted flag',
           });
@@ -170,7 +202,7 @@ const activityLogController = function () {
         return res.status(400).json({ error: 'Invalid or missing logId' });
       }
 
-      if (!validRoles.has(currentUser.role)) {
+      if (!managementRoles.has(currentUser?.role)) {
         return res.status(403).json({
           error: 'Only educators or administrators can update the assisted flag',
         });
@@ -206,35 +238,9 @@ const activityLogController = function () {
     }
   }
 
-  async function fetchEducatorDailyLog(req, res) {
-    try {
-      const { studentId } = req.params;
-      const currentUser = req.body.requestor;
-      if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
-
-      if (!mongoose.Types.ObjectId.isValid(studentId)) {
-        return res.status(400).json({ error: 'Invalid studentId format' });
-      }
-      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
-
-      if (!validRoles.has(currentUser.role)) {
-        return res.status(403).json({ error: 'You are not authorized to view students logs' });
-      }
-
-      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
-        .sort({ created_at: -1 })
-        .select('action_type metadata created_at actor_id is_assisted assisted_users');
-
-      res.json(formatLogs(logs));
-    } catch (err) {
-      logger.logException(err, 'fetchEducatorDailyLog', { requestor: req.body.requestor });
-      res.status(500).json({ error: 'An unexpected error occurred' });
-    }
-  }
-
   return {
     fetchStudentDailyLog,
-    fetchEducatorDailyLog,
+    fetchStudentDailyLogsByStaff,
     createStudentDailyLog,
     updateStudentDailyLog,
   };
