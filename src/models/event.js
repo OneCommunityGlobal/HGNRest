@@ -14,7 +14,7 @@ const EventSchema = new Schema(
     },
     location: {
       type: String,
-      enum: ['Virtual', 'In person'],
+      enum: ['Virtual', 'In person', 'TBD'],
       required: true,
     },
     startTime: {
@@ -45,12 +45,21 @@ const EventSchema = new Schema(
         name: { type: String, required: true },
         userID: { type: mongoose.SchemaTypes.ObjectId, ref: User },
         profilePic: { type: String },
-        location: { type: String, enum: ['Virtual', 'In person'] },
+        location: { type: String, enum: ['Virtual', 'In person', 'TBD'], default: 'TBD' },
       },
     ],
     coverImage: { type: String },
     maxAttendees: { type: Number, required: true },
     currentAttendees: { type: Number, default: 0 },
+
+    // WAITLIST FEATURE
+    waitlist: [
+      {
+        userId: { type: mongoose.SchemaTypes.ObjectId, ref: User },
+        joinedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     attendeesThreshold: { type: Number },
     isActive: { type: Boolean, default: true },
   },

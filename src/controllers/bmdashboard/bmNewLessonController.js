@@ -1,6 +1,29 @@
 /* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
 
+/** Builds a MongoDB filter fragment for projectId. Returns {} for 'ALL' or absent value. */
+const buildProjectIdFilter = (projectId) => {
+  if (!projectId || projectId === 'ALL') return {};
+  return { relatedProject: new mongoose.Types.ObjectId(projectId) };
+};
+
+/** Returns month-over-month change as a signed percentage string (e.g. '+50.0%', '-25.0%'). */
+const calculateChangePercentage = (thisMonth, lastMonth) => {
+  if (lastMonth === 0 && thisMonth > 0) return '+100%';
+  if (lastMonth > 0) {
+    const change = ((thisMonth - lastMonth) / lastMonth) * 100;
+    return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+  }
+  return '0%';
+};
+
+// Named constants for end-of-day time components used in month boundary Date construction
+const END_HOUR = 23;
+const END_MINUTE = 59;
+const END_SECOND = 59;
+
+// eslint-disable-next-line max-lines-per-function
 const bmNewLessonController = function (BuildingNewLesson) {
   const buildingProject = require('../../models/bmdashboard/buildingProject');
   const Like = require('../../models/bmdashboard/buldingLessonLike');
@@ -35,7 +58,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
 
       res.json(lesson);
     } catch (error) {
-      console.error(`Error fetching lesson with ID ${lessonId}:`, error);
+      logger.logException(error, 'bmGetSingleLesson', { lessonId });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
@@ -75,7 +98,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
 
       res.json(updatedLesson);
     } catch (error) {
-      console.error(`Error updating lesson with ID ${req.params.lessonId}:`, error);
+      logger.logException(error, 'bmEditSingleLesson', { lessonId });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
@@ -107,7 +130,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
 
       res.json({ message: 'Lesson deleted successfully', deletedLesson });
     } catch (error) {
-      console.error(`Error removing lesson with ID ${lessonId}:`, error);
+      logger.logException(error, 'bmDeleteSingleLesson', { lessonId });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };
@@ -136,7 +159,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
       const tags = await BuildingNewLesson.getAllTags();
       return res.status(201).json(tags);
     } catch (error) {
-      console.error('Tag creation error:', error);
+      logger.logException(error, 'addNewTag', { tag: req.body.tag });
       return res.status(500).json({
         error: 'Error adding new tag',
         details: error.message,
@@ -164,7 +187,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
       const remainingTags = await BuildingNewLesson.getAllTags();
       return res.status(200).json(remainingTags);
     } catch (error) {
-      console.error('Delete tag error:', error);
+      logger.logException(error, 'deleteTag', { tag: req.params.tag });
       return res.status(500).json({
         error: 'Error deleting tag',
         details: error.message,
@@ -201,7 +224,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
 
       return res.status(200).json({ status: 'success', message: 'Lesson liked successfully' });
     } catch (error) {
-      console.error('Error liking/unliking lesson:', error);
+      logger.logException(error, 'likeLesson', { lessonId, userId });
       return res.status(500).json({ status: 'error', message: 'Error liking/unliking lesson' });
     }
   };
@@ -219,25 +242,26 @@ const bmNewLessonController = function (BuildingNewLesson) {
     try {
       const { projectId, startDate, endDate } = req.query;
 
-      const filter = {};
-      if (projectId && projectId !== 'ALL') {
-        filter.relatedProject = new mongoose.Types.ObjectId(projectId);
+      if (projectId && projectId !== 'ALL' && !mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ error: 'Invalid projectId' });
       }
+      if (startDate && Number.isNaN(Date.parse(startDate))) {
+        return res.status(400).json({ error: 'Invalid startDate' });
+      }
+      if (endDate && Number.isNaN(Date.parse(endDate))) {
+        return res.status(400).json({ error: 'Invalid endDate' });
+      }
+
+      const filter = { ...buildProjectIdFilter(projectId) };
       if (startDate || endDate) {
         filter.date = {};
         if (startDate) filter.date.$gte = new Date(startDate);
         if (endDate) filter.date.$lte = new Date(endDate);
       }
 
-      // Current Period
       const lessonsInRange = await BuildingNewLesson.aggregate([
         { $match: filter },
-        {
-          $group: {
-            _id: '$relatedProject',
-            lessonsCount: { $sum: 1 },
-          },
-        },
+        { $group: { _id: '$relatedProject', lessonsCount: { $sum: 1 } } },
         {
           $lookup: {
             from: 'buildingProjects',
@@ -256,90 +280,57 @@ const bmNewLessonController = function (BuildingNewLesson) {
         },
       ]);
 
-      // This Month
-      let now = new Date();
-      if (endDate) {
-        now = new Date(endDate);
-      }
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-      const thisMonthFilter = {
-        ...(projectId &&
-          projectId !== 'ALL' && {
-            relatedProject: new mongoose.Types.ObjectId(projectId),
-          }),
-        date: { $gte: thisMonthStart, $lte: thisMonthEnd },
-      };
+      const now = endDate ? new Date(endDate) : new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const projectFilter = buildProjectIdFilter(projectId);
 
       const thisMonthLessons = await BuildingNewLesson.aggregate([
-        { $match: thisMonthFilter },
         {
-          $group: {
-            _id: '$relatedProject',
-            thisMonthCount: { $sum: 1 },
+          $match: {
+            ...projectFilter,
+            date: {
+              $gte: new Date(year, month, 1),
+              $lte: new Date(year, month + 1, 0, END_HOUR, END_MINUTE, END_SECOND),
+            },
           },
         },
+        { $group: { _id: '$relatedProject', thisMonthCount: { $sum: 1 } } },
       ]);
-
-      // Last Month
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
-      const lastMonthFilter = {
-        ...(projectId &&
-          projectId !== 'ALL' && {
-            relatedProject: new mongoose.Types.ObjectId(projectId),
-          }),
-        date: { $gte: lastMonthStart, $lte: lastMonthEnd },
-      };
 
       const lastMonthLessons = await BuildingNewLesson.aggregate([
-        { $match: lastMonthFilter },
         {
-          $group: {
-            _id: '$relatedProject',
-            lastMonthCount: { $sum: 1 },
+          $match: {
+            ...projectFilter,
+            date: {
+              $gte: new Date(year, month - 1, 1),
+              $lte: new Date(year, month, 0, END_HOUR, END_MINUTE, END_SECOND),
+            },
           },
         },
+        { $group: { _id: '$relatedProject', lastMonthCount: { $sum: 1 } } },
       ]);
 
-      // Mapping this month and last month counts
-      const thisMonthMap = {};
-      thisMonthLessons.forEach((entry) => {
-        thisMonthMap[entry._id.toString()] = entry.thisMonthCount;
-      });
+      const thisMonthMap = Object.fromEntries(
+        thisMonthLessons.map((e) => [e._id.toString(), e.thisMonthCount]),
+      );
+      const lastMonthMap = Object.fromEntries(
+        lastMonthLessons.map((e) => [e._id.toString(), e.lastMonthCount]),
+      );
 
-      const lastMonthMap = {};
-      lastMonthLessons.forEach((entry) => {
-        lastMonthMap[entry._id.toString()] = entry.lastMonthCount;
-      });
-      // console.log(lastMonthMap, thisMonthMap)
-
-      // Build final result
       const result = lessonsInRange.map((entry) => {
-        const projectIdStr = entry.projectId.toString();
-        const thisMonth = thisMonthMap[projectIdStr] || 0;
-        const lastMonth = lastMonthMap[projectIdStr] || 0;
-        let changePercentage = '0%';
-        if (lastMonth === 0 && thisMonth > 0) {
-          changePercentage = '+100%';
-        } else if (lastMonth > 0) {
-          const change = ((thisMonth - lastMonth) / lastMonth) * 100;
-          changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
-        }
-
+        const id = entry.projectId.toString();
         return {
           project: entry.project,
           projectId: entry.projectId,
           lessonsCount: entry.lessonsCount,
-          changePercentage,
+          changePercentage: calculateChangePercentage(thisMonthMap[id] || 0, lastMonthMap[id] || 0),
         };
       });
 
       res.status(200).json({ data: result });
     } catch (err) {
-      console.error('Error fetching lessons learnt:', err);
+      logger.logException(err, 'getLessonsLearnt', { query: req.query });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   };

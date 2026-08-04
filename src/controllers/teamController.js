@@ -13,9 +13,12 @@ const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
     Team.aggregate([
       {
+        // Unwind members so each member becomes its own document.
+        // preserveNullAndEmptyArrays keeps teams with no members.
         $unwind: { path: '$members', preserveNullAndEmptyArrays: true },
       },
       {
+        // Join each member's userId to their userProfile to get email, teamCode etc.
         $lookup: {
           from: 'userProfiles',
           localField: 'members.userId',
@@ -24,51 +27,34 @@ const teamcontroller = function (Team) {
         },
       },
       {
+        // Flatten the single-element userProfile array.
+        // preserveNullAndEmptyArrays keeps members whose userProfile was deleted.
         $unwind: {
           path: '$userProfile',
-          preserveNullAndEmptyArrays: true, // Ensures that if no userProfile is found, the document is not removed
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
-        $match: {
-          isActive: true,
-        },
-      },
-      {
+        // Re-group by teamId only — NOT by userProfile.teamCode.
+        // The previous two-stage group (teamId + teamCode → teamId) was
+        // silently dropping members whose teamCode differed from the majority,
+        // because $first in the second group only kept one bucket's members.
         $group: {
-          _id: {
-            teamId: '$_id',
-            // Keep the raw value that worked in Compass
-            teamCode: '$userProfile.teamCode',
-          },
-          count: { $sum: { $cond: [{ $ifNull: ['$members', false] }, 1, 0] } }, // Count only if members exist
+          _id: '$_id',
+          teamCode: { $first: '$teamCode' },
           teamName: { $first: '$teamName' },
+          isActive: { $first: '$isActive' },
+          createdDatetime: { $first: '$createdDatetime' },
+          modifiedDatetime: { $first: '$modifiedDatetime' },
           members: {
             $push: {
               _id: '$userProfile._id',
-              name: '$userProfile.name',
               email: '$userProfile.email',
               teamCode: '$userProfile.teamCode',
               addDateTime: '$members.addDateTime',
+              visible: '$members.visible',
             },
           },
-          createdDatetime: { $first: '$createdDatetime' },
-          modifiedDatetime: { $first: '$modifiedDatetime' },
-          isActive: { $first: '$isActive' },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-      {
-        $group: {
-          _id: '$_id.teamId',
-          teamCode: { $first: '$_id.teamCode' },
-          teamName: { $first: '$teamName' },
-          members: { $first: '$members' },
-          createdDatetime: { $first: '$createdDatetime' },
-          modifiedDatetime: { $first: '$modifiedDatetime' },
-          isActive: { $first: '$isActive' },
         },
       },
       {
@@ -200,8 +186,6 @@ const teamcontroller = function (Team) {
   };
 
   const assignTeamToUsers = async function (req, res) {
-    // verify requestor is administrator, teamId is passed in request params and is valid mongoose objectid, and request body contains  an array of users
-
     try {
       if (!(await hasPermission(req.body.requestor, 'assignTeamToUsers'))) {
         res.status(403).send({ error: 'You are not authorized to perform this operation' });
@@ -214,7 +198,6 @@ const teamcontroller = function (Team) {
         return;
       }
 
-      // verify team exists
       const targetTeam = await Team.findById(teamId);
       if (!targetTeam || targetTeam.length === 0) {
         res.status(400).send({ error: 'Invalid team' });
@@ -226,7 +209,6 @@ const teamcontroller = function (Team) {
         res.status(400).send({ error: 'Invalid userId' });
         return;
       }
-      // if user's profile is stored in cache, clear it so when you visit their profile page it will be up to date
       if (cache.hasCache(`user-${userId}`)) cache.removeCache(`user-${userId}`);
 
       if (operation === 'Assign') {
@@ -317,74 +299,59 @@ const teamcontroller = function (Team) {
         return res.status(500).send(error);
       });
   };
+
   const updateTeamVisibility = async (req, res) => {
-    const { visibility, teamId, userId, requestor } = req.body;
+    const { visibility, teamId, userId } = req.body;
 
     try {
-      const elevatedRoles = ['Owner', 'Admin', 'Core Team'];
+      const teamDoc = await Team.findById(teamId);
+      if (!teamDoc) {
+        return res.status(400).send({ error: 'No valid records found' });
+      }
 
-      Team.findById(teamId, (error, teamDoc) => {
-        if (error || teamDoc === null) {
-          res.status(400).send('No valid records found');
-          return;
-        }
+      const memberIndex = teamDoc.members.findIndex(
+        (member) => member.userId.toString() === userId,
+      );
 
-        const memberIndex = teamDoc.members.findIndex(
-          (member) => member.userId.toString() === userId,
-        );
-        if (memberIndex === -1) {
-          res.status(400).send('Member not found in the team.');
-          return;
-        }
+      if (memberIndex === -1) {
+        return res.status(400).send({ error: 'Member not found in the team.' });
+      }
 
-        teamDoc.members[memberIndex].visible = visibility;
-        teamDoc.modifiedDatetime = Date.now();
+      // Persist the new visibility flag on the Team document.
+      // This controls what the admin UI shows (the toggle state).
+      teamDoc.members[memberIndex].visible = visibility;
+      teamDoc.modifiedDatetime = Date.now();
+      await teamDoc.save();
 
-        teamDoc
-          .save()
-          .then(() => {
-            // Additional operations after team.save()
-            const assignlist = [];
-            const unassignlist = [];
-            teamDoc.members.forEach((member) => {
-              if (member.userId.toString() === userId) {
-                // Current user, no need to process further
-                return;
-              }
+      // Enforce visibility by controlling what appears in the toggled user's
+      // own userProfile.teams array.
+      //
+      // The app resolves "who can I see?" by looking up which teams are listed
+      // in the logged-in user's userProfile.teams. So:
+      //   - visible ON  → add teamId back to the toggled user's profile so they
+      //                   can see their teammates again.
+      //   - visible OFF → remove teamId from the toggled user's profile so the
+      //                   team's members disappear from their view.
+      //
+      // Other members are NOT touched — their ability to see this user is
+      // unaffected by this toggle (asymmetric by design).
+      //
+      // Elevated roles (Owner, Administrator, Core Team) skip the $pull so they
+      // always retain the teamId in their userProfile.teams and can always see
+      // their teammates regardless of toggle state. The toggle visual state is
+      // still saved correctly on the Team document for the admin UI.
+      const elevatedRoles = ['Owner', 'Administrator', 'Core Team'];
+      const toggledUser = await userProfile.findById(userId, 'role');
 
-              if (visibility || elevatedRoles.includes(requestor.role)) {
-                console.log(`Assigning user: ${member.userId}`);
-                assignlist.push(member.userId);
-              } else {
-                console.log(` Unassigning user: ${member.userId}`);
+      if (visibility) {
+        await userProfile.findByIdAndUpdate(userId, { $addToSet: { teams: teamId } });
+      } else if (!elevatedRoles.includes(toggledUser?.role)) {
+        await userProfile.findByIdAndUpdate(userId, { $pull: { teams: teamId } });
+      }
 
-                unassignlist.push(member.userId);
-              }
-            });
-
-            const addTeamToUserProfile = userProfile
-              .updateMany({ _id: { $in: assignlist } }, { $addToSet: { teams: teamId } })
-              .exec();
-            const removeTeamFromUserProfile = userProfile
-              .updateMany({ _id: { $in: unassignlist } }, { $pull: { teams: teamId } })
-              .exec();
-
-            Promise.all([addTeamToUserProfile, removeTeamFromUserProfile])
-              .then(() => {
-                res.status(200).send({ result: 'Done' });
-              })
-
-              .catch((catchError) => {
-                res.status(500).send({ error: catchError });
-              });
-          })
-          .catch((catchError) => {
-            console.error('Error saving team:', catchError);
-            res.status(400).send(catchError);
-          });
-      });
+      return res.status(200).send({ result: 'Done' });
     } catch (error) {
-      res.status(500).send(`Error updating team visibility: ${error.message}`);
+      return res.status(500).send(`Error updating team visibility: ${error.message}`);
     }
   };
 
@@ -398,7 +365,6 @@ const teamcontroller = function (Team) {
         res.status(200).send(results);
       })
       .catch(() => {
-        // logger.logException(`Fetch team code failed: ${error}`);
         res.status(500).send('Fetch team code failed.');
       });
   };
@@ -411,7 +377,6 @@ const teamcontroller = function (Team) {
         const data = cache.getCache('teamMembersCache');
         return res.status(200).send(data);
       }
-      // from the frontend in totalReports comp they are sending only array of teamids not any obj so changed team._id to team
       if (
         !Array.isArray(teamIds) ||
         teamIds.length === 0 ||
@@ -437,10 +402,10 @@ const teamcontroller = function (Team) {
         { $unwind: { path: '$userProfile', preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: '$_id', // Group by team ID
-            teamName: { $first: '$teamName' }, // Use $first to keep the team name
+            _id: '$_id',
+            teamName: { $first: '$teamName' },
             createdDatetime: { $first: '$createdDatetime' },
-            members: { $push: '$members' }, // Rebuild the members array
+            members: { $push: '$members' },
           },
         },
       ]);
@@ -453,7 +418,6 @@ const teamcontroller = function (Team) {
 
   const getTeamMembersSkillsAndContact = async function (req, res) {
     try {
-      // Get user ID
       if (!req.body.requestor || !req.body.requestor.requestorId) {
         return res.status(401).send({ message: 'User not authenticated' });
       }
@@ -477,7 +441,7 @@ const teamcontroller = function (Team) {
         return res.status(404).send({ message: 'User has no teams' });
       }
 
-      const teamId = userDoc.teams[0]; // Use the first team
+      const teamId = userDoc.teams[0];
 
       // Get team details
       const teamDoc = await team.findById(teamId);
@@ -492,9 +456,7 @@ const teamcontroller = function (Team) {
 
       // Get user profiles to get privacy settings
       const memberProfiles = await userProfile
-        .find({
-          _id: { $in: memberUserIds },
-        })
+        .find({ _id: { $in: memberUserIds } })
         .select('_id email phoneNumber privacySettings')
         .lean();
 
