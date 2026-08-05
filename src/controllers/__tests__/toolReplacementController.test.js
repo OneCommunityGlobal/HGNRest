@@ -159,7 +159,35 @@ describe('toolReplacementController', () => {
       await controller.getToolReplacement(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid startDate' });
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid startDate. Please use YYYY-MM-DD format or ISO 8601 date string.',
+      });
+      expect(ToolReplacement.find).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for malformed dates that new Date() would otherwise accept', async () => {
+      const req = makeReq({ startDate: '203-03-021', endDate: '20261-12-3' });
+      const res = makeRes();
+
+      await controller.getToolReplacement(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid startDate. Please use YYYY-MM-DD format or ISO 8601 date string.',
+      });
+      expect(ToolReplacement.find).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for non-existent calendar dates', async () => {
+      const req = makeReq({ startDate: '2024-02-30' });
+      const res = makeRes();
+
+      await controller.getToolReplacement(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid startDate. Please use YYYY-MM-DD format or ISO 8601 date string.',
+      });
       expect(ToolReplacement.find).not.toHaveBeenCalled();
     });
 
@@ -170,8 +198,25 @@ describe('toolReplacementController', () => {
       await controller.getToolReplacement(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid endDate' });
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid endDate. Please use YYYY-MM-DD format or ISO 8601 date string.',
+      });
       expect(ToolReplacement.find).not.toHaveBeenCalled();
+    });
+
+    it('accepts ISO 8601 timestamps from the frontend DatePicker', async () => {
+      const chain = createQueryChain([]);
+      const req = makeReq({
+        startDate: '2024-01-01T00:00:00.000Z',
+        endDate: '2024-01-31T23:59:59.999Z',
+      });
+      const res = makeRes();
+
+      await controller.getToolReplacement(req, res);
+
+      expect(chain.gte).toHaveBeenCalledWith(new Date('2024-01-01T00:00:00.000Z'));
+      expect(chain.lte).toHaveBeenCalledWith(new Date('2024-01-31T23:59:59.999Z'));
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('returns 400 when startDate is after endDate', async () => {

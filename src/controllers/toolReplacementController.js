@@ -1,17 +1,48 @@
 const mongoose = require('mongoose');
 const ToolReplacement = require('../models/toolReplacement');
 
+const YMD_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
 const getSingleQueryValue = (value) => {
   if (value === undefined || value === null || value === '') return null;
   return typeof value === 'string' ? value.trim() : null;
 };
 
+const isValidCalendarParts = (year, month, day) => {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+};
+
+// Strict YYYY-MM-DD or ISO 8601 only — rejects junk like "203-03-021" / "20261-12-3"
+// that `new Date()` would otherwise accept. Frontend DatePicker sends toISOString().
 const parseDate = (value) => {
   const dateValue = getSingleQueryValue(value);
   if (!dateValue) return null;
 
-  const parsedDate = new Date(dateValue);
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  const ymd = YMD_REGEX.exec(dateValue);
+  if (ymd) {
+    const year = Number(ymd[1]);
+    const month = Number(ymd[2]);
+    const day = Number(ymd[3]);
+    if (!isValidCalendarParts(year, month, day)) return null;
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  }
+
+  const iso = ISO_REGEX.exec(dateValue);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (!isValidCalendarParts(year, month, day)) return null;
+    const parsedDate = new Date(dateValue);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  return null;
 };
 
 const parseToolNames = (value) => {
@@ -24,12 +55,16 @@ const parseToolNames = (value) => {
     .filter(Boolean);
 };
 
+const INVALID_START_DATE =
+  'Invalid startDate. Please use YYYY-MM-DD format or ISO 8601 date string.';
+const INVALID_END_DATE = 'Invalid endDate. Please use YYYY-MM-DD format or ISO 8601 date string.';
+
 const parseDateRange = (startDateParam, endDateParam) => {
   const startDate = startDateParam ? parseDate(startDateParam) : null;
   const endDate = endDateParam ? parseDate(endDateParam) : null;
 
-  if (startDateParam && !startDate) return { error: 'Invalid startDate' };
-  if (endDateParam && !endDate) return { error: 'Invalid endDate' };
+  if (startDateParam && !startDate) return { error: INVALID_START_DATE };
+  if (endDateParam && !endDate) return { error: INVALID_END_DATE };
   if (startDate && endDate && startDate > endDate) {
     return { error: 'Invalid date range: startDate must be before endDate' };
   }
