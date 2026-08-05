@@ -5,10 +5,10 @@ const logger = require('../startup/logger');
 
 const activityLogController = function () {
   // Roles allowed to set/update assisted flags
-  const managementRoles = new Set(['Educator', 'Administrator']);
+  const managementRoles = new Set(['Owner','Educator', 'Administrator']);
 
   // Roles authorized to read student daily logs
-  const staffReadRoles = new Set(['Educator', 'Administrator', 'Support']);
+  const staffReadRoles = new Set(['Owner','Educator', 'Administrator', 'Support']);
 
   const formatLogs = (logs) =>
     logs.map((log) => ({

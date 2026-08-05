@@ -8,7 +8,6 @@ const jwtVerificationLogic = (authHeader, res) => {
   }
 
   let authToken = authHeader;
-  // If it has Bearer, strip it. If not, use it as is.
   if (authHeader.startsWith('Bearer ')) {
     [, authToken] = authHeader.split(' ');
   } 
@@ -17,11 +16,12 @@ const jwtVerificationLogic = (authHeader, res) => {
   try {
     payload = jwt.verify(authToken, config.JWT_SECRET);
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token', details: error.message });
+    return res.status(401).json({ error: 'Invalid token' });
   }
+  // Checking if expiryTimestamp exists and is valid
+  const hasValidTimestamp = payload.expiryTimestamp && moment(payload.expiryTimestamp).isValid();
+  const isExpired = !hasValidTimestamp || moment().isAfter(payload.expiryTimestamp);
 
-  // Ensure mock date in test is not in the past
-  const isExpired = moment().isAfter(payload.expiryTimestamp);
   if (!payload.userid || !payload.role || isExpired) {
     return res.status(401).send('Unauthorized request: Token expired or invalid payload');
   }

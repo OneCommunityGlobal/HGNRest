@@ -166,6 +166,9 @@ if (shouldSkipTests) {
         await waitForMongoReady(15_000);
         await pingAdmin(5_000);
 
+        // Clear existing database collections before seeding test permissions
+        await safeClearAll();
+
         for (let i = 0; i < 3; i += 1) {
           try {
             await createTestPermissions();

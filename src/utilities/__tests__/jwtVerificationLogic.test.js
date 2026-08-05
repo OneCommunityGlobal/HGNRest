@@ -72,7 +72,7 @@ describe('jwtVerificationLogic', () => {
       expect(result).toEqual(validPayload);
     });
 
-    it('should return 401 when jwt.verify throws an error', () => {
+    it('should return 401 and generic error message when jwt.verify throws an error', () => {
       const jwtError = new Error('jwt expired');
       verifySpy.mockImplementation(() => {
         throw jwtError;
@@ -83,7 +83,6 @@ describe('jwtVerificationLogic', () => {
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
         error: 'Invalid token',
-        details: 'jwt expired',
       });
       expect(result).toEqual(mockRes);
     });
