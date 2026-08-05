@@ -446,6 +446,17 @@ const activityLogRouter = require('../routes/activityLogRouter')();
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
+const resourceRequest = require('../models/resourceRequest');
+const resourceRequestController = require('../controllers/resourceRequestController')(
+  resourceRequest,
+  userProfile,
+);
+const resourceRequestRouter = require('../routes/resourceRequestRouter')(
+  resourceRequest,
+  userProfile,
+  resourceRequestController,
+);
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -658,6 +669,8 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+
+  app.use('/api', resourceRequestRouter);
   app.use('/api/lb', listOverviewRouter);
   app.use('/api/educator/reports', classAggregationRouter);
 
