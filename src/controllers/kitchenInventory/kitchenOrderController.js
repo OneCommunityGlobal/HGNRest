@@ -7,19 +7,34 @@ const kitchenOrderController = function () {
   // POST /orders/{id}
   const createOrder = async (req, res) => {
     try {
-      const { supplierId } = req.body;
+      const { supplierId, status, orderDate, expectedDeliveryDate, actualDeliveryDate, items } =
+        req.body;
 
-      if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+      if (!supplierId || !mongoose.Types.ObjectId.isValid(String(supplierId))) {
         return res.status(400).json('Invalid Supplier id');
       }
 
-      const supplier = await Supplier.findById(supplierId);
+      const allowedStatuses = Order.schema.path('status').enumValues;
+
+      if (status && !allowedStatuses.includes(String(status))) {
+        return res.status(400).json('Invalid order status');
+      }
+
+      const supplier = await Supplier.findById(new mongoose.Types.ObjectId(String(supplierId)));
 
       if (!supplier || !supplier.isActive) {
         return res.status(400).json('Supplier Not Found');
       }
 
-      const order = new Order(req.body);
+      const order = new Order({
+        supplierId: new mongoose.Types.ObjectId(String(supplierId)),
+        ...(status && { status: String(status) }),
+        ...(orderDate && { orderDate }),
+        ...(expectedDeliveryDate && { expectedDeliveryDate }),
+        ...(actualDeliveryDate && { actualDeliveryDate }),
+        ...(items && { items }),
+      });
+
       const saved = await order.save();
       res.status(201).json(saved);
     } catch (err) {
@@ -30,23 +45,36 @@ const kitchenOrderController = function () {
   // GET /orders
   const getOrders = async (req, res) => {
     try {
-      const filter = {};
+      const { supplierId, status } = req.query;
 
-      if (req.query.supplierId) {
-        if (!mongoose.Types.ObjectId.isValid(req.query.supplierId)) {
-          return res.status(400).send('Invalid Supplier Id');
-        }
-        filter.supplierId = mongoose.Types.ObjectId(req.query.supplierId);
+      if (supplierId && !mongoose.Types.ObjectId.isValid(String(supplierId))) {
+        return res.status(400).send('Invalid Supplier Id');
       }
 
-      if (req.query.status) {
-        filter.status = req.query.status;
+      const allowedStatuses = Order.schema.path('status').enumValues;
+
+      if (status && !allowedStatuses.includes(String(status))) {
+        return res.status(400).send('Invalid order status');
       }
 
-      const results = await Order.find(filter)
-        .populate({ path: 'supplierId', select: 'name email phone' })
+      const query = {};
+
+      if (supplierId) {
+        query.supplierId = new mongoose.Types.ObjectId(String(supplierId));
+      }
+
+      if (status) {
+        query.status = String(status);
+      }
+
+      const results = await Order.find(query)
+        .populate({
+          path: 'supplierId',
+          select: 'name email phone',
+        })
         .sort({ orderDate: -1 })
         .lean();
+
       res.status(200).send(results);
     } catch (err) {
       res.status(500).send(err);
@@ -56,12 +84,14 @@ const kitchenOrderController = function () {
   // GET /order/{id}
   const getOrderById = async (req, res) => {
     const { orderId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+
+    if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
       return res.status(400).send('Invalid order id');
     }
 
     try {
-      const order = await Order.findById(orderId);
+      const order = await Order.findById(new mongoose.Types.ObjectId(String(orderId)));
+
       if (!order) {
         return res.status(404).json('Order Not Found');
       }
@@ -72,25 +102,71 @@ const kitchenOrderController = function () {
     }
   };
 
-  // PUT /supplier/{id}
+  // PUT /order/{id}
   const updateOrder = async (req, res) => {
     const { orderId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
       return res.status(400).send('Invalid order id');
     }
 
     try {
-      if (req.body.items && req.body.items.length > 0) {
-        req.body.totalAmount = req.body.items.reduce(
+      const { supplierId, status, orderDate, expectedDeliveryDate, actualDeliveryDate, items } =
+        req.body;
+
+      if (supplierId && !mongoose.Types.ObjectId.isValid(String(supplierId))) {
+        return res.status(400).send('Invalid Supplier id');
+      }
+
+      const allowedStatuses = Order.schema.path('status').enumValues;
+
+      if (status && !allowedStatuses.includes(String(status))) {
+        return res.status(400).send('Invalid order status');
+      }
+
+      const update = {};
+
+      if (supplierId) {
+        update.supplierId = new mongoose.Types.ObjectId(String(supplierId));
+      }
+
+      if (status) {
+        update.status = String(status);
+      }
+
+      if (orderDate) {
+        update.orderDate = orderDate;
+      }
+
+      if (expectedDeliveryDate) {
+        update.expectedDeliveryDate = expectedDeliveryDate;
+      }
+
+      if (actualDeliveryDate) {
+        update.actualDeliveryDate = actualDeliveryDate;
+      }
+
+      if (items) {
+        update.items = items;
+        update.totalAmount = items.reduce(
           (sum, item) => sum + item.quantity * item.pricePerItem,
           0,
         );
       }
-      const updated = await Order.findByIdAndUpdate(orderId, req.body, { new: true });
+
+      const updated = await Order.findByIdAndUpdate(
+        new mongoose.Types.ObjectId(String(orderId)),
+        update,
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
+
       if (!updated) {
         return res.status(404).json('Order Not Found');
       }
+
       res.status(200).send(updated);
     } catch (err) {
       res.status(400).json(err);
@@ -101,15 +177,17 @@ const kitchenOrderController = function () {
   const deleteOrder = async (req, res) => {
     const { orderId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      res.status(400).json('Invalid Order Id');
+    if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
+      return res.status(400).json('Invalid Order Id');
     }
 
     try {
-      const removed = await Order.findByIdAndDelete(orderId);
+      const removed = await Order.findByIdAndDelete(new mongoose.Types.ObjectId(String(orderId)));
+
       if (!removed) {
         return res.status(404).json('Order Not Found');
       }
+
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
       res.status(500).json(err);
