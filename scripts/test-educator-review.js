@@ -121,6 +121,10 @@ const assert = (condition, message) => {
       console.log('Seeded task:', task._id.toString());
     } else {
       // Ensure task is in a reviewable state for a clean test run
+      // Legacy docs may lack required `name` — set a fallback before save
+      if (!task.name) {
+        task.name = 'Short Story Brainstorm';
+      }
       task.status = 'submitted';
       task.reviewStatus = 'pending_review';
       task.grade = 'pending';
