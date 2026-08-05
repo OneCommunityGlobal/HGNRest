@@ -103,6 +103,33 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+function buildMongoBranch(caseExpression, thenExpression) {
+  const branch = { case: caseExpression };
+  branch.then = thenExpression;
+  return branch;
+}
+
+function buildMongoCond(conditionExpression, thenExpression, elseExpression) {
+  const cond = { if: conditionExpression };
+  cond.then = thenExpression;
+  cond.else = elseExpression;
+  return cond;
+}
+
+async function getRoleDistributionStatsOuter() {
+  const matchStage = { isActive: true };
+  const result = await UserProfile.aggregate([
+    { $match: matchStage },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+
+  return result;
+}
+
+async function getRoleDistributionStats() {
+  return getRoleDistributionStatsOuter();
+}
+
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -764,22 +791,18 @@ const overviewReportHelper = function () {
             'infringements.parsedDate': {
               $switch: {
                 branches: [
-                  {
-                    // Already a Date object (e.g. legacy documents)
-                    case: { $eq: [{ $type: '$infringements.date' }, 'date'] },
-                    then: '$infringements.date',
-                  },
-                  {
-                    // ISO-format string with a time component. Date-only values
-                    // are handled separately below so they can be parsed in LA
-                    // time instead of UTC.
-                    case: {
+                  buildMongoBranch(
+                    { $eq: [{ $type: '$infringements.date' }, 'date'] },
+                    '$infringements.date',
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^\d{4}-\d{2}-\d{2}T/,
                       },
                     },
-                    then: {
+                    {
                       $convert: {
                         input: '$infringements.fixedDateString',
                         to: 'date',
@@ -787,18 +810,15 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // Date-only ISO string (YYYY-MM-DD) from report filters.
-                    // Parse it in the company timezone so weekly boundaries
-                    // match the dashboard's LA-based week windows.
-                    case: {
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^\d{4}-\d{2}-\d{2}$/,
                       },
                     },
-                    then: {
+                    {
                       $dateFromString: {
                         dateString: '$infringements.fixedDateString',
                         timezone: laTimeZone,
@@ -806,16 +826,15 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // "Jan-15-2025" short-date string (after the $concat fix above)
-                    case: {
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
                       },
                     },
-                    then: {
+                    {
                       $dateFromString: {
                         dateString: '$infringements.fixedDateString',
                         format: '%b-%d-%Y',
@@ -823,12 +842,10 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // Fallback for legacy JS Date string formats such as
-                    // "Wed Nov 19 2025 00:00:00 GMT+0000 (GMT)".
-                    case: { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
-                    then: {
+                  ),
+                  buildMongoBranch(
+                    { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                    {
                       $dateFromString: {
                         dateString: {
                           $arrayElemAt: [
@@ -846,7 +863,7 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
+                  ),
                 ],
                 default: null,
               },
@@ -856,8 +873,8 @@ const overviewReportHelper = function () {
         {
           $addFields: {
             'infringements.effectiveDate': {
-              $cond: {
-                if: {
+              $cond: buildMongoCond(
+                {
                   $and: [
                     {
                       $regexMatch: {
@@ -867,7 +884,7 @@ const overviewReportHelper = function () {
                     },
                   ],
                 },
-                then: {
+                {
                   $dateFromString: {
                     dateString: '$infringements.appliesToWeekStart',
                     timezone: laTimeZone,
@@ -875,25 +892,23 @@ const overviewReportHelper = function () {
                     onNull: null,
                   },
                 },
-                else: {
-                  $cond: {
-                    if: {
-                      $and: [
-                        { $ne: ['$infringements.parsedDate', null] },
-                        {
-                          $regexMatch: {
-                            input: '$infringements.description',
-                            regex:
-                              /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
-                          },
+                buildMongoCond(
+                  {
+                    $and: [
+                      { $ne: ['$infringements.parsedDate', null] },
+                      {
+                        $regexMatch: {
+                          input: '$infringements.description',
+                          regex:
+                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
                         },
-                      ],
-                    },
-                    then: { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
-                    else: '$infringements.parsedDate',
+                      },
+                    ],
                   },
-                },
-              },
+                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                  '$infringements.parsedDate',
+                ),
+              ),
             },
           },
         },
@@ -1110,8 +1125,8 @@ const overviewReportHelper = function () {
         {
           $addFields: {
             'infringements.effectiveDate': {
-              $cond: {
-                if: {
+              $cond: buildMongoCond(
+                {
                   $and: [
                     {
                       $regexMatch: {
@@ -1121,7 +1136,7 @@ const overviewReportHelper = function () {
                     },
                   ],
                 },
-                then: {
+                {
                   $dateFromString: {
                     dateString: '$infringements.appliesToWeekStart',
                     timezone: laTimeZone,
@@ -1129,25 +1144,23 @@ const overviewReportHelper = function () {
                     onNull: null,
                   },
                 },
-                else: {
-                  $cond: {
-                    if: {
-                      $and: [
-                        { $ne: ['$infringements.parsedDate', null] },
-                        {
-                          $regexMatch: {
-                            input: '$infringements.description',
-                            regex:
-                              /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
-                          },
+                buildMongoCond(
+                  {
+                    $and: [
+                      { $ne: ['$infringements.parsedDate', null] },
+                      {
+                        $regexMatch: {
+                          input: '$infringements.description',
+                          regex:
+                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
                         },
-                      ],
-                    },
-                    then: { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
-                    else: '$infringements.parsedDate',
+                      },
+                    ],
                   },
-                },
-              },
+                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                  '$infringements.parsedDate',
+                ),
+              ),
             },
           },
         },
@@ -1320,25 +1333,6 @@ const overviewReportHelper = function () {
         comparisonPercentage: comparisonPercentageNotInTeam,
       },
     };
-  }
-
-  /** aggregates role distribution statistics
-   * counts total number of volunteers that fall within each of the different roles
-   * NOTE: This shows ALL active users regardless of createdDate to provide
-   * a complete picture of current role distribution in the organization
-   */
-  async function getRoleDistributionStats() {
-    // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users.
-    // Role distribution is a live snapshot, not a time-series metric, so comparison
-    // periods do not apply here — always return a flat array of {_id: role, count}.
-    const matchStage = { isActive: true };
-    const result = await UserProfile.aggregate([
-      { $match: matchStage },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-    ]);
-
-    return result;
   }
 
   /**
