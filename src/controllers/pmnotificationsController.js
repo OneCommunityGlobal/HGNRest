@@ -45,23 +45,46 @@ async function resolveRecipients(educatorIds = [], all = false) {
   return { mode: 'real', attempted: raw.length, validIds, unknownIds };
 }
 
+const MAX_MESSAGE_LENGTH = 1000;
+
+// Shared by previewNotification and sendNotification: validates the message,
+// resolves recipients, and reports the first validation failure (if any).
+async function validateAndResolveRequest(body) {
+  const { educatorIds, all, message } = body || {};
+  const msg = sanitizeMessage(message);
+
+  if (!msg) {
+    return { error: { status: 400, body: { error: 'message is required' } } };
+  }
+  if (msg.length > MAX_MESSAGE_LENGTH) {
+    return {
+      error: {
+        status: 400,
+        body: { error: `message must be ≤ ${MAX_MESSAGE_LENGTH} characters` },
+      },
+    };
+  }
+
+  const { mode, attempted, validIds, unknownIds } = await resolveRecipients(educatorIds, all);
+  if (attempted === 0 && all !== true) {
+    return {
+      error: { status: 400, body: { error: 'Provide at least one educatorId or set all=true' } },
+    };
+  }
+
+  return { msg, mode, attempted, validIds, unknownIds, all: !!all };
+}
+
 async function previewNotification(req, res) {
   try {
-    const { educatorIds, all, message } = req.body || {};
-    const msg = sanitizeMessage(message);
-    if (!msg) return res.status(400).json({ error: 'message is required' });
-    if (msg.length > 1000)
-      return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
+    const result = await validateAndResolveRequest(req.body);
+    if (result.error) return res.status(result.error.status).json(result.error.body);
 
-    const { mode, attempted, validIds, unknownIds } = await resolveRecipients(educatorIds, all);
-    if (attempted === 0 && all !== true) {
-      return res.status(400).json({ error: 'Provide at least one educatorId or set all=true' });
-    }
-
+    const { mode, attempted, validIds, unknownIds, msg, all } = result;
     return res.json({
       ok: true,
       mode,
-      summary: { attempted, willSendTo: validIds.length, unknownIds, all: !!all },
+      summary: { attempted, willSendTo: validIds.length, unknownIds, all },
       message: msg,
     });
   } catch (err) {
@@ -72,16 +95,10 @@ async function previewNotification(req, res) {
 
 async function sendNotification(req, res) {
   try {
-    const { educatorIds, all, message } = req.body || {};
-    const msg = sanitizeMessage(message);
-    if (!msg) return res.status(400).json({ error: 'message is required' });
-    if (msg.length > 1000)
-      return res.status(400).json({ error: 'message must be ≤ 1000 characters' });
+    const result = await validateAndResolveRequest(req.body);
+    if (result.error) return res.status(result.error.status).json(result.error.body);
 
-    const { mode, attempted, validIds, unknownIds } = await resolveRecipients(educatorIds, all);
-    if (attempted === 0 && all !== true) {
-      return res.status(400).json({ error: 'Provide at least one educatorId or set all=true' });
-    }
+    const { mode, attempted, validIds, unknownIds, msg, all } = result;
 
     if (mode === 'mock') {
       return res.status(201).json({
@@ -93,7 +110,7 @@ async function sendNotification(req, res) {
           educatorIds: validIds,
           createdAt: new Date().toISOString(),
         },
-        summary: { attempted, sentTo: validIds.length, unknownIds, all: !!all },
+        summary: { attempted, sentTo: validIds.length, unknownIds, all },
       });
     }
 
@@ -116,7 +133,7 @@ async function sendNotification(req, res) {
         educatorIds: doc.educatorIds.map(String),
         createdAt: doc.createdAt.toISOString(),
       },
-      summary: { attempted, sentTo: validIds.length, unknownIds, all: !!all },
+      summary: { attempted, sentTo: validIds.length, unknownIds, all },
     });
   } catch (err) {
     console.error('sendNotification error:', err);
