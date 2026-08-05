@@ -2,6 +2,7 @@ const { ObjectId } = require('mongoose').Types;
 const { endOfDay } = require('date-fns');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const logger = require('../../startup/logger');
+const { getUniqueProjectsWithNames } = require('../../utilities/bmProjectAggregation');
 
 const SECONDS_PER_MINUTE = 60;
 const MS_PER_SECOND = 1000;
@@ -65,13 +66,10 @@ const getDurationOpenMonths = (issueDate) =>
 
 const buildGroupedIssues = (issues) => {
   const grouped = {};
-
   issues.forEach((issue) => {
     if (!issue.issueDate || !issue.projectId) return;
-
-    const issueName = Array.isArray(issue.issueTitle)
-      ? issue.issueTitle[0]
-      : issue.issueTitle || 'Unknown Issue';
+    const rawTitle = Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle;
+    const issueName = rawTitle || 'Unknown Issue';
 
     const projectId = issue.projectId._id.toString();
     const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
@@ -93,10 +91,15 @@ const buildGroupedIssues = (issues) => {
 
 const buildLongestOpenResponse = (grouped) =>
   Object.entries(grouped)
-    .map(([issueName, projectsById]) => ({
-      issueName,
-      projects: Object.values(projectsById),
-    }))
+    .flatMap(([issueName, projectsById]) =>
+      Object.values(projectsById).map((project) => ({
+        issueName,
+        projectId: project.projectId,
+        projectName: project.projectName,
+        durationOpen: project.durationOpen,
+      })),
+    )
+    .sort((a, b) => b.durationOpen - a.durationOpen)
     .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
 const omitUndefined = (obj) =>
@@ -289,29 +292,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET UNIQUE PROJECT IDS -------------------- */
   const getUniqueProjectIds = async (req, res) => {
     try {
-      const results = await BuildingIssue.aggregate([
-        { $group: { _id: '$projectId' } },
-        {
-          $lookup: {
-            from: 'buildingProjects',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
-          },
-        },
-        { $sort: { projectName: 1 } },
-      ]);
-
-      const formattedResults = results.map((item) => ({
-        projectId: item._id,
-        projectName: item.projectName || 'Unknown Project',
-      }));
+      const formattedResults = await getUniqueProjectsWithNames(BuildingIssue);
 
       return res.json(formattedResults);
     } catch (error) {
