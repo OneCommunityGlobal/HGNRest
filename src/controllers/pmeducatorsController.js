@@ -15,22 +15,43 @@ const shapeEducatorList = (e) => ({
   studentCount: e.studentCount ?? 0,
 });
 
+const MOCK_EDUCATORS = [
+  { id: 't-001', name: 'Alice Johnson', subject: 'Mathematics', studentCount: 3 },
+  { id: 't-002', name: 'Brian Lee', subject: 'Science', studentCount: 2 },
+  { id: 't-003', name: 'John Doe', subject: 'English', studentCount: 1 },
+];
+
+const MOCK_STUDENTS_BY_EDUCATOR = {
+  't-001': [
+    { id: 's-101', name: 'Jay', grade: '7', progress: 0.78 },
+    { id: 's-102', name: 'Kate', grade: '7', progress: 0.62 },
+    { id: 's-103', name: 'Sam', grade: '8', progress: 0.85 },
+  ],
+  't-002': [
+    { id: 's-201', name: 'Alina Gupta', grade: '6', progress: 0.54 },
+    { id: 's-202', name: 'Samir Khan', grade: '6', progress: 0.91 },
+  ],
+  't-003': [{ id: 's-301', name: 'Ryan', grade: '7', progress: 0.73 }],
+};
+
+// Mock mode is used whenever the DB doesn't have a real, linked educator+student
+// dataset yet, so educators and their students always come from the same source
+// and IDs line up between the two endpoints.
+const isMockMode = async () => {
+  const [educatorCount, studentCount] = await Promise.all([
+    Educator.countDocuments(),
+    Student.countDocuments(),
+  ]);
+  return educatorCount === 0 || studentCount === 0;
+};
+
 const getEducators = async (req, res) => {
   try {
-    const data = await Educator.find().lean();
-
-    // If DB is empty → return mock data
-    if (!data.length) {
-      return res.json({
-        data: [
-          { id: 't-001', name: 'Alice Johnson', subject: 'Mathematics', studentCount: 3 },
-          { id: 't-002', name: 'Brian Lee', subject: 'Science', studentCount: 2 },
-          { id: 't-003', name: 'John Doe', subject: 'English', studentCount: 1 },
-        ],
-        mock: true,
-      });
+    if (await isMockMode()) {
+      return res.json({ data: MOCK_EDUCATORS, mock: true });
     }
 
+    const data = await Educator.find().lean();
     res.json({
       data: data.map((e) => ({
         id: String(e._id),
@@ -68,21 +89,8 @@ const getStudentsByEducator = async (req, res) => {
   try {
     const { educatorId } = req.params;
 
-    const hasAny = await Student.countDocuments();
-    if (!hasAny) {
-      const mockData = {
-        't-001': [
-          { id: 's-101', name: 'Jay', grade: '7', progress: 0.78 },
-          { id: 's-102', name: 'Kate', grade: '7', progress: 0.62 },
-          { id: 's-103', name: 'Sam', grade: '8', progress: 0.85 },
-        ],
-        't-002': [
-          { id: 's-201', name: 'Alina Gupta', grade: '6', progress: 0.54 },
-          { id: 's-202', name: 'Samir Khan', grade: '6', progress: 0.91 },
-        ],
-        't-003': [{ id: 's-301', name: 'Ryan', grade: '7', progress: 0.73 }],
-      };
-      return res.json({ data: mockData[educatorId] || [] });
+    if (await isMockMode()) {
+      return res.json({ data: MOCK_STUDENTS_BY_EDUCATOR[educatorId] || [] });
     }
 
     const data = await Student.find({ educator: educatorId }).lean();
