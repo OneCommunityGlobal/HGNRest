@@ -28,7 +28,9 @@ const request = require('supertest');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 
-mongoose.set('bufferTimeoutMS', 60000);
+// Prevent Mongoose from hanging indefinitely on queries if connection drops/fails
+mongoose.set('bufferTimeoutMS', 10000);
+mongoose.set('bufferCommands', false);
 
 const { jwtPayload } = require('../../test');
 const {
@@ -52,20 +54,19 @@ process.on('uncaughtException', (error) => {
   console.log('Uncaught Exception:', error);
 });
 
-// Using dbConnect from mongo-helper which has fallback to MongoMemoryServer
-
-async function waitForMongoReady(timeoutMs = 60000) {
+async function waitForMongoReady(timeoutMs = 15000) {
   const start = Date.now();
   while (mongoose.connection.readyState !== 1) {
     if (Date.now() - start > timeoutMs) {
       throw new Error('Mongo did not connect in time');
     }
-    // eslint-disable-next-line no-promise-executor-return
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
   }
 }
 
-async function pingAdmin(timeoutMs = 10000) {
+async function pingAdmin(timeoutMs = 5000) {
   const start = Date.now();
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -79,8 +80,9 @@ async function pingAdmin(timeoutMs = 10000) {
       // eslint-disable-next-line no-empty
     }
     if (Date.now() - start > timeoutMs) break;
-    // eslint-disable-next-line no-promise-executor-return
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => {
+      setTimeout(r, 200);
+    });
   }
 }
 
@@ -105,7 +107,14 @@ function mockDay(dayIdx, past = false) {
 
 async function safeClearAll() {
   try {
-    if (mongoose.connection?.db) await dbClearAll();
+    if (mongoose.connection?.readyState === 1 && mongoose.connection?.db) {
+      await Promise.race([
+        dbClearAll(),
+        new Promise((resolve) => {
+          setTimeout(resolve, 3000);
+        }),
+      ]);
+    }
   } catch (e) {
     console.warn('safeClearAll skipped:', e.message);
   }
@@ -113,7 +122,14 @@ async function safeClearAll() {
 
 async function safeDisconnect() {
   try {
-    if (mongoose.connection?.readyState) await dbDisconnect();
+    if (mongoose.connection?.readyState !== 0) {
+      await Promise.race([
+        dbDisconnect(),
+        new Promise((resolve) => {
+          setTimeout(resolve, 3000);
+        }),
+      ]);
+    }
   } catch (e) {
     console.warn('safeDisconnect skipped:', e.message);
   }
@@ -137,9 +153,18 @@ if (shouldSkipTests) {
 
     beforeAll(async () => {
       try {
-        await dbConnect();
-        await waitForMongoReady(60_000);
-        await pingAdmin(8_000);
+        // Race dbConnect against a hard 30s limit to catch hanging downloads/connections
+        await Promise.race([
+          dbConnect(),
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('dbConnect timed out after 30s'));
+            }, 30000);
+          }),
+        ]);
+
+        await waitForMongoReady(15_000);
+        await pingAdmin(5_000);
 
         for (let i = 0; i < 3; i += 1) {
           try {
@@ -147,8 +172,9 @@ if (shouldSkipTests) {
             break;
           } catch (e) {
             if (i === 2) throw e;
-            // eslint-disable-next-line no-promise-executor-return
-            await new Promise((r) => setTimeout(r, 500));
+            await new Promise((r) => {
+              setTimeout(r, 500);
+            });
           }
         }
 
@@ -166,15 +192,11 @@ if (shouldSkipTests) {
         );
       } catch (error) {
         console.error('Error in beforeAll setup:', error);
-        try {
-          await safeClearAll();
-          await safeDisconnect();
-        } catch (cleanupError) {
-          console.error('Error during cleanup:', cleanupError);
-        }
+        await safeClearAll();
+        await safeDisconnect();
         throw error;
       }
-    }, 120_000);
+    }, 45_000);
 
     beforeEach(async () => {
       try {
@@ -204,12 +226,13 @@ if (shouldSkipTests) {
         console.error('Error in beforeEach:', error);
         throw error;
       }
-    }, 60_000);
+    }, 30_000);
 
     afterEach(async () => {
       try {
-        // eslint-disable-next-line no-promise-executor-return
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 200);
+        });
         if (global.gc) global.gc();
       } catch (error) {
         console.error('Error in afterEach:', error);
