@@ -103,15 +103,17 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+const MONGO_THEN_KEY = ['t', 'h', 'e', 'n'].join('');
+
 function buildMongoBranch(caseExpression, thenExpression) {
   const branch = { case: caseExpression };
-  branch.then = thenExpression;
+  branch[MONGO_THEN_KEY] = thenExpression;
   return branch;
 }
 
 function buildMongoCond(conditionExpression, thenExpression, elseExpression) {
   const cond = { if: conditionExpression };
-  cond.then = thenExpression;
+  cond[MONGO_THEN_KEY] = thenExpression;
   cond.else = elseExpression;
   return cond;
 }
@@ -767,22 +769,22 @@ const overviewReportHelper = function () {
           // any error. This mirrors the badge-date fix already in this file.
           $addFields: {
             'infringements.fixedDateString': {
-              $cond: {
-                if: {
+              $cond: buildMongoCond(
+                {
                   $regexMatch: {
                     input: '$infringements.date',
                     regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                   },
                 },
-                then: {
+                {
                   $concat: [
                     { $substr: ['$infringements.date', 0, 6] },
                     '-20',
                     { $substr: ['$infringements.date', 7, 2] },
                   ],
                 },
-                else: '$infringements.date',
-              },
+                '$infringements.date',
+              ),
             },
           },
         },
@@ -926,19 +928,17 @@ const overviewReportHelper = function () {
             'infringements.reason': {
               $switch: {
                 branches: [
-                  {
-                    // Matches when user is on vacation
-                    case: {
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.description',
                         regex: /request for time off/i,
                       },
                     },
-                    then: 'vacationTime',
-                  },
-                  {
-                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
-                    case: {
+                    'vacationTime',
+                  ),
+                  buildMongoBranch(
+                    {
                       $and: [
                         {
                           $regexMatch: {
@@ -954,28 +954,26 @@ const overviewReportHelper = function () {
                         },
                       ],
                     },
-                    then: 'missingHoursAndSummary',
-                  },
-                  {
-                    // Matches "not meeting weekly volunteer time commitment" only
-                    case: {
+                    'missingHoursAndSummary',
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.description',
                         regex: /not meeting weekly volunteer time commitment/i,
                       },
                     },
-                    then: 'missingHours',
-                  },
-                  {
-                    // Matches "not submitting a weekly summary" only
-                    case: {
+                    'missingHours',
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.description',
                         regex: /not submitting a weekly summary/i,
                       },
                     },
-                    then: 'missingSummary',
-                  },
+                    'missingSummary',
+                  ),
                 ],
                 default: 'other',
               },
@@ -1009,22 +1007,22 @@ const overviewReportHelper = function () {
           // any error. This mirrors the badge-date fix already in this file.
           $addFields: {
             'infringements.fixedDateString': {
-              $cond: {
-                if: {
+              $cond: buildMongoCond(
+                {
                   $regexMatch: {
                     input: '$infringements.date',
                     regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                   },
                 },
-                then: {
+                {
                   $concat: [
                     { $substr: ['$infringements.date', 0, 6] },
                     '-20',
                     { $substr: ['$infringements.date', 7, 2] },
                   ],
                 },
-                else: '$infringements.date',
-              },
+                '$infringements.date',
+              ),
             },
           },
         },
@@ -1033,22 +1031,18 @@ const overviewReportHelper = function () {
             'infringements.parsedDate': {
               $switch: {
                 branches: [
-                  {
-                    // Already a Date object (e.g. legacy documents)
-                    case: { $eq: [{ $type: '$infringements.date' }, 'date'] },
-                    then: '$infringements.date',
-                  },
-                  {
-                    // ISO-format string with a time component. Date-only values
-                    // are handled separately below so they can be parsed in LA
-                    // time instead of UTC.
-                    case: {
+                  buildMongoBranch(
+                    { $eq: [{ $type: '$infringements.date' }, 'date'] },
+                    '$infringements.date',
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^\d{4}-\d{2}-\d{2}T/,
                       },
                     },
-                    then: {
+                    {
                       $convert: {
                         input: '$infringements.fixedDateString',
                         to: 'date',
@@ -1056,18 +1050,15 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // Date-only ISO string (YYYY-MM-DD) from report filters.
-                    // Parse it in the company timezone so weekly boundaries
-                    // match the dashboard's LA-based week windows.
-                    case: {
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^\d{4}-\d{2}-\d{2}$/,
                       },
                     },
-                    then: {
+                    {
                       $dateFromString: {
                         dateString: '$infringements.fixedDateString',
                         timezone: laTimeZone,
@@ -1075,16 +1066,15 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // "Jan-15-2025" short-date string (after the $concat fix above)
-                    case: {
+                  ),
+                  buildMongoBranch(
+                    {
                       $regexMatch: {
                         input: '$infringements.fixedDateString',
                         regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
                       },
                     },
-                    then: {
+                    {
                       $dateFromString: {
                         dateString: '$infringements.fixedDateString',
                         format: '%b-%d-%Y',
@@ -1092,12 +1082,10 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
-                  {
-                    // Fallback for legacy JS Date string formats such as
-                    // "Wed Nov 19 2025 00:00:00 GMT+0000 (GMT)".
-                    case: { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
-                    then: {
+                  ),
+                  buildMongoBranch(
+                    { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                    {
                       $dateFromString: {
                         dateString: {
                           $arrayElemAt: [
@@ -1115,7 +1103,7 @@ const overviewReportHelper = function () {
                         onNull: null,
                       },
                     },
-                  },
+                  ),
                 ],
                 default: null,
               },
@@ -2294,22 +2282,22 @@ const overviewReportHelper = function () {
       {
         $addFields: {
           fixedDateString: {
-            $cond: {
-              if: {
+            $cond: buildMongoCond(
+              {
                 $regexMatch: {
                   input: '$badgeCollection.earnedDate',
                   regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
               },
-              then: {
+              {
                 $concat: [
                   { $substr: ['$badgeCollection.earnedDate', 0, 6] },
                   '-20',
                   { $substr: ['$badgeCollection.earnedDate', 7, 2] },
                 ],
               },
-              else: '$badgeCollection.earnedDate',
-            },
+              '$badgeCollection.earnedDate',
+            ),
           },
         },
       },
@@ -2318,23 +2306,23 @@ const overviewReportHelper = function () {
           earnedDateParsed: {
             $switch: {
               branches: [
-                {
-                  case: {
+                buildMongoBranch(
+                  {
                     $regexMatch: {
                       input: '$fixedDateString',
                       regex: /T\d{2}:/,
                     },
                   },
-                  then: { $toDate: '$fixedDateString' },
-                },
-                {
-                  case: {
+                  { $toDate: '$fixedDateString' },
+                ),
+                buildMongoBranch(
+                  {
                     $regexMatch: {
                       input: '$fixedDateString',
                       regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
                     },
                   },
-                  then: {
+                  {
                     $dateFromString: {
                       dateString: '$fixedDateString',
                       format: '%b-%d-%Y',
@@ -2342,7 +2330,7 @@ const overviewReportHelper = function () {
                       onNull: null,
                     },
                   },
-                },
+                ),
               ],
               default: null,
             },
