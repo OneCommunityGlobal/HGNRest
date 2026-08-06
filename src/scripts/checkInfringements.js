@@ -21,11 +21,7 @@ async function checkInfringementsRaw() {
   console.log('Users with infringements field:', usersWithInfringementsField);
   console.log('Users with at least 1 infringement:', usersWithNonEmptyInfringements);
 
-  const example = await UserProfile.findOne(
-    { 'infringements.0': { $exists: true } },
-    { infringements: 1 },
-  );
-  console.log('Example doc:', JSON.stringify(example, null, 2));
+  console.log('Sample document logging skipped to avoid printing user-derived content.');
 }
 
 async function checkInfringementDatesSpread() {
@@ -35,7 +31,7 @@ async function checkInfringementDatesSpread() {
     { $sort: { date: -1 } },
     { $limit: 20 },
   ]);
-  console.log(JSON.stringify(results, null, 2));
+  console.log('Fetched latest infringement date rows:', results.length);
 }
 
 (async function run() {

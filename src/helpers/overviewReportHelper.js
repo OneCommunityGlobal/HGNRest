@@ -103,21 +103,6 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
-const MONGO_THEN_KEY = ['t', 'h', 'e', 'n'].join('');
-
-function buildMongoBranch(caseExpression, thenExpression) {
-  const branch = { case: caseExpression };
-  branch[MONGO_THEN_KEY] = thenExpression;
-  return branch;
-}
-
-function buildMongoCond(conditionExpression, thenExpression, elseExpression) {
-  const cond = { if: conditionExpression };
-  cond[MONGO_THEN_KEY] = thenExpression;
-  cond.else = elseExpression;
-  return cond;
-}
-
 async function getRoleDistributionStatsOuter() {
   const matchStage = { isActive: true };
   const result = await UserProfile.aggregate([
@@ -760,7 +745,7 @@ const overviewReportHelper = function () {
         // Normalize short-form dates before parsing.
         $addFields: {
           'infringements.fixedDateString': {
-            $cond: buildMongoCond(
+            $cond: [
               {
                 $regexMatch: {
                   input: '$infringements.date',
@@ -775,20 +760,18 @@ const overviewReportHelper = function () {
                 ],
               },
               '$infringements.date',
-            ),
+            ],
           },
         },
       },
       {
         $addFields: {
           'infringements.parsedDate': {
-            $switch: {
-              branches: [
-                buildMongoBranch(
-                  { $eq: [{ $type: '$infringements.date' }, 'date'] },
-                  '$infringements.date',
-                ),
-                buildMongoBranch(
+            $cond: [
+              { $eq: [{ $type: '$infringements.date' }, 'date'] },
+              '$infringements.date',
+              {
+                $cond: [
                   {
                     $regexMatch: {
                       input: '$infringements.fixedDateString',
@@ -803,67 +786,76 @@ const overviewReportHelper = function () {
                       onNull: null,
                     },
                   },
-                ),
-                buildMongoBranch(
                   {
-                    $regexMatch: {
-                      input: '$infringements.fixedDateString',
-                      regex: /^\d{4}-\d{2}-\d{2}$/,
-                    },
-                  },
-                  {
-                    $dateFromString: {
-                      dateString: '$infringements.fixedDateString',
-                      timezone: laTimeZone,
-                      onError: null,
-                      onNull: null,
-                    },
-                  },
-                ),
-                buildMongoBranch(
-                  {
-                    $regexMatch: {
-                      input: '$infringements.fixedDateString',
-                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
-                    },
-                  },
-                  {
-                    $dateFromString: {
-                      dateString: '$infringements.fixedDateString',
-                      format: '%b-%d-%Y',
-                      onError: null,
-                      onNull: null,
-                    },
-                  },
-                ),
-                buildMongoBranch(
-                  { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
-                  {
-                    $dateFromString: {
-                      dateString: {
-                        $arrayElemAt: [
+                    $cond: [
+                      {
+                        $regexMatch: {
+                          input: '$infringements.fixedDateString',
+                          regex: /^\d{4}-\d{2}-\d{2}$/,
+                        },
+                      },
+                      {
+                        $dateFromString: {
+                          dateString: '$infringements.fixedDateString',
+                          timezone: laTimeZone,
+                          onError: null,
+                          onNull: null,
+                        },
+                      },
+                      {
+                        $cond: [
                           {
-                            $split: [{ $substr: ['$infringements.fixedDateString', 4, 100] }, ' ('],
+                            $regexMatch: {
+                              input: '$infringements.fixedDateString',
+                              regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                            },
                           },
-                          0,
+                          {
+                            $dateFromString: {
+                              dateString: '$infringements.fixedDateString',
+                              format: '%b-%d-%Y',
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                          {
+                            $cond: [
+                              { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                              {
+                                $dateFromString: {
+                                  dateString: {
+                                    $arrayElemAt: [
+                                      {
+                                        $split: [
+                                          { $substr: ['$infringements.fixedDateString', 4, 100] },
+                                          ' (',
+                                        ],
+                                      },
+                                      0,
+                                    ],
+                                  },
+                                  format: '%b %d %Y %H:%M:%S GMT%z',
+                                  onError: null,
+                                  onNull: null,
+                                },
+                              },
+                              null,
+                            ],
+                          },
                         ],
                       },
-                      format: '%b %d %Y %H:%M:%S GMT%z',
-                      onError: null,
-                      onNull: null,
-                    },
+                    ],
                   },
-                ),
-              ],
-              default: null,
-            },
+                ],
+              },
+            ],
           },
         },
       },
       {
         $addFields: {
           'infringements.effectiveDate': {
-            $cond: buildMongoCond(
+            $cond: [
               {
                 $and: [
                   {
@@ -882,23 +874,25 @@ const overviewReportHelper = function () {
                   onNull: null,
                 },
               },
-              buildMongoCond(
-                {
-                  $and: [
-                    { $ne: ['$infringements.parsedDate', null] },
-                    {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex:
-                          /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ['$infringements.parsedDate', null] },
+                      {
+                        $regexMatch: {
+                          input: '$infringements.description',
+                          regex:
+                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
+                        },
                       },
-                    },
-                  ],
-                },
-                { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
-                '$infringements.parsedDate',
-              ),
-            ),
+                    ],
+                  },
+                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                  '$infringements.parsedDate',
+                ],
+              },
+            ],
           },
         },
       },
@@ -919,18 +913,16 @@ const overviewReportHelper = function () {
         {
           $addFields: {
             'infringements.reason': {
-              $switch: {
-                branches: [
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /request for time off/i,
-                      },
-                    },
-                    'vacationTime',
-                  ),
-                  buildMongoBranch(
+              $cond: [
+                {
+                  $regexMatch: {
+                    input: '$infringements.description',
+                    regex: /request for time off/i,
+                  },
+                },
+                'vacationTime',
+                {
+                  $cond: [
                     {
                       $and: [
                         {
@@ -948,28 +940,32 @@ const overviewReportHelper = function () {
                       ],
                     },
                     'missingHoursAndSummary',
-                  ),
-                  buildMongoBranch(
                     {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /not meeting weekly volunteer time commitment/i,
-                      },
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not meeting weekly volunteer time commitment/i,
+                          },
+                        },
+                        'missingHours',
+                        {
+                          $cond: [
+                            {
+                              $regexMatch: {
+                                input: '$infringements.description',
+                                regex: /not submitting a weekly summary/i,
+                              },
+                            },
+                            'missingSummary',
+                            'other',
+                          ],
+                        },
+                      ],
                     },
-                    'missingHours',
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /not submitting a weekly summary/i,
-                      },
-                    },
-                    'missingSummary',
-                  ),
-                ],
-                default: 'other',
-              },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -2105,7 +2101,7 @@ const overviewReportHelper = function () {
       {
         $addFields: {
           fixedDateString: {
-            $cond: buildMongoCond(
+            $cond: [
               {
                 $regexMatch: {
                   input: '$badgeCollection.earnedDate',
@@ -2120,25 +2116,23 @@ const overviewReportHelper = function () {
                 ],
               },
               '$badgeCollection.earnedDate',
-            ),
+            ],
           },
         },
       },
       {
         $addFields: {
           earnedDateParsed: {
-            $switch: {
-              branches: [
-                buildMongoBranch(
-                  {
-                    $regexMatch: {
-                      input: '$fixedDateString',
-                      regex: /T\d{2}:/,
-                    },
-                  },
-                  { $toDate: '$fixedDateString' },
-                ),
-                buildMongoBranch(
+            $cond: [
+              {
+                $regexMatch: {
+                  input: '$fixedDateString',
+                  regex: /T\d{2}:/,
+                },
+              },
+              { $toDate: '$fixedDateString' },
+              {
+                $cond: [
                   {
                     $regexMatch: {
                       input: '$fixedDateString',
@@ -2153,10 +2147,10 @@ const overviewReportHelper = function () {
                       onNull: null,
                     },
                   },
-                ),
-              ],
-              default: null,
-            },
+                  null,
+                ],
+              },
+            ],
           },
         },
       },

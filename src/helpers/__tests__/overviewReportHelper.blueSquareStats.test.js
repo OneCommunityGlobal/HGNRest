@@ -64,3 +64,79 @@ describe('overviewReportHelper.getBlueSquareStats', () => {
     expect(result.vacationTime).toEqual({ count: 10 });
   });
 });
+
+describe('overviewReportHelper.getTotalBadgesAwardedCount', () => {
+  const helper = overviewReportHelperFactory();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns count and parsed badges in non-comparison mode', async () => {
+    UserProfile.aggregate.mockResolvedValueOnce([
+      {
+        badgeId: 'badge-1',
+        earnedDate: 'Jan-01-26',
+        earnedDateParsed: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      {
+        badgeId: 'badge-2',
+        earnedDate: 'Jan-02-26',
+        earnedDateParsed: new Date('2026-01-02T00:00:00.000Z'),
+      },
+    ]);
+
+    const result = await helper.getTotalBadgesAwardedCount('2026-01-01', '2026-01-07');
+
+    expect(UserProfile.aggregate).toHaveBeenCalledTimes(1);
+    expect(UserProfile.aggregate.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ $unwind: '$badgeCollection' }),
+        expect.objectContaining({
+          $match: expect.objectContaining({
+            earnedDateParsed: expect.any(Object),
+          }),
+        }),
+      ]),
+    );
+
+    expect(result).toEqual({
+      count: 2,
+      badges: [
+        {
+          badgeId: 'badge-1',
+          earnedDate: 'Jan-01-26',
+          earnedDateParsed: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        {
+          badgeId: 'badge-2',
+          earnedDate: 'Jan-02-26',
+          earnedDateParsed: new Date('2026-01-02T00:00:00.000Z'),
+        },
+      ],
+    });
+  });
+
+  it('returns comparison payload in comparison mode', async () => {
+    UserProfile.aggregate.mockResolvedValueOnce([
+      {
+        current: [{ badgeCollection: 8 }],
+        comparison: [{ badgeCollection: 4 }],
+      },
+    ]);
+
+    const result = await helper.getTotalBadgesAwardedCount(
+      '2026-01-01',
+      '2026-01-07',
+      '2025-12-25',
+      '2025-12-31',
+    );
+
+    expect(UserProfile.aggregate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      current: 8,
+      comparison: 4,
+      percentage: 1,
+    });
+  });
+});
