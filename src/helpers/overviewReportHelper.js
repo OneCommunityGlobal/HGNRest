@@ -750,179 +750,172 @@ const overviewReportHelper = function () {
   ) {
     const laTimeZone = 'America/Los_Angeles';
 
-    const getData = async (startDate, endDate) =>
-      UserProfile.aggregate([
-        {
-          $unwind: {
-            path: '$infringements',
-          },
+    const buildBlueSquareBasePipeline = (startDate, endDate) => [
+      {
+        $unwind: {
+          path: '$infringements',
         },
-        {
-          // Robust date parsing: infringements.date may be stored as a proper
-          // ISO string ("2025-01-15" / "2025-01-15T00:00:00.000Z"), or as the
-          // same "Jan-15-25" style short-date string used elsewhere in this
-          // file for badgeCollection.earnedDate (see getTotalBadgesAwardedCount
-          // below). A bare `$convert`/`$toDate` only understands ISO strings,
-          // so non-ISO values were silently failing to parse (onError: null)
-          // and getting filtered out by the `$ne: null` match below -- which
-          // made real infringements disappear from Blue Square Stats without
-          // any error. This mirrors the badge-date fix already in this file.
-          $addFields: {
-            'infringements.fixedDateString': {
-              $cond: buildMongoCond(
-                {
-                  $regexMatch: {
-                    input: '$infringements.date',
-                    regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
-                  },
+      },
+      {
+        // Normalize short-form dates before parsing.
+        $addFields: {
+          'infringements.fixedDateString': {
+            $cond: buildMongoCond(
+              {
+                $regexMatch: {
+                  input: '$infringements.date',
+                  regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
-                {
-                  $concat: [
-                    { $substr: ['$infringements.date', 0, 6] },
-                    '-20',
-                    { $substr: ['$infringements.date', 7, 2] },
-                  ],
-                },
-                '$infringements.date',
-              ),
-            },
-          },
-        },
-        {
-          $addFields: {
-            'infringements.parsedDate': {
-              $switch: {
-                branches: [
-                  buildMongoBranch(
-                    { $eq: [{ $type: '$infringements.date' }, 'date'] },
-                    '$infringements.date',
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^\d{4}-\d{2}-\d{2}T/,
-                      },
-                    },
-                    {
-                      $convert: {
-                        input: '$infringements.fixedDateString',
-                        to: 'date',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^\d{4}-\d{2}-\d{2}$/,
-                      },
-                    },
-                    {
-                      $dateFromString: {
-                        dateString: '$infringements.fixedDateString',
-                        timezone: laTimeZone,
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
-                      },
-                    },
-                    {
-                      $dateFromString: {
-                        dateString: '$infringements.fixedDateString',
-                        format: '%b-%d-%Y',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
-                    {
-                      $dateFromString: {
-                        dateString: {
-                          $arrayElemAt: [
-                            {
-                              $split: [
-                                { $substr: ['$infringements.fixedDateString', 4, 100] },
-                                ' (',
-                              ],
-                            },
-                            0,
-                          ],
-                        },
-                        format: '%b %d %Y %H:%M:%S GMT%z',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                ],
-                default: null,
               },
+              {
+                $concat: [
+                  { $substr: ['$infringements.date', 0, 6] },
+                  '-20',
+                  { $substr: ['$infringements.date', 7, 2] },
+                ],
+              },
+              '$infringements.date',
+            ),
+          },
+        },
+      },
+      {
+        $addFields: {
+          'infringements.parsedDate': {
+            $switch: {
+              branches: [
+                buildMongoBranch(
+                  { $eq: [{ $type: '$infringements.date' }, 'date'] },
+                  '$infringements.date',
+                ),
+                buildMongoBranch(
+                  {
+                    $regexMatch: {
+                      input: '$infringements.fixedDateString',
+                      regex: /^\d{4}-\d{2}-\d{2}T/,
+                    },
+                  },
+                  {
+                    $convert: {
+                      input: '$infringements.fixedDateString',
+                      to: 'date',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                ),
+                buildMongoBranch(
+                  {
+                    $regexMatch: {
+                      input: '$infringements.fixedDateString',
+                      regex: /^\d{4}-\d{2}-\d{2}$/,
+                    },
+                  },
+                  {
+                    $dateFromString: {
+                      dateString: '$infringements.fixedDateString',
+                      timezone: laTimeZone,
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                ),
+                buildMongoBranch(
+                  {
+                    $regexMatch: {
+                      input: '$infringements.fixedDateString',
+                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                    },
+                  },
+                  {
+                    $dateFromString: {
+                      dateString: '$infringements.fixedDateString',
+                      format: '%b-%d-%Y',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                ),
+                buildMongoBranch(
+                  { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                  {
+                    $dateFromString: {
+                      dateString: {
+                        $arrayElemAt: [
+                          {
+                            $split: [{ $substr: ['$infringements.fixedDateString', 4, 100] }, ' ('],
+                          },
+                          0,
+                        ],
+                      },
+                      format: '%b %d %Y %H:%M:%S GMT%z',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                ),
+              ],
+              default: null,
             },
           },
         },
-        {
-          $addFields: {
-            'infringements.effectiveDate': {
-              $cond: buildMongoCond(
+      },
+      {
+        $addFields: {
+          'infringements.effectiveDate': {
+            $cond: buildMongoCond(
+              {
+                $and: [
+                  {
+                    $regexMatch: {
+                      input: '$infringements.appliesToWeekStart',
+                      regex: /^\d{4}-\d{2}-\d{2}$/,
+                    },
+                  },
+                ],
+              },
+              {
+                $dateFromString: {
+                  dateString: '$infringements.appliesToWeekStart',
+                  timezone: laTimeZone,
+                  onError: null,
+                  onNull: null,
+                },
+              },
+              buildMongoCond(
                 {
                   $and: [
+                    { $ne: ['$infringements.parsedDate', null] },
                     {
                       $regexMatch: {
-                        input: '$infringements.appliesToWeekStart',
-                        regex: /^\d{4}-\d{2}-\d{2}$/,
+                        input: '$infringements.description',
+                        regex:
+                          /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
                       },
                     },
                   ],
                 },
-                {
-                  $dateFromString: {
-                    dateString: '$infringements.appliesToWeekStart',
-                    timezone: laTimeZone,
-                    onError: null,
-                    onNull: null,
-                  },
-                },
-                buildMongoCond(
-                  {
-                    $and: [
-                      { $ne: ['$infringements.parsedDate', null] },
-                      {
-                        $regexMatch: {
-                          input: '$infringements.description',
-                          regex:
-                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
-                        },
-                      },
-                    ],
-                  },
-                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
-                  '$infringements.parsedDate',
-                ),
+                { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                '$infringements.parsedDate',
               ),
-            },
+            ),
           },
         },
-        {
-          $match: {
-            'infringements.effectiveDate': {
-              $ne: null,
-              $gte: startDate,
-              $lte: endDate,
-            },
+      },
+      {
+        $match: {
+          'infringements.effectiveDate': {
+            $ne: null,
+            $gte: startDate,
+            $lte: endDate,
           },
         },
+      },
+    ];
+
+    const getData = async (startDate, endDate) =>
+      UserProfile.aggregate([
+        ...buildBlueSquareBasePipeline(startDate, endDate),
         {
           $addFields: {
             'infringements.reason': {
@@ -990,177 +983,7 @@ const overviewReportHelper = function () {
 
     const getTotalBlueSquares = async (startDate, endDate) =>
       UserProfile.aggregate([
-        {
-          $unwind: {
-            path: '$infringements',
-          },
-        },
-        {
-          // Robust date parsing: infringements.date may be stored as a proper
-          // ISO string ("2025-01-15" / "2025-01-15T00:00:00.000Z"), or as the
-          // same "Jan-15-25" style short-date string used elsewhere in this
-          // file for badgeCollection.earnedDate (see getTotalBadgesAwardedCount
-          // below). A bare `$convert`/`$toDate` only understands ISO strings,
-          // so non-ISO values were silently failing to parse (onError: null)
-          // and getting filtered out by the `$ne: null` match below -- which
-          // made real infringements disappear from Blue Square Stats without
-          // any error. This mirrors the badge-date fix already in this file.
-          $addFields: {
-            'infringements.fixedDateString': {
-              $cond: buildMongoCond(
-                {
-                  $regexMatch: {
-                    input: '$infringements.date',
-                    regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
-                  },
-                },
-                {
-                  $concat: [
-                    { $substr: ['$infringements.date', 0, 6] },
-                    '-20',
-                    { $substr: ['$infringements.date', 7, 2] },
-                  ],
-                },
-                '$infringements.date',
-              ),
-            },
-          },
-        },
-        {
-          $addFields: {
-            'infringements.parsedDate': {
-              $switch: {
-                branches: [
-                  buildMongoBranch(
-                    { $eq: [{ $type: '$infringements.date' }, 'date'] },
-                    '$infringements.date',
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^\d{4}-\d{2}-\d{2}T/,
-                      },
-                    },
-                    {
-                      $convert: {
-                        input: '$infringements.fixedDateString',
-                        to: 'date',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^\d{4}-\d{2}-\d{2}$/,
-                      },
-                    },
-                    {
-                      $dateFromString: {
-                        dateString: '$infringements.fixedDateString',
-                        timezone: laTimeZone,
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    {
-                      $regexMatch: {
-                        input: '$infringements.fixedDateString',
-                        regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
-                      },
-                    },
-                    {
-                      $dateFromString: {
-                        dateString: '$infringements.fixedDateString',
-                        format: '%b-%d-%Y',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                  buildMongoBranch(
-                    { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
-                    {
-                      $dateFromString: {
-                        dateString: {
-                          $arrayElemAt: [
-                            {
-                              $split: [
-                                { $substr: ['$infringements.fixedDateString', 4, 100] },
-                                ' (',
-                              ],
-                            },
-                            0,
-                          ],
-                        },
-                        format: '%b %d %Y %H:%M:%S GMT%z',
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ),
-                ],
-                default: null,
-              },
-            },
-          },
-        },
-        {
-          $addFields: {
-            'infringements.effectiveDate': {
-              $cond: buildMongoCond(
-                {
-                  $and: [
-                    {
-                      $regexMatch: {
-                        input: '$infringements.appliesToWeekStart',
-                        regex: /^\d{4}-\d{2}-\d{2}$/,
-                      },
-                    },
-                  ],
-                },
-                {
-                  $dateFromString: {
-                    dateString: '$infringements.appliesToWeekStart',
-                    timezone: laTimeZone,
-                    onError: null,
-                    onNull: null,
-                  },
-                },
-                buildMongoCond(
-                  {
-                    $and: [
-                      { $ne: ['$infringements.parsedDate', null] },
-                      {
-                        $regexMatch: {
-                          input: '$infringements.description',
-                          regex:
-                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
-                        },
-                      },
-                    ],
-                  },
-                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
-                  '$infringements.parsedDate',
-                ),
-              ),
-            },
-          },
-        },
-        {
-          $match: {
-            'infringements.effectiveDate': {
-              $ne: null,
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
+        ...buildBlueSquareBasePipeline(startDate, endDate),
         {
           $count: 'totalBlueSquares',
         },
