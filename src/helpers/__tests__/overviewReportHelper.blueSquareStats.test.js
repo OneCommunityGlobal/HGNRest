@@ -63,6 +63,58 @@ describe('overviewReportHelper.getBlueSquareStats', () => {
     });
     expect(result.vacationTime).toEqual({ count: 10 });
   });
+
+  it('fills missing reason buckets and handles missing total aggregate row', async () => {
+    UserProfile.aggregate.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    const result = await helper.getBlueSquareStats(
+      new Date('2026-08-01T07:00:00.000Z'),
+      new Date('2026-08-08T06:59:59.999Z'),
+    );
+
+    expect(result).toEqual({
+      missingHours: { count: 0 },
+      missingSummary: { count: 0 },
+      missingHoursAndSummary: { count: 0 },
+      vacationTime: { count: 0 },
+      other: { count: 0 },
+      totalBlueSquares: { count: 0 },
+    });
+  });
+
+  it('builds LA-timezone effective-date and reason classification conditions in aggregation pipeline', async () => {
+    UserProfile.aggregate.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    await helper.getBlueSquareStats(
+      new Date('2026-08-01T07:00:00.000Z'),
+      new Date('2026-08-08T06:59:59.999Z'),
+    );
+
+    const dataPipeline = UserProfile.aggregate.mock.calls[0][0];
+    const matchStage = dataPipeline.find((stage) => stage.$match);
+    expect(matchStage).toBeDefined();
+    expect(matchStage.$match['infringements.effectiveDate']).toEqual(
+      expect.objectContaining({
+        $ne: null,
+        $gte: new Date('2026-08-01T07:00:00.000Z'),
+        $lte: new Date('2026-08-08T06:59:59.999Z'),
+      }),
+    );
+
+    const effectiveDateStage = dataPipeline.find(
+      (stage) => stage.$addFields && stage.$addFields['infringements.effectiveDate'],
+    );
+    expect(effectiveDateStage).toBeDefined();
+    const effectiveDateCond = effectiveDateStage.$addFields['infringements.effectiveDate'].$cond;
+    expect(effectiveDateCond[1].$dateFromString.timezone).toBe('America/Los_Angeles');
+
+    const reasonStage = dataPipeline.find(
+      (stage) => stage.$addFields && stage.$addFields['infringements.reason'],
+    );
+    expect(reasonStage).toBeDefined();
+    const reasonCond = reasonStage.$addFields['infringements.reason'].$cond;
+    expect(reasonCond[1]).toBe('vacationTime');
+  });
 });
 
 describe('overviewReportHelper.getTotalBadgesAwardedCount', () => {
@@ -138,5 +190,26 @@ describe('overviewReportHelper.getTotalBadgesAwardedCount', () => {
       comparison: 4,
       percentage: 1,
     });
+  });
+
+  it('constructs badge date parsing fallback conditions for non-ISO formats', async () => {
+    UserProfile.aggregate.mockResolvedValueOnce([]);
+
+    await helper.getTotalBadgesAwardedCount('2026-01-01', '2026-01-07');
+
+    const pipeline = UserProfile.aggregate.mock.calls[0][0];
+    const fixedDateStage = pipeline.find(
+      (stage) => stage.$addFields && stage.$addFields.fixedDateString,
+    );
+    expect(fixedDateStage).toBeDefined();
+
+    const parseStage = pipeline.find(
+      (stage) => stage.$addFields && stage.$addFields.earnedDateParsed,
+    );
+    expect(parseStage).toBeDefined();
+
+    const cond = parseStage.$addFields.earnedDateParsed.$cond;
+    expect(cond[0].$regexMatch.regex.toString()).toContain('T\\d{2}:');
+    expect(cond[2].$cond[0].$regexMatch.regex.toString()).toContain('^[A-Z][a-z]{2}-');
   });
 });
