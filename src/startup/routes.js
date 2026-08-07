@@ -420,6 +420,8 @@ const educationProfileRouter = require('../routes/educationRouter');
 
 const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
 
+const pmRouter = require('../routes/pmDashboardRouter');
+
 // education portal
 
 const epBadge = require('../models/educationPortal/badgeModel');
@@ -676,6 +678,8 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
+  //pm dashboard
+  app.use('/api/pm', pmRouter);
   app.use('/api', resourceRequestRouter);
   app.use('/api/lb', listOverviewRouter);
   app.use('/api/educator/reports', classAggregationRouter);
