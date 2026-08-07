@@ -2,6 +2,7 @@ jest.mock('../../models/kitchenandinventory/KIInventoryItems', () => {
   const mock = jest.fn();
   mock.find = jest.fn();
   mock.findById = jest.fn();
+  mock.findByIdAndDelete = jest.fn();
   return mock;
 });
 
@@ -436,6 +437,175 @@ describe('KIInventoryController', () => {
       const res = makeRes();
 
       await controller.updateNextHarvest(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'DB Error' });
+    });
+  });
+
+  describe('updateItem', () => {
+    test('updates allowed fields and converts empty strings to undefined', async () => {
+      const item = {
+        name: 'Old Apples',
+        type: 'fruit',
+        unit: 'lbs',
+        location: 'Pantry',
+        category: 'INGREDIENT',
+        onsite: true,
+        presentQuantity: 8,
+        storedQuantity: 12,
+        reorderAt: 5,
+        monthlyUsage: 3,
+        expiryDate: '2030-01-01',
+        lastHarvestDate: '2029-01-01',
+        nextHarvestDate: '2030-02-01',
+        nextHarvestQuantity: 10,
+        save: jest.fn(),
+      };
+      item.save.mockResolvedValue(item);
+      KIInventoryItem.findById.mockResolvedValue(item);
+
+      const req = makeReq({
+        params: { itemId: VALID_OID },
+        body: {
+          name: 'Fresh Apples',
+          type: 'fresh fruit',
+          unit: 'kg',
+          location: '',
+          category: 'INGREDIENT',
+          onsite: false,
+          presentQuantity: 10,
+          storedQuantity: 20,
+          reorderAt: 7,
+          monthlyUsage: 4,
+          expiryDate: '2031-01-01',
+          lastHarvestDate: '',
+          nextHarvestDate: '2031-02-01',
+          nextHarvestQuantity: 15,
+          ignoredField: 'do not save',
+        },
+      });
+      const res = makeRes();
+
+      await controller.updateItem(req, res);
+
+      expect(KIInventoryItem.findById).toHaveBeenCalledWith(VALID_OID);
+      expect(item.name).toBe('Fresh Apples');
+      expect(item.type).toBe('fresh fruit');
+      expect(item.unit).toBe('kg');
+      expect(item.location).toBeUndefined();
+      expect(item.category).toBe('INGREDIENT');
+      expect(item.onsite).toBe(false);
+      expect(item.presentQuantity).toBe(10);
+      expect(item.storedQuantity).toBe(20);
+      expect(item.reorderAt).toBe(7);
+      expect(item.monthlyUsage).toBe(4);
+      expect(item.expiryDate).toBe('2031-01-01');
+      expect(item.lastHarvestDate).toBeUndefined();
+      expect(item.nextHarvestDate).toBe('2031-02-01');
+      expect(item.nextHarvestQuantity).toBe(15);
+      expect(item.ignoredField).toBeUndefined();
+      expect(item.updatedAt).toEqual(expect.any(Date));
+      expect(item.save).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Inventory item updated successfully.',
+        data: item,
+      });
+    });
+
+    test('returns 404 if item not found', async () => {
+      KIInventoryItem.findById.mockResolvedValue(null);
+
+      const req = makeReq({ params: { itemId: VALID_OID }, body: { name: 'Missing Item' } });
+      const res = makeRes();
+
+      await controller.updateItem(req, res);
+
+      expect(KIInventoryItem.findById).toHaveBeenCalledWith(VALID_OID);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Item not found.' });
+    });
+
+    test('returns 400 when stored quantity is less than present quantity', async () => {
+      const item = {
+        storedQuantity: 10,
+        presentQuantity: 5,
+        save: jest.fn(),
+      };
+      KIInventoryItem.findById.mockResolvedValue(item);
+
+      const req = makeReq({
+        params: { itemId: VALID_OID },
+        body: { storedQuantity: 8, presentQuantity: 9 },
+      });
+      const res = makeRes();
+
+      await controller.updateItem(req, res);
+
+      expect(item.save).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Stored quantity must be greater than or equal to current stock.',
+      });
+    });
+
+    test('returns 400 on save error', async () => {
+      const item = {
+        storedQuantity: 10,
+        presentQuantity: 5,
+        save: jest.fn().mockRejectedValue(new Error('Save Error')),
+      };
+      KIInventoryItem.findById.mockResolvedValue(item);
+
+      const req = makeReq({ params: { itemId: VALID_OID }, body: { name: 'Fresh Apples' } });
+      const res = makeRes();
+
+      await controller.updateItem(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Save Error' });
+    });
+  });
+
+  describe('deleteItem', () => {
+    test('successfully deletes an item', async () => {
+      const deletedItem = { _id: VALID_OID, name: 'Apples' };
+      KIInventoryItem.findByIdAndDelete.mockResolvedValue(deletedItem);
+
+      const req = makeReq({ params: { itemId: VALID_OID } });
+      const res = makeRes();
+
+      await controller.deleteItem(req, res);
+
+      expect(KIInventoryItem.findByIdAndDelete).toHaveBeenCalledWith(VALID_OID);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Inventory item deleted successfully.',
+        data: deletedItem,
+      });
+    });
+
+    test('returns 404 if item not found', async () => {
+      KIInventoryItem.findByIdAndDelete.mockResolvedValue(null);
+
+      const req = makeReq({ params: { itemId: VALID_OID } });
+      const res = makeRes();
+
+      await controller.deleteItem(req, res);
+
+      expect(KIInventoryItem.findByIdAndDelete).toHaveBeenCalledWith(VALID_OID);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Item not found.' });
+    });
+
+    test('returns 400 on DB error', async () => {
+      KIInventoryItem.findByIdAndDelete.mockRejectedValue(new Error('DB Error'));
+
+      const req = makeReq({ params: { itemId: VALID_OID } });
+      const res = makeRes();
+
+      await controller.deleteItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'DB Error' });
