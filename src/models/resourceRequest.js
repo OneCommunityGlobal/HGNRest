@@ -31,7 +31,7 @@ const resourceRequestSchema = new Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Indexes

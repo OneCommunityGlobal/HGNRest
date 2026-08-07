@@ -401,6 +401,7 @@ const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRoute
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const educatorGroupRouter = require('../routes/educatorGroupRoutes');
+const toolReplacementRoutes = require('../routes/toolReplacementRoutes');
 const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
@@ -529,6 +530,7 @@ module.exports = function (app) {
   app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
+  app.use('/api', toolReplacementRoutes);
   app.use('/api/costs', costsRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
