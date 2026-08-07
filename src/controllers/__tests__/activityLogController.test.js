@@ -7,7 +7,14 @@ jest.mock('../../models/activityLog', () => {
     path: jest.fn((field) => {
       if (field === 'action_type') {
         return {
-          enumValues: ['comment', 'note', 'announcement', 'task_upload', 'task_complete'],
+          enumValues: [
+            'comment',
+            'note',
+            'announcement',
+            'task_upload',
+            'task_complete',
+            'time_logged',
+          ],
         };
       }
       if (field === 'assisted_users') {
@@ -195,6 +202,66 @@ describe('activityLogController', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Activity log created successfully' }),
       );
+    });
+
+    it('rejects a client-authored time_logged entry so durations cannot be fabricated', async () => {
+      const req = {
+        body: {
+          requestor: validRequestor,
+          actionType: 'time_logged',
+          entityId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+          metadata: { taskId: '65cf6c3706d8ac105827bb2f', durationMs: 99999999 },
+        },
+      };
+
+      await controller.createStudentDailyLog(req, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(ActivityLog.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a client-authored time_logged entry aimed at another student’s task', async () => {
+      const req = {
+        body: {
+          requestor: validRequestor,
+          actionType: 'time_logged',
+          entityId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+          // Task belonging to a different student.
+          metadata: { taskId: '65cf6c3706d8ac105827bb99', durationMs: 3600000 },
+        },
+      };
+
+      await controller.createStudentDailyLog(req, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(ActivityLog.create).not.toHaveBeenCalled();
+    });
+
+    it('still accepts every pre-existing manual action type', async () => {
+      const savedLog = buildMockLog();
+
+      const manualTypes = ['comment', 'note', 'announcement', 'task_upload', 'task_complete'];
+
+      for (const actionType of manualTypes) {
+        jest.clearAllMocks();
+        ActivityLog.create.mockResolvedValue(savedLog);
+
+        const req = {
+          body: {
+            requestor: validRequestor,
+            actionType,
+            entityId: 'some-entity-id',
+          },
+        };
+
+        // eslint-disable-next-line no-await-in-loop
+        await controller.createStudentDailyLog(req, mockRes);
+
+        expect(ActivityLog.create).toHaveBeenCalledWith(
+          expect.objectContaining({ action_type: actionType }),
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(201);
+      }
     });
 
     it('returns 400 when actionType is missing', async () => {

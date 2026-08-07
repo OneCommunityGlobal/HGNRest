@@ -1,7 +1,11 @@
 const timerSvc = require('../services/studentTimerService');
 
+// The authoritative identity for all timer actions is the verified JWT
+// (req.body.requestor, populated by the global auth middleware), never a
+// client-supplied header — a student must not be able to operate another
+// student's timer by sending a different x-user-id.
 function userIdFrom(req) {
-  return req.headers['x-user-id'] || req.user?._id;
+  return req.body?.requestor?.requestorId;
 }
 
 function ok(res, data) {
