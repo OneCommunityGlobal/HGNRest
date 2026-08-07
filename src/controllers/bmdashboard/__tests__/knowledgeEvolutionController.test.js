@@ -63,20 +63,24 @@ describe('knowledgeEvolutionController', () => {
     });
   });
 
-  it('falls back to req.body.requestor.requestorId when no query studentId is provided', async () => {
-    const studentId = '64a1b2c3d4e5f6789012345d';
-    mockAggregate.mockResolvedValue([]);
-    req.body.requestor = { requestorId: studentId };
+  it('returns 400 when studentId is missing from the query even if req.body.requestor is set', async () => {
+    req.body.requestor = { requestorId: '64a1b2c3d4e5f6789012345d' };
 
     await getKnowledgeEvolution(req, res);
 
-    expect(mockAggregate).toHaveBeenCalledTimes(1);
-    const pipeline = mockAggregate.mock.calls[0][0];
-    expect(pipeline[0].$match.studentId.toString()).toBe(studentId);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ totalSubjects: 0, knowledgeEvolution: [] }),
-    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'studentId is required' });
+    expect(mockAggregate).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when studentId is not a valid ObjectId', async () => {
+    req.query.studentId = 'not-a-valid-id';
+
+    await getKnowledgeEvolution(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'studentId is not a valid ObjectId' });
+    expect(mockAggregate).not.toHaveBeenCalled();
   });
 
   it('returns 500 when the aggregation fails', async () => {

@@ -3,10 +3,14 @@ const Progress = require('../../models/progress');
 
 exports.getKnowledgeEvolution = async (req, res) => {
   try {
-    const studentId = req.query.studentId || req.body?.requestor?.requestorId;
+    const { studentId } = req.query;
 
     if (!studentId) {
       return res.status(400).json({ message: 'studentId is required' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ message: 'studentId is not a valid ObjectId' });
     }
 
     const data = await Progress.aggregate([
