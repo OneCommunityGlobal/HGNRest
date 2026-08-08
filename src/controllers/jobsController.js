@@ -5,7 +5,7 @@ const JobPositionCategory = require('../models/jobPositionCategory');
    UTILS
    ============================================================ */
 
-const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 const parseCategory = (category) => {
   if (!category) return [];
