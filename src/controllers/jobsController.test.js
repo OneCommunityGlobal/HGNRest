@@ -28,12 +28,11 @@ JobPositionCategory.distinct = jest.fn();
 
 const mockQueryChain = (resolvedValue) => {
   const chain = {};
-  const methods = ['sort', 'skip', 'limit', 'select', 'lean'];
+  const methods = ['sort', 'skip', 'limit', 'select'];
   methods.forEach((method) => {
     chain[method] = jest.fn().mockReturnValue(chain);
   });
   chain.lean = jest.fn().mockResolvedValue(resolvedValue);
-  chain.then = (resolve) => resolve(resolvedValue);
   return chain;
 };
 

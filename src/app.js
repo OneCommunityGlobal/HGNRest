@@ -15,6 +15,7 @@ app.use(Sentry.Handlers.requestHandler());
 require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
+require('./startup/session')(app); // Add session before middleware and routes
 
 app.use('/api/test', testRoutes);
 
@@ -25,6 +26,10 @@ app.use('/api/feedback', helpFeedbackRouter);
 app.use('/api/helprequest', helpRequestRouter);
 
 require('./startup/middleware')(app);
+
+const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
+
+app.use('/api', weeklyReportsRouter);
 
 // ⚠ This must come *after* your custom /api routes
 require('./startup/routes')(app);

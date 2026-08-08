@@ -163,7 +163,8 @@ const resetJobsFilters = async (req, res) => {
     const jobs = await Job.find({})
       .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
       .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+      .limit(limitNumber)
+      .lean();
 
     res.json({
       jobs,

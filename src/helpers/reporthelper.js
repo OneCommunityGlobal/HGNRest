@@ -175,6 +175,7 @@ const reporthelper = function () {
     results.forEach((result) => {
       // create Array(4) to hold totalSeconds for each week
       result.totalSeconds = [0, 0, 0, 0];
+      result.totalTangibleSeconds = [0, 0, 0, 0];
 
       if (!result.timeEntries || result.timeEntries.length === 0) return;
       const isSingleWeekRequest = startWeekIndex === endWeekIndex;
@@ -192,12 +193,20 @@ const reporthelper = function () {
         if (index >= 0 && index < 4) {
           result.totalSeconds[index] =
             (result.totalSeconds[index] || 0) + (entry.totalSeconds || 0);
+          if (entry.isTangible) {
+            result.totalTangibleSeconds[index] =
+              (result.totalTangibleSeconds[index] || 0) + (entry.totalSeconds || 0);
+          }
         }
       });
 
       result.totalSeconds = result.totalSeconds.map((seconds) =>
         seconds === 0 ? undefined : seconds,
       );
+      result.totalTangibleSeconds = result.totalTangibleSeconds.map((seconds) =>
+        seconds === 0 ? undefined : seconds,
+      );
+
       if (result.endDate) {
         result.finalWeekIndex = absoluteDifferenceInWeeks(result.endDate, pstEnd);
       } else {
