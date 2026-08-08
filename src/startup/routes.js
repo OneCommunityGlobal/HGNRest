@@ -27,7 +27,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
-
+const activityRouter = require('../routes/activityRouter');
 const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
   availability,
 );
@@ -504,6 +504,8 @@ module.exports = function (app) {
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', materialUtilizationRouter);
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
 
   app.use('/api', formRouter);
   app.use('/api', meetingRouter);
