@@ -32,4 +32,26 @@ describe('ActivityLog model - time_logged action_type', () => {
     expect(validationError).toBeDefined();
     expect(validationError.errors.action_type).toBeDefined();
   });
+
+  it('generates a valid UUID entity_id when none is supplied', () => {
+    const doc = new ActivityLog({ actor_id: validActorId, action_type: 'time_logged' });
+
+    expect(doc.entity_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(doc.validateSync()).toBeUndefined();
+  });
+
+  it('rejects a non-UUID entity_id and says so in the message', () => {
+    const doc = new ActivityLog({
+      actor_id: validActorId,
+      action_type: 'time_logged',
+      entity_id: 'not-a-uuid',
+    });
+
+    const validationError = doc.validateSync();
+
+    expect(validationError.errors.entity_id).toBeDefined();
+    expect(validationError.errors.entity_id.message).toBe('not-a-uuid is not a valid UUID!');
+  });
 });

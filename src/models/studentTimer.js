@@ -38,6 +38,32 @@ const TimerSchema = new mongoose.Schema(
 
 TimerSchema.index({ userId: 1, status: 1, updatedAt: -1 });
 
+/**
+ * The document shape `this` refers to inside the schema methods below.
+ * Mongoose types `Schema.methods` as a string-indexed map of methods, so without
+ * this annotation static analysis resolves `this.status` (and every other field)
+ * to a method type rather than its real value type, and reads a comparison like
+ * `this.status === 'running'` as comparing a function to a string.
+ *
+ * @typedef {mongoose.Document & {
+ *   status: string,
+ *   durationMs: number,
+ *   startedAt: Date | null,
+ *   pausedAt: Date | null,
+ *   sessionStartedAt: Date | null,
+ *   endedAt: Date | null,
+ *   sessionUuid: string | null,
+ *   activityLogId: mongoose.Types.ObjectId | null,
+ *   elapsedMs: number,
+ *   note: string,
+ *   userId: mongoose.Types.ObjectId,
+ *   taskId: mongoose.Types.ObjectId | null,
+ *   createdAt: Date,
+ *   updatedAt: Date,
+ * }} TimerDoc
+ */
+
+/** @this {TimerDoc} */
 TimerSchema.methods.summarize = function summarize() {
   const now = Date.now();
   let runningElapsed = 0;
