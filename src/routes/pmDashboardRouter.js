@@ -1,7 +1,6 @@
 const express = require('express');
 
 const router = express.Router();
-
 const Educator = require('../models/pmEducators');
 const Student = require('../models/pmStudents');
 const {
@@ -15,7 +14,6 @@ const {
   previewNotification,
   sendNotification,
 } = require('../controllers/pmnotificationsController');
-
 // Educators & students
 router.get('/educators', getEducators);
 router.get('/educators/:educatorId', getEducatorById);
