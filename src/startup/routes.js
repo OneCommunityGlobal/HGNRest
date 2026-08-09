@@ -444,6 +444,7 @@ const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndA
 
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
+const educationTaskReviewRouter = require('../routes/educationTaskReviewRoutes');
 
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
@@ -687,6 +688,7 @@ module.exports = function (app) {
   app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
+  app.use('/api/educationportal/educator', educationTaskReviewRouter);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/report', studentReportRouter());
