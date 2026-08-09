@@ -39,7 +39,7 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     // const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
-    const roleChanged = reason.includes('Role Changed');
+    const roleChanged = reason?.includes('Role Changed');
     const { userId } = req.params;
     const Permissions = checkPermissionArray(permissions.frontPermissions);
     const removedPermissions = checkPermissionArray(permissions.removedDefaultPermissions); // removed default permissions
@@ -65,18 +65,22 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       ) {
         return;
       }
-      permissionsRemoved = [
-        ...removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item)), // saves new removed role defaults
-        ...docPermissions.filter(
-          (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
-        ), // removed user added permissions
-      ];
-      permissionsAdded = [
-        ...Permissions.filter((item) => !docPermissions.includes(item)), // saves new added permissions
-        ...docRemovedRolePermissions.filter(
-          (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
-        ), // removed role permissions added back
-      ];
+      // using roleChanged to determine whether to keep all checked permissions from role change modal on user profile
+      // or list only newly changed permissions when saved through permissions management
+      const updatedRemovedPermissions = roleChanged
+        ? removedPermissions
+        : removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item));
+      const removedUserAddedPermissions = docPermissions.filter(
+        (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
+      ); // removed user added permissions
+      const updatedAddedPermissions = roleChanged
+        ? Permissions
+        : Permissions.filter((item) => !docPermissions.includes(item));
+      const readdedUserRemovedPermissions = docRemovedRolePermissions.filter(
+        (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
+      );
+      permissionsRemoved = [...updatedRemovedPermissions, ...removedUserAddedPermissions];
+      permissionsAdded = [...updatedAddedPermissions, ...readdedUserRemovedPermissions];
     } else {
       permissionsAdded = Permissions;
       permissionsRemoved = removedPermissions; // adds removed default permissions to permissionsRemoved for inital log
