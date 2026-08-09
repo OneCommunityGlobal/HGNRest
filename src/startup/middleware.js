@@ -51,6 +51,18 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/lbdashboard/register' && req.method === 'POST') {
+      next();
+      return;
+    }
+    if (req.originalUrl === '/api/production-identity/public-verify' && req.method === 'POST') {
+      next();
+      return;
+    }
+    if (req.originalUrl === '/api/webhooks/production-user-status' && req.method === 'POST') {
+      next();
+      return;
+    }
     if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
       next();
       return;

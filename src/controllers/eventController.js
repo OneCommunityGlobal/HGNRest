@@ -28,8 +28,9 @@ function getMonthRangeAround(inputDate) {
 const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
+const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
-function validateQuery({ type, location, sortBy }) {
+function validateQuery({ type, location, sortBy, date }) {
   if (type && !VALID_TYPES.has(type)) {
     throw new Error('Invalid Type of Event.');
   }
@@ -40,6 +41,10 @@ function validateQuery({ type, location, sortBy }) {
 
   if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
     throw new Error('Invalid Sort Field.');
+  }
+
+  if (date && (!DATE_FORMAT.test(date) || Number.isNaN(new Date(date).getTime()))) {
+    throw new Error('Invalid Date format.');
   }
 }
 
@@ -108,15 +113,13 @@ const getEvents = async function (req, res) {
   try {
     const { page, limit, type = '', location = '', sortBy = 'date', date } = req.query;
 
-    validateQuery({ type, location, sortBy });
+    validateQuery({ type, location, sortBy, date });
     const query = buildSafeQuery(location, type);
 
     if (date) {
       const { startDate, endDate } = getMonthRangeAround(date);
       query.date = { $gte: startDate, $lte: endDate };
     }
-    if (type) query.type = type;
-    if (location) query.location = location;
 
     const totalEvents = await Event.countDocuments(query);
 
