@@ -49,47 +49,21 @@ export default () => {
     });
   };
 
+  // Single connection per user: userConnections.get(userId) is
+  // { socket, isActive, inChatWith } | undefined. A new connection for the
+  // same user replaces the previous entry (last connection wins).
   const userConnections = new Map();
 
-  // Helper functions for connection management
-  const addUserConnection = (userId, ws) => {
-    if (!userConnections.has(userId)) {
-      userConnections.set(userId, []);
-    }
-    userConnections.get(userId).push({ socket: ws, isActive: true, inChatWith: null });
-  };
-
-  const removeUserConnection = (userId, ws) => {
-    const connections = userConnections.get(userId);
-    if (!connections) return;
-
-    const connectionIndex = connections.findIndex((conn) => conn.socket === ws);
-    if (connectionIndex !== -1) {
-      connections.splice(connectionIndex, 1);
-      if (connections.length === 0) {
-        userConnections.delete(userId);
-      }
-    }
-  };
-
   const getActiveConnections = (userId) => {
-    const connections = userConnections.get(userId);
-    if (!connections) return [];
+    const connection = userConnections.get(userId);
+    if (!connection) return [];
 
-    // Filter out closed connections
-    const activeConnections = connections.filter(
-      (conn) => conn.socket && conn.socket.readyState === Websockets.OPEN,
-    );
-
-    // Update the connections array if any were filtered out
-    if (activeConnections.length !== connections.length) {
-      userConnections.set(userId, activeConnections);
-      if (activeConnections.length === 0) {
-        userConnections.delete(userId);
-      }
+    if (!connection.socket || connection.socket.readyState !== Websockets.OPEN) {
+      userConnections.delete(userId);
+      return [];
     }
 
-    return activeConnections;
+    return [connection];
   };
 
   const broadcastToUser = (userId, message) => {

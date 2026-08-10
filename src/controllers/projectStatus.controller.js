@@ -16,6 +16,14 @@ exports.fetchProjectStatus = async (req, res) => {
       return res.status(400).json({ message: 'startDate cannot be after endDate' });
     }
 
+    const today = dayjs().endOf('day');
+    if (startDate && dayjs(startDate).isAfter(today)) {
+      return res.status(400).json({ message: 'startDate cannot be in the future' });
+    }
+    if (endDate && dayjs(endDate).isAfter(today)) {
+      return res.status(400).json({ message: 'endDate cannot be in the future' });
+    }
+
     const data = await getProjectStatusSummary({ startDate, endDate });
     return res.json(data);
   } catch (err) {
