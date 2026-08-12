@@ -215,7 +215,7 @@ const getEventTypes = async (req, res) => {
 const createEvent = async (req, res) => {
   try {
     const newEvent = new Event(req.body);
-    const savedEvent = await newEvent.save();
+    await newEvent.save();
     res.status(201).json({
       status: 'success',
       message: 'Event details saved successfully',
