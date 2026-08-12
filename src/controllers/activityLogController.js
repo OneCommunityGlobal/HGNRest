@@ -3,6 +3,8 @@ const ActivityLog = require('../models/activityLog');
 const usersProfiles = require('../models/userProfile');
 const logger = require('../startup/logger');
 
+const TIME_LOGGED_ACTION = 'time_logged';
+
 const activityLogController = function () {
   const validRoles = new Set(['Educator', 'Administrator']);
 
@@ -111,6 +113,16 @@ const activityLogController = function () {
       if (!validActionTypes.includes(actionType)) {
         return res.status(400).json({
           error: `Invalid actionType. Must be one of: ${validActionTypes.join(', ')}`,
+        });
+      }
+
+      // `time_logged` records are generated server-side by the student timer
+      // stop flow, which derives the duration and timestamps from the stored
+      // timer. Accepting them here would let a client fabricate time records.
+      if (actionType === TIME_LOGGED_ACTION) {
+        return res.status(403).json({
+          error:
+            'time_logged entries are created by the timer and cannot be submitted directly. Use the student timer stop endpoint.',
         });
       }
 

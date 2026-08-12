@@ -449,6 +449,7 @@ const educatorRoutes = require('../routes/educatorRoutes');
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
 
+const timerRouter = require('../routes/studentTimeRouter');
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
 const resourceRequest = require('../models/resourceRequest');
@@ -677,6 +678,7 @@ module.exports = function (app) {
   app.use('/api/lb', bidNotificationsRouter);
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
+  app.use('/api/student', timerRouter);
 
   //pm dashboard
   app.use('/api/pm', pmRouter);

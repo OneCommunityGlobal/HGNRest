@@ -15,7 +15,7 @@ const activityLogSchema = new mongoose.Schema(
     },
     action_type: {
       type: String,
-      enum: ['comment', 'note', 'announcement', 'task_upload', 'task_complete'],
+      enum: ['comment', 'note', 'announcement', 'task_upload', 'task_complete', 'time_logged'],
       required: true,
     },
     entity_id: {
