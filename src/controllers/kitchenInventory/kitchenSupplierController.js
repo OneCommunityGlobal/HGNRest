@@ -6,18 +6,28 @@ const kitchenSupplierController = function () {
   const createSupplier = async (req, res) => {
     try {
       const { name, contactName, email, phone, address, specialities, isActive } = req.body;
-      if (!name || typeof name !== 'string') {
-        return res.status(400).json('Invalid supplier name');
+
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ message: 'Invalid supplier name' });
       }
-      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      if (isActive !== undefined && typeof isActive !== 'boolean') {
+        return res.status(400).json({ message: 'Invalid isActive value' });
+      }
+
+      const normalizedName = name.trim();
+      const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
       const existingSupplier = await Supplier.findOne({
         name: { $regex: `^${escapedName}$`, $options: 'i' },
       });
+
       if (existingSupplier) {
-        return res.status(400).json('Supplier already exists');
+        return res.status(400).json({ message: 'Supplier already exists' });
       }
+
       const supplier = new Supplier({
-        name: name.trim(),
+        name: normalizedName,
         ...(contactName && { contactName }),
         ...(email && { email }),
         ...(phone && { phone }),
@@ -25,10 +35,12 @@ const kitchenSupplierController = function () {
         ...(specialities && { specialities }),
         ...(isActive !== undefined && { isActive }),
       });
+
       const result = await supplier.save();
+
       res.status(201).json(result);
     } catch (err) {
-      res.status(400).json(err.message);
+      res.status(400).json({ message: 'Unable to create supplier' });
     }
   };
   const getSuppliers = async (req, res) => {
@@ -36,19 +48,19 @@ const kitchenSupplierController = function () {
       const results = await Supplier.find().lean();
       res.status(200).json(results);
     } catch (err) {
-      res.status(500).json(err.message);
+      res.status(500).json({ message: 'Internal server error' });
     }
   };
   const getSupplierById = async (req, res) => {
     const { supplierId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(String(supplierId))) {
-      return res.status(400).json('Invalid Supplier');
+      return res.status(400).json({ message: 'Invalid Supplier' });
     }
     try {
       const validSupplierId = new mongoose.Types.ObjectId(String(supplierId));
       const supplier = await Supplier.findById(validSupplierId).lean();
       if (!supplier) {
-        return res.status(404).json('Supplier Not found');
+        return res.status(404).json({ message: 'Supplier Not found' });
       }
       const agg = await Order.aggregate([
         {
@@ -77,20 +89,20 @@ const kitchenSupplierController = function () {
       };
       res.status(200).json(response);
     } catch (err) {
-      res.status(500).json(err.message);
+      res.status(500).json({ message: 'Internal server error' });
     }
   };
   const updateSupplier = async (req, res) => {
     const { supplierId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(String(supplierId))) {
-      return res.status(400).json('Invalid Supplier Id');
+      return res.status(400).json({ message: 'Invalid Supplier Id' });
     }
     try {
       const { name, contactName, email, phone, address, specialities, isActive } = req.body;
       const update = { updated: Date.now() };
       if (name !== undefined) {
         if (typeof name !== 'string' || !name.trim()) {
-          return res.status(400).json('Invalid supplier name');
+          return res.status(400).json({ message: 'Invalid supplier name' });
         }
         update.name = name.trim();
       }
@@ -110,6 +122,10 @@ const kitchenSupplierController = function () {
         update.specialities = specialities;
       }
       if (isActive !== undefined) {
+        if (typeof isActive !== 'boolean') {
+          return res.status(400).json({ message: 'Invalid isActive value' });
+        }
+
         update.isActive = isActive;
       }
       const updated = await Supplier.findByIdAndUpdate(
@@ -118,28 +134,28 @@ const kitchenSupplierController = function () {
         { new: true, runValidators: true },
       );
       if (!updated) {
-        return res.status(404).json('Supplier Not Found');
+        return res.status(404).json({ message: 'Supplier Not Found' });
       }
       res.status(200).json(updated);
     } catch (err) {
-      res.status(400).json(err);
+      res.status(400).json({ message: 'Unable to update supplier' });
     }
   };
   const deleteSupplier = async (req, res) => {
     const { supplierId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(String(supplierId))) {
-      return res.status(400).json('Invalid Supplier Id');
+      return res.status(400).json({ message: 'Invalid Supplier Id' });
     }
     try {
       const removed = await Supplier.findByIdAndDelete(
         new mongoose.Types.ObjectId(String(supplierId)),
       );
       if (!removed) {
-        return res.status(404).json('Supplier Not Found');
+        return res.status(404).json({ message: 'Supplier Not Found' });
       }
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
-      res.status(500).json(err);
+      res.status(500).json({ message: 'Internal server error' });
     }
   };
   return { createSupplier, getSuppliers, getSupplierById, updateSupplier, deleteSupplier };
