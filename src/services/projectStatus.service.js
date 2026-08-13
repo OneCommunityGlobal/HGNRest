@@ -3,8 +3,10 @@ const ProjectStatus = require('../models/projectStatus');
 
 const calcPct = (count, total) => {
   if (!total) return 0;
-  return parseFloat(((count / total) * 100).toFixed(1));
+  return Number.parseFloat(((count / total) * 100).toFixed(1));
 };
+
+const STATUS_KEYS = { Active: 'active', Completed: 'completed', Delayed: 'delayed' };
 
 async function getProjectStatusSummary({ startDate, endDate }) {
   try {
@@ -25,23 +27,23 @@ async function getProjectStatusSummary({ startDate, endDate }) {
 
     const counts = { active: 0, completed: 0, delayed: 0 };
     rows.forEach((r) => {
-      if (r._id === 'Active') counts.active = r.count;
-      if (r._id === 'Completed') counts.completed = r.count;
-      if (r._id === 'Delayed') counts.delayed = r.count;
+      const key = STATUS_KEYS[r._id];
+      if (key) counts[key] = r.count;
     });
 
     const totalProjects = counts.active + counts.completed + counts.delayed;
+
+    const percentages = Object.values(STATUS_KEYS).reduce((acc, key) => {
+      acc[key] = calcPct(counts[key], totalProjects);
+      return acc;
+    }, {});
 
     return {
       totalProjects,
       activeProjects: counts.active,
       completedProjects: counts.completed,
       delayedProjects: counts.delayed,
-      percentages: {
-        active: calcPct(counts.active, totalProjects),
-        completed: calcPct(counts.completed, totalProjects),
-        delayed: calcPct(counts.delayed, totalProjects),
-      },
+      percentages,
       window: {
         startDate: startDate || null,
         endDate: endDate || null,

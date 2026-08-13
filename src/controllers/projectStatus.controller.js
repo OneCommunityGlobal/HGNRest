@@ -1,27 +1,31 @@
 const dayjs = require('dayjs');
 const { getProjectStatusSummary } = require('../services/projectStatus.service');
 
+const validateDateParam = (label, value, today) => {
+  if (!value) return null;
+  if (!dayjs(value, 'YYYY-MM-DD', true).isValid()) {
+    return `Invalid ${label} (YYYY-MM-DD)`;
+  }
+  if (dayjs(value).isAfter(today)) {
+    return `${label} cannot be in the future`;
+  }
+  return null;
+};
+
 exports.fetchProjectStatus = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
-    // Validate dates
-    if (startDate && !dayjs(startDate, 'YYYY-MM-DD', true).isValid()) {
-      return res.status(400).json({ message: 'Invalid startDate (YYYY-MM-DD)' });
-    }
-    if (endDate && !dayjs(endDate, 'YYYY-MM-DD', true).isValid()) {
-      return res.status(400).json({ message: 'Invalid endDate (YYYY-MM-DD)' });
-    }
-    if (startDate && endDate && dayjs(startDate).isAfter(dayjs(endDate))) {
-      return res.status(400).json({ message: 'startDate cannot be after endDate' });
-    }
-
     const today = dayjs().endOf('day');
-    if (startDate && dayjs(startDate).isAfter(today)) {
-      return res.status(400).json({ message: 'startDate cannot be in the future' });
-    }
-    if (endDate && dayjs(endDate).isAfter(today)) {
-      return res.status(400).json({ message: 'endDate cannot be in the future' });
+
+    const dateError =
+      validateDateParam('startDate', startDate, today) ||
+      validateDateParam('endDate', endDate, today) ||
+      (startDate && endDate && dayjs(startDate).isAfter(dayjs(endDate))
+        ? 'startDate cannot be after endDate'
+        : null);
+
+    if (dateError) {
+      return res.status(400).json({ message: dateError });
     }
 
     const data = await getProjectStatusSummary({ startDate, endDate });
