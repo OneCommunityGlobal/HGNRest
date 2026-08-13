@@ -2,75 +2,80 @@ const mongoose = require('mongoose');
 const ActivityLog = require('../models/activityLog');
 const usersProfiles = require('../models/userProfile');
 const logger = require('../startup/logger');
+const { hasPermission } = require('../utilities/permissions');
 
-const activityLogController = function () {
-  // Roles allowed to set/update assisted flags
-  const managementRoles = new Set(['Owner','Educator', 'Administrator']);
+// Helper functions declared outside the request lifecycle
+const formatLogs = (logs) =>
+  logs.map((log) => ({
+    log_id: log._id,
+    action_type: log.action_type,
+    metadata: log.metadata,
+    created_at: log.created_at,
+    actor_id: log.actor_id,
+    is_assisted: log.is_assisted,
+    ...(log.is_assisted &&
+      log.assisted_users && {
+        assisted_users: log.assisted_users.map((au) => ({
+          user_id: au.user_id,
+          name: au.name,
+          assisted_at: au.assisted_at,
+          assistance_type: au.assistance_type,
+        })),
+      }),
+  }));
 
-  // Roles authorized to read student daily logs
-  const staffReadRoles = new Set(['Owner','Educator', 'Administrator', 'Support']);
+const sanitizeObjectIds = (values) =>
+  values
+    .filter((v) => mongoose.Types.ObjectId.isValid(v))
+    .map((v) => new mongoose.Types.ObjectId(v));
 
-  const formatLogs = (logs) =>
-    logs.map((log) => ({
-      log_id: log._id,
-      action_type: log.action_type,
-      metadata: log.metadata,
-      created_at: log.created_at,
-      actor_id: log.actor_id,
-      is_assisted: log.is_assisted,
-      ...(log.is_assisted &&
-        log.assisted_users && {
-          assisted_users: log.assisted_users.map((au) => ({
-            user_id: au.user_id,
-            name: au.name,
-            assisted_at: au.assisted_at,
-            assistance_type: au.assistance_type,
-          })),
-        }),
-    }));
+const resolveAssistedUsers = async (assistedUsersFromClient) => {
+  const validAssistanceTypes = ActivityLog.schema
+    .path('assisted_users')
+    .schema.path('assistance_type').enumValues;
 
-  const sanitizeObjectIds = (values) =>
-    values
-      .filter((v) => mongoose.Types.ObjectId.isValid(v))
-      .map((v) => new mongoose.Types.ObjectId(v));
+  const userIds = sanitizeObjectIds(assistedUsersFromClient.map((u) => u.userId));
+  if (userIds.length !== assistedUsersFromClient.length) {
+    const err = new Error('One or more provided userIds are invalid');
+    err.status = 400;
+    throw err;
+  }
 
-  const resolveAssistedUsers = async (assistedUsersFromClient) => {
-    const validAssistanceTypes = ActivityLog.schema
-      .path('assisted_users')
-      .schema.path('assistance_type').enumValues;
+  const profiles = await usersProfiles.find({ _id: { $in: userIds } }).select('firstName lastName');
 
-    const userIds = sanitizeObjectIds(assistedUsersFromClient.map((u) => u.userId));
-    if (userIds.length !== assistedUsersFromClient.length) {
-      throw new Error('One or more provided userIds are invalid');
+  return profiles.map((user) => {
+    const clientObj = assistedUsersFromClient.find((u) => String(u.userId) === String(user._id));
+
+    const { assistanceType } = clientObj || {};
+    if (!validAssistanceTypes.includes(assistanceType)) {
+      const err = new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
+      err.status = 400;
+      throw err;
     }
 
-    const profiles = await usersProfiles
-      .find({ _id: { $in: userIds } })
-      .select('firstName lastName');
+    return {
+      user_id: user._id,
+      name: `${user.firstName} ${user.lastName}`,
+      assisted_at: new Date(),
+      assistance_type: assistanceType,
+    };
+  });
+};
 
-    return profiles.map((user) => {
-      const clientObj = assistedUsersFromClient.find((u) => String(u.userId) === String(user._id));
+const handleControllerError = (err, res, methodName, requestor) => {
+  logger.logException(err, methodName, { requestor });
+  const status = err.status || 500;
+  const error = status < 500 ? err.message : 'An unexpected error occurred';
+  return res.status(status).json({ error });
+};
 
-      const { assistanceType } = clientObj;
-      if (!validAssistanceTypes.includes(assistanceType)) {
-        throw new Error(`Invalid assistanceType for user ${user._id}: ${assistanceType}`);
-      }
-
-      return {
-        user_id: user._id,
-        name: `${user.firstName} ${user.lastName}`,
-        assisted_at: new Date(),
-        assistance_type: assistanceType,
-      };
-    });
-  };
-
+const activityLogController = () => {
   async function fetchStudentDailyLog(req, res) {
     try {
-      const studentId = req.body.requestor.requestorId;
-      const requestedStudentId = req.query.studentId;
+      const studentId = req.body?.requestor?.requestorId;
+      const requestedStudentId = req.query?.studentId;
 
-      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      if (!studentId || !mongoose.Types.ObjectId.isValid(studentId)) {
         return res.status(400).json({ error: 'Invalid studentId format' });
       }
       const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
@@ -90,15 +95,13 @@ const activityLogController = function () {
 
       return res.json(formatLogs(logs));
     } catch (err) {
-      logger.logException(err, 'fetchStudentDailyLog', { requestor: req.body.requestor });
-      return res.status(500).json({ error: 'An unexpected error occurred' });
+      return handleControllerError(err, res, 'fetchStudentDailyLog', req.body?.requestor);
     }
   }
 
   async function fetchStudentDailyLogsByStaff(req, res) {
     try {
       const { studentId } = req.params;
-      const currentUser = req.body.requestor;
 
       if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
 
@@ -106,7 +109,8 @@ const activityLogController = function () {
         return res.status(400).json({ error: 'Invalid studentId format' });
       }
 
-      if (!staffReadRoles.has(currentUser?.role)) {
+      const canReadActivityLogs = await hasPermission(req.body?.requestor, 'readActivityLogs');
+      if (!canReadActivityLogs) {
         return res.status(403).json({ error: 'You are not authorized to view student logs' });
       }
 
@@ -118,14 +122,13 @@ const activityLogController = function () {
 
       return res.json(formatLogs(logs));
     } catch (err) {
-      logger.logException(err, 'fetchStudentDailyLogsByStaff', { requestor: req.body.requestor });
-      return res.status(500).json({ error: 'An unexpected error occurred' });
+      return handleControllerError(err, res, 'fetchStudentDailyLogsByStaff', req.body?.requestor);
     }
   }
 
   async function createStudentDailyLog(req, res) {
     try {
-      const currentUser = req.body.requestor;
+      const currentUser = req.body?.requestor;
       const {
         actionType,
         entityId,
@@ -150,25 +153,32 @@ const activityLogController = function () {
       let assistedUsers = null;
 
       if (isAssistedFromClient) {
-        if (!managementRoles.has(currentUser?.role)) {
+        const canUpdateActivityLogs = await hasPermission(
+          req.body?.requestor,
+          'updateActivityLogs',
+        );
+        if (!canUpdateActivityLogs) {
           return res.status(403).json({
             error: 'Only educators or administrators can set the assisted flag',
           });
         }
 
-        isAssisted = true;
-
-        if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
+        if (
+          !assistedUsersFromClient ||
+          !Array.isArray(assistedUsersFromClient) ||
+          assistedUsersFromClient.length === 0
+        ) {
           return res.status(400).json({
             error: 'You must provide at least one assisted user if isAssisted is true',
           });
         }
 
+        isAssisted = true;
         assistedUsers = await resolveAssistedUsers(assistedUsersFromClient);
       }
 
       const logData = {
-        actor_id: currentUser.requestorId,
+        actor_id: currentUser?.requestorId,
         action_type: actionType,
         entity_id: entityId,
         metadata: metadata || {},
@@ -187,22 +197,21 @@ const activityLogController = function () {
         log: responseLog,
       });
     } catch (err) {
-      logger.logException(err, 'createStudentDailyLog', { requestor: req.body.requestor });
-      return res.status(500).json({ error: 'An unexpected error occurred' });
+      return handleControllerError(err, res, 'createStudentDailyLog', req.body?.requestor);
     }
   }
 
   async function updateStudentDailyLog(req, res) {
     try {
       const { logId } = req.params;
-      const currentUser = req.body.requestor;
       const { isAssisted: isAssistedFromClient, assistedUsers: assistedUsersFromClient } = req.body;
 
       if (!logId || !mongoose.Types.ObjectId.isValid(logId)) {
         return res.status(400).json({ error: 'Invalid or missing logId' });
       }
 
-      if (!managementRoles.has(currentUser?.role)) {
+      const canUpdateActivityLogs = await hasPermission(req.body?.requestor, 'updateActivityLogs');
+      if (!canUpdateActivityLogs) {
         return res.status(403).json({
           error: 'Only educators or administrators can update the assisted flag',
         });
@@ -213,7 +222,11 @@ const activityLogController = function () {
 
       let assistedUsers = [];
       if (isAssistedFromClient) {
-        if (!assistedUsersFromClient || assistedUsersFromClient.length === 0) {
+        if (
+          !assistedUsersFromClient ||
+          !Array.isArray(assistedUsersFromClient) ||
+          assistedUsersFromClient.length === 0
+        ) {
           return res.status(400).json({
             error: 'You must provide at least one assisted user if isAssisted is true',
           });
@@ -233,8 +246,7 @@ const activityLogController = function () {
         log: formattedLog,
       });
     } catch (err) {
-      logger.logException(err, 'updateStudentDailyLog', { requestor: req.body.requestor });
-      return res.status(500).json({ error: 'An unexpected error occurred' });
+      return handleControllerError(err, res, 'updateStudentDailyLog', req.body?.requestor);
     }
   }
 
