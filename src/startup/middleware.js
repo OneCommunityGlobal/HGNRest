@@ -55,6 +55,14 @@ module.exports = function (app) {
       next();
       return;
     }
+    if (req.originalUrl === '/api/production-identity/public-verify' && req.method === 'POST') {
+      next();
+      return;
+    }
+    if (req.originalUrl === '/api/webhooks/production-user-status' && req.method === 'POST') {
+      next();
+      return;
+    }
     if (req.originalUrl === '/api/forcepassword' && req.method === 'PATCH') {
       next();
       return;
@@ -79,11 +87,6 @@ module.exports = function (app) {
       return;
     }
     if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
-      next();
-      return;
-    }
-
-    if (/^\/api\/jobforms\/[^/]+\/responses$/.test(req.originalUrl) && req.method === 'POST') {
       next();
       return;
     }
