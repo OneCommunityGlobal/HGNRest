@@ -57,14 +57,31 @@ const kitchenOrderController = function () {
         return res.status(400).json({ message: validatedItems.error });
       }
 
-      const order = new Order({
+      const orderData = {
         supplierId: new mongoose.Types.ObjectId(String(supplierId)),
-        ...(status && { status: String(status) }),
-        ...(orderDate && { orderDate }),
-        ...(expectedDeliveryDate && { expectedDeliveryDate }),
-        ...(actualDeliveryDate && { actualDeliveryDate }),
-        ...(validatedItems && { items: validatedItems.items }),
-      });
+      };
+
+      if (status !== undefined) {
+        orderData.status = String(status);
+      }
+
+      if (orderDate !== undefined) {
+        orderData.orderDate = orderDate;
+      }
+
+      if (expectedDeliveryDate !== undefined) {
+        orderData.expectedDeliveryDate = expectedDeliveryDate;
+      }
+
+      if (actualDeliveryDate !== undefined) {
+        orderData.actualDeliveryDate = actualDeliveryDate;
+      }
+
+      if (validatedItems) {
+        orderData.items = validatedItems.items;
+      }
+
+      const order = new Order(orderData);
 
       const saved = await order.save();
       res.status(201).json(saved);
