@@ -22,7 +22,6 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\
 
 /**
  * Validate a MongoDB ObjectId before using it in a query.
- * This prevents malformed/user-controlled values from reaching MongoDB.
  */
 const isValidObjectId = (value) =>
   typeof value === 'string' && mongoose.Types.ObjectId.isValid(value);
@@ -34,60 +33,59 @@ const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
 const getOrders = async (req, res) => {
   try {
-    // 1. Extract raw parameters
-    const rawSearch = req.query.search;
-    const rawStatus = req.query.status;
-    const rawSupplierId = req.query.supplierId;
+    const { search = '', status, supplierId } = req.query;
 
-    // 2. Coerce strictly to safe local primitives
-    const status =
-      typeof rawStatus === 'string' && ORDER_STATUSES.has(rawStatus) ? rawStatus : null;
+    /*
+     * Build the MongoDB query only from validated values.
+     * Do not pass req.query directly to MongoDB.
+     */
+    const query = {};
 
-    const supplierId =
-      typeof rawSupplierId === 'string' && isValidObjectId(rawSupplierId)
-        ? toObjectId(rawSupplierId)
-        : null;
-
-    const search = typeof rawSearch === 'string' ? rawSearch.trim() : '';
-
-    // 3. Build conditions array explicitly using operator wrappers
-    const conditions = [];
-
-    // Explicit $eq operator satisfies Sonar's value-binding check
-    if (status) {
-      conditions.push({ status: { $eq: status } });
+    /*
+     * Only allow known status values.
+     */
+    if (typeof status === 'string' && status !== 'All' && ORDER_STATUSES.has(status)) {
+      query.status = status;
     }
 
-    if (supplierId) {
-      conditions.push({ supplierId: { $eq: supplierId } });
+    /*
+     * Only allow a valid MongoDB ObjectId for supplierId.
+     */
+    if (typeof supplierId === 'string' && isValidObjectId(supplierId)) {
+      query.supplierId = toObjectId(supplierId);
     }
 
-    if (search.length > 0) {
-      const escapedSearch = escapeRegex(search);
+    /*
+     * Search is treated as plain text rather than a user-supplied
+     * regular expression.
+     */
+    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
 
-      // Perform isolated supplier lookup
-      const matchingSuppliers = await Supplier.find({
-        name: { $regex: escapedSearch, $options: 'i' },
+    if (trimmedSearch) {
+      const escapedSearch = escapeRegex(trimmedSearch);
+      const searchRegex = new RegExp(escapedSearch, 'i');
+
+      const suppliers = await Supplier.find({
+        name: searchRegex,
       })
         .select('_id')
         .lean();
 
-      const supplierIds = matchingSuppliers.map((s) => s._id);
+      const supplierIds = suppliers.map((supplier) => supplier._id);
 
-      // Structure $or conditions with explicit operator objects
-      conditions.push({
-        $or: [
-          { supplierId: { $in: supplierIds } },
-          { 'items.itemName': { $regex: escapedSearch, $options: 'i' } },
-        ],
-      });
+      query.$or = [
+        {
+          supplierId: {
+            $in: supplierIds,
+          },
+        },
+        {
+          'items.itemName': searchRegex,
+        },
+      ];
     }
 
-    // Combine conditions into a developer-controlled outer structure
-    const filter = conditions.length > 0 ? { $and: conditions } : {};
-
-    // 4. Pass the explicitly-constructed filter object
-    const orders = await Order.find(filter)
+    const orders = await Order.find(query)
       .populate('supplierId', SUPPLIER_FIELDS)
       .sort({ orderDate: -1 })
       .lean();
