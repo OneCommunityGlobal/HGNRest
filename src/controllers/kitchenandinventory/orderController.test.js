@@ -59,6 +59,12 @@ describe('Order Controller', () => {
       lean: jest.fn().mockResolvedValue(orders),
     });
 
+    const createSupplierQuery = (suppliers = []) => ({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(suppliers),
+      }),
+    });
+
     it('should return all orders successfully', async () => {
       const orderQuery = createOrderQuery();
 
@@ -192,11 +198,9 @@ describe('Order Controller', () => {
         },
       ];
 
-      const supplierSelect = jest.fn().mockResolvedValue(suppliers);
+      const supplierQuery = createSupplierQuery(suppliers);
 
-      jest.spyOn(Supplier, 'find').mockReturnValue({
-        select: supplierSelect,
-      });
+      jest.spyOn(Supplier, 'find').mockReturnValue(supplierQuery);
 
       const orderQuery = createOrderQuery();
 
@@ -208,14 +212,20 @@ describe('Order Controller', () => {
 
       await getOrders(req, res);
 
-      expect(Supplier.find).toHaveBeenCalled();
+      expect(Supplier.find).toHaveBeenCalledTimes(1);
 
       const supplierSearchQuery = Supplier.find.mock.calls[0][0];
 
       expect(supplierSearchQuery.name).toBeInstanceOf(RegExp);
       expect(supplierSearchQuery.name.flags).toContain('i');
 
-      expect(supplierSelect).toHaveBeenCalledWith('_id');
+      const selectMock = supplierQuery.select;
+
+      expect(selectMock).toHaveBeenCalledWith('_id');
+
+      const leanMock = selectMock.mock.results[0].value.lean;
+
+      expect(leanMock).toHaveBeenCalled();
 
       expect(Order.find).toHaveBeenCalledWith({
         $or: [
@@ -234,12 +244,88 @@ describe('Order Controller', () => {
       expect(res.json).toHaveBeenCalledWith(mockOrders);
     });
 
-    it('should trim whitespace from search', async () => {
-      const supplierSelect = jest.fn().mockResolvedValue([]);
+    it('should combine search with status filter', async () => {
+      const suppliers = [
+        {
+          _id: 'supplier1',
+        },
+      ];
 
-      jest.spyOn(Supplier, 'find').mockReturnValue({
-        select: supplierSelect,
+      jest.spyOn(Supplier, 'find').mockReturnValue(createSupplierQuery(suppliers));
+
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      req.query = {
+        search: 'Rice',
+        status: 'Pending',
+      };
+
+      await getOrders(req, res);
+
+      expect(Supplier.find).toHaveBeenCalledTimes(1);
+
+      expect(Order.find).toHaveBeenCalledWith({
+        status: 'Pending',
+        $or: [
+          {
+            supplierId: {
+              $in: ['supplier1'],
+            },
+          },
+          {
+            'items.itemName': expect.any(RegExp),
+          },
+        ],
       });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should combine search with supplierId filter', async () => {
+      const suppliers = [
+        {
+          _id: 'supplier1',
+        },
+      ];
+
+      jest.spyOn(Supplier, 'find').mockReturnValue(createSupplierQuery(suppliers));
+
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      req.query = {
+        search: 'Rice',
+        supplierId: VALID_SUPPLIER_ID,
+      };
+
+      await getOrders(req, res);
+
+      expect(Supplier.find).toHaveBeenCalledTimes(1);
+
+      expect(Order.find).toHaveBeenCalledWith({
+        supplierId: validSupplierObjectId,
+        $or: [
+          {
+            supplierId: {
+              $in: ['supplier1'],
+            },
+          },
+          {
+            'items.itemName': expect.any(RegExp),
+          },
+        ],
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should trim whitespace from search', async () => {
+      const supplierQuery = createSupplierQuery([]);
+
+      jest.spyOn(Supplier, 'find').mockReturnValue(supplierQuery);
 
       const orderQuery = createOrderQuery();
 
@@ -257,11 +343,9 @@ describe('Order Controller', () => {
     });
 
     it('should escape regex special characters in search', async () => {
-      const supplierSelect = jest.fn().mockResolvedValue([]);
+      const supplierQuery = createSupplierQuery([]);
 
-      jest.spyOn(Supplier, 'find').mockReturnValue({
-        select: supplierSelect,
-      });
+      jest.spyOn(Supplier, 'find').mockReturnValue(supplierQuery);
 
       const orderQuery = createOrderQuery();
 
@@ -392,6 +476,32 @@ describe('Order Controller', () => {
       jest.spyOn(Supplier, 'find').mockImplementation(() => {
         throw error;
       });
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      req.query = {
+        search: 'Rice',
+      };
+
+      await getOrders(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Failed to fetch orders',
+      });
+    });
+
+    it('should return 500 when supplier lean fails', async () => {
+      const error = new Error('Supplier lean failed');
+
+      const supplierQuery = {
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockRejectedValue(error),
+        }),
+      };
+
+      jest.spyOn(Supplier, 'find').mockReturnValue(supplierQuery);
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -895,9 +1005,7 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.supplierId).toEqual(newSupplierObjectId);
-
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -943,7 +1051,6 @@ describe('Order Controller', () => {
       expect(order.items).toEqual(items);
 
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -964,9 +1071,7 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.status).toBe('Delivered');
-
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1007,7 +1112,6 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.expectedDeliveryDate).toBe('2026-08-25');
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1028,7 +1132,6 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.actualDeliveryDate).toBe('2026-08-20');
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1073,7 +1176,6 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1198,9 +1300,7 @@ describe('Order Controller', () => {
       expect(Order.findById).toHaveBeenCalledWith(validOrderObjectId);
 
       expect(order.status).toBe('Shipped');
-
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1241,11 +1341,8 @@ describe('Order Controller', () => {
       await updateOrderStatus(req, res);
 
       expect(order.status).toBe('Delivered');
-
       expect(order.actualDeliveryDate).toBeInstanceOf(Date);
-
       expect(order.save).toHaveBeenCalled();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1271,7 +1368,6 @@ describe('Order Controller', () => {
       await updateOrderStatus(req, res);
 
       expect(order.actualDeliveryDate).toBe(existingDate);
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -1292,7 +1388,6 @@ describe('Order Controller', () => {
       await updateOrderStatus(req, res);
 
       expect(order.actualDeliveryDate).toBeUndefined();
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
