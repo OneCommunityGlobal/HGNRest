@@ -10,6 +10,11 @@ const {
   getOrderStats,
 } = require('./orderController');
 
+const VALID_ORDER_ID = '507f1f77bcf86cd799439011';
+const VALID_SUPPLIER_ID = '507f1f77bcf86cd799439012';
+const NEW_SUPPLIER_ID = '507f1f77bcf86cd799439013';
+const MISSING_ORDER_ID = '507f1f77bcf86cd799439014';
+
 describe('Order Controller', () => {
   let req;
   let res;
@@ -36,8 +41,8 @@ describe('Order Controller', () => {
   describe('getOrders', () => {
     const mockOrders = [
       {
-        _id: 'order1',
-        supplierId: 'supplier1',
+        _id: VALID_ORDER_ID,
+        supplierId: VALID_SUPPLIER_ID,
         status: 'Pending',
       },
     ];
@@ -105,7 +110,7 @@ describe('Order Controller', () => {
 
     it('should filter orders by supplierId', async () => {
       req.query = {
-        supplierId: 'supplier123',
+        supplierId: VALID_SUPPLIER_ID,
       };
 
       const orderQuery = createOrderQuery();
@@ -115,7 +120,7 @@ describe('Order Controller', () => {
       await getOrders(req, res);
 
       expect(Order.find).toHaveBeenCalledWith({
-        supplierId: 'supplier123',
+        supplierId: VALID_SUPPLIER_ID,
       });
 
       expect(res.status).toHaveBeenCalledWith(200);
@@ -124,7 +129,7 @@ describe('Order Controller', () => {
     it('should apply both status and supplier filters', async () => {
       req.query = {
         status: 'Ordered',
-        supplierId: 'supplier123',
+        supplierId: VALID_SUPPLIER_ID,
       };
 
       const orderQuery = createOrderQuery();
@@ -135,7 +140,7 @@ describe('Order Controller', () => {
 
       expect(Order.find).toHaveBeenCalledWith({
         status: 'Ordered',
-        supplierId: 'supplier123',
+        supplierId: VALID_SUPPLIER_ID,
       });
     });
 
@@ -235,7 +240,6 @@ describe('Order Controller', () => {
 
       expect(regex).toBeInstanceOf(RegExp);
 
-      // The special regex characters should be escaped.
       expect(regex.source).toContain('\\.');
       expect(regex.source).toContain('\\*');
       expect(regex.source).toContain('\\+');
@@ -322,7 +326,7 @@ describe('Order Controller', () => {
   describe('getOrderById', () => {
     it('should return an order when found', async () => {
       const mockOrder = {
-        _id: 'order1',
+        _id: VALID_ORDER_ID,
         status: 'Pending',
       };
 
@@ -332,11 +336,11 @@ describe('Order Controller', () => {
         populate,
       });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       await getOrderById(req, res);
 
-      expect(Order.findById).toHaveBeenCalledWith('order1');
+      expect(Order.findById).toHaveBeenCalledWith(VALID_ORDER_ID);
 
       expect(populate).toHaveBeenCalledWith('supplierId', 'name email phone contact website');
 
@@ -351,7 +355,7 @@ describe('Order Controller', () => {
         populate,
       });
 
-      req.params.id = 'missing-order';
+      req.params.id = MISSING_ORDER_ID;
 
       await getOrderById(req, res);
 
@@ -371,7 +375,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       await getOrderById(req, res);
 
@@ -387,7 +391,7 @@ describe('Order Controller', () => {
 
   describe('createOrder', () => {
     const validBody = {
-      supplierId: 'supplier1',
+      supplierId: VALID_SUPPLIER_ID,
       orderDate: '2026-08-13',
       expectedDeliveryDate: '2026-08-20',
       items: [
@@ -461,7 +465,7 @@ describe('Order Controller', () => {
 
       await createOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith('supplier1');
+      expect(Supplier.findById).toHaveBeenCalledWith(VALID_SUPPLIER_ID);
       expect(Order.create).not.toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(404);
@@ -473,7 +477,7 @@ describe('Order Controller', () => {
 
     it('should return 400 when supplier is inactive', async () => {
       jest.spyOn(Supplier, 'findById').mockResolvedValue({
-        _id: 'supplier1',
+        _id: VALID_SUPPLIER_ID,
         isActive: false,
       });
 
@@ -492,16 +496,16 @@ describe('Order Controller', () => {
 
     it('should create an order successfully', async () => {
       const supplier = {
-        _id: 'supplier1',
+        _id: VALID_SUPPLIER_ID,
         isActive: true,
       };
 
       const createdOrder = {
-        _id: 'order1',
+        _id: VALID_ORDER_ID,
       };
 
       const populatedOrder = {
-        _id: 'order1',
+        _id: VALID_ORDER_ID,
         supplierId: supplier,
         status: 'Ordered',
       };
@@ -518,10 +522,10 @@ describe('Order Controller', () => {
 
       await createOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith('supplier1');
+      expect(Supplier.findById).toHaveBeenCalledWith(VALID_SUPPLIER_ID);
 
       expect(Order.create).toHaveBeenCalledWith({
-        supplierId: 'supplier1',
+        supplierId: VALID_SUPPLIER_ID,
         orderDate: '2026-08-13',
         expectedDeliveryDate: '2026-08-20',
         items: [
@@ -533,7 +537,7 @@ describe('Order Controller', () => {
         status: 'Ordered',
       });
 
-      expect(Order.findById).toHaveBeenCalledWith('order1');
+      expect(Order.findById).toHaveBeenCalledWith(VALID_ORDER_ID);
 
       expect(populate).toHaveBeenCalledWith('supplierId', 'name email phone contact');
 
@@ -545,12 +549,12 @@ describe('Order Controller', () => {
       delete req.body.status;
 
       const supplier = {
-        _id: 'supplier1',
+        _id: VALID_SUPPLIER_ID,
         isActive: true,
       };
 
       const createdOrder = {
-        _id: 'order1',
+        _id: VALID_ORDER_ID,
       };
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
@@ -594,7 +598,7 @@ describe('Order Controller', () => {
       const error = new Error('Order creation failed');
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue({
-        _id: 'supplier1',
+        _id: VALID_SUPPLIER_ID,
         isActive: true,
       });
 
@@ -614,8 +618,8 @@ describe('Order Controller', () => {
 
   describe('updateOrder', () => {
     const createMockOrder = () => ({
-      _id: 'order1',
-      supplierId: 'oldSupplier',
+      _id: VALID_ORDER_ID,
+      supplierId: VALID_SUPPLIER_ID,
       status: 'Pending',
       orderDate: '2026-08-01',
       expectedDeliveryDate: '2026-08-10',
@@ -627,7 +631,7 @@ describe('Order Controller', () => {
     it('should return 404 when order does not exist', async () => {
       jest.spyOn(Order, 'findById').mockResolvedValue(null);
 
-      req.params.id = 'missing-order';
+      req.params.id = MISSING_ORDER_ID;
 
       await updateOrder(req, res);
 
@@ -645,15 +649,15 @@ describe('Order Controller', () => {
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(null);
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
-        supplierId: 'newSupplier',
+        supplierId: NEW_SUPPLIER_ID,
       };
 
       await updateOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith('newSupplier');
+      expect(Supplier.findById).toHaveBeenCalledWith(NEW_SUPPLIER_ID);
 
       expect(order.save).not.toHaveBeenCalled();
 
@@ -668,7 +672,7 @@ describe('Order Controller', () => {
       const order = createMockOrder();
 
       const supplier = {
-        _id: 'newSupplier',
+        _id: NEW_SUPPLIER_ID,
       };
 
       jest
@@ -680,15 +684,15 @@ describe('Order Controller', () => {
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
-        supplierId: 'newSupplier',
+        supplierId: NEW_SUPPLIER_ID,
       };
 
       await updateOrder(req, res);
 
-      expect(order.supplierId).toBe('newSupplier');
+      expect(order.supplierId).toBe(NEW_SUPPLIER_ID);
 
       expect(order.save).toHaveBeenCalled();
 
@@ -699,7 +703,7 @@ describe('Order Controller', () => {
       const order = createMockOrder();
 
       const supplier = {
-        _id: 'newSupplier',
+        _id: NEW_SUPPLIER_ID,
       };
 
       const items = [
@@ -718,10 +722,10 @@ describe('Order Controller', () => {
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
-        supplierId: 'newSupplier',
+        supplierId: NEW_SUPPLIER_ID,
         status: 'Shipped',
         orderDate: '2026-08-05',
         expectedDeliveryDate: '2026-08-15',
@@ -731,7 +735,7 @@ describe('Order Controller', () => {
 
       await updateOrder(req, res);
 
-      expect(order.supplierId).toBe('newSupplier');
+      expect(order.supplierId).toBe(NEW_SUPPLIER_ID);
       expect(order.status).toBe('Shipped');
       expect(order.orderDate).toBe('2026-08-05');
       expect(order.expectedDeliveryDate).toBe('2026-08-15');
@@ -753,7 +757,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Delivered',
@@ -778,7 +782,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         orderDate: '2026-08-20',
@@ -801,7 +805,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         expectedDeliveryDate: '2026-08-25',
@@ -824,7 +828,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         actualDeliveryDate: '2026-08-20',
@@ -854,7 +858,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         items,
@@ -877,7 +881,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {};
 
@@ -895,7 +899,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       await updateOrder(req, res);
 
@@ -919,7 +923,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Shipped',
@@ -939,17 +943,17 @@ describe('Order Controller', () => {
 
   describe('updateOrderStatus', () => {
     const createMockOrder = (status = 'Pending') => ({
-      _id: 'order1',
+      _id: VALID_ORDER_ID,
       status,
       actualDeliveryDate: undefined,
-      supplierId: 'supplier1',
+      supplierId: VALID_SUPPLIER_ID,
       save: jest.fn().mockResolvedValue(true),
     });
 
     it('should return 400 for an invalid status', async () => {
       jest.spyOn(Order, 'findById');
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'InvalidStatus',
@@ -976,7 +980,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Shipped',
@@ -994,7 +998,7 @@ describe('Order Controller', () => {
     it('should return 404 when order does not exist', async () => {
       jest.spyOn(Order, 'findById').mockResolvedValue(null);
 
-      req.params.id = 'missing-order';
+      req.params.id = MISSING_ORDER_ID;
 
       req.body = {
         status: 'Shipped',
@@ -1019,7 +1023,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Delivered',
@@ -1051,7 +1055,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Delivered',
@@ -1074,7 +1078,7 @@ describe('Order Controller', () => {
           populate: jest.fn().mockResolvedValue(order),
         });
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Shipped',
@@ -1099,7 +1103,7 @@ describe('Order Controller', () => {
 
       jest.spyOn(Supplier, 'findByIdAndUpdate').mockResolvedValue({});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Ordered',
@@ -1107,7 +1111,7 @@ describe('Order Controller', () => {
 
       await updateOrderStatus(req, res);
 
-      expect(Supplier.findByIdAndUpdate).toHaveBeenCalledWith('supplier1', {
+      expect(Supplier.findByIdAndUpdate).toHaveBeenCalledWith(VALID_SUPPLIER_ID, {
         $inc: {
           totalOrders: 1,
         },
@@ -1128,7 +1132,7 @@ describe('Order Controller', () => {
 
       jest.spyOn(Supplier, 'findByIdAndUpdate');
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Delivered',
@@ -1146,7 +1150,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Shipped',
@@ -1174,7 +1178,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Ordered',
@@ -1207,7 +1211,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       req.body = {
         status: 'Ordered',
@@ -1228,16 +1232,16 @@ describe('Order Controller', () => {
   describe('deleteOrder', () => {
     it('should delete an order successfully', async () => {
       const order = {
-        _id: 'order1',
+        _id: VALID_ORDER_ID,
       };
 
       jest.spyOn(Order, 'findByIdAndDelete').mockResolvedValue(order);
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       await deleteOrder(req, res);
 
-      expect(Order.findByIdAndDelete).toHaveBeenCalledWith('order1');
+      expect(Order.findByIdAndDelete).toHaveBeenCalledWith(VALID_ORDER_ID);
 
       expect(res.status).toHaveBeenCalledWith(200);
 
@@ -1249,7 +1253,7 @@ describe('Order Controller', () => {
     it('should return 404 when order does not exist', async () => {
       jest.spyOn(Order, 'findByIdAndDelete').mockResolvedValue(null);
 
-      req.params.id = 'missing-order';
+      req.params.id = MISSING_ORDER_ID;
 
       await deleteOrder(req, res);
 
@@ -1267,7 +1271,7 @@ describe('Order Controller', () => {
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      req.params.id = 'order1';
+      req.params.id = VALID_ORDER_ID;
 
       await deleteOrder(req, res);
 
