@@ -7,8 +7,6 @@ const ORDER_STATUSES = new Set(['Pending', 'Ordered', 'Shipped', 'Delivered', 'C
 const SUPPLIER_FIELDS = 'name email phone contact';
 const SUPPLIER_FIELDS_WITH_WEBSITE = 'name email phone contact website';
 
-const MAX_SEARCH_LENGTH = 100;
-
 const sendServerError = (res, message, error, logMessage) => {
   console.error(logMessage, error);
 
@@ -20,47 +18,53 @@ const sendServerError = (res, message, error, logMessage) => {
 const getPopulatedOrder = (orderId) =>
   Order.findById(orderId).populate('supplierId', SUPPLIER_FIELDS);
 
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
+/**
+ * Validate a MongoDB ObjectId before using it in a query.
+ * This prevents malformed/user-controlled values from reaching MongoDB.
+ */
+const isValidObjectId = (value) =>
+  typeof value === 'string' && mongoose.Types.ObjectId.isValid(value);
+
+/**
+ * Convert a validated string to an ObjectId.
+ */
+const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
 const getOrders = async (req, res) => {
   try {
     const { search = '', status, supplierId } = req.query;
 
-    if (typeof search !== 'string') {
-      return res.status(400).json({
-        message: 'Invalid search value',
-      });
-    }
+    /*
+     * Only allow known status values.
+     * Do not put an arbitrary value from req.query into the Mongo query.
+     */
+    const validStatus =
+      typeof status === 'string' && status !== 'All' && ORDER_STATUSES.has(status)
+        ? status
+        : undefined;
 
-    if (search.length > MAX_SEARCH_LENGTH) {
-      return res.status(400).json({
-        message: 'Search value is too long',
-      });
-    }
-
-    if (status !== undefined && status !== 'All' && !ORDER_STATUSES.has(status)) {
-      return res.status(400).json({
-        message: 'Invalid order status',
-      });
-    }
-
-    if (supplierId !== undefined && !mongoose.isValidObjectId(supplierId)) {
-      return res.status(400).json({
-        message: 'Invalid supplier ID',
-      });
-    }
+    /*
+     * Only use supplierId after validating that it is a valid MongoDB
+     * ObjectId.
+     */
+    const validSupplierId =
+      typeof supplierId === 'string' && isValidObjectId(supplierId)
+        ? toObjectId(supplierId)
+        : undefined;
 
     const query = {};
 
-    if (status && status !== 'All') {
-      query.status = status;
+    if (validStatus) {
+      query.status = validStatus;
     }
 
-    if (supplierId) {
-      query.supplierId = supplierId;
+    if (validSupplierId) {
+      query.supplierId = validSupplierId;
     }
 
-    const trimmedSearch = search.trim();
+    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
 
     if (trimmedSearch) {
       const escapedSearch = escapeRegex(trimmedSearch);
@@ -72,7 +76,16 @@ const getOrders = async (req, res) => {
 
       const supplierIds = suppliers.map((supplier) => supplier._id);
 
-      query.$or = [{ supplierId: { $in: supplierIds } }, { 'items.itemName': searchRegex }];
+      query.$or = [
+        {
+          supplierId: {
+            $in: supplierIds,
+          },
+        },
+        {
+          'items.itemName': searchRegex,
+        },
+      ];
     }
 
     const orders = await Order.find(query)
@@ -88,13 +101,15 @@ const getOrders = async (req, res) => {
 
 const getOrderById = async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
       return res.status(400).json({
         message: 'Invalid order ID',
       });
     }
 
-    const order = await Order.findById(req.params.id).populate(
+    const order = await Order.findById(toObjectId(id)).populate(
       'supplierId',
       SUPPLIER_FIELDS_WITH_WEBSITE,
     );
@@ -121,7 +136,7 @@ const createOrder = async (req, res) => {
       });
     }
 
-    if (!mongoose.isValidObjectId(supplierId)) {
+    if (!isValidObjectId(supplierId)) {
       return res.status(400).json({
         message: 'Invalid supplier ID',
       });
@@ -139,7 +154,9 @@ const createOrder = async (req, res) => {
       });
     }
 
-    const supplier = await Supplier.findById(supplierId);
+    const supplierObjectId = toObjectId(supplierId);
+
+    const supplier = await Supplier.findById(supplierObjectId);
 
     if (!supplier) {
       return res.status(404).json({
@@ -154,7 +171,7 @@ const createOrder = async (req, res) => {
     }
 
     const order = await Order.create({
-      supplierId,
+      supplierId: supplierObjectId,
       orderDate,
       expectedDeliveryDate,
       items,
@@ -174,13 +191,15 @@ const updateOrder = async (req, res) => {
     const { supplierId, status, orderDate, expectedDeliveryDate, actualDeliveryDate, items } =
       req.body;
 
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
       return res.status(400).json({
         message: 'Invalid order ID',
       });
     }
 
-    if (supplierId !== undefined && !mongoose.isValidObjectId(supplierId)) {
+    if (supplierId !== undefined && !isValidObjectId(supplierId)) {
       return res.status(400).json({
         message: 'Invalid supplier ID',
       });
@@ -192,7 +211,7 @@ const updateOrder = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(toObjectId(id));
 
     if (!order) {
       return res.status(404).json({
@@ -201,7 +220,7 @@ const updateOrder = async (req, res) => {
     }
 
     if (supplierId !== undefined) {
-      const supplier = await Supplier.findById(supplierId);
+      const supplier = await Supplier.findById(toObjectId(supplierId));
 
       if (!supplier) {
         return res.status(404).json({
@@ -209,7 +228,7 @@ const updateOrder = async (req, res) => {
         });
       }
 
-      order.supplierId = supplierId;
+      order.supplierId = toObjectId(supplierId);
     }
 
     if (status !== undefined) {
@@ -245,6 +264,7 @@ const updateOrder = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const { id } = req.params;
 
     if (!ORDER_STATUSES.has(status)) {
       return res.status(400).json({
@@ -252,13 +272,13 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    if (!isValidObjectId(id)) {
       return res.status(400).json({
         message: 'Invalid order ID',
       });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(toObjectId(id));
 
     if (!order) {
       return res.status(404).json({
@@ -299,13 +319,15 @@ const updateOrderStatus = async (req, res) => {
 
 const deleteOrder = async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
       return res.status(400).json({
         message: 'Invalid order ID',
       });
     }
 
-    const order = await Order.findByIdAndDelete(req.params.id);
+    const order = await Order.findByIdAndDelete(toObjectId(id));
 
     if (!order) {
       return res.status(404).json({
@@ -327,8 +349,12 @@ const getOrderStats = async (req, res) => {
       {
         $group: {
           _id: '$status',
-          count: { $sum: 1 },
-          totalAmount: { $sum: '$totalAmount' },
+          count: {
+            $sum: 1,
+          },
+          totalAmount: {
+            $sum: '$totalAmount',
+          },
         },
       },
     ]);

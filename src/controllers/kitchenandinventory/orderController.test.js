@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Order = require('../../models/kitchenandinventory/order');
 const Supplier = require('../../models/kitchenandinventory/supplier');
 const {
@@ -14,6 +15,11 @@ const VALID_ORDER_ID = '507f1f77bcf86cd799439011';
 const VALID_SUPPLIER_ID = '507f1f77bcf86cd799439012';
 const NEW_SUPPLIER_ID = '507f1f77bcf86cd799439013';
 const MISSING_ORDER_ID = '507f1f77bcf86cd799439014';
+
+const validOrderObjectId = new mongoose.Types.ObjectId(VALID_ORDER_ID);
+const validSupplierObjectId = new mongoose.Types.ObjectId(VALID_SUPPLIER_ID);
+const newSupplierObjectId = new mongoose.Types.ObjectId(NEW_SUPPLIER_ID);
+const missingOrderObjectId = new mongoose.Types.ObjectId(MISSING_ORDER_ID);
 
 describe('Order Controller', () => {
   let req;
@@ -108,7 +114,23 @@ describe('Order Controller', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should filter orders by supplierId', async () => {
+    it('should ignore an invalid status', async () => {
+      req.query = {
+        status: 'InvalidStatus',
+      };
+
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      await getOrders(req, res);
+
+      expect(Order.find).toHaveBeenCalledWith({});
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should filter orders by supplierId using ObjectId', async () => {
       req.query = {
         supplierId: VALID_SUPPLIER_ID,
       };
@@ -120,8 +142,24 @@ describe('Order Controller', () => {
       await getOrders(req, res);
 
       expect(Order.find).toHaveBeenCalledWith({
-        supplierId: VALID_SUPPLIER_ID,
+        supplierId: validSupplierObjectId,
       });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should ignore an invalid supplierId', async () => {
+      req.query = {
+        supplierId: 'invalid-supplier-id',
+      };
+
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      await getOrders(req, res);
+
+      expect(Order.find).toHaveBeenCalledWith({});
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -140,7 +178,7 @@ describe('Order Controller', () => {
 
       expect(Order.find).toHaveBeenCalledWith({
         status: 'Ordered',
-        supplierId: VALID_SUPPLIER_ID,
+        supplierId: validSupplierObjectId,
       });
     });
 
@@ -236,10 +274,10 @@ describe('Order Controller', () => {
       await getOrders(req, res);
 
       const supplierSearchQuery = Supplier.find.mock.calls[0][0];
+
       const regex = supplierSearchQuery.name;
 
       expect(regex).toBeInstanceOf(RegExp);
-
       expect(regex.source).toContain('\\.');
       expect(regex.source).toContain('\\*');
       expect(regex.source).toContain('\\+');
@@ -259,7 +297,6 @@ describe('Order Controller', () => {
       await getOrders(req, res);
 
       expect(Supplier.find).not.toHaveBeenCalled();
-
       expect(Order.find).toHaveBeenCalledWith({});
     });
 
@@ -276,6 +313,55 @@ describe('Order Controller', () => {
       await getOrders(req, res);
 
       expect(Supplier.find).not.toHaveBeenCalled();
+      expect(Order.find).toHaveBeenCalledWith({});
+    });
+
+    it('should ignore non-string search values', async () => {
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+      jest.spyOn(Supplier, 'find');
+
+      req.query = {
+        search: {
+          malicious: true,
+        },
+      };
+
+      await getOrders(req, res);
+
+      expect(Supplier.find).not.toHaveBeenCalled();
+      expect(Order.find).toHaveBeenCalledWith({});
+    });
+
+    it('should ignore non-string status values', async () => {
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      req.query = {
+        status: {
+          $ne: 'Pending',
+        },
+      };
+
+      await getOrders(req, res);
+
+      expect(Order.find).toHaveBeenCalledWith({});
+    });
+
+    it('should ignore non-string supplierId values', async () => {
+      const orderQuery = createOrderQuery();
+
+      jest.spyOn(Order, 'find').mockReturnValue(orderQuery);
+
+      req.query = {
+        supplierId: {
+          $ne: null,
+        },
+      };
+
+      await getOrders(req, res);
 
       expect(Order.find).toHaveBeenCalledWith({});
     });
@@ -340,12 +426,28 @@ describe('Order Controller', () => {
 
       await getOrderById(req, res);
 
-      expect(Order.findById).toHaveBeenCalledWith(VALID_ORDER_ID);
+      expect(Order.findById).toHaveBeenCalledWith(validOrderObjectId);
 
       expect(populate).toHaveBeenCalledWith('supplierId', 'name email phone contact website');
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(mockOrder);
+    });
+
+    it('should return 400 when order ID is invalid', async () => {
+      jest.spyOn(Order, 'findById');
+
+      req.params.id = 'invalid-id';
+
+      await getOrderById(req, res);
+
+      expect(Order.findById).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order ID',
+      });
     });
 
     it('should return 404 when order is not found', async () => {
@@ -358,6 +460,8 @@ describe('Order Controller', () => {
       req.params.id = MISSING_ORDER_ID;
 
       await getOrderById(req, res);
+
+      expect(Order.findById).toHaveBeenCalledWith(missingOrderObjectId);
 
       expect(res.status).toHaveBeenCalledWith(404);
 
@@ -427,6 +531,24 @@ describe('Order Controller', () => {
       });
     });
 
+    it('should return 400 when supplierId is invalid', async () => {
+      jest.spyOn(Supplier, 'findById');
+      jest.spyOn(Order, 'create');
+
+      req.body.supplierId = 'invalid-supplier-id';
+
+      await createOrder(req, res);
+
+      expect(Supplier.findById).not.toHaveBeenCalled();
+      expect(Order.create).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid supplier ID',
+      });
+    });
+
     it('should return 400 when items is not an array', async () => {
       jest.spyOn(Order, 'create');
 
@@ -459,13 +581,32 @@ describe('Order Controller', () => {
       });
     });
 
+    it('should return 400 when status is invalid', async () => {
+      jest.spyOn(Order, 'create');
+      jest.spyOn(Supplier, 'findById');
+
+      req.body.status = 'InvalidStatus';
+
+      await createOrder(req, res);
+
+      expect(Supplier.findById).not.toHaveBeenCalled();
+      expect(Order.create).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order status',
+      });
+    });
+
     it('should return 404 when supplier does not exist', async () => {
       jest.spyOn(Supplier, 'findById').mockResolvedValue(null);
       jest.spyOn(Order, 'create');
 
       await createOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith(VALID_SUPPLIER_ID);
+      expect(Supplier.findById).toHaveBeenCalledWith(validSupplierObjectId);
+
       expect(Order.create).not.toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(404);
@@ -477,7 +618,7 @@ describe('Order Controller', () => {
 
     it('should return 400 when supplier is inactive', async () => {
       jest.spyOn(Supplier, 'findById').mockResolvedValue({
-        _id: VALID_SUPPLIER_ID,
+        _id: validSupplierObjectId,
         isActive: false,
       });
 
@@ -496,16 +637,16 @@ describe('Order Controller', () => {
 
     it('should create an order successfully', async () => {
       const supplier = {
-        _id: VALID_SUPPLIER_ID,
+        _id: validSupplierObjectId,
         isActive: true,
       };
 
       const createdOrder = {
-        _id: VALID_ORDER_ID,
+        _id: validOrderObjectId,
       };
 
       const populatedOrder = {
-        _id: VALID_ORDER_ID,
+        _id: validOrderObjectId,
         supplierId: supplier,
         status: 'Ordered',
       };
@@ -522,10 +663,10 @@ describe('Order Controller', () => {
 
       await createOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith(VALID_SUPPLIER_ID);
+      expect(Supplier.findById).toHaveBeenCalledWith(validSupplierObjectId);
 
       expect(Order.create).toHaveBeenCalledWith({
-        supplierId: VALID_SUPPLIER_ID,
+        supplierId: validSupplierObjectId,
         orderDate: '2026-08-13',
         expectedDeliveryDate: '2026-08-20',
         items: [
@@ -537,7 +678,7 @@ describe('Order Controller', () => {
         status: 'Ordered',
       });
 
-      expect(Order.findById).toHaveBeenCalledWith(VALID_ORDER_ID);
+      expect(Order.findById).toHaveBeenCalledWith(validOrderObjectId);
 
       expect(populate).toHaveBeenCalledWith('supplierId', 'name email phone contact');
 
@@ -549,12 +690,12 @@ describe('Order Controller', () => {
       delete req.body.status;
 
       const supplier = {
-        _id: VALID_SUPPLIER_ID,
+        _id: validSupplierObjectId,
         isActive: true,
       };
 
       const createdOrder = {
-        _id: VALID_ORDER_ID,
+        _id: validOrderObjectId,
       };
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
@@ -569,6 +710,7 @@ describe('Order Controller', () => {
 
       expect(Order.create).toHaveBeenCalledWith(
         expect.objectContaining({
+          supplierId: validSupplierObjectId,
           status: 'Pending',
         }),
       );
@@ -598,7 +740,7 @@ describe('Order Controller', () => {
       const error = new Error('Order creation failed');
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue({
-        _id: VALID_SUPPLIER_ID,
+        _id: validSupplierObjectId,
         isActive: true,
       });
 
@@ -618,14 +760,34 @@ describe('Order Controller', () => {
 
   describe('updateOrder', () => {
     const createMockOrder = () => ({
-      _id: VALID_ORDER_ID,
-      supplierId: VALID_SUPPLIER_ID,
+      _id: validOrderObjectId,
+      supplierId: validSupplierObjectId,
       status: 'Pending',
       orderDate: '2026-08-01',
       expectedDeliveryDate: '2026-08-10',
       actualDeliveryDate: undefined,
       items: [],
       save: jest.fn().mockResolvedValue(true),
+    });
+
+    const mockPopulatedOrder = (order) => ({
+      populate: jest.fn().mockResolvedValue(order),
+    });
+
+    it('should return 400 for an invalid order ID', async () => {
+      jest.spyOn(Order, 'findById');
+
+      req.params.id = 'invalid-id';
+
+      await updateOrder(req, res);
+
+      expect(Order.findById).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order ID',
+      });
     });
 
     it('should return 404 when order does not exist', async () => {
@@ -635,10 +797,52 @@ describe('Order Controller', () => {
 
       await updateOrder(req, res);
 
+      expect(Order.findById).toHaveBeenCalledWith(missingOrderObjectId);
+
       expect(res.status).toHaveBeenCalledWith(404);
 
       expect(res.json).toHaveBeenCalledWith({
         message: 'Order not found',
+      });
+    });
+
+    it('should return 400 when new supplier ID is invalid', async () => {
+      jest.spyOn(Order, 'findById');
+
+      req.params.id = VALID_ORDER_ID;
+
+      req.body = {
+        supplierId: 'invalid-supplier-id',
+      };
+
+      await updateOrder(req, res);
+
+      expect(Order.findById).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid supplier ID',
+      });
+    });
+
+    it('should return 400 when status is invalid', async () => {
+      jest.spyOn(Order, 'findById');
+
+      req.params.id = VALID_ORDER_ID;
+
+      req.body = {
+        status: 'InvalidStatus',
+      };
+
+      await updateOrder(req, res);
+
+      expect(Order.findById).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order status',
       });
     });
 
@@ -657,7 +861,7 @@ describe('Order Controller', () => {
 
       await updateOrder(req, res);
 
-      expect(Supplier.findById).toHaveBeenCalledWith(NEW_SUPPLIER_ID);
+      expect(Supplier.findById).toHaveBeenCalledWith(newSupplierObjectId);
 
       expect(order.save).not.toHaveBeenCalled();
 
@@ -672,15 +876,13 @@ describe('Order Controller', () => {
       const order = createMockOrder();
 
       const supplier = {
-        _id: NEW_SUPPLIER_ID,
+        _id: newSupplierObjectId,
       };
 
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
 
@@ -692,7 +894,7 @@ describe('Order Controller', () => {
 
       await updateOrder(req, res);
 
-      expect(order.supplierId).toBe(NEW_SUPPLIER_ID);
+      expect(order.supplierId).toEqual(newSupplierObjectId);
 
       expect(order.save).toHaveBeenCalled();
 
@@ -703,7 +905,7 @@ describe('Order Controller', () => {
       const order = createMockOrder();
 
       const supplier = {
-        _id: NEW_SUPPLIER_ID,
+        _id: newSupplierObjectId,
       };
 
       const items = [
@@ -716,9 +918,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       jest.spyOn(Supplier, 'findById').mockResolvedValue(supplier);
 
@@ -735,7 +935,7 @@ describe('Order Controller', () => {
 
       await updateOrder(req, res);
 
-      expect(order.supplierId).toBe(NEW_SUPPLIER_ID);
+      expect(order.supplierId).toEqual(newSupplierObjectId);
       expect(order.status).toBe('Shipped');
       expect(order.orderDate).toBe('2026-08-05');
       expect(order.expectedDeliveryDate).toBe('2026-08-15');
@@ -753,9 +953,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -778,9 +976,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -791,7 +987,6 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.orderDate).toBe('2026-08-20');
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -801,9 +996,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -824,9 +1017,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -854,9 +1045,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -867,7 +1056,6 @@ describe('Order Controller', () => {
       await updateOrder(req, res);
 
       expect(order.items).toEqual(items);
-
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -877,12 +1065,9 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
-
       req.body = {};
 
       await updateOrder(req, res);
@@ -943,11 +1128,15 @@ describe('Order Controller', () => {
 
   describe('updateOrderStatus', () => {
     const createMockOrder = (status = 'Pending') => ({
-      _id: VALID_ORDER_ID,
+      _id: validOrderObjectId,
       status,
       actualDeliveryDate: undefined,
-      supplierId: VALID_SUPPLIER_ID,
+      supplierId: validSupplierObjectId,
       save: jest.fn().mockResolvedValue(true),
+    });
+
+    const mockPopulatedOrder = (order) => ({
+      populate: jest.fn().mockResolvedValue(order),
     });
 
     it('should return 400 for an invalid status', async () => {
@@ -970,15 +1159,33 @@ describe('Order Controller', () => {
       });
     });
 
+    it('should return 400 for an invalid order ID', async () => {
+      jest.spyOn(Order, 'findById');
+
+      req.params.id = 'invalid-id';
+
+      req.body = {
+        status: 'Shipped',
+      };
+
+      await updateOrderStatus(req, res);
+
+      expect(Order.findById).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order ID',
+      });
+    });
+
     it('should update status successfully', async () => {
       const order = createMockOrder('Pending');
 
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -987,6 +1194,8 @@ describe('Order Controller', () => {
       };
 
       await updateOrderStatus(req, res);
+
+      expect(Order.findById).toHaveBeenCalledWith(validOrderObjectId);
 
       expect(order.status).toBe('Shipped');
 
@@ -1006,6 +1215,8 @@ describe('Order Controller', () => {
 
       await updateOrderStatus(req, res);
 
+      expect(Order.findById).toHaveBeenCalledWith(missingOrderObjectId);
+
       expect(res.status).toHaveBeenCalledWith(404);
 
       expect(res.json).toHaveBeenCalledWith({
@@ -1019,9 +1230,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -1051,9 +1260,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -1074,9 +1281,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       req.params.id = VALID_ORDER_ID;
 
@@ -1097,9 +1302,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       jest.spyOn(Supplier, 'findByIdAndUpdate').mockResolvedValue({});
 
@@ -1111,7 +1314,7 @@ describe('Order Controller', () => {
 
       await updateOrderStatus(req, res);
 
-      expect(Supplier.findByIdAndUpdate).toHaveBeenCalledWith(VALID_SUPPLIER_ID, {
+      expect(Supplier.findByIdAndUpdate).toHaveBeenCalledWith(validSupplierObjectId, {
         $inc: {
           totalOrders: 1,
         },
@@ -1126,9 +1329,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       jest.spyOn(Supplier, 'findByIdAndUpdate');
 
@@ -1203,9 +1404,7 @@ describe('Order Controller', () => {
       jest
         .spyOn(Order, 'findById')
         .mockResolvedValueOnce(order)
-        .mockReturnValueOnce({
-          populate: jest.fn().mockResolvedValue(order),
-        });
+        .mockReturnValueOnce(mockPopulatedOrder(order));
 
       jest.spyOn(Supplier, 'findByIdAndUpdate').mockRejectedValue(error);
 
@@ -1232,7 +1431,7 @@ describe('Order Controller', () => {
   describe('deleteOrder', () => {
     it('should delete an order successfully', async () => {
       const order = {
-        _id: VALID_ORDER_ID,
+        _id: validOrderObjectId,
       };
 
       jest.spyOn(Order, 'findByIdAndDelete').mockResolvedValue(order);
@@ -1241,12 +1440,28 @@ describe('Order Controller', () => {
 
       await deleteOrder(req, res);
 
-      expect(Order.findByIdAndDelete).toHaveBeenCalledWith(VALID_ORDER_ID);
+      expect(Order.findByIdAndDelete).toHaveBeenCalledWith(validOrderObjectId);
 
       expect(res.status).toHaveBeenCalledWith(200);
 
       expect(res.json).toHaveBeenCalledWith({
         message: 'Order deleted successfully',
+      });
+    });
+
+    it('should return 400 for an invalid order ID', async () => {
+      jest.spyOn(Order, 'findByIdAndDelete');
+
+      req.params.id = 'invalid-id';
+
+      await deleteOrder(req, res);
+
+      expect(Order.findByIdAndDelete).not.toHaveBeenCalled();
+
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid order ID',
       });
     });
 
@@ -1256,6 +1471,8 @@ describe('Order Controller', () => {
       req.params.id = MISSING_ORDER_ID;
 
       await deleteOrder(req, res);
+
+      expect(Order.findByIdAndDelete).toHaveBeenCalledWith(missingOrderObjectId);
 
       expect(res.status).toHaveBeenCalledWith(404);
 
