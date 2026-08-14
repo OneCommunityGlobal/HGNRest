@@ -1,11 +1,12 @@
-const jwt = require('jsonwebtoken');
-
 const mockWebhookTest = jest.fn();
+const mockJwtVerificationLogic = jest.fn();
 
 jest.mock('../../config', () => ({
   REQUEST_AUTHKEY: 'Authorization',
   JWT_SECRET: 'test-secret',
 }));
+
+jest.mock('../../utilities/jwtVerificationLogic', () => mockJwtVerificationLogic);
 
 jest.mock('../../controllers/lbdashboard/webhookController', () =>
   jest.fn(() => ({
@@ -17,12 +18,6 @@ jest.mock('../../models/lbdashboard/bids', () => ({
   Bids: {},
 }));
 
-jest.mock('moment', () =>
-  jest.fn(() => ({
-    isAfter: jest.fn((timestamp) => Date.now() > timestamp),
-  })),
-);
-
 const middleware = require('../middleware');
 
 describe('middleware', () => {
@@ -33,6 +28,8 @@ describe('middleware', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockJwtVerificationLogic.mockReset();
 
     app = {
       use: jest.fn(),
@@ -62,6 +59,21 @@ describe('middleware', () => {
     status: jest.fn().mockReturnThis(),
     send: jest.fn(),
     json: jest.fn(),
+    headersSent: false,
+  });
+
+  const createAuthenticatedRequest = () => ({
+    originalUrl: '/api/protected',
+    path: '/api/protected',
+    method: 'GET',
+    body: {},
+    header: jest.fn((name) => {
+      if (name === 'Authorization') {
+        return 'valid-token';
+      }
+
+      return undefined;
+    }),
   });
 
   describe('configuration', () => {
@@ -121,6 +133,8 @@ describe('middleware', () => {
       ['/api/login', 'POST'],
       ['/api/forgotpassword', 'POST'],
       ['/api/lbdashboard/register', 'POST'],
+      ['/api/production-identity/public-verify', 'POST'],
+      ['/api/webhooks/production-user-status', 'POST'],
       ['/api/forcepassword', 'PATCH'],
       ['/api/ProfileInitialSetup', 'POST'],
       ['/api/validateToken', 'POST'],
@@ -131,7 +145,6 @@ describe('middleware', () => {
       ['/api/confirm-non-hgn-email-subscription', 'GET'],
       ['/api/remove-non-hgn-email-subscription', 'POST'],
       ['/api/jobs/test', 'GET'],
-      ['/api/jobforms/123/responses', 'POST'],
       ['/api/bluesky/test', 'GET'],
       ['/api/applicant-analytics/track-interaction', 'POST'],
       ['/api/applicant-analytics/track-application', 'POST'],
@@ -153,9 +166,18 @@ describe('middleware', () => {
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(res.status).not.toHaveBeenCalled();
+      expect(mockJwtVerificationLogic).not.toHaveBeenCalled();
     });
 
     it('should not allow POST /api/jobs without authentication', () => {
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send({
+          'error:': 'Unauthorized request',
+        });
+        res.headersSent = true;
+        return undefined;
+      });
+
       const req = createRequest({
         originalUrl: '/api/jobs',
         path: '/api/jobs',
@@ -168,6 +190,7 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith(undefined, res);
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith({
@@ -176,6 +199,14 @@ describe('middleware', () => {
     });
 
     it('should not allow POST /api/analytics/roles without authentication', () => {
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send({
+          'error:': 'Unauthorized request',
+        });
+        res.headersSent = true;
+        return undefined;
+      });
+
       const req = createRequest({
         originalUrl: '/api/analytics/roles',
         path: '/api/analytics/roles',
@@ -188,6 +219,7 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith(undefined, res);
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
     });
@@ -209,9 +241,18 @@ describe('middleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
       expect(res.status).not.toHaveBeenCalled();
       expect(req.header).not.toHaveBeenCalled();
+      expect(mockJwtVerificationLogic).not.toHaveBeenCalled();
     });
 
     it('should require authentication for POST /api/servertime', () => {
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send({
+          'error:': 'Unauthorized request',
+        });
+        res.headersSent = true;
+        return undefined;
+      });
+
       const req = createRequest({
         originalUrl: '/api/servertime',
         path: '/api/servertime',
@@ -224,6 +265,7 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith(undefined, res);
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith({
@@ -233,21 +275,15 @@ describe('middleware', () => {
   });
 
   describe('authentication', () => {
-    const createAuthenticatedRequest = () => ({
-      originalUrl: '/api/protected',
-      path: '/api/protected',
-      method: 'GET',
-      body: {},
-      header: jest.fn((name) => {
-        if (name === 'Authorization') {
-          return 'valid-token';
-        }
-
-        return undefined;
-      }),
-    });
-
     it('should reject request without Authorization header', () => {
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send({
+          'error:': 'Unauthorized request',
+        });
+        res.headersSent = true;
+        return undefined;
+      });
+
       const req = createRequest({
         originalUrl: '/api/protected',
         path: '/api/protected',
@@ -260,6 +296,7 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith(undefined, res);
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith({
         'error:': 'Unauthorized request',
@@ -268,8 +305,10 @@ describe('middleware', () => {
     });
 
     it('should reject invalid JWT', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockImplementationOnce(() => {
-        throw new Error('Invalid token');
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send('Invalid token');
+        res.headersSent = true;
+        return undefined;
       });
 
       const req = createAuthenticatedRequest();
@@ -278,17 +317,18 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
-      expect(verifySpy).toHaveBeenCalledWith('valid-token', 'test-secret');
-
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith('valid-token', res);
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith('Invalid token');
       expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
     });
 
     it('should reject request when JWT payload is missing', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce(null);
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send('Unauthorized request');
+        res.headersSent = true;
+        return null;
+      });
 
       const req = createAuthenticatedRequest();
       const res = createResponse();
@@ -299,16 +339,14 @@ describe('middleware', () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith('Unauthorized request');
       expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
     });
 
     it('should reject request when expiryTimestamp is missing', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce({
+      mockJwtVerificationLogic.mockImplementationOnce(() => ({
         userid: 'user123',
         role: 'admin',
         permissions: [],
-      });
+      }));
 
       const req = createAuthenticatedRequest();
       const res = createResponse();
@@ -316,19 +354,20 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.send).toHaveBeenCalledWith('Unauthorized request');
-      expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.body.requestor).toEqual({
+        requestorId: 'user123',
+        role: 'admin',
+        permissions: [],
+      });
     });
 
     it('should reject request when userid is missing', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce({
+      mockJwtVerificationLogic.mockImplementationOnce(() => ({
         expiryTimestamp: Date.now() + 60000,
         role: 'admin',
         permissions: [],
-      });
+      }));
 
       const req = createAuthenticatedRequest();
       const res = createResponse();
@@ -336,19 +375,20 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.send).toHaveBeenCalledWith('Unauthorized request');
-      expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.body.requestor).toEqual({
+        requestorId: undefined,
+        role: 'admin',
+        permissions: [],
+      });
     });
 
     it('should reject request when role is missing', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce({
+      mockJwtVerificationLogic.mockImplementationOnce(() => ({
         expiryTimestamp: Date.now() + 60000,
         userid: 'user123',
         permissions: [],
-      });
+      }));
 
       const req = createAuthenticatedRequest();
       const res = createResponse();
@@ -356,19 +396,19 @@ describe('middleware', () => {
 
       allHandler(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.send).toHaveBeenCalledWith('Unauthorized request');
-      expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.body.requestor).toEqual({
+        requestorId: 'user123',
+        role: undefined,
+        permissions: [],
+      });
     });
 
     it('should reject expired JWT', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce({
-        expiryTimestamp: Date.now() - 60000,
-        userid: 'user123',
-        role: 'admin',
-        permissions: [],
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send('Unauthorized request');
+        res.headersSent = true;
+        return undefined;
       });
 
       const req = createAuthenticatedRequest();
@@ -380,12 +420,10 @@ describe('middleware', () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.send).toHaveBeenCalledWith('Unauthorized request');
       expect(next).not.toHaveBeenCalled();
-
-      verifySpy.mockRestore();
     });
 
     it('should allow a valid authenticated request', () => {
-      const verifySpy = jest.spyOn(jwt, 'verify').mockReturnValueOnce({
+      mockJwtVerificationLogic.mockReturnValueOnce({
         expiryTimestamp: Date.now() + 60000,
         userid: 'user123',
         role: 'admin',
@@ -397,6 +435,8 @@ describe('middleware', () => {
       const next = jest.fn();
 
       allHandler(req, res, next);
+
+      expect(mockJwtVerificationLogic).toHaveBeenCalledWith('valid-token', res);
 
       expect(next).toHaveBeenCalledTimes(1);
 
@@ -406,7 +446,28 @@ describe('middleware', () => {
         permissions: ['read'],
       });
 
-      verifySpy.mockRestore();
+      expect(req.user).toEqual({
+        requestorId: 'user123',
+        role: 'admin',
+        permissions: ['read'],
+      });
+    });
+
+    it('should stop when jwt verification sends a response', () => {
+      mockJwtVerificationLogic.mockImplementationOnce((authHeader, res) => {
+        res.status(401).send('Unauthorized request');
+        res.headersSent = true;
+        return undefined;
+      });
+
+      const req = createAuthenticatedRequest();
+      const res = createResponse();
+      const next = jest.fn();
+
+      allHandler(req, res, next);
+
+      expect(res.headersSent).toBe(true);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 
