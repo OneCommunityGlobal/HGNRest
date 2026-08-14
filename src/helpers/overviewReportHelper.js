@@ -1011,38 +1011,12 @@ const overviewReportHelper = function () {
    * NOTE: This shows ALL active users regardless of createdDate to provide
    * a complete picture of current role distribution in the organization
    */
-  async function getRoleDistributionStats(
-    startDate,
-    endDate,
-    comparisonStartDate,
-    comparisonEndDate,
-  ) {
+  async function getRoleDistributionStats() {
     // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users
-    const buildMatch = () => ({ isActive: true });
-
-    // If comparison dates provided, return both current and comparison facets
-    if (comparisonStartDate && comparisonEndDate) {
-      const roleStats = await UserProfile.aggregate([
-        {
-          $facet: {
-            current: [{ $match: buildMatch() }, { $group: { _id: '$role', count: { $sum: 1 } } }],
-            comparison: [
-              { $match: buildMatch() },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
-          },
-        },
-      ]);
-
-      return {
-        current: roleStats[0]?.current || [],
-        comparison: roleStats[0]?.comparison || [],
-      };
-    }
-
-    // No comparison: return same shape as before (array of {_id: role, count})
-    const matchStage = buildMatch();
+    // This ensures all current roles are displayed, not just recently created users.
+    // Role distribution is a live snapshot, not a time-series metric, so comparison
+    // periods do not apply here — always return a flat array of {_id: role, count}.
+    const matchStage = { isActive: true };
     const result = await UserProfile.aggregate([
       { $match: matchStage },
       { $group: { _id: '$role', count: { $sum: 1 } } },
@@ -1357,7 +1331,8 @@ const overviewReportHelper = function () {
     if (weeklyAverage <= 20) return '20';
     if (weeklyAverage <= 30) return '30';
     if (weeklyAverage <= 40) return '40';
-    return '40+';
+    if (weeklyAverage <= 50) return '50';
+    return '50+';
   }
 
   /**
@@ -1367,7 +1342,7 @@ const overviewReportHelper = function () {
    * - Week is Sunday to Saturday
    * - Count week only if 4+ days in range (exception: current week always counts)
    * - Round user's average to upper bucket limit
-   * - Buckets: 10, 20, 30, 40, 40+
+   * - Buckets: 10, 20, 30, 40, 50, 50+
    */
   async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
     // Validate date parameters
@@ -1473,7 +1448,8 @@ const overviewReportHelper = function () {
       20: 0,
       30: 0,
       40: 0,
-      '40+': 0,
+      50: 0,
+      '50+': 0,
     };
 
     for (const bucket of userBuckets) {
@@ -1486,7 +1462,8 @@ const overviewReportHelper = function () {
       { _id: '20', count: bucketCounts['20'] },
       { _id: '30', count: bucketCounts['30'] },
       { _id: '40', count: bucketCounts['40'] },
-      { _id: '40+', count: bucketCounts['40+'] },
+      { _id: '50', count: bucketCounts['50'] },
+      { _id: '50+', count: bucketCounts['50+'] },
     ];
 
     return hoursStats;
@@ -1499,9 +1476,13 @@ const overviewReportHelper = function () {
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
    * - Excludes entryType of 'person', 'team', or 'project'
    */
-  async function getTotalHoursWorked() {
-    const pdtstart = moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+  async function getTotalHoursWorked(startDate, endDate) {
+    const pdtstart = startDate
+      ? moment(startDate).format('YYYY-MM-DD')
+      : moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = endDate
+      ? moment(endDate).format('YYYY-MM-DD')
+      : moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     const data = await UserProfile.aggregate([
       {
@@ -2236,13 +2217,15 @@ const overviewReportHelper = function () {
     comparisonEndDate,
   ) {
     // 1. Retrieves the total hours logged to tasks for a given date range.
+    // Tasks are entries where entryType is NOT 'person', 'team', or 'project' (defaulting to 'default')
     const getTaskHours = async (start, end) => {
       const taskHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            taskId: { $exists: true, $type: 'objectId' },
             isTangible: { $eq: true },
+            isActive: { $ne: false }, // Only include active entries
+            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
           },
         },
         {
@@ -2263,12 +2246,14 @@ const overviewReportHelper = function () {
     taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
 
     // 2. Retrieves the total hours logged to projects for a given date range.
+    // Projects are entries where entryType is explicitly 'project'
     const getProjectHours = async (start, end) => {
       const projectHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            projectId: { $exists: true },
+            projectId: { $exists: true, $type: 'objectId' },
+            taskId: { $not: { $type: 'objectId' } }, // exclude entries where taskId is an ObjectId
             isTangible: { $eq: true },
           },
         },
@@ -2301,9 +2286,11 @@ const overviewReportHelper = function () {
         projectHours,
         comparisonProjectHours,
       );
-      hoursSubmittedToTasksComparisonPercentage = Number(
-        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
-      );
+      const comparisonTotal = comparisonTaskHours + comparisonProjectHours;
+      hoursSubmittedToTasksComparisonPercentage =
+        comparisonTotal > 0
+          ? Number(((comparisonTaskHours / comparisonTotal) * 100).toFixed(2))
+          : 0;
     }
 
     // Calculates the number of weeks, rounded up, for a given time range.
@@ -2387,11 +2374,19 @@ const overviewReportHelper = function () {
       dueDatetime: { $gte: startDate, $lte: endDate },
     });
 
+    // Calculate total tangible hours for percentage distribution
+    const totalTangibleHours = taskHours + projectHours;
+    const taskPercentage =
+      totalTangibleHours > 0 ? Number(((taskHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+    const projectPercentage =
+      totalTangibleHours > 0 ? Number(((projectHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+
     const taskAndProjectStats = {
       taskHours: {
         count: taskHours,
         submittedToCommittedHoursPercentage: Number((taskHours / totalCommittedHours).toFixed(2)),
         comparisonPercentage: tasksComparisonPercentage,
+        percentageOfTotal: taskPercentage,
       },
       projectHours: {
         count: projectHours,
@@ -2399,9 +2394,16 @@ const overviewReportHelper = function () {
           (projectHours / totalCommittedHours).toFixed(2),
         ),
         comparisonPercentage: projectsComparisonPercentage,
+        percentageOfTotal: projectPercentage,
       },
-      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      // percentage of tangible hours that were logged as tasks (0-100)
+      hoursSubmittedToTasksPercentage: taskPercentage,
+      // comparison loses meaning when projectHours = 0 (avoid NaN)
       hoursSubmittedToTasksComparisonPercentage,
+      // distribution label for bar chart display (unchanged)
+      hoursDistributionLabel: `${taskPercentage}% Tasks | ${projectPercentage}% Projects (Total = 100%)`,
+      totalTangibleHours,
+
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,
