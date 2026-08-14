@@ -32,8 +32,6 @@ const isValidObjectId = (value) =>
  */
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
-const sanitize = require('mongo-sanitize');
-
 const getOrders = async (req, res) => {
   try {
     // 1. Extract raw parameters
