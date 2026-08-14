@@ -1,5 +1,17 @@
 const Supplier = require('../../models/kitchenandinventory/supplier');
 
+const SUPPLIER_NOT_FOUND_MESSAGE = 'Supplier not found';
+
+const sendServerError = (res, message, error, logMessage) => {
+  console.error(logMessage, error);
+
+  return res.status(500).json({
+    message,
+  });
+};
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
 const getSuppliers = async (req, res) => {
   try {
     const { search = '', activeOnly = 'false' } = req.query;
@@ -10,8 +22,10 @@ const getSuppliers = async (req, res) => {
       query.isActive = true;
     }
 
-    if (search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+    const trimmedSearch = search.trim();
+
+    if (trimmedSearch) {
+      const searchRegex = new RegExp(escapeRegex(trimmedSearch), 'i');
 
       query.$or = [
         { name: searchRegex },
@@ -25,10 +39,7 @@ const getSuppliers = async (req, res) => {
 
     return res.status(200).json(suppliers);
   } catch (error) {
-    console.error('Error fetching suppliers:', error);
-    return res.status(500).json({
-      message: 'Failed to fetch suppliers',
-    });
+    return sendServerError(res, 'Failed to fetch suppliers', error, 'Error fetching suppliers:');
   }
 };
 
@@ -38,17 +49,13 @@ const getSupplierById = async (req, res) => {
 
     if (!supplier) {
       return res.status(404).json({
-        message: 'Supplier not found',
+        message: SUPPLIER_NOT_FOUND_MESSAGE,
       });
     }
 
     return res.status(200).json(supplier);
   } catch (error) {
-    console.error('Error fetching supplier:', error);
-
-    return res.status(500).json({
-      message: 'Failed to fetch supplier',
-    });
+    return sendServerError(res, 'Failed to fetch supplier', error, 'Error fetching supplier:');
   }
 };
 
@@ -62,8 +69,10 @@ const createSupplier = async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.toLowerCase();
+
     const existingSupplier = await Supplier.findOne({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     });
 
     if (existingSupplier) {
@@ -75,7 +84,7 @@ const createSupplier = async (req, res) => {
     const supplier = await Supplier.create({
       name,
       contact,
-      email,
+      email: normalizedEmail,
       phone,
       specialities,
       website,
@@ -83,11 +92,7 @@ const createSupplier = async (req, res) => {
 
     return res.status(201).json(supplier);
   } catch (error) {
-    console.error('Error creating supplier:', error);
-
-    return res.status(500).json({
-      message: 'Failed to create supplier',
-    });
+    return sendServerError(res, 'Failed to create supplier', error, 'Error creating supplier:');
   }
 };
 
@@ -99,17 +104,25 @@ const updateSupplier = async (req, res) => {
 
     if (!supplier) {
       return res.status(404).json({
-        message: 'Supplier not found',
+        message: SUPPLIER_NOT_FOUND_MESSAGE,
       });
     }
 
-    if (name !== undefined) supplier.name = name;
-    if (contact !== undefined) supplier.contact = contact;
-    if (email !== undefined) supplier.email = email;
-    if (phone !== undefined) supplier.phone = phone;
-    if (specialities !== undefined) supplier.specialities = specialities;
-    if (website !== undefined) supplier.website = website;
-    if (isActive !== undefined) supplier.isActive = isActive;
+    const updates = {
+      name,
+      contact,
+      email,
+      phone,
+      specialities,
+      website,
+      isActive,
+    };
+
+    Object.entries(updates).forEach(([field, value]) => {
+      if (value !== undefined) {
+        supplier[field] = field === 'email' ? value.toLowerCase() : value;
+      }
+    });
 
     supplier.updated = new Date();
 
@@ -117,11 +130,7 @@ const updateSupplier = async (req, res) => {
 
     return res.status(200).json(supplier);
   } catch (error) {
-    console.error('Error updating supplier:', error);
-
-    return res.status(500).json({
-      message: 'Failed to update supplier',
-    });
+    return sendServerError(res, 'Failed to update supplier', error, 'Error updating supplier:');
   }
 };
 
@@ -131,7 +140,7 @@ const deleteSupplier = async (req, res) => {
 
     if (!supplier) {
       return res.status(404).json({
-        message: 'Supplier not found',
+        message: SUPPLIER_NOT_FOUND_MESSAGE,
       });
     }
 
@@ -146,11 +155,12 @@ const deleteSupplier = async (req, res) => {
       supplier,
     });
   } catch (error) {
-    console.error('Error deactivating supplier:', error);
-
-    return res.status(500).json({
-      message: 'Failed to deactivate supplier',
-    });
+    return sendServerError(
+      res,
+      'Failed to deactivate supplier',
+      error,
+      'Error deactivating supplier:',
+    );
   }
 };
 

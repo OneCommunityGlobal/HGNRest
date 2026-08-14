@@ -1,6 +1,24 @@
 const Order = require('../../models/kitchenandinventory/order');
 const Supplier = require('../../models/kitchenandinventory/supplier');
 
+const ORDER_STATUSES = new Set(['Pending', 'Ordered', 'Shipped', 'Delivered', 'Cancelled']);
+
+const SUPPLIER_FIELDS = 'name email phone contact';
+const SUPPLIER_FIELDS_WITH_WEBSITE = 'name email phone contact website';
+
+const sendServerError = (res, message, error, logMessage) => {
+  console.error(logMessage, error);
+
+  return res.status(500).json({
+    message,
+  });
+};
+
+const getPopulatedOrder = (orderId) =>
+  Order.findById(orderId).populate('supplierId', SUPPLIER_FIELDS);
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
 const getOrders = async (req, res) => {
   try {
     const { search = '', status, supplierId } = req.query;
@@ -15,31 +33,29 @@ const getOrders = async (req, res) => {
       query.supplierId = supplierId;
     }
 
-    if (search.trim()) {
+    const trimmedSearch = search.trim();
+
+    if (trimmedSearch) {
+      const escapedSearch = escapeRegex(trimmedSearch);
+      const searchRegex = new RegExp(escapedSearch, 'i');
+
       const suppliers = await Supplier.find({
-        name: new RegExp(search.trim(), 'i'),
+        name: searchRegex,
       }).select('_id');
 
       const supplierIds = suppliers.map((supplier) => supplier._id);
 
-      query.$or = [
-        { supplierId: { $in: supplierIds } },
-        { 'items.itemName': new RegExp(search.trim(), 'i') },
-      ];
+      query.$or = [{ supplierId: { $in: supplierIds } }, { 'items.itemName': searchRegex }];
     }
 
     const orders = await Order.find(query)
-      .populate('supplierId', 'name email phone contact')
+      .populate('supplierId', SUPPLIER_FIELDS)
       .sort({ orderDate: -1 })
       .lean();
 
     return res.status(200).json(orders);
   } catch (error) {
-    console.error('Error fetching orders:', error);
-
-    return res.status(500).json({
-      message: 'Failed to fetch orders',
-    });
+    return sendServerError(res, 'Failed to fetch orders', error, 'Error fetching orders:');
   }
 };
 
@@ -47,7 +63,7 @@ const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate(
       'supplierId',
-      'name email phone contact website',
+      SUPPLIER_FIELDS_WITH_WEBSITE,
     );
 
     if (!order) {
@@ -58,11 +74,7 @@ const getOrderById = async (req, res) => {
 
     return res.status(200).json(order);
   } catch (error) {
-    console.error('Error fetching order:', error);
-
-    return res.status(500).json({
-      message: 'Failed to fetch order',
-    });
+    return sendServerError(res, 'Failed to fetch order', error, 'Error fetching order:');
   }
 };
 
@@ -76,7 +88,7 @@ const createOrder = async (req, res) => {
       });
     }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         message: 'At least one order item is required',
       });
@@ -104,18 +116,11 @@ const createOrder = async (req, res) => {
       status: status || 'Pending',
     });
 
-    const populatedOrder = await Order.findById(order._id).populate(
-      'supplierId',
-      'name email phone contact',
-    );
+    const populatedOrder = await getPopulatedOrder(order._id);
 
     return res.status(201).json(populatedOrder);
   } catch (error) {
-    console.error('Error creating order:', error);
-
-    return res.status(500).json({
-      message: 'Failed to create order',
-    });
+    return sendServerError(res, 'Failed to create order', error, 'Error creating order:');
   }
 };
 
@@ -166,18 +171,11 @@ const updateOrder = async (req, res) => {
 
     await order.save();
 
-    const populatedOrder = await Order.findById(order._id).populate(
-      'supplierId',
-      'name email phone contact',
-    );
+    const populatedOrder = await getPopulatedOrder(order._id);
 
     return res.status(200).json(populatedOrder);
   } catch (error) {
-    console.error('Error updating order:', error);
-
-    return res.status(500).json({
-      message: 'Failed to update order',
-    });
+    return sendServerError(res, 'Failed to update order', error, 'Error updating order:');
   }
 };
 
@@ -185,9 +183,7 @@ const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    const allowedStatuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Cancelled'];
-
-    if (!allowedStatuses.includes(status)) {
+    if (!ORDER_STATUSES.has(status)) {
       return res.status(400).json({
         message: 'Invalid order status',
       });
@@ -211,8 +207,6 @@ const updateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    // Increment supplier totalOrders only when
-    // the order changes from Pending to Ordered.
     if (previousStatus === 'Pending' && status === 'Ordered') {
       await Supplier.findByIdAndUpdate(order.supplierId, {
         $inc: {
@@ -221,24 +215,22 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const populatedOrder = await Order.findById(order._id).populate(
-      'supplierId',
-      'name email phone contact',
-    );
+    const populatedOrder = await getPopulatedOrder(order._id);
 
     return res.status(200).json(populatedOrder);
   } catch (error) {
-    console.error('Error updating order status:', error);
-
-    return res.status(500).json({
-      message: 'Failed to update order status',
-    });
+    return sendServerError(
+      res,
+      'Failed to update order status',
+      error,
+      'Error updating order status:',
+    );
   }
 };
 
 const deleteOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findByIdAndDelete(req.params.id);
 
     if (!order) {
       return res.status(404).json({
@@ -246,17 +238,11 @@ const deleteOrder = async (req, res) => {
       });
     }
 
-    await Order.findByIdAndDelete(req.params.id);
-
     return res.status(200).json({
       message: 'Order deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting order:', error);
-
-    return res.status(500).json({
-      message: 'Failed to delete order',
-    });
+    return sendServerError(res, 'Failed to delete order', error, 'Error deleting order:');
   }
 };
 
@@ -282,38 +268,33 @@ const getOrderStats = async (req, res) => {
       totalValue: 0,
     };
 
+    const statusKeys = {
+      Pending: 'pending',
+      Ordered: 'ordered',
+      Shipped: 'shipped',
+      Delivered: 'delivered',
+      Cancelled: 'cancelled',
+    };
+
     stats.forEach((stat) => {
       result.totalOrders += stat.count;
       result.totalValue += stat.totalAmount || 0;
 
-      switch (stat._id) {
-        case 'Pending':
-          result.pending = stat.count;
-          break;
-        case 'Ordered':
-          result.ordered = stat.count;
-          break;
-        case 'Shipped':
-          result.shipped = stat.count;
-          break;
-        case 'Delivered':
-          result.delivered = stat.count;
-          break;
-        case 'Cancelled':
-          result.cancelled = stat.count;
-          break;
-        default:
-          break;
+      const resultKey = statusKeys[stat._id];
+
+      if (resultKey) {
+        result[resultKey] = stat.count;
       }
     });
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error('Error fetching order statistics:', error);
-
-    return res.status(500).json({
-      message: 'Failed to fetch order statistics',
-    });
+    return sendServerError(
+      res,
+      'Failed to fetch order statistics',
+      error,
+      'Error fetching order statistics:',
+    );
   }
 };
 
