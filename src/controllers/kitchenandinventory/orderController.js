@@ -31,59 +31,61 @@ const isValidObjectId = (value) =>
  */
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
+const buildOrderQuery = async ({ search, status, supplierId }) => {
+  const query = {};
+
+  const validatedStatus =
+    typeof status === 'string' && status !== 'All' && ORDER_STATUSES.has(status) ? status : null;
+
+  if (validatedStatus) {
+    query.status = validatedStatus;
+  }
+
+  const validatedSupplierId =
+    typeof supplierId === 'string' && isValidObjectId(supplierId) ? toObjectId(supplierId) : null;
+
+  if (validatedSupplierId) {
+    query.supplierId = validatedSupplierId;
+  }
+
+  const trimmedSearch = typeof search === 'string' ? search.trim() : '';
+
+  if (trimmedSearch) {
+    const escapedSearch = escapeRegex(trimmedSearch);
+    const searchRegex = new RegExp(escapedSearch, 'i');
+
+    const suppliers = await Supplier.find({
+      name: searchRegex,
+    })
+      .select('_id')
+      .lean();
+
+    const supplierIds = suppliers.map(({ _id }) => _id);
+
+    query.$or = [
+      {
+        supplierId: {
+          $in: supplierIds,
+        },
+      },
+      {
+        'items.itemName': searchRegex,
+      },
+    ];
+  }
+
+  return query;
+};
+
 const getOrders = async (req, res) => {
   try {
     const { search = '', status, supplierId } = req.query;
 
-    /*
-     * Build the MongoDB query only from validated values.
-     * Do not pass req.query directly to MongoDB.
-     */
-    const query = {};
-
-    /*
-     * Only allow known status values.
-     */
-    if (typeof status === 'string' && status !== 'All' && ORDER_STATUSES.has(status)) {
-      query.status = status;
-    }
-
-    /*
-     * Only allow a valid MongoDB ObjectId for supplierId.
-     */
-    if (typeof supplierId === 'string' && isValidObjectId(supplierId)) {
-      query.supplierId = toObjectId(supplierId);
-    }
-
-    /*
-     * Search is treated as plain text rather than a user-supplied
-     * regular expression.
-     */
-    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
-
-    if (trimmedSearch) {
-      const escapedSearch = escapeRegex(trimmedSearch);
-      const searchRegex = new RegExp(escapedSearch, 'i');
-
-      const suppliers = await Supplier.find({
-        name: searchRegex,
-      })
-        .select('_id')
-        .lean();
-
-      const supplierIds = suppliers.map((supplier) => supplier._id);
-
-      query.$or = [
-        {
-          supplierId: {
-            $in: supplierIds,
-          },
-        },
-        {
-          'items.itemName': searchRegex,
-        },
-      ];
-    }
+    const query = await buildOrderQuery({
+      search,
+      status,
+      supplierId,
+    });
 
     const orders = await Order.find(query)
       .populate('supplierId', SUPPLIER_FIELDS)
