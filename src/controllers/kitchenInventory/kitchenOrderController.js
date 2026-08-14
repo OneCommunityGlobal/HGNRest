@@ -86,7 +86,7 @@ const kitchenOrderController = function () {
       const saved = await order.save();
       res.status(201).json(saved);
     } catch (err) {
-      res.status(400).json({ message: 'Unable to create order' });
+      res.status(400).json({ err: 'Unable to create order' });
     }
   };
 
@@ -125,7 +125,7 @@ const kitchenOrderController = function () {
 
       res.status(200).send(results);
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
 
@@ -146,7 +146,7 @@ const kitchenOrderController = function () {
 
       res.status(200).json(order);
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
 
@@ -220,7 +220,7 @@ const kitchenOrderController = function () {
 
       res.status(200).send(updated);
     } catch (err) {
-      res.status(400).json({ message: 'Unable to update order' });
+      res.status(400).json({ err: 'Unable to update order' });
     }
   };
 
@@ -241,7 +241,7 @@ const kitchenOrderController = function () {
 
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
 

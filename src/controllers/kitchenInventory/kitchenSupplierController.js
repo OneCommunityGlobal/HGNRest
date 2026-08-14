@@ -59,7 +59,7 @@ const kitchenSupplierController = function () {
 
       res.status(201).json(result);
     } catch (err) {
-      res.status(400).json({ message: 'Unable to create supplier' });
+      res.status(400).json({ err: 'Unable to create supplier' });
     }
   };
   const getSuppliers = async (req, res) => {
@@ -67,7 +67,7 @@ const kitchenSupplierController = function () {
       const results = await Supplier.find().lean();
       res.status(200).json(results);
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
   const getSupplierById = async (req, res) => {
@@ -108,7 +108,7 @@ const kitchenSupplierController = function () {
       };
       res.status(200).json(response);
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
   const updateSupplier = async (req, res) => {
@@ -157,7 +157,7 @@ const kitchenSupplierController = function () {
       }
       res.status(200).json(updated);
     } catch (err) {
-      res.status(400).json({ message: 'Unable to update supplier' });
+      res.status(400).json({ err: 'Unable to update supplier' });
     }
   };
   const deleteSupplier = async (req, res) => {
@@ -174,7 +174,7 @@ const kitchenSupplierController = function () {
       }
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ err: 'Internal server error' });
     }
   };
   return { createSupplier, getSuppliers, getSupplierById, updateSupplier, deleteSupplier };
