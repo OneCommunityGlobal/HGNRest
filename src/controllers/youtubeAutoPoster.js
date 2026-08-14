@@ -7,6 +7,7 @@ const TITLE_MAX_LENGTH = 100;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const TAGS_MAX_LENGTH = 500;
 const HTTP_STATUS_UPPER_BOUND = 600;
+const YOUTUBE_WATCH_URL = 'https://www.youtube.com/watch?v=';
 
 const preprocessMultipartBoolean = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
@@ -196,8 +197,17 @@ const createYoutubeClient = () => {
     YOUTUBE_REFRESH_TOKEN: refreshToken,
   } = process.env;
 
-  if (!clientId || !clientSecret || !redirectUri || !refreshToken) {
-    throw new Error('YouTube OAuth environment variables are not configured');
+  const missingVariables = [
+    ['YOUTUBE_CLIENT_ID', clientId],
+    ['YOUTUBE_CLIENT_SECRET', clientSecret],
+    ['YOUTUBE_REDIRECT_URI', redirectUri],
+    ['YOUTUBE_REFRESH_TOKEN', refreshToken],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missingVariables.length > 0) {
+    throw new Error(`Missing YouTube OAuth configuration: ${missingVariables.join(', ')}`);
   }
 
   const oauthClient = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
@@ -233,7 +243,10 @@ const buildYoutubeRequestBody = (metadata) => {
 };
 
 const getYoutubeErrorMessage = (error) =>
-  error.response?.data?.error?.message || error.message || 'Failed to upload video to YouTube';
+  error.response?.data?.error?.message ||
+  error.errors?.[0]?.message ||
+  error.message ||
+  'Failed to upload video to YouTube';
 
 /**
  * Receives one multipart file named `video` and YouTube metadata supplied either
@@ -243,31 +256,33 @@ const uploadVideo = async (req, res) => {
   try {
     validateVideoFile(req.file);
     const metadata = normalizeUploadMetadata(req.body || {});
-    // const youtube = createYoutubeClient();
+    const youtube = createYoutubeClient();
 
-    // const response = await youtube.videos.insert({
-    //   part: ['snippet', 'status'],
-    //   notifySubscribers: metadata.notifySubscribers,
-    //   requestBody: buildYoutubeRequestBody(metadata),
-    //   media: {
-    //     mimeType: req.file.mimetype,
-    //     body: createVideoStream(req.file),
-    //   },
-    // });
+    const response = await youtube.videos.insert({
+      part: ['snippet', 'status'],
+      notifySubscribers: metadata.notifySubscribers,
+      requestBody: buildYoutubeRequestBody(metadata),
+      media: {
+        mimeType: req.file.mimetype,
+        body: createVideoStream(req.file),
+      },
+    });
 
-    // const videoId = response.data.id;
+    const videoId = response?.data?.id;
+    if (!videoId) {
+      const uploadError = new Error('YouTube did not return a video ID');
+      uploadError.statusCode = 502;
+      throw uploadError;
+    }
 
-    const videoId = 'abcde';
     return res.status(201).json({
       success: true,
       message: 'Video uploaded to YouTube successfully',
       video: {
         id: videoId,
-        url: `https://www.youtube.com/watch?v=${videoId}`,
-        // title: response.data.snippet?.title || metadata.title,
-        // privacyStatus: response.data.status?.privacyStatus || metadata.privacyStatus,
-        title: metadata.title,
-        privacyStatus: metadata.privacyStatus,
+        url: `${YOUTUBE_WATCH_URL}${videoId}`,
+        title: response.data.snippet?.title || metadata.title,
+        privacyStatus: response.data.status?.privacyStatus || metadata.privacyStatus,
       },
     });
   } catch (error) {
@@ -280,7 +295,7 @@ const uploadVideo = async (req, res) => {
       });
     }
 
-    const statusCode = error.response?.status;
+    const statusCode = error.response?.status || error.statusCode;
     const safeStatusCode =
       statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
     return res.status(safeStatusCode).json({
