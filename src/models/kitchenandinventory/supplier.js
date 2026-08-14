@@ -19,7 +19,15 @@ const Supplier = new Schema({
     required: true,
     lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Provide valid email address'],
+    validate: {
+      validator: (value) => {
+        const atIndex = value.indexOf('@');
+        const dotIndex = value.lastIndexOf('.');
+
+        return atIndex > 0 && dotIndex > atIndex + 1 && dotIndex < value.length - 1;
+      },
+      message: 'Provide valid email address',
+    },
   },
 
   phone: {

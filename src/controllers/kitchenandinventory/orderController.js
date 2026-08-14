@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Order = require('../../models/kitchenandinventory/order');
 const Supplier = require('../../models/kitchenandinventory/supplier');
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getOrders = async (req, res) => {
   try {
@@ -7,25 +10,45 @@ const getOrders = async (req, res) => {
 
     const query = {};
 
+    const allowedStatuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Cancelled'];
+
+    // Only allow known status values.
     if (status && status !== 'All') {
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          message: 'Invalid order status',
+        });
+      }
+
       query.status = status;
     }
 
+    // Only use supplierId if it is a valid MongoDB ObjectId.
     if (supplierId) {
+      if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+        return res.status(400).json({
+          message: 'Invalid supplier ID',
+        });
+      }
+
       query.supplierId = supplierId;
     }
 
-    if (search.trim()) {
+    const trimmedSearch = search.trim();
+
+    if (trimmedSearch) {
+      const escapedSearch = escapeRegex(trimmedSearch);
+      const searchRegex = new RegExp(escapedSearch, 'i');
+
       const suppliers = await Supplier.find({
-        name: new RegExp(search.trim(), 'i'),
-      }).select('_id');
+        name: searchRegex,
+      })
+        .select('_id')
+        .lean();
 
       const supplierIds = suppliers.map((supplier) => supplier._id);
 
-      query.$or = [
-        { supplierId: { $in: supplierIds } },
-        { 'items.itemName': new RegExp(search.trim(), 'i') },
-      ];
+      query.$or = [{ supplierId: { $in: supplierIds } }, { 'items.itemName': searchRegex }];
     }
 
     const orders = await Order.find(query)
