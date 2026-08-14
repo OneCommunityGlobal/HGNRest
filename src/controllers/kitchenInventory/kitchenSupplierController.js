@@ -26,16 +26,35 @@ const kitchenSupplierController = function () {
         return res.status(400).json({ message: 'Supplier already exists' });
       }
 
-      const supplier = new Supplier({
+      const supplierData = {
         name: normalizedName,
-        ...(contactName && { contactName }),
-        ...(email && { email }),
-        ...(phone && { phone }),
-        ...(address && { address }),
-        ...(specialities && { specialities }),
-        ...(isActive !== undefined && { isActive }),
-      });
+      };
 
+      if (contactName !== undefined) {
+        supplierData.contactName = contactName;
+      }
+
+      if (email !== undefined) {
+        supplierData.email = email;
+      }
+
+      if (phone !== undefined) {
+        supplierData.phone = phone;
+      }
+
+      if (address !== undefined) {
+        supplierData.address = address;
+      }
+
+      if (specialities !== undefined) {
+        supplierData.specialities = specialities;
+      }
+
+      if (isActive !== undefined) {
+        supplierData.isActive = isActive;
+      }
+
+      const supplier = new Supplier(supplierData);
       const result = await supplier.save();
 
       res.status(201).json(result);
