@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ValidationError } = require('../utilities/errorHandling/customError');
+const { resolvePrsNeeded } = require('../helpers/promotionEligibilityHelper');
 
 const promotionEligibilityController = function (
   UserProfile,
@@ -41,10 +42,24 @@ const promotionEligibilityController = function (
         '_id firstName lastName weeklycommittedHours createdDate',
       ).lean();
 
+      // Existing records are read up front, in one query rather than one per
+      // user, because PRs Needed has to know the previously calculated hours to
+      // detect a change and whether an Owner has overridden the figure.
+      const existingRecords = await PromotionEligibility.find(
+        { reviewerId: { $in: users.map((user) => user._id) } },
+        'reviewerId pledgedHours prsNeededOverride',
+      ).lean();
+      const recordsByReviewerId = new Map(
+        existingRecords.map((record) => [record.reviewerId.toString(), record]),
+      );
+
       // Refactor: Use map and Promise.all for concurrent processing
       const eligibilityPromises = users.map(async (user) => {
         const pledgedHours = user.weeklycommittedHours || 0;
-        const requiredPRs = pledgedHours / 2;
+        const { prsNeeded, prsNeededSource, committedHoursChanged } = resolvePrsNeeded({
+          committedHours: pledgedHours,
+          existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
+        });
 
         const totalReviews = await Task.countDocuments({
           resources: { $elemMatch: { userID: user._id, completedTask: true } },
@@ -62,7 +77,13 @@ const promotionEligibilityController = function (
           reviewerId: user._id,
           reviewerName: `${user.firstName} ${user.lastName}`,
           pledgedHours,
-          requiredPRs,
+          // `requiredPRs` is the field the current page reads. It carries the
+          // same value as `prsNeeded` so the rebuild can move across without a
+          // flag day, and is dropped once the frontend reads `prsNeeded`.
+          requiredPRs: prsNeeded,
+          prsNeeded,
+          prsNeededSource,
+          committedHoursChanged,
           totalReviews,
           remainingWeeks,
           isNewMember,
@@ -86,6 +107,70 @@ const promotionEligibilityController = function (
     } catch (error) {
       logger.logException(error, { endpoint: 'getPromotionEligibilityData' });
       res.status(500).send('Error fetching promotion eligibility data.');
+    }
+  };
+
+  /**
+   * Owner-only edit of a reviewer's PRs Needed figure.
+   *
+   * Sending a number pins the figure and stops it tracking committed hours.
+   * Sending null clears the override and hands the reviewer back to the bands.
+   */
+  const updatePrsNeeded = async (req, res) => {
+    if (req.body.requestor.role !== 'Owner') {
+      return res.status(403).send('Only an Owner can edit PRs Needed.');
+    }
+
+    const { reviewerId } = req.params;
+    const { prsNeeded } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(reviewerId)) {
+      return res.status(400).send(`Invalid reviewer ID: ${reviewerId}`);
+    }
+
+    const isClearing = prsNeeded === null;
+    if (!isClearing && (!Number.isInteger(prsNeeded) || prsNeeded < 0)) {
+      return res
+        .status(400)
+        .send('prsNeeded must be a non-negative whole number, or null to clear the override.');
+    }
+
+    try {
+      const updated = await PromotionEligibility.findOneAndUpdate(
+        { reviewerId },
+        {
+          $set: {
+            prsNeededOverride: isClearing ? null : prsNeeded,
+            prsNeededOverrideBy: isClearing ? null : req.body.requestor.requestorId,
+            prsNeededOverrideAt: isClearing ? null : new Date(),
+            prsNeededSource: isClearing ? 'auto' : 'ownerOverride',
+            // An override replaces the committed hours check, so any pending
+            // change flag is no longer something the page should act on.
+            committedHoursChanged: false,
+            ...(isClearing ? {} : { prsNeeded, requiredPRs: prsNeeded }),
+          },
+        },
+        { new: true },
+      );
+
+      // Reviewers only get a record once the dashboard has been loaded at least
+      // once, so a missing one means the id is not on the table rather than that
+      // the write failed.
+      if (!updated) {
+        return res.status(404).send('No promotion eligibility record for that reviewer.');
+      }
+
+      logger.logInfo(
+        `PRs Needed for reviewer ${reviewerId} ${
+          isClearing ? 'reset to automatic' : `overridden to ${prsNeeded}`
+        }`,
+        { action: 'updatePrsNeeded', updatedBy: req.body.requestor.requestorId },
+      );
+
+      return res.status(200).json(updated);
+    } catch (error) {
+      logger.logException(error, { endpoint: 'updatePrsNeeded', payload: req.body });
+      return res.status(500).send('Error updating PRs Needed.');
     }
   };
 
@@ -152,7 +237,7 @@ const promotionEligibilityController = function (
     }
   };
 
-  return { getPromotionEligibilityData, promoteMembers };
+  return { getPromotionEligibilityData, updatePrsNeeded, promoteMembers };
 };
 
 module.exports = promotionEligibilityController;

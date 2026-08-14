@@ -14,6 +14,8 @@ const routes = function (userProfile, timeEntry, task, PromotionEligibility) {
 
   router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
+  router.route('/promotion-eligibility/:reviewerId/prs-needed').patch(controller.updatePrsNeeded);
+
   router.route('/promote-members').post(controller.promoteMembers);
 
   return router;
