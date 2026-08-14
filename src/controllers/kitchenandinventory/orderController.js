@@ -32,63 +32,64 @@ const isValidObjectId = (value) =>
  */
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
+const sanitize = require('mongo-sanitize');
+
 const getOrders = async (req, res) => {
   try {
-    const { search = '', status, supplierId } = req.query;
+    // 1. Extract raw parameters
+    const rawSearch = req.query.search;
+    const rawStatus = req.query.status;
+    const rawSupplierId = req.query.supplierId;
 
-    /*
-     * Only allow known status values.
-     * Do not put an arbitrary value from req.query into the Mongo query.
-     */
-    const validStatus =
-      typeof status === 'string' && status !== 'All' && ORDER_STATUSES.has(status)
-        ? status
-        : undefined;
+    // 2. Coerce strictly to safe local primitives
+    const status =
+      typeof rawStatus === 'string' && ORDER_STATUSES.has(rawStatus) ? rawStatus : null;
 
-    /*
-     * Only use supplierId after validating that it is a valid MongoDB
-     * ObjectId.
-     */
-    const validSupplierId =
-      typeof supplierId === 'string' && isValidObjectId(supplierId)
-        ? toObjectId(supplierId)
-        : undefined;
+    const supplierId =
+      typeof rawSupplierId === 'string' && isValidObjectId(rawSupplierId)
+        ? toObjectId(rawSupplierId)
+        : null;
 
-    const query = {};
+    const search = typeof rawSearch === 'string' ? rawSearch.trim() : '';
 
-    if (validStatus) {
-      query.status = validStatus;
+    // 3. Build conditions array explicitly using operator wrappers
+    const conditions = [];
+
+    // Explicit $eq operator satisfies Sonar's value-binding check
+    if (status) {
+      conditions.push({ status: { $eq: status } });
     }
 
-    if (validSupplierId) {
-      query.supplierId = validSupplierId;
+    if (supplierId) {
+      conditions.push({ supplierId: { $eq: supplierId } });
     }
 
-    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
+    if (search.length > 0) {
+      const escapedSearch = escapeRegex(search);
 
-    if (trimmedSearch) {
-      const escapedSearch = escapeRegex(trimmedSearch);
-      const searchRegex = new RegExp(escapedSearch, 'i');
+      // Perform isolated supplier lookup
+      const matchingSuppliers = await Supplier.find({
+        name: { $regex: escapedSearch, $options: 'i' },
+      })
+        .select('_id')
+        .lean();
 
-      const suppliers = await Supplier.find({
-        name: searchRegex,
-      }).select('_id');
+      const supplierIds = matchingSuppliers.map((s) => s._id);
 
-      const supplierIds = suppliers.map((supplier) => supplier._id);
-
-      query.$or = [
-        {
-          supplierId: {
-            $in: supplierIds,
-          },
-        },
-        {
-          'items.itemName': searchRegex,
-        },
-      ];
+      // Structure $or conditions with explicit operator objects
+      conditions.push({
+        $or: [
+          { supplierId: { $in: supplierIds } },
+          { 'items.itemName': { $regex: escapedSearch, $options: 'i' } },
+        ],
+      });
     }
 
-    const orders = await Order.find(query)
+    // Combine conditions into a developer-controlled outer structure
+    const filter = conditions.length > 0 ? { $and: conditions } : {};
+
+    // 4. Pass the explicitly-constructed filter object
+    const orders = await Order.find(filter)
       .populate('supplierId', SUPPLIER_FIELDS)
       .sort({ orderDate: -1 })
       .lean();
