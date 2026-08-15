@@ -442,10 +442,8 @@ const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
 
-
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
-
 
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
@@ -463,6 +461,10 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   userProfile,
   resourceRequestController,
 );
+
+const gardenCalendarRouter = require('../routes/gardenManagement/gardenCalendarRouter');
+const seedInventoryRouter = require('../routes/gardenManagement/seedInventoryRouter');
+const seedOrderRouter = require('../routes/gardenManagement/seedOrderRouter');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -715,4 +717,9 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
+
+  // Kitchen and Inventory - Garden Management
+  app.use('/api/kitchenandinventory/gardenmanagement/calendar', gardenCalendarRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/seeds', seedInventoryRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/orders', seedOrderRouter);
 };
