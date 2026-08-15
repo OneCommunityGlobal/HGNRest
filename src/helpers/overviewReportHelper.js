@@ -1361,6 +1361,8 @@ const overviewReportHelper = function () {
       {
         $match: {
           isActive: true,
+          weeklycommittedHours: { $gte: 1 },
+          role: { $ne: 'Mentor' },
         },
       },
       {
@@ -1386,11 +1388,12 @@ const overviewReportHelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+                    $gte: ['$$entry.dateOfWork', startDate],
                   },
                   {
-                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+                    $lte: ['$$entry.dateOfWork', endDate],
                   },
+                  { $not: [{ $in: ['$$entry.entryType', ['person', 'team', 'project']] }] },
                 ],
               },
             },
@@ -1470,19 +1473,49 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Get the distribution of active volunteers by weekly committed hours.
+   */
+  async function getCommittedHoursStats() {
+    const users = await UserProfile.find({ isActive: true }).select('weeklycommittedHours');
+
+    const bucketCounts = {
+      10: 0,
+      20: 0,
+      30: 0,
+      40: 0,
+      '40+': 0,
+    };
+
+    users.forEach((user) => {
+      const hours = user.weeklycommittedHours;
+      if (hours >= 10 && hours < 20) bucketCounts[10] += 1;
+      else if (hours >= 20 && hours < 30) bucketCounts[20] += 1;
+      else if (hours >= 30 && hours < 40) bucketCounts[30] += 1;
+      else if (hours === 40) bucketCounts[40] += 1;
+      else if (hours > 40) bucketCounts['40+'] += 1;
+    });
+
+    return [
+      { _id: 10, count: bucketCounts[10] },
+      { _id: 20, count: bucketCounts[20] },
+      { _id: 30, count: bucketCounts[30] },
+      { _id: 40, count: bucketCounts[40] },
+      { _id: '40+', count: bucketCounts['40+'] },
+    ];
+  }
+
+  /**
    * Aggregates total hours worked this week across all active volunteers,
    * matching the dashboard's getOrgData logic exactly:
-   * - Current week (America/Los_Angeles) date range, ignoring any passed-in date filters
+   * - Provided date range, or the current America/Los_Angeles week when omitted
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
    * - Excludes entryType of 'person', 'team', or 'project'
    */
   async function getTotalHoursWorked(startDate, endDate) {
-    const pdtstart = startDate
-      ? moment(startDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = endDate
-      ? moment(endDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    const pdtstart =
+      startDate || moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend =
+      endDate || moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     const data = await UserProfile.aggregate([
       {
@@ -2719,6 +2752,7 @@ const overviewReportHelper = function () {
     getWorkDistributionStats,
     getTotalHoursWorked,
     getHoursStats,
+    getCommittedHoursStats,
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
     getAnniversaryCount,
