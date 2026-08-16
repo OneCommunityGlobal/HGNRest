@@ -1,10 +1,20 @@
 const mongoose = require('mongoose');
 const HelpRequest = require('../models/helpRequest');
 const HelpFeedback = require('../models/helpFeedback');
+const { getHelpRequestEligibility } = require('../helpers/helpRequestEligibility');
 
 const createHelpRequest = async (req, res) => {
   try {
-    const { userId, topic, description } = req.body;
+    const { topic, description } = req.body;
+    const userId = req.user?.requestorId;
+
+    const { eligible } = await getHelpRequestEligibility(userId);
+    if (!eligible) {
+      return res.status(403).json({
+        message:
+          'You must complete the HGN questionnaire and belong to an eligible HGN team or role to submit a help request.',
+      });
+    }
 
     const helpRequest = new HelpRequest({
       userId,
@@ -14,6 +24,16 @@ const createHelpRequest = async (req, res) => {
 
     await helpRequest.save();
     res.status(201).json(helpRequest);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const checkHelpRequestEligibility = async (req, res) => {
+  try {
+    const userId = req.user?.requestorId;
+    const result = await getHelpRequestEligibility(userId);
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -94,4 +114,5 @@ module.exports = {
   checkIfModalShouldShow,
   updateRequestDate,
   getAllHelpRequests,
+  checkHelpRequestEligibility,
 };
