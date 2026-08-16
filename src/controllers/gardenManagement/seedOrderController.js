@@ -11,8 +11,6 @@ const sendServerError = (res, error) => {
   });
 };
 
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
 /**
  * Validate order items.
  */
@@ -278,72 +276,13 @@ const validateFinalDates = (updates, existingOrder) => {
 };
 
 /**
- * Build query for seed orders.
- */
-const buildOrderQuery = ({ search, status, supplier }) => {
-  const query = {};
-
-  if (typeof search === 'string' && search.trim()) {
-    const escapedSearch = escapeRegex(search.trim());
-
-    query.$or = [
-      {
-        orderId: {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-      {
-        supplier: {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-      {
-        'items.name': {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-    ];
-  }
-
-  if (typeof status === 'string' && status !== 'All') {
-    query.status = status;
-  }
-
-  if (typeof supplier === 'string' && supplier.trim()) {
-    query.supplier = {
-      $regex: escapeRegex(supplier.trim()),
-      $options: 'i',
-    };
-  }
-
-  return query;
-};
-
-/**
  * GET all seed orders
  *
  * GET /api/kitchenandinventory/gardenmanagement/seed-orders
  */
 const getSeedOrders = async (req, res) => {
   try {
-    const { search = '', status, supplier } = req.query;
-
-    if (typeof status === 'string' && status !== 'All' && !ORDER_STATUSES.has(status)) {
-      return res.status(400).json({
-        message: 'Invalid order status',
-      });
-    }
-
-    const query = buildOrderQuery({
-      search,
-      status,
-      supplier,
-    });
-
-    const orders = await SeedOrder.find(query).sort({ orderDate: -1 }).lean();
+    const orders = await SeedOrder.find().sort({ orderDate: -1 }).lean();
 
     return res.status(200).json(orders);
   } catch (error) {

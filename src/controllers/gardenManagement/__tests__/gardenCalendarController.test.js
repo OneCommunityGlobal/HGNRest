@@ -74,7 +74,7 @@ describe('Garden Calendar Controller', () => {
 
       await getCalendarEvents(req, res);
 
-      expect(GardenCalendar.find).toHaveBeenCalledWith({});
+      expect(GardenCalendar.find).toHaveBeenCalledWith();
 
       expect(sortMock).toHaveBeenCalledWith({
         startDate: 1,
@@ -88,211 +88,36 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith(mockEvents);
     });
 
-    it('should search events by name, location, and yield', async () => {
+    it('should ignore query parameters and return all events', async () => {
       setupFindMock(mockEvents);
 
       req.query = {
-        search: '  tomato.*  ',
-      };
-
-      await getCalendarEvents(req, res);
-
-      const query = GardenCalendar.find.mock.calls[0][0];
-
-      expect(query.$or).toHaveLength(3);
-
-      expect(query.$or[0].name.$regex).toBe(String.raw`tomato\.\*`);
-
-      expect(query.$or[0].name.$options).toBe('i');
-
-      expect(query.$or[1].location.$regex).toBe(String.raw`tomato\.\*`);
-
-      expect(query.$or[2].yield.$regex).toBe(String.raw`tomato\.\*`);
-    });
-
-    it('should ignore empty search values', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        search: '   ',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({});
-    });
-
-    it('should ignore non-string search values', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        search: 123,
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({});
-    });
-
-    it('should filter by valid event type', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
+        search: 'tomato',
         type: 'seeding',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({
-        type: 'seeding',
-      });
-    });
-
-    it('should allow type=All', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        type: 'All',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({});
-    });
-
-    it('should reject invalid event type', async () => {
-      req.query = {
-        type: 'invalid',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid event type',
-      });
-
-      expect(GardenCalendar.find).not.toHaveBeenCalled();
-    });
-
-    it('should filter by valid event status', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
         status: 'upcoming',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({
-        status: 'upcoming',
-      });
-    });
-
-    it('should allow status=All', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        status: 'All',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(GardenCalendar.find).toHaveBeenCalledWith({});
-    });
-
-    it('should reject invalid event status', async () => {
-      req.query = {
-        status: 'invalid',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid event status',
-      });
-
-      expect(GardenCalendar.find).not.toHaveBeenCalled();
-    });
-
-    it('should filter by start date', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        startDate: '2026-08-01',
-      };
-
-      await getCalendarEvents(req, res);
-
-      const query = GardenCalendar.find.mock.calls[0][0];
-
-      expect(query.startDate.$gte).toEqual(new Date('2026-08-01'));
-    });
-
-    it('should filter by end date', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
-        endDate: '2026-08-31',
-      };
-
-      await getCalendarEvents(req, res);
-
-      const query = GardenCalendar.find.mock.calls[0][0];
-
-      expect(query.startDate.$lte).toEqual(new Date('2026-08-31'));
-    });
-
-    it('should filter by both start and end dates', async () => {
-      setupFindMock(mockEvents);
-
-      req.query = {
         startDate: '2026-08-01',
         endDate: '2026-08-31',
       };
 
       await getCalendarEvents(req, res);
 
-      const query = GardenCalendar.find.mock.calls[0][0];
+      expect(GardenCalendar.find).toHaveBeenCalledWith();
+      expect(GardenCalendar.find).toHaveBeenCalledTimes(1);
 
-      expect(query.startDate.$gte).toEqual(new Date('2026-08-01'));
-
-      expect(query.startDate.$lte).toEqual(new Date('2026-08-31'));
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
     });
 
-    it('should reject invalid start date', async () => {
-      req.query = {
-        startDate: 'not-a-date',
-      };
+    it('should return all events when no query parameters are provided', async () => {
+      setupFindMock(mockEvents);
+
+      req.query = {};
 
       await getCalendarEvents(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid start date',
-      });
-
-      expect(GardenCalendar.find).not.toHaveBeenCalled();
-    });
-
-    it('should reject invalid end date', async () => {
-      req.query = {
-        endDate: 'not-a-date',
-      };
-
-      await getCalendarEvents(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid end date',
-      });
-
-      expect(GardenCalendar.find).not.toHaveBeenCalled();
+      expect(GardenCalendar.find).toHaveBeenCalledWith();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
     });
 
     it('should return 500 when database query fails', async () => {
@@ -692,7 +517,6 @@ describe('Garden Calendar Controller', () => {
 
     const setupUpdateMocks = (existing = existingEvent, updated = updatedEvent) => {
       GardenCalendar.findById.mockResolvedValue(existing);
-
       GardenCalendar.findByIdAndUpdate.mockResolvedValue(updated);
     };
 
@@ -739,6 +563,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid calendar event ID',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid event type', async () => {
@@ -755,6 +581,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid event type',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid event status', async () => {
@@ -771,6 +599,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid event status',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should trim string fields', async () => {
@@ -825,15 +655,10 @@ describe('Garden Calendar Controller', () => {
       const updates = GardenCalendar.findByIdAndUpdate.mock.calls[0][1];
 
       expect(updates.startDate).toEqual(new Date('2026-09-01'));
-
       expect(updates.endDate).toEqual(new Date('2026-09-10'));
-
       expect(updates.date).toEqual(new Date('2026-09-02'));
-
       expect(updates.lastSow).toEqual(new Date('2026-08-01'));
-
       expect(updates.nextSow).toEqual(new Date('2026-09-20'));
-
       expect(updates.expected).toEqual(new Date('2026-10-01'));
     });
 
@@ -869,6 +694,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid endDate',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid date', async () => {
@@ -885,6 +712,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid date',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid lastSow date', async () => {
@@ -901,6 +730,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid lastSow',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid nextSow date', async () => {
@@ -917,6 +748,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid nextSow',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should reject invalid expected date', async () => {
@@ -933,6 +766,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid expected',
       });
+
+      expect(GardenCalendar.findById).not.toHaveBeenCalled();
     });
 
     it('should return 404 when event does not exist', async () => {
@@ -1033,6 +868,8 @@ describe('Garden Calendar Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Internal server error',
       });
+
+      expect(GardenCalendar.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
     it('should return 500 when findByIdAndUpdate fails', async () => {

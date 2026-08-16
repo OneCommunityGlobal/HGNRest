@@ -53,38 +53,7 @@ describe('Seed Order Controller', () => {
   });
 
   describe('getSeedOrders', () => {
-    test.each([
-      ['search', { search: 'tomato' }],
-      ['supplier', { supplier: 'Garden' }],
-      ['status', { status: 'pending' }],
-      [
-        'search, supplier and status',
-        {
-          search: 'tomato',
-          supplier: 'Garden',
-          status: 'received',
-        },
-      ],
-    ])('should return orders when using %s filters', async (_description, query) => {
-      const req = { query };
-      const res = createResponse();
-
-      const orders = [
-        {
-          orderId: 'ORD-001',
-          supplier: 'Garden Supplier',
-        },
-      ];
-
-      jest.spyOn(SeedOrder, 'find').mockReturnValue(createFindChain(orders));
-
-      await getSeedOrders(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(orders);
-    });
-
-    test('should return all orders without filters', async () => {
+    test('should return all seed orders', async () => {
       const req = {
         query: {},
       };
@@ -93,6 +62,11 @@ describe('Seed Order Controller', () => {
       const orders = [
         {
           orderId: 'ORD-001',
+          supplier: 'Garden Supplier',
+        },
+        {
+          orderId: 'ORD-002',
+          supplier: 'Another Supplier',
         },
       ];
 
@@ -100,62 +74,9 @@ describe('Seed Order Controller', () => {
 
       await getSeedOrders(req, res);
 
-      expect(findSpy).toHaveBeenCalledWith({});
+      expect(findSpy).toHaveBeenCalledWith();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(orders);
-    });
-
-    test('should escape regex characters in search', async () => {
-      const req = {
-        query: {
-          search: 'tomato.*',
-        },
-      };
-      const res = createResponse();
-
-      const findSpy = jest.spyOn(SeedOrder, 'find').mockReturnValue(createFindChain([]));
-
-      await getSeedOrders(req, res);
-
-      const query = findSpy.mock.calls[0][0];
-
-      expect(query.$or[0].orderId.$regex).toBe('tomato\\.\\*');
-    });
-
-    test('should accept All status without filtering', async () => {
-      const req = {
-        query: {
-          status: 'All',
-        },
-      };
-      const res = createResponse();
-
-      const findSpy = jest.spyOn(SeedOrder, 'find').mockReturnValue(createFindChain([]));
-
-      await getSeedOrders(req, res);
-
-      expect(findSpy).toHaveBeenCalledWith({});
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    test('should reject invalid status', async () => {
-      const req = {
-        query: {
-          status: 'invalid',
-        },
-      };
-      const res = createResponse();
-
-      const findSpy = jest.spyOn(SeedOrder, 'find');
-
-      await getSeedOrders(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid order status',
-      });
-
-      expect(findSpy).not.toHaveBeenCalled();
     });
 
     test('should return 500 when database query fails', async () => {
@@ -196,7 +117,6 @@ describe('Seed Order Controller', () => {
       await getSeedOrderById(req, res);
 
       expect(SeedOrder.findById).toHaveBeenCalledWith(validId);
-
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(order);
     });
@@ -337,7 +257,9 @@ describe('Seed Order Controller', () => {
         'Invalid order status',
       ],
     ])('should reject %s', async (_description, body, message) => {
-      const req = { body };
+      const req = {
+        body,
+      };
       const res = createResponse();
 
       const createSpy = jest.spyOn(SeedOrder, 'create');
@@ -434,7 +356,9 @@ describe('Seed Order Controller', () => {
         'Delivery date cannot be before order date',
       ],
     ])('should reject %s', async (_description, body, message) => {
-      const req = { body };
+      const req = {
+        body,
+      };
       const res = createResponse();
 
       const createSpy = jest.spyOn(SeedOrder, 'create');
@@ -598,12 +522,16 @@ describe('Seed Order Controller', () => {
 
       const res = createResponse();
 
+      const findByIdSpy = jest.spyOn(SeedOrder, 'findById');
+
       await updateSeedOrder(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Invalid seed order ID',
       });
+
+      expect(findByIdSpy).not.toHaveBeenCalled();
     });
 
     test('should reject empty update', async () => {

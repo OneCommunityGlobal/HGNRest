@@ -34,8 +34,6 @@ const sendServerError = (res, error) => {
   });
 };
 
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
 const parseDate = (value, fieldName) => {
   if (value === undefined || value === null || value === '') {
     return {
@@ -73,73 +71,6 @@ const validateEventStatus = (status) => {
   }
 
   return EVENT_STATUSES.has(status) ? null : 'Invalid event status';
-};
-
-const buildSearchQuery = (search) => {
-  if (typeof search !== 'string' || !search.trim()) {
-    return null;
-  }
-
-  const escapedSearch = escapeRegex(search.trim());
-
-  return {
-    $or: [
-      {
-        name: {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-      {
-        location: {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-      {
-        yield: {
-          $regex: escapedSearch,
-          $options: 'i',
-        },
-      },
-    ],
-  };
-};
-
-const buildDateQuery = (startDate, endDate) => {
-  if (!startDate && !endDate) {
-    return null;
-  }
-
-  const dateQuery = {};
-
-  if (startDate) {
-    const parsedStartDate = parseDate(startDate, 'start date');
-
-    if (!parsedStartDate.valid) {
-      return {
-        error: parsedStartDate.message,
-      };
-    }
-
-    dateQuery.$gte = parsedStartDate.value;
-  }
-
-  if (endDate) {
-    const parsedEndDate = parseDate(endDate, 'end date');
-
-    if (!parsedEndDate.valid) {
-      return {
-        error: parsedEndDate.message,
-      };
-    }
-
-    dateQuery.$lte = parsedEndDate.value;
-  }
-
-  return {
-    value: dateQuery,
-  };
 };
 
 const parseCreateDates = ({ startDate, endDate, date, lastSow, nextSow, expected }) => {
@@ -232,53 +163,7 @@ const parseUpdateDates = (updates) => {
  */
 const getCalendarEvents = async (req, res) => {
   try {
-    const { search = '', type, status, startDate, endDate } = req.query;
-
-    const query = {};
-
-    const searchQuery = buildSearchQuery(search);
-
-    if (searchQuery) {
-      query.$or = searchQuery.$or;
-    }
-
-    const typeError = validateEventType(type);
-
-    if (typeError) {
-      return res.status(400).json({
-        message: typeError,
-      });
-    }
-
-    if (typeof type === 'string' && type !== 'All') {
-      query.type = type;
-    }
-
-    const statusError = validateEventStatus(status);
-
-    if (statusError) {
-      return res.status(400).json({
-        message: statusError,
-      });
-    }
-
-    if (typeof status === 'string' && status !== 'All') {
-      query.status = status;
-    }
-
-    const dateResult = buildDateQuery(startDate, endDate);
-
-    if (dateResult?.error) {
-      return res.status(400).json({
-        message: dateResult.error,
-      });
-    }
-
-    if (dateResult?.value) {
-      query.startDate = dateResult.value;
-    }
-
-    const events = await GardenCalendar.find(query)
+    const events = await GardenCalendar.find()
       .sort({
         startDate: 1,
         date: 1,
