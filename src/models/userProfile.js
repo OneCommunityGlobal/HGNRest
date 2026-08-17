@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  copiedAiPrompt: { type: Date, default: Date.now() },
+  copiedAiPrompt: { type: Date, default: Date.now },
   emailSubscriptions: {
     type: Boolean,
     default: false,
@@ -104,6 +104,7 @@ const userProfileSchema = new Schema({
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
@@ -152,6 +153,31 @@ const userProfileSchema = new Schema({
         ],
         default: [],
       },
+      reasons: {
+        type: [String],
+        default: ['other'],
+        enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
+      },
+      // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
+      manuallyAssigned: {
+        type: Boolean,
+        default: false,
+      },
+      // Track who manually assigned the blue square
+      manuallyAssignedBy: {
+        firstName: { type: String },
+        lastName: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+      },
+      // Track edit history for the blue square
+      editedBy: [
+        {
+          firstName: { type: String },
+          lastName: { type: String },
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+          date: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
   infringementCount: { type: Number, default: 0 },
@@ -169,6 +195,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -324,6 +351,12 @@ const userProfileSchema = new Schema({
   ],
   // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
   actualEmail: { type: String },
+  productionUserId: { type: String, index: true },
+  linkedProdEmail: { type: String, index: true },
+  identityLocked: { type: Boolean, default: false },
+  identityVerifiedAt: { type: Date },
+  deactivatedByProductionSync: { type: Boolean, default: false, index: true },
+  productionDeactivatedAt: { type: Date },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
@@ -385,6 +418,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [
@@ -489,3 +525,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');

@@ -488,56 +488,101 @@ const overviewReportHelper = function () {
 
   /**
    * Get the total number of active teams
+   * A team is considered active only if:
+   * 1. The team is marked as isActive: true
+   * 2. At least one team member has logged actual hours within the selected date range
    */
-  async function getTotalActiveTeamCount(endDate, comparisonEndDate) {
-    if (comparisonEndDate) {
-      const res = await Team.aggregate([
+  async function getTotalActiveTeamCount(
+    startDate,
+    endDate,
+    comparisonStartDate,
+    comparisonEndDate,
+  ) {
+    const getActiveTeamCount = async (start, end) => {
+      // Convert dates to YYYY-MM-DD string format for comparison with dateOfWork
+      const startStr = moment(start).format('YYYY-MM-DD');
+      const endStr = moment(end).format('YYYY-MM-DD');
+
+      console.log(`\n[getTotalActiveTeamCount] ========== START ==========`);
+      console.log(`[getTotalActiveTeamCount] Processing date range: ${startStr} to ${endStr}`);
+      console.log(`[getTotalActiveTeamCount] Input dates - start: ${start}, end: ${end}`);
+
+      // Step 1: Get all active teams
+      const activeTeamsCount = await Team.countDocuments({ isActive: true });
+      console.log(`[getTotalActiveTeamCount] Total active teams (no filter): ${activeTeamsCount}`);
+
+      const result = await Team.aggregate([
+        // Step 1: Match active teams created before/on the end date
         {
-          $facet: {
-            current: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: endDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
-            comparison: [
-              {
-                $match: {
-                  isActive: true,
-                  createdDatetime: { $lte: comparisonEndDate },
-                },
-              },
-              {
-                $count: 'activeTeams',
-              },
-            ],
+          $match: {
+            isActive: true,
+            $or: [{ createdDatetime: { $exists: false } }, { createdDatetime: { $lte: end } }],
           },
         },
-      ]);
-      const data = {};
-      data.current = res[0]?.current[0]?.activeTeams || 0;
-      data.comparison = res[0]?.comparison[0]?.activeTeams || 0;
-      data.percentage = calculateGrowthPercentage(data.current, data.comparison);
-      return data;
-    }
-    const res = await Team.aggregate([
-      {
-        $match: {
-          isActive: true,
-          createdDatetime: { $lte: endDate },
+        // Step 2: Lookup time entries for all team members
+        {
+          $lookup: {
+            from: 'timeEntries',
+            localField: 'members.userId',
+            foreignField: 'personId',
+            as: 'allTeamTimeEntries',
+          },
         },
-      },
-      {
-        $count: 'activeTeams',
-      },
-    ]);
+        // Step 3: Filter the time entries to only those in the date range
+        {
+          $project: {
+            _id: 1,
+            teamName: 1,
+            isActive: 1,
+            memberCount: { $size: '$members' },
+            totalTimeEntriesCount: { $size: '$allTeamTimeEntries' },
+            // Filter time entries to only those within the date range
+            timeEntriesInRange: {
+              $filter: {
+                input: '$allTeamTimeEntries',
+                as: 'entry',
+                cond: {
+                  $and: [
+                    { $gte: ['$$entry.dateOfWork', startStr] },
+                    { $lte: ['$$entry.dateOfWork', endStr] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        // Step 4: Keep only teams that have at least one time entry in the date range
+        {
+          $match: {
+            'timeEntriesInRange.0': { $exists: true },
+          },
+        },
+        // Step 5: Count the matching teams
+        {
+          $count: 'activeTeams',
+        },
+      ]);
 
-    return { current: res[0]?.activeTeams || 0 };
+      const activeTeamsWithHours = result[0]?.activeTeams || 0;
+      console.log(
+        `[getTotalActiveTeamCount] Teams with logged hours in range ${startStr} to ${endStr}: ${activeTeamsWithHours}`,
+      );
+      console.log(`[getTotalActiveTeamCount] ========== END ==========\n`);
+      return activeTeamsWithHours;
+    };
+
+    const current = await getActiveTeamCount(startDate, endDate);
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparison = await getActiveTeamCount(comparisonStartDate, comparisonEndDate);
+      return {
+        current,
+        comparison,
+        percentage: calculateGrowthPercentage(current, comparison),
+      };
+    }
+
+    return { current };
   }
 
   /**
@@ -963,47 +1008,15 @@ const overviewReportHelper = function () {
 
   /** aggregates role distribution statistics
    * counts total number of volunteers that fall within each of the different roles
+   * NOTE: This shows ALL active users regardless of createdDate to provide
+   * a complete picture of current role distribution in the organization
    */
-  async function getRoleDistributionStats(
-    startDate,
-    endDate,
-    comparisonStartDate,
-    comparisonEndDate,
-  ) {
-    // Helper to build match stage depending on whether start/end are provided
-    const buildMatch = (s, e) => {
-      const match = { isActive: true };
-      if (s && e) {
-        match.createdDate = { $gte: new Date(s), $lte: new Date(e) };
-      }
-      return match;
-    };
-
-    // If comparison dates provided, return both current and comparison facets
-    if (comparisonStartDate && comparisonEndDate) {
-      const roleStats = await UserProfile.aggregate([
-        {
-          $facet: {
-            current: [
-              { $match: buildMatch(startDate, endDate) },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
-            comparison: [
-              { $match: buildMatch(comparisonStartDate, comparisonEndDate) },
-              { $group: { _id: '$role', count: { $sum: 1 } } },
-            ],
-          },
-        },
-      ]);
-
-      return {
-        current: roleStats[0]?.current || [],
-        comparison: roleStats[0]?.comparison || [],
-      };
-    }
-
-    // No comparison: return same shape as before (array of {_id: role, count})
-    const matchStage = buildMatch(startDate, endDate);
+  async function getRoleDistributionStats() {
+    // Always match only active users, ignore date filters for role distribution
+    // This ensures all current roles are displayed, not just recently created users.
+    // Role distribution is a live snapshot, not a time-series metric, so comparison
+    // periods do not apply here — always return a flat array of {_id: role, count}.
+    const matchStage = { isActive: true };
     const result = await UserProfile.aggregate([
       { $match: matchStage },
       { $group: { _id: '$role', count: { $sum: 1 } } },
@@ -1130,11 +1143,6 @@ const overviewReportHelper = function () {
 
     // non-comparison branch
     const taskStats = await Task.aggregate([
-      {
-        $match: {
-          modifiedDatetime: { $gte: startDate, $lte: endDate },
-        },
-      },
       {
         $group: {
           _id: '$status',
@@ -1323,7 +1331,8 @@ const overviewReportHelper = function () {
     if (weeklyAverage <= 20) return '20';
     if (weeklyAverage <= 30) return '30';
     if (weeklyAverage <= 40) return '40';
-    return '40+';
+    if (weeklyAverage <= 50) return '50';
+    return '50+';
   }
 
   /**
@@ -1333,7 +1342,7 @@ const overviewReportHelper = function () {
    * - Week is Sunday to Saturday
    * - Count week only if 4+ days in range (exception: current week always counts)
    * - Round user's average to upper bucket limit
-   * - Buckets: 10, 20, 30, 40, 40+
+   * - Buckets: 10, 20, 30, 40, 50, 50+
    */
   async function getHoursStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
     // Validate date parameters
@@ -1377,10 +1386,10 @@ const overviewReportHelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+                    $gte: ['$$entry.dateOfWork', startDate],
                   },
                   {
-                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+                    $lte: ['$$entry.dateOfWork', endDate],
                   },
                 ],
               },
@@ -1439,7 +1448,8 @@ const overviewReportHelper = function () {
       20: 0,
       30: 0,
       40: 0,
-      '40+': 0,
+      50: 0,
+      '50+': 0,
     };
 
     for (const bucket of userBuckets) {
@@ -1452,108 +1462,81 @@ const overviewReportHelper = function () {
       { _id: '20', count: bucketCounts['20'] },
       { _id: '30', count: bucketCounts['30'] },
       { _id: '40', count: bucketCounts['40'] },
-      { _id: '40+', count: bucketCounts['40+'] },
+      { _id: '50', count: bucketCounts['50'] },
+      { _id: '50+', count: bucketCounts['50+'] },
     ];
 
     return hoursStats;
   }
 
   /**
-   * Aggregates total number of hours worked across all volunteers within the specified date range
+   * Aggregates total hours worked in the selected date range across all active volunteers,
+   * matching the dashboard's getOrgData logic exactly:
+   * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
+   * - Only active users with weeklycommittedHours >= 1 and role != Mentor
+   * - Excludes entryType of 'person', 'team', or 'project'
    */
-  async function getTotalHoursWorked(startDate, endDate, comparisonStartDate, comparisonEndDate) {
-    // Validate date parameters
-    const validation = validateDateParameters(
-      startDate,
-      endDate,
-      comparisonStartDate,
-      comparisonEndDate,
-    );
-    if (!validation.isValid) {
-      return { error: validation.error };
-    }
+  async function getTotalHoursWorked(startDate, endDate) {
+    const pdtstart =
+      startDate || moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = endDate || moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
-    if (!comparisonStartDate && !comparisonEndDate) {
-      const data = await TimeEntries.aggregate([
-        {
-          $match: {
-            dateOfWork: {
-              $gte: moment(startDate).format('YYYY-MM-DD'),
-              $lte: moment(endDate).format('YYYY-MM-DD'),
-            },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSeconds: { $sum: '$totalSeconds' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            totalHours: { $divide: ['$totalSeconds', 3600] },
-          },
-        },
-      ]);
-
-      return { current: data[0]?.totalHours || 0 };
-    }
-    const data = await TimeEntries.aggregate([
+    const data = await UserProfile.aggregate([
       {
-        $facet: {
-          currentTotalHours: [
-            {
-              $match: {
-                dateOfWork: {
-                  $gte: moment(startDate).format('YYYY-MM-DD'),
-                  $lte: moment(endDate).format('YYYY-MM-DD'),
-                },
+        $match: {
+          isActive: true,
+          weeklycommittedHours: { $gte: 1 },
+          role: { $ne: 'Mentor' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'timeEntries',
+          localField: '_id',
+          foreignField: 'personId',
+          as: 'timeEntryData',
+        },
+      },
+      {
+        $project: {
+          timeEntryData: {
+            $filter: {
+              input: '$timeEntryData',
+              as: 'timeentry',
+              cond: {
+                $and: [
+                  { $gte: ['$$timeentry.dateOfWork', pdtstart] },
+                  { $lte: ['$$timeentry.dateOfWork', pdtend] },
+                  { $not: [{ $in: ['$$timeentry.entryType', ['person', 'team', 'project']] }] },
+                ],
               },
             },
-            {
-              $group: {
-                _id: null,
-                totalSeconds: { $sum: '$totalSeconds' },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                totalHours: { $divide: ['$totalSeconds', 3600] },
-              },
-            },
-          ],
-
-          comparisonTotalHours: [
-            {
-              $match: {
-                dateOfWork: {
-                  $gte: moment(comparisonStartDate).format('YYYY-MM-DD'),
-                  $lte: moment(comparisonEndDate).format('YYYY-MM-DD'),
-                },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalSeconds: { $sum: '$totalSeconds' },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                totalHours: { $divide: ['$totalSeconds', 3600] },
-              },
-            },
-          ],
+          },
+        },
+      },
+      { $unwind: { path: '$timeEntryData', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          totalSeconds: {
+            $cond: [{ $gte: ['$timeEntryData.totalSeconds', 0] }, '$timeEntryData.totalSeconds', 0],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          time_hrs: { $sum: { $divide: ['$totalSeconds', 3600] } },
+        },
+      },
+      {
+        $group: {
+          _id: 0,
+          totaltime_hrs: { $sum: '$time_hrs' },
         },
       },
     ]);
 
-    const current = data[0].currentTotalHours[0]?.totalHours || 0;
-    const comparison = data[0].comparisonTotalHours[0]?.totalHours || 0;
-    return { current, comparison, percentage: calculateGrowthPercentage(current, comparison) };
+    return { current: data[0]?.totaltime_hrs || 0 };
   }
 
   /**
@@ -1627,7 +1610,7 @@ const overviewReportHelper = function () {
               {
                 $match: {
                   isActive: false,
-                  createdDate: { $lte: isoEndDate }, // All inactive volunteers, not just recently deactivated
+                  lastModifiedDate: { $gte: isoStartDate, $lte: isoEndDate },
                 },
               },
               { $count: 'count' },
@@ -2231,13 +2214,15 @@ const overviewReportHelper = function () {
     comparisonEndDate,
   ) {
     // 1. Retrieves the total hours logged to tasks for a given date range.
+    // Tasks are entries where entryType is NOT 'person', 'team', or 'project' (defaulting to 'default')
     const getTaskHours = async (start, end) => {
       const taskHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            taskId: { $exists: true, $type: 'objectId' },
             isTangible: { $eq: true },
+            isActive: { $ne: false }, // Only include active entries
+            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
           },
         },
         {
@@ -2258,12 +2243,14 @@ const overviewReportHelper = function () {
     taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
 
     // 2. Retrieves the total hours logged to projects for a given date range.
+    // Projects are entries where entryType is explicitly 'project'
     const getProjectHours = async (start, end) => {
       const projectHours = await TimeEntries.aggregate([
         {
           $match: {
             dateOfWork: { $gte: start, $lte: end },
-            projectId: { $exists: true },
+            projectId: { $exists: true, $type: 'objectId' },
+            taskId: { $not: { $type: 'objectId' } }, // exclude entries where taskId is an ObjectId
             isTangible: { $eq: true },
           },
         },
@@ -2296,9 +2283,11 @@ const overviewReportHelper = function () {
         projectHours,
         comparisonProjectHours,
       );
-      hoursSubmittedToTasksComparisonPercentage = Number(
-        (comparisonTaskHours / comparisonProjectHours).toFixed(2),
-      );
+      const comparisonTotal = comparisonTaskHours + comparisonProjectHours;
+      hoursSubmittedToTasksComparisonPercentage =
+        comparisonTotal > 0
+          ? Number(((comparisonTaskHours / comparisonTotal) * 100).toFixed(2))
+          : 0;
     }
 
     // Calculates the number of weeks, rounded up, for a given time range.
@@ -2382,11 +2371,19 @@ const overviewReportHelper = function () {
       dueDatetime: { $gte: startDate, $lte: endDate },
     });
 
+    // Calculate total tangible hours for percentage distribution
+    const totalTangibleHours = taskHours + projectHours;
+    const taskPercentage =
+      totalTangibleHours > 0 ? Number(((taskHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+    const projectPercentage =
+      totalTangibleHours > 0 ? Number(((projectHours / totalTangibleHours) * 100).toFixed(2)) : 0;
+
     const taskAndProjectStats = {
       taskHours: {
         count: taskHours,
         submittedToCommittedHoursPercentage: Number((taskHours / totalCommittedHours).toFixed(2)),
         comparisonPercentage: tasksComparisonPercentage,
+        percentageOfTotal: taskPercentage,
       },
       projectHours: {
         count: projectHours,
@@ -2394,9 +2391,16 @@ const overviewReportHelper = function () {
           (projectHours / totalCommittedHours).toFixed(2),
         ),
         comparisonPercentage: projectsComparisonPercentage,
+        percentageOfTotal: projectPercentage,
       },
-      hoursSubmittedToTasksPercentage: Number((taskHours / projectHours).toFixed(2)),
+      // percentage of tangible hours that were logged as tasks (0-100)
+      hoursSubmittedToTasksPercentage: taskPercentage,
+      // comparison loses meaning when projectHours = 0 (avoid NaN)
       hoursSubmittedToTasksComparisonPercentage,
+      // distribution label for bar chart display (unchanged)
+      hoursDistributionLabel: `${taskPercentage}% Tasks | ${projectPercentage}% Projects (Total = 100%)`,
+      totalTangibleHours,
+
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
       tasksDueThisWeek: tasksDueWithinDate,

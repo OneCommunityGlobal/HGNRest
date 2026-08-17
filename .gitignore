@@ -9,7 +9,7 @@
 /bower_components
 
 # misc
-/scripts
+# /scripts
 /.sass-cache
 /connect.lock
 /coverage/*
@@ -35,4 +35,4 @@ patch-mongo.js
 skip-db.js
 stub-db.js
 stub-db-strong.js
-scripts/
+# scripts/

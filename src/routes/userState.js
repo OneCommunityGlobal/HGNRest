@@ -6,8 +6,10 @@ const {
   createCatalog,
   reorderCatalog,
   updateCatalog,
+  getCatalogItemUsage,
   getUserSelections,
   setUserSelections,
+  getBatchUserSelections,
 } = require('../controllers/userStateController');
 
 // Catalog routes
@@ -15,9 +17,11 @@ router.get('/catalog', listCatalog);
 router.post('/catalog', createCatalog);
 router.put('/catalog/reorder', reorderCatalog);
 router.patch('/catalog/:key', updateCatalog);
+router.get('/catalog/:key/usage', getCatalogItemUsage);
 
 // User selection routes
 router.get('/selection/:userId', getUserSelections);
 router.put('/selection/:userId', setUserSelections);
+router.post('/selections/batch', getBatchUserSelections);
 
 module.exports = router;

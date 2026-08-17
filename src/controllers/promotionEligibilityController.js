@@ -34,9 +34,12 @@ const promotionEligibilityController = function (
 
     try {
       const users = await UserProfile.find(
-        { isActive: true },
+        {
+          isActive: true,
+          role: { $nin: ['Owner', 'Administrator', 'Promoted Reviewer'] },
+        },
         '_id firstName lastName weeklycommittedHours createdDate',
-      );
+      ).lean();
 
       // Refactor: Use map and Promise.all for concurrent processing
       const eligibilityPromises = users.map(async (user) => {

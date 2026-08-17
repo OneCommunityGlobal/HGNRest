@@ -75,13 +75,13 @@ class PermissionService {
       isAcknowledged: Boolean(permissions.isAcknowledged),
       frontPermissions: Array.isArray(permissions.frontPermissions)
         ? permissions.frontPermissions
-        : (existing.frontPermissions || []),
+        : existing.frontPermissions || [],
       backPermissions: Array.isArray(permissions.backPermissions)
         ? permissions.backPermissions
-        : (existing.backPermissions || []),
+        : existing.backPermissions || [],
       removedDefaultPermissions: Array.isArray(permissions.removedDefaultPermissions)
         ? permissions.removedDefaultPermissions
-        : (existing.removedDefaultPermissions || []),
+        : existing.removedDefaultPermissions || [],
     };
     user.permissions = merged;
     user.lastModifiedDate = Date.now();

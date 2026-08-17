@@ -298,7 +298,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       }
 
       if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        console.error('Invalid createdBy ID:', createdBy);
+        console.error('Invalid createdBy ID');
         return res.status(400).send({
           error: 'Invalid user ID format. Please log in again.',
           details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
