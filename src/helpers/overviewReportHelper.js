@@ -897,12 +897,6 @@ const overviewReportHelper = function () {
     const getData = async (endDate) => {
       const baseFilters = {
         isActive: true,
-        weeklycommittedHours: {
-          $gte: 1,
-        },
-        role: {
-          $ne: 'Mentor',
-        },
       };
 
       if (endDate) {
@@ -1160,80 +1154,6 @@ const overviewReportHelper = function () {
       raw: { current: taskStats }, // full status breakdown
     };
   }
-
-  /**
-   * Get the volunteer hours stats, it retrieves the number of hours logged by users between the two input dates as well as their weeklycommittedHours.
-   * @param {*} startDate
-   * @param {*} endDate
-   */
-  // async function getHoursStats(startDate, endDate) {
-  //   const hoursStats = await UserProfile.aggregate([
-  //     {
-  //       $match: {
-  //         isActive: true,
-  //       },
-  //     },
-  //     {
-  //       $lookup: {
-  //         from: 'timeEntries', // The collection to join
-  //         localField: '_id', // Field from the userProfile collection
-  //         foreignField: 'personId', // Field from the timeEntries collection
-  //         as: 'timeEntries', // The array field that will contain the joined documents
-  //       },
-  //     },
-  //     {
-  //       $unwind: {
-  //         path: '$timeEntries',
-  //         preserveNullAndEmptyArrays: true, // Preserve users with no time entries
-  //       },
-  //     },
-  //     {
-  //       $match: {
-  //         $or: [
-  //           { timeEntries: { $exists: false } },
-  //           {
-  //             'timeEntries.dateOfWork': {
-  //               $gte: moment(startDate).format('YYYY-MM-DD'),
-  //               $lte: moment(endDate).format('YYYY-MM-DD'),
-  //             },
-  //           },
-  //         ],
-  //       },
-  //     },
-  //     {
-  //       $group: {
-  //         _id: '$_id',
-  //         personId: { $first: '$_id' },
-  //         totalSeconds: { $sum: '$timeEntries.totalSeconds' }, // Sum seconds from timeEntries
-  //         weeklycommittedHours: { $first: `$weeklycommittedHours` }, // Include the weeklycommittedHours field
-  //       },
-  //     },
-  //     {
-  //       $project: {
-  //         totalHours: { $divide: ['$totalSeconds', 3600] }, // Convert seconds to hours
-  //         weeklycommittedHours: 1, // make sure we include it in the end result
-  //       },
-  //     },
-  //     {
-  //       $bucket: {
-  //         groupBy: '$totalHours',
-  //         boundaries: [0, 10, 20, 30, 40],
-  //         default: 40,
-  //         output: {
-  //           count: { $sum: 1 },
-  //         },
-  //       },
-  //     },
-  //   ]);
-
-  //   for (let i = 0; i < 5; i++) {
-  //     if (!hoursStats.find((x) => x._id === i * 10)) {
-  //       hoursStats.push({ _id: i * 10, count: 0 });
-  //     }
-  //   }
-
-  //   return hoursStats;
-  // }
 
   /**
    * Helper function to get user-level hours data for internal use
@@ -2557,12 +2477,16 @@ const overviewReportHelper = function () {
     isoComparisonStartDate,
     isoComparisonEndDate,
   ) {
-    // Helper function to get count of volunteers meeting their commitment.
     const getCompletedHoursData = async (start, end) => {
+      const startStr = moment(start).tz('America/Los_Angeles').format('YYYY-MM-DD');
+      const endStr = moment(end).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
       const hoursStats = await UserProfile.aggregate([
         {
           $match: {
             isActive: true,
+            weeklycommittedHours: { $gte: 1 },
+            role: { $ne: 'Mentor' },
           },
         },
         {
@@ -2584,12 +2508,9 @@ const overviewReportHelper = function () {
                 as: 'entry',
                 cond: {
                   $and: [
-                    {
-                      $gte: ['$$entry.dateOfWork', moment(start).format('YYYY-MM-DD')],
-                    },
-                    {
-                      $lte: ['$$entry.dateOfWork', moment(end).format('YYYY-MM-DD')],
-                    },
+                    { $gte: ['$$entry.dateOfWork', startStr] },
+                    { $lte: ['$$entry.dateOfWork', endStr] },
+                    { $not: [{ $in: ['$$entry.entryType', ['person', 'team', 'project']] }] },
                   ],
                 },
               },
@@ -2603,7 +2524,6 @@ const overviewReportHelper = function () {
         },
         {
           $project: {
-            name: { $concat: ['$firstName', ' ', '$lastName'] },
             totalHours: { $divide: ['$totalSeconds', 3600] },
             weeklycommittedHours: 1,
             metCommitment: {
@@ -2616,13 +2536,14 @@ const overviewReportHelper = function () {
           },
         },
         {
-          $match: { weeklycommittedHours: { $gte: 1 } },
+          $match: { metCommitment: true },
+        },
+        {
+          $count: 'metCommitmentCount',
         },
       ]);
 
-      const metCommitment = hoursStats.filter((user) => user.metCommitment);
-      const metCommitmentCount = metCommitment.length;
-      return metCommitmentCount;
+      return hoursStats[0]?.metCommitmentCount || 0;
     };
 
     const currentCount = await getCompletedHoursData(isoStartDate, isoEndDate);
@@ -2649,61 +2570,52 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) => {
-    // Helper function to count summaries submitted within a date range
-    const getSummariesCount = async (start, end) =>
-      UserProfile.aggregate([
+    const getSummariesCount = async (start, end) => {
+      const startDateObj = new Date(moment(start).tz('America/Los_Angeles').startOf('day').toISOString());
+      const endDateObj = new Date(moment(end).tz('America/Los_Angeles').endOf('day').toISOString());
+
+      const result = await UserProfile.aggregate([
         {
-          // Stage 1: Match users who have weeklySummaries array
           $match: {
-            weeklySummaries: { $exists: true, $ne: [] },
-          },
+            $or: [
+              { weeklySummaries: { $exists: true, $ne: [] } },
+              { summaries: { $exists: true, $ne: [] } }
+            ]
+          }
         },
         {
-          // Stage 2: Project only the summaries that meet ALL criteria
-          $project: {
-            validSummaries: {
-              $filter: {
-                input: '$weeklySummaries',
-                as: 'summary',
-                cond: {
-                  $and: [
-                    // Condition 1: Summary content is not empty
-                    { $ne: ['$$summary.summary', ''] },
-                    { $ne: ['$$summary.summary', null] },
-                    // Condition 2: uploadDate field exists
-                    { $ne: ['$$summary.uploadDate', null] },
-                    // Condition 3: uploadDate is within the date range
-                    { $gte: ['$$summary.uploadDate', new Date(start)] },
-                    { $lte: ['$$summary.uploadDate', new Date(end)] },
-                  ],
-                },
-              },
-            },
-          },
+          $addFields: {
+            allSummaries: { $concatArrays: [{ $ifNull: ['$weeklySummaries', []] }, { $ifNull: ['$summaries', []] }] }
+          }
+        },
+        { $unwind: '$allSummaries' },
+        {
+          $addFields: {
+            summaryParsedDate: {
+              $cond: {
+                if: { $ne: ['$allSummaries.uploadDate', null] },
+                then: { $toDate: '$allSummaries.uploadDate' },
+                else: { $toDate: '$allSummaries.date' }
+              }
+            }
+          }
         },
         {
-          // Stage 3: Count the valid summaries for each user
-          $project: {
-            summaryCount: { $size: '$validSummaries' },
-          },
+          $match: {
+            'allSummaries.summary': { $exists: true, $nin: ['', null] },
+            summaryParsedDate: { $gte: startDateObj, $lte: endDateObj }
+          }
         },
-        {
-          // Stage 4: Sum across all users
-          $group: {
-            _id: null,
-            totalSummaries: { $sum: '$summaryCount' },
-          },
-        },
+        { $count: 'totalSummaries' }
       ]);
 
-    // Get summaries count for the current date range
-    const currentSummaries = await getSummariesCount(startDate, endDate);
-    const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
+      return result[0]?.totalSummaries || 0;
+    };
 
-    // If comparison dates are provided, calculate the comparison percentage
+    const totalCurrentSummaries = await getSummariesCount(startDate, endDate);
+
     if (comparisonStartDate && comparisonEndDate) {
-      const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
-      const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
+      const totalComparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
       const comparisonPercentage = calculateGrowthPercentage(
         totalCurrentSummaries,
         totalComparisonSummaries,
@@ -2712,7 +2624,6 @@ const overviewReportHelper = function () {
       return { count: totalCurrentSummaries, comparisonPercentage };
     }
 
-    // If no comparison dates, return only the count
     return { count: totalCurrentSummaries };
   };
 
