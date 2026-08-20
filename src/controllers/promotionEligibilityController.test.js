@@ -3,7 +3,12 @@ jest.mock('../startup/logger', () => ({
   logException: jest.fn(),
 }));
 
+jest.mock('../utilities/permissions', () => ({
+  hasPermission: jest.fn(),
+}));
+
 const mongoose = require('mongoose');
+const { hasPermission } = require('../utilities/permissions');
 const promotionEligibilityController = require('./promotionEligibilityController');
 
 const OWNER_ID = '665234c757ca141fe891e1ca';
@@ -168,6 +173,142 @@ describe('updatePrsNeeded', () => {
       // eslint-disable-next-line global-require
       expect(require('../startup/logger').logException).toHaveBeenCalled();
     });
+  });
+});
+
+describe('getPromotionEligibilityData, filtering by reviewer group', () => {
+  const REVIEWERS = [
+    {
+      _id: '637af0c0fb9bbc1e308cff01',
+      firstName: 'Ann',
+      lastName: 'Adams',
+      weeklycommittedHours: 20,
+    },
+    {
+      _id: '637af0c0fb9bbc1e308cff02',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      weeklycommittedHours: 20,
+    },
+    {
+      _id: '637af0c0fb9bbc1e308cff03',
+      firstName: 'Ola',
+      lastName: 'Olsen',
+      weeklycommittedHours: 20,
+    },
+    {
+      _id: '637af0c0fb9bbc1e308cff04',
+      firstName: 'Wei',
+      lastName: 'Zhang',
+      weeklycommittedHours: 20,
+    },
+  ];
+
+  const GROUPS = [
+    { key: 'all', label: 'All Members', rangeStart: null, rangeEnd: null },
+    { key: '95xx', label: '95XXPRT Members', rangeStart: 'A', rangeEnd: 'N' },
+    { key: '97xx', label: '97XXPRT Members', rangeStart: 'O', rangeEnd: 'Z' },
+  ];
+
+  let UserProfile;
+  let TimeEntry;
+  let Task;
+  let PromotionEligibility;
+  let ReviewerGroup;
+  let controller;
+  let mockRes;
+
+  const requestFor = (body = {}) => ({
+    body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' }, ...body },
+  });
+
+  const namesReturned = () =>
+    mockRes.json.mock.calls[0][0].map((entry) => entry.reviewerName).sort();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    hasPermission.mockResolvedValue(true);
+
+    UserProfile = { find: jest.fn(() => ({ lean: () => Promise.resolve(REVIEWERS) })) };
+    TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+    Task = { countDocuments: jest.fn().mockResolvedValue(0) };
+    PromotionEligibility = {
+      find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+      findOneAndUpdate: jest.fn().mockResolvedValue({}),
+    };
+    ReviewerGroup = { find: jest.fn(() => ({ lean: () => Promise.resolve(GROUPS) })) };
+
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      Task,
+      PromotionEligibility,
+      ReviewerGroup,
+    );
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  it('returns every reviewer when no group is requested, as it does today', async () => {
+    await controller.getPromotionEligibilityData(requestFor(), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(namesReturned()).toEqual(['Ann Adams', 'Jane Doe', 'Ola Olsen', 'Wei Zhang']);
+    expect(ReviewerGroup.find).not.toHaveBeenCalled();
+  });
+
+  it('returns every reviewer for the All Members group without consulting a range', async () => {
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: 'all' }), mockRes);
+
+    expect(namesReturned()).toHaveLength(4);
+  });
+
+  it('returns only the A-N half for the 95XXPRT group', async () => {
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: '95xx' }), mockRes);
+
+    expect(namesReturned()).toEqual(['Ann Adams', 'Jane Doe']);
+  });
+
+  it('returns only the O-Z half for the 97XXPRT group', async () => {
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: '97xx' }), mockRes);
+
+    expect(namesReturned()).toEqual(['Ola Olsen', 'Wei Zhang']);
+  });
+
+  it('filters before the per-reviewer queries, so a narrow group does less work', async () => {
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: '95xx' }), mockRes);
+
+    expect(Task.countDocuments).toHaveBeenCalledTimes(2);
+    expect(PromotionEligibility.findOneAndUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('400s on a group key that does not exist rather than silently returning everyone', async () => {
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: 'nope' }), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(UserProfile.find).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the default ranges when no group has been stored yet', async () => {
+    ReviewerGroup.find = jest.fn(() => ({ lean: () => Promise.resolve([]) }));
+
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: '95xx' }), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(namesReturned()).toEqual(['Ann Adams', 'Jane Doe']);
+  });
+
+  it('still refuses a requestor without getReports', async () => {
+    hasPermission.mockResolvedValue(false);
+
+    await controller.getPromotionEligibilityData(requestFor({ groupKey: '95xx' }), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(UserProfile.find).not.toHaveBeenCalled();
   });
 });
 

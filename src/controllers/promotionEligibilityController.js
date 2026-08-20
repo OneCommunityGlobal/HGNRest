@@ -4,12 +4,14 @@ const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const { resolvePrsNeeded } = require('../helpers/promotionEligibilityHelper');
+const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
 
 const promotionEligibilityController = function (
   UserProfile,
   TimeEntry,
   Task,
   PromotionEligibility,
+  ReviewerGroup,
 ) {
   const calculateWeeksMetRequirement = async (userId, pledgedHours) => {
     const weeklyTasks = await TimeEntry.aggregate([
@@ -28,12 +30,36 @@ const promotionEligibilityController = function (
     return weeklyTasks.length;
   };
 
+  /**
+   * Resolve the "Review for This Week" group the caller asked to see.
+   *
+   * Returns null when the whole table is wanted, which is both the default and
+   * what the All Members group means. Falls back to the spec's default ranges
+   * when no group has been stored yet, so a filtered read works on a fresh
+   * database without this read path writing anything.
+   */
+  const resolveRequestedGroup = async (groupKey) => {
+    if (!groupKey || groupKey === 'all') return null;
+
+    const stored = ReviewerGroup ? await ReviewerGroup.find({}).lean() : [];
+    const groups = stored.length ? stored : DEFAULT_REVIEWER_GROUPS;
+
+    return groups.find((group) => group.key === groupKey) || undefined;
+  };
+
   const getPromotionEligibilityData = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'getReports'))) {
       return res.status(403).send('You are not authorized to view promotion eligibility data.');
     }
 
     try {
+      // `undefined` means the key was supplied but matches nothing, which is a
+      // stale dropdown on the client rather than a request for the whole table.
+      const group = await resolveRequestedGroup(req.body.groupKey);
+      if (group === undefined) {
+        return res.status(400).send(`No reviewer group with key: ${req.body.groupKey}`);
+      }
+
       const users = await UserProfile.find(
         {
           isActive: true,
@@ -42,11 +68,17 @@ const promotionEligibilityController = function (
         '_id firstName lastName weeklycommittedHours createdDate',
       ).lean();
 
+      // Group membership is derived from the reviewer's name rather than stored,
+      // so the filter happens here in memory. Doing it before the per-reviewer
+      // queries below matters: those run one aggregation and one count each, so
+      // a narrow group does proportionally less database work.
+      const scopedUsers = group ? users.filter((user) => isReviewerInGroup(user, group)) : users;
+
       // Existing records are read up front, in one query rather than one per
       // user, because PRs Needed has to know the previously calculated hours to
       // detect a change and whether an Owner has overridden the figure.
       const existingRecords = await PromotionEligibility.find(
-        { reviewerId: { $in: users.map((user) => user._id) } },
+        { reviewerId: { $in: scopedUsers.map((user) => user._id) } },
         'reviewerId pledgedHours prsNeededOverride',
       ).lean();
       const recordsByReviewerId = new Map(
@@ -54,7 +86,7 @@ const promotionEligibilityController = function (
       );
 
       // Refactor: Use map and Promise.all for concurrent processing
-      const eligibilityPromises = users.map(async (user) => {
+      const eligibilityPromises = scopedUsers.map(async (user) => {
         const pledgedHours = user.weeklycommittedHours || 0;
         const { prsNeeded, prsNeededSource, committedHoursChanged } = resolvePrsNeeded({
           committedHours: pledgedHours,
