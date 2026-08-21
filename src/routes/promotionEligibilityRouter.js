@@ -1,13 +1,23 @@
 // src/routes/promotionEligibilityRouter.js
 const express = require('express');
 
-const routes = function (userProfile, timeEntry, task, PromotionEligibility, ReviewerGroup) {
+const routes = function (
+  userProfile,
+  timeEntry,
+  task,
+  PromotionEligibility,
+  ReviewerGroup,
+  Team,
+  HgnFormResponses,
+) {
   const controller = require('../controllers/promotionEligibilityController')(
     userProfile,
     timeEntry,
     task,
     PromotionEligibility,
     ReviewerGroup,
+    Team,
+    HgnFormResponses,
   );
   const reviewerGroups = require('../controllers/reviewerGroupController')(ReviewerGroup);
   const router = express.Router();
@@ -15,6 +25,11 @@ const routes = function (userProfile, timeEntry, task, PromotionEligibility, Rev
   router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
   router.route('/promotion-eligibility/:reviewerId/prs-needed').patch(controller.updatePrsNeeded);
+
+  // Preview is its own route rather than a flag on /promote-members, so there
+  // is no way for a caller to promote people by accident while asking what
+  // would happen.
+  router.route('/promote-members/preview').post(controller.previewPromotions);
 
   router.route('/promote-members').post(controller.promoteMembers);
 

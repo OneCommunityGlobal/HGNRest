@@ -663,7 +663,15 @@ module.exports = function (app) {
   app.use('/api/analytics', analyticsPopularPRsRouter);
   app.use(
     '/api/',
-    promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility, ReviewerGroup),
+    promotionEligibilityRouter(
+      userProfile,
+      timeEntry,
+      task,
+      PromotionEligibility,
+      ReviewerGroup,
+      team,
+      hgnFormResponses,
+    ),
   );
 
   // PR Analytics

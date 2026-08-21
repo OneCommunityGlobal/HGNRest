@@ -37,6 +37,12 @@ const promotionEligibilitySchema = new Schema({
   prsNeededOverrideBy: { type: Schema.Types.ObjectId, ref: 'userProfiles', default: null },
   prsNeededOverrideAt: { type: Date, default: null },
 
+  // Set by Process Promotions. `isPromoted` also comes back on the dashboard
+  // read, derived from the profile role, which is the source of truth.
+  isPromoted: { type: Boolean, default: false },
+  promotionDate: { type: Date, default: null },
+  assignedTeamId: { type: Schema.Types.ObjectId, ref: 'team', default: null },
+
   // True when committed hours moved since the last calculation, so the page can
   // surface the change. Always false while an Owner override is in place.
   committedHoursChanged: { type: Boolean, default: false },

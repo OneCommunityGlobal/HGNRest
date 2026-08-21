@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
+const cache = require('../utilities/nodeCache')();
 const { ValidationError } = require('../utilities/errorHandling/customError');
 const {
   resolvePrsNeeded,
@@ -9,15 +10,25 @@ const {
   mongoWeekOf,
 } = require('../helpers/promotionEligibilityHelper');
 const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
+const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+const PROMOTED_ROLE = 'Promoted Reviewer';
+
+/**
+ * `Team` and `HgnFormResponses` are optional and only used by the promotion
+ * placement handlers. Leaving them off keeps every existing caller, and the
+ * existing tests, working exactly as before.
+ */
 const promotionEligibilityController = function (
   UserProfile,
   TimeEntry,
   Task,
   PromotionEligibility,
   ReviewerGroup,
+  Team,
+  HgnFormResponses,
 ) {
   /**
    * How many PRs a reviewer reviewed in each week they logged review work.
@@ -97,12 +108,24 @@ const promotionEligibilityController = function (
         return res.status(400).send(`No reviewer group with key: ${req.body.groupKey}`);
       }
 
+      // Promoted reviewers leave the lettered groups but stay under All
+      // Members, per the spec: "Keep them in the All Members filter in case we
+      // ever want to see how they did with training".
+      //
+      // Only an explicit `groupKey: "all"` brings them back. Omitting the key
+      // keeps the exact behaviour the current page already has, so nothing
+      // that exists today changes until the frontend opts in.
+      const excludedRoles =
+        req.body.groupKey === 'all'
+          ? ['Owner', 'Administrator']
+          : ['Owner', 'Administrator', PROMOTED_ROLE];
+
       const users = await UserProfile.find(
         {
           isActive: true,
-          role: { $nin: ['Owner', 'Administrator', 'Promoted Reviewer'] },
+          role: { $nin: excludedRoles },
         },
-        '_id firstName lastName weeklycommittedHours createdDate',
+        '_id firstName lastName weeklycommittedHours createdDate role',
       ).lean();
 
       // Group membership is derived from the reviewer's name rather than stored,
@@ -167,6 +190,9 @@ const promotionEligibilityController = function (
           // period", meaning this week. It is no longer a synonym for being
           // eligible to promote, which is `remainingWeeks === 0`.
           weeklyRequirementsMet,
+          // Only ever true under All Members, since promoted reviewers are
+          // filtered out of every other view. The role is the source of truth.
+          isPromoted: user.role === PROMOTED_ROLE,
           calculatedAt: now,
         };
 
@@ -253,15 +279,178 @@ const promotionEligibilityController = function (
     }
   };
 
-  const promoteMembers = async (req, res) => {
+  /**
+   * Work out where a set of reviewers would be placed, without writing anything.
+   *
+   * This backs the spec's confirmation modal, which has to show the proposed
+   * team for each person and let it be changed by hand before anything
+   * happens. Preview and commit deliberately share `buildPlacements`, so what
+   * the modal shows is what the commit does.
+   */
+  const buildPlacements = async (memberIds) => {
+    const objectIds = memberIds.map((id) => mongoose.Types.ObjectId(id));
+
+    const users = await UserProfile.find(
+      { _id: { $in: objectIds } },
+      '_id firstName lastName weeklycommittedHours',
+    ).lean();
+
+    // Only configured teams can receive anyone, so the query is filtered to
+    // those rather than pulling all 1000+ teams into memory.
+    const teams = Team
+      ? (
+          await Team.find(
+            {
+              isActive: true,
+              hoursBand: { $ne: null },
+              standupDay: { $ne: null },
+              standupTime: { $ne: null },
+            },
+            '_id teamName hoursBand standupDay standupTime standupTimezone members',
+          ).lean()
+        ).filter(isPlaceableTeam)
+      : [];
+
+    const formsByUserId = new Map();
+    if (HgnFormResponses) {
+      const forms = await HgnFormResponses.find(
+        { user_id: { $in: memberIds } },
+        'user_id general.availability',
+      ).lean();
+      forms.forEach((form) => formsByUserId.set(String(form.user_id), form));
+    }
+
+    const usersById = new Map(users.map((user) => [String(user._id), user]));
+
+    return memberIds.map((id) => {
+      const user = usersById.get(String(id));
+      if (!user) {
+        return {
+          reviewerId: id,
+          reviewerName: null,
+          reason: 'reviewerNotFound',
+          needsReview: true,
+        };
+      }
+
+      const outcome = placeReviewer({
+        committedHours: user.weeklycommittedHours,
+        formResponse: formsByUserId.get(String(id)) || null,
+        teams,
+      });
+
+      return {
+        reviewerId: String(user._id),
+        reviewerName: `${user.firstName} ${user.lastName}`,
+        committedHours: user.weeklycommittedHours || 0,
+        band: outcome.band,
+        teamId: outcome.team ? String(outcome.team._id) : null,
+        teamName: outcome.team ? outcome.team.teamName : null,
+        standupDay: outcome.team ? outcome.team.standupDay : null,
+        standupTime: outcome.team ? outcome.team.standupTime : null,
+        reason: outcome.reason,
+        needsReview: outcome.needsReview,
+      };
+    });
+  };
+
+  const previewPromotions = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'putUserProfile'))) {
       return res.status(403).send('You are not authorized to promote members.');
     }
 
     const { memberIds } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).send('No member IDs provided for promotion.');
+    }
+
+    const invalid = memberIds.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+    if (invalid.length) {
+      return res.status(400).send(`Invalid member ID: ${invalid[0]}`);
+    }
+
+    try {
+      const placements = await buildPlacements(memberIds);
+
+      // Surfaced separately from the rows so the modal can lead with what a
+      // human has to look at rather than making them scan every line.
+      const warnings = [];
+      if (!Team) {
+        warnings.push('Team placement is unavailable, so no team will be assigned.');
+      }
+      const unplaced = placements.filter((p) => !p.teamId).length;
+      if (unplaced) {
+        warnings.push(`${unplaced} of ${placements.length} could not be placed on a team.`);
+      }
+      const guessed = placements.filter((p) => p.teamId && p.needsReview).length;
+      if (guessed) {
+        warnings.push(`${guessed} placed without matching availability, please check.`);
+      }
+
+      return res.status(200).json({ placements, warnings });
+    } catch (error) {
+      logger.logException(error, { endpoint: 'previewPromotions', payload: req.body });
+      return res.status(500).send('Error previewing promotions.');
+    }
+  };
+
+  const promoteMembers = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'putUserProfile'))) {
+      return res.status(403).send('You are not authorized to promote members.');
+    }
+
+    const { memberIds, placements } = req.body;
 
     if (!Array.isArray(memberIds) || memberIds.length === 0) {
       return res.status(400).send('No member IDs provided for promotion.');
+    }
+
+    // Optional. Omitting it keeps the original behaviour, a role change with
+    // no team assignment, so the existing page keeps working untouched. When
+    // present these are the rows the confirmation modal showed, including any
+    // the user changed by hand, which is why they are trusted over
+    // recalculating: the whole point of the modal is that a human can override.
+    const placementsByReviewerId = new Map();
+    if (placements !== undefined) {
+      if (!Array.isArray(placements)) {
+        return res.status(400).send('placements must be an array when provided.');
+      }
+      if (!Team) {
+        return res.status(400).send('Team placement is unavailable on this deployment.');
+      }
+
+      const invalidPlacement = placements.find(
+        (entry) =>
+          !entry ||
+          !mongoose.Types.ObjectId.isValid(entry.reviewerId) ||
+          (entry.teamId !== null &&
+            entry.teamId !== undefined &&
+            !mongoose.Types.ObjectId.isValid(entry.teamId)),
+      );
+      if (invalidPlacement) {
+        return res.status(400).send('Each placement needs a valid reviewerId and teamId or null.');
+      }
+
+      const unknown = placements.find(
+        (entry) => !memberIds.some((id) => String(id) === String(entry.reviewerId)),
+      );
+      if (unknown) {
+        return res
+          .status(400)
+          .send(`Placement for ${unknown.reviewerId}, who is not in memberIds.`);
+      }
+
+      const teamIds = [...new Set(placements.map((e) => e.teamId).filter(Boolean))];
+      if (teamIds.length) {
+        const found = await Team.countDocuments({ _id: { $in: teamIds } });
+        if (found !== teamIds.length) {
+          return res.status(400).send('One or more placement teams do not exist.');
+        }
+      }
+
+      placements.forEach((entry) => {
+        if (entry.teamId) placementsByReviewerId.set(String(entry.reviewerId), entry.teamId);
+      });
     }
 
     let session = null;
@@ -281,15 +470,61 @@ const promotionEligibilityController = function (
         }
         const user = await UserProfile.findById(memberId).session(session);
         if (user) {
-          user.role = 'Promoted Reviewer';
+          user.role = PROMOTED_ROLE;
+
+          // Team assignment, only when the caller sent one. Without
+          // `placements` this behaves exactly as it did before: role change
+          // only, no team touched.
+          const teamId = placementsByReviewerId.get(String(memberId));
+          if (teamId) {
+            if (!(user.teams || []).some((existing) => String(existing) === String(teamId))) {
+              user.teams = [...(user.teams || []), mongoose.Types.ObjectId(teamId)];
+            }
+          }
+
           await user.save({ session });
-          promotedMembers.push({ id: memberId, name: `${user.firstName} ${user.lastName}` });
+          promotedMembers.push({
+            id: memberId,
+            name: `${user.firstName} ${user.lastName}`,
+            teamId: teamId || null,
+          });
+
+          if (teamId) {
+            // Mirrors assignTeamToUsers in teamController: membership lives on
+            // both sides, so writing only one of them leaves the team looking
+            // empty on the Teams page.
+            const alreadyMember = await Team.exists({
+              _id: teamId,
+              'members.userId': mongoose.Types.ObjectId(memberId),
+            });
+            if (!alreadyMember) {
+              await Team.findByIdAndUpdate(
+                teamId,
+                {
+                  $push: { members: { userId: memberId, visible: true, addDateTime: new Date() } },
+                  $set: { modifiedDatetime: Date.now() },
+                },
+                { session },
+              );
+            }
+          }
 
           await PromotionEligibility.findOneAndUpdate(
             { reviewerId: memberId },
-            { $set: { isPromoted: true, promotionDate: new Date() } },
+            {
+              $set: {
+                isPromoted: true,
+                promotionDate: new Date(),
+                ...(teamId ? { assignedTeamId: teamId } : {}),
+              },
+            },
             { new: true, session },
           );
+
+          // The profile's role and teams both changed, so a cached copy is now
+          // wrong. The role change had this problem before team assignment was
+          // added, it is just more visible now.
+          if (cache.hasCache(`user-${memberId}`)) cache.removeCache(`user-${memberId}`);
         } else {
           logger.logInfo(`Attempted to promote non-existent user with ID: ${memberId}`);
         }
@@ -316,7 +551,7 @@ const promotionEligibilityController = function (
     }
   };
 
-  return { getPromotionEligibilityData, updatePrsNeeded, promoteMembers };
+  return { getPromotionEligibilityData, updatePrsNeeded, previewPromotions, promoteMembers };
 };
 
 module.exports = promotionEligibilityController;
