@@ -3,8 +3,14 @@ const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ValidationError } = require('../utilities/errorHandling/customError');
-const { resolvePrsNeeded } = require('../helpers/promotionEligibilityHelper');
+const {
+  resolvePrsNeeded,
+  summariseWeeks,
+  mongoWeekOf,
+} = require('../helpers/promotionEligibilityHelper');
 const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
+
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const promotionEligibilityController = function (
   UserProfile,
@@ -13,22 +19,48 @@ const promotionEligibilityController = function (
   PromotionEligibility,
   ReviewerGroup,
 ) {
-  const calculateWeeksMetRequirement = async (userId, pledgedHours) => {
-    const weeklyTasks = await TimeEntry.aggregate([
+  /**
+   * How many PRs a reviewer reviewed in each week they logged review work.
+   *
+   * The spec counts weeks where the reviewer "met or exceeded PR requirement",
+   * so this has to be a count of reviews, not the hours the old version summed.
+   * Actual PR review records exist (`pullRequestReview`) but store GitHub's
+   * numeric account id, which cannot be joined to an HGN profile yet, so the
+   * count stays on the same review-task proxy the rest of this page uses: one
+   * review task worked on in a week counts as one PR reviewed that week.
+   * `$addToSet` rather than a plain count, so several time entries against the
+   * same task in one week are still one review.
+   *
+   * Grouped by year as well as week. `$week` alone repeats every year, which
+   * would have folded the same week number from different years together.
+   *
+   * @returns {Promise<Array<{year: number, week: number, reviewCount: number}>>} newest first
+   */
+  const weeklyReviewCounts = async (userId) =>
+    TimeEntry.aggregate([
       { $match: { personId: mongoose.Types.ObjectId(userId), isTangible: true } },
       { $lookup: { from: 'tasks', localField: 'taskId', foreignField: '_id', as: 'taskInfo' } },
       { $unwind: '$taskInfo' },
       { $match: { 'taskInfo.taskName': { $regex: /review|pr/i } } },
       {
         $group: {
-          _id: { $week: { $toDate: '$dateOfWork' } },
-          totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
+          _id: {
+            year: { $year: { $toDate: '$dateOfWork' } },
+            week: { $week: { $toDate: '$dateOfWork' } },
+          },
+          reviewedTaskIds: { $addToSet: '$taskId' },
         },
       },
-      { $match: { totalHours: { $gte: pledgedHours / 2 } } },
+      {
+        $project: {
+          _id: 0,
+          year: '$_id.year',
+          week: '$_id.week',
+          reviewCount: { $size: '$reviewedTaskIds' },
+        },
+      },
+      { $sort: { year: -1, week: -1 } },
     ]);
-    return weeklyTasks.length;
-  };
 
   /**
    * Resolve the "Review for This Week" group the caller asked to see.
@@ -53,6 +85,11 @@ const promotionEligibilityController = function (
     }
 
     try {
+      // One clock for the whole read, so every reviewer is measured against the
+      // same "now" and two rows cannot land on different sides of a week
+      // boundary partway through the loop.
+      const now = new Date();
+
       // `undefined` means the key was supplied but matches nothing, which is a
       // stale dropdown on the client rather than a request for the whole table.
       const group = await resolveRequestedGroup(req.body.groupKey);
@@ -98,12 +135,15 @@ const promotionEligibilityController = function (
           taskName: { $regex: /review|pr/i },
         });
 
-        const successfulWeeks = await calculateWeeksMetRequirement(user._id, pledgedHours);
+        const { successfulWeeks, remainingWeeks, weeklyRequirementsMet } = summariseWeeks({
+          weeklyCounts: await weeklyReviewCounts(user._id),
+          prsNeeded,
+          currentWeek: mongoWeekOf(now),
+        });
 
-        const remainingWeeks = Math.max(0, 2 - successfulWeeks);
-        const isNewMember =
-          (new Date() - new Date(user.createdDate)) / (1000 * 60 * 60 * 24 * 30.44) < 6;
-        const weeklyRequirementsMet = successfulWeeks >= 2;
+        // The spec splits the table into "New Members (joined <= 1 week ago)"
+        // and "Existing Members (older than a week)".
+        const isNewMember = now - new Date(user.createdDate) <= ONE_WEEK_MS;
 
         const dataEntry = {
           reviewerId: user._id,
@@ -117,10 +157,17 @@ const promotionEligibilityController = function (
           prsNeededSource,
           committedHoursChanged,
           totalReviews,
+          // Prior weeks in which the reviewer cleared `prsNeeded`. Exposed
+          // alongside `remainingWeeks` so the page can show the progress rather
+          // than only what is left.
+          successfulWeeks,
           remainingWeeks,
           isNewMember,
+          // Per the spec, whether the requirement is met "for the current
+          // period", meaning this week. It is no longer a synonym for being
+          // eligible to promote, which is `remainingWeeks === 0`.
           weeklyRequirementsMet,
-          calculatedAt: new Date(),
+          calculatedAt: now,
         };
 
         // Save/update the calculated data in the new collection concurrently

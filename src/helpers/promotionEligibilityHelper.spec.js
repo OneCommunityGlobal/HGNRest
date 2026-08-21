@@ -1,4 +1,11 @@
-const { getPrsNeeded, resolvePrsNeeded } = require('./promotionEligibilityHelper');
+const {
+  getPrsNeeded,
+  resolvePrsNeeded,
+  mongoWeekOf,
+  weekMeetsRequirement,
+  summariseWeeks,
+  SUCCESSFUL_WEEKS_REQUIRED,
+} = require('./promotionEligibilityHelper');
 
 describe('getPrsNeeded', () => {
   test('returns 7 across the 10 to 14.99 band', () => {
@@ -112,5 +119,166 @@ describe('resolvePrsNeeded', () => {
     });
     expect(result.prsNeededSource).toBe('auto');
     expect(result.prsNeeded).toBe(10);
+  });
+});
+
+describe('mongoWeekOf', () => {
+  const weekOf = (iso) => mongoWeekOf(new Date(`${iso}T00:00:00Z`));
+
+  // Every expectation below was taken from MongoDB itself, by running
+  // { $year: ... } and { $week: ... } over the same dates. The aggregation
+  // groups per week and this function decides which of those groups is "now",
+  // so the two have to agree exactly or the current week never matches.
+  test('weeks begin on Sunday', () => {
+    // 2026-08-16 is a Sunday, 2026-08-22 the Saturday that closes the week.
+    expect(weekOf('2026-08-16')).toEqual({ year: 2026, week: 33 });
+    expect(weekOf('2026-08-21')).toEqual({ year: 2026, week: 33 });
+    expect(weekOf('2026-08-22')).toEqual({ year: 2026, week: 33 });
+    expect(weekOf('2026-08-23')).toEqual({ year: 2026, week: 34 });
+  });
+
+  test('days before the first Sunday of the year are week 0', () => {
+    // 2026-01-01 is a Thursday, so the first Sunday is 2026-01-04.
+    expect(weekOf('2026-01-01')).toEqual({ year: 2026, week: 0 });
+    expect(weekOf('2026-01-03')).toEqual({ year: 2026, week: 0 });
+    expect(weekOf('2026-01-04')).toEqual({ year: 2026, week: 1 });
+  });
+
+  test('a year that opens on a Sunday has no week 0', () => {
+    // 2023-01-01 was a Sunday.
+    expect(weekOf('2023-01-01')).toEqual({ year: 2023, week: 1 });
+    expect(weekOf('2023-01-07')).toEqual({ year: 2023, week: 1 });
+    expect(weekOf('2023-01-08')).toEqual({ year: 2023, week: 2 });
+  });
+
+  test('the year rolls over with the calendar, not with the week', () => {
+    expect(weekOf('2025-12-31')).toEqual({ year: 2025, week: 52 });
+    expect(weekOf('2026-01-01')).toEqual({ year: 2026, week: 0 });
+  });
+});
+
+describe('weekMeetsRequirement', () => {
+  test('meeting the requirement exactly counts', () => {
+    expect(weekMeetsRequirement(7, 7)).toBe(true);
+  });
+
+  test('exceeding it counts and falling short does not', () => {
+    expect(weekMeetsRequirement(8, 7)).toBe(true);
+    expect(weekMeetsRequirement(6, 7)).toBe(false);
+  });
+
+  test('a requirement of zero is never met, so nobody is promoted on no reviews', () => {
+    expect(weekMeetsRequirement(0, 0)).toBe(false);
+    expect(weekMeetsRequirement(50, 0)).toBe(false);
+  });
+
+  test('a negative requirement is treated the same as zero', () => {
+    expect(weekMeetsRequirement(5, -3)).toBe(false);
+  });
+
+  test('non-numeric input on either side is not a pass', () => {
+    expect(weekMeetsRequirement(undefined, 7)).toBe(false);
+    expect(weekMeetsRequirement(7, undefined)).toBe(false);
+    expect(weekMeetsRequirement(NaN, 7)).toBe(false);
+  });
+});
+
+describe('summariseWeeks', () => {
+  const CURRENT = { year: 2026, week: 33 };
+
+  const week = (weekNumber, reviewCount, year = 2026) => ({ year, week: weekNumber, reviewCount });
+
+  test('counts only prior weeks that cleared the requirement', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(33, 0), week(32, 10), week(31, 3), week(30, 7)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+
+    expect(result.successfulWeeks).toBe(2);
+    expect(result.remainingWeeks).toBe(0);
+  });
+
+  test('remaining weeks is what is left of the two required', () => {
+    expect(
+      summariseWeeks({ weeklyCounts: [], prsNeeded: 7, currentWeek: CURRENT }).remainingWeeks,
+    ).toBe(SUCCESSFUL_WEEKS_REQUIRED);
+
+    expect(
+      summariseWeeks({ weeklyCounts: [week(32, 7)], prsNeeded: 7, currentWeek: CURRENT })
+        .remainingWeeks,
+    ).toBe(1);
+  });
+
+  test('remaining weeks floors at zero rather than going negative', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(32, 9), week(31, 9), week(30, 9), week(29, 9)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+
+    expect(result.successfulWeeks).toBe(4);
+    expect(result.remainingWeeks).toBe(0);
+  });
+
+  test('the current week drives weeklyRequirementsMet and nothing else', () => {
+    const met = summariseWeeks({
+      weeklyCounts: [week(33, 7)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+    expect(met.weeklyRequirementsMet).toBe(true);
+    // Still in progress, so it does not count towards promotion yet.
+    expect(met.successfulWeeks).toBe(0);
+    expect(met.remainingWeeks).toBe(2);
+  });
+
+  test('a current week short of the requirement is not met', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(33, 6), week(32, 10)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+    expect(result.weeklyRequirementsMet).toBe(false);
+    expect(result.successfulWeeks).toBe(1);
+  });
+
+  test('no entry for the current week means the requirement is not met', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(32, 10)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+    expect(result.weeklyRequirementsMet).toBe(false);
+  });
+
+  test('the same week number in a different year is a different week', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(33, 10, 2025)],
+      prsNeeded: 7,
+      currentWeek: CURRENT,
+    });
+
+    // 2025 week 33 is a prior week, not the current one.
+    expect(result.weeklyRequirementsMet).toBe(false);
+    expect(result.successfulWeeks).toBe(1);
+  });
+
+  test('a reviewer who needs nothing accumulates no successful weeks', () => {
+    const result = summariseWeeks({
+      weeklyCounts: [week(33, 0), week(32, 0), week(31, 0)],
+      prsNeeded: 0,
+      currentWeek: CURRENT,
+    });
+
+    expect(result.successfulWeeks).toBe(0);
+    expect(result.remainingWeeks).toBe(2);
+    expect(result.weeklyRequirementsMet).toBe(false);
+  });
+
+  test('missing or malformed input is treated as no weeks worked', () => {
+    expect(summariseWeeks({ weeklyCounts: undefined, prsNeeded: 7, currentWeek: CURRENT })).toEqual(
+      { successfulWeeks: 0, remainingWeeks: 2, weeklyRequirementsMet: false },
+    );
   });
 });
