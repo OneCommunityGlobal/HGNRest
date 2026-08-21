@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
-const { uploadFileToAzureBlobStorage } = require('../../utilities/AzureBlobImages');
+const {
+  uploadFileToAzureBlobStorage,
+  deleteBlobFromAzureBlobStorage,
+} = require('../../utilities/AzureBlobImages');
 const { logException } = require('../../startup/logger');
 const {
   ALLOWED_IMAGE_MIME_TYPES,
@@ -24,14 +27,17 @@ const validateAndUploadImage = async (file, equipmentId) => {
     logException(new Error('Azure Blob Storage env vars are not set'), 'validateAndUploadImage');
     return { error: AZURE_NOT_CONFIGURED_ERROR, status: 503 };
   }
-  const ext = file.mimetype.split('/')[1];
+  // Map extension from validated MIME type rather than trusting the
+  // client-supplied filename, to avoid extension spoofing.
+  const MIME_TO_EXTENSION = { 'image/png': 'png', 'image/jpeg': 'jpg' };
+  const ext = MIME_TO_EXTENSION[file.mimetype] || 'png';
   const safeName = file.originalname
     ? file.originalname.replaceAll(/[^a-zA-Z0-9]/g, '_').toLowerCase()
     : 'image';
   const blobName = `equipment/${equipmentId}/status/${Date.now()}_${safeName}.${ext}`;
   try {
     const imageUrl = await uploadFileToAzureBlobStorage(file, blobName);
-    return { imageUrl };
+    return { imageUrl, blobName };
   } catch (err) {
     logException(err, 'validateAndUploadImage');
     return { error: IMAGE_NOT_SAVED_ERROR, status: 500 };
@@ -368,12 +374,14 @@ const bmEquipmentController = (BuildingEquipment) => {
       }
 
       let imageUrl;
+      let uploadedBlobName;
       if (req.file) {
         const result = await validateAndUploadImage(req.file, equipmentId);
         if (result.error) {
           return res.status(result.status).send({ error: result.error });
         }
         imageUrl = result.imageUrl;
+        uploadedBlobName = result.blobName;
       }
 
       const updateRecord = buildUpdateRecord(req.body, imageUrl);
@@ -383,24 +391,37 @@ const bmEquipmentController = (BuildingEquipment) => {
         dbUpdate.$set = { imageUrl };
       }
 
-      const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(equipmentId, dbUpdate, {
-        new: true,
-      }).populate([
-        {
-          path: 'itemType',
-          select: '_id name description unit imageUrl category',
-        },
-        {
-          path: 'project',
-          select: 'name',
-        },
-        {
-          path: 'updateRecord.createdBy',
-          select: '_id firstName lastName',
-        },
-      ]);
+      let updatedEquipment;
+      try {
+        updatedEquipment = await BuildingEquipment.findByIdAndUpdate(equipmentId, dbUpdate, {
+          new: true,
+        }).populate([
+          {
+            path: 'itemType',
+            select: '_id name description unit imageUrl category',
+          },
+          {
+            path: 'project',
+            select: 'name',
+          },
+          {
+            path: 'updateRecord.createdBy',
+            select: '_id firstName lastName',
+          },
+        ]);
+      } catch (dbError) {
+        // Image already uploaded to Azure but the DB write failed - clean up
+        // the now-orphaned blob before surfacing the error.
+        if (uploadedBlobName) {
+          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
+        }
+        throw dbError;
+      }
 
       if (!updatedEquipment) {
+        if (uploadedBlobName) {
+          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
+        }
         return res.status(404).send({ error: 'Equipment not found.' });
       }
 
