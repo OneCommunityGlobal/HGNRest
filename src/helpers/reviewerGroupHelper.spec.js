@@ -56,22 +56,22 @@ describe('normaliseLetter', () => {
 });
 
 describe('groupingLetter', () => {
-  test('takes the first letter of the last name', () => {
-    expect(groupingLetter({ firstName: 'Jane', lastName: 'Doe' })).toBe('D');
+  test('takes the first letter of the first name, as the spec names the groups', () => {
+    expect(groupingLetter({ firstName: 'Jane', lastName: 'Doe' })).toBe('J');
   });
 
   test('is case insensitive', () => {
-    expect(groupingLetter({ firstName: 'jane', lastName: 'doe' })).toBe('D');
+    expect(groupingLetter({ firstName: 'jane', lastName: 'doe' })).toBe('J');
   });
 
   test('strips accents so Alvarez and Álvarez land in the same group', () => {
-    expect(groupingLetter({ firstName: 'Ana', lastName: 'Álvarez' })).toBe('A');
-    expect(groupingLetter({ firstName: 'Omar', lastName: 'Ödegaard' })).toBe('O');
+    expect(groupingLetter({ firstName: 'Álvaro', lastName: 'Ruiz' })).toBe('A');
+    expect(groupingLetter({ firstName: 'Ödegaard', lastName: 'Ruiz' })).toBe('O');
   });
 
-  test('falls back to the first name when the last name is missing or blank', () => {
-    expect(groupingLetter({ firstName: 'Prince', lastName: '' })).toBe('P');
-    expect(groupingLetter({ firstName: 'Prince' })).toBe('P');
+  test('falls back to the last name when the first name is missing or blank', () => {
+    expect(groupingLetter({ firstName: '', lastName: 'Prince' })).toBe('P');
+    expect(groupingLetter({ lastName: 'Prince' })).toBe('P');
   });
 
   test('returns null when neither name yields an A-Z letter', () => {
@@ -92,21 +92,26 @@ describe('isReviewerInGroup', () => {
     expect(isReviewerInGroup({ firstName: 'Jane', lastName: 'Doe' }, O_TO_Z)).toBe(false);
   });
 
+  test('the first name decides the group, not the last name', () => {
+    expect(isReviewerInGroup({ firstName: 'Ana', lastName: 'Zhang' }, A_TO_N)).toBe(true);
+    expect(isReviewerInGroup({ firstName: 'Ana', lastName: 'Zhang' }, O_TO_Z)).toBe(false);
+  });
+
   test('the range is inclusive at both ends', () => {
-    expect(isReviewerInGroup({ lastName: 'Adams', firstName: 'A' }, A_TO_N)).toBe(true);
-    expect(isReviewerInGroup({ lastName: 'Nolan', firstName: 'N' }, A_TO_N)).toBe(true);
-    expect(isReviewerInGroup({ lastName: 'Olsen', firstName: 'O' }, A_TO_N)).toBe(false);
+    expect(isReviewerInGroup({ firstName: 'Adams', lastName: 'A' }, A_TO_N)).toBe(true);
+    expect(isReviewerInGroup({ firstName: 'Nolan', lastName: 'N' }, A_TO_N)).toBe(true);
+    expect(isReviewerInGroup({ firstName: 'Olsen', lastName: 'O' }, A_TO_N)).toBe(false);
   });
 
   test('a reviewer with no usable letter falls into no lettered group', () => {
-    expect(isReviewerInGroup({ firstName: '123', lastName: '' }, A_TO_N)).toBe(false);
-    expect(isReviewerInGroup({ firstName: '123', lastName: '' }, O_TO_Z)).toBe(false);
+    expect(isReviewerInGroup({ firstName: '123', lastName: '456' }, A_TO_N)).toBe(false);
+    expect(isReviewerInGroup({ firstName: '123', lastName: '456' }, O_TO_Z)).toBe(false);
   });
 
   test('the two default ranges partition every reviewer exactly once', () => {
-    const reviewers = ['Adams', 'Doe', 'Nolan', 'Olsen', 'Zhang'].map((lastName) => ({
-      firstName: 'Test',
-      lastName,
+    const reviewers = ['Adams', 'Doe', 'Nolan', 'Olsen', 'Zhang'].map((firstName) => ({
+      firstName,
+      lastName: 'Test',
     }));
 
     reviewers.forEach((reviewer) => {

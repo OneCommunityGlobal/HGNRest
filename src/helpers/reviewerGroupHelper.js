@@ -6,10 +6,10 @@
  * membership as volunteers join and leave, and an Owner editing a range
  * re-splits the table immediately.
  *
- * The letter comes from the reviewer's LAST name, falling back to the first
- * name when there is no usable last name. The spec does not say which name to
- * use, so this is an assumption, deliberately kept in `groupingLetter` alone so
- * that switching to first names is a one-line change.
+ * The letter comes from the reviewer's FIRST name, falling back to the last
+ * name when there is no usable first name. The spec is explicit about this:
+ * "95XXPRT Members (Members with first names starting with A-N)". It is kept in
+ * `groupingLetter` alone so the choice stays a one-line change.
  */
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -68,6 +68,9 @@ function firstLetterOf(name) {
 /**
  * The letter that decides which group a reviewer falls into.
  *
+ * The spec names the groups by first name, so that is what is read first. The
+ * last name is only a fallback for accounts with no usable first name.
+ *
  * Returns null when neither name yields an A-Z letter, which happens on
  * placeholder and test accounts. Those reviewers match no lettered group, and
  * `rangeWarnings` is not the place that surfaces them, so they are only ever
@@ -75,7 +78,7 @@ function firstLetterOf(name) {
  */
 function groupingLetter(reviewer) {
   if (!reviewer) return null;
-  return firstLetterOf(reviewer.lastName) || firstLetterOf(reviewer.firstName);
+  return firstLetterOf(reviewer.firstName) || firstLetterOf(reviewer.lastName);
 }
 
 function letterInGroupRange(letter, group) {
