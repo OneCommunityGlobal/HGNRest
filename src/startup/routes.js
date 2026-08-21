@@ -561,7 +561,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
   app.use('/api/educator', educatorRouter);
   app.use('/api/atoms', atomRouter);
-  app.use('/api/intermediate-tasks', intermediateTaskRouter);
+  app.use('/api/educator', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
   app.use('/api', injuryAnalyticsRoutes);
