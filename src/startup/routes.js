@@ -269,6 +269,7 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
 const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
@@ -442,10 +443,8 @@ const recipeRouter = require('../routes/kitchenInventory/recipeRouter')();
 
 const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndApplicationsRoutes');
 
-
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
-
 
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
@@ -598,6 +597,7 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', knowledgeEvolutionRouter);
 
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
