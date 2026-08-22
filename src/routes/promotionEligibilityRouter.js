@@ -9,6 +9,7 @@ const routes = function (
   ReviewerGroup,
   Team,
   HgnFormResponses,
+  PromotionPrEntry,
 ) {
   const controller = require('../controllers/promotionEligibilityController')(
     userProfile,
@@ -18,6 +19,7 @@ const routes = function (
     ReviewerGroup,
     Team,
     HgnFormResponses,
+    PromotionPrEntry,
   );
   const reviewerGroups = require('../controllers/reviewerGroupController')(ReviewerGroup);
   const router = express.Router();
@@ -25,6 +27,22 @@ const routes = function (
   router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
   router.route('/promotion-eligibility/:reviewerId/prs-needed').patch(controller.updatePrsNeeded);
+
+  // "+ Add New" column. Reads are POST for the same requestor-in-body reason
+  // as everything else on this router.
+  router.route('/promotion-eligibility/pr-ratings').post(controller.getPrRatings);
+
+  router.route('/promotion-eligibility/:reviewerId/pr-entries').post(controller.getPrEntries);
+
+  router.route('/promotion-eligibility/:reviewerId/pr-entries/new').post(controller.addPrEntry);
+
+  router
+    .route('/promotion-eligibility/:reviewerId/pr-entries/import')
+    .post(controller.importPrEntriesFromSummary);
+
+  router
+    .route('/promotion-eligibility/pr-entries/:entryId/rating')
+    .patch(controller.updatePrEntryRating);
 
   // Preview is its own route rather than a flag on /promote-members, so there
   // is no way for a caller to promote people by accident while asking what

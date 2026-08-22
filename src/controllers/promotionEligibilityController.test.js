@@ -855,6 +855,417 @@ describe('promoteMembers, placement is opt-in', () => {
   });
 });
 
+describe('PR entries and ratings', () => {
+  const REVIEWER = '637af0c0fb9bbc1e308cff01';
+  const ENTRY = '637af0c0fb9bbc1e308cfe01';
+
+  let PromotionPrEntry;
+  let UserProfile;
+  let controller;
+  let mockRes;
+
+  const request = (body = {}, params = {}) => ({
+    params,
+    body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' }, ...body },
+  });
+
+  const build = () =>
+    promotionEligibilityController(
+      UserProfile,
+      {},
+      {},
+      { find: jest.fn(), findOneAndUpdate: jest.fn() },
+      null,
+      null,
+      null,
+      PromotionPrEntry,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    hasPermission.mockResolvedValue(true);
+
+    PromotionPrEntry = {
+      find: jest.fn(() => ({ sort: () => ({ lean: () => Promise.resolve([]) }) })),
+      create: jest.fn().mockImplementation((doc) => Promise.resolve({ _id: ENTRY, ...doc })),
+      findByIdAndUpdate: jest.fn().mockResolvedValue({ _id: ENTRY, rating: 'Good' }),
+    };
+    UserProfile = {
+      findById: jest.fn(() => ({ lean: () => Promise.resolve({ weeklySummaries: [] }) })),
+    };
+    controller = build();
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  const body = () => mockRes.json.mock.calls[0][0];
+
+  describe('getPrRatings', () => {
+    it('serves the five spec options so the dropdown cannot drift', async () => {
+      await controller.getPrRatings(request(), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(body().ratings.map((r) => r.value)).toEqual([
+        'Did not review',
+        'Needs more details',
+        'Good',
+        'Exceptional',
+        'No Image',
+      ]);
+    });
+
+    it('refuses a requestor without getReports', async () => {
+      hasPermission.mockResolvedValue(false);
+      await controller.getPrRatings(request(), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('addPrEntry', () => {
+    it('normalises the PR number on the way in', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: 'PR #1234' }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(PromotionPrEntry.create.mock.calls[0][0].prNumber).toBe('1234');
+    });
+
+    it('keeps a repo prefix', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: 'fe 2284' }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      expect(PromotionPrEntry.create.mock.calls[0][0].prNumber).toBe('FE-2284');
+    });
+
+    it('defaults to the current week when none is given', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+      jest.setSystemTime(new Date('2026-08-19T12:00:00Z'));
+
+      await controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: REVIEWER }), mockRes);
+
+      expect(PromotionPrEntry.create.mock.calls[0][0]).toMatchObject({ year: 2026, week: 33 });
+      jest.useRealTimers();
+    });
+
+    it('accepts an explicit week for backfilling', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: '1234', year: 2025, week: 8 }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      expect(PromotionPrEntry.create.mock.calls[0][0]).toMatchObject({ year: 2025, week: 8 });
+    });
+
+    it('rejects half a week rather than guessing the other half', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: '1234', year: 2025 }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unreadable PR number', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: 'last weeks one' }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a rating outside the five options', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: '1234', rating: 'Sufficient' }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+    });
+
+    it('records who rated it when a rating comes in with the entry', async () => {
+      await controller.addPrEntry(
+        request({ prNumber: '1234', rating: 'Exceptional' }, { reviewerId: REVIEWER }),
+        mockRes,
+      );
+      const doc = PromotionPrEntry.create.mock.calls[0][0];
+      expect(doc.rating).toBe('Exceptional');
+      expect(doc.ratedBy).toBe(OWNER_ID);
+      expect(doc.ratedAt).toBeInstanceOf(Date);
+    });
+
+    it('leaves ratedBy unset when the entry arrives unrated', async () => {
+      await controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: REVIEWER }), mockRes);
+      const doc = PromotionPrEntry.create.mock.calls[0][0];
+      expect(doc.rating).toBeNull();
+      expect(doc.ratedBy).toBeNull();
+    });
+
+    it('409s on a duplicate rather than failing as a server error', async () => {
+      const duplicate = new Error('E11000 duplicate key');
+      duplicate.code = 11000;
+      PromotionPrEntry.create = jest.fn().mockRejectedValue(duplicate);
+      controller = build();
+
+      await controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: REVIEWER }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+    });
+
+    it('rejects a malformed reviewer id', async () => {
+      await controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: 'nope' }), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('updatePrEntryRating', () => {
+    it('sets a rating', async () => {
+      await controller.updatePrEntryRating(
+        request({ rating: 'Good' }, { entryId: ENTRY }),
+        mockRes,
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      const update = PromotionPrEntry.findByIdAndUpdate.mock.calls[0][1].$set;
+      expect(update.rating).toBe('Good');
+      expect(update.ratedBy).toBe(OWNER_ID);
+    });
+
+    it('clears a rating with null and forgets who set it', async () => {
+      await controller.updatePrEntryRating(request({ rating: null }, { entryId: ENTRY }), mockRes);
+
+      const update = PromotionPrEntry.findByIdAndUpdate.mock.calls[0][1].$set;
+      expect(update.rating).toBeNull();
+      expect(update.ratedBy).toBeNull();
+      expect(update.ratedAt).toBeNull();
+    });
+
+    it('treats a missing rating field as a bad request, not as a clear', async () => {
+      await controller.updatePrEntryRating(request({}, { entryId: ENTRY }), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('404s on an entry that does not exist', async () => {
+      PromotionPrEntry.findByIdAndUpdate = jest.fn().mockResolvedValue(null);
+      controller = build();
+
+      await controller.updatePrEntryRating(
+        request({ rating: 'Good' }, { entryId: ENTRY }),
+        mockRes,
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+    });
+  });
+
+  describe('getPrEntries', () => {
+    it('groups a reviewer entries by week, newest first', async () => {
+      PromotionPrEntry.find = jest.fn(() => ({
+        sort: () => ({
+          lean: () =>
+            Promise.resolve([
+              { year: 2026, week: 32, prNumber: '1' },
+              { year: 2026, week: 33, prNumber: '2' },
+            ]),
+        }),
+      }));
+      controller = build();
+
+      await controller.getPrEntries(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(body().weeks.map((w) => w.week)).toEqual([33, 32]);
+    });
+  });
+
+  describe('importPrEntriesFromSummary', () => {
+    const givenSummary = (summary, dueDate) => {
+      UserProfile.findById = jest.fn(() => ({
+        lean: () => Promise.resolve({ weeklySummaries: [{ summary, dueDate }] }),
+      }));
+      controller = build();
+    };
+
+    it('adds the PRs it finds, marked as coming from the summary', async () => {
+      givenSummary('Reviewed PR 1234 and #567 this week.', '2026-08-19T00:00:00Z');
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(PromotionPrEntry.create).toHaveBeenCalledTimes(2);
+      expect(PromotionPrEntry.create.mock.calls[0][0].source).toBe('weeklySummary');
+      expect(body().added).toHaveLength(2);
+    });
+
+    it('always warns that the results are guesses', async () => {
+      givenSummary('Reviewed PR 1234.', '2026-08-19T00:00:00Z');
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(body().warnings.join(' ')).toContain('suggestions');
+    });
+
+    it('dates entries by the summary due date, not by today', async () => {
+      givenSummary('PR 1234', '2025-02-19T00:00:00Z');
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(PromotionPrEntry.create.mock.calls[0][0].year).toBe(2025);
+    });
+
+    it('reports rather than fails when the summary has no PR numbers', async () => {
+      givenSummary('Was on leave this week.', '2026-08-19T00:00:00Z');
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(body().added).toEqual([]);
+      expect(body().warnings.join(' ')).toContain('No PR numbers were found');
+      expect(PromotionPrEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('is safe to run twice: an already-listed PR is skipped, not an error', async () => {
+      givenSummary('PR 1234 and PR 5678', '2026-08-19T00:00:00Z');
+      const duplicate = new Error('E11000');
+      duplicate.code = 11000;
+      PromotionPrEntry.create = jest
+        .fn()
+        .mockRejectedValueOnce(duplicate)
+        .mockResolvedValueOnce({ _id: ENTRY, prNumber: '5678' });
+      controller = build();
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(body().skipped).toEqual(['1234']);
+      expect(body().added).toHaveLength(1);
+    });
+
+    it('404s on a reviewer that does not exist', async () => {
+      UserProfile.findById = jest.fn(() => ({ lean: () => Promise.resolve(null) }));
+      controller = build();
+
+      await controller.importPrEntriesFromSummary(request({}, { reviewerId: REVIEWER }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+    });
+  });
+});
+
+describe('History column', () => {
+  const REVIEWER = {
+    _id: '637af0c0fb9bbc1e308cff62',
+    firstName: 'Ann',
+    lastName: 'Adams',
+    weeklycommittedHours: 10, // 7 PRs needed
+    createdDate: '2020-01-01',
+  };
+
+  let TimeEntry;
+  let controller;
+  let mockRes;
+
+  const NOW = new Date('2026-08-19T12:00:00Z'); // 2026 week 33
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }).setSystemTime(NOW);
+    hasPermission.mockResolvedValue(true);
+
+    TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+    controller = promotionEligibilityController(
+      { find: jest.fn(() => ({ lean: () => Promise.resolve([REVIEWER]) })) },
+      TimeEntry,
+      { countDocuments: jest.fn().mockResolvedValue(0) },
+      {
+        find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+        findOneAndUpdate: jest.fn().mockResolvedValue({}),
+      },
+      null,
+    );
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  const req = () => ({ body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' } } });
+  const entry = () => mockRes.json.mock.calls[0][0][0];
+
+  it('returns one row per prior week, oldest first so it reads left to right', async () => {
+    TimeEntry.aggregate.mockResolvedValue([
+      { year: 2026, week: 32, reviewCount: 10 },
+      { year: 2026, week: 31, reviewCount: 6 },
+      { year: 2026, week: 30, reviewCount: 7 },
+    ]);
+
+    await controller.getPromotionEligibilityData(req(), mockRes);
+
+    expect(entry().history.map((h) => h.week)).toEqual([30, 31, 32]);
+    expect(entry().history.map((h) => h.reviewCount)).toEqual([7, 6, 10]);
+  });
+
+  it('flags a week below PRs Needed, which is what the spec colours red', async () => {
+    TimeEntry.aggregate.mockResolvedValue([
+      { year: 2026, week: 32, reviewCount: 10 },
+      { year: 2026, week: 31, reviewCount: 6 },
+    ]);
+
+    await controller.getPromotionEligibilityData(req(), mockRes);
+
+    const byWeek = Object.fromEntries(entry().history.map((h) => [h.week, h.belowRequirement]));
+    expect(byWeek[31]).toBe(true); // 6 < 7
+    expect(byWeek[32]).toBe(false); // 10 >= 7
+  });
+
+  it('leaves the current week out, since History is prior weeks', async () => {
+    TimeEntry.aggregate.mockResolvedValue([
+      { year: 2026, week: 33, reviewCount: 2 },
+      { year: 2026, week: 32, reviewCount: 10 },
+    ]);
+
+    await controller.getPromotionEligibilityData(req(), mockRes);
+
+    expect(entry().history.map((h) => h.week)).toEqual([32]);
+  });
+
+  it('never flags a week red when the requirement is zero', async () => {
+    TimeEntry.aggregate.mockResolvedValue([{ year: 2026, week: 32, reviewCount: 0 }]);
+    controller = promotionEligibilityController(
+      {
+        find: jest.fn(() => ({
+          lean: () => Promise.resolve([{ ...REVIEWER, weeklycommittedHours: 0 }]),
+        })),
+      },
+      TimeEntry,
+      { countDocuments: jest.fn().mockResolvedValue(0) },
+      {
+        find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+        findOneAndUpdate: jest.fn().mockResolvedValue({}),
+      },
+      null,
+    );
+
+    await controller.getPromotionEligibilityData(req(), mockRes);
+
+    expect(entry().history[0].belowRequirement).toBe(false);
+  });
+
+  it('is an empty array for somebody with no logged review work', async () => {
+    await controller.getPromotionEligibilityData(req(), mockRes);
+    expect(entry().history).toEqual([]);
+  });
+});
+
 describe('mongoose ObjectId validation assumption', () => {
   it('treats the ids used above as valid, so the 400 tests fail for the right reason', () => {
     expect(mongoose.Types.ObjectId.isValid(REVIEWER_ID)).toBe(true);

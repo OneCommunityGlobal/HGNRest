@@ -11,6 +11,13 @@ const {
 } = require('../helpers/promotionEligibilityHelper');
 const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
 const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
+const {
+  PR_RATINGS,
+  normalisePrNumber,
+  extractPrNumbersFromSummary,
+  isValidRating,
+  groupEntriesByWeek,
+} = require('../helpers/prEntryHelper');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -29,6 +36,7 @@ const promotionEligibilityController = function (
   ReviewerGroup,
   Team,
   HgnFormResponses,
+  PromotionPrEntry,
 ) {
   /**
    * How many PRs a reviewer reviewed in each week they logged review work.
@@ -158,11 +166,30 @@ const promotionEligibilityController = function (
           taskName: { $regex: /review|pr/i },
         });
 
+        const weeklyCounts = await weeklyReviewCounts(user._id);
+        const currentWeek = mongoWeekOf(now);
+
         const { successfulWeeks, remainingWeeks, weeklyRequirementsMet } = summariseWeeks({
-          weeklyCounts: await weeklyReviewCounts(user._id),
+          weeklyCounts,
           prsNeeded,
-          currentWeek: mongoWeekOf(now),
+          currentWeek,
         });
+
+        // The spec's History column: "the number reviewed each prior week. The
+        // number should be red if less than the number in PRs Needed. Should
+        // allow for unlimited tracking." So every week is returned, oldest
+        // first to read left to right, with the red decision precomputed so the
+        // frontend is not re-deriving the rule.
+        const history = weeklyCounts
+          .filter((entry) => !(entry.year === currentWeek.year && entry.week === currentWeek.week))
+          .slice()
+          .reverse()
+          .map((entry) => ({
+            year: entry.year,
+            week: entry.week,
+            reviewCount: entry.reviewCount,
+            belowRequirement: prsNeeded > 0 && entry.reviewCount < prsNeeded,
+          }));
 
         // The spec splits the table into "New Members (joined <= 1 week ago)"
         // and "Existing Members (older than a week)".
@@ -180,6 +207,8 @@ const promotionEligibilityController = function (
           prsNeededSource,
           committedHoursChanged,
           totalReviews,
+          // One entry per prior week, oldest first, for the History column.
+          history,
           // Prior weeks in which the reviewer cleared `prsNeeded`. Exposed
           // alongside `remainingWeeks` so the page can show the progress rather
           // than only what is left.
@@ -394,6 +423,249 @@ const promotionEligibilityController = function (
     }
   };
 
+  /**
+   * The five rating options, served rather than hardcoded on the frontend so
+   * the dropdown and the validation cannot drift apart.
+   */
+  const getPrRatings = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to view promotion eligibility data.');
+    }
+    return res.status(200).json({ ratings: PR_RATINGS });
+  };
+
+  /**
+   * Every PR listed for a reviewer, grouped by week for the "+ Add New" column.
+   *
+   * Gated on `getReports` like the table itself. The spec only ever singles out
+   * the Owner for editing PRs Needed and the reviewer groups, so rating a PR is
+   * open to "the person with access", meaning anyone who can see the page.
+   */
+  const getPrEntries = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to view promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { reviewerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(reviewerId)) {
+      return res.status(400).send(`Invalid reviewer ID: ${reviewerId}`);
+    }
+
+    try {
+      const entries = await PromotionPrEntry.find({ reviewerId }).sort({ addedAt: 1 }).lean();
+      return res.status(200).json({ weeks: groupEntriesByWeek(entries) });
+    } catch (error) {
+      logger.logException(error, { endpoint: 'getPrEntries', reviewerId });
+      return res.status(500).send('Error fetching PR entries.');
+    }
+  };
+
+  /**
+   * Add one PR to a reviewer's week by hand, the spec's "ability for manual
+   * addition".
+   *
+   * Defaults to the current week, since that is what somebody adding a PR
+   * today almost always means, but an explicit year and week are accepted for
+   * backfilling.
+   */
+  const addPrEntry = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to edit promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { reviewerId } = req.params;
+    const { prNumber, rating = null, year, week } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(reviewerId)) {
+      return res.status(400).send(`Invalid reviewer ID: ${reviewerId}`);
+    }
+
+    const normalised = normalisePrNumber(prNumber);
+    if (!normalised) {
+      return res
+        .status(400)
+        .send('prNumber must look like 1234, #1234, PR 1234, FE-1234 or a GitHub pull URL.');
+    }
+
+    if (!isValidRating(rating)) {
+      return res.status(400).send('rating must be one of the five options, or null.');
+    }
+
+    // Both or neither, so a half-supplied week cannot silently land somewhere
+    // unexpected.
+    const hasYear = year !== undefined;
+    const hasWeek = week !== undefined;
+    if (hasYear !== hasWeek) {
+      return res.status(400).send('Send both year and week, or neither.');
+    }
+    if (hasYear && (!Number.isInteger(year) || !Number.isInteger(week) || week < 0 || week > 53)) {
+      return res.status(400).send('year must be a whole number and week must be 0 to 53.');
+    }
+
+    const target = hasYear ? { year, week } : mongoWeekOf(new Date());
+
+    try {
+      const entry = await PromotionPrEntry.create({
+        reviewerId,
+        year: target.year,
+        week: target.week,
+        prNumber: normalised,
+        rating,
+        source: 'manual',
+        addedBy: req.body.requestor.requestorId,
+        ratedBy: rating ? req.body.requestor.requestorId : null,
+        ratedAt: rating ? new Date() : null,
+      });
+
+      return res.status(201).json(entry);
+    } catch (error) {
+      // The unique index is what stops the same PR being listed twice for one
+      // reviewer in one week, so a duplicate is a 409 rather than a 500.
+      if (error && error.code === 11000) {
+        return res
+          .status(409)
+          .send(`PR ${normalised} is already listed for that reviewer in that week.`);
+      }
+      logger.logException(error, { endpoint: 'addPrEntry', payload: req.body });
+      return res.status(500).send('Error adding PR entry.');
+    }
+  };
+
+  /**
+   * Rate a PR, or change its rating. Sending null clears it back to unrated.
+   */
+  const updatePrEntryRating = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to edit promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { entryId } = req.params;
+    const { rating } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(entryId)) {
+      return res.status(400).send(`Invalid entry ID: ${entryId}`);
+    }
+    if (rating === undefined || !isValidRating(rating)) {
+      return res.status(400).send('rating must be one of the five options, or null to clear it.');
+    }
+
+    try {
+      const updated = await PromotionPrEntry.findByIdAndUpdate(
+        entryId,
+        {
+          $set: {
+            rating,
+            ratedBy: rating ? req.body.requestor.requestorId : null,
+            ratedAt: rating ? new Date() : null,
+          },
+        },
+        { new: true },
+      );
+
+      if (!updated) return res.status(404).send('No PR entry with that id.');
+      return res.status(200).json(updated);
+    } catch (error) {
+      logger.logException(error, { endpoint: 'updatePrEntryRating', payload: req.body });
+      return res.status(500).send('Error updating PR rating.');
+    }
+  };
+
+  /**
+   * Populate a reviewer's week from their weekly summary submission, which is
+   * the spec's "Should populate itself with the numbers from the person's
+   * weekly summary submission".
+   *
+   * **Treat what this produces as suggestions.** The summary is free prose and
+   * the parsing has never been run against a real one: not a single profile on
+   * dev has any weekly summary text, so there is no sample of how people
+   * actually write PR numbers down. Entries land with source "weeklySummary"
+   * precisely so they can be told apart from typed ones and reviewed.
+   *
+   * Safe to re-run. The unique index means a second import adds only what was
+   * not already there, and it never overwrites a rating somebody has set.
+   */
+  const importPrEntriesFromSummary = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to edit promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { reviewerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(reviewerId)) {
+      return res.status(400).send(`Invalid reviewer ID: ${reviewerId}`);
+    }
+
+    try {
+      const user = await UserProfile.findById(reviewerId, 'weeklySummaries').lean();
+      if (!user) return res.status(404).send('No such reviewer.');
+
+      const summaries = user.weeklySummaries || [];
+      const latest = summaries[summaries.length - 1];
+      const prNumbers = extractPrNumbersFromSummary(latest && latest.summary);
+
+      if (!prNumbers.length) {
+        return res.status(200).json({
+          added: [],
+          skipped: [],
+          warnings: [
+            'No PR numbers were found in the most recent weekly summary. Add them by hand.',
+          ],
+        });
+      }
+
+      // Dated by the summary's own due date where there is one, so an import
+      // lands in the week the work was reported for rather than today.
+      const target = mongoWeekOf(latest.dueDate ? new Date(latest.dueDate) : new Date());
+
+      const added = [];
+      const skipped = [];
+
+      // Sequential on purpose: each insert can collide with the unique index
+      // and the outcome per PR is what the response reports.
+      await prNumbers.reduce(async (previous, prNumber) => {
+        await previous;
+        try {
+          const entry = await PromotionPrEntry.create({
+            reviewerId,
+            year: target.year,
+            week: target.week,
+            prNumber,
+            rating: null,
+            source: 'weeklySummary',
+            addedBy: req.body.requestor.requestorId,
+          });
+          added.push(entry);
+        } catch (error) {
+          if (error && error.code === 11000) skipped.push(prNumber);
+          else throw error;
+        }
+      }, Promise.resolve());
+
+      return res.status(200).json({
+        added,
+        skipped,
+        warnings: [
+          'These were read out of free text and are suggestions. Please check them before rating.',
+          ...(skipped.length ? [`${skipped.length} already listed for that week.`] : []),
+        ],
+      });
+    } catch (error) {
+      logger.logException(error, { endpoint: 'importPrEntriesFromSummary', reviewerId });
+      return res.status(500).send('Error importing PR entries.');
+    }
+  };
+
   const promoteMembers = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'putUserProfile'))) {
       return res.status(403).send('You are not authorized to promote members.');
@@ -551,7 +823,17 @@ const promotionEligibilityController = function (
     }
   };
 
-  return { getPromotionEligibilityData, updatePrsNeeded, previewPromotions, promoteMembers };
+  return {
+    getPromotionEligibilityData,
+    updatePrsNeeded,
+    getPrRatings,
+    getPrEntries,
+    addPrEntry,
+    updatePrEntryRating,
+    importPrEntriesFromSummary,
+    previewPromotions,
+    promoteMembers,
+  };
 };
 
 module.exports = promotionEligibilityController;
