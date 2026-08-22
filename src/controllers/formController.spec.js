@@ -1,17 +1,6 @@
 // test/formController.spec.js
-const {
-  createForm,
-  editFormFormat,
-  deleteFormFormat,
-  checkForResponse,
-  getFormData,
-  addDataToForm,
-  getAllForms,
-  getFormFormat,
-} = require('./formController')(
-  require('../models/forms.js'),
-  require('../models/formResponse.js'),
-);
+const { editFormFormat, deleteFormFormat, checkForResponse, getAllForms } =
+  require('./formController')(require('../models/forms'), require('../models/formResponse'));
 const Form = require('../models/forms');
 const FormResponse = require('../models/formResponse');
 const UserProfile = require('../models/userProfile');
@@ -21,7 +10,8 @@ jest.mock('../models/formResponse');
 jest.mock('../models/userProfile');
 
 describe('Form Controller', () => {
-  let req, res;
+  let req;
+  let res;
 
   beforeEach(() => {
     req = { body: {}, params: {}, query: {} };
@@ -29,6 +19,33 @@ describe('Form Controller', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
+  });
+
+  describe('createForm', () => {
+    it('stores an optional description when creating a form', async () => {
+      req.body = {
+        formName: 'Test Form',
+        description: 'Test description',
+        questions: [{ label: 'Question 1', type: 'text' }],
+        createdBy: 'user123',
+      };
+      const FakeForm = jest.fn(function FakeForm(data) {
+        Object.assign(this, data);
+        this.save = jest.fn().mockResolvedValue({ formID: 'form123', _id: 'testId' });
+      });
+      FakeForm.find = jest.fn().mockResolvedValue([]);
+      const { createForm: createFormWithFake } = require('./formController')(
+        FakeForm,
+        FormResponse,
+      );
+
+      await createFormWithFake(req, res);
+
+      expect(FakeForm).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Test description' }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 
   // TODO: Fix
@@ -60,6 +77,26 @@ describe('Form Controller', () => {
   // });
 
   describe('editFormFormat', () => {
+    it('updates a form description when provided', async () => {
+      req.body = { id: 'testId', userId: 'user123', description: 'Updated description' };
+      Form.findById = jest.fn().mockResolvedValue({
+        _id: 'testId',
+        formName: 'Test Form',
+        description: '',
+        questions: [],
+      });
+      UserProfile.findById = jest.fn().mockResolvedValue({ _id: 'user123', isActive: true });
+      Form.updateOne = jest.fn().mockResolvedValue({});
+
+      await editFormFormat(req, res);
+
+      expect(Form.updateOne).toHaveBeenCalledWith(
+        { _id: 'testId' },
+        { $set: { description: 'Updated description' } },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     // TODO: Fix
     // it('should edit a form successfully', async () => {
     //   req.body = { id: 'testId', formName: 'Updated Form', formQuestions: ['New Question'], userId: 'user123' };
@@ -180,13 +217,19 @@ describe('Form Controller', () => {
 
   describe('getAllForms', () => {
     it('should retrieve all forms successfully', async () => {
-      Form.find = jest.fn().mockResolvedValue([{ formID: 'form123', formName: 'Test Form' }]);
+      Form.find = jest.fn().mockResolvedValue([
+        { formID: 'form123', formName: 'Test Form', description: 'Test description' },
+        { formID: 'form456', formName: 'Existing Form' },
+      ]);
 
       await getAllForms(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        data: [{ formID: 'form123', formName: 'Test Form' }],
+        data: [
+          { formID: 'form123', formName: 'Test Form', description: 'Test description' },
+          { formID: 'form456', formName: 'Existing Form' },
+        ],
       });
     });
   });
