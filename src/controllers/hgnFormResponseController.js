@@ -106,6 +106,7 @@ const hgnFormController = () => {
 
         return {
           _id: user._id,
+          userId: user.user_id,
           name: user.userInfo?.name,
           email: user.userInfo?.email,
           slack: user.userInfo?.slack,
