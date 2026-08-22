@@ -1,12 +1,12 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const PMNotificationSchema = new mongoose.Schema(
   {
     message: { type: String, required: true, maxlength: 1000 },
-    educatorIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Educator", index: true }],
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "UserProfile" },
+    educatorIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Educator', index: true }],
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile' },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model("PMNotification", PMNotificationSchema);
+module.exports = mongoose.model('PMNotification', PMNotificationSchema);

@@ -1386,10 +1386,10 @@ const overviewReportHelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+                    $gte: ['$$entry.dateOfWork', startDate],
                   },
                   {
-                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+                    $lte: ['$$entry.dateOfWork', endDate],
                   },
                 ],
               },
@@ -1470,19 +1470,16 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Aggregates total hours worked this week across all active volunteers,
+   * Aggregates total hours worked in the selected date range across all active volunteers,
    * matching the dashboard's getOrgData logic exactly:
-   * - Current week (America/Los_Angeles) date range, ignoring any passed-in date filters
+   * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
    * - Excludes entryType of 'person', 'team', or 'project'
    */
   async function getTotalHoursWorked(startDate, endDate) {
-    const pdtstart = startDate
-      ? moment(startDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = endDate
-      ? moment(endDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    const pdtstart =
+      startDate || moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = endDate || moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     const data = await UserProfile.aggregate([
       {

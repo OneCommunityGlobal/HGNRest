@@ -269,6 +269,7 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
 const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
@@ -559,7 +560,7 @@ module.exports = function (app) {
   app.use('/api', tagRouter);
   app.use('/api/educator', educatorRouter);
   app.use('/api/atoms', atomRouter);
-  app.use('/api/intermediate-tasks', intermediateTaskRouter);
+  app.use('/api/educator', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
   app.use('/api', injuryAnalyticsRoutes);
@@ -596,6 +597,7 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', knowledgeEvolutionRouter);
 
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
