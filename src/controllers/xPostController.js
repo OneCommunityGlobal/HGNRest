@@ -60,8 +60,20 @@ exports.deleteScheduled = asyncRoute(async (req, res) => {
 });
 
 exports.getHistory = asyncRoute(async (req, res) => {
-  const posts = await XScheduledPost.find({ status: 'posted' }).sort({ postedAt: -1 }).lean();
-  return res.json(posts);
+  const filter = { status: 'posted' };
+  const rawLimit = req.query?.limit;
+  const parsedLimit =
+    typeof rawLimit === 'string' && /^\d+$/.test(rawLimit) ? Number(rawLimit) : null;
+  const hasValidLimit = Number.isSafeInteger(parsedLimit) && parsedLimit > 0;
+
+  const postsQuery = XScheduledPost.find(filter).sort({ postedAt: -1 });
+  if (hasValidLimit) postsQuery.limit(parsedLimit);
+
+  const [posts, total] = await Promise.all([
+    postsQuery.lean(),
+    XScheduledPost.countDocuments(filter),
+  ]);
+  return res.json({ posts, total });
 });
 
 exports.markAsPosted = asyncRoute(async (req, res) => {
