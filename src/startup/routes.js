@@ -234,6 +234,9 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
+  buildingMaterial,
+);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
@@ -269,6 +272,7 @@ const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(b
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
 const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
@@ -582,6 +586,7 @@ module.exports = function (app) {
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmMaterialInsightsRouter);
   app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
@@ -603,6 +608,8 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmTimeLoggerRouter);
   app.use('/api/bm/injuries', injuryCategoryRoutes);
+  app.use('/api', knowledgeEvolutionRouter);
+
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api', costBreakdownRouter);
