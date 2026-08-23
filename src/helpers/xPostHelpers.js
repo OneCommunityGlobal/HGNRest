@@ -7,10 +7,15 @@ const asyncRoute = (handler) => async (req, res, next) => {
   try {
     await handler(req, res, next);
   } catch (err) {
-    if (err instanceof ValidationError || err instanceof NotFoundError) {
+    if (
+      err instanceof ValidationError ||
+      err instanceof NotFoundError ||
+      err.status === 401 ||
+      err.status === 403
+    ) {
       return res.status(err.status).json({ error: err.message });
     }
-    return res.status(err.status || 500).json({ error: err.message });
+    return next(err);
   }
 };
 
