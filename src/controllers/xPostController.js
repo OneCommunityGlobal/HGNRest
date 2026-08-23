@@ -1,19 +1,43 @@
 const XScheduledPost = require('../models/xScheduledPost');
+const { hasPermission } = require('../utilities/permissions');
 const {
   asyncRoute,
   ValidationError,
   NotFoundError,
   validateContent,
-  findPostOr404,
   applyUpdates,
   X_MAX_CONTENT_LENGTH,
 } = require('../helpers/xPostHelpers');
+
+const ELEVATED_ROLES = new Set(['Owner', 'Administrator']);
+
+const authorizeXRequest = async (req) => {
+  const requestor = req.body?.requestor;
+  if (!requestor?.requestorId) {
+    const error = new Error('Missing requestor');
+    error.status = 401;
+    throw error;
+  }
+
+  const isElevated = ELEVATED_ROLES.has(requestor.role);
+  if (!isElevated && !(await hasPermission(requestor, 'sendEmails'))) {
+    const error = new Error('You are not authorized to manage X posts.');
+    error.status = 403;
+    throw error;
+  }
+
+  return { requestorId: requestor.requestorId, isElevated };
+};
+
+const getRequestorOwnedSelector = (id, authorization) =>
+  authorization.isElevated ? { _id: id } : { _id: id, createdBy: authorization.requestorId };
 
 const requireFutureDate = (value, msg = 'scheduledAt must be in the future') => {
   if (new Date(value) <= new Date()) throw new ValidationError(msg);
 };
 
 exports.createPost = asyncRoute(async (req, res) => {
+  const { requestorId } = await authorizeXRequest(req);
   const { content } = req.body;
   validateContent(content);
   const now = new Date();
@@ -21,7 +45,7 @@ exports.createPost = asyncRoute(async (req, res) => {
     content,
     scheduledAt: now,
     status: 'ready',
-    createdBy: req.body.requestor.requestorId,
+    createdBy: requestorId,
   });
   return res.status(201).json({
     message: 'Post staged successfully',
@@ -31,6 +55,7 @@ exports.createPost = asyncRoute(async (req, res) => {
 });
 
 exports.schedulePost = asyncRoute(async (req, res) => {
+  const { requestorId } = await authorizeXRequest(req);
   const { content, scheduledAt, mediaBase64, altText } = req.body;
   validateContent(content);
   if (!scheduledAt) throw new ValidationError('scheduledAt is required');
@@ -40,26 +65,31 @@ exports.schedulePost = asyncRoute(async (req, res) => {
     scheduledAt: new Date(scheduledAt),
     mediaBase64: mediaBase64 || null,
     altText: altText || '',
-    createdBy: req.body.requestor.requestorId,
+    createdBy: requestorId,
   });
   return res.status(201).json({ message: 'Post scheduled', post: doc });
 });
 
 exports.getScheduled = asyncRoute(async (req, res) => {
-  const posts = await XScheduledPost.find({ status: { $in: ['pending', 'ready', 'skipped'] } })
-    .sort({ scheduledAt: 1 })
-    .lean();
+  const authorization = await authorizeXRequest(req);
+  const filter = { status: { $in: ['pending', 'ready', 'skipped'] } };
+  if (!authorization.isElevated) filter.createdBy = authorization.requestorId;
+  const posts = await XScheduledPost.find(filter).sort({ scheduledAt: 1 }).lean();
   return res.json(posts);
 });
 
 exports.deleteScheduled = asyncRoute(async (req, res) => {
-  const doc = await XScheduledPost.findByIdAndDelete(req.params.id);
+  const authorization = await authorizeXRequest(req);
+  const selector = getRequestorOwnedSelector(req.params.id, authorization);
+  const doc = await XScheduledPost.findOneAndDelete(selector);
   if (!doc) throw new NotFoundError('Scheduled post not found');
   return res.json({ message: 'Scheduled post cancelled' });
 });
 
 exports.getHistory = asyncRoute(async (req, res) => {
+  const authorization = await authorizeXRequest(req);
   const filter = { status: 'posted' };
+  if (!authorization.isElevated) filter.createdBy = authorization.requestorId;
   const rawLimit = req.query?.limit;
   const parsedLimit =
     typeof rawLimit === 'string' && /^\d+$/.test(rawLimit) ? Number(rawLimit) : null;
@@ -76,8 +106,10 @@ exports.getHistory = asyncRoute(async (req, res) => {
 });
 
 exports.markAsPosted = asyncRoute(async (req, res) => {
-  const doc = await XScheduledPost.findByIdAndUpdate(
-    req.params.id,
+  const authorization = await authorizeXRequest(req);
+  const selector = getRequestorOwnedSelector(req.params.id, authorization);
+  const doc = await XScheduledPost.findOneAndUpdate(
+    selector,
     { status: 'posted', postedAt: new Date() },
     { new: true },
   );
@@ -86,7 +118,10 @@ exports.markAsPosted = asyncRoute(async (req, res) => {
 });
 
 exports.updateScheduledPost = asyncRoute(async (req, res) => {
-  const doc = await findPostOr404(XScheduledPost, req.params.id);
+  const authorization = await authorizeXRequest(req);
+  const selector = getRequestorOwnedSelector(req.params.id, authorization);
+  const doc = await XScheduledPost.findOne(selector);
+  if (!doc) throw new NotFoundError('Scheduled post not found');
   if (doc.status !== 'pending' && doc.status !== 'ready') {
     throw new ValidationError(`Cannot edit a post with status: ${doc.status}`);
   }
@@ -107,11 +142,9 @@ exports.updateScheduledPost = asyncRoute(async (req, res) => {
 });
 
 exports.skipPost = asyncRoute(async (req, res) => {
-  const doc = await XScheduledPost.findByIdAndUpdate(
-    req.params.id,
-    { status: 'skipped' },
-    { new: true },
-  );
+  const authorization = await authorizeXRequest(req);
+  const selector = getRequestorOwnedSelector(req.params.id, authorization);
+  const doc = await XScheduledPost.findOneAndUpdate(selector, { status: 'skipped' }, { new: true });
   if (!doc) throw new NotFoundError('Scheduled post not found');
   return res.json(doc);
 });
