@@ -462,6 +462,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   userProfile,
   resourceRequestController,
 );
+const xRouter = require('../routes/xRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
@@ -690,8 +692,8 @@ module.exports = function (app) {
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
 
-  app.use('/x', xRouter);
-  console.log('X router mounted');
+  app.use('/api/x', xRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/report', studentReportRouter());
