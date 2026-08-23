@@ -19,6 +19,7 @@ const fields = {
 const xScheduledPostSchema = new Schema(fields, { timestamps: true });
 
 xScheduledPostSchema.index({ scheduledAt: 1 });
+xScheduledPostSchema.index({ status: 1, postedAt: -1 });
 
 module.exports =
   mongoose.models.XScheduledPost || mongoose.model('XScheduledPost', xScheduledPostSchema);
