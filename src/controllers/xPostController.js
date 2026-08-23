@@ -47,7 +47,7 @@ exports.schedulePost = asyncRoute(async (req, res) => {
 });
 
 exports.getScheduled = asyncRoute(async (req, res) => {
-  const posts = await XScheduledPost.find({ status: { $in: ['pending', 'ready'] } })
+  const posts = await XScheduledPost.find({ status: { $in: ['pending', 'ready', 'skipped'] } })
     .sort({ scheduledAt: 1 })
     .lean();
   return res.json(posts);

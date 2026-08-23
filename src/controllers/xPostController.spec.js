@@ -30,6 +30,35 @@ const getHistory = async (query) => {
   return res;
 };
 
+describe('xPostController.getScheduled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('returns pending, ready, and skipped posts in schedule order without including posted', async () => {
+    const posts = [
+      { _id: 'pending-post', status: 'pending' },
+      { _id: 'ready-post', status: 'ready' },
+      { _id: 'skipped-post', status: 'skipped' },
+    ];
+    const query = {
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue(posts),
+    };
+    XScheduledPost.find.mockReturnValue(query);
+    const res = makeResponse();
+
+    await controller.getScheduled({}, res);
+
+    expect(XScheduledPost.find).toHaveBeenCalledWith({
+      status: { $in: ['pending', 'ready', 'skipped'] },
+    });
+    expect(query.sort).toHaveBeenCalledWith({ scheduledAt: 1 });
+    expect(res.json).toHaveBeenCalledWith(posts);
+    expect(XScheduledPost.find.mock.calls[0][0].status.$in).not.toContain('posted');
+  });
+});
+
 describe('xPostController.getHistory', () => {
   beforeEach(() => {
     jest.clearAllMocks();
