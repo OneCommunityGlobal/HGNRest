@@ -22,7 +22,7 @@ exports.createPost = asyncRoute(async (req, res) => {
     scheduledAt: now,
     status: 'posted',
     postedAt: now,
-    createdBy: req.user?._id,
+    createdBy: req.body.requestor.requestorId,
   });
   return res.status(201).json({
     message: 'Post staged successfully',
@@ -41,7 +41,7 @@ exports.schedulePost = asyncRoute(async (req, res) => {
     scheduledAt: new Date(scheduledAt),
     mediaBase64: mediaBase64 || null,
     altText: altText || '',
-    createdBy: req.user?._id,
+    createdBy: req.body.requestor.requestorId,
   });
   return res.status(201).json({ message: 'Post scheduled', post: doc });
 });

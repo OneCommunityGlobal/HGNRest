@@ -1,4 +1,5 @@
 jest.mock('../models/xScheduledPost', () => ({
+  create: jest.fn(),
   find: jest.fn(),
   countDocuments: jest.fn(),
 }));
@@ -29,6 +30,60 @@ const getHistory = async (query) => {
   await controller.getHistory({ query }, res);
   return res;
 };
+
+describe('xPostController creation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('persists the authenticated requestor as the creator of an immediate post', async () => {
+    const requestorId = '64b7f94e12c9a93bf4a83961';
+    XScheduledPost.create.mockResolvedValue({ _id: 'post-id' });
+    const req = {
+      body: {
+        content: 'Immediate X post',
+        requestor: { requestorId },
+      },
+    };
+    const res = makeResponse();
+
+    await controller.createPost(req, res);
+
+    expect(XScheduledPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Immediate X post',
+        status: 'posted',
+        createdBy: requestorId,
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  test('persists the authenticated requestor as the creator of a scheduled post', async () => {
+    const requestorId = '64b7f94e12c9a93bf4a83962';
+    const scheduledAt = new Date(Date.now() + 60_000).toISOString();
+    XScheduledPost.create.mockResolvedValue({ _id: 'scheduled-post-id' });
+    const req = {
+      body: {
+        content: 'Scheduled X post',
+        scheduledAt,
+        requestor: { requestorId },
+      },
+    };
+    const res = makeResponse();
+
+    await controller.schedulePost(req, res);
+
+    expect(XScheduledPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Scheduled X post',
+        scheduledAt: new Date(scheduledAt),
+        createdBy: requestorId,
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+});
 
 describe('xPostController.getScheduled', () => {
   beforeEach(() => {
