@@ -1,6 +1,7 @@
 jest.mock('../models/xScheduledPost', () => ({
   create: jest.fn(),
   find: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
   countDocuments: jest.fn(),
 }));
 
@@ -36,7 +37,7 @@ describe('xPostController creation', () => {
     jest.clearAllMocks();
   });
 
-  test('persists the authenticated requestor as the creator of an immediate post', async () => {
+  test('stages an immediate post as ready without marking it posted', async () => {
     const requestorId = '64b7f94e12c9a93bf4a83961';
     XScheduledPost.create.mockResolvedValue({ _id: 'post-id' });
     const req = {
@@ -49,13 +50,15 @@ describe('xPostController creation', () => {
 
     await controller.createPost(req, res);
 
-    expect(XScheduledPost.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Immediate X post',
-        status: 'posted',
-        createdBy: requestorId,
-      }),
-    );
+    const createdPost = XScheduledPost.create.mock.calls[0][0];
+    expect(createdPost).toEqual({
+      content: 'Immediate X post',
+      scheduledAt: expect.any(Date),
+      status: 'ready',
+      createdBy: requestorId,
+    });
+    expect(createdPost.status).not.toBe('posted');
+    expect(createdPost).not.toHaveProperty('postedAt');
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
@@ -82,6 +85,27 @@ describe('xPostController creation', () => {
       }),
     );
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+});
+
+describe('xPostController.markAsPosted', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('explicitly marks a staged post as posted and assigns postedAt', async () => {
+    const updatedPost = { _id: 'post-id', status: 'posted' };
+    XScheduledPost.findByIdAndUpdate.mockResolvedValue(updatedPost);
+    const res = makeResponse();
+
+    await controller.markAsPosted({ params: { id: 'post-id' } }, res);
+
+    expect(XScheduledPost.findByIdAndUpdate).toHaveBeenCalledWith(
+      'post-id',
+      { status: 'posted', postedAt: expect.any(Date) },
+      { new: true },
+    );
+    expect(res.json).toHaveBeenCalledWith(updatedPost);
   });
 });
 

@@ -20,8 +20,7 @@ exports.createPost = asyncRoute(async (req, res) => {
   const doc = await XScheduledPost.create({
     content,
     scheduledAt: now,
-    status: 'posted',
-    postedAt: now,
+    status: 'ready',
     createdBy: req.body.requestor.requestorId,
   });
   return res.status(201).json({
