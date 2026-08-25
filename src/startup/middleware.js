@@ -79,6 +79,12 @@ module.exports = function (app) {
       return;
     }
 
+    // Public: job application form submission (no auth required — external applicants)
+    if (req.originalUrl.match(/^\/api\/jobforms\/[^/]+\/responses$/) && req.method === 'POST') {
+      next();
+      return;
+    }
+
     if (req.originalUrl.startsWith('/api/bluesky')) {
       next();
       return;

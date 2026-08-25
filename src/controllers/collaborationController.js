@@ -241,3 +241,110 @@ exports.reorderQuestions = async (req, res) => {
     res.status(500).json({ message: 'Error reordering questions.', error: error.message });
   }
 };
+
+/**
+ * POST /api/jobforms/:formId/responses
+ * Submit an application response to a job form.
+ *
+ * Body (JSON or multipart/form-data):
+ *   respondent {string} - applicant full name (required)
+ *   email      {string} - applicant email (required)
+ *   answers    {Array}  - [{ questionId, answer }]
+ *
+ * Optional multipart field:
+ *   resume     {file}   - resume file (stored in Azure, URL saved on response)
+ *
+ * Responses:
+ *   201 - { message, response }
+ *   400 - missing required fields
+ *   409 - duplicate application
+ *   404 - form not found
+ *   500 - server error
+ */
+exports.submitFormResponse = async (req, res) => {
+  try {
+    const { formId } = req.params;
+    const { respondent, email, answers } = req.body;
+
+    // --- 400: validate required fields ---
+    if (!respondent || !email || !answers) {
+      return res.status(400).json({ error: 'respondent, email, and answers are required.' });
+    }
+
+    // --- 404: form must exist ---
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Form not found.' });
+    }
+
+    // --- 409: duplicate check (same email for same form) ---
+    const existing = await Response.findOne({ formId, email: email.trim().toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ error: 'Application already submitted.' });
+    }
+
+    // --- Optional: resume upload to Azure ---
+    let resumeUrl = '';
+    if (req.file) {
+      try {
+        const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
+        const safeFormTitle = form.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const safeEmail = email.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const ext = req.file.originalname.split('.').pop();
+        const blobName = `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${ext}`;
+        resumeUrl = await uploadFileToAzureBlobStorage(req.file, blobName);
+      } catch (uploadErr) {
+        console.error('Resume upload failed (non-fatal):', uploadErr.message);
+        // Upload failure is non-fatal — proceed without resume
+      }
+    }
+
+    // --- Parse answers if sent as a JSON string (multipart/form-data case) ---
+    let parsedAnswers = answers;
+    if (typeof answers === 'string') {
+      try {
+        parsedAnswers = JSON.parse(answers);
+      } catch {
+        return res.status(400).json({ error: 'answers must be a valid JSON array.' });
+      }
+    }
+
+    // --- Save response ---
+    const response = new Response({
+      formId,
+      respondent: respondent.trim(),
+      email: email.trim().toLowerCase(),
+      answers: parsedAnswers,
+      resumeUrl,
+    });
+
+    await response.save();
+
+    // --- Send confirmation email (non-fatal if it fails) ---
+    try {
+      const emailSender = require('../utilities/emailSender');
+      const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Received — ${form.title}</h2>
+          <p>Hi ${respondent.trim()},</p>
+          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+      await emailSender(
+        [email.trim().toLowerCase()],
+        `Application Received — ${form.title}`,
+        emailBody,
+      );
+    } catch (emailErr) {
+      console.error('Confirmation email failed (non-fatal):', emailErr.message);
+    }
+
+    return res.status(201).json({ message: 'Application submitted successfully.', response });
+  } catch (error) {
+    console.error('Error submitting form response:', error);
+    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+  }
+};
