@@ -1825,22 +1825,21 @@ const userHelper = function () {
   };
 
   const replaceBadge = async function (personId, oldBadgeId, newBadgeId) {
-    userProfile.updateOne(
-      { _id: personId, 'badgeCollection.badge': oldBadgeId },
-      {
-        $set: {
-          'badgeCollection.$.badge': newBadgeId,
-          'badgeCollection.$.lastModified': Date.now().toString(),
-          'badgeCollection.$.count': 1,
-          'badgeCollection.$.earnedDate': [earnedDateBadge()],
+    try {
+      await userProfile.updateOne(
+        { _id: personId, 'badgeCollection.badge': oldBadgeId },
+        {
+          $set: {
+            'badgeCollection.$.badge': newBadgeId,
+            'badgeCollection.$.lastModified': Date.now().toString(),
+            'badgeCollection.$.count': 1,
+            'badgeCollection.$.earnedDate': [earnedDateBadge()],
+          },
         },
-      },
-      (err) => {
-        if (err) {
-          throw new Error(err);
-        }
-      },
-    );
+      );
+    } catch (err) {
+      throw new Error(err);
+    }
   };
 
   const increaseBadgeCount = async function (personId, badgeId) {
@@ -1874,9 +1873,8 @@ const userHelper = function () {
   };
 
   const addBadge = async function (personId, badgeId, count = 1, featured = false) {
-    userProfile.findByIdAndUpdate(
-      personId,
-      {
+    try {
+      await userProfile.findByIdAndUpdate(personId, {
         $push: {
           badgeCollection: {
             badge: badgeId,
@@ -1886,35 +1884,31 @@ const userHelper = function () {
             lastModified: Date.now().toString(),
           },
         },
-      },
-      (err) => {
-        if (err) {
-          throw new Error(err);
-        }
-      },
-    );
+      });
+    } catch (err) {
+      throw new Error(err);
+    }
   };
 
   const removeDupBadge = async function (personId, badgeId) {
-    await userProfile.findByIdAndUpdate(
-      personId,
-      {
-        $pull: {
-          badgeCollection: { badge: mongoose.Types.ObjectId(badgeId) },
+    try {
+      await userProfile.findByIdAndUpdate(
+        personId,
+        {
+          $pull: {
+            badgeCollection: { badge: mongoose.Types.ObjectId(badgeId) },
+          },
         },
-      },
-      { new: true },
-      (err) => {
-        if (err) {
-          throw new Error(err);
-        }
-      },
-    );
+        { new: true },
+      );
+    } catch (err) {
+      throw new Error(err);
+    }
   };
 
   const changeBadgeCount = async function (personId, badgeId, count) {
     if (count === 0) {
-      removeDupBadge(personId, badgeId);
+      await removeDupBadge(personId, badgeId);
     } else if (count) {
       // Process exisiting earned date to match the new count
       try {
@@ -1945,7 +1939,7 @@ const userHelper = function () {
           }
         }
         newEarnedDate = [...copyOfEarnedDate];
-        userProfile.updateOne(
+        await userProfile.updateOne(
           { _id: personId, 'badgeCollection.badge': badgeId },
           {
             $set: {
@@ -1954,11 +1948,6 @@ const userHelper = function () {
               'badgeCollection.$.earnedDate': newEarnedDate,
               'badgeCollection.$.hasBadgeDeletionImpact': recordToUpdate.count > count, // badge deletion impact set to true if the new count is less than the old count
             },
-          },
-          (err) => {
-            if (err) {
-              throw new Error(err);
-            }
           },
         );
       } catch (err) {

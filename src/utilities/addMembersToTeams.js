@@ -36,6 +36,7 @@ const addMembersField = async () => {
 // };
 
 const run = () => {
+  console.log('Loading... This may take a few minutes!');
   const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${process.env.appName}`;
 
   mongoose
