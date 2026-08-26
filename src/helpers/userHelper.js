@@ -240,18 +240,19 @@ const userHelper = function () {
       const penaltyHours = coreTeamExtraHour || 0;
       const remainHr = timeRemaining || 0;
       const totalOwed = baseCommitment + remainHr + penaltyHours;
-      const penaltyText =
+      const ordinalLabel = moment.localeData().ordinal(totalInfringements);
+      const penaltyIntro =
         penaltyHours > 0
-          ? `${penaltyHours} hour(s) added to your requirement this week. This is in addition to any hours missed for last week:`
-          : 'This is in addition to any hours missed for last week:';
+          ? ` and that means you have ${penaltyHours} hour(s) added to your requirement this week. This is in addition to any hours missed for last week:`
+          : ' and This is in addition to any hours missed for last week:';
+      const penaltyBreakdown =
+        penaltyHours > 0
+          ? ` + ${penaltyHours} hours owed for this being your <b>${ordinalLabel}</b> blue square`
+          : '';
+
       finalParagraph = `Please complete ALL owed time this week (${totalOwed} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
-      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
-        .localeData()
-        .ordinal(
-          totalInfringements,
-        )}</b> blue square of 5${penaltyHours > 0 ? ` and that means you have ${penaltyText}` : ` and ${penaltyText}`}
-          ${baseCommitment} hours commitment + ${remainHr} hours owed for last week${penaltyHours > 0 ? ` + ${penaltyHours} hours owed for this being your <b>${moment.localeData().ordinal(totalInfringements)}</b> blue square` : ''} = ${totalOwed} hours required for this week.
-          .</p>`;
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${ordinalLabel}</b> blue square of 5${penaltyIntro}
+          ${baseCommitment} hours commitment + ${remainHr} hours owed for last week${penaltyBreakdown} = ${totalOwed} hours required for this week.</p>`;
     }
     // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
