@@ -3,7 +3,12 @@ const fs = require('fs').promises;
 const os = require('os');
 const express = require('express');
 const multer = require('multer');
-const { uploadVideo } = require('../controllers/youtubeAutoPoster');
+const {
+  connectYoutubeAccount,
+  getYoutubeAuthorizationUrl,
+  getYoutubeConnectionStatus,
+  uploadVideo,
+} = require('../controllers/youtubeAutoPoster');
 
 const BYTES_PER_KIBIBYTE = 1024;
 const BYTES_PER_MEBIBYTE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE;
@@ -62,6 +67,9 @@ const handleUpload = async (req, res, next) => {
 
 const router = express.Router();
 
+router.get('/auth-url', getYoutubeAuthorizationUrl);
+router.get('/status', getYoutubeConnectionStatus);
+router.post('/connect', connectYoutubeAccount);
 router.post('/upload', upload.single('video'), handleUpload);
 
 router.use((error, _req, res, next) => {

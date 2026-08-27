@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const { Readable } = require('stream');
 const { google } = require('googleapis');
@@ -8,6 +9,12 @@ const DESCRIPTION_MAX_LENGTH = 5000;
 const TAGS_MAX_LENGTH = 500;
 const HTTP_STATUS_UPPER_BOUND = 600;
 const YOUTUBE_WATCH_URL = 'https://www.youtube.com/watch?v=';
+const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+const SECONDS_PER_MINUTE = 60;
+const MILLISECONDS_PER_SECOND = 1000;
+const OAUTH_STATE_TTL_MINUTES = 10;
+const OAUTH_STATE_BYTES = 32;
+const OAUTH_STATE_TTL_MS = OAUTH_STATE_TTL_MINUTES * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
 
 const preprocessMultipartBoolean = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
@@ -189,19 +196,17 @@ const createVideoStream = (file) => {
   return Readable.from([file.buffer]);
 };
 
-const createYoutubeClient = () => {
+const getYoutubeOAuthConfig = () => {
   const {
     YOUTUBE_CLIENT_ID: clientId,
     YOUTUBE_CLIENT_SECRET: clientSecret,
     YOUTUBE_REDIRECT_URI: redirectUri,
-    YOUTUBE_REFRESH_TOKEN: refreshToken,
   } = process.env;
 
   const missingVariables = [
     ['YOUTUBE_CLIENT_ID', clientId],
     ['YOUTUBE_CLIENT_SECRET', clientSecret],
     ['YOUTUBE_REDIRECT_URI', redirectUri],
-    ['YOUTUBE_REFRESH_TOKEN', refreshToken],
   ]
     .filter(([, value]) => !value)
     .map(([name]) => name);
@@ -210,9 +215,43 @@ const createYoutubeClient = () => {
     throw new Error(`Missing YouTube OAuth configuration: ${missingVariables.join(', ')}`);
   }
 
-  const oauthClient = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-  oauthClient.setCredentials({ refresh_token: refreshToken });
+  return { clientId, clientSecret, redirectUri };
+};
+
+const createOAuthClient = () => {
+  const { clientId, clientSecret, redirectUri } = getYoutubeOAuthConfig();
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+};
+
+const getRequestorId = (req) => req.requestor?.requestorId || req.body?.requestor?.requestorId;
+
+const createYoutubeClient = (req) => {
+  const oauthClient = createOAuthClient();
+  const requestorId = getRequestorId(req);
+  const sessionCredentials =
+    requestorId && req.session?.youtubeConnectedUserId === requestorId
+      ? req.session.youtubeCredentials
+      : undefined;
+  const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
+
+  if (!sessionCredentials && !refreshToken) {
+    throw new Error('Missing YouTube OAuth configuration: YOUTUBE_REFRESH_TOKEN');
+  }
+
+  oauthClient.setCredentials(sessionCredentials || { refresh_token: refreshToken });
   return google.youtube({ version: 'v3', auth: oauthClient });
+};
+
+const oauthConnectionSchema = z.object({
+  code: z.string({ error: 'code is required' }).trim().min(1, 'code is required'),
+  state: z.string({ error: 'state is required' }).trim().min(1, 'state is required'),
+});
+
+const statesMatch = (expectedState, receivedState) => {
+  if (typeof expectedState !== 'string' || expectedState.length !== receivedState.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(receivedState));
 };
 
 const buildYoutubeRequestBody = (metadata) => {
@@ -248,6 +287,111 @@ const getYoutubeErrorMessage = (error) =>
   error.message ||
   'Failed to upload video to YouTube';
 
+const getYoutubeAuthorizationUrl = (req, res) => {
+  try {
+    if (!req.session) {
+      const sessionError = new Error('Session support is required to connect a YouTube account');
+      sessionError.statusCode = 500;
+      throw sessionError;
+    }
+
+    const oauthClient = createOAuthClient();
+    const state = crypto.randomBytes(OAUTH_STATE_BYTES).toString('hex');
+    req.session.youtubeOAuth = {
+      state,
+      userId: getRequestorId(req),
+      expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
+    };
+
+    const authUrl = oauthClient.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: true,
+      scope: [YOUTUBE_UPLOAD_SCOPE],
+      state,
+    });
+    console.log(authUrl);
+
+    return res.status(200).json({ success: true, authUrl });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Failed to start YouTube authorization',
+    });
+  }
+};
+
+const connectYoutubeAccount = async (req, res) => {
+  try {
+    const { code, state } = oauthConnectionSchema.parse(req.body || {});
+    const pendingOAuth = req.session?.youtubeOAuth;
+    const requestorId = getRequestorId(req);
+
+    if (
+      !pendingOAuth ||
+      pendingOAuth.expiresAt <= Date.now() ||
+      pendingOAuth.userId !== requestorId ||
+      !statesMatch(pendingOAuth.state, state)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'YouTube authorization state is invalid or expired',
+      });
+    }
+
+    delete req.session.youtubeOAuth;
+    const oauthClient = createOAuthClient();
+    const { tokens } = await oauthClient.getToken(code);
+
+    if (!tokens?.refresh_token) {
+      return res.status(400).json({
+        success: false,
+        message: 'YouTube did not return a refresh token; please reconnect the account',
+      });
+    }
+
+    req.session.youtubeCredentials = tokens;
+    req.session.youtubeConnectedUserId = requestorId;
+
+    return res.status(200).json({
+      success: true,
+      message: 'YouTube account connected successfully',
+      connected: true,
+      expiresAt: tokens.expiry_date || null,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const errors = formatZodErrors(error);
+      return res.status(400).json({
+        success: false,
+        message: errors[0].message,
+        errors,
+      });
+    }
+
+    const statusCode = error.response?.status || error.statusCode;
+    const safeStatusCode =
+      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
+    return res.status(safeStatusCode).json({
+      success: false,
+      message: getYoutubeErrorMessage(error),
+    });
+  }
+};
+
+const getYoutubeConnectionStatus = (req, res) => {
+  const requestorId = getRequestorId(req);
+  const credentialsBelongToRequestor =
+    Boolean(requestorId) && req.session?.youtubeConnectedUserId === requestorId;
+  const connected =
+    credentialsBelongToRequestor && Boolean(req.session?.youtubeCredentials?.refresh_token);
+
+  return res.status(200).json({
+    success: true,
+    connected,
+  });
+};
+
 /**
  * Receives one multipart file named `video` and YouTube metadata supplied either
  * as a JSON `metadata` form field or as individual multipart text fields.
@@ -256,7 +400,7 @@ const uploadVideo = async (req, res) => {
   try {
     validateVideoFile(req.file);
     const metadata = normalizeUploadMetadata(req.body || {});
-    const youtube = createYoutubeClient();
+    const youtube = createYoutubeClient(req);
 
     const response = await youtube.videos.insert({
       part: ['snippet', 'status'],
@@ -306,6 +450,9 @@ const uploadVideo = async (req, res) => {
 };
 
 module.exports = {
+  getYoutubeAuthorizationUrl,
+  connectYoutubeAccount,
+  getYoutubeConnectionStatus,
   uploadVideo,
   normalizeUploadMetadata,
   buildYoutubeRequestBody,

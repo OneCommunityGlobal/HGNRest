@@ -162,6 +162,9 @@ module.exports = function (app) {
     requestor.role = payload.role;
     requestor.permissions = payload.permissions;
 
+    req.requestor = requestor;
+    // Multipart requests are parsed later by route-level Multer middleware.
+    req.body = req.body || {};
     req.body.requestor = requestor;
     next();
   });
