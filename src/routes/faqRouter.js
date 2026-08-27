@@ -51,7 +51,10 @@ const checkFaqPermission = (requiredPermission) => (req, res, next) => {
 
 // Define routes with verifyToken and checkFaqPermission
 router.get('/faqs/search', verifyToken, faqController.searchFAQs);
-router.get('/faqs', verifyToken, faqController.getAllFAQs);
+// Public: the job listing page at /collaboration is reachable without signing in,
+// and its FAQ section reads from here. getAllFAQs does not use req.user.
+// Every other FAQ route below stays behind verifyToken.
+router.get('/faqs', faqController.getAllFAQs);
 router.post('/faqs', verifyToken, checkFaqPermission('manageFAQs'), faqController.createFAQ);
 router.put('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.updateFAQ);
 router.delete('/faqs/:id', verifyToken, checkFaqPermission('manageFAQs'), faqController.deleteFAQ);
