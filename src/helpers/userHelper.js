@@ -33,6 +33,7 @@ const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
+const { buildCoreTeamMissedHoursAggregation } = require('./coreTeamMissedHoursAggregation');
 
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
@@ -960,125 +961,9 @@ const userHelper = function () {
 
       const cutOffDate = moment().tz(COMPANY_TZ).subtract(1, 'year').format('YYYY-MM-DD');
 
-      const missedHours = await userProfile.aggregate([
-        {
-          $match: {
-            role: 'Core Team',
-            isActive: true,
-          },
-        },
-        {
-          $lookup: {
-            from: 'timeEntries',
-            let: { userId: '$_id' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$personId', '$$userId'] },
-                      { $eq: ['$isTangible', true] },
-                      { $gte: ['$dateOfWork', startOfLastWeek] },
-                      { $lte: ['$dateOfWork', endOfLastWeek] },
-                    ],
-                  },
-                },
-              },
-            ],
-            as: 'timeEntries',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            missedHours: {
-              $let: {
-                vars: {
-                  baseMissedHours: {
-                    $max: [
-                      {
-                        $subtract: [
-                          {
-                            $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
-                          },
-                          {
-                            $divide: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: '$timeEntries',
-                                    in: '$$this.totalSeconds',
-                                  },
-                                },
-                              },
-                              3600,
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                  infringementsAdjustment: {
-                    $max: [
-                      0,
-                      {
-                        $subtract: [
-                          {
-                            $max: [
-                              0,
-                              {
-                                $subtract: [
-                                  {
-                                    $size: {
-                                      $filter: {
-                                        input: { $ifNull: ['$infringements', []] },
-                                        as: 'inf',
-                                        cond: { $gte: ['$$inf.date', cutOffDate] },
-                                      },
-                                    },
-                                  },
-                                  5,
-                                ],
-                              },
-                            ],
-                          },
-                          {
-                            $max: [
-                              0,
-                              {
-                                $subtract: [
-                                  {
-                                    $size: {
-                                      $filter: {
-                                        input: { $ifNull: ['$infringements', []] },
-                                        as: 'inf',
-                                        cond: { $gte: ['$$inf.date', cutOffDate] },
-                                      },
-                                    },
-                                  },
-                                  6,
-                                ],
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                },
-                in: {
-                  $cond: [
-                    { $gt: ['$$baseMissedHours', 0] },
-                    { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
-                    '$$baseMissedHours',
-                  ],
-                },
-              },
-            },
-          },
-        },
-      ]);
+      const missedHours = await userProfile.aggregate(
+        buildCoreTeamMissedHoursAggregation(startOfLastWeek, endOfLastWeek, cutOffDate),
+      );
 
       const bulkOps = [];
 
