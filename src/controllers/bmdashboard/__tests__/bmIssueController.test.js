@@ -30,6 +30,20 @@ const mockBuildingIssue = {
   findByIdAndUpdate: jest.fn(),
   findByIdAndDelete: jest.fn(),
 };
+// Mocking the injuryIssue Model (used by getMostExpensiveIssues and injury issue CRUD)
+const mockInjuryIssue = {
+  find: jest.fn(),
+  findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+  create: jest.fn(),
+};
+
+// Helper: builds the chained find mock used by getMostExpensiveIssues
+const mockInjuryFindChain = (result) => ({
+  select: jest.fn().mockReturnThis(),
+  lean: jest.fn().mockResolvedValue(result),
+});
 
 // Helper: call bmGetOpenIssue and return the find query that was used (for filter tests)
 async function getOpenIssueFindQuery(controller, req, res, findResult = []) {
@@ -57,7 +71,7 @@ describe('Building Issue Controller', () => {
   let res;
 
   beforeEach(() => {
-    controller = bmIssueController(mockBuildingIssue);
+    controller = bmIssueController(mockBuildingIssue, mockInjuryIssue);
 
     req = {
       body: {},
@@ -796,8 +810,8 @@ describe('Building Issue Controller', () => {
       expect(result[0].durationOpen).toBeGreaterThan(0);
     });
 
-    it('should filter by projects when provided', async () => {
-      req.query.projects = TEST_ISSUE_ID;
+    it('should filter by projectIds when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
 
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
 
@@ -807,34 +821,34 @@ describe('Building Issue Controller', () => {
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
     });
 
-    it('should filter by dates and return matching projects', async () => {
-      req.query.dates = '2022-01-01,2024-12-31';
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
+    it('should filter by startDate and endDate when provided', async () => {
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
       await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.issueDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.issueDate.$lte).toBeInstanceOf(Date);
       expect(res.json).toHaveBeenCalled();
     });
-
     it('should return empty array when dates provided but no matching projects', async () => {
       req.query.dates = '2022-01-01,2024-12-31';
       mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([]));
       await controller.getLongestOpenIssues(req, res);
       expect(res.json).toHaveBeenCalledWith([]);
     });
-
-    it('should intersect project filters when both dates and projects provided', async () => {
+    it('should apply both projectIds and date filters when provided', async () => {
       const anotherProjectId = '507f1f77bcf86cd799439012';
-      req.query.dates = '2022-01-01,2024-12-31';
-      req.query.projects = `${TEST_ISSUE_ID},${anotherProjectId}`;
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
+      req.query.projectIds = `${TEST_ISSUE_ID},${anotherProjectId}`;
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
       await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.issueDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.issueDate.$lte).toBeInstanceOf(Date);
     });
-
     it('should return top 7 issues sorted by duration', async () => {
       const mockIssues = Array.from({ length: 10 }, (_, i) => ({
         issueTitle: [`Issue ${i + 1}`],
@@ -891,6 +905,373 @@ describe('Building Issue Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching longest open issues' });
+    });
+  });
+
+  // ==================== getMostExpensiveIssues Tests ====================
+  describe('getMostExpensiveIssues', () => {
+    beforeEach(() => {
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+    });
+
+    it('should fetch most expensive issues without filters', async () => {
+      const mockIssues = [
+        { _id: '1', name: 'Cheap Issue', openDate: new Date('2024-01-01'), totalCost: 100 },
+        { _id: '2', name: 'Expensive Issue', openDate: new Date('2024-01-01'), totalCost: 5000 },
+        { _id: '3', name: 'Medium Issue', openDate: new Date('2024-01-01'), totalCost: 1000 },
+      ];
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalledWith({});
+      expect(res.json).toHaveBeenCalled();
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(3);
+      // sorted descending by totalCost
+      expect(data[0].totalCost).toBe(5000);
+      expect(data[1].totalCost).toBe(1000);
+      expect(data[2].totalCost).toBe(100);
+      expect(data[0].title).toBe('Expensive Issue');
+      expect(data[0].issueId).toBe('2');
+      expect(typeof data[0].daysOpen).toBe('number');
+    });
+
+    it('should filter by projectIds when provided', async () => {
+      const validId2 = '507f1f77bcf86cd799439012';
+      req.query.projectIds = `${TEST_ISSUE_ID},${validId2}`;
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toHaveLength(2);
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+    });
+
+    it('should not add projectId filter when projectIds is empty after trimming', async () => {
+      req.query.projectIds = '  ,  ';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId).toBeUndefined();
+    });
+
+    it('should filter by startDate and endDate when both provided', async () => {
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should filter by startDate only when endDate not provided', async () => {
+      req.query.startDate = '2024-01-01';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeUndefined();
+    });
+
+    it('should filter by endDate only when startDate not provided', async () => {
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$gte).toBeUndefined();
+    });
+
+    it('should apply both projectIds and date filters when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should exclude issues with null or undefined totalCost', async () => {
+      const mockIssues = [
+        { _id: '1', name: 'No Cost', openDate: new Date('2024-01-01'), totalCost: null },
+        { _id: '2', name: 'Undefined Cost', openDate: new Date('2024-01-01') },
+        { _id: '3', name: 'Has Cost', openDate: new Date('2024-01-01'), totalCost: 500 },
+      ];
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(1);
+      expect(data[0].title).toBe('Has Cost');
+    });
+
+    it('should limit results to top 5 issues', async () => {
+      const mockIssues = Array.from({ length: 10 }, (_, i) => ({
+        _id: `${i}`,
+        name: `Issue ${i}`,
+        openDate: new Date('2024-01-01'),
+        totalCost: (i + 1) * 100,
+      }));
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(5);
+      // highest costs first
+      expect(data[0].totalCost).toBe(1000);
+      expect(data[4].totalCost).toBe(600);
+    });
+
+    it('should return empty data array when no issues found', async () => {
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({ data: [] });
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Database error');
+      mockInjuryIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(error),
+      });
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching most expensive issues' });
+  });
+});
+
+  // ==================== bmPostInjuryIssue Tests ====================
+  describe('bmPostInjuryIssue', () => {
+    it('should create a new injury issue successfully', async () => {
+      const mockIssue = {
+        _id: TEST_ISSUE_ID,
+        projectId: TEST_ISSUE_ID,
+        name: 'Injury Issue',
+        openDate: new Date('2024-01-01'),
+        category: 'Safety',
+        assignedTo: TEST_ISSUE_ID,
+        totalCost: 500,
+      };
+      req.body = { ...mockIssue };
+      mockInjuryIssue.create.mockResolvedValue(mockIssue);
+
+      await controller.bmPostInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Injury Issue', totalCost: 500 }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(mockIssue);
+    });
+
+    it('should return 400 when creation fails', async () => {
+      req.body = { name: 'Bad Issue' };
+      mockInjuryIssue.create.mockRejectedValue(new Error('Validation failed'));
+
+      await controller.bmPostInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Validation failed' });
+    });
+  });
+
+  // ==================== bmGetInjuryIssue Tests ====================
+  describe('bmGetInjuryIssue', () => {
+    it('should fetch all injury issues successfully', async () => {
+      const mockIssues = [{ _id: TEST_ISSUE_ID, name: 'Injury 1' }];
+      mockInjuryIssue.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.bmGetInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      mockInjuryIssue.find.mockReturnValue({
+        populate: jest.fn().mockRejectedValue(new Error('Database error')),
+      });
+
+      await controller.bmGetInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmDeleteInjuryIssue Tests ====================
+  describe('bmDeleteInjuryIssue', () => {
+    it('should delete an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      const mockDeleted = { _id: TEST_ISSUE_ID };
+      mockInjuryIssue.findByIdAndDelete.mockResolvedValue(mockDeleted);
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findByIdAndDelete).toHaveBeenCalledWith(TEST_ISSUE_ID);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Deleted successfully',
+        deleted: mockDeleted,
+      });
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findByIdAndDelete.mockResolvedValue(null);
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findByIdAndDelete.mockRejectedValue(new Error('Database error'));
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmRenameInjuryIssue Tests ====================
+  describe('bmRenameInjuryIssue', () => {
+    it('should rename an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'Renamed Issue' };
+      const mockUpdated = { _id: TEST_ISSUE_ID, name: 'Renamed Issue' };
+      mockInjuryIssue.findByIdAndUpdate.mockResolvedValue(mockUpdated);
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findByIdAndUpdate).toHaveBeenCalledWith(
+        TEST_ISSUE_ID,
+        { name: 'Renamed Issue' },
+        { new: true, runValidators: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Renamed successfully',
+        updated: mockUpdated,
+      });
+    });
+
+    it('should return 400 when newName is not provided', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = {};
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'newName is required' });
+      expect(mockInjuryIssue.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'New Name' };
+      mockInjuryIssue.findByIdAndUpdate.mockResolvedValue(null);
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'New Name' };
+      mockInjuryIssue.findByIdAndUpdate.mockRejectedValue(new Error('Database error'));
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmCopyInjuryIssue Tests ====================
+  describe('bmCopyInjuryIssue', () => {
+    it('should copy an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      const mockOriginal = {
+        _id: TEST_ISSUE_ID,
+        projectId: 'project1',
+        name: 'Original Issue',
+        category: 'Safety',
+        assignedTo: 'user1',
+        totalCost: 500,
+      };
+      const mockCopy = { _id: '507f1f77bcf86cd799439099', name: 'Original Issue (Copy)' };
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(mockOriginal),
+      });
+      mockInjuryIssue.create.mockResolvedValue(mockCopy);
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findById).toHaveBeenCalledWith(TEST_ISSUE_ID);
+      expect(mockInjuryIssue.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Original Issue (Copy)', totalCost: 500 }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Copied successfully',
+        copy: mockCopy,
+      });
+    });
+
+    it('should return 404 when original issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      });
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+      expect(mockInjuryIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockRejectedValue(new Error('Database error')),
+      });
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
   });
 });
