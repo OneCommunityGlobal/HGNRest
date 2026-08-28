@@ -2581,7 +2581,7 @@ const overviewReportHelper = function () {
         },
         {
           $match: {
-            'allSummaries.summary': { $exists: true, $ne: '', $ne: null },
+            'allSummaries.summary': { $exists: true, $nin: ['', null] },
             summaryParsedDate: { $gte: startDateObj, $lte: endDateObj }
           }
         },
