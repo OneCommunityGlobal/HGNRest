@@ -796,8 +796,8 @@ describe('Building Issue Controller', () => {
       expect(result[0].durationOpen).toBeGreaterThan(0);
     });
 
-    it('should filter by projects when provided', async () => {
-      req.query.projects = TEST_ISSUE_ID;
+        it('should filter by projectIds when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
 
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
 
@@ -807,34 +807,34 @@ describe('Building Issue Controller', () => {
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
     });
 
-    it('should filter by dates and return matching projects', async () => {
-      req.query.dates = '2022-01-01,2024-12-31';
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
+        it('should filter by startDate and endDate when provided', async () => {
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
       await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.issueDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.issueDate.$lte).toBeInstanceOf(Date);
       expect(res.json).toHaveBeenCalled();
     });
-
     it('should return empty array when dates provided but no matching projects', async () => {
       req.query.dates = '2022-01-01,2024-12-31';
       mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([]));
       await controller.getLongestOpenIssues(req, res);
       expect(res.json).toHaveBeenCalledWith([]);
     });
-
-    it('should intersect project filters when both dates and projects provided', async () => {
+    it('should apply both projectIds and date filters when provided', async () => {
       const anotherProjectId = '507f1f77bcf86cd799439012';
-      req.query.dates = '2022-01-01,2024-12-31';
-      req.query.projects = `${TEST_ISSUE_ID},${anotherProjectId}`;
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
+      req.query.projectIds = `${TEST_ISSUE_ID},${anotherProjectId}`;
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
       await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.issueDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.issueDate.$lte).toBeInstanceOf(Date);
     });
-
     it('should return top 7 issues sorted by duration', async () => {
       const mockIssues = Array.from({ length: 10 }, (_, i) => ({
         issueTitle: [`Issue ${i + 1}`],
