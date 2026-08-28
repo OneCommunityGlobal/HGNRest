@@ -10,6 +10,7 @@ const TAGS_MAX_LENGTH = 500;
 const HTTP_STATUS_UPPER_BOUND = 600;
 const YOUTUBE_WATCH_URL = 'https://www.youtube.com/watch?v=';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+const YOUTUBE_READ_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 const SECONDS_PER_MINUTE = 60;
 const MILLISECONDS_PER_SECOND = 1000;
 const OAUTH_STATE_TTL_MINUTES = 10;
@@ -307,10 +308,9 @@ const getYoutubeAuthorizationUrl = (req, res) => {
       access_type: 'offline',
       prompt: 'consent',
       include_granted_scopes: true,
-      scope: [YOUTUBE_UPLOAD_SCOPE],
+      scope: [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READ_SCOPE],
       state,
     });
-    console.log(authUrl);
 
     return res.status(200).json({ success: true, authUrl });
   } catch (error) {
@@ -379,17 +379,46 @@ const connectYoutubeAccount = async (req, res) => {
   }
 };
 
-const getYoutubeConnectionStatus = (req, res) => {
-  const requestorId = getRequestorId(req);
-  const credentialsBelongToRequestor =
-    Boolean(requestorId) && req.session?.youtubeConnectedUserId === requestorId;
-  const connected =
-    credentialsBelongToRequestor && Boolean(req.session?.youtubeCredentials?.refresh_token);
+const getYoutubeConnectionStatus = async (req, res) => {
+  try {
+    const requestorId = getRequestorId(req);
+    const credentialsBelongToRequestor =
+      Boolean(requestorId) && req.session?.youtubeConnectedUserId === requestorId;
+    const connected =
+      credentialsBelongToRequestor && Boolean(req.session?.youtubeCredentials?.refresh_token);
 
-  return res.status(200).json({
-    success: true,
-    connected,
-  });
+    if (!connected) {
+      return res.status(200).json({ success: true, connected: false });
+    }
+
+    const youtube = createYoutubeClient(req);
+    const response = await youtube.channels.list({
+      part: ['snippet'],
+      mine: true,
+    });
+    const channel = response.data.items?.[0];
+
+    return res.status(200).json({
+      success: true,
+      connected: true,
+      account: channel
+        ? {
+            channelId: channel.id,
+            channelName: channel.snippet?.title || null,
+            thumbnail: channel.snippet?.thumbnails?.default?.url || null,
+            customUrl: channel.snippet?.customUrl || null,
+          }
+        : null,
+    });
+  } catch (error) {
+    const statusCode = error.response?.status || error.statusCode;
+    const safeStatusCode =
+      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
+    return res.status(safeStatusCode).json({
+      success: false,
+      message: getYoutubeErrorMessage(error),
+    });
+  }
 };
 
 /**
