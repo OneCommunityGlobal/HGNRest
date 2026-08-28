@@ -30,10 +30,13 @@ const mockBuildingIssue = {
   findByIdAndUpdate: jest.fn(),
   findByIdAndDelete: jest.fn(),
 };
-
-// Mocking the injuryIssue Model (used by getMostExpensiveIssues)
+// Mocking the injuryIssue Model (used by getMostExpensiveIssues and injury issue CRUD)
 const mockInjuryIssue = {
   find: jest.fn(),
+  findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+  create: jest.fn(),
 };
 
 // Helper: builds the chained find mock used by getMostExpensiveIssues
@@ -1056,6 +1059,219 @@ describe('Building Issue Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching most expensive issues' });
+  });
+});
+
+  // ==================== bmPostInjuryIssue Tests ====================
+  describe('bmPostInjuryIssue', () => {
+    it('should create a new injury issue successfully', async () => {
+      const mockIssue = {
+        _id: TEST_ISSUE_ID,
+        projectId: TEST_ISSUE_ID,
+        name: 'Injury Issue',
+        openDate: new Date('2024-01-01'),
+        category: 'Safety',
+        assignedTo: TEST_ISSUE_ID,
+        totalCost: 500,
+      };
+      req.body = { ...mockIssue };
+      mockInjuryIssue.create.mockResolvedValue(mockIssue);
+
+      await controller.bmPostInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Injury Issue', totalCost: 500 }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(mockIssue);
+    });
+
+    it('should return 400 when creation fails', async () => {
+      req.body = { name: 'Bad Issue' };
+      mockInjuryIssue.create.mockRejectedValue(new Error('Validation failed'));
+
+      await controller.bmPostInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Validation failed' });
+    });
+  });
+
+  // ==================== bmGetInjuryIssue Tests ====================
+  describe('bmGetInjuryIssue', () => {
+    it('should fetch all injury issues successfully', async () => {
+      const mockIssues = [{ _id: TEST_ISSUE_ID, name: 'Injury 1' }];
+      mockInjuryIssue.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(mockIssues),
+      });
+
+      await controller.bmGetInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockIssues);
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      mockInjuryIssue.find.mockReturnValue({
+        populate: jest.fn().mockRejectedValue(new Error('Database error')),
+      });
+
+      await controller.bmGetInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmDeleteInjuryIssue Tests ====================
+  describe('bmDeleteInjuryIssue', () => {
+    it('should delete an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      const mockDeleted = { _id: TEST_ISSUE_ID };
+      mockInjuryIssue.findByIdAndDelete.mockResolvedValue(mockDeleted);
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findByIdAndDelete).toHaveBeenCalledWith(TEST_ISSUE_ID);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Deleted successfully',
+        deleted: mockDeleted,
+      });
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findByIdAndDelete.mockResolvedValue(null);
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findByIdAndDelete.mockRejectedValue(new Error('Database error'));
+
+      await controller.bmDeleteInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmRenameInjuryIssue Tests ====================
+  describe('bmRenameInjuryIssue', () => {
+    it('should rename an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'Renamed Issue' };
+      const mockUpdated = { _id: TEST_ISSUE_ID, name: 'Renamed Issue' };
+      mockInjuryIssue.findByIdAndUpdate.mockResolvedValue(mockUpdated);
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findByIdAndUpdate).toHaveBeenCalledWith(
+        TEST_ISSUE_ID,
+        { name: 'Renamed Issue' },
+        { new: true, runValidators: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Renamed successfully',
+        updated: mockUpdated,
+      });
+    });
+
+    it('should return 400 when newName is not provided', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = {};
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'newName is required' });
+      expect(mockInjuryIssue.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should return 404 when issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'New Name' };
+      mockInjuryIssue.findByIdAndUpdate.mockResolvedValue(null);
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { newName: 'New Name' };
+      mockInjuryIssue.findByIdAndUpdate.mockRejectedValue(new Error('Database error'));
+
+      await controller.bmRenameInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
+    });
+  });
+
+  // ==================== bmCopyInjuryIssue Tests ====================
+  describe('bmCopyInjuryIssue', () => {
+    it('should copy an injury issue successfully', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      const mockOriginal = {
+        _id: TEST_ISSUE_ID,
+        projectId: 'project1',
+        name: 'Original Issue',
+        category: 'Safety',
+        assignedTo: 'user1',
+        totalCost: 500,
+      };
+      const mockCopy = { _id: '507f1f77bcf86cd799439099', name: 'Original Issue (Copy)' };
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(mockOriginal),
+      });
+      mockInjuryIssue.create.mockResolvedValue(mockCopy);
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(mockInjuryIssue.findById).toHaveBeenCalledWith(TEST_ISSUE_ID);
+      expect(mockInjuryIssue.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Original Issue (Copy)', totalCost: 500 }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Copied successfully',
+        copy: mockCopy,
+      });
+    });
+
+    it('should return 404 when original issue not found', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      });
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Issue not found' });
+      expect(mockInjuryIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when database error occurs', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      mockInjuryIssue.findById.mockReturnValue({
+        lean: jest.fn().mockRejectedValue(new Error('Database error')),
+      });
+
+      await controller.bmCopyInjuryIssue(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
   });
 });
