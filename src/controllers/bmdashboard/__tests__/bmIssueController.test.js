@@ -31,6 +31,17 @@ const mockBuildingIssue = {
   findByIdAndDelete: jest.fn(),
 };
 
+// Mocking the injuryIssue Model (used by getMostExpensiveIssues)
+const mockInjuryIssue = {
+  find: jest.fn(),
+};
+
+// Helper: builds the chained find mock used by getMostExpensiveIssues
+const mockInjuryFindChain = (result) => ({
+  select: jest.fn().mockReturnThis(),
+  lean: jest.fn().mockResolvedValue(result),
+});
+
 // Helper: call bmGetOpenIssue and return the find query that was used (for filter tests)
 async function getOpenIssueFindQuery(controller, req, res, findResult = []) {
   mockBuildingIssue.find.mockResolvedValue(findResult);
@@ -57,7 +68,7 @@ describe('Building Issue Controller', () => {
   let res;
 
   beforeEach(() => {
-    controller = bmIssueController(mockBuildingIssue);
+    controller = bmIssueController(mockBuildingIssue, mockInjuryIssue);
 
     req = {
       body: {},
@@ -796,7 +807,7 @@ describe('Building Issue Controller', () => {
       expect(result[0].durationOpen).toBeGreaterThan(0);
     });
 
-        it('should filter by projectIds when provided', async () => {
+    it('should filter by projectIds when provided', async () => {
       req.query.projectIds = TEST_ISSUE_ID;
 
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
@@ -807,7 +818,7 @@ describe('Building Issue Controller', () => {
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
     });
 
-        it('should filter by startDate and endDate when provided', async () => {
+    it('should filter by startDate and endDate when provided', async () => {
       req.query.startDate = '2022-01-01';
       req.query.endDate = '2024-12-31';
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
@@ -891,6 +902,160 @@ describe('Building Issue Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching longest open issues' });
+    });
+  });
+
+  // ==================== getMostExpensiveIssues Tests ====================
+  describe('getMostExpensiveIssues', () => {
+    beforeEach(() => {
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+    });
+
+    it('should fetch most expensive issues without filters', async () => {
+      const mockIssues = [
+        { _id: '1', name: 'Cheap Issue', openDate: new Date('2024-01-01'), totalCost: 100 },
+        { _id: '2', name: 'Expensive Issue', openDate: new Date('2024-01-01'), totalCost: 5000 },
+        { _id: '3', name: 'Medium Issue', openDate: new Date('2024-01-01'), totalCost: 1000 },
+      ];
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalledWith({});
+      expect(res.json).toHaveBeenCalled();
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(3);
+      // sorted descending by totalCost
+      expect(data[0].totalCost).toBe(5000);
+      expect(data[1].totalCost).toBe(1000);
+      expect(data[2].totalCost).toBe(100);
+      expect(data[0].title).toBe('Expensive Issue');
+      expect(data[0].issueId).toBe('2');
+      expect(typeof data[0].daysOpen).toBe('number');
+    });
+
+    it('should filter by projectIds when provided', async () => {
+      const validId2 = '507f1f77bcf86cd799439012';
+      req.query.projectIds = `${TEST_ISSUE_ID},${validId2}`;
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toHaveLength(2);
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+    });
+
+    it('should not add projectId filter when projectIds is empty after trimming', async () => {
+      req.query.projectIds = '  ,  ';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId).toBeUndefined();
+    });
+
+    it('should filter by startDate and endDate when both provided', async () => {
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should filter by startDate only when endDate not provided', async () => {
+      req.query.startDate = '2024-01-01';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeUndefined();
+    });
+
+    it('should filter by endDate only when startDate not provided', async () => {
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$gte).toBeUndefined();
+    });
+
+    it('should apply both projectIds and date filters when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
+      req.query.startDate = '2024-01-01';
+      req.query.endDate = '2024-12-31';
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.openDate.$gte).toBeInstanceOf(Date);
+      expect(callArgs.openDate.$lte).toBeInstanceOf(Date);
+    });
+
+    it('should exclude issues with null or undefined totalCost', async () => {
+      const mockIssues = [
+        { _id: '1', name: 'No Cost', openDate: new Date('2024-01-01'), totalCost: null },
+        { _id: '2', name: 'Undefined Cost', openDate: new Date('2024-01-01') },
+        { _id: '3', name: 'Has Cost', openDate: new Date('2024-01-01'), totalCost: 500 },
+      ];
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(1);
+      expect(data[0].title).toBe('Has Cost');
+    });
+
+    it('should limit results to top 5 issues', async () => {
+      const mockIssues = Array.from({ length: 10 }, (_, i) => ({
+        _id: `${i}`,
+        name: `Issue ${i}`,
+        openDate: new Date('2024-01-01'),
+        totalCost: (i + 1) * 100,
+      }));
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data } = res.json.mock.calls[0][0];
+      expect(data).toHaveLength(5);
+      // highest costs first
+      expect(data[0].totalCost).toBe(1000);
+      expect(data[4].totalCost).toBe(600);
+    });
+
+    it('should return empty data array when no issues found', async () => {
+      mockInjuryIssue.find.mockReturnValue(mockInjuryFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({ data: [] });
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Database error');
+      mockInjuryIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(error),
+      });
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching most expensive issues' });
     });
   });
 });
