@@ -2,13 +2,18 @@ const Listing = require('../../models/lbdashboard/listings');
 const Bid = require('../../models/lbdashboard/bidoverview/Bid');
 const Notification = require('../../models/lbdashboard/bidoverview/Notification');
 const Village = require('../../models/lbdashboard/villages');
+const { sanitizeObjectIdQuery } = require('../../utilities/mongoQuerySanitizer');
 
 /**
  * API to get bid overview data
  */
 const getBidOverview = async (req, res) => {
   try {
-    const listingId = req.params.id;
+    const listingId = sanitizeObjectIdQuery(req.params.id);
+    if (!listingId) {
+      return res.status(400).json({ message: 'Invalid listing id' });
+    }
+
     const listing = await Listing.findById(listingId);
 
     if (!listing) {
@@ -48,12 +53,18 @@ const getBidOverview = async (req, res) => {
 const placeBid = async (req, res) => {
   try {
     const {
-      user_id: userId,
-      property_id: propertyId,
+      user_id: rawUserId,
+      property_id: rawPropertyId,
       bid_amount: bidAmount,
       start_date: startDate,
       end_date: endDate,
     } = req.body;
+
+    const userId = sanitizeObjectIdQuery(rawUserId);
+    const propertyId = sanitizeObjectIdQuery(rawPropertyId);
+    if (!userId || !propertyId) {
+      return res.status(400).json({ message: 'Invalid user or property id' });
+    }
 
     const bidValue = Number(bidAmount);
 
