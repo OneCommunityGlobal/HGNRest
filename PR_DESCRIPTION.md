@@ -1,55 +1,109 @@
 # Description
-Fixes issue where the "Longest Open Issues" chart was limiting results to only 7 issues when multiple projects were selected, causing some issues to be hidden. Also fixes issue numbering consistency when multiple projects are selected.
 
-Fixes #4301 (Phase 2 Bugs - Priority Medium)
+This PR adds a `reasons` array to infringements in the user profile, allowing for more robust and flexible categorization of issues such as "time not met," "missing summary," "missed video call," "late reporting," or "other."
 
-## Related PRs (if any):
-Related to Frontend PR: #4653
-To test this backend PR, you need to checkout the corresponding frontend PR branch.
+The controller logic ensures reasons are consistently handled as a lowercased, deduplicated array with a safe default, which both improves data quality and simplifies future analytics or display logic.
+
+**Fixes #1686, #1817** (PRIORITY HIGH)
+
+## Related PRS (if any):
+[PR 1686](https://github.com/OneCommunityGlobal/HGNRest/pull/1686) - Original PR by Yu Yan taking over for Ujjwal  
+[PR 1817](https://github.com/OneCommunityGlobal/HGNRest/pull/1817) - Attempt to resolve merge conflicts
 
 ## Main changes explained:
-- **Updated `bmIssueController.js`** - `getLongestOpenIssues` function:
-  - Removed `.slice(0, 7)` limit to return all issues from selected projects instead of just top 7
-  - Added `issueId` to response (MongoDB `_id` as string) for consistent issue identification
-  - Added `projectId` to response to enable per-project issue numbering
-  - Added `projectName` to response to distinguish issues across projects
-  - Updated query to select `_id` field along with `issueTitle` and `issueDate`
-  - Handle empty `issueTitle` arrays by returning `null` instead of `undefined`
+
+Added functionality to easily parse reasons for Blue Squares using a reasons array. Added the reasons array field to store multiple categorization reasons for each infringement.
+
+- Added `reasons` field under `infringements` in `userProfile` model with predefined options (which can be modified as required)
+  - Type: Array of Strings
+  - Default: `['other']`
+  - Enum values: `'time not met'`, `'missing summary'`, `'missed video call'`, `'late reporting'`, `'other'`
+  
+- Updated `addInfringements` controller logic to:
+  - Accept reasons array from request body
+  - Normalize values to lowercase
+  - Remove duplicates
+  - Filter valid enum values only
+  - Default to `['other']` if empty or invalid
+  
+- Maintains backward compatibility with existing `reason` (single string) field
 
 ## How to test:
-1. Checkout branch `vamsidhar-fix/issue-chart-all-issues-visible`
-2. Run `npm run build` to compile the changes
-3. Restart the backend server
-4. Ensure the frontend is running with the corresponding frontend PR branch
-5. Navigate to BMDashboard → Issues → Longest Open Issues chart
-6. **Test Scenario 1: Select only "Building 3"**
-   - Should show all Building 3 issues (e.g., "Paint Peeling in Conference Room", "Issue #1", "Issue #2", "Issue #3", "Issue #4")
-   - Verify all issues are displayed, not limited to 7
-7. **Test Scenario 2: Select "Building 3" and "Building 1" together**
-   - Should show ALL issues from both projects (not limited to 7)
-   - Should include all Building 3 issues (Issue #1, #2, #3, #4) AND all Building 1 issues
-   - Verify no issues are missing compared to when selecting projects individually
-   - Check backend console logs - should see: `[getLongestOpenIssues] Total issues found: X, Returning: X issues` where X is the total count (should be more than 7 for multiple projects)
-8. **Test Scenario 3: Select multiple projects with many issues**
-   - Verify all issues are displayed, sorted by duration (longest first)
-   - Check backend console logs to verify the count of issues being returned
-   - Verify the response includes `issueId`, `projectId`, and `projectName` fields for each issue
 
-## Expected behavior:
-- When selecting multiple projects, ALL issues from all selected projects should be visible
-- Issues should be sorted by duration (longest open first)
-- No limit on the number of issues displayed
-- Each issue should have a unique `issueId` for consistent identification
-- Response should include `projectId` and `projectName` for frontend processing
+1. Check out the current branch: `feat/infringement-reasons-array`
+2. Run `npm run build` and `npm start` to run this PR locally
+3. Send a POST request to `api/userProfile/:userId/addInfringement` to add an infringement
 
-## Technical details:
-- The API endpoint `/bm/issues/longest-open` now returns all matching issues instead of limiting to 7
-- Response includes `issueId`, `projectId`, and `projectName` fields for frontend processing
-- Issues with empty `issueTitle` arrays return `null` for `issueName` (frontend will generate names)
-- Debug logging added to verify issue counts in console
+Important:
+- The `requestor` must be a valid user id or requestor object that resolves to a user with the `addInfringements` permission.
+- For local testing, use a user whose role is `Owner`, `Administrator`, `Manager`, or `Mentor`, or a user with the `addInfringements` front permission.
 
-## Note:
-This PR only includes backend changes. The frontend PR (#4653) will handle:
-- Using `issueId` for consistent issue numbering
-- Per-project issue numbering to avoid conflicts
-- Prefixing unnamed issues with project name when multiple projects are selected
+**Example request body:**
+```json
+{
+  "requestor": "<your-user-id>",
+  "blueSquare": {
+    "date": "2025-09-03",
+    "description": "PR Testing Add Infringement",
+    "reasons": ["time not met", "missing summary", "missed video call", "late reporting", "other"]
+  }
+}
+```
+
+**Valid reasons values:**
+- `'time not met'`
+- `'missing summary'`
+- `'missed video call'`
+- `'late reporting'`
+- `'other'` (default)
+
+4. Verify in the database that the infringement was added with the reasons array properly stored
+
+## Screenshots or videos of changes:
+
+### API Test (Postman/Insomnia):
+```
+POST http://localhost:4500/api/userProfile/68acd7da7787ad0055d8517b/addInfringement
+
+Body:
+{
+  "requestor":"68acd7da7787ad0055d8517b",
+  "blueSquare": {
+    "date":"2025-09-03",
+    "description":"PR Testing Add Infringement",
+    "reasons":["time not met", "missing summary", "missed video call", "late reporting", "other"]
+  }
+}
+
+Response: 200 OK
+{
+  "_id": "68acd7da7787ad0055d8517b"
+}
+```
+
+### Database Verification:
+The `infringements` array in the user profile document should now contain:
+```json
+{
+  "infringements": [
+    {
+      "date": "2025-09-03",
+      "description": "PR Testing Add Infringement",
+      "reasons": [
+        "time not met",
+        "missing summary",
+        "missed video call",
+        "late reporting",
+        "other"
+      ],
+      "_id": "68b8d5b874bbf9895405cf40"
+    }
+  ]
+}
+```
+
+## Notes:
+
+- This PR resolves the merge conflicts from the original PRs #1686 and #1817
+- All existing fields in the user profile model are preserved
+- The new `reasons` array field is backward compatible - existing infringements without reasons will default to `['other']`

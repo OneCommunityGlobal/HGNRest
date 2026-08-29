@@ -31,12 +31,14 @@ const bidsDeadlineController = function (BidDeadlines) {
       if (inEndDate <= inStartDate) {
         return { status: 400, error: 'endDate should be greater than the startDate' };
       }
-      const newBidDeadlinesData = {
-        listingId,
+      const { listingId: reqListingId, isActive, isClosed } = req.body;
+      const newBidDeadlines = new BidDeadlines({
+        listingId: reqListingId,
         startDate: inStartDate,
         endDate: inEndDate,
-      };
-      const newBidDeadlines = new BidDeadlines(newBidDeadlinesData);
+        isActive,
+        isClosed,
+      });
       const savedBidDeadlines = await newBidDeadlines.save();
       return { status: 200, data: savedBidDeadlines };
     } catch (error) {

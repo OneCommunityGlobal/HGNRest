@@ -25,12 +25,59 @@ const hasIndividualPermission = async (userId, action) =>
     .then((doc) => (doc?.permissions?.frontPermissions || []).includes(action))
     .catch(() => false);
 
+const resolveRequestorRole = async (requestorId) =>
+  UserProfile.findById(requestorId)
+    .select('role')
+    .lean()
+    .exec()
+    .then((doc) => (doc ? doc.role : null))
+    .catch(() => null);
+
+const getRequestorIdFromObject = (requestor) =>
+  requestor?.requestorId || requestor?._id || requestor?.userId || requestor?.userid || null;
+
+const normalizeRequestor = async (requestor) => {
+  if (!requestor) {
+    return null;
+  }
+
+  if (typeof requestor === 'string') {
+    const role = await resolveRequestorRole(requestor);
+    return role ? { requestorId: requestor, role } : null;
+  }
+
+  const requestorId = getRequestorIdFromObject(requestor);
+
+  if (!requestorId) {
+    return null;
+  }
+
+  if (requestor.role) {
+    return {
+      ...requestor,
+      requestorId,
+      role: requestor.role,
+    };
+  }
+
+  const role = await resolveRequestorRole(requestorId);
+  return role ? { ...requestor, requestorId, role } : null;
+};
+
 const hasPermission = async (requestor, action) => {
+  const normalizedRequestor = await normalizeRequestor(requestor);
+
+  if (!normalizedRequestor) {
+    return false;
+  }
+
   const defaultRemoved =
-    requestor.requestorId && (await hasDefaultPermissionRemoved(requestor.requestorId, action));
-  const roleHasPermission = await hasRolePermission(requestor.role, action);
+    normalizedRequestor.requestorId &&
+    (await hasDefaultPermissionRemoved(normalizedRequestor.requestorId, action));
+  const roleHasPermission = await hasRolePermission(normalizedRequestor.role, action);
   const individualHasPermission =
-    requestor.requestorId && (await hasIndividualPermission(requestor.requestorId, action));
+    normalizedRequestor.requestorId &&
+    (await hasIndividualPermission(normalizedRequestor.requestorId, action));
 
   return (!defaultRemoved && roleHasPermission) || individualHasPermission;
 };

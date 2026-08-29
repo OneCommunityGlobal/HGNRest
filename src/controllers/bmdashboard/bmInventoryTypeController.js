@@ -1,14 +1,4 @@
-const fs = require('fs');
-const fsPromises = require('fs/promises');
-const path = require('path');
 const mongoose = require('mongoose');
-
-const filename = 'BuildingUnits.json';
-const currentFilePath = __filename;
-const rootPath = path.resolve(path.dirname(currentFilePath), '../../../'); // Go up three levels to the root
-const filepath = path.join(rootPath, filename);
-const { readFile } = fs;
-const { writeFile } = fs;
 
 function bmInventoryTypeController(
   InvType,
@@ -18,6 +8,7 @@ function bmInventoryTypeController(
   ToolType,
   EquipType,
   invTypeHistory,
+  InvUnit,
 ) {
   async function fetchMaterialTypes(req, res) {
     try {
@@ -76,25 +67,12 @@ function bmInventoryTypeController(
     }
   };
 
-  const fetchInvUnitsFromJson = async (req, res) => {
+  const fetchInvUnits = async (req, res) => {
     try {
-      // console.log(__dirname,filepath)
-      readFile(filepath, 'utf8', (err, data) => {
-        if (err) {
-          console.error('Error reading file:', err);
-          res.status(500).send(err);
-        }
-
-        try {
-          const jsonData = JSON.parse(data);
-          res.status(200).send(jsonData);
-        } catch (parseError) {
-          console.error('Error parsing JSON:', parseError);
-          res.status(500).send(parseError);
-        }
-      });
+      const units = await InvUnit.find();
+      res.status(200).send(units);
     } catch (err) {
-      res.json(err);
+      res.status(500).send(err);
     }
   };
 
@@ -122,31 +100,9 @@ function bmInventoryTypeController(
               .then((results) => {
                 res.status(201).send(results);
                 if (req.body.customUnit) {
-                  try {
-                    // Add new unit to json file : src\controllers\bmdashboard\BuildingUnits.json
-                    const newItem = { unit: req.body.customUnit, category: 'Material' };
-                    const newItemString = JSON.stringify(newItem, null, 2);
-                    readFile(filepath, 'utf8', (err, data) => {
-                      if (err) {
-                        console.error('Error reading file:', err);
-                        return;
-                      }
-                      // Remove the last array bracket and comma
-                      const updatedContent = data.trim().replace(/\s*]$/, '');
-
-                      // Add a comma and newline if the file is not empty
-                      const separator = updatedContent !== '' ? ',\n' : '';
-                      const updatedFileContent = `${updatedContent}${separator}${newItemString}\n]`;
-
-                      writeFile(filepath, updatedFileContent, 'utf8', (error) => {
-                        if (error) {
-                          console.error('Error writing to file:', error);
-                        }
-                      });
-                    });
-                  } catch (e) {
-                    console.log(e);
-                  }
+                  InvUnit.create({ unit: req.body.customUnit, category: 'Material' }).catch((e) =>
+                    console.error('Error saving custom unit:', e),
+                  );
                 }
               })
               .catch((error) => {
@@ -512,20 +468,17 @@ function bmInventoryTypeController(
     }
 
     try {
-      // read JSON file and parse it into an array
-      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
-      const unitsArray = JSON.parse(unitsJSON);
+      const duplicate = await InvUnit.findOne({ unit });
+      if (duplicate) {
+        res.status(409).json({ error: 'Unit already exists' });
+        return;
+      }
 
-      // append new unit into array
-      unitsArray.push({ unit, category });
-
-      // save updated array into JSON file and rend it back
-      await fsPromises.writeFile(filepath, JSON.stringify(unitsArray, null, ' '));
-
-      res.status(201).send(unitsArray);
+      await InvUnit.create({ unit, category });
+      const updatedUnits = await InvUnit.find();
+      res.status(201).send(updatedUnits);
     } catch (err) {
       res.status(500).send(err);
-      console.error(err);
     }
   };
 
@@ -537,26 +490,17 @@ function bmInventoryTypeController(
     }
 
     try {
-      // read JSON file and parse it into an array
-      const unitsJSON = await fsPromises.readFile(filepath, { encoding: 'utf8' });
-      const unitsArray = JSON.parse(unitsJSON);
-
-      // if unit does not exist, send err response
-      const index = unitsArray.findIndex((unitObject) => unitObject.unit === unit);
-      if (index === -1) {
+      const existing = await InvUnit.findOne({ unit });
+      if (!existing) {
         res.status(400).json('Unit does not exist');
         return;
       }
 
-      // otherwise, remove unit
-      const filteredUnits = unitsArray.filter((unitObject) => unitObject.unit !== unit);
-
-      // save updated array into JSON file and rend it back
-      await fsPromises.writeFile(filepath, JSON.stringify(filteredUnits, null, ' '));
-      res.status(200).send(filteredUnits);
+      await InvUnit.deleteOne({ unit });
+      const updatedUnits = await InvUnit.find();
+      res.status(200).send(updatedUnits);
     } catch (err) {
       res.status(500).send(err);
-      console.error(err);
     }
   };
 
@@ -756,7 +700,7 @@ function bmInventoryTypeController(
     addConsumableType,
     addToolType,
     updateNameAndUnit,
-    fetchInvUnitsFromJson,
+    fetchInvUnits,
     fetchInventoryByType,
     addInvUnit,
     deleteInvUnit,

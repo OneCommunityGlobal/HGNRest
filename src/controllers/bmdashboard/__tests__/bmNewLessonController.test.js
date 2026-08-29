@@ -1,4 +1,5 @@
 const bmNewLessonController = require('../bmNewLessonController');
+const logger = require('../../../startup/logger');
 
 // Mock dependencies
 const mockBuildingNewLesson = {
@@ -11,6 +12,7 @@ const mockBuildingNewLesson = {
   updateMany: jest.fn(),
   deleteMany: jest.fn(),
   getAllTags: jest.fn(),
+  aggregate: jest.fn(),
 };
 
 const mockBuildingProject = {
@@ -47,6 +49,7 @@ describe('bmNewLessonController', () => {
     mockReq = {
       body: {},
       params: {},
+      query: {},
     };
 
     mockRes = {
@@ -395,6 +398,296 @@ describe('bmNewLessonController', () => {
         status: 'success',
         message: 'Lesson unliked successfully',
       });
+    });
+  });
+
+  describe('getLessonsLearnt', () => {
+    const VALID_PROJECT_ID = '507f1f77bcf86cd799439011';
+    const mockProjectObjId = { toString: () => VALID_PROJECT_ID };
+
+    const defaultLessonsInRange = [
+      { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 5 },
+    ];
+    const defaultThisMonth = [{ _id: mockProjectObjId, thisMonthCount: 3 }];
+    const defaultLastMonth = [{ _id: mockProjectObjId, lastMonthCount: 2 }];
+
+    beforeEach(() => {
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce(defaultLessonsInRange)
+        .mockResolvedValueOnce(defaultThisMonth)
+        .mockResolvedValueOnce(defaultLastMonth);
+    });
+
+    // --- Validation: Issue 1 (invalid projectId) ---
+    it('should return 400 for an invalid projectId', async () => {
+      mockReq.query = { projectId: 'not-a-valid-objectid' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid projectId' });
+      expect(mockBuildingNewLesson.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('should not reject projectId=ALL and proceed normally', async () => {
+      mockReq.query = { projectId: 'ALL' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockBuildingNewLesson.aggregate).toHaveBeenCalledTimes(3);
+    });
+
+    it('should not apply a relatedProject filter when projectId=ALL', async () => {
+      mockReq.query = { projectId: 'ALL' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.relatedProject).toBeUndefined();
+    });
+
+    // --- Validation: Issue 3 (invalid dates) ---
+    it('should return 400 for an invalid startDate', async () => {
+      mockReq.query = { startDate: 'not-a-date' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid startDate' });
+      expect(mockBuildingNewLesson.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for an invalid endDate', async () => {
+      mockReq.query = { endDate: 'not-a-date' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid endDate' });
+      expect(mockBuildingNewLesson.aggregate).not.toHaveBeenCalled();
+    });
+
+    // --- Happy path: no params ---
+    it('should return 200 with lessons grouped by project when no params given', async () => {
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockBuildingNewLesson.aggregate).toHaveBeenCalledTimes(3);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [
+          {
+            project: 'Project A',
+            projectId: mockProjectObjId,
+            lessonsCount: 5,
+            changePercentage: '+50.0%',
+          },
+        ],
+      });
+    });
+
+    it('should return empty data array when no lessons exist', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({ data: [] });
+    });
+
+    // --- Filter construction: valid projectId ---
+    it('should apply relatedProject filter when a valid projectId is given', async () => {
+      mockReq.query = { projectId: VALID_PROJECT_ID };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.relatedProject).toBeDefined();
+    });
+
+    // --- Filter construction: date range ---
+    it('should apply $gte and $lte date filters when startDate and endDate are given', async () => {
+      mockReq.query = { startDate: '2024-01-01', endDate: '2024-12-31' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.date.$gte).toEqual(new Date('2024-01-01'));
+      expect(firstMatchStage.date.$lte).toEqual(new Date('2024-12-31'));
+    });
+
+    it('should apply only $gte when only startDate is given', async () => {
+      mockReq.query = { startDate: '2024-01-01' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.date.$gte).toEqual(new Date('2024-01-01'));
+      expect(firstMatchStage.date.$lte).toBeUndefined();
+    });
+
+    it('should apply only $lte when only endDate is given', async () => {
+      mockReq.query = { endDate: '2024-12-31' };
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.date.$lte).toEqual(new Date('2024-12-31'));
+      expect(firstMatchStage.date.$gte).toBeUndefined();
+    });
+
+    it('should not apply a date filter when neither startDate nor endDate is given', async () => {
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
+      expect(firstMatchStage.date).toBeUndefined();
+    });
+
+    // --- changePercentage calculation ---
+    it('should return +100% when lastMonth is 0 and thisMonth is positive', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 3 },
+        ])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, thisMonthCount: 3 }])
+        .mockResolvedValueOnce([]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ changePercentage: '+100%' })],
+      });
+    });
+
+    it('should return 0% when both lastMonth and thisMonth are 0', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 5 },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ changePercentage: '0%' })],
+      });
+    });
+
+    it('should return a positive percentage when thisMonth exceeds lastMonth', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 6 },
+        ])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, thisMonthCount: 6 }])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, lastMonthCount: 4 }]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ changePercentage: '+50.0%' })],
+      });
+    });
+
+    it('should return a negative percentage when thisMonth is less than lastMonth', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 2 },
+        ])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, thisMonthCount: 2 }])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, lastMonthCount: 4 }]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ changePercentage: '-50.0%' })],
+      });
+    });
+
+    it('should return +0.0% when thisMonth equals lastMonth (no change)', async () => {
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 4 },
+        ])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, thisMonthCount: 4 }])
+        .mockResolvedValueOnce([{ _id: mockProjectObjId, lastMonthCount: 4 }]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ changePercentage: '+0.0%' })],
+      });
+    });
+
+    it('should correctly compute changePercentage independently for multiple projects', async () => {
+      const projectObjId2 = { toString: () => '507f1f77bcf86cd799439012' };
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate
+        .mockResolvedValueOnce([
+          { project: 'Project A', projectId: mockProjectObjId, lessonsCount: 6 },
+          { project: 'Project B', projectId: projectObjId2, lessonsCount: 2 },
+        ])
+        .mockResolvedValueOnce([
+          { _id: mockProjectObjId, thisMonthCount: 6 },
+          { _id: projectObjId2, thisMonthCount: 1 },
+        ])
+        .mockResolvedValueOnce([
+          { _id: mockProjectObjId, lastMonthCount: 4 },
+          { _id: projectObjId2, lastMonthCount: 2 },
+        ]);
+      mockReq.query = {};
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      const responseData = mockRes.json.mock.calls[0][0].data;
+      expect(responseData).toHaveLength(2);
+      expect(responseData[0]).toMatchObject({ project: 'Project A', changePercentage: '+50.0%' });
+      expect(responseData[1]).toMatchObject({ project: 'Project B', changePercentage: '-50.0%' });
+    });
+
+    // --- Error path: Issue 4 (logger) ---
+    it('should return 500 and call logger.logException when aggregate throws', async () => {
+      const dbError = new Error('Database error');
+      mockBuildingNewLesson.aggregate.mockReset();
+      mockBuildingNewLesson.aggregate.mockRejectedValue(dbError);
+      mockReq.query = { projectId: VALID_PROJECT_ID };
+
+      // The controller captures `logger` at module-load time (top-level require), so
+      // jest.mock factory cannot intercept it. jest.spyOn mutates the shared cached
+      // module object that the controller already holds a reference to.
+      const logExceptionSpy = jest
+        .spyOn(logger, 'logException')
+        .mockReturnValue('mock-tracking-id');
+
+      await controller.getLessonsLearnt(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
+      expect(logExceptionSpy).toHaveBeenCalledWith(dbError, 'getLessonsLearnt', {
+        query: { projectId: VALID_PROJECT_ID },
+      });
+
+      logExceptionSpy.mockRestore();
     });
   });
 

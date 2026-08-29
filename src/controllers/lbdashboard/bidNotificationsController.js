@@ -10,13 +10,8 @@ const bidNotificationsController = function (BidNotifications) {
       if (!userExists) {
         return { status: 400, error: 'Invalid email' };
       }
-      const { message } = req.body;
-
-      const newBidNotificationsData = {
-        message,
-        userId: userExists._id,
-      };
-
+      const { message, isDelivered } = req.body;
+      const newBidNotificationsData = { userId: userExists._id, message, isDelivered };
       const newBidNotifications = new BidNotifications(newBidNotificationsData);
       const savedBidNotifications = await newBidNotifications.save();
       return { status: 200, data: savedBidNotifications };
