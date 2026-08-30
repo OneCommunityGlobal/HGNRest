@@ -41,6 +41,7 @@ const communityMemberController = function () {
         const { userInfo, frontend, backend, general } = member;
         return {
           _id: member._id,
+          userId: member.user_id,
           name: userInfo?.name || 'N/A',
           email: userInfo?.email || 'N/A',
           slack: userInfo?.slack || '',
