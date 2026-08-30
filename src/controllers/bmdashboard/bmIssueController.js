@@ -4,14 +4,6 @@ const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const logger = require('../../startup/logger');
 const { getUniqueProjectsWithNames } = require('../../utilities/bmProjectAggregation');
 
-const SECONDS_PER_MINUTE = 60;
-const MS_PER_SECOND = 1000;
-const MS_PER_MINUTE = SECONDS_PER_MINUTE * MS_PER_SECOND;
-const MINUTES_PER_HOUR = 60;
-const HOURS_PER_DAY = 24;
-const AVG_DAYS_PER_MONTH = 30.44;
-const MAX_LONGEST_OPEN_ISSUES = 7;
-
 const VALID_TAGS = ['In-person', 'Virtual'];
 const VALID_STATUSES = ['open', 'closed'];
 const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality / functionality'];
@@ -57,50 +49,6 @@ const filterProjectIdsByDates = async (datesParam, currentProjectIds) => {
 
   return currentProjectIds.filter((id) => dateIds.includes(id));
 };
-
-const getDurationOpenMonths = (issueDate) =>
-  Math.ceil(
-    (Date.now() - new Date(issueDate)) /
-      (MS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY * AVG_DAYS_PER_MONTH),
-  );
-
-const buildGroupedIssues = (issues) => {
-  const grouped = {};
-  issues.forEach((issue) => {
-    if (!issue.issueDate || !issue.projectId) return;
-    const rawTitle = Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle;
-    const issueName = rawTitle || 'Unknown Issue';
-
-    const projectId = issue.projectId._id.toString();
-    const projectName = issue.projectId.projectName || issue.projectId.name || 'Unknown Project';
-
-    const durationOpen = getDurationOpenMonths(issue.issueDate);
-
-    if (!grouped[issueName]) grouped[issueName] = {};
-    if (!grouped[issueName][projectId]) {
-      grouped[issueName][projectId] = {
-        projectId,
-        projectName,
-        durationOpen,
-      };
-    }
-  });
-
-  return grouped;
-};
-
-const buildLongestOpenResponse = (grouped) =>
-  Object.entries(grouped)
-    .flatMap(([issueName, projectsById]) =>
-      Object.values(projectsById).map((project) => ({
-        issueName,
-        projectId: project.projectId,
-        projectName: project.projectName,
-        durationOpen: project.durationOpen,
-      })),
-    )
-    .sort((a, b) => b.durationOpen - a.durationOpen)
-    .slice(0, MAX_LONGEST_OPEN_ISSUES);
 
 const omitUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
@@ -502,31 +450,80 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- LONGEST OPEN ISSUES -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
-      const { dates, projects } = req.query;
+      const { projectIds, startDate, endDate } = req.query;
       const query = { status: 'open' };
-      let filteredProjectIds = getProjectFilterIds(projects);
 
-      filteredProjectIds = await filterProjectIdsByDates(dates, filteredProjectIds);
-
-      if (dates && filteredProjectIds.length === 0) {
-        return res.json([]);
+      if (projectIds) {
+        const ids = projectIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        if (ids.length > 0) query.projectId = { $in: ids };
       }
 
-      if (filteredProjectIds.length) {
-        query.projectId = { $in: filteredProjectIds };
+      if (startDate || endDate) {
+        query.issueDate = {};
+        if (startDate) query.issueDate.$gte = new Date(startDate);
+        if (endDate) query.issueDate.$lte = new Date(endDate);
       }
 
-      const issues = await BuildingIssue.find(query)
-        .select('issueTitle issueDate _id')
-        .populate('projectId')
-        .lean();
+      const today = new Date();
+      const issues = await BuildingIssue.find(query).select('issueTitle issueDate').lean();
 
-      const grouped = buildGroupedIssues(issues);
-      const response = buildLongestOpenResponse(grouped);
+      const result = issues
+        .map((issue) => ({
+          issueId: issue._id,
+          title: Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle,
+          daysOpen: Math.floor((today - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24)),
+        }))
+        .sort((a, b) => b.daysOpen - a.daysOpen)
+        .slice(0, 5);
 
-      res.json(response);
+      return res.json({ data: result });
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching longest open issues' });
+      console.error('Error fetching longest open issues:', error);
+      return res.status(500).json({ message: 'Error fetching longest open issues' });
+    }
+  };
+
+  /* -------------------- MOST EXPENSIVE ISSUES -------------------- */
+  const getMostExpensiveIssues = async (req, res) => {
+    try {
+      const { projectIds, startDate, endDate } = req.query;
+      const query = {};
+
+      if (projectIds) {
+        const ids = projectIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        if (ids.length > 0) query.projectId = { $in: ids };
+      }
+
+      if (startDate || endDate) {
+        query.openDate = {};
+        if (startDate) query.openDate.$gte = new Date(startDate);
+        if (endDate) query.openDate.$lte = new Date(endDate);
+      }
+
+      const today = new Date();
+      const issues = await injuryIssue.find(query).select('name openDate totalCost').lean();
+
+      const result = issues
+        .filter((issue) => issue.totalCost != null)
+        .map((issue) => ({
+          issueId: issue._id,
+          title: issue.name,
+          totalCost: issue.totalCost,
+          daysOpen: Math.floor((today - new Date(issue.openDate)) / (1000 * 60 * 60 * 24)),
+        }))
+        .sort((a, b) => b.totalCost - a.totalCost)
+        .slice(0, 5);
+
+      return res.json({ data: result });
+    } catch (error) {
+      console.error('Error fetching most expensive issues:', error);
+      return res.status(500).json({ message: 'Error fetching most expensive issues' });
     }
   };
 
@@ -538,6 +535,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
     bmDeleteIssue,
     bmGetIssueChart,
     getLongestOpenIssues,
+    getMostExpensiveIssues,
     getUniqueProjectIds,
     bmPostInjuryIssue,
     bmGetInjuryIssue,
