@@ -8,22 +8,27 @@ const Order = new Schema({
     ref: 'supplier',
     required: true,
   },
+
   status: {
     type: String,
     required: true,
     enum: ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Cancelled'],
     default: 'Pending',
   },
+
   orderDate: {
     type: Date,
     default: Date.now,
   },
+
   expectedDeliveryDate: {
     type: Date,
   },
+
   actualDeliveryDate: {
     type: Date,
   },
+
   items: [
     {
       itemName: {
@@ -31,11 +36,13 @@ const Order = new Schema({
         required: true,
         trim: true,
       },
+
       quantity: {
         type: Number,
         required: true,
         min: 1,
       },
+
       pricePerItem: {
         type: Number,
         required: true,
@@ -43,20 +50,25 @@ const Order = new Schema({
       },
     },
   ],
+
   totalAmount: {
     type: Number,
     default: 0,
   },
+
   created: {
     type: Date,
     default: Date.now,
   },
 });
 
-Order.pre('save', function (next) {
+Order.pre('save', function calculateTotal(next) {
   if (this.items && this.items.length > 0) {
     this.totalAmount = this.items.reduce((sum, item) => sum + item.quantity * item.pricePerItem, 0);
+  } else {
+    this.totalAmount = 0;
   }
+
   next();
 });
 

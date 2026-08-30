@@ -466,6 +466,12 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   resourceRequestController,
 );
 
+const supplier = require('../models/kitchenandinventory/supplier');
+const order = require('../models/kitchenandinventory/order');
+
+const supplierRouter = require('../routes/kitchenandinventory/supplierRouter');
+const orderRouter = require('../routes/kitchenandinventory/orderRouter');
+
 module.exports = function (app) {
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
@@ -504,6 +510,8 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/planting', plantingRouter);
   app.use('/api/kitchenandinventory/trimming', trimmingRouter);
   app.use('/api/kitchenandinventory/culling', cullingRouter);
+  app.use('/api/kitchenandinventory/suppliers', supplierRouter);
+  app.use('/api/kitchenandinventory/orders', orderRouter);
   app.use('/api', timeZoneAPIRouter);
   app.use('/api', taskEditSuggestionRouter);
   app.use('/api', roleRouter);
