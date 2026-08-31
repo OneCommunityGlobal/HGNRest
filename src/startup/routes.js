@@ -46,6 +46,7 @@ const helpCategory = require('../models/helpCategory');
 const wishlists = require('../models/lbdashboard/wishlists');
 const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
+const studentAnalyticsRouter = require('../routes/analyticsRouter');
 const injuryAnalyticsRoutes = require('../routes/injuryAnalytics');
 const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
 
@@ -567,6 +568,7 @@ module.exports = function (app) {
   app.use('/api/atoms', atomRouter);
   app.use('/api/educator', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
+  app.use('/api/analytics', studentAnalyticsRouter);
   app.use('/api', registrationRouter);
   app.use('/api', injuryAnalyticsRoutes);
 
