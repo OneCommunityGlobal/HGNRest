@@ -27,7 +27,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
-
+const activityRouter = require('../routes/activityRouter');
 const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
   availability,
 );
@@ -234,6 +234,9 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
+  buildingMaterial,
+);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
@@ -526,6 +529,8 @@ module.exports = function (app) {
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', materialUtilizationRouter);
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
 
   app.use('/api', formRouter);
   app.use('/api', meetingRouter);
@@ -581,6 +586,7 @@ module.exports = function (app) {
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmMaterialInsightsRouter);
   app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
