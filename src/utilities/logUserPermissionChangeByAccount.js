@@ -65,17 +65,12 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       ) {
         return;
       }
-      // using roleChanged to determine whether to keep all checked permissions from role change modal on user profile
-      // or list only newly changed permissions when saved through permissions management
-      const updatedRemovedPermissions = roleChanged
-        ? removedPermissions
-        : removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item));
+
+      const updatedRemovedPermissions = removedPermissions.filter((item) => !docRemovedRolePermissions.includes(item));
       const removedUserAddedPermissions = docPermissions.filter(
         (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
       ); // removed user added permissions
-      const updatedAddedPermissions = roleChanged
-        ? Permissions
-        : Permissions.filter((item) => !docPermissions.includes(item));
+      const updatedAddedPermissions = Permissions.filter((item) => !docPermissions.includes(item));
       const readdedUserRemovedPermissions = docRemovedRolePermissions.filter(
         (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
       );
