@@ -1,5 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
-const fetch = require('node-fetch');
 const dotenv = require('dotenv');
 
 dotenv.config();

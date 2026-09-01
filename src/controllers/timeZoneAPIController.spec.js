@@ -2,9 +2,8 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(), // Mocking the hasPermission function
 }));
 
-jest.mock('node-fetch');
-// eslint-disable-next-line import/no-extraneous-dependencies
-const fetch = require('node-fetch');
+global.fetch = jest.fn();
+const { fetch } = global;
 
 const originalPremiumKey = process.env.TIMEZONE_PREMIUM_KEY;
 process.env.TIMEZONE_PREMIUM_KEY = 'mockPremiumKey';
