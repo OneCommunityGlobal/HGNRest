@@ -69,6 +69,33 @@ const handleControllerError = (err, res, methodName, requestor) => {
   return res.status(status).json({ error });
 };
 
+async function fetchStudentDailyLogsByStaff(req, res) {
+  try {
+    const { studentId } = req.params;
+
+    if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ error: 'Invalid studentId format' });
+    }
+
+    const canReadActivityLogs = await hasPermission(req.body?.requestor, 'readActivityLogs');
+    if (!canReadActivityLogs) {
+      return res.status(403).json({ error: 'You are not authorized to view student logs' });
+    }
+
+    const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
+
+    const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
+      .sort({ created_at: -1 })
+      .select('action_type metadata created_at actor_id is_assisted assisted_users');
+
+    return res.json(formatLogs(logs));
+  } catch (err) {
+    return handleControllerError(err, res, 'fetchStudentDailyLogsByStaff', req.body?.requestor);
+  }
+}
+
 const activityLogController = () => {
   async function fetchStudentDailyLog(req, res) {
     try {
@@ -96,33 +123,6 @@ const activityLogController = () => {
       return res.json(formatLogs(logs));
     } catch (err) {
       return handleControllerError(err, res, 'fetchStudentDailyLog', req.body?.requestor);
-    }
-  }
-
-  async function fetchStudentDailyLogsByStaff(req, res) {
-    try {
-      const { studentId } = req.params;
-
-      if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
-
-      if (!mongoose.Types.ObjectId.isValid(studentId)) {
-        return res.status(400).json({ error: 'Invalid studentId format' });
-      }
-
-      const canReadActivityLogs = await hasPermission(req.body?.requestor, 'readActivityLogs');
-      if (!canReadActivityLogs) {
-        return res.status(403).json({ error: 'You are not authorized to view student logs' });
-      }
-
-      const sanitizedStudentId = new mongoose.Types.ObjectId(studentId);
-
-      const logs = await ActivityLog.find({ actor_id: sanitizedStudentId })
-        .sort({ created_at: -1 })
-        .select('action_type metadata created_at actor_id is_assisted assisted_users');
-
-      return res.json(formatLogs(logs));
-    } catch (err) {
-      return handleControllerError(err, res, 'fetchStudentDailyLogsByStaff', req.body?.requestor);
     }
   }
 
