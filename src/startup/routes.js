@@ -432,6 +432,11 @@ const epBadge = require('../models/educationPortal/badgeModel');
 const studentBadges = require('../models/educationPortal/studentBadgesModel');
 const badgeSystemRouter = require('../routes/educationPortal/badgeSystemRouter');
 
+// kitchen inventory
+
+const kitchenSupplierRouter = require('../routes/kitchenInventory/kitchenSupplierRouter')();
+const kitchenOrderRouter = require('../routes/kitchenInventory/kitchenOrderRouter')();
+
 const promotionDetailsRouter = require('../routes/promotionDetailsRouter');
 
 const gardenRouter = require('../routes/kitchenInventory/gardenRouter')();
@@ -714,8 +719,11 @@ module.exports = function (app) {
 
   app.use('/api/educator/reportdownload', downloadReportRouter);
 
+  
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
+  app.use('/api/kitchenandinventory', kitchenSupplierRouter);
+  app.use('/api/kitchenandinventory', kitchenOrderRouter);
   app.use('/api/kitchenandinventory/garden', gardenRouter);
 
   // Education Portal
