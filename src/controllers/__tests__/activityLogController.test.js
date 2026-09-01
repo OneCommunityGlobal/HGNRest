@@ -1,777 +1,427 @@
-jest.mock('../../models/activityLog', () => {
-  const mockActivityLog = jest.fn();
-  mockActivityLog.find = jest.fn();
-  mockActivityLog.findById = jest.fn();
-  mockActivityLog.create = jest.fn();
-  mockActivityLog.schema = {
-    path: jest.fn((field) => {
-      if (field === 'action_type') {
-        return {
-          enumValues: ['comment', 'note', 'announcement', 'task_upload', 'task_complete'],
-        };
-      }
-      if (field === 'assisted_users') {
-        return {
-          schema: {
-            path: jest.fn(() => ({
-              enumValues: ['created', 'edited'],
-            })),
-          },
-        };
-      }
-      return { enumValues: [] };
-    }),
-  };
-  return mockActivityLog;
-});
+const mongoose = require('mongoose');
 
-jest.mock('../../models/userProfile', () => {
-  const mockUserProfile = jest.fn();
-  mockUserProfile.find = jest.fn();
-  return mockUserProfile;
-});
+// Mocks must be registered before/with requirements
+jest.mock('../../models/activityLog', () => ({
+  find: jest.fn(),
+  findById: jest.fn(),
+  create: jest.fn(),
+  schema: {
+    path: jest.fn(),
+  },
+}));
+
+jest.mock('../../models/userProfile', () => ({
+  find: jest.fn(),
+}));
 
 jest.mock('../../startup/logger', () => ({
   logException: jest.fn(),
 }));
 
-const mongoose = require('mongoose');
+jest.mock('../../utilities/permissions', () => ({
+  hasPermission: jest.fn(),
+}));
+
+const activityLogController = require('../activityLogController');
 const ActivityLog = require('../../models/activityLog');
 const usersProfiles = require('../../models/userProfile');
-const activityLogControllerFactory = require('../activityLogController');
-
-const resolvePromises = () => new Promise(setImmediate);
-
-const buildMockLog = (overrides = {}) => ({
-  _id: '507f1f77bcf86cd799439011',
-  action_type: 'comment',
-  metadata: { text: 'hello' },
-  created_at: new Date('2025-01-01'),
-  actor_id: '65cf6c3706d8ac105827bb2e',
-  is_assisted: false,
-  assisted_users: null,
-  ...overrides,
-});
-
-const buildAssistedLog = (overrides = {}) =>
-  buildMockLog({
-    is_assisted: true,
-    assisted_users: [
-      {
-        user_id: '65cf6c3706d8ac105827bb30',
-        name: 'Jane Doe',
-        assisted_at: new Date('2025-01-01'),
-        assistance_type: 'edited',
-      },
-    ],
-    ...overrides,
-  });
+const logger = require('../../startup/logger');
+const { hasPermission } = require('../../utilities/permissions');
 
 describe('activityLogController', () => {
   let controller;
-  let mockRes;
+  let req;
+  let res;
+
+  const validObjectId = new mongoose.Types.ObjectId().toString();
+  const validUserObjectId = new mongoose.Types.ObjectId().toString();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    controller = activityLogControllerFactory();
-  });
+    controller = activityLogController();
 
-  // ─── fetchStudentDailyLog ───────────────────────────────────────────
-  describe('fetchStudentDailyLog', () => {
-    it('returns logs for the requesting student', async () => {
-      const logs = [buildMockLog()];
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        body: { requestor: { requestorId: '65cf6c3706d8ac105827bb2e' } },
-        query: {},
-      };
-
-      await controller.fetchStudentDailyLog(req, mockRes);
-
-      expect(ActivityLog.find).toHaveBeenCalledWith({
-        actor_id: expect.any(mongoose.Types.ObjectId),
-      });
-      expect(chain.sort).toHaveBeenCalledWith({ created_at: -1 });
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            log_id: '507f1f77bcf86cd799439011',
-            action_type: 'comment',
-          }),
-        ]),
-      );
+    ActivityLog.schema.path.mockImplementation((path) => {
+      if (path === 'action_type') {
+        return { enumValues: ['LOGIN', 'LOGOUT', 'SUBMIT_TASK', 'ATTENDANCE'] };
+      }
+      if (path === 'assisted_users') {
+        return {
+          schema: {
+            path: jest.fn().mockReturnValue({
+              enumValues: ['1-on-1', 'group', 'technical_support'],
+            }),
+          },
+        };
+      }
+      return {};
     });
 
-    it('returns 403 when requesting another student log', async () => {
-      const req = {
-        body: { requestor: { requestorId: '65cf6c3706d8ac105827bb2e' } },
-        query: { studentId: '65cf6c3706d8ac105827bb99' },
-      };
+    req = {
+      body: {
+        requestor: {
+          requestorId: validObjectId,
+          role: 'Student',
+        },
+      },
+      query: {},
+      params: {},
+    };
 
-      await controller.fetchStudentDailyLog(req, mockRes);
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+  });
 
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
+  describe('fetchStudentDailyLog', () => {
+    it('should return 400 if requestor studentId is missing or invalid', async () => {
+      req.body.requestor.requestorId = 'invalid-id';
+
+      await controller.fetchStudentDailyLog(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid studentId format' });
+    });
+
+    it('should return 400 if requested studentId in query has an invalid format', async () => {
+      req.query.studentId = 'invalid-query-id';
+
+      await controller.fetchStudentDailyLog(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid studentId format' });
+    });
+
+    it("should return 403 if requested studentId does not match requestor's studentId", async () => {
+      const otherStudentId = new mongoose.Types.ObjectId().toString();
+      req.query.studentId = otherStudentId;
+
+      await controller.fetchStudentDailyLog(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
         error: "Forbidden: Cannot access another student's log",
       });
     });
 
-    it('allows access when requested studentId matches own id', async () => {
-      const logs = [buildMockLog()];
-      const chain = {
+    it('should return 200 and formatted logs for a valid request', async () => {
+      const mockLog = {
+        _id: 'log123',
+        action_type: 'LOGIN',
+        metadata: { browser: 'Chrome' },
+        created_at: new Date(),
+        actor_id: validObjectId,
+        is_assisted: false,
+      };
+
+      ActivityLog.find.mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
+        select: jest.fn().mockResolvedValue([mockLog]),
+      });
 
-      const req = {
-        body: { requestor: { requestorId: '65cf6c3706d8ac105827bb2e' } },
-        query: { studentId: '65cf6c3706d8ac105827bb2e' },
-      };
+      await controller.fetchStudentDailyLog(req, res);
 
-      await controller.fetchStudentDailyLog(req, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith([
+        {
+          log_id: 'log123',
+          action_type: 'LOGIN',
+          metadata: { browser: 'Chrome' },
+          created_at: mockLog.created_at,
+          actor_id: validObjectId,
+          is_assisted: false,
+        },
+      ]);
     });
 
-    it('returns 500 on database error', async () => {
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockRejectedValue(new Error('DB fail')),
-      };
-      ActivityLog.find.mockReturnValue(chain);
+    it('should handle exceptions and return 500', async () => {
+      ActivityLog.find.mockImplementation(() => {
+        throw new Error('Database Failure');
+      });
 
-      const req = {
-        body: { requestor: { requestorId: '65cf6c3706d8ac105827bb2e' } },
-        query: {},
-      };
+      await controller.fetchStudentDailyLog(req, res);
 
-      await controller.fetchStudentDailyLog(req, mockRes);
-      await resolvePromises();
-
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
+      expect(logger.logException).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
   });
 
-  // ─── createStudentDailyLog ──────────────────────────────────────────
+  describe('fetchStudentDailyLogsByStaff', () => {
+    it('should return 400 if studentId param is missing', async () => {
+      req.params.studentId = '';
+
+      await controller.fetchStudentDailyLogsByStaff(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Missing studentId' });
+    });
+
+    it('should return 400 if studentId param is invalid', async () => {
+      req.params.studentId = 'bad-id';
+
+      await controller.fetchStudentDailyLogsByStaff(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid studentId format' });
+    });
+
+    it('should return 403 if staff member lacks readActivityLogs permission', async () => {
+      req.params.studentId = validObjectId;
+      hasPermission.mockResolvedValue(false);
+
+      await controller.fetchStudentDailyLogsByStaff(req, res);
+
+      expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'readActivityLogs');
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You are not authorized to view student logs',
+      });
+    });
+
+    it('should return 200 and logs when permission is granted', async () => {
+      req.params.studentId = validObjectId;
+      hasPermission.mockResolvedValue(true);
+
+      const mockLog = {
+        _id: 'log456',
+        action_type: 'SUBMIT_TASK',
+        metadata: {},
+        created_at: new Date(),
+        actor_id: validObjectId,
+        is_assisted: true,
+        assisted_users: [
+          {
+            user_id: validUserObjectId,
+            name: 'Jane Doe',
+            assisted_at: new Date(),
+            assistance_type: '1-on-1',
+          },
+        ],
+      };
+
+      ActivityLog.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        select: jest.fn().mockResolvedValue([mockLog]),
+      });
+
+      await controller.fetchStudentDailyLogsByStaff(req, res);
+
+      expect(res.json).toHaveBeenCalledWith([
+        {
+          log_id: 'log456',
+          action_type: 'SUBMIT_TASK',
+          metadata: {},
+          created_at: mockLog.created_at,
+          actor_id: validObjectId,
+          is_assisted: true,
+          assisted_users: [
+            {
+              user_id: validUserObjectId,
+              name: 'Jane Doe',
+              assisted_at: mockLog.assisted_users[0].assisted_at,
+              assistance_type: '1-on-1',
+            },
+          ],
+        },
+      ]);
+    });
+  });
+
   describe('createStudentDailyLog', () => {
-    const validRequestor = { requestorId: '65cf6c3706d8ac105827bb2e', role: 'Volunteer' };
+    it('should return 400 if actionType or entityId are missing', async () => {
+      req.body = { requestor: { requestorId: validObjectId } };
 
-    it('creates a log with valid data', async () => {
-      const savedLog = buildMockLog();
-      ActivityLog.create.mockResolvedValue(savedLog);
+      await controller.createStudentDailyLog(req, res);
 
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-          metadata: { text: 'hi' },
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(ActivityLog.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actor_id: '65cf6c3706d8ac105827bb2e',
-          action_type: 'comment',
-          entity_id: 'some-entity-id',
-          metadata: { text: 'hi' },
-          is_assisted: false,
-        }),
-      );
-      expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Activity log created successfully' }),
-      );
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'actionType and entityId are required' });
     });
 
-    it('returns 400 when actionType is missing', async () => {
-      const req = {
-        body: {
-          requestor: validRequestor,
-          entityId: 'some-entity-id',
-        },
-      };
+    it('should return 400 if actionType is invalid', async () => {
+      req.body.actionType = 'INVALID_ACTION';
+      req.body.entityId = 'entity123';
 
-      await controller.createStudentDailyLog(req, mockRes);
+      await controller.createStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'actionType and entityId are required' });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid actionType. Must be one of: LOGIN, LOGOUT, SUBMIT_TASK, ATTENDANCE',
+      });
     });
 
-    it('returns 400 when entityId is missing', async () => {
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'comment',
-        },
-      };
+    it('should return 403 if non-staff user attempts to set isAssisted to true', async () => {
+      req.body.actionType = 'LOGIN';
+      req.body.entityId = 'entity123';
+      req.body.isAssisted = true;
+      hasPermission.mockResolvedValue(false);
 
-      await controller.createStudentDailyLog(req, mockRes);
+      await controller.createStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'actionType and entityId are required' });
-    });
-
-    it('returns 400 for invalid actionType', async () => {
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'invalid_type',
-          entityId: 'some-entity-id',
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.stringContaining('Invalid actionType') }),
-      );
-    });
-
-    it('returns 403 when non-educator tries to set isAssisted', async () => {
-      const req = {
-        body: {
-          requestor: { ...validRequestor, role: 'Volunteer' },
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-          isAssisted: true,
-          assistedUsers: [{ userId: 'user1', assistanceType: 'edited' }],
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
         error: 'Only educators or administrators can set the assisted flag',
       });
     });
 
-    it('returns 400 when isAssisted is true but no assisted users provided', async () => {
-      const req = {
-        body: {
-          requestor: { ...validRequestor, role: 'Educator' },
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-          isAssisted: true,
-        },
-      };
+    it('should return 400 if isAssisted is true but assistedUsers is empty', async () => {
+      req.body.actionType = 'LOGIN';
+      req.body.entityId = 'entity123';
+      req.body.isAssisted = true;
+      req.body.assistedUsers = [];
+      hasPermission.mockResolvedValue(true);
 
-      await controller.createStudentDailyLog(req, mockRes);
+      await controller.createStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
         error: 'You must provide at least one assisted user if isAssisted is true',
       });
     });
 
-    it('returns 400 when isAssisted is true but assistedUsers is empty array', async () => {
-      const req = {
-        body: {
-          requestor: { ...validRequestor, role: 'Educator' },
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-          isAssisted: true,
-          assistedUsers: [],
-        },
-      };
+    it('should return 400 when an invalid userId is passed in assistedUsers', async () => {
+      req.body.actionType = 'LOGIN';
+      req.body.entityId = 'entity123';
+      req.body.isAssisted = true;
+      req.body.assistedUsers = [{ userId: 'invalid-user-id', assistanceType: '1-on-1' }];
+      hasPermission.mockResolvedValue(true);
 
-      await controller.createStudentDailyLog(req, mockRes);
+      await controller.createStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'You must provide at least one assisted user if isAssisted is true',
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'One or more provided userIds are invalid' });
     });
 
-    it('creates a log with assisted users when educator sets isAssisted', async () => {
-      const profileUser = {
-        _id: '65cf6c3706d8ac105827bb30',
-        firstName: 'Jane',
-        lastName: 'Doe',
-      };
+    it('should return 400 when an invalid assistanceType is provided', async () => {
+      req.body.actionType = 'LOGIN';
+      req.body.entityId = 'entity123';
+      req.body.isAssisted = true;
+      req.body.assistedUsers = [{ userId: validUserObjectId, assistanceType: 'INVALID_TYPE' }];
+      hasPermission.mockResolvedValue(true);
+
       usersProfiles.find.mockReturnValue({
-        select: jest.fn().mockResolvedValue([profileUser]),
+        select: jest
+          .fn()
+          .mockResolvedValue([{ _id: validUserObjectId, firstName: 'John', lastName: 'Doe' }]),
       });
 
-      const savedLog = buildAssistedLog();
-      ActivityLog.create.mockResolvedValue(savedLog);
+      await controller.createStudentDailyLog(req, res);
 
-      const req = {
-        body: {
-          requestor: { ...validRequestor, role: 'Educator' },
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-          isAssisted: true,
-          assistedUsers: [{ userId: '65cf6c3706d8ac105827bb30', assistanceType: 'edited' }],
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(usersProfiles.find).toHaveBeenCalledWith({
-        _id: { $in: [expect.any(mongoose.Types.ObjectId)] },
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: `Invalid assistanceType for user ${validUserObjectId}: INVALID_TYPE`,
       });
-      expect(ActivityLog.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          is_assisted: true,
-          assisted_users: expect.arrayContaining([
-            expect.objectContaining({
-              user_id: '65cf6c3706d8ac105827bb30',
-              name: 'Jane Doe',
-              assistance_type: 'edited',
-            }),
-          ]),
-        }),
-      );
-      expect(mockRes.status).toHaveBeenCalledWith(201);
     });
 
-    it('creates a log with assisted users when administrator sets isAssisted', async () => {
-      const profileUser = {
-        _id: '65cf6c3706d8ac105827bb30',
-        firstName: 'John',
-        lastName: 'Smith',
+    it('should successfully create an unassisted activity log', async () => {
+      req.body.actionType = 'LOGIN';
+      req.body.entityId = 'entity123';
+
+      const mockCreatedLog = {
+        _id: 'newLog123',
+        action_type: 'LOGIN',
+        metadata: {},
+        created_at: new Date(),
+        actor_id: validObjectId,
+        is_assisted: false,
       };
-      usersProfiles.find.mockReturnValue({
-        select: jest.fn().mockResolvedValue([profileUser]),
+
+      ActivityLog.create.mockResolvedValue(mockCreatedLog);
+
+      await controller.createStudentDailyLog(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Activity log created successfully',
+        log: expect.objectContaining({ log_id: 'newLog123', is_assisted: false }),
       });
-
-      ActivityLog.create.mockResolvedValue(buildAssistedLog());
-
-      const req = {
-        body: {
-          requestor: { ...validRequestor, role: 'Administrator' },
-          actionType: 'note',
-          entityId: 'entity-2',
-          isAssisted: true,
-          assistedUsers: [{ userId: '65cf6c3706d8ac105827bb30', assistanceType: 'created' }],
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(201);
-    });
-
-    it('defaults metadata to empty object when not provided', async () => {
-      ActivityLog.create.mockResolvedValue(buildMockLog());
-
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      expect(ActivityLog.create).toHaveBeenCalledWith(expect.objectContaining({ metadata: {} }));
-    });
-
-    it('returns 500 on database error', async () => {
-      ActivityLog.create.mockRejectedValue(new Error('DB error'));
-
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-      await resolvePromises();
-
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
-    });
-
-    it('returns formatted log in response', async () => {
-      const savedLog = buildMockLog({ is_assisted: false });
-      ActivityLog.create.mockResolvedValue(savedLog);
-
-      const req = {
-        body: {
-          requestor: validRequestor,
-          actionType: 'comment',
-          entityId: 'some-entity-id',
-        },
-      };
-
-      await controller.createStudentDailyLog(req, mockRes);
-
-      const responseBody = mockRes.json.mock.calls[0][0];
-      expect(responseBody.log).toEqual(
-        expect.objectContaining({
-          log_id: '507f1f77bcf86cd799439011',
-          action_type: 'comment',
-          is_assisted: false,
-        }),
-      );
-      expect(responseBody.log.assisted_users).toBeUndefined();
     });
   });
 
-  // ─── updateStudentDailyLog ──────────────────────────────────────────
   describe('updateStudentDailyLog', () => {
-    it('returns 400 when logId is missing', async () => {
-      const req = {
-        params: {},
-        body: { requestor: { role: 'Educator' } },
-      };
+    it('should return 400 if logId param is missing or invalid', async () => {
+      req.params.logId = 'invalid-log-id';
 
-      await controller.updateStudentDailyLog(req, mockRes);
+      await controller.updateStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid or missing logId' });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid or missing logId' });
     });
 
-    it('returns 403 when non-educator tries to update', async () => {
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: { requestor: { role: 'Volunteer' } },
-      };
+    it('should return 403 if user lacks updateActivityLogs permission', async () => {
+      req.params.logId = validObjectId;
+      hasPermission.mockResolvedValue(false);
 
-      await controller.updateStudentDailyLog(req, mockRes);
+      await controller.updateStudentDailyLog(req, res);
 
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
         error: 'Only educators or administrators can update the assisted flag',
       });
     });
 
-    it('returns 404 when log is not found', async () => {
+    it('should return 404 if the log is not found in database', async () => {
+      req.params.logId = validObjectId;
+      hasPermission.mockResolvedValue(true);
       ActivityLog.findById.mockResolvedValue(null);
 
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: { requestor: { role: 'Educator' } },
-      };
+      await controller.updateStudentDailyLog(req, res);
 
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Activity log not found' });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Activity log not found' });
     });
 
-    it('updates is_assisted to false when isAssisted is not set', async () => {
+    it('should return 400 if isAssisted is true but assistedUsers is omitted', async () => {
+      req.params.logId = validObjectId;
+      req.body.isAssisted = true;
+      hasPermission.mockResolvedValue(true);
+
+      const mockLog = { _id: validObjectId, save: jest.fn() };
+      ActivityLog.findById.mockResolvedValue(mockLog);
+
+      await controller.updateStudentDailyLog(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You must provide at least one assisted user if isAssisted is true',
+      });
+    });
+
+    it('should successfully update the activity log', async () => {
+      req.params.logId = validObjectId;
+      req.body.isAssisted = true;
+      req.body.assistedUsers = [{ userId: validUserObjectId, assistanceType: '1-on-1' }];
+
+      hasPermission.mockResolvedValue(true);
+
       const mockLog = {
-        _id: '507f1f77bcf86cd799439011',
-        is_assisted: true,
+        _id: validObjectId,
+        action_type: 'ATTENDANCE',
+        metadata: {},
+        created_at: new Date(),
+        actor_id: validObjectId,
+        is_assisted: false,
         assisted_users: [],
         save: jest.fn().mockResolvedValue(true),
       };
+
       ActivityLog.findById.mockResolvedValue(mockLog);
-
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockLog.is_assisted).toBe(false);
-      expect(mockLog.assisted_users).toEqual([]);
-      expect(mockLog.save).toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-    });
-
-    it('returns 400 when isAssisted is true but assistedUsers is missing', async () => {
-      const mockLog = {
-        _id: '507f1f77bcf86cd799439011',
-        is_assisted: false,
-        assisted_users: null,
-        save: jest.fn(),
-      };
-      ActivityLog.findById.mockResolvedValue(mockLog);
-
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: {
-          requestor: { role: 'Educator' },
-          isAssisted: true,
-        },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'You must provide at least one assisted user if isAssisted is true',
-      });
-    });
-
-    it('returns 400 when isAssisted is true but assistedUsers is empty', async () => {
-      const mockLog = {
-        _id: '507f1f77bcf86cd799439011',
-        is_assisted: false,
-        assisted_users: null,
-        save: jest.fn(),
-      };
-      ActivityLog.findById.mockResolvedValue(mockLog);
-
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: {
-          requestor: { role: 'Educator' },
-          isAssisted: true,
-          assistedUsers: [],
-        },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'You must provide at least one assisted user if isAssisted is true',
-      });
-    });
-
-    it('updates log with assisted users', async () => {
-      const profileUser = {
-        _id: '65cf6c3706d8ac105827bb30',
-        firstName: 'Jane',
-        lastName: 'Doe',
-      };
       usersProfiles.find.mockReturnValue({
-        select: jest.fn().mockResolvedValue([profileUser]),
+        select: jest
+          .fn()
+          .mockResolvedValue([{ _id: validUserObjectId, firstName: 'Alex', lastName: 'Smith' }]),
       });
 
-      const mockLog = {
-        _id: '507f1f77bcf86cd799439011',
-        is_assisted: false,
-        assisted_users: null,
-        save: jest.fn().mockResolvedValue(true),
-      };
-      ActivityLog.findById.mockResolvedValue(mockLog);
+      await controller.updateStudentDailyLog(req, res);
 
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: {
-          requestor: { role: 'Educator' },
-          isAssisted: true,
-          assistedUsers: [{ userId: '65cf6c3706d8ac105827bb30', assistanceType: 'edited' }],
-        },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockLog.is_assisted).toBe(true);
-      expect(mockLog.assisted_users).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            user_id: '65cf6c3706d8ac105827bb30',
-            name: 'Jane Doe',
-            assistance_type: 'edited',
-          }),
-        ]),
-      );
       expect(mockLog.save).toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Activity log updated successfully' }),
-      );
-    });
-
-    it('allows administrator to update assisted flag', async () => {
-      const mockLog = {
-        _id: '507f1f77bcf86cd799439011',
-        is_assisted: false,
-        assisted_users: null,
-        save: jest.fn().mockResolvedValue(true),
-      };
-      ActivityLog.findById.mockResolvedValue(mockLog);
-
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: {
-          requestor: { role: 'Administrator' },
-          isAssisted: false,
-        },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-    });
-
-    it('returns 500 on database error', async () => {
-      ActivityLog.findById.mockRejectedValue(new Error('DB fail'));
-
-      const req = {
-        params: { logId: '507f1f77bcf86cd799439011' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.updateStudentDailyLog(req, mockRes);
-      await resolvePromises();
-
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
-    });
-  });
-
-  // ─── fetchEducatorDailyLog ──────────────────────────────────────────
-  describe('fetchEducatorDailyLog', () => {
-    it('returns logs for a student when educator is authorized', async () => {
-      const logs = [buildMockLog()];
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      expect(ActivityLog.find).toHaveBeenCalledWith({
-        actor_id: expect.any(mongoose.Types.ObjectId),
-      });
-      expect(mockRes.json).toHaveBeenCalled();
-    });
-
-    it('returns logs for a student when administrator is authorized', async () => {
-      const logs = [buildMockLog()];
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Administrator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalled();
-    });
-
-    it('returns 400 when studentId is missing', async () => {
-      const req = {
-        params: {},
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Missing studentId' });
-    });
-
-    it('returns 403 when user is not an educator or administrator', async () => {
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Volunteer' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Only Educators can view students logs',
-      });
-    });
-
-    it('returns 500 on database error', async () => {
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockRejectedValue(new Error('DB fail')),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-      await resolvePromises();
-
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
-    });
-
-    it('returns formatted logs with correct fields', async () => {
-      const logs = [
-        buildMockLog({
-          action_type: 'note',
-          metadata: { key: 'value' },
-          is_assisted: false,
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Activity log updated successfully',
+        log: expect.objectContaining({
+          log_id: validObjectId,
+          is_assisted: true,
         }),
-      ];
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      const response = mockRes.json.mock.calls[0][0];
-      expect(response[0]).toEqual(
-        expect.objectContaining({
-          log_id: '507f1f77bcf86cd799439011',
-          action_type: 'note',
-          metadata: { key: 'value' },
-          is_assisted: false,
-        }),
-      );
-      expect(response[0].assisted_users).toBeUndefined();
-    });
-
-    it('includes assisted_users in formatted logs when is_assisted is true', async () => {
-      const logs = [buildAssistedLog()];
-      const chain = {
-        sort: jest.fn().mockReturnThis(),
-        select: jest.fn().mockResolvedValue(logs),
-      };
-      ActivityLog.find.mockReturnValue(chain);
-
-      const req = {
-        params: { studentId: '65cf6c3706d8ac105827bb2e' },
-        body: { requestor: { role: 'Educator' } },
-      };
-
-      await controller.fetchEducatorDailyLog(req, mockRes);
-
-      const response = mockRes.json.mock.calls[0][0];
-      expect(response[0].is_assisted).toBe(true);
-      expect(response[0].assisted_users).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            user_id: '65cf6c3706d8ac105827bb30',
-            name: 'Jane Doe',
-            assistance_type: 'edited',
-          }),
-        ]),
-      );
+      });
     });
   });
 });
