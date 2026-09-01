@@ -1141,8 +1141,14 @@ const overviewReportHelper = function () {
       };
     }
 
-    // non-comparison branch
+    // non-comparison branch — filter by the same date range so the count reflects                                        
+    // tasks modified (completed/activated) within the selected period, not all time. 
     const taskStats = await Task.aggregate([
+      {
+        $match: {
+          modifiedDatetime: { $gte: startDate, $lte: endDate },
+        },
+      },
       {
         $group: {
           _id: '$status',
