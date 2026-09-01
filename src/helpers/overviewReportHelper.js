@@ -1141,8 +1141,13 @@ const overviewReportHelper = function () {
       };
     }
 
-    // non-comparison branch
+    // Apply the selected range even when comparison mode is off.
     const taskStats = await Task.aggregate([
+      {
+        $match: {
+          modifiedDatetime: { $gte: startDate, $lte: endDate },
+        },
+      },
       {
         $group: {
           _id: '$status',
