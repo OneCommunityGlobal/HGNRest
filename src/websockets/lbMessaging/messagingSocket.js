@@ -49,48 +49,21 @@ export default () => {
     });
   };
 
-  // Store multiple connections per user: { userId: [{ socket, isActive, inChatWith }] }
+  // Single connection per user: userConnections.get(userId) is
+  // { socket, isActive, inChatWith } | undefined. A new connection for the
+  // same user replaces the previous entry (last connection wins).
   const userConnections = new Map();
 
-  // Helper functions for connection management
-  const addUserConnection = (userId, ws) => {
-    if (!userConnections.has(userId)) {
-      userConnections.set(userId, []);
-    }
-    userConnections.get(userId).push({ socket: ws, isActive: true, inChatWith: null });
-  };
-
-  const removeUserConnection = (userId, ws) => {
-    const connections = userConnections.get(userId);
-    if (!connections) return;
-
-    const connectionIndex = connections.findIndex((conn) => conn.socket === ws);
-    if (connectionIndex !== -1) {
-      connections.splice(connectionIndex, 1);
-      if (connections.length === 0) {
-        userConnections.delete(userId);
-      }
-    }
-  };
-
   const getActiveConnections = (userId) => {
-    const connections = userConnections.get(userId);
-    if (!connections) return [];
+    const connection = userConnections.get(userId);
+    if (!connection) return [];
 
-    // Filter out closed connections
-    const activeConnections = connections.filter(
-      (conn) => conn.socket && conn.socket.readyState === Websockets.OPEN,
-    );
-
-    // Update the connections array if any were filtered out
-    if (activeConnections.length !== connections.length) {
-      userConnections.set(userId, activeConnections);
-      if (activeConnections.length === 0) {
-        userConnections.delete(userId);
-      }
+    if (!connection.socket || connection.socket.readyState !== Websockets.OPEN) {
+      userConnections.delete(userId);
+      return [];
     }
 
-    return activeConnections;
+    return [connection];
   };
 
   const broadcastToUser = (userId, message) => {
@@ -141,22 +114,30 @@ export default () => {
 
     if (!message) return;
 
-    // Broadcast to sender
-    broadcastToUser(message.sender, {
-      action: 'MESSAGE_STATUS_UPDATED',
-      payload: { messageId: message._id, status },
-    });
+    const senderSocket = userConnections.get(message.sender)?.socket;
+    if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
+      senderSocket.send(
+        JSON.stringify({
+          action: 'MESSAGE_STATUS_UPDATED',
+          payload: { messageId: message._id, status },
+        }),
+      );
+    }
 
-    // Broadcast to receiver
-    broadcastToUser(message.receiver, {
-      action: 'MESSAGE_STATUS_UPDATED',
-      payload: { messageId: message._id, status },
-    });
+    const receiverSocket = userConnections.get(message.receiver)?.socket;
+    if (receiverSocket && receiverSocket.readyState === Websockets.OPEN) {
+      receiverSocket.send(
+        JSON.stringify({
+          action: 'MESSAGE_STATUS_UPDATED',
+          payload: { messageId: message._id, status },
+        }),
+      );
+    }
   };
 
   wss.on('connection', (ws, req) => {
     const { userId } = req;
-    addUserConnection(userId, ws);
+    userConnections.set(userId, { socket: ws, isActive: true, inChatWith: null });
 
     ws.on('message', async (data) => {
       const msg = JSON.parse(data.toString());
@@ -165,25 +146,23 @@ export default () => {
         try {
           const savedMessage = await sendMessageHandler(msg, userId);
 
-          // Send confirmation to sender
-          broadcastToUser(userId, {
-            action: 'RECEIVE_MESSAGE',
-            payload: savedMessage,
-          });
-
+          const senderState = userConnections.get(userId);
+          if (senderState?.socket?.readyState === Websockets.OPEN) {
+            senderState.socket.send(
+              JSON.stringify({
+                action: 'RECEIVE_MESSAGE',
+                payload: savedMessage,
+              }),
+            );
+          }
           const senderProfile = await UserProfile.findById(userId).select('firstName lastName');
           const senderName = `${senderProfile.firstName} ${senderProfile.lastName}`;
 
-          // Check if receiver has active connections
-          const receiverConnections = getActiveConnections(msg.receiver);
-          if (receiverConnections.length > 0) {
-            // Determine message status based on receiver's state
-            const isReceiverInChat = receiverConnections.some((conn) => conn.inChatWith === userId);
-            const isReceiverActive = receiverConnections.some((conn) => conn.isActive);
-
-            if (isReceiverInChat) {
+          const receiverState = userConnections.get(msg.receiver);
+          if (receiverState) {
+            if (receiverState.inChatWith === userId) {
               savedMessage.status = 'read';
-            } else if (isReceiverActive) {
+            } else if (receiverState.isActive) {
               savedMessage.status = 'delivered';
             } else {
               savedMessage.status = 'sent';
@@ -197,7 +176,7 @@ export default () => {
             });
 
             // Send notification if receiver is active but not in chat with sender
-            if (isReceiverActive && !isReceiverInChat) {
+            if (receiverState.isActive && receiverState.inChatWith !== userId) {
               const userPreference = await UserPreference.findOne({ user: msg.receiver });
               const allowGlobalInApp =
                 userPreference?.notifyInApp === undefined ? true : userPreference.notifyInApp;
@@ -219,8 +198,8 @@ export default () => {
 
               sendNewMessageSms(userPreference, senderName);
             }
+            broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
           } else {
-            // Receiver is offline, create notification
             const userPreference = await UserPreference.findOne({ user: msg.receiver });
             const allowGlobalInApp =
               userPreference?.notifyInApp === undefined ? true : userPreference.notifyInApp;
@@ -244,8 +223,6 @@ export default () => {
               sendNewMessageEmail(msg.receiver, senderName);
             }
           }
-
-          broadcastStatusUpdate(savedMessage._id, savedMessage.status, userId);
         } catch (error) {
           console.error('❌ Error sending message:', error);
           ws.send(
@@ -256,12 +233,11 @@ export default () => {
           );
         }
       } else if (msg.action === 'UPDATE_CHAT_STATE') {
-        // Update chat state for all connections of this user
-        const connections = getActiveConnections(userId);
-        connections.forEach((conn) => {
-          conn.isActive = msg.isActive;
-          conn.inChatWith = msg.inChatWith || null;
-        });
+        const userState = userConnections.get(userId);
+        if (userState) {
+          userState.isActive = msg.isActive;
+          userState.inChatWith = msg.inChatWith || null;
+        }
       } else if (msg.action === 'MARK_MESSAGES_AS_READ') {
         try {
           const { contactId } = msg;
@@ -275,11 +251,15 @@ export default () => {
             { $set: { status: 'read' } },
           );
 
-          // Notify sender about read status
-          broadcastToUser(contactId, {
-            action: 'MESSAGE_STATUS_UPDATED',
-            payload: { contactId, status: 'read' },
-          });
+          const senderSocket = userConnections.get(contactId)?.socket;
+          if (senderSocket && senderSocket.readyState === Websockets.OPEN) {
+            senderSocket.send(
+              JSON.stringify({
+                action: 'MESSAGE_STATUS_UPDATED',
+                payload: { contactId, status: 'read' },
+              }),
+            );
+          }
         } catch (error) {
           console.error('❌ Error marking messages as read:', error);
         }
@@ -287,7 +267,7 @@ export default () => {
     });
 
     ws.on('close', () => {
-      removeUserConnection(userId, ws);
+      userConnections.delete(userId);
     });
   });
 
