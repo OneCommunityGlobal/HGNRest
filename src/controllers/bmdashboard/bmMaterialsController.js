@@ -302,6 +302,55 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
+  const bmApplyMaterialBulkAction = async function (req, res) {
+    const { materialIds, action, notes } = req.body;
+
+    if (!Array.isArray(materialIds) || materialIds.length === 0) {
+      return res.status(400).send('At least one material id is required.');
+    }
+
+    if (!materialIds.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).send('One or more material ids are invalid.');
+    }
+
+    if (!['hold', 'review', 'notes'].includes(action)) {
+      return res.status(400).send('Invalid bulk action.');
+    }
+
+    const update = {};
+
+    if (action === 'hold') {
+      update.$set = { stockHold: true };
+    }
+
+    if (action === 'review') {
+      update.$set = { isReviewed: true };
+    }
+
+    if (action === 'notes') {
+      const trimmedNotes = typeof notes === 'string' ? notes.trim() : '';
+      if (!trimmedNotes) {
+        return res.status(400).send('Notes content is required for notes action.');
+      }
+      update.$set = { notes: trimmedNotes };
+    }
+
+    try {
+      const result = await BuildingMaterial.updateMany(
+        {
+          _id: { $in: materialIds },
+        },
+        update,
+      );
+
+      return res.status(200).send({
+        result: `Applied '${action}' to ${result.modifiedCount} material records.`,
+      });
+    } catch (error) {
+      return res.status(500).send(error);
+    }
+  };
+
   const bmupdatePurchaseStatus = async function (req, res) {
     const { purchaseId, status, quantity } = req.body;
     try {
@@ -584,6 +633,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     bmMaterialsList,
     bmPostMaterialUpdateRecord,
     bmPostMaterialUpdateBulk,
+    bmApplyMaterialBulkAction,
     bmPurchaseMaterials,
     bmupdatePurchaseStatus,
     bmGetMaterialSummaryByProject,
