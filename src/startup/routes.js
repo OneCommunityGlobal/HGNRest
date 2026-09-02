@@ -466,6 +466,10 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   resourceRequestController,
 );
 
+const gardenCalendarRouter = require('../routes/gardenManagement/gardenCalendarRouter');
+const seedInventoryRouter = require('../routes/gardenManagement/seedInventoryRouter');
+const seedOrderRouter = require('../routes/gardenManagement/seedOrderRouter');
+
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
 
@@ -728,4 +732,9 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
+
+  // Kitchen and Inventory - Garden Management
+  app.use('/api/kitchenandinventory/gardenmanagement/calendar', gardenCalendarRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/seeds', seedInventoryRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/orders', seedOrderRouter);
 };
