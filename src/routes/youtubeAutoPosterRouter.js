@@ -7,6 +7,7 @@ const {
   connectYoutubeAccount,
   getYoutubeAuthorizationUrl,
   getYoutubeConnectionStatus,
+  getYoutubeVideoCategories,
   uploadVideo,
 } = require('../controllers/youtubeAutoPoster');
 
@@ -69,6 +70,7 @@ const router = express.Router();
 
 router.get('/auth-url', getYoutubeAuthorizationUrl);
 router.get('/status', getYoutubeConnectionStatus);
+router.get('/categories', getYoutubeVideoCategories);
 router.post('/connect', connectYoutubeAccount);
 router.post('/upload', upload.single('video'), handleUpload);
 

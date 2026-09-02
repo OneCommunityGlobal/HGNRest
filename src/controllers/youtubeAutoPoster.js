@@ -282,11 +282,8 @@ const buildYoutubeRequestBody = (metadata) => {
   return { snippet, status };
 };
 
-const getYoutubeErrorMessage = (error) =>
-  error.response?.data?.error?.message ||
-  error.errors?.[0]?.message ||
-  error.message ||
-  'Failed to upload video to YouTube';
+const getYoutubeErrorMessage = (error, fallback = 'Failed to upload video to YouTube') =>
+  error.response?.data?.error?.message || error.errors?.[0]?.message || error.message || fallback;
 
 const getYoutubeAuthorizationUrl = (req, res) => {
   try {
@@ -421,6 +418,34 @@ const getYoutubeConnectionStatus = async (req, res) => {
   }
 };
 
+const getYoutubeVideoCategories = async (req, res) => {
+  try {
+    const youtube = createYoutubeClient(req);
+    const { regionCode, hl } = req.query || {};
+    const response = await youtube.videoCategories.list({
+      part: ['snippet'],
+      ...(regionCode ? { regionCode } : {}),
+      ...(hl ? { hl } : {}),
+    });
+
+    const categories = (response?.data?.items || []).map((category) => ({
+      id: category.id,
+      title: category.snippet?.title || null,
+      assignable: category.snippet?.assignable ?? false,
+    }));
+
+    return res.status(200).json({ success: true, categories });
+  } catch (error) {
+    const statusCode = error.response?.status || error.statusCode;
+    const safeStatusCode =
+      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
+    return res.status(safeStatusCode).json({
+      success: false,
+      message: getYoutubeErrorMessage(error, 'Failed to fetch YouTube video categories'),
+    });
+  }
+};
+
 /**
  * Receives one multipart file named `video` and YouTube metadata supplied either
  * as a JSON `metadata` form field or as individual multipart text fields.
@@ -482,6 +507,7 @@ module.exports = {
   getYoutubeAuthorizationUrl,
   connectYoutubeAccount,
   getYoutubeConnectionStatus,
+  getYoutubeVideoCategories,
   uploadVideo,
   normalizeUploadMetadata,
   buildYoutubeRequestBody,
