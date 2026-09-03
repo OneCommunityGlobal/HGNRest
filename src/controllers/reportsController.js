@@ -2,6 +2,7 @@
 /* eslint-disable consistent-return */
 const fs = require('node:fs');
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 // eslint-disable-next-line import/no-unresolved
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
@@ -600,17 +601,67 @@ const reportsController = function () {
    */
   const getBlueSquareStats = async function (req, res) {
     try {
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, comparisonStartDate, comparisonEndDate } = req.query;
 
       if (!startDate || !endDate) {
         res.status(400).send('Please provide startDate and endDate');
         return;
       }
 
-      const blueSquareStats = await overviewReportHelper.getBlueSquareStats(startDate, endDate);
-      const blueSquareCount = blueSquareStats.length > 0 ? blueSquareStats[0].infringements : 0;
+      const isoStartDate = moment.tz(startDate, 'YYYY-MM-DD', 'America/Los_Angeles').startOf('day');
+      const isoEndDate = moment.tz(endDate, 'YYYY-MM-DD', 'America/Los_Angeles').endOf('day');
 
-      res.status(200).json({ msg: { blueSquareCount } });
+      if (!isoStartDate.isValid() || !isoEndDate.isValid()) {
+        res.status(400).send('Please provide valid startDate and endDate in YYYY-MM-DD format');
+        return;
+      }
+
+      let isoComparisonStartDate;
+      let isoComparisonEndDate;
+
+      if (comparisonStartDate && comparisonEndDate) {
+        isoComparisonStartDate = moment
+          .tz(comparisonStartDate, 'YYYY-MM-DD', 'America/Los_Angeles')
+          .startOf('day')
+          .toDate();
+        isoComparisonEndDate = moment
+          .tz(comparisonEndDate, 'YYYY-MM-DD', 'America/Los_Angeles')
+          .endOf('day')
+          .toDate();
+
+        if (!moment(isoComparisonStartDate).isValid() || !moment(isoComparisonEndDate).isValid()) {
+          res
+            .status(400)
+            .send(
+              'Please provide valid comparisonStartDate and comparisonEndDate in YYYY-MM-DD format',
+            );
+          return;
+        }
+      }
+
+      const blueSquareStats = await overviewReportHelper.getBlueSquareStats(
+        isoStartDate.toDate(),
+        isoEndDate.toDate(),
+        isoComparisonStartDate,
+        isoComparisonEndDate,
+      );
+      const blueSquareCount = blueSquareStats.totalBlueSquares?.count || 0;
+      const chartData = Object.entries(blueSquareStats)
+        .filter(([, value]) => value?.count > 0)
+        .reduce((accum, [key, value]) => {
+          if (key !== 'totalBlueSquares') {
+            accum[key] = value;
+          }
+          return accum;
+        }, {});
+
+      res.status(200).json({
+        msg: {
+          blueSquareCount,
+          ...blueSquareStats,
+          chartData,
+        },
+      });
     } catch (error) {
       res.status(404).send(error);
     }

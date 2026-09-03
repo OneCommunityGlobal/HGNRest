@@ -779,6 +779,8 @@ const userHelper = function () {
         createdDate: hasTimeOffRequest
           ? moment(requestsForTimeOff[0].createdAt).format('YYYY-MM-DD')
           : null,
+        appliesToWeekStart: pdtStartOfLastWeek.format('YYYY-MM-DD'),
+        appliesToWeekEnd: pdtEndOfLastWeek.format('YYYY-MM-DD'),
       };
 
       if (!isNewUser) {

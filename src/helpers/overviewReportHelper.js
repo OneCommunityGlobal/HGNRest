@@ -103,6 +103,20 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+async function getRoleDistributionStatsOuter() {
+  const matchStage = { isActive: true };
+  const result = await UserProfile.aggregate([
+    { $match: matchStage },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+
+  return result;
+}
+
+async function getRoleDistributionStats() {
+  return getRoleDistributionStatsOuter();
+}
+
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -719,52 +733,197 @@ const overviewReportHelper = function () {
     isoComparisonStartDate,
     isoComparisonEndDate,
   ) {
+    const laTimeZone = 'America/Los_Angeles';
+
+    const buildBlueSquareBasePipeline = (startDate, endDate) => [
+      {
+        $unwind: {
+          path: '$infringements',
+        },
+      },
+      {
+        // Normalize short-form dates before parsing.
+        $addFields: {
+          'infringements.fixedDateString': {
+            $cond: [
+              {
+                $regexMatch: {
+                  input: '$infringements.date',
+                  regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
+                },
+              },
+              {
+                $concat: [
+                  { $substr: ['$infringements.date', 0, 6] },
+                  '-20',
+                  { $substr: ['$infringements.date', 7, 2] },
+                ],
+              },
+              '$infringements.date',
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          'infringements.parsedDate': {
+            $cond: [
+              { $eq: [{ $type: '$infringements.date' }, 'date'] },
+              '$infringements.date',
+              {
+                $cond: [
+                  {
+                    $regexMatch: {
+                      input: '$infringements.fixedDateString',
+                      regex: /^\d{4}-\d{2}-\d{2}T/,
+                    },
+                  },
+                  {
+                    $convert: {
+                      input: '$infringements.fixedDateString',
+                      to: 'date',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                  {
+                    $cond: [
+                      {
+                        $regexMatch: {
+                          input: '$infringements.fixedDateString',
+                          regex: /^\d{4}-\d{2}-\d{2}$/,
+                        },
+                      },
+                      {
+                        $dateFromString: {
+                          dateString: '$infringements.fixedDateString',
+                          timezone: laTimeZone,
+                          onError: null,
+                          onNull: null,
+                        },
+                      },
+                      {
+                        $cond: [
+                          {
+                            $regexMatch: {
+                              input: '$infringements.fixedDateString',
+                              regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
+                            },
+                          },
+                          {
+                            $dateFromString: {
+                              dateString: '$infringements.fixedDateString',
+                              format: '%b-%d-%Y',
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                          {
+                            $cond: [
+                              { $eq: [{ $type: '$infringements.fixedDateString' }, 'string'] },
+                              {
+                                $dateFromString: {
+                                  dateString: {
+                                    $arrayElemAt: [
+                                      {
+                                        $split: [
+                                          { $substr: ['$infringements.fixedDateString', 4, 100] },
+                                          ' (',
+                                        ],
+                                      },
+                                      0,
+                                    ],
+                                  },
+                                  format: '%b %d %Y %H:%M:%S GMT%z',
+                                  onError: null,
+                                  onNull: null,
+                                },
+                              },
+                              null,
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          'infringements.effectiveDate': {
+            $cond: [
+              {
+                $and: [
+                  {
+                    $regexMatch: {
+                      input: '$infringements.appliesToWeekStart',
+                      regex: /^\d{4}-\d{2}-\d{2}$/,
+                    },
+                  },
+                ],
+              },
+              {
+                $dateFromString: {
+                  dateString: '$infringements.appliesToWeekStart',
+                  timezone: laTimeZone,
+                  onError: null,
+                  onNull: null,
+                },
+              },
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ['$infringements.parsedDate', null] },
+                      {
+                        $regexMatch: {
+                          input: '$infringements.description',
+                          regex:
+                            /not meeting weekly volunteer time commitment|not submitting a weekly summary/i,
+                        },
+                      },
+                    ],
+                  },
+                  { $subtract: ['$infringements.parsedDate', 24 * 60 * 60 * 1000] },
+                  '$infringements.parsedDate',
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $match: {
+          'infringements.effectiveDate': {
+            $ne: null,
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+    ];
+
     const getData = async (startDate, endDate) =>
       UserProfile.aggregate([
-        {
-          $unwind: {
-            path: '$infringements',
-          },
-        },
-        {
-          $addFields: {
-            'infringements.parsedDate': {
-              $convert: {
-                input: '$infringements.date',
-                to: 'date',
-                onError: null,
-                onNull: null,
-              },
-            },
-          },
-        },
-        {
-          $match: {
-            'infringements.parsedDate': {
-              $ne: null,
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
+        ...buildBlueSquareBasePipeline(startDate, endDate),
         {
           $addFields: {
             'infringements.reason': {
-              $switch: {
-                branches: [
-                  {
-                    // Matches when user is on vacation
-                    case: {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /request for time off/i,
-                      },
-                    },
-                    then: 'vacationTime',
+              $cond: [
+                {
+                  $regexMatch: {
+                    input: '$infringements.description',
+                    regex: /request for time off/i,
                   },
-                  {
-                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
-                    case: {
+                },
+                'vacationTime',
+                {
+                  $cond: [
+                    {
                       $and: [
                         {
                           $regexMatch: {
@@ -780,31 +939,33 @@ const overviewReportHelper = function () {
                         },
                       ],
                     },
-                    then: 'missingHoursAndSummary',
-                  },
-                  {
-                    // Matches "not meeting weekly volunteer time commitment" only
-                    case: {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /not meeting weekly volunteer time commitment/i,
-                      },
+                    'missingHoursAndSummary',
+                    {
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: '$infringements.description',
+                            regex: /not meeting weekly volunteer time commitment/i,
+                          },
+                        },
+                        'missingHours',
+                        {
+                          $cond: [
+                            {
+                              $regexMatch: {
+                                input: '$infringements.description',
+                                regex: /not submitting a weekly summary/i,
+                              },
+                            },
+                            'missingSummary',
+                            'other',
+                          ],
+                        },
+                      ],
                     },
-                    then: 'missingHours',
-                  },
-                  {
-                    // Matches "not submitting a weekly summary" only
-                    case: {
-                      $regexMatch: {
-                        input: '$infringements.description',
-                        regex: /not submitting a weekly summary/i,
-                      },
-                    },
-                    then: 'missingSummary',
-                  },
-                ],
-                default: 'other',
-              },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -818,32 +979,7 @@ const overviewReportHelper = function () {
 
     const getTotalBlueSquares = async (startDate, endDate) =>
       UserProfile.aggregate([
-        {
-          $unwind: {
-            path: '$infringements',
-          },
-        },
-        {
-          $addFields: {
-            'infringements.parsedDate': {
-              $convert: {
-                input: '$infringements.date',
-                to: 'date',
-                onError: null,
-                onNull: null,
-              },
-            },
-          },
-        },
-        {
-          $match: {
-            'infringements.parsedDate': {
-              $ne: null,
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
+        ...buildBlueSquareBasePipeline(startDate, endDate),
         {
           $count: 'totalBlueSquares',
         },
@@ -1004,25 +1140,6 @@ const overviewReportHelper = function () {
         comparisonPercentage: comparisonPercentageNotInTeam,
       },
     };
-  }
-
-  /** aggregates role distribution statistics
-   * counts total number of volunteers that fall within each of the different roles
-   * NOTE: This shows ALL active users regardless of createdDate to provide
-   * a complete picture of current role distribution in the organization
-   */
-  async function getRoleDistributionStats() {
-    // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users.
-    // Role distribution is a live snapshot, not a time-series metric, so comparison
-    // periods do not apply here — always return a flat array of {_id: role, count}.
-    const matchStage = { isActive: true };
-    const result = await UserProfile.aggregate([
-      { $match: matchStage },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-    ]);
-
-    return result;
   }
 
   /**
@@ -1981,47 +2098,45 @@ const overviewReportHelper = function () {
       {
         $addFields: {
           fixedDateString: {
-            $cond: {
-              if: {
+            $cond: [
+              {
                 $regexMatch: {
                   input: '$badgeCollection.earnedDate',
                   regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
               },
-              then: {
+              {
                 $concat: [
                   { $substr: ['$badgeCollection.earnedDate', 0, 6] },
                   '-20',
                   { $substr: ['$badgeCollection.earnedDate', 7, 2] },
                 ],
               },
-              else: '$badgeCollection.earnedDate',
-            },
+              '$badgeCollection.earnedDate',
+            ],
           },
         },
       },
       {
         $addFields: {
           earnedDateParsed: {
-            $switch: {
-              branches: [
-                {
-                  case: {
-                    $regexMatch: {
-                      input: '$fixedDateString',
-                      regex: /T\d{2}:/,
-                    },
-                  },
-                  then: { $toDate: '$fixedDateString' },
+            $cond: [
+              {
+                $regexMatch: {
+                  input: '$fixedDateString',
+                  regex: /T\d{2}:/,
                 },
-                {
-                  case: {
+              },
+              { $toDate: '$fixedDateString' },
+              {
+                $cond: [
+                  {
                     $regexMatch: {
                       input: '$fixedDateString',
                       regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
                     },
                   },
-                  then: {
+                  {
                     $dateFromString: {
                       dateString: '$fixedDateString',
                       format: '%b-%d-%Y',
@@ -2029,10 +2144,10 @@ const overviewReportHelper = function () {
                       onNull: null,
                     },
                   },
-                },
-              ],
-              default: null,
-            },
+                  null,
+                ],
+              },
+            ],
           },
         },
       },

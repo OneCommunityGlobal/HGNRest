@@ -130,6 +130,9 @@ const userProfileSchema = new Schema({
       date: { type: String, required: true },
       description: { type: String, required: true },
       createdDate: { type: String },
+      // Week window the infringement is intended to represent in reporting
+      appliesToWeekStart: { type: String },
+      appliesToWeekEnd: { type: String },
 
       reason: {
         type: String,
