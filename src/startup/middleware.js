@@ -91,6 +91,23 @@ module.exports = function (app) {
       return;
     }
 
+    const pathOnly = req.originalUrl.split('?')[0];
+
+    // Public: load job application forms (applicants are not logged in)
+    if (
+      req.method === 'GET' &&
+      (pathOnly === '/api/jobforms/all' || /^\/api\/jobforms\/[^/]+$/.test(pathOnly))
+    ) {
+      next();
+      return;
+    }
+
+    // Public: job application form submission (no auth required — external applicants)
+    if (pathOnly.match(/^\/api\/jobforms\/[^/]+\/responses$/) && req.method === 'POST') {
+      next();
+      return;
+    }
+
     if (req.originalUrl.startsWith('/api/bluesky')) {
       next();
       return;
