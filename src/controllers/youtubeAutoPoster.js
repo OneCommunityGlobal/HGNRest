@@ -8,6 +8,7 @@ const TITLE_MAX_LENGTH = 100;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const TAGS_MAX_LENGTH = 500;
 const HTTP_STATUS_UPPER_BOUND = 600;
+const HTTP_BAD_GATEWAY = 502;
 const YOUTUBE_WATCH_URL = 'https://www.youtube.com/watch?v=';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
 const YOUTUBE_READ_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
@@ -376,6 +377,60 @@ const connectYoutubeAccount = async (req, res) => {
   }
 };
 
+/**
+ * Revokes the connected user's YouTube refresh token and clears the YouTube
+ * credentials from the current session.
+ */
+const disconnectYoutubeAccount = async (req, res) => {
+  const { session } = req;
+  const requestorId = getRequestorId(req);
+  const credentialsBelongToRequestor =
+    Boolean(requestorId) && session?.youtubeConnectedUserId === requestorId;
+  const refreshToken = credentialsBelongToRequestor
+    ? session?.youtubeCredentials?.refresh_token
+    : undefined;
+
+  const clearSessionCredentials = () => {
+    if (!session || !credentialsBelongToRequestor) return;
+    delete session.youtubeCredentials;
+    delete session.youtubeConnectedUserId;
+    delete session.youtubeOAuth;
+  };
+
+  if (!refreshToken) {
+    clearSessionCredentials();
+    return res.status(200).json({
+      success: true,
+      connected: false,
+      message: 'YouTube account is already disconnected',
+    });
+  }
+
+  try {
+    const oauthClient = createOAuthClient();
+    await oauthClient.revokeToken(refreshToken);
+    clearSessionCredentials();
+
+    return res.status(200).json({
+      success: true,
+      connected: false,
+      message: 'YouTube account disconnected successfully',
+    });
+  } catch (error) {
+    // Clear local credentials even when Google cannot revoke the token, so the
+    // disconnected session can no longer be used for YouTube operations.
+    clearSessionCredentials();
+    const statusCode = error.response?.status || error.statusCode;
+    const safeStatusCode =
+      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : HTTP_BAD_GATEWAY;
+    return res.status(safeStatusCode).json({
+      success: false,
+      connected: false,
+      message: getYoutubeErrorMessage(error, 'Failed to revoke YouTube account access'),
+    });
+  }
+};
+
 const getYoutubeConnectionStatus = async (req, res) => {
   try {
     const requestorId = getRequestorId(req);
@@ -506,6 +561,7 @@ const uploadVideo = async (req, res) => {
 module.exports = {
   getYoutubeAuthorizationUrl,
   connectYoutubeAccount,
+  disconnectYoutubeAccount,
   getYoutubeConnectionStatus,
   getYoutubeVideoCategories,
   uploadVideo,

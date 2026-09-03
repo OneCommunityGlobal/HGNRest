@@ -5,6 +5,7 @@ const express = require('express');
 const multer = require('multer');
 const {
   connectYoutubeAccount,
+  disconnectYoutubeAccount,
   getYoutubeAuthorizationUrl,
   getYoutubeConnectionStatus,
   getYoutubeVideoCategories,
@@ -72,6 +73,7 @@ router.get('/auth-url', getYoutubeAuthorizationUrl);
 router.get('/status', getYoutubeConnectionStatus);
 router.get('/categories', getYoutubeVideoCategories);
 router.post('/connect', connectYoutubeAccount);
+router.post('/disconnect', disconnectYoutubeAccount);
 router.post('/upload', upload.single('video'), handleUpload);
 
 router.use((error, _req, res, next) => {
