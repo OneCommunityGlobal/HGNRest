@@ -82,77 +82,105 @@ describe('teamController', () => {
     });
   });
 
-  // eslint-disable-next-line no-unused-vars
-  const sortObject = {
-    sort: () => {},
-  };
-
   const error = new Error('any error');
 
-  // TODO: Fix
-  // describe('getAllTeams', () => {
-  //   test('Returns 404 - an error occurs during team retrieval.', async () => {
-  //     const { getAllTeams } = makeSut();
-  //
-  //     const mockSort = jest.spyOn(sortObject, 'sort').mockRejectedValueOnce(error);
-  //     const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
-  //     const response = getAllTeams(mockReq, mockRes);
-  //     await flushPromises();
-  //
-  //     expect(findSpy).toHaveBeenCalledWith({});
-  //     expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
-  //     assertResMock(404, error, response, mockRes);
-  //   });
-  //
-  //   test('Returns 200 - should return all teams sorted by name.', async () => {
-  //     const team1 = { teamName: 'Team A' };
-  //     const team2 = { teamName: 'Team B' };
-  //     const sortedTeams = [team1, team2];
-  //
-  //     const mockSortResovledValue = [team1, team2];
-  //     const mockSort = jest.spyOn(sortObject, 'sort').mockResolvedValue(mockSortResovledValue);
-  //     const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
-  //     const { getAllTeams } = makeSut();
-  //     const response = getAllTeams(mockReq, mockRes);
-  //     await flushPromises();
-  //
-  //     expect(findSpy).toHaveBeenCalledWith({});
-  //     expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
-  //     assertResMock(200, sortedTeams, response, mockRes);
-  //   });
-  // });
-  // TODO: Fix
-  // describe('getAllTeams', () => {
-  //   test('Returns 404 - an error occurs during team retrieval.', async () => {
-  //     const { getAllTeams } = makeSut();
-  //
-  //     const mockSort = jest.spyOn(sortObject, 'sort').mockRejectedValueOnce(error);
-  //     const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
-  //     const response = getAllTeams(mockReq, mockRes);
-  //     await flushPromises();
-  //
-  //     expect(findSpy).toHaveBeenCalledWith({});
-  //     expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
-  //     assertResMock(404, error, response, mockRes);
-  //   });
-  //
-  //   test('Returns 200 - should return all teams sorted by name.', async () => {
-  //     const team1 = { teamName: 'Team A' };
-  //     const team2 = { teamName: 'Team B' };
-  //     const sortedTeams = [team1, team2];
-  //
-  //     const mockSortResovledValue = [team1, team2];
-  //     const mockSort = jest.spyOn(sortObject, 'sort').mockResolvedValue(mockSortResovledValue);
-  //     const findSpy = jest.spyOn(Team, 'find').mockReturnValue(sortObject);
-  //     const { getAllTeams } = makeSut();
-  //     const response = getAllTeams(mockReq, mockRes);
-  //     await flushPromises();
-  //
-  //     expect(findSpy).toHaveBeenCalledWith({});
-  //     expect(mockSort).toHaveBeenCalledWith({ teamName: 1 });
-  //     assertResMock(200, sortedTeams, response, mockRes);
-  //   });
-  // });
+  describe('getAllTeams', () => {
+    test('uses the most frequent valid code from active members and preserves all members', async () => {
+      const aggregateResults = [
+        {
+          _id: 'team-id',
+          teamName: 'City Center Architecture',
+          isActive: true,
+          members: [
+            { _id: 'active-1', teamCode: ' C-ARCH ', isActive: true },
+            { _id: 'active-2', teamCode: 'C-ARCH', isActive: true },
+            { _id: 'active-3', teamCode: 'OTHER', isActive: true },
+            { _id: 'inactive-1', teamCode: 'OLD-C', isActive: false },
+            { _id: 'inactive-2', teamCode: 'OLD-C', isActive: false },
+            { _id: 'inactive-3', teamCode: 'OLD-C', isActive: false },
+          ],
+        },
+      ];
+      const aggregateSpy = jest.spyOn(Team, 'aggregate').mockResolvedValue(aggregateResults);
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      const groupStage = aggregateSpy.mock.calls[0][0].find((stage) => stage.$group);
+      expect(groupStage.$group).not.toHaveProperty('teamCode');
+      expect(groupStage.$group.members.$push.isActive).toBe('$userProfile.isActive');
+      expect(mockRes.send).toHaveBeenCalledWith([
+        {
+          _id: 'team-id',
+          teamName: 'City Center Architecture',
+          isActive: true,
+          teamCode: 'C-ARCH',
+          members: aggregateResults[0].members.map(({ isActive, ...member }) => member),
+        },
+      ]);
+      expect(mockRes.send.mock.calls[0][0][0].members).toHaveLength(6);
+    });
+
+    test('ignores active members with missing, non-string, or blank codes', async () => {
+      jest.spyOn(Team, 'aggregate').mockResolvedValue([
+        {
+          _id: 'team-id',
+          members: [
+            { _id: 'missing', isActive: true },
+            { _id: 'null', teamCode: null, isActive: true },
+            { _id: 'blank', teamCode: '   ', isActive: true },
+            { _id: 'number', teamCode: 12345, isActive: true },
+          ],
+        },
+      ]);
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.send.mock.calls[0][0][0].teamCode).toBe('');
+    });
+
+    test('returns an empty code and preserves teams without a joined user profile', async () => {
+      jest
+        .spyOn(Team, 'aggregate')
+        .mockResolvedValue([{ _id: 'empty-team', teamName: 'Empty Team', members: [{}] }]);
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.send).toHaveBeenCalledWith([
+        { _id: 'empty-team', teamName: 'Empty Team', teamCode: '', members: [{}] },
+      ]);
+    });
+
+    test('breaks equal-frequency ties by team code in lexical ascending order', async () => {
+      jest.spyOn(Team, 'aggregate').mockResolvedValue([
+        {
+          _id: 'team-id',
+          members: [
+            { teamCode: 'B-CODE', isActive: true },
+            { teamCode: 'A-CODE', isActive: true },
+          ],
+        },
+      ]);
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.send.mock.calls[0][0][0].teamCode).toBe('A-CODE');
+    });
+
+    test('returns 500 when aggregation fails', async () => {
+      jest.spyOn(Team, 'aggregate').mockRejectedValue(error);
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(error);
+    });
+  });
 
   describe('getTeamById', () => {
     test('Returns 404 - the specified team ID does not exist.', async () => {
