@@ -30,7 +30,21 @@ const getStudentMetrics = async (req, res) => {
   }
 };
 
+const refreshStudentMetrics = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
+    const metrics = await analyticsService.refreshStudentMetrics(studentId);
+    return res.json({ studentId, metrics });
+  } catch (error) {
+    console.error('Error refreshing student metrics:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
   getOverview,
   getStudentMetrics,
+  refreshStudentMetrics,
 };

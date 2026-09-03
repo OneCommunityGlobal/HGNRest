@@ -6,12 +6,20 @@
     We attempt to derive student metrics from `FormResponse` documents where possible (formID including
     'quiz' or 'assessment'). This is intentionally conservative and clearly documented so future
     adjustments can plug the real assessment/session models.
-  - Computations are cached by writing to `StudentMetrics` collection.
+  - Persistent refreshes cache computed metrics in the `StudentMetrics` collection.
 */
 const StudentMetrics = require('../models/studentMetrics');
 const FormResponse = require('../models/formResponse');
 
-const computeStudentMetrics = async (studentId) => {
+const parseAnalyticsNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const calculateStudentMetrics = async (studentId) => {
   // Gather form responses for the student. We look for typical assessment-like formIDs.
   const responses = await FormResponse.find({ submittedBy: studentId }).lean();
 
@@ -27,10 +35,10 @@ const computeStudentMetrics = async (studentId) => {
       assessmentsTaken += 1;
 
       // Each response has responses[].answer. If numeric answers exist, average them.
-      const numericAnswers = resp.responses
+      const numericAnswers = Array.isArray(resp.responses)
         ? resp.responses
-            .map((r) => (typeof r.answer === 'number' ? r.answer : Number(r.answer)))
-            .filter((v) => !Number.isNaN(v))
+            .map((response) => parseAnalyticsNumber(response?.answer))
+            .filter((value) => value !== null)
         : [];
 
       if (numericAnswers.length) {
@@ -41,9 +49,13 @@ const computeStudentMetrics = async (studentId) => {
     }
 
     // time spent heuristic: look for a field named timeSpentMinutes in responses or top-level
-    const timeField = resp.responses?.find((r) => /time(spent)?/i.test(r.questionLabel || ''));
-    if (timeField && Number(timeField.answer)) totalTime += Number(timeField.answer);
-    if (resp.timeSpentMinutes) totalTime += Number(resp.timeSpentMinutes || 0);
+    const timeField = Array.isArray(resp.responses)
+      ? resp.responses.find((response) => /time(spent)?/i.test(response?.questionLabel || ''))
+      : null;
+    const responseTime = parseAnalyticsNumber(timeField?.answer);
+    const topLevelTime = parseAnalyticsNumber(resp.timeSpentMinutes);
+    if (responseTime !== null) totalTime += responseTime;
+    if (topLevelTime !== null) totalTime += topLevelTime;
   });
 
   const averageScore = scoreCount ? Number((totalScore / scoreCount).toFixed(2)) : 0;
@@ -65,7 +77,12 @@ const computeStudentMetrics = async (studentId) => {
     assessmentsTaken,
   };
 
-  // Upsert into StudentMetrics cache
+  return metrics;
+};
+
+const refreshStudentMetrics = async (studentId) => {
+  const metrics = await calculateStudentMetrics(studentId);
+
   await StudentMetrics.findOneAndUpdate(
     { studentId },
     { studentId, metrics, lastUpdated: new Date() },
@@ -74,6 +91,9 @@ const computeStudentMetrics = async (studentId) => {
 
   return metrics;
 };
+
+// Kept as the persistent API used by the scheduled refresh job.
+const computeStudentMetrics = refreshStudentMetrics;
 
 const getStudentMetrics = async (studentId, { forceRefresh = false } = {}) => {
   if (!forceRefresh) {
@@ -87,7 +107,7 @@ const getStudentMetrics = async (studentId, { forceRefresh = false } = {}) => {
       return cached.metrics;
     }
   }
-  return computeStudentMetrics(studentId);
+  return calculateStudentMetrics(studentId);
 };
 
 const getOverview = async () => {
@@ -127,6 +147,9 @@ const getOverview = async () => {
 };
 
 module.exports = {
+  parseAnalyticsNumber,
+  calculateStudentMetrics,
+  refreshStudentMetrics,
   computeStudentMetrics,
   getStudentMetrics,
   getOverview,
