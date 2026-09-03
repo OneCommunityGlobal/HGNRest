@@ -205,6 +205,20 @@ const getPositions = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/jobs/positions
+ * Distinct job titles from the jobs collection for the job application form dropdown.
+ */
+const getActiveJobPositions = async (req, res) => {
+  try {
+    const positions = (await Job.distinct('title', {})).filter(Boolean);
+    positions.sort((a, b) => a.localeCompare(b));
+    res.status(200).json({ positions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch active job positions', details: error.message });
+  }
+};
+
 const getJobById = async (req, res) => {
   const { id } = req.params;
 
@@ -329,4 +343,5 @@ module.exports = {
   getCategories,
   reorderJobs,
   getPositions,
+  getActiveJobPositions,
 };

@@ -3,6 +3,8 @@ const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const upload = require('../middleware/multerMiddleware');
 const QuestionSet = require('../models/questionSet');
+const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
+const emailSender = require('../utilities/emailSender');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -250,6 +252,111 @@ exports.submitJobApplication = async (req, res) => {
 };
 
 exports.submitJobApplicationMiddleware = upload.any();
+
+/**
+ * POST /api/jobforms/:formId/responses
+ * Submit an application response to a job form (public — paired with frontend PR 5469).
+ *
+ * Body (JSON or multipart/form-data):
+ *   respondent {string} - applicant full name (required)
+ *   email      {string} - applicant email (required)
+ *   answers    {Array}  - [{ questionId, answer }] (array or JSON string)
+ *
+ * Optional multipart field:
+ *   resume     {file}   - resume file (stored in Azure; URL saved on the response)
+ *
+ * Responses:
+ *   201 - { message, response }
+ *   400 - missing required fields
+ *   409 - duplicate application
+ *   404 - form not found
+ *   500 - server error
+ */
+exports.submitFormResponse = async (req, res) => {
+  try {
+    const { formId } = req.params;
+    const { respondent, email, answers } = req.body;
+
+    if (!respondent || !email || !answers) {
+      return res.status(400).json({ error: 'respondent, email, and answers are required.' });
+    }
+
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Form not found.' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await Response.findOne({
+      formId,
+      $or: [{ email: normalizedEmail }, { respondent: normalizedEmail }],
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'Application already submitted.' });
+    }
+
+    const resumeFile =
+      req.file ||
+      (Array.isArray(req.files) ? req.files.find((f) => f.fieldname === 'resume') : null);
+
+    let resumeUrl = '';
+    if (resumeFile) {
+      try {
+        const safeFormTitle = String(form.title || 'form')
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .toLowerCase();
+        const safeEmail = normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+        const ext = resumeFile.originalname.includes('.')
+          ? resumeFile.originalname.split('.').pop()
+          : 'bin';
+        const blobName = `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${ext}`;
+        resumeUrl = await uploadFileToAzureBlobStorage(resumeFile, blobName);
+      } catch (uploadErr) {
+        console.error('Resume upload failed (non-fatal):', uploadErr.message);
+      }
+    }
+
+    let parsedAnswers = answers;
+    if (typeof answers === 'string') {
+      try {
+        parsedAnswers = JSON.parse(answers);
+      } catch {
+        return res.status(400).json({ error: 'answers must be a valid JSON array.' });
+      }
+    }
+
+    const response = new Response({
+      formId,
+      respondent: String(respondent).trim(),
+      email: normalizedEmail,
+      answers: parsedAnswers,
+      resumeUrl,
+    });
+
+    await response.save();
+
+    try {
+      const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Received — ${form.title}</h2>
+          <p>Hi ${String(respondent).trim()},</p>
+          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+      await emailSender([normalizedEmail], `Application Received — ${form.title}`, emailBody);
+    } catch (emailErr) {
+      console.error('Confirmation email failed (non-fatal):', emailErr.message);
+    }
+
+    return res.status(201).json({ message: 'Application submitted successfully.', response });
+  } catch (error) {
+    console.error('Error submitting form response:', error);
+    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+  }
+};
 
 // Get all responses of a form
 exports.getFormResponses = async (req, res) => {

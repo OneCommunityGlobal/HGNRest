@@ -1,5 +1,6 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
+const upload = require('../middleware/multerMiddleware');
 
 const router = express.Router();
 
@@ -17,11 +18,11 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 // Get all responses of a form
 router.get('/jobforms/:formId/responses', formController.getFormResponses);
 
-// Submit a job application (public)
+// Submit a job application (public — optional resume file upload)
 router.post(
   '/jobforms/:formId/responses',
-  formController.submitJobApplicationMiddleware,
-  formController.submitJobApplication,
+  upload.single('resume'),
+  formController.submitFormResponse,
 );
 
 // Question management routes
