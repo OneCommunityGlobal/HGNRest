@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose; // This line was likely causing an error before
 
 const promotionEligibilitySchema = new Schema({
-  reviewerId: { type: Schema.Types.ObjectId, ref: 'userProfiles', required: true },
+  reviewerId: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
   reviewerName: { type: String, required: true },
   pledgedHours: { type: Number, required: true },
   requiredPRs: { type: Number, required: true },

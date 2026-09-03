@@ -12,7 +12,6 @@ const taskschema = new Schema({
   resources: [
     {
       name: { type: String, required: true },
-
       userID: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       profilePic: { type: String },
       completedTask: { type: Boolean, default: false },
