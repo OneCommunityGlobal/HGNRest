@@ -37,7 +37,12 @@ module.exports = function (app) {
     if (req.originalUrl.startsWith('/api/mastodon')) {
       return next();
     }
-    const openPaths = ['/api/lb/myWebhooks'];
+    // const openPaths = ['/api/lb/myWebhooks'];
+    const openPaths = [
+      '/paypal/webhook', // existing
+      '/pinterest/auth', // add this
+      '/pinterest/auth/callback', // add this
+    ];
 
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
@@ -131,6 +136,15 @@ module.exports = function (app) {
     }
 
     // Skip auth check for PayPal webhook route
+    // Skip auth check for Pinterest OAuth routes
+    if (req.originalUrl.startsWith('/api/social/pinterest/auth')) {
+      return next();
+    }
+
+    // Skip auth check for PayPal webhook route
+    if (openPaths.includes(req.path)) {
+      return next();
+    }
 
     if (openPaths.includes(req.path)) {
       return next(); // Allow PayPal requests through
