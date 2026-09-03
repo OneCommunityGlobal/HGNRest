@@ -136,6 +136,12 @@ module.exports = function (app) {
       return next(); // Allow PayPal requests through
     }
 
+    // Public server time endpoint
+    if (req.originalUrl === '/api/servertime' && req.method === 'GET') {
+      next();
+      return;
+    }
+
     //  HEADER EXTRACTION
     const authHeader = req.header('Authorization');
     const payload = jwtVerificationLogic(authHeader, res);
