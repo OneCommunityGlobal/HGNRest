@@ -68,6 +68,82 @@ function ensureFormMetadata(form, requestor) {
   form.lastModifiedBy = requestorId;
 }
 
+function sanitizeBlobPart(value, fallback = 'file') {
+  const cleaned = String(value || '')
+    .replace(/[^a-zA-Z0-9]/g, '_')
+    .toLowerCase();
+  return cleaned || fallback;
+}
+
+function filesByField(req) {
+  const map = {};
+  if (req.file) {
+    map[req.file.fieldname || 'resume'] = req.file;
+  }
+  (req.files || []).forEach((file) => {
+    map[file.fieldname] = file;
+  });
+  return map;
+}
+
+function fileExtension(file) {
+  if (file?.originalname?.includes('.')) {
+    return file.originalname.split('.').pop();
+  }
+  return 'bin';
+}
+
+async function uploadOptionalFile(file, blobName) {
+  if (!file) {
+    return '';
+  }
+  try {
+    return await uploadFileToAzureBlobStorage(file, blobName);
+  } catch (uploadErr) {
+    console.error('Application file upload failed (non-fatal):', uploadErr.message);
+    return '';
+  }
+}
+
+function parseJsonField(value, errorMessage) {
+  if (typeof value !== 'string') {
+    return { value, error: null };
+  }
+  try {
+    return { value: JSON.parse(value), error: null };
+  } catch {
+    return { value: null, error: errorMessage };
+  }
+}
+
+function resolveApplicationInput(body) {
+  if (body.payload) {
+    const parsed = parseJsonField(body.payload, 'Invalid application payload.');
+    if (parsed.error) {
+      return { error: parsed.error };
+    }
+    const payload = parsed.value || {};
+    return {
+      respondent: payload.applicantName || body.respondent,
+      email: payload.applicantEmail || body.email,
+      answers: payload.answers || [],
+      profile: payload.profile || {},
+    };
+  }
+
+  const parsedAnswers = parseJsonField(body.answers, 'answers must be a valid JSON array.');
+  if (parsedAnswers.error) {
+    return { error: parsedAnswers.error };
+  }
+
+  return {
+    respondent: body.respondent,
+    email: body.email,
+    answers: parsedAnswers.value,
+    profile: {},
+  };
+}
+
 // Create a new form
 exports.createForm = async (req, res) => {
   try {
@@ -275,9 +351,13 @@ exports.submitJobApplicationMiddleware = upload.any();
 exports.submitFormResponse = async (req, res) => {
   try {
     const { formId } = req.params;
-    const { respondent, email, answers } = req.body;
+    const resolved = resolveApplicationInput(req.body || {});
+    if (resolved.error) {
+      return res.status(400).json({ error: resolved.error });
+    }
 
-    if (!respondent || !email || !answers) {
+    const { respondent, email, answers, profile } = resolved;
+    if (!email || answers == null) {
       return res.status(400).json({ error: 'respondent, email, and answers are required.' });
     }
 
@@ -295,51 +375,86 @@ exports.submitFormResponse = async (req, res) => {
       return res.status(409).json({ error: 'Application already submitted.' });
     }
 
-    const resumeFile =
-      req.file ||
-      (Array.isArray(req.files) ? req.files.find((f) => f.fieldname === 'resume') : null);
+    const fileMap = filesByField(req);
+    const safeFormTitle = sanitizeBlobPart(form.title, 'form');
+    const safeEmail = sanitizeBlobPart(normalizedEmail, 'applicant');
+    const resumeFile = fileMap.resume;
 
-    let resumeUrl = '';
-    if (resumeFile) {
-      try {
-        const safeFormTitle = String(form.title || 'form')
-          .replace(/[^a-zA-Z0-9]/g, '_')
-          .toLowerCase();
-        const safeEmail = normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
-        const ext = resumeFile.originalname.includes('.')
-          ? resumeFile.originalname.split('.').pop()
-          : 'bin';
-        const blobName = `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${ext}`;
-        resumeUrl = await uploadFileToAzureBlobStorage(resumeFile, blobName);
-      } catch (uploadErr) {
-        console.error('Resume upload failed (non-fatal):', uploadErr.message);
+    const resumeUrl = resumeFile
+      ? await uploadOptionalFile(
+          resumeFile,
+          `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${fileExtension(resumeFile)}`,
+        )
+      : '';
+
+    const builtAnswers = [];
+    const answersList = Array.isArray(answers) ? answers : [];
+    for (const item of answersList) {
+      const qIdStr = item.questionId ? String(item.questionId) : '';
+      const uploaded = qIdStr ? fileMap[`questionFile_${qIdStr}`] : null;
+      if (uploaded) {
+        const fileUrl = await uploadOptionalFile(
+          uploaded,
+          `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${fileExtension(uploaded)}`,
+        );
+        builtAnswers.push({
+          questionId: item.questionId || new mongoose.Types.ObjectId(),
+          answer: {
+            fileName: uploaded.originalname,
+            mimeType: uploaded.mimetype,
+            size: uploaded.size,
+            ...(fileUrl ? { url: fileUrl } : {}),
+          },
+        });
+      } else {
+        builtAnswers.push({
+          questionId: item.questionId || new mongoose.Types.ObjectId(),
+          answer: item.answer,
+        });
       }
     }
 
-    let parsedAnswers = answers;
-    if (typeof answers === 'string') {
-      try {
-        parsedAnswers = JSON.parse(answers);
-      } catch {
-        return res.status(400).json({ error: 'answers must be a valid JSON array.' });
-      }
+    if (resumeFile) {
+      builtAnswers.push({
+        questionId: new mongoose.Types.ObjectId(),
+        answer: {
+          type: 'resume',
+          fileName: resumeFile.originalname,
+          mimeType: resumeFile.mimetype,
+          size: resumeFile.size,
+          ...(resumeUrl ? { url: resumeUrl } : {}),
+        },
+      });
+    }
+
+    if (respondent || Object.keys(profile || {}).length > 0) {
+      builtAnswers.push({
+        questionId: new mongoose.Types.ObjectId(),
+        answer: {
+          type: 'applicantProfile',
+          applicantName: respondent,
+          applicantEmail: normalizedEmail,
+          ...profile,
+        },
+      });
     }
 
     const response = new Response({
       formId,
-      respondent: String(respondent).trim(),
+      respondent: String(respondent || normalizedEmail).trim(),
       email: normalizedEmail,
-      answers: parsedAnswers,
+      answers: builtAnswers,
       resumeUrl,
     });
 
     await response.save();
 
     try {
+      const displayName = String(respondent || normalizedEmail).trim();
       const emailBody = `
         <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
           <h2>Application Received — ${form.title}</h2>
-          <p>Hi ${String(respondent).trim()},</p>
+          <p>Hi ${displayName},</p>
           <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
           <p>If you have any questions, feel free to reach out.</p>
           <br/>

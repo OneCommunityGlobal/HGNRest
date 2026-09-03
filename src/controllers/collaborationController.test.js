@@ -142,4 +142,79 @@ describe('submitFormResponse', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
   });
+
+  it('accepts the site payload format and stores question-file uploads', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    uploadFileToAzureBlobStorage
+      .mockResolvedValueOnce('https://blob/resume.pdf')
+      .mockResolvedValueOnce('https://blob/cover.pdf');
+
+    let savedDoc;
+    Response.mockImplementation((data) => {
+      savedDoc = data;
+      return { ...data, save: saveMock };
+    });
+
+    const questionId = '6a4f01a854e483075a73a6a9';
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          payload: JSON.stringify({
+            applicantName: 'Purav Jignesh Patel',
+            applicantEmail: 'purav13pat@gmail.com',
+            profile: {
+              locationTimezone: 'Houston, TX, US | America/New_York',
+              phone: '+1 2813091557',
+              jobTitle: 'APPLIED THROUGH SITE - SEEKING SOFTWARE POSITION',
+            },
+            answers: [
+              { questionId: '6a4f01a854e483075a73a69e', answer: 'Individual' },
+              { questionId, answer: { fileName: 'Cover_Letter.pdf', size: 12923 } },
+            ],
+          }),
+        },
+        files: [
+          {
+            fieldname: 'resume',
+            originalname: 'Purav Patel_Resume.pdf',
+            mimetype: 'application/pdf',
+            size: 87900,
+            buffer: Buffer.from('resume'),
+          },
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'Cover_Letter_Purav Jignesh Patel.pdf',
+            mimetype: 'application/pdf',
+            size: 12923,
+            buffer: Buffer.from('cover'),
+          },
+        ],
+      },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(savedDoc.email).toBe('purav13pat@gmail.com');
+    expect(savedDoc.resumeUrl).toBe('https://blob/resume.pdf');
+    expect(savedDoc.answers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          questionId,
+          answer: expect.objectContaining({
+            fileName: 'Cover_Letter_Purav Jignesh Patel.pdf',
+            url: 'https://blob/cover.pdf',
+          }),
+        }),
+        expect.objectContaining({
+          answer: expect.objectContaining({
+            type: 'applicantProfile',
+            applicantName: 'Purav Jignesh Patel',
+            jobTitle: 'APPLIED THROUGH SITE - SEEKING SOFTWARE POSITION',
+          }),
+        }),
+      ]),
+    );
+  });
 });

@@ -18,12 +18,8 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 // Get all responses of a form
 router.get('/jobforms/:formId/responses', formController.getFormResponses);
 
-// Submit a job application (public — optional resume file upload)
-router.post(
-  '/jobforms/:formId/responses',
-  upload.single('resume'),
-  formController.submitFormResponse,
-);
+// Submit a job application (public — resume + per-question file uploads)
+router.post('/jobforms/:formId/responses', upload.any(), formController.submitFormResponse);
 
 // Question management routes
 router.post('/jobforms/:formId/questions', formController.addQuestion);
