@@ -66,50 +66,62 @@ const userHelper = function () {
     });
   };
 
-  async function getCurrentTeamCode(teamId) {
+  async function getActiveTeamCodes(teamId, excludeUserId) {
     // Ensure teamId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+    if (!mongoose.Types.ObjectId.isValid(teamId)) return [];
 
-    // Fetch the current team code of the given teamId from active users
+    // Fetch every active member's team code for this team, excluding the
+    // user we're checking, so we can compare against the rest of the team.
     const result = await userProfile.aggregate([
       {
         $match: {
           teams: mongoose.Types.ObjectId(teamId),
           isActive: true,
+          _id: { $ne: mongoose.Types.ObjectId(excludeUserId) },
         },
       },
-      { $limit: 1 },
       { $project: { teamCode: 1 } },
     ]);
 
-    // Return the teamCode if found
-    return result.length > 0 ? result[0].teamCode : null;
+    return result.map((r) => r.teamCode).filter(Boolean);
+  }
+
+  // The last 3 characters of a team code identify which team it belongs to;
+  // everything before that is a prefix that can go stale (e.g. when a user
+  // is reactivated after months away, or a profile's quick-setup code was
+  // never updated).
+  const TEAM_CODE_SUFFIX_LENGTH = 3;
+  function getTeamCodeSuffix(code) {
+    return typeof code === 'string' ? code.slice(-TEAM_CODE_SUFFIX_LENGTH) : '';
   }
 
   async function checkTeamCodeMismatch(user) {
     try {
-      // no user or no teams → nothing to compare
-      if (!user || !user.teams.length) {
+      if (!user || !Array.isArray(user.teams) || user.teams.length === 0) {
         return false;
       }
 
-      // looks like they always checked the first (latest) team
       const latestTeamId = user.teams[0];
-
-      // this was in your diff: getCurrentTeamCode(latestTeamId)
-      const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-      if (!teamCodeFromFirstActive) {
+      const userSuffix = getTeamCodeSuffix(user.teamCode);
+      if (!userSuffix) {
         return false;
       }
 
-      // mismatch if user's stored teamCode != that team's current code
-      return teamCodeFromFirstActive !== user.teamCode;
+      const otherActiveCodes = await getActiveTeamCodes(latestTeamId, user._id);
+
+      // Only flag a mismatch when another active teammate's code shares this
+      // user's team suffix but the full code differs — that means this
+      // user's prefix is stale and needs to be updated to match the rest of
+      // the team. A code that simply doesn't match anyone else's suffix is
+      // not a mismatch; it may just be a new or otherwise valid code.
+      return otherActiveCodes.some(
+        (code) => getTeamCodeSuffix(code) === userSuffix && code !== user.teamCode,
+      );
     } catch (error) {
       logger.logException(error);
       return false;
     }
   }
-
   const getTeamMembersForBadge = async function (user) {
     try {
       const results = await Team.aggregate([
