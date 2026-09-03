@@ -57,6 +57,37 @@ describe('submitFormResponse', () => {
     });
   });
 
+  it('returns 400 for invalid payload JSON', async () => {
+    await submitFormResponse({ params: { formId }, body: { payload: '{bad json' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid application payload.' });
+  });
+
+  it('returns 400 for invalid answers JSON string', async () => {
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: { respondent: 'Ada', email: 'ada@example.com', answers: '{bad json' },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'answers must be a valid JSON array.' });
+  });
+
+  it('returns 500 when saving the response fails', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    saveMock.mockRejectedValue(new Error('db down'));
+
+    await submitFormResponse({ params: { formId }, body: validBody }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Error submitting application.' }),
+    );
+  });
+
   it('returns 404 when the form does not exist', async () => {
     Form.findById.mockResolvedValue(null);
     await submitFormResponse({ params: { formId }, body: validBody }, res);
@@ -216,5 +247,45 @@ describe('submitFormResponse', () => {
         }),
       ]),
     );
+  });
+
+  it('stores question-file metadata without url when upload fails', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    uploadFileToAzureBlobStorage.mockRejectedValue(new Error('azure down'));
+
+    let savedDoc;
+    Response.mockImplementation((data) => {
+      savedDoc = data;
+      return { ...data, save: saveMock };
+    });
+
+    const questionId = '6a4f01a854e483075a73a6a9';
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Ada Lovelace',
+          email: 'ada@example.com',
+          answers: [{ questionId, answer: 'cover letter' }],
+        },
+        files: [
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'cover.pdf',
+            mimetype: 'application/pdf',
+            size: 100,
+            buffer: Buffer.from('cover'),
+          },
+        ],
+      },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(savedDoc.answers[0].answer).toEqual(
+      expect.objectContaining({ fileName: 'cover.pdf', mimeType: 'application/pdf' }),
+    );
+    expect(savedDoc.answers[0].answer.url).toBeUndefined();
   });
 });

@@ -144,6 +144,103 @@ function resolveApplicationInput(body) {
   };
 }
 
+async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
+  if (!resumeFile) {
+    return '';
+  }
+  return uploadOptionalFile(
+    resumeFile,
+    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${fileExtension(resumeFile)}`,
+  );
+}
+
+async function buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail) {
+  const qIdStr = item.questionId ? String(item.questionId) : '';
+  const uploaded = qIdStr ? fileMap[`questionFile_${qIdStr}`] : null;
+  const questionId = item.questionId || new mongoose.Types.ObjectId();
+
+  if (!uploaded) {
+    return { questionId, answer: item.answer };
+  }
+
+  const fileUrl = await uploadOptionalFile(
+    uploaded,
+    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${fileExtension(uploaded)}`,
+  );
+
+  return {
+    questionId,
+    answer: {
+      fileName: uploaded.originalname,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      ...(fileUrl ? { url: fileUrl } : {}),
+    },
+  };
+}
+
+async function buildAnswersFromSubmission(answers, fileMap, safeFormTitle, safeEmail) {
+  const answersList = Array.isArray(answers) ? answers : [];
+  const builtAnswers = [];
+  for (const item of answersList) {
+    builtAnswers.push(await buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail));
+  }
+  return builtAnswers;
+}
+
+function appendResumeAndProfileAnswers(
+  builtAnswers,
+  resumeFile,
+  resumeUrl,
+  respondent,
+  normalizedEmail,
+  profile,
+) {
+  if (resumeFile) {
+    builtAnswers.push({
+      questionId: new mongoose.Types.ObjectId(),
+      answer: {
+        type: 'resume',
+        fileName: resumeFile.originalname,
+        mimeType: resumeFile.mimetype,
+        size: resumeFile.size,
+        ...(resumeUrl ? { url: resumeUrl } : {}),
+      },
+    });
+  }
+
+  if (respondent || Object.keys(profile || {}).length > 0) {
+    builtAnswers.push({
+      questionId: new mongoose.Types.ObjectId(),
+      answer: {
+        type: 'applicantProfile',
+        applicantName: respondent,
+        applicantEmail: normalizedEmail,
+        ...profile,
+      },
+    });
+  }
+}
+
+async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+  try {
+    const displayName = String(respondent || normalizedEmail).trim();
+    const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Received — ${form.title}</h2>
+          <p>Hi ${displayName},</p>
+          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+    await emailSender([normalizedEmail], `Application Received — ${form.title}`, emailBody);
+  } catch (emailErr) {
+    console.error('Confirmation email failed (non-fatal):', emailErr.message);
+  }
+}
+
 // Create a new form
 exports.createForm = async (req, res) => {
   try {
@@ -379,65 +476,22 @@ exports.submitFormResponse = async (req, res) => {
     const safeFormTitle = sanitizeBlobPart(form.title, 'form');
     const safeEmail = sanitizeBlobPart(normalizedEmail, 'applicant');
     const resumeFile = fileMap.resume;
+    const resumeUrl = await uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail);
+    const builtAnswers = await buildAnswersFromSubmission(
+      answers,
+      fileMap,
+      safeFormTitle,
+      safeEmail,
+    );
 
-    const resumeUrl = resumeFile
-      ? await uploadOptionalFile(
-          resumeFile,
-          `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${fileExtension(resumeFile)}`,
-        )
-      : '';
-
-    const builtAnswers = [];
-    const answersList = Array.isArray(answers) ? answers : [];
-    for (const item of answersList) {
-      const qIdStr = item.questionId ? String(item.questionId) : '';
-      const uploaded = qIdStr ? fileMap[`questionFile_${qIdStr}`] : null;
-      if (uploaded) {
-        const fileUrl = await uploadOptionalFile(
-          uploaded,
-          `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${fileExtension(uploaded)}`,
-        );
-        builtAnswers.push({
-          questionId: item.questionId || new mongoose.Types.ObjectId(),
-          answer: {
-            fileName: uploaded.originalname,
-            mimeType: uploaded.mimetype,
-            size: uploaded.size,
-            ...(fileUrl ? { url: fileUrl } : {}),
-          },
-        });
-      } else {
-        builtAnswers.push({
-          questionId: item.questionId || new mongoose.Types.ObjectId(),
-          answer: item.answer,
-        });
-      }
-    }
-
-    if (resumeFile) {
-      builtAnswers.push({
-        questionId: new mongoose.Types.ObjectId(),
-        answer: {
-          type: 'resume',
-          fileName: resumeFile.originalname,
-          mimeType: resumeFile.mimetype,
-          size: resumeFile.size,
-          ...(resumeUrl ? { url: resumeUrl } : {}),
-        },
-      });
-    }
-
-    if (respondent || Object.keys(profile || {}).length > 0) {
-      builtAnswers.push({
-        questionId: new mongoose.Types.ObjectId(),
-        answer: {
-          type: 'applicantProfile',
-          applicantName: respondent,
-          applicantEmail: normalizedEmail,
-          ...profile,
-        },
-      });
-    }
+    appendResumeAndProfileAnswers(
+      builtAnswers,
+      resumeFile,
+      resumeUrl,
+      respondent,
+      normalizedEmail,
+      profile,
+    );
 
     const response = new Response({
       formId,
@@ -448,23 +502,7 @@ exports.submitFormResponse = async (req, res) => {
     });
 
     await response.save();
-
-    try {
-      const displayName = String(respondent || normalizedEmail).trim();
-      const emailBody = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-          <h2>Application Received — ${form.title}</h2>
-          <p>Hi ${displayName},</p>
-          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
-          <p>If you have any questions, feel free to reach out.</p>
-          <br/>
-          <p>Best regards,<br/>One Community</p>
-        </div>
-      `;
-      await emailSender([normalizedEmail], `Application Received — ${form.title}`, emailBody);
-    } catch (emailErr) {
-      console.error('Confirmation email failed (non-fatal):', emailErr.message);
-    }
+    await sendApplicationConfirmationEmail(form, respondent, normalizedEmail);
 
     return res.status(201).json({ message: 'Application submitted successfully.', response });
   } catch (error) {
