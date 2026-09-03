@@ -2222,7 +2222,7 @@ const overviewReportHelper = function () {
             dateOfWork: { $gte: start, $lte: end },
             isTangible: { $eq: true },
             isActive: { $ne: false }, // Only include active entries
-            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
+            entryType: { $in: ['default', 'person', null] }, // Task entries: matches pattern used elsewhere (e.g. line ~1043)
           },
         },
         {
