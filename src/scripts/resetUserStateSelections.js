@@ -1,24 +1,14 @@
 // IMPORTANT - PLEASE DO NOT RUN THIS UNLESS EXPLICITLY ASKED TO!!
 const mongoose = require('mongoose');
 require('dotenv').config();
-const readline = require('node:readline');
 const UserStateSelection = require('../models/userStateSelection');
+const { prompt } = require('./scriptUtil');
 
 const RESET_PASSWORD = process.env.RESET_USERSELECTIONS_PASSWORD;
 
 if (!RESET_PASSWORD) {
   console.error('❌ RESET_USERSELECTIONS_PASSWORD env variable is not set. Aborting.');
   process.exit(1);
-}
-
-function prompt(question) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
 }
 
 async function reset() {
@@ -30,7 +20,7 @@ async function reset() {
   }
 
   const confirm = await prompt(
-    `⚠️  This will permanently delete ALL user state selection entries. Type "yes" to confirm: `,
+    '⚠️  This will permanently delete ALL user state selection entries. Type "yes" to confirm: ',
   );
 
   if (confirm.trim().toLowerCase() !== 'yes') {

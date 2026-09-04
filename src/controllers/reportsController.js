@@ -186,17 +186,12 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getHoursStats(
-          isoStartDate,
-          isoEndDate,
-          isoComparisonStartDate,
-          isoComparisonEndDate,
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
         ),
-        overviewReportHelper.getTotalHoursWorked(
-          isoStartDate,
-          isoEndDate,
-          isoComparisonStartDate,
-          isoComparisonEndDate,
-        ),
+        overviewReportHelper.getTotalHoursWorked(startDate, endDate),
         overviewReportHelper.getTasksStats(
           isoStartDate,
           isoEndDate,
@@ -756,6 +751,7 @@ const reportsController = function () {
       }
 
       const teamCodes = await UserProfile.distinct('teamCode', {
+        isActive: true,
         teamCode: { $nin: [null, ''] },
       });
 
