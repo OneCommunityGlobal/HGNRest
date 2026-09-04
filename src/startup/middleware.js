@@ -37,6 +37,9 @@ module.exports = function (app) {
     if (req.originalUrl.startsWith('/api/mastodon')) {
       return next();
     }
+    if (req.originalUrl.startsWith('/uploads')) {
+      return next();
+    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
