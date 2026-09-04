@@ -413,6 +413,8 @@ const permissionRouter = require('../routes/permissionRouter');
 // Analytics
 const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
+const ReviewerGroup = require('../models/reviewerGroup');
+const PromotionPrEntry = require('../models/promotionPrEntry');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
@@ -673,7 +675,19 @@ module.exports = function (app) {
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
-  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
+  app.use(
+    '/api/',
+    promotionEligibilityRouter(
+      userProfile,
+      timeEntry,
+      task,
+      PromotionEligibility,
+      ReviewerGroup,
+      team,
+      hgnFormResponses,
+      PromotionPrEntry,
+    ),
+  );
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
