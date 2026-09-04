@@ -11,10 +11,6 @@ const {
   retryScheduledPost,
 } = require('../controllers/instagramController');
 
-// Use your existing authentication middleware here.
-// Example:
-// const auth = require('../middleware/auth');
-
 router.post(
   '/post',
   // auth,
