@@ -34,6 +34,11 @@ const routes = function (
 
   router.route('/promotion-eligibility/:reviewerId/pr-entries').post(controller.getPrEntries);
 
+  // Same read for a list of reviewers, so a table does not make one request per
+  // row. Two path segments where the single reviewer route has three, so the
+  // literal cannot be captured as a `:reviewerId`.
+  router.route('/promotion-eligibility/pr-entries').post(controller.getPrEntriesForReviewers);
+
   router.route('/promotion-eligibility/:reviewerId/pr-entries/new').post(controller.addPrEntry);
 
   router

@@ -24,6 +24,13 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const PROMOTED_ROLE = 'Promoted Reviewer';
 
 /**
+ * Upper bound on a single bulk PR entries read. The active table is about
+ * 1,600 reviewers, so this only refuses a payload the page could not have
+ * produced.
+ */
+const MAX_REVIEWERS_PER_READ = 2000;
+
+/**
  * `Team` and `HgnFormResponses` are optional and only used by the promotion
  * placement handlers. Leaving them off keeps every existing caller, and the
  * existing tests, working exactly as before.
@@ -464,6 +471,81 @@ const promotionEligibilityController = function (
   };
 
   /**
+   * The same read for many reviewers at once.
+   *
+   * The single reviewer route is per reviewer because its path is, so a table
+   * showing the "+ Add New" column for a whole page of people had to make one
+   * request each. This does it in one request and, more importantly, one
+   * database query.
+   *
+   * Every id the caller sends comes back as a key, including reviewers with
+   * nothing listed, so the client never has to tell "no entries" apart from
+   * "id missing from the response". The per reviewer value is the identical
+   * shape the single route returns, so only the read location changes on the
+   * client.
+   *
+   * The single route stays. It is still the better one to hit straight after
+   * an add or a rating change, when only one row needs refreshing.
+   */
+  const getPrEntriesForReviewers = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to view promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { reviewerIds } = req.body;
+    if (!Array.isArray(reviewerIds) || reviewerIds.length === 0) {
+      return res.status(400).send('reviewerIds must be a non-empty array of reviewer IDs.');
+    }
+
+    // The whole active table is about 1,600 people, so this refuses only a
+    // payload that could not have come from the page.
+    if (reviewerIds.length > MAX_REVIEWERS_PER_READ) {
+      return res
+        .status(400)
+        .send(`reviewerIds cannot exceed ${MAX_REVIEWERS_PER_READ} reviewers in one request.`);
+    }
+
+    const invalid = reviewerIds.find((id) => !mongoose.Types.ObjectId.isValid(id));
+    if (invalid !== undefined) {
+      return res.status(400).send(`Invalid reviewer ID: ${invalid}`);
+    }
+
+    // Deduplicated, since a repeated id would otherwise widen the query for a
+    // key that can only be written once anyway.
+    const uniqueIds = [...new Set(reviewerIds.map(String))];
+
+    try {
+      const entries = await PromotionPrEntry.find({ reviewerId: { $in: uniqueIds } })
+        .sort({ addedAt: 1 })
+        .lean();
+
+      // Seeded with every requested id first, so a reviewer with no entries is
+      // still present, and the grouping below only ever fills these in.
+      const byReviewer = new Map(uniqueIds.map((id) => [id, []]));
+      entries.forEach((entry) => {
+        const key = String(entry.reviewerId);
+        if (byReviewer.has(key)) byReviewer.get(key).push(entry);
+      });
+
+      const reviewers = {};
+      byReviewer.forEach((reviewerEntries, id) => {
+        reviewers[id] = { weeks: groupEntriesByWeek(reviewerEntries) };
+      });
+
+      return res.status(200).json({ reviewers });
+    } catch (error) {
+      logger.logException(error, {
+        endpoint: 'getPrEntriesForReviewers',
+        reviewerCount: uniqueIds.length,
+      });
+      return res.status(500).send('Error fetching PR entries.');
+    }
+  };
+
+  /**
    * Add one PR to a reviewer's week by hand, the spec's "ability for manual
    * addition".
    *
@@ -828,6 +910,7 @@ const promotionEligibilityController = function (
     updatePrsNeeded,
     getPrRatings,
     getPrEntries,
+    getPrEntriesForReviewers,
     addPrEntry,
     updatePrEntryRating,
     importPrEntriesFromSummary,

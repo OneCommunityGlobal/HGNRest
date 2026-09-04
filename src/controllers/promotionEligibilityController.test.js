@@ -1083,6 +1083,135 @@ describe('PR entries and ratings', () => {
     });
   });
 
+  describe('getPrEntriesForReviewers', () => {
+    const OTHER_REVIEWER = '637af0c0fb9bbc1e308cff02';
+
+    /** Whatever the caller asks for, the model answers with these entries. */
+    const givenEntries = (entries) => {
+      PromotionPrEntry.find = jest.fn(() => ({
+        sort: () => ({ lean: () => Promise.resolve(entries) }),
+      }));
+      controller = build();
+    };
+
+    it('keys the response by reviewer id', async () => {
+      givenEntries([
+        { reviewerId: REVIEWER, year: 2026, week: 33, prNumber: '1' },
+        { reviewerId: OTHER_REVIEWER, year: 2026, week: 33, prNumber: '2' },
+      ]);
+
+      await controller.getPrEntriesForReviewers(
+        request({ reviewerIds: [REVIEWER, OTHER_REVIEWER] }),
+        mockRes,
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(body().reviewers[REVIEWER].weeks[0].prs[0].prNumber).toBe('1');
+      expect(body().reviewers[OTHER_REVIEWER].weeks[0].prs[0].prNumber).toBe('2');
+    });
+
+    it('returns a key for a reviewer with no entries, so the caller never handles a missing one', async () => {
+      givenEntries([{ reviewerId: REVIEWER, year: 2026, week: 33, prNumber: '1' }]);
+
+      await controller.getPrEntriesForReviewers(
+        request({ reviewerIds: [REVIEWER, OTHER_REVIEWER] }),
+        mockRes,
+      );
+
+      expect(body().reviewers[OTHER_REVIEWER]).toEqual({ weeks: [] });
+    });
+
+    it('groups each reviewer newest week first, exactly like the single reviewer route', async () => {
+      givenEntries([
+        { reviewerId: REVIEWER, year: 2026, week: 32, prNumber: '1' },
+        { reviewerId: REVIEWER, year: 2026, week: 33, prNumber: '2' },
+      ]);
+
+      await controller.getPrEntriesForReviewers(request({ reviewerIds: [REVIEWER] }), mockRes);
+
+      expect(body().reviewers[REVIEWER].weeks.map((w) => w.week)).toEqual([33, 32]);
+    });
+
+    it('reads every reviewer in one query rather than one query each', async () => {
+      givenEntries([]);
+
+      await controller.getPrEntriesForReviewers(
+        request({ reviewerIds: [REVIEWER, OTHER_REVIEWER] }),
+        mockRes,
+      );
+
+      expect(PromotionPrEntry.find).toHaveBeenCalledTimes(1);
+      expect(PromotionPrEntry.find.mock.calls[0][0].reviewerId.$in).toHaveLength(2);
+    });
+
+    it('asks for each reviewer once when the same id is sent twice', async () => {
+      givenEntries([]);
+
+      await controller.getPrEntriesForReviewers(
+        request({ reviewerIds: [REVIEWER, REVIEWER] }),
+        mockRes,
+      );
+
+      expect(PromotionPrEntry.find.mock.calls[0][0].reviewerId.$in).toEqual([REVIEWER]);
+    });
+
+    it.each([[undefined], [[]], ['not-an-array'], [{}]])(
+      'rejects %p as reviewerIds',
+      async (reviewerIds) => {
+        givenEntries([]);
+
+        await controller.getPrEntriesForReviewers(request({ reviewerIds }), mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(PromotionPrEntry.find).not.toHaveBeenCalled();
+      },
+    );
+
+    it('names the offending id when one is not a valid ObjectId', async () => {
+      givenEntries([]);
+
+      await controller.getPrEntriesForReviewers(
+        request({ reviewerIds: [REVIEWER, 'not-an-object-id'] }),
+        mockRes,
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send.mock.calls[0][0]).toContain('not-an-object-id');
+      expect(PromotionPrEntry.find).not.toHaveBeenCalled();
+    });
+
+    it('refuses a batch larger than the whole table rather than building the response', async () => {
+      givenEntries([]);
+      const tooMany = Array.from({ length: 2001 }, () => REVIEWER);
+
+      await controller.getPrEntriesForReviewers(request({ reviewerIds: tooMany }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.find).not.toHaveBeenCalled();
+    });
+
+    it('refuses a caller without getReports', async () => {
+      givenEntries([]);
+      hasPermission.mockResolvedValue(false);
+
+      await controller.getPrEntriesForReviewers(request({ reviewerIds: [REVIEWER] }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(PromotionPrEntry.find).not.toHaveBeenCalled();
+    });
+
+    it('reports a database failure as a 500 rather than throwing at the router', async () => {
+      PromotionPrEntry.find = jest.fn(() => ({
+        sort: () => ({ lean: () => Promise.reject(new Error('mongo is down')) }),
+      }));
+      controller = build();
+
+      await controller.getPrEntriesForReviewers(request({ reviewerIds: [REVIEWER] }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
+  });
+
   describe('importPrEntriesFromSummary', () => {
     const givenSummary = (summary, dueDate) => {
       UserProfile.findById = jest.fn(() => ({
