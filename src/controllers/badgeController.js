@@ -168,6 +168,89 @@ const badgeController = function (Badge) {
     }
   };
 
+  /**
+   * Assigns one or more badges to one or more users in a single request.
+   * Increments the count of a badge a user already has, or adds it as a new
+   * entry with count 1. Used by the bulk "Assign Badge" flow which lets an
+   * admin select multiple users and multiple badges at once.
+   */
+  const assignBadgesToMultipleUsers = async function (req, res) {
+    if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
+      res.status(403).send('You are not authorized to assign badges.');
+      return;
+    }
+
+    const { userIds, selectedBadges } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      res.status(400).send('userIds must be a non-empty array.');
+      return;
+    }
+
+    if (!Array.isArray(selectedBadges) || selectedBadges.length === 0) {
+      res.status(400).send('selectedBadges must be a non-empty array.');
+      return;
+    }
+
+    try {
+      const results = await Promise.all(
+        userIds.map(async (userId) => {
+          try {
+            const record = await UserProfile.findById(userId);
+            if (!record) {
+              return { userId, success: false, reason: 'User not found' };
+            }
+
+            if (!Array.isArray(record.badgeCollection)) {
+              record.badgeCollection = [];
+            }
+
+            selectedBadges.forEach((badgeId) => {
+              const existing = record.badgeCollection.find(
+                (item) => item.badge && item.badge.toString() === badgeId.toString(),
+              );
+
+              if (existing) {
+                existing.count = (existing.count || 0) + 1;
+                existing.lastModified = Date.now();
+                existing.earnedDate.push(new Date());
+              } else {
+                record.badgeCollection.push({
+                  badge: badgeId,
+                  count: 1,
+                  lastModified: Date.now(),
+                  earnedDate: [new Date()],
+                  featured: false,
+                });
+              }
+            });
+
+            record.badgeCount = (record.badgeCount || 0) + selectedBadges.length;
+
+            if (cache.hasCache(`user-${userId}`)) {
+              cache.removeCache(`user-${userId}`);
+            }
+
+            await record.save();
+            return { userId, success: true };
+          } catch (err) {
+            return { userId, success: false, reason: err.message };
+          }
+        }),
+      );
+
+      const failures = results.filter((result) => !result.success);
+      if (failures.length === userIds.length) {
+        res.status(400).send({ message: 'Failed to assign badges to any user.', results });
+        return;
+      }
+
+      res.status(200).send({ message: 'Badges assigned successfully.', results });
+    } catch (err) {
+      res.status(500).send(`Internal Error: Badge Assignment. ${err.message}`);
+    }
+  };
+
   const postBadge = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'createBadges'))) {
       res.status(403).send({ error: 'You are not authorized to create new badges.' });
@@ -344,6 +427,7 @@ const badgeController = function (Badge) {
     awardNewBadges,
     getAllBadges,
     assignBadges,
+    assignBadgesToMultipleUsers,
     postBadge,
     deleteBadge,
     putBadge,
