@@ -192,63 +192,59 @@ const badgeController = function (Badge) {
       return;
     }
 
-    try {
-      const results = await Promise.all(
-        userIds.map(async (userId) => {
-          try {
-            const record = await UserProfile.findById(userId);
-            if (!record) {
-              return { userId, success: false, reason: 'User not found' };
-            }
+    const assignToUser = async (userId) => {
+      try {
+        const record = await UserProfile.findById(userId);
+        if (!record) {
+          return { userId, success: false, reason: 'User not found' };
+        }
 
-            if (!Array.isArray(record.badgeCollection)) {
-              record.badgeCollection = [];
-            }
+        if (!Array.isArray(record.badgeCollection)) {
+          record.badgeCollection = [];
+        }
 
-            selectedBadges.forEach((badgeId) => {
-              const existing = record.badgeCollection.find(
-                (item) => item.badge && item.badge.toString() === badgeId.toString(),
-              );
+        selectedBadges.forEach((badgeId) => {
+          const existing = record.badgeCollection.find(
+            (item) => item.badge && item.badge.toString() === badgeId.toString(),
+          );
 
-              if (existing) {
-                existing.count = (existing.count || 0) + 1;
-                existing.lastModified = Date.now();
-                existing.earnedDate.push(new Date());
-              } else {
-                record.badgeCollection.push({
-                  badge: badgeId,
-                  count: 1,
-                  lastModified: Date.now(),
-                  earnedDate: [new Date()],
-                  featured: false,
-                });
-              }
+          if (existing) {
+            existing.count = (existing.count || 0) + 1;
+            existing.lastModified = Date.now();
+            existing.earnedDate.push(new Date());
+          } else {
+            record.badgeCollection.push({
+              badge: badgeId,
+              count: 1,
+              lastModified: Date.now(),
+              earnedDate: [new Date()],
+              featured: false,
             });
-
-            record.badgeCount = (record.badgeCount || 0) + selectedBadges.length;
-
-            if (cache.hasCache(`user-${userId}`)) {
-              cache.removeCache(`user-${userId}`);
-            }
-
-            await record.save();
-            return { userId, success: true };
-          } catch (err) {
-            return { userId, success: false, reason: err.message };
           }
-        }),
-      );
+        });
 
-      const failures = results.filter((result) => !result.success);
-      if (failures.length === userIds.length) {
-        res.status(400).send({ message: 'Failed to assign badges to any user.', results });
-        return;
+        record.badgeCount = (record.badgeCount || 0) + selectedBadges.length;
+
+        if (cache.hasCache(`user-${userId}`)) {
+          cache.removeCache(`user-${userId}`);
+        }
+
+        await record.save();
+        return { userId, success: true };
+      } catch (err) {
+        return { userId, success: false, reason: err.message };
       }
+    };
 
-      res.status(200).send({ message: 'Badges assigned successfully.', results });
-    } catch (err) {
-      res.status(500).send(`Internal Error: Badge Assignment. ${err.message}`);
+    const results = await Promise.all(userIds.map(assignToUser));
+
+    const failures = results.filter((result) => !result.success);
+    if (failures.length === userIds.length) {
+      res.status(400).send({ message: 'Failed to assign badges to any user.', results });
+      return;
     }
+
+    res.status(200).send({ message: 'Badges assigned successfully.', results });
   };
 
   const postBadge = async function (req, res) {
