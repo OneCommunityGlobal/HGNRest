@@ -1,4 +1,4 @@
-const { cleanHtml } = require('../htmlContentSanitizer');
+const { cleanHtml, stripHtml } = require('../htmlContentSanitizer');
 
 describe('htmlContentSanitizer', () => {
   it('should sanitize HTML content', () => {
@@ -54,5 +54,26 @@ describe('htmlContentSanitizer', () => {
     const dirtyHtml = '<p style="color:red;" onclick="alert(\'xss\')">Test</p>';
     const clean = cleanHtml(dirtyHtml);
     expect(clean).toBe('<p>Test</p>');
+  });
+});
+
+describe('stripHtml', () => {
+  it('removes markup while preserving readable block boundaries', () => {
+    const dirty = '<p>Hello <strong>world</strong></p><ul><li>One</li><li>Two</li></ul>';
+
+    expect(stripHtml(dirty)).toBe('Hello world\nOne\nTwo');
+  });
+
+  it('removes script content and decodes HTML entities', () => {
+    const dirty = '<script>alert("xss")</script><p>Safe &amp; sound; 2 &lt; 3</p>';
+
+    expect(stripHtml(dirty)).toBe('Safe & sound; 2 < 3');
+  });
+
+  it('handles plain, empty, and missing values', () => {
+    expect(stripHtml('Just plain text')).toBe('Just plain text');
+    expect(stripHtml('')).toBe('');
+    expect(stripHtml(null)).toBe('');
+    expect(stripHtml(undefined)).toBe('');
   });
 });
