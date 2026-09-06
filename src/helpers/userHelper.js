@@ -28,6 +28,7 @@ const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
+const { activeFields } = require('./userStatusFields');
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
@@ -1703,17 +1704,15 @@ const userHelper = function () {
         const pausedOn = user.deactivatedAt;
         const recipients = await getEmailRecipientsForStatusChange(user._id);
 
+        // The same fields the Resume button and the lifecycle Activate action
+        // write, as an update document: everything except inactiveReason, which
+        // is removed rather than set.
+        const { inactiveReason, ...activate } = activeFields();
+
         await userProfile.findByIdAndUpdate(
           user._id,
           {
-            $set: {
-              isActive: true,
-              deactivatedAt: null,
-              reactivationDate: null,
-              endDate: null,
-              isSet: false,
-              finalEmailThreeWeeksSent: false,
-            },
+            $set: activate,
             $unset: { inactiveReason: '' },
           },
           { new: true },
@@ -3192,10 +3191,10 @@ const userHelper = function () {
   };
 
   const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
-    const returnDate = moment(reactivationDate)
-      .tz(COMPANY_TZ)
-      .add(1, 'day') // adding a day to make it clear they return on the day of reactivation
-      .format('M-D-YYYY');
+    // The reactivation date is the day they are back, so it is the date to
+    // name here. It used to carry a day added on top, which compensated for the
+    // date being stored a day early.
+    const returnDate = moment(reactivationDate).tz(COMPANY_TZ).format('M-D-YYYY');
     const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
 
     const emailBody = `
