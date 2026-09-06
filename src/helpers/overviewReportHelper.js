@@ -1980,22 +1980,34 @@ const overviewReportHelper = function () {
       { $unwind: '$badgeCollection.earnedDate' },
       {
         $addFields: {
+          earnedDateString: {
+            $convert: {
+              input: '$badgeCollection.earnedDate',
+              to: 'string',
+              onError: '',
+              onNull: '',
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
           fixedDateString: {
             $cond: {
               if: {
                 $regexMatch: {
-                  input: '$badgeCollection.earnedDate',
+                  input: '$earnedDateString',
                   regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
               },
               then: {
                 $concat: [
-                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  { $substr: ['$earnedDateString', 0, 6] },
                   '-20',
-                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                  { $substr: ['$earnedDateString', 7, 2] },
                 ],
               },
-              else: '$badgeCollection.earnedDate',
+              else: '$earnedDateString',
             },
           },
         },
