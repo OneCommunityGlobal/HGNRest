@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Project = require('../../models/project');
 const SupplierPerformance = require('../../models/summaryDashboard/supplierPerformance');
 const logger = require('../../startup/logger');
 
@@ -66,25 +67,15 @@ const supplierPerformanceController = function () {
    */
   const getProjectsWithSupplierData = async function (req, res) {
     try {
-      console.log('Fetching projects with supplier performance data');
+      const projectIds = await SupplierPerformance.distinct('projectId');
 
-      // Get distinct project IDs from supplier performance records only
-      const projectsWithData = await SupplierPerformance.aggregate([
-        {
-          $group: {
-            _id: '$projectId',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectId: '$_id',
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]);
+      const projectsWithData = await Project.find({
+        _id: { $in: projectIds },
+      })
+        .select('_id projectName')
+        .sort({ projectName: 1 })
+        .lean();
 
-      console.log(`Found ${projectsWithData.length} projects with supplier data`);
       res.status(200).send(projectsWithData);
     } catch (error) {
       logger.logException(error);
