@@ -1471,10 +1471,10 @@ const overviewReportHelper = function () {
 
   /**
    * Aggregates total hours worked in the selected date range across all active volunteers,
-   * matching the dashboard's getOrgData logic exactly:
+   * matching the leaderboard's getLeaderboard logic:
    * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
-   * - Only active users with weeklycommittedHours >= 1 and role != Mentor
-   * - Excludes entryType of 'person', 'team', or 'project'
+   * - Includes all active users
+   * - Excludes inactive time entries
    */
   async function getTotalHoursWorked(startDate, endDate) {
     const pdtstart =
@@ -1485,8 +1485,6 @@ const overviewReportHelper = function () {
       {
         $match: {
           isActive: true,
-          weeklycommittedHours: { $gte: 1 },
-          role: { $ne: 'Mentor' },
         },
       },
       {
@@ -1507,7 +1505,7 @@ const overviewReportHelper = function () {
                 $and: [
                   { $gte: ['$$timeentry.dateOfWork', pdtstart] },
                   { $lte: ['$$timeentry.dateOfWork', pdtend] },
-                  { $not: [{ $in: ['$$timeentry.entryType', ['person', 'team', 'project']] }] },
+                  { $ne: ['$$timeentry.isActive', false] },
                 ],
               },
             },
