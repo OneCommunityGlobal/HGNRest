@@ -467,6 +467,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
 );
 
 module.exports = function (app) {
+  app.use('/api/project-status', projectStatusRouter);
+
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -603,6 +605,11 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', costBreakdownRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', knowledgeEvolutionRouter);
 
   //app.use('api', bmIssueRouter);
