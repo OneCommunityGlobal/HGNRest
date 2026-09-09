@@ -10,6 +10,9 @@
 */
 const StudentMetrics = require('../models/studentMetrics');
 const FormResponse = require('../models/formResponse');
+const StudentGroup = require('../models/studentGroup');
+const StudentGroupMember = require('../models/studentGroupMember');
+const UserProfile = require('../models/userProfile');
 
 const parseAnalyticsNumber = (value) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -17,6 +20,124 @@ const parseAnalyticsNumber = (value) => {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const calculateMetricsFromResponses = (responses) => {
+  let totalScore = 0;
+  let scoreCount = 0;
+  let totalTime = 0;
+
+  responses.forEach((response) => {
+    const numericAnswers = Array.isArray(response.responses)
+      ? response.responses
+          .map((entry) => parseAnalyticsNumber(entry?.answer))
+          .filter((value) => value !== null)
+      : [];
+
+    if (numericAnswers.length) {
+      totalScore += numericAnswers.reduce((sum, value) => sum + value, 0) / numericAnswers.length;
+      scoreCount += 1;
+    }
+
+    const timeField = Array.isArray(response.responses)
+      ? response.responses.find((entry) => /time(spent)?/i.test(entry?.questionLabel || ''))
+      : null;
+    const responseTime = parseAnalyticsNumber(timeField?.answer);
+    const topLevelTime = parseAnalyticsNumber(response.timeSpentMinutes);
+    if (responseTime !== null) totalTime += responseTime;
+    if (topLevelTime !== null) totalTime += topLevelTime;
+  });
+
+  return {
+    averageScore: scoreCount ? Number((totalScore / scoreCount).toFixed(2)) : 0,
+    totalTimeSpentMinutes: Math.round(totalTime),
+    engagementRate: Math.min(1, responses.length / 10),
+  };
+};
+
+const buildResponseOverview = (responses) => {
+  const responsesByStudent = new Map();
+
+  responses.forEach((response) => {
+    const studentId = response.submittedBy;
+    if (!studentId) return;
+    const studentResponses = responsesByStudent.get(studentId) || [];
+    studentResponses.push(response);
+    responsesByStudent.set(studentId, studentResponses);
+  });
+
+  const studentMetrics = [...responsesByStudent.values()].map(calculateMetricsFromResponses);
+  if (!studentMetrics.length) {
+    return {
+      averageScore: null,
+      averageTimeSpentMinutes: null,
+      averageEngagementRate: null,
+      totalStudents: 0,
+    };
+  }
+
+  const average = (field, precision) => {
+    const value =
+      studentMetrics.reduce((sum, metrics) => sum + metrics[field], 0) / studentMetrics.length;
+    return Number(value.toFixed(precision));
+  };
+
+  return {
+    averageScore: average('averageScore', 2),
+    averageTimeSpentMinutes: Math.round(
+      studentMetrics.reduce((sum, metrics) => sum + metrics.totalTimeSpentMinutes, 0) /
+        studentMetrics.length,
+    ),
+    averageEngagementRate: average('engagementRate', 3),
+    totalStudents: studentMetrics.length,
+  };
+};
+
+const buildTimeSeriesData = (responses) => {
+  const responsesByDay = new Map();
+
+  responses.forEach((response) => {
+    const submittedAt = new Date(response.submittedAt);
+    if (Number.isNaN(submittedAt.getTime())) return;
+
+    const date = submittedAt.toISOString().slice(0, 10);
+    const dailyResponses = responsesByDay.get(date) || [];
+    dailyResponses.push(response);
+    responsesByDay.set(date, dailyResponses);
+  });
+
+  return [...responsesByDay.entries()]
+    .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
+    .map(([date, dailyResponses]) => {
+      const metrics = buildResponseOverview(dailyResponses);
+      return {
+        date,
+        averageScore: metrics.averageScore,
+        timeSpent: dailyResponses.reduce((sum, response) => {
+          const responseMetrics = calculateMetricsFromResponses([response]);
+          return sum + responseMetrics.totalTimeSpentMinutes;
+        }, 0),
+        engagementRate: metrics.averageEngagementRate,
+      };
+    });
+};
+
+const getStudentOptions = async () => {
+  const studentIds = await FormResponse.distinct('submittedBy');
+  if (!studentIds.length) return [];
+
+  const users = await UserProfile.find({ _id: { $in: studentIds } })
+    .select('_id firstName lastName')
+    .lean();
+  return users.map((user) => ({
+    id: user._id.toString(),
+    name: `${user.firstName} ${user.lastName}`.trim(),
+  }));
+};
+
+const getClassOptions = async () => {
+  const groups = await StudentGroup.find({}).select('_id name').lean();
+  return groups.map((group) => ({ id: group._id.toString(), name: group.name }));
 };
 
 const calculateStudentMetrics = async (studentId) => {
@@ -110,7 +231,38 @@ const getStudentMetrics = async (studentId, { forceRefresh = false } = {}) => {
   return calculateStudentMetrics(studentId);
 };
 
-const getOverview = async () => {
+const getOverview = async ({ studentId, classId, startDate, endDate } = {}) => {
+  const hasFilters = Boolean(studentId || classId || startDate || endDate);
+  const responseQuery = {};
+
+  if (studentId) responseQuery.submittedBy = studentId;
+  if (startDate || endDate) {
+    responseQuery.submittedAt = {};
+    if (startDate) responseQuery.submittedAt.$gte = startDate;
+    if (endDate) responseQuery.submittedAt.$lte = endDate;
+  }
+
+  if (classId) {
+    const members = await StudentGroupMember.find({ group_id: classId })
+      .select('student_id')
+      .lean();
+    const classStudentIds = members.map((member) => member.student_id.toString());
+    responseQuery.submittedBy = studentId
+      ? { $in: classStudentIds.filter((id) => id === studentId) }
+      : { $in: classStudentIds };
+  }
+
+  const [responses, students, classes] = await Promise.all([
+    FormResponse.find(responseQuery).lean(),
+    getStudentOptions(),
+    getClassOptions(),
+  ]);
+
+  const timeSeriesData = buildTimeSeriesData(responses);
+  if (hasFilters) {
+    return { ...buildResponseOverview(responses), students, classes, timeSeriesData };
+  }
+
   // Use cached student metrics to build overview; if not available, fallback to aggregating FormResponse
   const stats = await StudentMetrics.aggregate([
     {
@@ -131,23 +283,30 @@ const getOverview = async () => {
       averageTimeSpentMinutes: Math.round(s.avgTime || 0),
       averageEngagementRate: Number((s.avgEngagement || 0).toFixed(3)),
       totalStudents: s.totalStudents || 0,
+      students,
+      classes,
+      timeSeriesData,
     };
   }
 
-  // Fallback: compute minimal overview from FormResponse directly
-  const totalResponses = await FormResponse.countDocuments();
+  // Preserve the existing unfiltered fallback response shape while adding dashboard data.
   const distinctStudents = await FormResponse.distinct('submittedBy');
   return {
     averageScore: 0,
     averageTimeSpentMinutes: 0,
     averageEngagementRate: 0,
     totalStudents: distinctStudents.length || 0,
-    totalResponses,
+    totalResponses: responses.length,
+    students,
+    classes,
+    timeSeriesData,
   };
 };
 
 module.exports = {
   parseAnalyticsNumber,
+  calculateMetricsFromResponses,
+  buildTimeSeriesData,
   calculateStudentMetrics,
   refreshStudentMetrics,
   computeStudentMetrics,
