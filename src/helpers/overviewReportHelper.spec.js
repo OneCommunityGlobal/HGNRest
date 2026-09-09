@@ -115,6 +115,23 @@ describe('overviewReportHelper tests', () => {
         expect(result).toEqual({ current: 11 });
       },
     );
+
+    it('uses the same user and time-entry inclusion rules as the leaderboard', async () => {
+      const aggregateSpy = jest
+        .spyOn(UserProfile, 'aggregate')
+        .mockResolvedValueOnce([{ totaltime_hrs: 12.5 }]);
+
+      const result = await overviewReportHelper().getTotalHoursWorked('2026-08-30', '2026-09-05');
+      const pipeline = aggregateSpy.mock.calls[0][0];
+
+      expect(pipeline[0]).toEqual({ $match: { isActive: true } });
+      expect(pipeline[2].$project.timeEntryData.$filter.cond.$and).toEqual([
+        { $gte: ['$$timeentry.dateOfWork', '2026-08-30'] },
+        { $lte: ['$$timeentry.dateOfWork', '2026-09-05'] },
+        { $ne: ['$$timeentry.isActive', false] },
+      ]);
+      expect(result).toEqual({ current: 12.5 });
+    });
   });
 });
 
