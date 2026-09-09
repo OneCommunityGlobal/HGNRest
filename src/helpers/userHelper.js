@@ -307,6 +307,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Name:</b> ${firstName} ${lastName}</p>
         <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -582,7 +583,7 @@ const userHelper = function () {
       person.totalIntangibleHrs === 0 &&
       timeSpent === 0 &&
       userStartDate.isAfter(pdtStartOfLastWeek) &&
-      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1 // only Tuesday+ gets a pass
+      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2 // only Wednesday+ gets a pass
     ) {
       return true;
     }
@@ -591,7 +592,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2) // ← > 2 means after Tuesday
     ) {
       return true;
     }
@@ -1305,6 +1306,14 @@ const userHelper = function () {
         if (!templateKey) continue;
 
         console.log(`[autoReply] ${user.email} → ${templateKey}`);
+
+        // Remove the blue square from the database if hours were close enough
+        if (templateKey === 'MISSED_HOURS_BY_<15%') {
+          await userProfile.findByIdAndUpdate(user._id, {
+            $pull: { infringements: { date: assignmentDate } },
+          });
+        }
+
         await sendBlueSquareEmail(
           emailConfig,
           user,
