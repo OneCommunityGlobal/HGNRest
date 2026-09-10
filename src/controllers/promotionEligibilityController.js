@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const logger = require('../startup/logger');
 const { ValidationError } = require('../utilities/errorHandling/customError');
+const FormResponse = require('../models/hgnFormResponse');
 
 const promotionEligibilityController = function (
   UserProfile,
@@ -33,8 +34,15 @@ const promotionEligibilityController = function (
     }
 
     try {
+      // Only include users who have completed the questionnaire
+      const questionnaireResponses = await FormResponse.find({}, 'user_id').lean();
+      const questionnaireUserIds = questionnaireResponses
+        .map((response) => response.user_id)
+        .filter(Boolean);
+
       const users = await UserProfile.find(
         {
+          _id: { $in: questionnaireUserIds },
           isActive: true,
           role: { $nin: ['Owner', 'Administrator', 'Promoted Reviewer'] },
         },
