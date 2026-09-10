@@ -42,20 +42,23 @@ describe('bmMaterialsController', () => {
   const controller = bmMaterialsController(BuildingMaterial);
 
   describe('bmMaterialsList', () => {
-    it('should fetch and return materials list', async () => {
-      const mockResults = [{ name: 'Cement', quantity: 100 }];
-      // Fix the chaining of populate calls
+    const mockPopulateChain = (results) => {
       mockPopulate.mockImplementation(() => ({
         populate: mockPopulate,
         exec() {
           return {
             then(callback) {
-              callback(mockResults);
+              callback(results);
               return { catch: mockCatch };
             },
           };
         },
       }));
+    };
+
+    it('should fetch and return materials list', async () => {
+      const mockResults = [{ name: 'Cement', quantity: 100 }];
+      mockPopulateChain(mockResults);
 
       const req = {};
       const res = {
@@ -70,6 +73,40 @@ describe('bmMaterialsController', () => {
       expect(mockPopulate).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith(mockResults);
+    });
+
+    it('returns stockHold, isReviewed and notes without applying a restrictive projection', async () => {
+      const mockResults = [
+        {
+          _id: 'mat1',
+          name: 'Cement',
+          stockHold: true,
+          isReviewed: false,
+          notes: 'Damaged pallet, awaiting review',
+        },
+      ];
+      mockPopulateChain(mockResults);
+
+      const req = {};
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+        json: jest.fn(),
+      };
+
+      await controller.bmMaterialsList(req, res);
+
+      // find() is called with no projection argument, so nothing is excluded.
+      expect(mockFind).toHaveBeenCalledWith();
+      expect(res.status).toHaveBeenCalledWith(200);
+      const [payload] = res.send.mock.calls[0];
+      expect(payload[0]).toEqual(
+        expect.objectContaining({
+          stockHold: true,
+          isReviewed: false,
+          notes: 'Damaged pallet, awaiting review',
+        }),
+      );
     });
 
     it('should handle errors during fetch', async () => {
