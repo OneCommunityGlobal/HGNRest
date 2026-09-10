@@ -2,11 +2,43 @@ const jwt = require('jsonwebtoken');
 const Certification = require('../models/certification');
 const EducatorCertification = require('../models/educatorCertification');
 
+const PM_CERTIFICATION_ROLES = ['Administrator', 'Owner', 'Program Manager', 'Product Manager'];
+
+/**
+ * Verifies the request's JWT and confirms the caller's role is allowed to
+ * access the PM certification endpoints. Returns the decoded token on
+ * success, or writes an error response and returns null on failure.
+ */
+const authorizePmCertificationAccess = (req, res) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    res.status(401).json({ error: 'Authorization token missing' });
+    return null;
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+    return null;
+  }
+
+  if (!PM_CERTIFICATION_ROLES.includes(decoded.role)) {
+    res.status(403).json({ error: 'You are not authorized to access this resource' });
+    return null;
+  }
+
+  return decoded;
+};
+
 const certificationController = function () {
   // Get all Certifications
 
   const getAllCertifications = async (req, res) => {
     try {
+      if (!authorizePmCertificationAccess(req, res)) return;
+
       const certification = await Certification.find({});
       return res.status(200).json(certification);
     } catch (error) {
@@ -18,6 +50,8 @@ const certificationController = function () {
 
   const getAllEducatorCertifications = async (req, res) => {
     try {
+      if (!authorizePmCertificationAccess(req, res)) return;
+
       const { status } = req.query;
       const filter = {};
       if (status) {
@@ -78,15 +112,8 @@ const certificationController = function () {
       if (!educatorId) return res.status(400).json({ error: 'educatorId is required' });
 
       // 1. Authorization Handling
-      const token = req.headers.authorization;
-      if (!token) return res.status(401).json({ error: 'Authorization token missing' });
-
-      let decoded;
-      try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        return res.status(401).json({ error: 'Invalid token' });
-      }
+      const decoded = authorizePmCertificationAccess(req, res);
+      if (!decoded) return;
 
       const assignedBy = decoded.userid;
 
@@ -100,31 +127,29 @@ const certificationController = function () {
           .json({ error: err.message });
       }
 
-      // 3. Assignment Logic (Upsert)
+      // 3. Assignment Logic (reject duplicates)
       const query = { educatorId, certificationId: certToUse._id };
-      const updateData = {
+
+      const existing = await EducatorCertification.findOne(query);
+      if (existing) {
+        return res
+          .status(409)
+          .json({ error: 'This certification is already assigned to the educator' });
+      }
+
+      const assignment = await EducatorCertification.create({
+        ...query,
         status,
         expiryDate,
         assignedBy,
-      };
-
-      // We check existence to determine the correct HTTP status (200 vs 201)
-      let assignment = await EducatorCertification.findOne(query);
-      const isNew = !assignment;
-
-      if (isNew) {
-        assignment = await EducatorCertification.create({ ...query, ...updateData });
-      } else {
-        Object.assign(assignment, updateData);
-        await assignment.save();
-      }
+      });
 
       const populated = await assignment.populate([
         { path: 'certificationId', select: 'name description' },
         { path: 'assignedBy', select: 'name email' },
       ]);
 
-      return res.status(isNew ? 201 : 200).json(populated);
+      return res.status(201).json(populated);
     } catch (error) {
       console.error('SERVER ERROR:', error);
       res.status(500).json({ error: error.message });
