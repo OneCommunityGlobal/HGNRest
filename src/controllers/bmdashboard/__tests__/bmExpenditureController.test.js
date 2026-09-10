@@ -1,5 +1,7 @@
 jest.mock('../../../models/bmdashboard/buildingExpenditure', () => ({
   find: jest.fn(),
+  aggregate: jest.fn(),
+  distinct: jest.fn(),
 }));
 
 const Expenditures = require('../../../models/bmdashboard/buildingExpenditure');
@@ -121,6 +123,210 @@ describe('bmExpenditureController', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: 'Server error DB connection lost',
+      });
+    });
+  });
+
+  describe('getProjectIdsWithExpenditure', () => {
+    it('returns 200 with the distinct project ids', async () => {
+      Expenditures.distinct.mockResolvedValue(['proj1', 'proj2']);
+      const res = makeRes();
+
+      await bmExpenditureController.getProjectIdsWithExpenditure({}, res);
+
+      expect(Expenditures.distinct).toHaveBeenCalledWith('projectId');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ success: true, data: ['proj1', 'proj2'] });
+    });
+
+    it('returns 500 when the query rejects', async () => {
+      Expenditures.distinct.mockRejectedValue(new Error('DB down'));
+      const res = makeRes();
+
+      await bmExpenditureController.getProjectIdsWithExpenditure({}, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Server error DB down',
+      });
+    });
+  });
+
+  describe('getCostBreakdown', () => {
+    it('returns 400 when projectId is missing', async () => {
+      const req = { params: {}, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'projectId is required',
+      });
+      expect(Expenditures.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for an invalid startDate', async () => {
+      const req = { params: { id: 'proj1' }, query: { startDate: 'not-a-date' } };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Invalid startDate' });
+      expect(Expenditures.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for an invalid endDate', async () => {
+      const req = { params: { id: 'proj1' }, query: { endDate: 'not-a-date' } };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Invalid endDate' });
+      expect(Expenditures.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('aggregates with only a projectId match when no date range is given', async () => {
+      Expenditures.aggregate.mockResolvedValue([]);
+      const req = { params: { id: 'proj1' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      const [pipeline] = Expenditures.aggregate.mock.calls[0];
+      expect(pipeline[0]).toEqual({ $match: { projectId: 'proj1' } });
+      expect(pipeline[2]).toEqual({ $match: { normalizedDate: { $ne: null } } });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ actual: [] });
+    });
+
+    it('aggregates across every project when id is "all"', async () => {
+      Expenditures.aggregate.mockResolvedValue([]);
+      const req = { params: { id: 'all' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      const [pipeline] = Expenditures.aggregate.mock.calls[0];
+      expect(pipeline[0]).toEqual({ $match: {} });
+      expect(pipeline[2]).toEqual({ $match: { normalizedDate: { $ne: null } } });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('still applies a date range when id is "all"', async () => {
+      Expenditures.aggregate.mockResolvedValue([]);
+      const req = {
+        params: { id: 'all' },
+        query: { startDate: '2024-01-01', endDate: '2024-03-31' },
+      };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      const [pipeline] = Expenditures.aggregate.mock.calls[0];
+      expect(pipeline[0]).toEqual({ $match: {} });
+      expect(pipeline[2].$match.normalizedDate).toEqual({
+        $ne: null,
+        $gte: new Date('2024-01-01'),
+        $lte: new Date('2024-03-31'),
+      });
+    });
+
+    it('includes a date range in the normalizedDate match stage when startDate/endDate are provided', async () => {
+      Expenditures.aggregate.mockResolvedValue([]);
+      const req = {
+        params: { id: 'proj1' },
+        query: { startDate: '2024-01-01', endDate: '2024-03-31' },
+      };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      const [pipeline] = Expenditures.aggregate.mock.calls[0];
+      expect(pipeline[0]).toEqual({ $match: { projectId: 'proj1' } });
+      expect(pipeline[2].$match.normalizedDate).toEqual({
+        $ne: null,
+        $gte: new Date('2024-01-01'),
+        $lte: new Date('2024-03-31'),
+      });
+    });
+
+    it('excludes rows whose date could not be coerced from the aggregation', async () => {
+      Expenditures.aggregate.mockResolvedValue([]);
+      const req = { params: { id: 'proj1' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      const [pipeline] = Expenditures.aggregate.mock.calls[0];
+      expect(pipeline[1]).toEqual({
+        $addFields: {
+          normalizedDate: {
+            $convert: { input: '$date', to: 'date', onError: null, onNull: null },
+          },
+        },
+      });
+      expect(pipeline[2]).toEqual({ $match: { normalizedDate: { $ne: null } } });
+    });
+
+    it('groups aggregated rows by month and pivots categories into columns', async () => {
+      Expenditures.aggregate.mockResolvedValue([
+        { _id: { year: 2024, month: 1, category: 'Plumbing' }, totalCost: 5000 },
+        { _id: { year: 2024, month: 1, category: 'Electrical' }, totalCost: 4500 },
+        { _id: { year: 2024, month: 1, category: 'Structural' }, totalCost: 7000 },
+        { _id: { year: 2024, month: 1, category: 'Mechanical' }, totalCost: 6000 },
+        { _id: { year: 2024, month: 2, category: 'Plumbing' }, totalCost: 4000 },
+      ]);
+      const req = { params: { id: 'proj1' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        actual: [
+          {
+            month: 'Jan 2024',
+            plumbing: 5000,
+            electrical: 4500,
+            structural: 7000,
+            mechanical: 6000,
+          },
+          { month: 'Feb 2024', plumbing: 4000, electrical: 0, structural: 0, mechanical: 0 },
+        ],
+      });
+    });
+
+    it('ignores categories outside the known cost-breakdown set', async () => {
+      Expenditures.aggregate.mockResolvedValue([
+        { _id: { year: 2024, month: 1, category: 'Labor' }, totalCost: 999 },
+      ]);
+      const req = { params: { id: 'proj1' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        actual: [{ month: 'Jan 2024', plumbing: 0, electrical: 0, structural: 0, mechanical: 0 }],
+      });
+    });
+
+    it('returns 500 when the aggregation rejects', async () => {
+      const error = new Error('aggregation failed');
+      Expenditures.aggregate.mockRejectedValue(error);
+      const req = { params: { id: 'proj1' }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Server error aggregation failed',
       });
     });
   });
