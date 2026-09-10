@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const fetch = require('node-fetch');
 const {
   productionIdentityConfig,

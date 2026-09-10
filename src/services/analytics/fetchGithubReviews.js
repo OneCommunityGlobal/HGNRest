@@ -162,7 +162,7 @@ const buildGithubToTeamMap = async (HgnFormResponses, UserProfile, reviewerLogin
       [...normalizedReviewers]
         .map((name) => githubToUserId.get(name))
         .filter(Boolean)
-        .map((id) => String(id)),
+        .map(String),
     ),
   ];
 
