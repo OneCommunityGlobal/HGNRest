@@ -260,8 +260,14 @@ const bmMaterialsController = function (BuildingMaterial) {
         update,
       );
 
+      // Mongoose 5 returns `n`/`nModified`; newer drivers use `matchedCount`/`modifiedCount`.
+      const matchedCount = result.matchedCount ?? result.n ?? 0;
+      const modifiedCount = result.modifiedCount ?? result.nModified ?? 0;
+
       return res.status(200).send({
-        result: `Applied '${action}' to ${result.modifiedCount} material records.`,
+        matchedCount,
+        modifiedCount,
+        result: `Applied '${action}' to ${modifiedCount} material records.`,
       });
     } catch (error) {
       return res.status(500).send(error);
