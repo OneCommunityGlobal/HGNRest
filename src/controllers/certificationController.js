@@ -2,7 +2,12 @@ const jwt = require('jsonwebtoken');
 const Certification = require('../models/certification');
 const EducatorCertification = require('../models/educatorCertification');
 
-const PM_CERTIFICATION_ROLES = ['Administrator', 'Owner', 'Program Manager', 'Product Manager'];
+const PM_CERTIFICATION_ROLES = new Set([
+  'Administrator',
+  'Owner',
+  'Program Manager',
+  'Product Manager',
+]);
 
 /**
  * Verifies the request's JWT and confirms the caller's role is allowed to
@@ -24,7 +29,7 @@ const authorizePmCertificationAccess = (req, res) => {
     return null;
   }
 
-  if (!PM_CERTIFICATION_ROLES.includes(decoded.role)) {
+  if (!PM_CERTIFICATION_ROLES.has(decoded.role)) {
     res.status(403).json({ error: 'You are not authorized to access this resource' });
     return null;
   }
@@ -79,7 +84,7 @@ const certificationController = function () {
       if (!cert) throw new Error('Certification not found');
     } else if (name) {
       if (typeof name !== 'string') {
-        throw new Error('Invalid certification name format');
+        throw new TypeError('Invalid certification name format');
       }
 
       const sanitizedName = String(name);
@@ -144,7 +149,7 @@ const certificationController = function () {
         assignedBy,
       });
 
-      const populated = await assignment.populate([
+      const populated = assignment.populate([
         { path: 'certificationId', select: 'name description' },
         { path: 'assignedBy', select: 'name email' },
       ]);

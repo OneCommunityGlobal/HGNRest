@@ -1,6 +1,5 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-
 const certification = require('../models/certification');
 const educatorCertification = require('../models/educatorCertification');
 
