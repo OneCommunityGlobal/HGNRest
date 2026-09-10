@@ -280,7 +280,7 @@ describe('certificationController', () => {
       const populatedAssignment = { _id: 'assignment1', status: 'active' };
       Certification.findById.mockResolvedValue(cert);
       EducatorCertification.findOne.mockResolvedValue(null);
-      const populateFn = jest.fn().mockResolvedValue(populatedAssignment);
+      const populateFn = jest.fn().mockReturnValue(populatedAssignment);
       EducatorCertification.create.mockResolvedValue({
         _id: 'assignment1',
         populate: populateFn,
