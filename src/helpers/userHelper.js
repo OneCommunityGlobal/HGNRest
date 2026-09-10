@@ -3506,6 +3506,7 @@ const userHelper = function () {
     checkLeadTeamOfXplus,
     checkMostHrsWeek,
     checkXHrsInOneWeek,
+    checkIsNewUser,
     updatePersonalMax,
     getAllTeamMembers,
     getAllWeeksData,
