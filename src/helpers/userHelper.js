@@ -28,6 +28,7 @@ const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
+const { activeFields } = require('./userStatusFields');
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
@@ -1651,61 +1652,86 @@ const userHelper = function () {
     return null;
   };
 
-  const reActivateUser = async () => {
-    const currentFormattedDate = moment().tz(COMPANY_TZ).format();
-
+  /**
+   * Daily job: bring paused users back on the date they were paused until.
+   *
+   * The manual Resume button and this job have to agree about what "active"
+   * means, so the fields written here mirror the ACTIVATE branch of
+   * userProfileController exactly. Leaving any of them behind has real
+   * consequences: a stale `reactivationDate` permanently excludes the user
+   * from finalizeUserEndDates, which deliberately skips anyone who still looks
+   * paused, so they could never be separated afterwards.
+   */
+  const reactivateUser = async () => {
     logger.logInfo(
-      `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`,
+      `Job for activating users based on scheduled re-activation date starting at ${moment()
+        .tz(COMPANY_TZ)
+        .format()}`,
     );
 
+    let users;
     try {
-      const users = await userProfile.find(
-        { isActive: false, reactivationDate: { $exists: true } },
-        '_id isActive reactivationDate',
+      users = await userProfile.find(
+        { isActive: false, reactivationDate: { $ne: null } },
+        '_id firstName lastName email deactivatedAt reactivationDate',
       );
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
-        if (canActivate) {
-          // Use '!' to invert the boolean value for testing
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $set: {
-                isActive: true,
-              },
-              $unset: {
-                endDate: user.endDate,
-              },
-            },
-            { new: true },
-          );
-          logger.logInfo(
-            `User with id: ${user._id} was re-acticated at ${moment().tz(COMPANY_TZ).format()}.`,
-          );
-          const id = user._id;
-          const person = await userProfile.findById(id);
-
-          const endDate = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
-
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
-
-          const emailBody = `<p> Hi Admin! </p>
-
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has been made active again in the Highest Good Network application after being paused on ${endDate}.</p>
-
-          <p>If you need to communicate anything with them, this is their email from the system: ${person.email}.</p>
-
-          <p> Thanks! </p>
-
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
-        }
-      }
     } catch (err) {
-      logger.logException(err);
+      logger.logException(err, 'reactivateUser: could not load paused users');
+      return;
+    }
+
+    const now = moment().tz(COMPANY_TZ);
+
+    for (let i = 0; i < users.length; i += 1) {
+      const user = users[i];
+
+      // Per user, so one unreadable record cannot stop everybody else from
+      // being reactivated.
+      try {
+        const reactivateOn = moment(user.reactivationDate).tz(COMPANY_TZ);
+        if (!reactivateOn.isValid()) {
+          logger.logInfo(`reactivateUser: skipping user ${user._id}, unreadable reactivationDate.`);
+          continue;
+        }
+
+        // The date is stored as the start of the day in company time and this
+        // job runs just after midnight, so "on that day" is an inclusive
+        // comparison rather than a strict one.
+        if (now.isBefore(reactivateOn)) continue;
+
+        // Read before the update, because the email reports the date they were
+        // paused on and the update clears it.
+        const pausedOn = user.deactivatedAt;
+        const recipients = await getEmailRecipientsForStatusChange(user._id);
+
+        // The same fields the Resume button and the lifecycle Activate action
+        // write, as an update document: everything except inactiveReason, which
+        // is removed rather than set.
+        const { inactiveReason, ...activate } = activeFields();
+
+        await userProfile.findByIdAndUpdate(
+          user._id,
+          {
+            $set: activate,
+            $unset: { inactiveReason: '' },
+          },
+          { new: true },
+        );
+
+        logger.logInfo(
+          `User with id: ${user._id} was reactivated at ${moment().tz(COMPANY_TZ).format()}.`,
+        );
+
+        sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
+      } catch (err) {
+        logger.logException(err, `reactivateUser: failed for user ${user._id}`);
+      }
     }
   };
 
@@ -3165,10 +3191,10 @@ const userHelper = function () {
   };
 
   const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
-    const returnDate = moment(reactivationDate)
-      .tz(COMPANY_TZ)
-      .add(1, 'day') // adding a day to make it clear they return on the day of reactivation
-      .format('M-D-YYYY');
+    // The reactivation date is the day they are back, so it is the date to
+    // name here. It used to carry a day added on top, which compensated for the
+    // date being stored a day early.
+    const returnDate = moment(reactivationDate).tz(COMPANY_TZ).format('M-D-YYYY');
     const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
 
     const emailBody = `
@@ -3482,7 +3508,7 @@ const userHelper = function () {
     // inCompleteHoursEmailFunction,
     // weeklyBlueSquareReminderFunction,
     weeklyAutoReplyEmailFunction,
-    reActivateUser,
+    reactivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
