@@ -15,6 +15,8 @@ const router = function () {
   inventoryRouter.route('/items/storedQuantity').post(controller.updateStoredQuantity); // Add new stock
   inventoryRouter.route('/items/nextHarvest').put(controller.updateNextHarvest); // Update next harvest details
 
+  inventoryRouter.route('/items/:itemId').put(controller.updateItem).delete(controller.deleteItem); // Update Item
+
   // ── Wildcard route (must be last to avoid shadowing named routes above) ───
   inventoryRouter.route('/items/:category').get(controller.getItemsByCategory); // Get items by category
 
