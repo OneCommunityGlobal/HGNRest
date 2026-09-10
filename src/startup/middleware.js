@@ -152,11 +152,11 @@ module.exports = function (app) {
     };
 
     req.user = requestor;
-
-    if (req.body) {
-      req.body.requestor = requestor;
-    }
-
+    req.requestor = requestor;
+    
+    // Multipart requests are parsed later by route-level Multer middleware.
+    req.body = req.body || {};
+    req.body.requestor = requestor;
     return next();
   });
 
