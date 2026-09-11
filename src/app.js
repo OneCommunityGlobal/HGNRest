@@ -25,6 +25,10 @@ const helpRequestRouter = require('./routes/helpRequestRouter');
 app.use('/api/feedback', helpFeedbackRouter);
 app.use('/api/helprequest', helpRequestRouter);
 
+const path = require('path');
+
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 require('./startup/middleware')(app);
 
 const weeklyReportsRouter = require('./routes/weeklyReportsRouter');
