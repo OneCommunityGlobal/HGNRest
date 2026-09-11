@@ -5,6 +5,7 @@ const mockMatType = {
   find: jest.fn(),
   create: jest.fn(),
   findById: jest.fn(),
+  findByIdAndDelete: jest.fn(),
   findByIdAndUpdate: jest.fn(),
   exec: jest.fn(),
 };
@@ -177,6 +178,37 @@ describe('Building Materials Inventory Controller', () => {
       ]);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith(mockTools);
+    });
+  });
+
+  describe('deleteSingleInvType', () => {
+    it('does not reflect an unsupported inventory type in the response', async () => {
+      req.params = {
+        type: '<script>alert("unsafe")</script>',
+        invtypeId: 'inventory-type-id',
+      };
+
+      await controller.deleteSingleInvType(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error:
+          'Unsupported inventory type. Expected one of: materials, consumables, tools, reusables, equipments.',
+      });
+      expect(JSON.stringify(res.json.mock.calls)).not.toContain(req.params.type);
+    });
+
+    it('does not expose model error details in the response', async () => {
+      req.params = { type: 'materials', invtypeId: 'invalid-id' };
+      mockMatType.findByIdAndDelete.mockRejectedValue(
+        new Error(`Invalid inventory type id: ${req.params.invtypeId}`),
+      );
+
+      await controller.deleteSingleInvType(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Unable to delete inventory type' });
+      expect(JSON.stringify(res.json.mock.calls)).not.toContain(req.params.invtypeId);
     });
   });
 });
