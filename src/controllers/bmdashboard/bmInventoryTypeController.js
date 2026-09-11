@@ -685,14 +685,15 @@ function bmInventoryTypeController(
         }
         updatedList = await ReusType.find();
       } else {
-        throw new Error(
-          `Unsupported inventory type: "${type}". Expected one of: materials, consumables, tools, reusables, equipments.`,
-        );
+        return res.status(400).json({
+          error:
+            'Unsupported inventory type. Expected one of: materials, consumables, tools, reusables, equipments.',
+        });
       }
       // send the updated list
       res.status(200).json(updatedList);
     } catch (error) {
-      res.status(400).send(error.message);
+      res.status(400).json({ error: 'Unable to delete inventory type' });
     }
   };
 
