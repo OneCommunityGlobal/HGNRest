@@ -3,6 +3,7 @@ require('dotenv').config();
 const userHelper = require('../helpers/userHelper')();
 // startup/db exports a function that connects.
 const connectDb = require('../startup/db');
+const readline = require('readline');
 
 // --- TEST CONFIGURATION ---
 // REPLACE THESE VALUES WITH YOUR TEST DATA
@@ -12,17 +13,42 @@ const TESTER_CC = 'cc@gmail.com'; // Mandatory: Enter your test CC email
 const TESTER_BCC = 'bcc@gmail.com'; // Mandatory: Enter your test BCC email
 // --------------------------
 
+const askQuestion = (query) => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) => {
+    rl.question(query, (ans) => {
+      rl.close();
+      resolve(ans.trim());
+    });
+  });
+};
+
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 const runTests = async () => {
-  if (!TARGET_USER_ID || !TESTER_EMAIL) {
-    console.error('Error: Please set TARGET_USER_ID and TESTER_EMAIL in the script.');
+  if (!TARGET_USER_ID || !TESTER_EMAIL || !TESTER_CC || !TESTER_BCC) {
+    console.error(
+      'Error: Please configure TARGET_USER_ID, TESTER_EMAIL, TESTER_CC, and TESTER_BCC.',
+    );
     process.exit(1);
   }
 
-  if (!TESTER_CC || !TESTER_BCC) {
-    console.error(
-      'Error: SAFETY CHECK FAILED. You must provide TESTER_CC and TESTER_BCC addresses to avoid spamming production users.',
-    );
-    process.exit(1);
+  console.log('\nSelect the test function to run:');
+  console.log('1. assignBlueSquareForTimeNotMet');
+  console.log('2. weeklyAutoReplyEmailFunction');
+  console.log('3. Run Both');
+
+  const choice = await askQuestion('\nEnter choice (1, 2, or 3): ');
+
+  if (!['1', '2', '3'].includes(choice)) {
+    console.log('Invalid selection. Exiting.');
+    process.exit(0);
   }
 
   console.log('Connecting to DB...');
@@ -42,28 +68,23 @@ const runTests = async () => {
   };
 
   console.log(`\n--- Starting Tests for User: ${TARGET_USER_ID} ---\n`);
-  console.log(`To: ${TESTER_EMAIL}`);
-  console.log(`CC: ${TESTER_CC}`);
-  console.log(`BCC: ${TESTER_BCC}\n`);
 
   try {
-    console.log('1. Testing assignBlueSquareForTimeNotMet...');
-    await userHelper.assignBlueSquareForTimeNotMet(emailConfig);
-    console.log('   -> Done.\n');
+    if (choice === '1' || choice === '3') {
+      console.log('Testing assignBlueSquareForTimeNotMet...');
+      await userHelper.assignBlueSquareForTimeNotMet(emailConfig);
+      console.log('   -> Done.\n');
+    }
 
-    console.log('2. Testing completeHoursAndMissedSummary...');
-    await userHelper.completeHoursAndMissedSummary(emailConfig);
-    console.log('   -> Done.\n');
+    if (choice === '2' || choice === '3') {
+      console.log('Testing weeklyAutoReplyEmailFunction...');
+      await userHelper.weeklyAutoReplyEmailFunction(emailConfig);
+      console.log('   -> Done.\n');
+    }
 
-    // console.log('3. Testing inCompleteHoursEmailFunction...');
-    // await userHelper.inCompleteHoursEmailFunction(emailConfig);
-    // console.log('   -> Done.\n');
-
-    // console.log('4. Testing weeklyBlueSquareReminderFunction...');
-    // await userHelper.weeklyBlueSquareReminderFunction(emailConfig);
-    // console.log('   -> Done.\n');
-
-    console.log('All tests completed successfully.');
+    // Small delay to allow queued background operations (EmailHistory/EmailThread) to finish
+    await sleep(5000);
+    console.log('Execution completed successfully.');
   } catch (error) {
     console.error('Error running tests:', error);
   } finally {

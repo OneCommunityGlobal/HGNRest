@@ -31,6 +31,14 @@ jest.mock('../dashboardhelper', () =>
   })),
 );
 
+jest.mock('../../utilities/timeUtils');
+jest.mock('../../utilities/emailSender');
+jest.mock('../dashboardhelper', () =>
+  jest.fn(() => ({
+    laborthisweek: jest.fn().mockResolvedValue([{ timeSpent_hrs: 36 }]),
+  })),
+);
+
 /* =======================
    IMPORTS AFTER MOCKS
    ======================= */
@@ -39,6 +47,10 @@ const userProfile = require('../../models/userProfile');
 const badge = require('../../models/badge');
 const Team = require('../../models/team');
 const userHelperFactory = require('../userHelper');
+const timeUtils = require('../../utilities/timeUtils');
+const emailSender = require('../../utilities/emailSender');
+const { COMPANY_TZ } = require('../../constants/company');
+const timeOffRequest = require('../../models/timeOffRequest');
 
 const {
   getUserName,
@@ -57,6 +69,8 @@ const {
   getAllTeamMembers,
   getAllWeeksData,
   updatePersonalMax,
+  checkIsNewUser,
+  weeklyAutoReplyEmailFunction,
 } = userHelperFactory();
 
 /* =======================
@@ -1140,5 +1154,91 @@ describe('checkXHrsForXWeeks', () => {
     await checkXHrsForXWeeks(personId, user, badgeCollection);
 
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('checkIsNewUser', () => {
+  let pdtStartOfLastWeek;
+  let pdtEndOfLastWeek;
+
+  beforeEach(() => {
+    pdtStartOfLastWeek = moment('2026-03-01');
+    pdtEndOfLastWeek = moment('2026-03-07');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('should NOT treat a user starting on Tuesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(2); // Tuesday
+
+    const person = {
+      startDate: '2026-03-03',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const userStartDate = moment(person.startDate);
+    jest.spyOn(userStartDate, 'isAfter').mockReturnValue(true);
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(false);
+  });
+
+  it('should treat a user starting on Wednesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
+});
+
+describe('weeklyAutoReplyEmailFunction', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should pull infringement from userProfile when templateKey is MISSED_HOURS_BY_<15%', async () => {
+    const assignmentDate = moment()
+      .tz(COMPANY_TZ || 'America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
+
+    const mockUser = {
+      _id: '60c72b2f9b1d8b2bad701234',
+      email: 'test@example.com',
+      firstName: 'Jane',
+      weeklycommittedHours: 40,
+      missedHours: 0,
+      startDate: '2022-01-01',
+      weeklySummaryOption: 'Required',
+      weeklySummaryNotReq: false,
+      weeklySummaries: [{}, { summary: 'Done' }],
+      infringements: [{ date: assignmentDate }],
+    };
+
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(timeOffRequest, 'find').mockResolvedValueOnce([]);
+    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValueOnce(mockUser);
+    emailSender.mockResolvedValueOnce(true);
+
+    await weeklyAutoReplyEmailFunction({
+      targetUserId: mockUser._id,
+      bccOverride: ['test@example.com'],
+    });
+
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledWith(mockUser._id, {
+      $pull: { infringements: { date: assignmentDate } },
+    });
   });
 });

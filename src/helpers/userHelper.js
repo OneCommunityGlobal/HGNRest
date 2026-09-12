@@ -307,6 +307,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Name:</b> ${firstName} ${lastName}</p>
         <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -582,7 +583,7 @@ const userHelper = function () {
       person.totalIntangibleHrs === 0 &&
       timeSpent === 0 &&
       userStartDate.isAfter(pdtStartOfLastWeek) &&
-      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1 // only Tuesday+ gets a pass
+      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2 // only Wednesday+ gets a pass
     ) {
       return true;
     }
@@ -591,7 +592,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2) // ← > 2 means after Tuesday
     ) {
       return true;
     }
@@ -670,6 +671,7 @@ const userHelper = function () {
     user,
     pdtStartOfLastWeek,
     pdtEndOfLastWeek,
+    emailsCCs,
     emailsBCCs,
     emailQueue,
     usersRequiringBlueSqNotification,
@@ -823,7 +825,7 @@ const userHelper = function () {
           to: status.email,
           subject: 'New Infringement Assigned',
           body: emailBody,
-          cc: DEFAULT_CC_EMAILS,
+          cc: emailsCCs,
           replyTo: status.email,
           bcc: emailsBCCs,
           startDate: person.startDate,
@@ -848,7 +850,7 @@ const userHelper = function () {
   };
 
   // ─── Main function (now lean orchestrator) ───────────────────────────────────
-  const assignBlueSquareForTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
@@ -860,20 +862,19 @@ const userHelper = function () {
       const pdtStartOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week');
       const pdtEndOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
       const users = await userProfile.find(
-        { isActive: true },
+        query,
         '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
 
-      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-      const emailsBCCs =
-        blueSquareBCCs.length > 0
-          ? blueSquareBCCs
-              .filter((assignment) => assignment.assignedTo?.isActive === true)
-              .map((assignment) => assignment.email)
-          : null;
+      const resolvedCCs = resolveCCs(emailConfig);
 
-      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+      const resolvedBCCs = resolveBCCs(emailConfig);
+
+      console.log('Email BCCs for blue square assignment:', resolvedBCCs);
 
       const emailQueue = [];
       const usersRequiringBlueSqNotification = [];
@@ -888,7 +889,8 @@ const userHelper = function () {
           users[i],
           pdtStartOfLastWeek,
           pdtEndOfLastWeek,
-          emailsBCCs,
+          resolvedCCs,
+          resolvedBCCs,
           emailQueue,
           usersRequiringBlueSqNotification,
         );
@@ -1132,6 +1134,14 @@ const userHelper = function () {
   };
 
   /**
+   * Returns CC list: override if provided, else defaults.
+   */
+  const resolveCCs = async (emailConfig) => {
+    if (emailConfig.ccOverride) return emailConfig.ccOverride;
+    return DEFAULT_CC_EMAILS;
+  };
+
+  /**
    * Sends a blue-square reply email with standard subject/cc/bcc.
    */
   const sendBlueSquareEmail = async (emailConfig, user, weekStart, bodyHtml, resolvedBCCs) => {
@@ -1305,6 +1315,14 @@ const userHelper = function () {
         if (!templateKey) continue;
 
         console.log(`[autoReply] ${user.email} → ${templateKey}`);
+
+        // Remove the blue square from the database if hours were close enough
+        if (templateKey === 'MISSED_HOURS_BY_<15%') {
+          await userProfile.findByIdAndUpdate(user._id, {
+            $pull: { infringements: { date: assignmentDate } },
+          });
+        }
+
         await sendBlueSquareEmail(
           emailConfig,
           user,
@@ -3497,6 +3515,7 @@ const userHelper = function () {
     checkLeadTeamOfXplus,
     checkMostHrsWeek,
     checkXHrsInOneWeek,
+    checkIsNewUser,
     updatePersonalMax,
     getAllTeamMembers,
     getAllWeeksData,
