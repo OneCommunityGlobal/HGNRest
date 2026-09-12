@@ -24,7 +24,8 @@ const notificationController = function () {
     }
     if (
       requestor.requestorId !== userId &&
-      (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+      requestor.role !== 'Administrator' &&
+      requestor.role !== 'Owner'
     ) {
       res.status(403).send({ error: 'Unauthorized request' });
       return;
@@ -55,7 +56,8 @@ const notificationController = function () {
     }
     if (
       requestor.requestorId !== userId &&
-      (requestor.role !== 'Administrator' || requestor.role !== 'Owner')
+      requestor.role !== 'Administrator' &&
+      requestor.role !== 'Owner'
     ) {
       res.status(403).send({ error: 'Unauthorized request' });
       return;

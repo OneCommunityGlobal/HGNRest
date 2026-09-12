@@ -114,7 +114,7 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       <p><b>Hours Logged : ${hoursLogged.toFixed(2)}</b></p>
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
     emailSender(
       userProfile.email,
       'Logged more hours than estimated for a task',
@@ -420,7 +420,7 @@ const addEditHistory = async (
           .localeData()
           .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
         <p>Thank you,<p>
-        <p>One Community</p>
+        <p>One Community Admin Team</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <hr style="border-top: 1px dashed #000;"/>
@@ -563,25 +563,28 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.lastModifiedDateTime = now;
       timeEntry.entryType = req.body.entryType;
 
-      const userprofile = await UserProfile.findById(timeEntry.personId);
+      // Project and team lost-time entries have no associated personId, so there is
+      // no user profile to look up or update for them.
+      const entryHasPerson = timeEntry.entryType !== 'project' && timeEntry.entryType !== 'team';
+      const userprofile = entryHasPerson ? await UserProfile.findById(timeEntry.personId) : null;
 
-      if (!userprofile) {
+      if (entryHasPerson && !userprofile) {
         await session.abortTransaction();
         return res.status(404).send({ error: 'User not found' });
       }
 
-      if (!userprofile.isActive && userprofile.deactivatedAt) {
-        const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
-
-        if (moment().isAfter(cutoff)) {
-          await session.abortTransaction();
-          return res.status(403).send({
-            error: 'User is deactivated and can no longer log time',
-          });
-        }
-      }
-
       if (userprofile) {
+        if (!userprofile.isActive && userprofile.deactivatedAt) {
+          const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
+
+          if (moment().isAfter(cutoff)) {
+            await session.abortTransaction();
+            return res.status(403).send({
+              error: 'User is deactivated and can no longer log time',
+            });
+          }
+        }
+
         // if the time entry is tangible, update the tangible hours in the user profile
         if (timeEntry.isTangible) {
           // update the total tangible hours in the user profile and the hours by category
@@ -609,16 +612,16 @@ const timeEntrycontroller = function (TimeEntry) {
           // if the time entry is intangible, just update the intangible hours in the userprofile
           updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
         }
-      }
 
-      // Replace the isFirstTimelog checking logic from the frontend to the backend
-      // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
-      const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
-      if (isFirstTimeEntry) {
-        userprofile.isFirstTimelog = false;
-        userprofile.startDate = now;
+        // Replace the isFirstTimelog checking logic from the frontend to the backend
+        // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
+        const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
+        if (isFirstTimeEntry) {
+          userprofile.isFirstTimelog = false;
+          userprofile.startDate = now;
+        }
+        userprofile.lastActivityAt = new Date();
       }
-      userprofile.lastActivityAt = new Date();
 
       await timeEntry.save({ session });
       if (userprofile) {
@@ -640,6 +643,11 @@ const timeEntrycontroller = function (TimeEntry) {
           // Call the invalidation function
           invalidateWeeklySummariesCache(weekIndex);
         }
+      }
+
+      if (timeEntry.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
       }
 
       await session.commitTransaction();
@@ -1558,13 +1566,26 @@ const timeEntrycontroller = function (TimeEntry) {
    * recalculate the hoursByCategory for all users and update the field
    */
   const recalculateHoursByCategoryAllUsers = async function (taskId) {
-    if (mongoose.connection.readyState === 0) {
+    // Check if MongoDB connection is ready before attempting to start a session
+    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    if (mongoose.connection.readyState !== 1) {
+      const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
+      if (recalculationTask) {
+        recalculationTask.status = 'Failed';
+        recalculationTask.completionTime = new Date().toISOString();
+      }
+
+      logger.logInfo(
+        `Recalculation task ${taskId} skipped: MongoDB connection not ready (state: ${mongoose.connection.readyState})`,
+      );
       return;
     }
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
+    let sesh;
     try {
+      sesh = await mongoose.startSession();
+      sesh.startTransaction();
+
       const userprofiles = await UserProfile.find({}, '_id').lean();
 
       const recalculationPromises = userprofiles.map(async (userprofile) => {
@@ -1574,7 +1595,7 @@ const timeEntrycontroller = function (TimeEntry) {
       });
       await Promise.all(recalculationPromises);
 
-      await session.commitTransaction();
+      await sesh.commitTransaction();
 
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
@@ -1582,7 +1603,9 @@ const timeEntrycontroller = function (TimeEntry) {
         recalculationTask.completionTime = new Date().toISOString();
       }
     } catch (err) {
-      await session.abortTransaction();
+      if (sesh) {
+        await sesh.abortTransaction();
+      }
       const recalculationTask = recalculationTaskQueue.find((task) => task.taskId === taskId);
       if (recalculationTask) {
         recalculationTask.status = 'Failed';
@@ -1591,7 +1614,9 @@ const timeEntrycontroller = function (TimeEntry) {
 
       logger.logException(err);
     } finally {
-      session.endSession();
+      if (sesh) {
+        sesh.endSession();
+      }
     }
   };
 

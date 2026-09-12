@@ -23,10 +23,13 @@ const invTypeBase = mongoose.model('invTypeBase', invTypeBaseSchema, 'buildingIn
 
 // ex: sand, stone, brick, lumber
 
-const materialType = invTypeBase.discriminator('material_type', new mongoose.Schema({
-  category: { type: String, enum: ['Material'] },
-  unit: { type: String, required: true }, // unit of measurement
-}));
+const materialType = invTypeBase.discriminator(
+  'material_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Material'] },
+    unit: { type: String, required: true }, // unit of measurement
+  }),
+);
 
 //---------------------------
 // CONSUMABLE TYPE
@@ -34,11 +37,14 @@ const materialType = invTypeBase.discriminator('material_type', new mongoose.Sch
 
 // ex: screws, nails, staples
 
-const consumableType = invTypeBase.discriminator('consumable_type', new mongoose.Schema({
-  category: { type: String, enum: ['Consumable'] },
-  unit: { type: String, required: true },
-  size: { type: String, required: false },
-}));
+const consumableType = invTypeBase.discriminator(
+  'consumable_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Consumable'] },
+    unit: { type: String, required: true },
+    size: { type: String, required: false },
+  }),
+);
 
 //---------------------------
 // REUSABLE TYPE
@@ -46,9 +52,12 @@ const consumableType = invTypeBase.discriminator('consumable_type', new mongoose
 
 // ex: gloves, brushes, hammers, screwdrivers
 
-const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Schema({
-  category: { type: String, enum: ['Reusable'] },
-}));
+const reusableType = invTypeBase.discriminator(
+  'reusable_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Reusable'] },
+  }),
+);
 
 //---------------------------
 // TOOL TYPE
@@ -56,26 +65,29 @@ const reusableType = invTypeBase.discriminator('reusable_type', new mongoose.Sch
 
 // ex: shovels, wheelbarrows, power drills, jackhammers
 
-const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
-  category: { type: String, enum: ['Tool'] },
-  invoice: String,
-  purchaseRental: String,
-  fromDate: Date,
-  toDate:Date,
-  condition: String,
-  phoneNumber: String,
-  quantity: Number,
-  currency: String,
-  unitPrice: Number,
-  shippingFee: Number, 
-  taxes: Number, 
-  totalPriceWithShipping:  Number,
-  images: String,
-  link: String,
+const toolType = invTypeBase.discriminator(
+  'tool_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Tool'] },
+    invoice: String,
+    purchaseRental: String,
+    fromDate: Date,
+    toDate: Date,
+    condition: String,
+    phoneNumber: String,
+    quantity: Number,
+    currency: String,
+    unitPrice: Number,
+    shippingFee: Number,
+    taxes: Number,
+    totalPriceWithShipping: Number,
+    images: String,
+    link: String,
 
-  // isPowered: { type: Boolean, required: true },
-  // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
-}));
+    // isPowered: { type: Boolean, required: true },
+    // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
+  }),
+);
 
 //---------------------------
 // EQUIPMENT TYPE
@@ -83,10 +95,49 @@ const toolType = invTypeBase.discriminator('tool_type', new mongoose.Schema({
 
 // ex: tractors, excavators
 
-const equipmentType = invTypeBase.discriminator('equipment_type', new mongoose.Schema({
-  category: { type: String, enum: ['Equipment'] },
-  fuelType: { type: String, enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'], required: true },
-}));
+const equipmentType = invTypeBase.discriminator(
+  'equipment_type',
+  new mongoose.Schema({
+    category: { type: String, enum: ['Equipment'] },
+    fuelType: {
+      type: String,
+      enum: ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'],
+      required: true,
+    },
+  }),
+);
+/* =========================
+   INVENTORY TYPE HISTORY
+========================= */
+
+const invTypeHistorySchema = new Schema({
+  invtypeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'invTypeBase',
+    required: true,
+  },
+  field: {
+    type: String,
+    required: true,
+  },
+  oldValue: {
+    type: Schema.Types.Mixed,
+  },
+  newValue: {
+    type: Schema.Types.Mixed,
+  },
+  editedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'userProfile',
+    required: true,
+  },
+  editedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const invTypeHistory = mongoose.model('invTypeHistory', invTypeHistorySchema);
 
 module.exports = {
   invTypeBase,
@@ -95,4 +146,5 @@ module.exports = {
   reusableType,
   toolType,
   equipmentType,
+  invTypeHistory,
 };

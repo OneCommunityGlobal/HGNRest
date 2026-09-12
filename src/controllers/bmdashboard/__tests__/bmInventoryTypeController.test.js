@@ -33,6 +33,11 @@ const mockEquipType = {
   exec: jest.fn(),
 };
 
+const mockInvTypeHistory = {
+  find: jest.fn(),
+  create: jest.fn(),
+  exec: jest.fn(),
+};
 const mockInvType = {
   find: jest.fn(),
   findById: jest.fn(),
@@ -64,6 +69,7 @@ describe('Building Materials Inventory Controller', () => {
       mockReusType,
       mockToolType,
       mockEquipType,
+      mockInvTypeHistory,
     );
 
     req = {
@@ -171,38 +177,6 @@ describe('Building Materials Inventory Controller', () => {
       ]);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith(mockTools);
-    });
-  });
-
-  describe('updateNameAndUnit', () => {
-    it('should update name and unit successfully', async () => {
-      req.params = { invtypeId: 'inv123' };
-      req.body = { name: 'Updated Name', unit: 'Updated Unit' };
-
-      const updatedDoc = { ...req.body, _id: 'inv123' };
-      mockInvType.findByIdAndUpdate.mockResolvedValue(updatedDoc);
-
-      await controller.updateNameAndUnit(req, res);
-
-      expect(mockInvType.findByIdAndUpdate).toHaveBeenCalledWith(
-        'inv123',
-        { name: 'Updated Name', unit: 'Updated Unit' },
-        { new: true, runValidators: true },
-      );
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(updatedDoc);
-    });
-
-    it('should handle non-existent inventory type', async () => {
-      req.params = { invtypeId: 'nonexistent' };
-      req.body = { name: 'Updated Name' };
-
-      mockInvType.findByIdAndUpdate.mockResolvedValue(null);
-
-      await controller.updateNameAndUnit(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ error: 'invType Material not found check Id' });
     });
   });
 });

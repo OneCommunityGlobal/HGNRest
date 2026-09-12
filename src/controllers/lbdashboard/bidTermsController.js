@@ -9,7 +9,13 @@ const bidTermsController = function (BidTerms) {
         return res.status(405).json({ error: 'cancellationPolicy should have a value' });
       }
 
-      const newBidTerms = new BidTerms(req.body);
+      const { paymentTerms, cancellationPolicy, isActive, createdDatetime } = req.body;
+      const newBidTerms = new BidTerms({
+        paymentTerms,
+        cancellationPolicy,
+        isActive,
+        createdDatetime,
+      });
       const savedBidTerms = await newBidTerms.save();
       res.status(201).json(savedBidTerms);
     } catch (error) {

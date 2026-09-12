@@ -10,9 +10,6 @@ const downloadReportRouter = express.Router();
  * @access  Private (Educators, Project Managers, Admins only)
  * Note: Authorization is handled within the controller
  */
-downloadReportRouter.get(
-  '/export',
-  downloadReportController.exportReport
-);
+downloadReportRouter.get('/export', downloadReportController.exportReport);
 
 module.exports = downloadReportRouter;

@@ -8,6 +8,7 @@ const currentWarnings = new Schema({
   isPermanent: { type: Boolean, required: true },
   isSpecial: { type: Boolean },
   abbreviation: { type: String },
+  order: { type: Number },
 });
 
 module.exports = mongoose.model('currentWarning', currentWarnings, 'currentWarnings');

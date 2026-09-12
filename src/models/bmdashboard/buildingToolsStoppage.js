@@ -1,0 +1,45 @@
+const mongoose = require('mongoose');
+
+const { Schema } = mongoose;
+
+const toolsStoppageReasonSchema = new Schema(
+  {
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'buildingProject',
+      required: true,
+    },
+    toolName: {
+      type: String,
+      required: true,
+    },
+    usedForLifetime: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    damaged: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    lost: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { collection: 'toolStoppageReason' },
+);
+
+// Compound index for efficient querying by projectId and date
+toolsStoppageReasonSchema.index({ projectId: 1, date: 1 });
+
+// Index for toolName to optimize sorting
+toolsStoppageReasonSchema.index({ toolName: 1 });
+
+module.exports = mongoose.model('toolStoppageReason', toolsStoppageReasonSchema);

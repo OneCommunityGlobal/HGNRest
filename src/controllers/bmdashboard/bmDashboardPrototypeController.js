@@ -1,3 +1,5 @@
+const logger = require('../../startup/logger');
+
 const bmDashboardPrototypeController = function (
   DashboardMetrics,
   BuildingProject,
@@ -264,7 +266,9 @@ const bmDashboardPrototypeController = function (
 
       return metrics;
     } catch (error) {
-      console.error('Error generating dashboard metrics:', error);
+      logger.logException(error, 'bmDashboardController.generateDashboardMetrics', {
+        snapshotType: 'current',
+      });
       throw error;
     }
   };
@@ -321,7 +325,7 @@ const bmDashboardPrototypeController = function (
           snapshotType: 'weekly',
         });
         await weeklySnapshot.save();
-        console.log('Weekly snapshot stored');
+        logger.logInfo('Weekly snapshot stored', { snapshotType: 'weekly' });
       }
 
       // If we don't have a monthly snapshot for this month, create one
@@ -332,10 +336,12 @@ const bmDashboardPrototypeController = function (
           snapshotType: 'monthly',
         });
         await monthlySnapshot.save();
-        console.log('Monthly snapshot stored');
+        logger.logInfo('Monthly snapshot stored', { snapshotType: 'monthly' });
       }
     } catch (error) {
-      console.error('Error storing metrics snapshot:', error);
+      logger.logException(error, 'bmDashboardController.storeMetricsSnapshot', {
+        snapshotType: 'weekly/monthly',
+      });
     }
   };
 
@@ -405,7 +411,14 @@ const bmDashboardPrototypeController = function (
 
       return res.status(200).json(materialsWithTrends);
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      const trackingId = logger.logException(error, 'bmDashboardController.getMaterialCostTrends', {
+        endpoint: '/dashboard/materials/costs',
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred while fetching material cost trends',
+        trackingId,
+      });
     }
   };
 
@@ -540,7 +553,14 @@ const bmDashboardPrototypeController = function (
 
       return res.status(200).json(formattedMetrics);
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      const trackingId = logger.logException(error, 'bmDashboardController.getAllMetrics', {
+        endpoint: '/dashboard/metrics',
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred while fetching dashboard metrics',
+        trackingId,
+      });
     }
   };
 
@@ -554,7 +574,38 @@ const bmDashboardPrototypeController = function (
       // Validate required parameters
       if (!startDate || !endDate || !metric) {
         return res.status(400).json({
-          error: 'Missing required parameters: startDate, endDate, and metric are required',
+          error: 'Validation Error',
+          message: 'Missing required parameters: startDate, endDate, and metric are required',
+          details: {
+            missing: [!startDate && 'startDate', !endDate && 'endDate', !metric && 'metric'].filter(
+              Boolean,
+            ),
+          },
+        });
+      }
+
+      // Validate date format
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Invalid date format. Dates must be in ISO 8601 format (YYYY-MM-DD)',
+          details: {
+            startDate: Number.isNaN(start.getTime()) ? 'Invalid' : 'Valid',
+            endDate: Number.isNaN(end.getTime()) ? 'Invalid' : 'Valid',
+          },
+        });
+      }
+
+      if (start > end) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'startDate must be before or equal to endDate',
+          details: {
+            startDate,
+            endDate,
+          },
         });
       }
 
@@ -576,15 +627,21 @@ const bmDashboardPrototypeController = function (
 
       if (!validMetrics.includes(metric)) {
         return res.status(400).json({
-          error: `Invalid metric. Valid options are: ${validMetrics.join(', ')}`,
+          error: 'Validation Error',
+          message: `Invalid metric. Valid options are: ${validMetrics.join(', ')}`,
+          details: {
+            field: 'metric',
+            provided: metric,
+            validOptions: validMetrics,
+          },
         });
       }
 
       // Query for metrics within date range - include all snapshot types for a complete timeline
       const metricsHistory = await DashboardMetrics.find({
         date: {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate),
+          $gte: start,
+          $lte: end,
         },
       })
         .select(`date metrics.${metric}`)
@@ -599,7 +656,15 @@ const bmDashboardPrototypeController = function (
 
       return res.status(200).json(formattedHistory);
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      const trackingId = logger.logException(error, 'bmDashboardController.getHistoricalMetrics', {
+        endpoint: '/dashboard/metrics/history',
+        query: req.query,
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred while fetching historical metrics',
+        trackingId,
+      });
     }
   };
 
@@ -623,7 +688,14 @@ const bmDashboardPrototypeController = function (
 
       return res.status(200).json(formattedMetrics);
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      const trackingId = logger.logException(error, 'bmDashboardController.refreshMetrics', {
+        endpoint: '/dashboard/metrics/refresh',
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred while refreshing dashboard metrics',
+        trackingId,
+      });
     }
   };
 

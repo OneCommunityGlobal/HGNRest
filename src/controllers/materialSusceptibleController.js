@@ -1,3 +1,5 @@
+/* eslint-disable import/no-unresolved */
+/* eslint-disable import/extensions */
 const ProjectMaterial = require('../models/projectMaterial');
 
 const createProjectMaterial = async (req, res) => {
@@ -18,7 +20,13 @@ const createProjectMaterial = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Cost Cannot be less than or 0!' });
   }
 
-  const newProjectMaterial = new ProjectMaterial(projectMaterialbody);
+  const { projectName, toolName, replacedPercentage, date } = projectMaterialbody;
+  const newProjectMaterial = new ProjectMaterial({
+    projectName,
+    toolName,
+    replacedPercentage,
+    date,
+  });
 
   try {
     await newProjectMaterial.save();
