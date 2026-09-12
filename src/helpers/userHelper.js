@@ -671,6 +671,7 @@ const userHelper = function () {
     user,
     pdtStartOfLastWeek,
     pdtEndOfLastWeek,
+    emailsCCs,
     emailsBCCs,
     emailQueue,
     usersRequiringBlueSqNotification,
@@ -824,7 +825,7 @@ const userHelper = function () {
           to: status.email,
           subject: 'New Infringement Assigned',
           body: emailBody,
-          cc: DEFAULT_CC_EMAILS,
+          cc: emailsCCs,
           replyTo: status.email,
           bcc: emailsBCCs,
           startDate: person.startDate,
@@ -849,7 +850,7 @@ const userHelper = function () {
   };
 
   // ─── Main function (now lean orchestrator) ───────────────────────────────────
-  const assignBlueSquareForTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
@@ -861,20 +862,19 @@ const userHelper = function () {
       const pdtStartOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week');
       const pdtEndOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
       const users = await userProfile.find(
-        { isActive: true },
+        query,
         '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
 
-      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-      const emailsBCCs =
-        blueSquareBCCs.length > 0
-          ? blueSquareBCCs
-              .filter((assignment) => assignment.assignedTo?.isActive === true)
-              .map((assignment) => assignment.email)
-          : null;
+      const resolvedCCs = resolveCCs(emailConfig);
 
-      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+      const resolvedBCCs = resolveBCCs(emailConfig);
+
+      console.log('Email BCCs for blue square assignment:', resolvedBCCs);
 
       const emailQueue = [];
       const usersRequiringBlueSqNotification = [];
@@ -889,7 +889,8 @@ const userHelper = function () {
           users[i],
           pdtStartOfLastWeek,
           pdtEndOfLastWeek,
-          emailsBCCs,
+          resolvedCCs,
+          resolvedBCCs,
           emailQueue,
           usersRequiringBlueSqNotification,
         );
@@ -1130,6 +1131,14 @@ const userHelper = function () {
         ? blueSquareBCCs.filter((b) => b.assignedTo?.isActive).map((b) => b.email)
         : DEFAULT_BCC_EMAILS;
     return [...new Set(fromDB)];
+  };
+
+  /**
+   * Returns CC list: override if provided, else defaults.
+   */
+  const resolveCCs = async (emailConfig) => {
+    if (emailConfig.ccOverride) return emailConfig.ccOverride;
+    return DEFAULT_CC_EMAILS;
   };
 
   /**
