@@ -93,7 +93,7 @@ const promotionEligibilityController = function (
         const successfulWeeks = weeklyHours.filter((hours) => hours >= pledgedHours / 2).length;
 
         const remainingWeeks = Math.max(0, 2 - successfulWeeks);
-        const daysSinceCreated = (new Date() - new Date(user.createdDate)) / (1000 * 60 * 60 * 24);
+        const daysSinceCreated = (Date.now() - new Date(user.createdDate)) / (1000 * 60 * 60 * 24);
         const isNewMember = daysSinceCreated <= 7;
         const weeklyRequirementsMet = successfulWeeks >= 2;
 
