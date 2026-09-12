@@ -10,21 +10,56 @@ const promotionEligibilityController = function (
   Task,
   PromotionEligibility,
 ) {
-  const calculateWeeksMetRequirement = async (userId, pledgedHours) => {
-    const weeklyTasks = await TimeEntry.aggregate([
-      { $match: { personId: mongoose.Types.ObjectId(userId), isTangible: true } },
+  // Batched across all users: one aggregate returns, per user, the list of weekly
+  // hour totals for review/PR-tagged tangible time entries. The per-user pledged-hours
+  // threshold varies, so filtering weeks against it happens in JS after this query returns.
+  const getWeeklyHoursByUser = async (userIds) => {
+    const rows = await TimeEntry.aggregate([
+      { $match: { personId: { $in: userIds }, isTangible: true } },
       { $lookup: { from: 'tasks', localField: 'taskId', foreignField: '_id', as: 'taskInfo' } },
       { $unwind: '$taskInfo' },
       { $match: { 'taskInfo.taskName': { $regex: /review|pr/i } } },
       {
         $group: {
-          _id: { $week: { $toDate: '$dateOfWork' } },
+          _id: { personId: '$personId', week: { $week: { $toDate: '$dateOfWork' } } },
           totalHours: { $sum: { $divide: ['$totalSeconds', 3600] } },
         },
       },
-      { $match: { totalHours: { $gte: pledgedHours / 2 } } },
     ]);
-    return weeklyTasks.length;
+
+    const weeklyHoursByUser = new Map();
+    rows.forEach(({ _id, totalHours }) => {
+      const key = _id.personId.toString();
+      if (!weeklyHoursByUser.has(key)) weeklyHoursByUser.set(key, []);
+      weeklyHoursByUser.get(key).push(totalHours);
+    });
+    return weeklyHoursByUser;
+  };
+
+  // Batched across all users: counts, per user, the number of distinct review/PR-tagged
+  // tasks where that user appears in `resources` with completedTask true — matching the
+  // semantics of the original per-user Task.countDocuments call exactly.
+  const getReviewCountsByUser = async (userIds) => {
+    const rows = await Task.aggregate([
+      {
+        $match: {
+          taskName: { $regex: /review|pr/i },
+          resources: { $elemMatch: { userID: { $in: userIds }, completedTask: true } },
+        },
+      },
+      { $unwind: '$resources' },
+      {
+        $match: {
+          'resources.userID': { $in: userIds },
+          'resources.completedTask': true,
+        },
+      },
+      // Dedupe so a task counts at most once per user, matching countDocuments semantics.
+      { $group: { _id: { userID: '$resources.userID', taskId: '$_id' } } },
+      { $group: { _id: '$_id.userID', totalReviews: { $sum: 1 } } },
+    ]);
+
+    return new Map(rows.map(({ _id, totalReviews }) => [_id.toString(), totalReviews]));
   };
 
   const getPromotionEligibilityData = async (req, res) => {
@@ -41,24 +76,28 @@ const promotionEligibilityController = function (
         '_id firstName lastName weeklycommittedHours createdDate',
       ).lean();
 
-      // Refactor: Use map and Promise.all for concurrent processing
-      const eligibilityPromises = users.map(async (user) => {
+      const userIds = users.map((user) => user._id);
+
+      const [weeklyHoursByUser, reviewCountsByUser] = await Promise.all([
+        getWeeklyHoursByUser(userIds),
+        getReviewCountsByUser(userIds),
+      ]);
+
+      const eligibilityData = users.map((user) => {
         const pledgedHours = user.weeklycommittedHours || 0;
         const requiredPRs = pledgedHours / 2;
 
-        const totalReviews = await Task.countDocuments({
-          resources: { $elemMatch: { userID: user._id, completedTask: true } },
-          taskName: { $regex: /review|pr/i },
-        });
+        const totalReviews = reviewCountsByUser.get(user._id.toString()) || 0;
 
-        const successfulWeeks = await calculateWeeksMetRequirement(user._id, pledgedHours);
+        const weeklyHours = weeklyHoursByUser.get(user._id.toString()) || [];
+        const successfulWeeks = weeklyHours.filter((hours) => hours >= pledgedHours / 2).length;
 
         const remainingWeeks = Math.max(0, 2 - successfulWeeks);
         const isNewMember =
           (new Date() - new Date(user.createdDate)) / (1000 * 60 * 60 * 24 * 30.44) < 6;
         const weeklyRequirementsMet = successfulWeeks >= 2;
 
-        const dataEntry = {
+        return {
           reviewerId: user._id,
           reviewerName: `${user.firstName} ${user.lastName}`,
           pledgedHours,
@@ -69,18 +108,24 @@ const promotionEligibilityController = function (
           weeklyRequirementsMet,
           calculatedAt: new Date(),
         };
-
-        // Save/update the calculated data in the new collection concurrently
-        // This will still have await, but it's within a map callback, not a sequential loop that blocks subsequent iterations.
-        await PromotionEligibility.findOneAndUpdate({ reviewerId: user._id }, dataEntry, {
-          upsert: true,
-          new: true,
-        });
-
-        return dataEntry; // Return the data entry to be collected by Promise.all
       });
 
-      const eligibilityData = await Promise.all(eligibilityPromises); // Await all promises to resolve
+      // Persist the computed snapshot for promoteMembers to read/update later. The response
+      // below already reflects the freshly computed data, so this write does not need to
+      // block the request — it just needs to happen.
+      if (eligibilityData.length > 0) {
+        PromotionEligibility.bulkWrite(
+          eligibilityData.map((dataEntry) => ({
+            updateOne: {
+              filter: { reviewerId: dataEntry.reviewerId },
+              update: { $set: dataEntry },
+              upsert: true,
+            },
+          })),
+        ).catch((error) => {
+          logger.logException(error, { endpoint: 'getPromotionEligibilityData:bulkWrite' });
+        });
+      }
 
       res.status(200).json(eligibilityData);
     } catch (error) {
