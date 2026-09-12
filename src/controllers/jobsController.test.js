@@ -157,6 +157,24 @@ describe('jobsController', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining(updateData));
     });
 
+    it('updateJob: should store the description as plain text', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '<p>Build <strong>useful</strong> tools</p>' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: 'Build useful tools' },
+        { new: true },
+      );
+    });
+
     it('deleteJob: should delete successfully', async () => {
       Job.findByIdAndDelete.mockResolvedValue({ _id: jobId });
       await deleteJob({ params: { id: jobId } }, res);
@@ -253,6 +271,24 @@ describe('jobsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(savedJob);
+    });
+
+    it('stores a new job description as plain text', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: '<p>Build <strong>useful</strong> tools</p><script>bad()</script>',
+          },
+        },
+        res,
+      );
+
+      const savedInstance = saveSpy.mock.instances.at(-1);
+      expect(savedInstance.description).toBe('Build useful tools');
     });
 
     it('defaults displayOrder to 0 when no jobs exist yet', async () => {
