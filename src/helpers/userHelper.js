@@ -2631,7 +2631,14 @@ const userHelper = function () {
     await badge
       .find({
         type: 'Lead a team of X+',
-        people: { $lte: totalNonLeaderMembers }, // Only get badges where requirement is <= team size
+        // At or below the team size, and never a zero-threshold record. Dev
+        // holds a badge called "0 Hours for 7 Week Streak" saved with this
+        // type and people: 0. Because this query takes the highest qualifying
+        // badge, that record would be handed to anyone leading 1 to 4 people,
+        // which is the wrong badge entirely. Guarded here rather than by
+        // correcting the record, because one mistyped row should not be able
+        // to award something unrelated.
+        people: { $lte: totalNonLeaderMembers, $gt: 0 },
       })
       .sort({ people: -1 }) // Sort descending
       .limit(1) // Get only the highest qualifying badge

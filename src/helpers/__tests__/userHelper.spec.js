@@ -690,7 +690,9 @@ describe('checkLeadTeamOfXplus', () => {
     const user = { role: 'Manager' };
     await checkLeadTeamOfXplus(personId, user, []);
 
-    expect(badge.find).toHaveBeenCalledWith(expect.objectContaining({ people: { $lte: 1 } }));
+    expect(badge.find).toHaveBeenCalledWith(
+      expect.objectContaining({ people: { $lte: 1, $gt: 0 } }),
+    );
   });
 
   test('skips badgeCollection entries that are not team-size badges', async () => {
@@ -737,6 +739,32 @@ describe('checkLeadTeamOfXplus', () => {
     await checkLeadTeamOfXplus(personId, user, badgeCollection);
 
     expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('never asks for a badge whose threshold is zero people', async () => {
+    const members = [
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+    ];
+
+    Team.aggregate.mockResolvedValue([
+      { _id: new mongoose.Types.ObjectId(), teamName: 'Team A', members },
+    ]);
+    badge.find.mockReturnValue(makeQuery([]));
+
+    await checkLeadTeamOfXplus(personId, { role: 'Manager' }, []);
+
+    // Pinned as a whole object rather than objectContaining, so neither the
+    // type filter nor the zero guard can be dropped without this failing.
+    // Dev holds a badge called "0 Hours for 7 Week Streak" saved with this
+    // type and people: 0. Without $gt it is the highest match for anyone
+    // leading 1 to 4 people, so they would be handed an hours-streak badge
+    // for leading a team.
+    expect(badge.find).toHaveBeenCalledWith({
+      type: 'Lead a team of X+',
+      people: { $lte: 3, $gt: 0 },
+    });
   });
 
   test('does nothing when no team-size badge qualifies', async () => {
