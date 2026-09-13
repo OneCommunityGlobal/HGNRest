@@ -465,6 +465,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   userProfile,
   resourceRequestController,
 );
+const xRouter = require('../routes/xRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
@@ -702,6 +704,9 @@ module.exports = function (app) {
   app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
+
+  app.use('/api/x', xRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', materialCostRouter);
 
   app.use('/api/educator/report', studentReportRouter());
