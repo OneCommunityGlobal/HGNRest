@@ -186,11 +186,11 @@ describe('bmMaterialsController', () => {
       };
       mockFindOne.mockResolvedValue(mockMaterial);
 
-      // Mock ObjectId.isValid to return true, and ObjectId constructor
-      mongoose.Types.ObjectId.isValid = jest.fn().mockReturnValue(true);
-      const originalObjectId = mongoose.Types.ObjectId;
+      // Mock ObjectId.isValid to return true, and ObjectId constructor.
+      // Replace the whole ObjectId reference rather than mutating the real
+      // one in place, so the outer afterEach can actually restore it.
       mongoose.Types.ObjectId = jest.fn().mockReturnValue('507f1f77bcf86cd799439014');
-      mongoose.Types.ObjectId.isValid = originalObjectId.isValid;
+      mongoose.Types.ObjectId.isValid = jest.fn().mockReturnValue(true);
 
       mockFindOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockReturnValue({
@@ -484,6 +484,56 @@ describe('bmMaterialsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(mockUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a material id list containing an invalid id', async () => {
+      const req = { body: { materialIds: [...validIds, 'not-an-id'], action: 'hold' } };
+      const res = makeRes();
+
+      await controller.bmApplyMaterialBulkAction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith('One or more material ids are invalid.');
+      expect(mockUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a notes action with blank notes', async () => {
+      const req = { body: { materialIds: validIds, action: 'notes', notes: '   ' } };
+      const res = makeRes();
+
+      await controller.bmApplyMaterialBulkAction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith('Notes content is required for notes action.');
+      expect(mockUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('applies a notes action with trimmed notes', async () => {
+      mockUpdateMany.mockResolvedValue({ matchedCount: 2, modifiedCount: 2 });
+
+      const req = { body: { materialIds: validIds, action: 'notes', notes: '  Damaged pallet  ' } };
+      const res = makeRes();
+
+      await controller.bmApplyMaterialBulkAction(req, res);
+
+      expect(mockUpdateMany).toHaveBeenCalledWith(
+        { _id: { $in: validIds } },
+        { $set: { notes: 'Damaged pallet' } },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('returns a 500 when the update fails', async () => {
+      const mockError = new Error('Database error');
+      mockUpdateMany.mockRejectedValue(mockError);
+
+      const req = { body: { materialIds: validIds, action: 'hold' } };
+      const res = makeRes();
+
+      await controller.bmApplyMaterialBulkAction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledWith(mockError);
     });
   });
 });
