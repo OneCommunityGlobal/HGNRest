@@ -67,8 +67,23 @@ const userProfileJobs = () => {
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
-      await userhelper.reactivateUser();
-      await userhelper.finalizeUserEndDates();
+      // Each step is isolated. These two are unrelated, and previously a throw
+      // in the first one silently took the second one with it: this called
+      // reactivateUser while the helper exported reActivateUser, so the call
+      // was undefined and threw every night. Nobody was reactivated, and
+      // finalizeUserEndDates never ran either. Nothing surfaced because the
+      // rejection was unhandled.
+      try {
+        await userhelper.reactivateUser();
+      } catch (error) {
+        console.error('Error during reactivateUser:', error);
+      }
+
+      try {
+        await userhelper.finalizeUserEndDates();
+      } catch (error) {
+        console.error('Error during finalizeUserEndDates:', error);
+      }
     },
     null,
     false,
