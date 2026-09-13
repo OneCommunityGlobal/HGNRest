@@ -102,8 +102,8 @@ describe('eventPopularityController', () => {
       await controller.getPopularityMetrics(req, res);
 
       const calledQuery = Event.find.mock.calls[0][0];
-      expect(calledQuery.date.$gte).toEqual(new Date('2024-01-01'));
-      expect(calledQuery.date.$lte).toEqual(new Date('2024-01-31'));
+      expect(calledQuery.date.$gte).toEqual(new Date(Date.UTC(2024, 0, 1)));
+      expect(calledQuery.date.$lt).toEqual(new Date(Date.UTC(2024, 0, 32)));
     });
 
     it('returns 500 on database error', async () => {
@@ -352,8 +352,8 @@ describe('eventPopularityController', () => {
 
       const virtualQuery = Event.find.mock.calls[0][0];
       const inPersonQuery = Event.find.mock.calls[1][0];
-      expect(virtualQuery.date.$gte).toEqual(new Date('2024-01-01'));
-      expect(inPersonQuery.date.$lte).toEqual(new Date('2024-01-31'));
+      expect(virtualQuery.date.$gte).toEqual(new Date(Date.UTC(2024, 0, 1)));
+      expect(inPersonQuery.date.$lt).toEqual(new Date(Date.UTC(2024, 0, 32)));
     });
 
     it('returns 500 on database error', async () => {

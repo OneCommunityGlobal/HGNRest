@@ -1,4 +1,33 @@
 const Event = require('../models/event');
+const { parseDateFlexibleUTC, parseYmdUtc } = require('../utilities/bmDateUtils');
+
+/**
+ * Builds a Mongo date range filter from startDate/endDate query params.
+ * Date-only strings (YYYY-MM-DD) are treated as an inclusive day: the end date
+ * is advanced to the next day and compared with $lt so events on that day aren't excluded.
+ * Returns { dateFilter, invalidDate }.
+ */
+const buildDateFilter = (startDate, endDate) => {
+  const s = parseDateFlexibleUTC(startDate);
+  const e0 = parseDateFlexibleUTC(endDate);
+
+  const invalidDate =
+    (startDate && !s && !parseYmdUtc(startDate)) || (endDate && !e0 && !parseYmdUtc(endDate));
+
+  const dateFilter = {};
+  if (s) dateFilter.$gte = s;
+  if (e0) {
+    if (parseYmdUtc(endDate)) {
+      const endExclusive = new Date(e0);
+      endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+      dateFilter.$lt = endExclusive;
+    } else {
+      dateFilter.$lte = e0;
+    }
+  }
+
+  return { dateFilter, invalidDate };
+};
 
 const eventPopularityController = () => {
   // Calculate popularity metrics by event type
@@ -7,11 +36,15 @@ const eventPopularityController = () => {
       const { startDate, endDate } = req.query;
 
       // Build date filter if provided
+      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      if (invalidDate) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+      }
       const query = { isActive: true };
-      if (startDate || endDate) {
-        query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+      if (Object.keys(dateFilter).length > 0) {
+        query.date = dateFilter;
       }
 
       // Get all events with attendance data
@@ -79,11 +112,15 @@ const eventPopularityController = () => {
     try {
       const { startDate, endDate, format } = req.query; // format: 'Virtual' or 'In person'
 
+      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      if (invalidDate) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+      }
       const query = { isActive: true };
-      if (startDate || endDate) {
-        query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+      if (Object.keys(dateFilter).length > 0) {
+        query.date = dateFilter;
       }
 
       let safeFormat;
@@ -180,11 +217,15 @@ const eventPopularityController = () => {
     try {
       const { startDate, endDate } = req.query;
 
+      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      if (invalidDate) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+      }
       const query = { isActive: true };
-      if (startDate || endDate) {
-        query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+      if (Object.keys(dateFilter).length > 0) {
+        query.date = dateFilter;
       }
 
       const events = await Event.find(query).lean();
@@ -254,10 +295,13 @@ const eventPopularityController = () => {
       const virtualQuery = { isActive: true, location: 'Virtual' };
       const inPersonQuery = { isActive: true, location: 'In person' };
 
-      if (startDate || endDate) {
-        const dateFilter = {};
-        if (startDate) dateFilter.$gte = new Date(startDate);
-        if (endDate) dateFilter.$lte = new Date(endDate);
+      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      if (invalidDate) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+      }
+      if (Object.keys(dateFilter).length > 0) {
         virtualQuery.date = dateFilter;
         inPersonQuery.date = dateFilter;
       }
