@@ -278,7 +278,7 @@ const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvoluti
 const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
-const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter')(wishlists);
+const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter');
 const biddingRouter = require('../routes/lbdashboard/biddingRouter')(biddingHome);
 const titleRouter = require('../routes/titleRouter')(title);
 const bmToolRouter = require('../routes/bmdashboard/bmToolRouter')(buildingTool, toolType);
@@ -682,7 +682,6 @@ module.exports = function (app) {
   app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api', projectMaterialRouter);
   app.use('/api/bm', bmRentalChart);
-  app.use('/api/lb', lbWishlistsRouter);
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
