@@ -452,6 +452,7 @@ const educatorRoutes = require('../routes/educatorRoutes');
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
+const eventRouter = require('../routes/eventRouter');
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
@@ -643,6 +644,7 @@ module.exports = function (app) {
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
+  app.use('/api', eventRouter);
 
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
