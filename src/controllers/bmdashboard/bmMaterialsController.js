@@ -347,10 +347,14 @@ const bmMaterialsController = function (BuildingMaterial) {
       const matchedCount = result.matchedCount ?? result.n ?? 0;
       const modifiedCount = result.modifiedCount ?? result.nModified ?? 0;
 
+      // Report matchedCount, not modifiedCount: MongoDB only counts a document
+      // as "modified" when a field's value actually changes, so re-applying
+      // the same action (e.g. holding an already-held item) would otherwise
+      // always read as "0 records" even though the action was applied fine.
       return res.status(200).send({
         matchedCount,
         modifiedCount,
-        result: `Applied '${action}' to ${modifiedCount} material records.`,
+        result: `Applied '${action}' to ${matchedCount} material records.`,
       });
     } catch (error) {
       return res.status(500).send(error);

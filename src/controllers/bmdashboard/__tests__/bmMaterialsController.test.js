@@ -418,7 +418,7 @@ describe('bmMaterialsController', () => {
       send: jest.fn(),
     });
 
-    it('reports the modified count from a Mongoose 5 result (n/nModified)', async () => {
+    it('reports the matched count from a Mongoose 5 result (n/nModified)', async () => {
       mockUpdateMany.mockResolvedValue({ ok: 1, n: 2, nModified: 2 });
 
       const req = { body: { materialIds: validIds, action: 'hold' } };
@@ -436,7 +436,7 @@ describe('bmMaterialsController', () => {
       expect(payload.result).not.toContain('undefined');
     });
 
-    it('reports the modified count from a newer driver result (matchedCount/modifiedCount)', async () => {
+    it('reports the matched count from a newer driver result (matchedCount/modifiedCount)', async () => {
       mockUpdateMany.mockResolvedValue({ acknowledged: true, matchedCount: 2, modifiedCount: 1 });
 
       const req = { body: { materialIds: validIds, action: 'review' } };
@@ -448,7 +448,26 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith({
         matchedCount: 2,
         modifiedCount: 1,
-        result: "Applied 'review' to 1 material records.",
+        result: "Applied 'review' to 2 material records.",
+      });
+    });
+
+    it('reports the matched count even when nothing actually changed (idempotent re-apply)', async () => {
+      // e.g. re-applying "hold" to items that are already on hold: MongoDB
+      // reports modifiedCount 0 since no field value changed, but the action
+      // still matched and was applied to these records.
+      mockUpdateMany.mockResolvedValue({ acknowledged: true, matchedCount: 3, modifiedCount: 0 });
+
+      const req = { body: { materialIds: validIds, action: 'hold' } };
+      const res = makeRes();
+
+      await controller.bmApplyMaterialBulkAction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith({
+        matchedCount: 3,
+        modifiedCount: 0,
+        result: "Applied 'hold' to 3 material records.",
       });
     });
 
@@ -463,6 +482,7 @@ describe('bmMaterialsController', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       const [payload] = res.send.mock.calls[0];
       expect(payload.result).toBe("Applied 'hold' to 0 material records.");
+      expect(payload.matchedCount).toBe(0);
       expect(payload.modifiedCount).toBe(0);
     });
 
