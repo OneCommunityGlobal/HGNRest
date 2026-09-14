@@ -82,7 +82,7 @@ const createVersionHistoryEntry = (existingEntry) => {
 // Build update data for saving grading
 const buildUpdateData = (params) => {
   const {
-    teamCode,
+    teamName,
     gradingDate,
     reviewer,
     prsNeeded,
@@ -92,7 +92,7 @@ const buildUpdateData = (params) => {
     versionHistoryEntry,
   } = params;
   const updateData = {
-    teamCode,
+    teamName,
     date: gradingDate,
     reviewer,
     prsNeeded,
@@ -124,19 +124,19 @@ const saveGradingEntry = async (weeklyGradingModel, query, updateData) => {
 
 const weeklyGradingController = function (weeklyGradingModel) {
   // Process and save a single reviewer's grading
-  const processReviewerGrading = async (grading, teamCode, gradingDate) => {
+  const processReviewerGrading = async (grading, teamName, gradingDate) => {
     const { reviewer, prsReviewed, prsNeeded, gradedPrs } = grading;
 
     validateGradingEntry(grading);
 
-    const query = { teamCode, date: gradingDate, reviewer };
+    const query = { teamName, date: gradingDate, reviewer };
     const existingEntry = await weeklyGradingModel.findOne(query);
 
     const mergedGradedPrs = mergeGradedPrs(existingEntry?.gradedPrs, gradedPrs);
     const newVersion = calculateNextVersion(existingEntry);
     const versionHistoryEntry = createVersionHistoryEntry(existingEntry);
     const updateData = buildUpdateData({
-      teamCode,
+      teamName,
       gradingDate,
       reviewer,
       prsNeeded,
@@ -151,30 +151,27 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
   const getWeeklyGrading = async (req, res) => {
     try {
-      const { team, date } = req.query;
+      const { team, weekStart } = req.query;
 
       if (!team) {
         return res.status(400).json({ error: 'Team parameter is required' });
       }
 
-      const query = { teamCode: team };
+      const query = { teamName: team };
 
-      // If date is provided, filter by that date
-      if (date) {
-        const gradingDate = new Date(date);
-        if (Number.isNaN(gradingDate.getTime())) {
-          return res.status(400).json({ error: 'Invalid date format' });
+      // If weekStart is provided, filter by the full 7-day week range (Sun–Sat)
+      if (weekStart) {
+        const startDate = new Date(weekStart);
+        if (Number.isNaN(startDate.getTime())) {
+          return res.status(400).json({ error: 'Invalid weekStart date format. Use YYYY-MM-DD.' });
         }
-        // Set to start of day for comparison
-        const startOfDay = new Date(gradingDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(gradingDate);
-        const HOURS_IN_DAY = 23;
-        const MINUTES_IN_HOUR = 59;
-        const SECONDS_IN_MINUTE = 59;
-        const MILLISECONDS_IN_SECOND = 999;
-        endOfDay.setHours(HOURS_IN_DAY, MINUTES_IN_HOUR, SECONDS_IN_MINUTE, MILLISECONDS_IN_SECOND);
-        query.date = { $gte: startOfDay, $lte: endOfDay };
+        startDate.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+
+        query.date = { $gte: startDate, $lte: endDate };
       }
 
       const gradingData = await weeklyGradingModel.find(query).lean();
@@ -197,12 +194,12 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
   const saveWeeklyGrading = async (req, res) => {
     try {
-      const { teamCode, date, gradings } = req.body;
+      const { teamName, date, gradings } = req.body;
 
-      if (!teamCode || !date || !gradings || !Array.isArray(gradings)) {
+      if (!teamName || !date || !gradings || !Array.isArray(gradings)) {
         return res
           .status(400)
-          .json({ error: 'Missing required fields: teamCode, date, and gradings array' });
+          .json({ error: 'Missing required fields: teamName, date, and gradings array' });
       }
 
       const gradingDate = new Date(date);
@@ -210,8 +207,15 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
 
+      // Normalize to Sunday midnight UTC of the week the date falls in.
+      // Any save made Mon–Sat will resolve to the same Sunday anchor,
+      // so repeated saves within the same week always upsert the same document.
+      const dayOfWeek = gradingDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+      gradingDate.setUTCDate(gradingDate.getUTCDate() - dayOfWeek);
+      gradingDate.setUTCHours(0, 0, 0, 0);
+
       const updatePromises = gradings.map((grading) =>
-        processReviewerGrading(grading, teamCode, gradingDate),
+        processReviewerGrading(grading, teamName, gradingDate),
       );
 
       await Promise.all(updatePromises);
@@ -229,9 +233,48 @@ const weeklyGradingController = function (weeklyGradingModel) {
     }
   };
 
+  const deleteReviewerGrading = async (req, res) => {
+    try {
+      const { team, reviewer, weekStart } = req.query;
+
+      if (!team || !reviewer || !weekStart) {
+        return res.status(400).json({
+          error: 'Missing required query params: team, reviewer, and weekStart',
+        });
+      }
+
+      const startDate = new Date(weekStart);
+      if (Number.isNaN(startDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid weekStart date format. Use YYYY-MM-DD.' });
+      }
+      startDate.setHours(0, 0, 0, 0);
+
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+
+      const result = await weeklyGradingModel.deleteOne({
+        teamName: team,
+        reviewer,
+        date: { $gte: startDate, $lte: endDate },
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).json({ error: 'No grading record found for the given parameters' });
+      }
+
+      return res.status(200).json({ message: `Reviewer "${reviewer}" removed successfully` });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error deleting reviewer grading:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   return {
     getWeeklyGrading,
     saveWeeklyGrading,
+    deleteReviewerGrading,
   };
 };
 
