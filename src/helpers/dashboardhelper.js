@@ -64,11 +64,7 @@ const dashboardhelper = function () {
                     $lte: ['$$timeentry.dateOfWork', pdtend],
                   },
                   {
-                    $not: [
-                      {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
-                      },
-                    ],
+                    $in: ['$$timeentry.entryType', ['default', 'person', null]],
                   },
                 ],
               },
@@ -338,7 +334,7 @@ const dashboardhelper = function () {
           $gte: pdtStart,
           $lte: pdtEnd,
         },
-        entryType: { $in: ['default', null] },
+        entryType: { $in: ['default', 'person', null] },
         isActive: { $ne: false },
         personId: userId,
       });
@@ -485,11 +481,7 @@ const dashboardhelper = function () {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
                   {
-                    $not: [
-                      {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
-                      },
-                    ],
+                    $in: ['$$timeentry.entryType', ['default', 'person', null]],
                   },
                 ],
               },
@@ -569,11 +561,7 @@ const dashboardhelper = function () {
                     $lte: ['$$timeentry.dateOfWork', todate],
                   },
                   {
-                    $not: [
-                      {
-                        $in: ['$$timeentry.entryType', ['person', 'team', 'project']],
-                      },
-                    ],
+                    $in: ['$$timeentry.entryType', ['default', 'person', null]],
                   },
                 ],
               },

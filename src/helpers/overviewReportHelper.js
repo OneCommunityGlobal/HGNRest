@@ -1474,7 +1474,8 @@ const overviewReportHelper = function () {
    * matching the dashboard's getOrgData logic exactly:
    * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
-   * - Excludes entryType of 'person', 'team', or 'project'
+   * - Includes entryType 'default', 'person', or null as valid worked hours
+   *   ('person' is a legitimate individual task entry, not excluded)
    */
   async function getTotalHoursWorked(startDate, endDate) {
     const pdtstart =
@@ -1507,7 +1508,7 @@ const overviewReportHelper = function () {
                 $and: [
                   { $gte: ['$$timeentry.dateOfWork', pdtstart] },
                   { $lte: ['$$timeentry.dateOfWork', pdtend] },
-                  { $not: [{ $in: ['$$timeentry.entryType', ['person', 'team', 'project']] }] },
+                  { $in: ['$$timeentry.entryType', ['default', 'person', null]] },
                 ],
               },
             },
