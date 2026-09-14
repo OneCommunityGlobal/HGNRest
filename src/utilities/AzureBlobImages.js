@@ -102,8 +102,30 @@ const uploadFileToAzureBlobStorage = async (file, blobName) => {
   return blockBlobClient.url;
 };
 
+/**
+ * Best-effort delete of a blob, used to clean up orphaned uploads when a
+ * subsequent DB write fails after the blob was already uploaded. Swallows
+ * its own errors so a cleanup failure never masks the original DB error.
+ */
+const deleteBlobFromAzureBlobStorage = async (blobName) => {
+  if (!blobName) return;
+  try {
+    const blobServiceClient = BlobServiceClient.fromConnectionString(
+      process.env.AZURE_STORAGE_CONNECTION_STRING,
+    );
+    const containerClient = blobServiceClient.getContainerClient(
+      process.env.AZURE_STORAGE_CONTAINER_NAME,
+    );
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    await blockBlobClient.deleteIfExists();
+  } catch (error) {
+    console.error(`Failed to delete orphaned blob ${blobName}:`, error.message);
+  }
+};
+
 module.exports = {
   saveImagestoAzureBlobStorage,
   fetchImagesFromAzureBlobStorage,
   uploadFileToAzureBlobStorage,
+  deleteBlobFromAzureBlobStorage,
 };
