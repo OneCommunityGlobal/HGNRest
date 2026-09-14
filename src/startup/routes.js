@@ -401,7 +401,7 @@ const listOverviewRouter = require('../routes/lbdashboard/listOverviewRouter')()
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
-const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const educatorGroupRouter = require('../routes/educatorGroupRoutes');
