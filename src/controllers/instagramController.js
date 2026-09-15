@@ -128,14 +128,17 @@ const createPost = async (req, res) => {
   } catch (err) {
     const graphError = err?.response?.data?.error?.message;
 
-    const errorMessage =
-      typeof graphError === 'string'
-        ? graphError
-        : typeof err?.message === 'string'
-          ? err.message
-          : 'Unknown error';
+    let errorMessage = 'Unknown error';
 
-    console.error('[Instagram] Create post error:', errorMessage.replace(/[\r\n\t]/g, ' '));
+    if (typeof graphError === 'string') {
+      errorMessage = graphError;
+    } else if (typeof err?.message === 'string') {
+      errorMessage = err.message;
+    }
+
+    const safeErrorMessage = errorMessage.replace(/[\r\n\t]/g, ' ');
+
+    console.error('[Instagram] Create post error:', safeErrorMessage);
 
     return res.status(500).json({
       error: errorMessage,
