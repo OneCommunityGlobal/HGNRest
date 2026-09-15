@@ -6,6 +6,7 @@ const InstagramScheduledPost = require('../models/instagramScheduledPost');
 const InstagramPostHistory = require('../models/instagramPostHistory');
 const MetaToken = require('../models/metaToken');
 const { publishInstagramPost } = require('../services/instagramServices');
+
 const OBJECT_ID_PATTERN = /^[a-fA-F0-9]{24}$/;
 
 function toValidObjectId(value) {
@@ -125,10 +126,19 @@ const createPost = async (req, res) => {
       permalink: result.permalink,
     });
   } catch (err) {
-    console.error('[Instagram] Create post error:', err.response?.data || err.message);
+    const graphError = err?.response?.data?.error?.message;
+
+    const errorMessage =
+      typeof graphError === 'string'
+        ? graphError
+        : typeof err?.message === 'string'
+          ? err.message
+          : 'Unknown error';
+
+    console.error('[Instagram] Create post error:', errorMessage.replace(/[\r\n\t]/g, ' '));
 
     return res.status(500).json({
-      error: err.response?.data?.error?.message || err.message || 'Failed to post to Instagram.',
+      error: errorMessage,
     });
   }
 };

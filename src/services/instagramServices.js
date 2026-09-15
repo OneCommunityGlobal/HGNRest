@@ -8,8 +8,11 @@ const GRAPH_ID_PATTERN = /^\w{1,64}$/;
 
 function assertValidGraphId(id, label) {
   if (typeof id !== 'string' || !GRAPH_ID_PATTERN.test(id)) {
-    throw new Error(`Invalid ${label}: ${JSON.stringify(id)}`);
+    const safeId = typeof id === 'string' ? id.replace(/[\r\n\t]/g, ' ') : String(id);
+
+    throw new Error(`Invalid ${label}: ${safeId}`);
   }
+
   return id;
 }
 
