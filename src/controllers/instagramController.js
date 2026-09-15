@@ -1,11 +1,19 @@
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 const InstagramScheduledPost = require('../models/instagramScheduledPost');
 const InstagramPostHistory = require('../models/instagramPostHistory');
 const MetaToken = require('../models/metaToken');
 const { publishInstagramPost } = require('../services/instagramServices');
+const OBJECT_ID_PATTERN = /^[a-fA-F0-9]{24}$/;
+
+function toValidObjectId(value) {
+  if (typeof value !== 'string' || !OBJECT_ID_PATTERN.test(value)) {
+    return null;
+  }
+  return new mongoose.Types.ObjectId(value);
+}
 
 const getInstagramCredentials = async () => {
   const tokenDoc = await MetaToken.findOne({ platform: 'instagram' });
@@ -70,8 +78,8 @@ const saveBase64Media = async (media) => {
 
 const createPost = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 
@@ -127,8 +135,8 @@ const createPost = async (req, res) => {
 
 const schedulePost = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 
@@ -187,8 +195,8 @@ const schedulePost = async (req, res) => {
 
 const getScheduledPosts = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
     const posts = await InstagramScheduledPost.find({
@@ -210,8 +218,8 @@ const getScheduledPosts = async (req, res) => {
 
 const deleteScheduledPost = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 
@@ -238,8 +246,8 @@ const deleteScheduledPost = async (req, res) => {
 
 const getHistory = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
     const limit = Math.min(Number(req.query.limit) || 20, 100);
@@ -261,8 +269,8 @@ const getHistory = async (req, res) => {
 
 const retryScheduledPost = async (req, res) => {
   try {
-    const userId = req.body?.requestor?.requestorId;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const userId = toValidObjectId(req.body?.requestor?.requestorId);
+    if (!userId) {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 

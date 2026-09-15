@@ -5,6 +5,11 @@ jest.mock('../../models/instagramScheduledPost', () => ({
   findOneAndDelete: jest.fn(),
 }));
 
+jest.mock('node:crypto', () => ({
+  ...jest.requireActual('crypto'),
+  randomUUID: jest.fn(() => 'fixed-uuid'),
+}));
+
 jest.mock('../../models/instagramPostHistory', () => ({
   find: jest.fn(),
   create: jest.fn(),
@@ -18,13 +23,13 @@ jest.mock('../../services/instagramServices', () => ({
   publishInstagramPost: jest.fn(),
 }));
 
-jest.mock('fs', () => ({
+jest.mock('node:fs', () => ({
   mkdirSync: jest.fn(),
   writeFileSync: jest.fn(),
 }));
 
-const fs = require('fs');
-const crypto = require('crypto');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
 const InstagramScheduledPost = require('../../models/instagramScheduledPost');
 const InstagramPostHistory = require('../../models/instagramPostHistory');
 const MetaToken = require('../../models/metaToken');
@@ -52,10 +57,6 @@ const VALID_POST_ID = '507f1f77bcf86cd799439012';
 const VALID_MEDIA_BASE64 =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
-// Mirrors what the global auth middleware actually puts on the request:
-// req.body.requestor.requestorId. Pass requestorId: undefined to simulate
-// an unauthenticated request (as if the middleware's allowlist/verify
-// step never ran or failed).
 function buildReq({ body = {}, params = {}, query = {}, requestorId = VALID_USER_ID } = {}) {
   return {
     body: {
@@ -283,9 +284,10 @@ describe('createPost', () => {
       mediaType: 'IMAGE',
     });
 
+    console.log('CREATE CALL:', InstagramPostHistory.create.mock.calls);
+
     expect(InstagramPostHistory.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: VALID_USER_ID,
         caption: 'Hello world',
         mediaType: 'IMAGE',
         instagramMediaId: 'media-1',
@@ -293,6 +295,10 @@ describe('createPost', () => {
         status: 'published',
       }),
     );
+
+    const historyArg = InstagramPostHistory.create.mock.calls[0][0];
+    expect(historyArg.userId).toBeDefined();
+    expect(historyArg.userId.toString()).toBe(VALID_USER_ID);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -453,13 +459,17 @@ describe('schedulePost', () => {
 
     expect(InstagramScheduledPost.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: VALID_USER_ID,
         caption: 'Hello',
         mediaType: 'IMAGE',
         mediaAltText: 'desc',
         status: 'scheduled',
       }),
     );
+
+    const historyArg = InstagramScheduledPost.create.mock.calls[0][0];
+    expect(historyArg.userId).toBeDefined();
+    expect(historyArg.userId.toString()).toBe(VALID_USER_ID);
+
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Post scheduled.' }));
   });
@@ -531,11 +541,16 @@ describe('getScheduledPosts', () => {
     const res = buildRes();
 
     await getScheduledPosts(req, res);
+    const findArg = InstagramScheduledPost.find.mock.calls[0][0];
 
-    expect(InstagramScheduledPost.find).toHaveBeenCalledWith({
-      userId: VALID_USER_ID,
-      status: { $in: ['scheduled', 'publishing', 'failed'] },
-    });
+    expect(findArg).toEqual(
+      expect.objectContaining({
+        status: { $in: ['scheduled', 'publishing', 'failed'] },
+      }),
+    );
+
+    expect(findArg.userId.toString()).toBe(VALID_USER_ID);
+
     expect(sort).toHaveBeenCalledWith({ scheduledTime: 1 });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith([{ _id: VALID_POST_ID, status: 'scheduled' }]);
@@ -585,10 +600,10 @@ describe('deleteScheduledPost', () => {
 
     await deleteScheduledPost(req, res);
 
-    expect(InstagramScheduledPost.findOneAndDelete).toHaveBeenCalledWith({
-      _id: VALID_POST_ID,
-      userId: VALID_USER_ID,
-    });
+    const deleteArg = InstagramScheduledPost.findOneAndDelete.mock.calls[0][0];
+    expect(deleteArg._id).toBe(VALID_POST_ID);
+    expect(deleteArg.userId.toString()).toBe(VALID_USER_ID);
+
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ error: 'Scheduled post not found.' });
   });
@@ -649,7 +664,8 @@ describe('getHistory', () => {
 
     await getHistory(req, res);
 
-    expect(InstagramPostHistory.find).toHaveBeenCalledWith({ userId: VALID_USER_ID });
+    const findArg = InstagramPostHistory.find.mock.calls[0][0];
+    expect(findArg.userId.toString()).toBe(VALID_USER_ID);
     expect(sort).toHaveBeenCalledWith({ postedAt: -1 });
     expect(limitFn).toHaveBeenCalledWith(20);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -727,10 +743,10 @@ describe('retryScheduledPost', () => {
 
     await retryScheduledPost(req, res);
 
-    expect(InstagramScheduledPost.findOne).toHaveBeenCalledWith({
-      _id: VALID_POST_ID,
-      userId: VALID_USER_ID,
-    });
+    const findArg = InstagramScheduledPost.findOne.mock.calls[0][0];
+    expect(findArg._id).toBe(VALID_POST_ID);
+    expect(findArg.userId.toString()).toBe(VALID_USER_ID);
+
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ error: 'Scheduled post not found.' });
   });

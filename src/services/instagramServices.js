@@ -4,7 +4,7 @@ const GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v23.0';
 
 const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
-const GRAPH_ID_PATTERN = /^[A-Za-z0-9_]{1,64}$/;
+const GRAPH_ID_PATTERN = /^\w{1,64}$/;
 
 function assertValidGraphId(id, label) {
   if (typeof id !== 'string' || !GRAPH_ID_PATTERN.test(id)) {

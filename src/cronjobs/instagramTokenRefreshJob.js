@@ -3,7 +3,7 @@ const cron = require('node-cron'); // or whatever scheduler this repo already us
 const refreshInstagramToken = require('../services/refreshInstagramToken');
 const logger = require('../startup/logger');
 
-module.exports = () => {
+const scheduleInstagramTokenRefresh = () => {
   // Run daily at 3am — refreshing well before the 60-day expiry
   cron.schedule('0 3 * * *', async () => {
     try {
@@ -14,3 +14,5 @@ module.exports = () => {
     }
   });
 };
+
+module.exports = scheduleInstagramTokenRefresh;

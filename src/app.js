@@ -25,7 +25,7 @@ const helpRequestRouter = require('./routes/helpRequestRouter');
 app.use('/api/feedback', helpFeedbackRouter);
 app.use('/api/helprequest', helpRequestRouter);
 
-const path = require('path');
+const path = require('node:path');
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
