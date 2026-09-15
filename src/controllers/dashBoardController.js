@@ -365,15 +365,6 @@ const dashboardcontroller = function () {
     }
   };
 
-  const checkQuestionaireModal = async function (req, res) {
-    try {
-      const result = await dashboardhelper.checkQuestionaireModal(req);
-      return res.status(200).json(result);
-    } catch (err) {
-      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
-    }
-  };
-
   const getUserNames = async function (req, res) {
     /** Call this api once and show in frontend.
      * this will be the response structure
@@ -427,7 +418,6 @@ const dashboardcontroller = function () {
     getPromptCopiedDate,
     postTrophyIcon,
     requestFeedbackModal,
-    checkQuestionaireModal,
     getUserNames,
     checkUserFoundHelpSomewhere,
   };

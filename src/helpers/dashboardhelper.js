@@ -682,34 +682,6 @@ const dashboardhelper = function () {
     }
   };
 
-  const checkQuestionaireModal = async (req) => {
-    try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        return { message: 'userId is required' };
-      }
-
-      const user = await userProfile.findOne(
-        { _id: mongoose.Types.ObjectId(userId) },
-        { questionaireFeedback: 1 },
-      );
-
-      if (!user) {
-        return { message: 'User not found' };
-      }
-
-      const { questionaireFeedback } = user;
-      const showModal =
-        !questionaireFeedback || !questionaireFeedback.foundHelpSomeWhereClosePermanently;
-
-      return { showModal };
-    } catch (error) {
-      console.error('Error checking questionaire modal:', error);
-      return { message: 'Internal server error' };
-    }
-  };
-
   const checkQuestionaireFeedback = async (req) => {
     try {
       const { userId, foundHelpSomeWhereClosePermanently } = req.body;
@@ -750,7 +722,6 @@ const dashboardhelper = function () {
     laborThisWeekByCategory,
     requestFeedback,
     getNamesFromProfiles,
-    checkQuestionaireModal,
     checkQuestionaireFeedback,
   };
 };
