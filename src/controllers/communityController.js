@@ -45,6 +45,7 @@ const communityMemberController = function () {
           email: userInfo?.email || 'N/A',
           slack: userInfo?.slack || '',
           team: general?.location || 'N/A',
+          preferences: Array.isArray(general?.preferences) ? general.preferences : [],
           skills: {
             frontend: extractSkills(frontend),
             backend: extractSkills(backend),
