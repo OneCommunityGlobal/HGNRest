@@ -2596,7 +2596,13 @@ const userHelper = function () {
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     const leaderRoles = new Set(['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team']);
-    const approvedRoles = ['Mentor', 'Manager'];
+    // The Badges Detail doc specifies this badge for "a Manager, Core Team, or
+    // Admin class", and Jae's comment there puts it as "the Users Class being
+    // one of the Management classes". Core Team and Administrator were missing,
+    // so no Administrator could ever earn it. Mentor is not named in the doc but
+    // has always been allowed and is kept on purpose, confirmed with Sita Ram.
+    // Owner is not named either and stays out, matching the previous behaviour.
+    const approvedRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
     if (!approvedRoles.includes(user.role)) return;
     const teams = await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams

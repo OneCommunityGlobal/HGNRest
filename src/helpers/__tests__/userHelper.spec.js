@@ -617,11 +617,35 @@ describe('checkLeadTeamOfXplus', () => {
     badge.find.mockReset();
   });
 
-  test('returns early for roles that cannot lead teams', async () => {
-    const user = { role: 'Volunteer' };
-    await checkLeadTeamOfXplus(personId, user, []);
+  // The Badges Detail doc describes this badge as being for "a Manager, Core
+  // Team, or Admin class", and Jae's comment on that doc puts it as "the Users
+  // Class being one of the Management classes". Mentor is not named there but
+  // has always been allowed and stays allowed deliberately. Owner is not named
+  // either and stays ineligible, which is the behaviour that was already here.
+  const eligibleRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
+  const ineligibleRoles = ['Volunteer', 'Owner'];
+
+  test.each(ineligibleRoles)('returns early for %s, who cannot lead teams', async (role) => {
+    await checkLeadTeamOfXplus(personId, { role }, []);
 
     expect(Team.aggregate).not.toHaveBeenCalled();
+  });
+
+  test.each(eligibleRoles)('sizes the team and awards a badge for %s', async (role) => {
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: new mongoose.Types.ObjectId(), role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    await checkLeadTeamOfXplus(personId, { role }, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
 
   test('adds a qualifying team-size badge for an eligible leader', async () => {
