@@ -88,6 +88,7 @@ router.post('/assign-tasks', async (req, res) => {
             tasksToCreate.push({
               studentId: student._id,
               lessonPlanId,
+              name: subTask.name,
               title: subTask.name,
               assignedDate: assignmentDate,
               dueDate: subTask.dueDate,
