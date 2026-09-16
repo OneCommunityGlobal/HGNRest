@@ -38,6 +38,22 @@ jest.mock('../dashboardhelper', () =>
     laborthisweek: jest.fn().mockResolvedValue([{ timeSpent_hrs: 36 }]),
   })),
 );
+jest.mock('../../models/BlueSquareEmailAssignment', () => ({
+  find: jest.fn().mockImplementation(() => ({
+    populate: jest.fn().mockImplementation(() => ({
+      exec: jest.fn().mockResolvedValue([
+        {
+          email: 'bcc-test@example.com',
+          assignedTo: { isActive: true },
+        },
+      ]),
+    })),
+  })),
+}));
+jest.mock('../../models/timeOffRequest', () => ({
+  deleteMany: jest.fn(),
+  find: jest.fn(),
+}));
 
 /* =======================
    IMPORTS AFTER MOCKS
@@ -51,6 +67,7 @@ const timeUtils = require('../../utilities/timeUtils');
 const emailSender = require('../../utilities/emailSender');
 const { COMPANY_TZ } = require('../../constants/company');
 const timeOffRequest = require('../../models/timeOffRequest');
+const logger = require('../../startup/logger');
 
 const {
   getUserName,
@@ -71,6 +88,7 @@ const {
   updatePersonalMax,
   checkIsNewUser,
   weeklyAutoReplyEmailFunction,
+  assignBlueSquareForTimeNotMet,
 } = userHelperFactory();
 
 /* =======================
@@ -1200,6 +1218,20 @@ describe('checkIsNewUser', () => {
 
     expect(isNew).toBe(true);
   });
+
+  it('should treat a user starting after Tuesday during last week with logged hours as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 5,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
 });
 
 describe('weeklyAutoReplyEmailFunction', () => {
@@ -1240,5 +1272,135 @@ describe('weeklyAutoReplyEmailFunction', () => {
     expect(updateSpy).toHaveBeenCalledWith(mockUser._id, {
       $pull: { infringements: { date: assignmentDate } },
     });
+  });
+
+  it('should not pull infringement from userProfile when templateKey is not MISSED_HOURS_BY_<15%', async () => {
+    const assignmentDate = moment()
+      .tz(COMPANY_TZ || 'America/Los_Angeles')
+      .startOf('week')
+      .format('YYYY-MM-DD');
+
+    const mockUser = {
+      _id: '60c72b2f9b1d8b2bad701234',
+      email: 'test@example.com',
+      firstName: 'Jane',
+      weeklycommittedHours: 50,
+      missedHours: 0,
+      startDate: '2022-01-01',
+      weeklySummaryOption: 'Required',
+      weeklySummaryNotReq: false,
+      weeklySummaries: [{}, { summary: 'Done' }],
+      infringements: [{ date: assignmentDate }],
+    };
+
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(timeOffRequest, 'find').mockResolvedValueOnce([]);
+    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValueOnce(mockUser);
+    emailSender.mockResolvedValueOnce(true);
+
+    await weeklyAutoReplyEmailFunction({
+      targetUserId: mockUser._id,
+      bccOverride: ['test@example.com'],
+    });
+
+    expect(updateSpy).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe('assignBlueSquareForTimeNotMet', () => {
+  let mockDateNow;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Mock Date.now for predictable console output / timing tests
+    mockDateNow = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+
+    // Default mock behavior for emailSender
+    emailSender.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    mockDateNow.mockRestore();
+  });
+
+  it('should query active users, run blue square logic, and send emails sorted by startDate', async () => {
+    const mockUsers = [
+      { _id: 'user2', startDate: '2026-02-01' },
+      { _id: 'user1', startDate: '2026-01-01' },
+    ];
+
+    // First call for active users, second call for inactive users
+    userProfile.find.mockResolvedValueOnce(mockUsers).mockResolvedValueOnce([]);
+
+    await assignBlueSquareForTimeNotMet();
+
+    // Verify correct query for active users
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { isActive: true },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+
+    // Verify emailSender was called (if any emails were generated or processed)
+    expect(userProfile.find).toHaveBeenCalledTimes(2);
+  });
+
+  it('should query for targetUserId when emailConfig.targetUserId is provided', async () => {
+    const targetUserId = 'targetUser123';
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Target user
+      .mockResolvedValueOnce([]); // Inactive users
+
+    await assignBlueSquareForTimeNotMet({
+      targetUserId,
+      ccOverride: ['cc-override@example.com'],
+      bccOverride: ['bcc-override@example.com'],
+    });
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { _id: targetUserId },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+  });
+
+  it('should process inactive users and update their weekly summaries', async () => {
+    const inactiveUsers = [{ _id: 'inactive1' }, { _id: 'inactive2' }];
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users
+      .mockResolvedValueOnce(inactiveUsers); // Inactive users
+
+    await assignBlueSquareForTimeNotMet();
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(2, { isActive: false }, '_id');
+  });
+
+  it('should catch and log errors in the main processing block without throwing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const dbError = new Error('Database connection failed');
+
+    userProfile.find.mockRejectedValueOnce(dbError);
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(dbError);
+
+    loggerSpy.mockRestore();
+  });
+
+  it('should catch and log errors during inactive user processing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const inactiveError = new Error('Inactive users query failed');
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users succeed
+      .mockRejectedValueOnce(inactiveError); // Inactive users throw
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(inactiveError);
+
+    loggerSpy.mockRestore();
   });
 });

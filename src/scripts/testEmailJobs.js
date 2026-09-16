@@ -83,7 +83,7 @@ const runTests = async () => {
     }
 
     // Small delay to allow queued background operations (EmailHistory/EmailThread) to finish
-    await sleep(5000);
+    await sleep(2000);
     console.log('Execution completed successfully.');
   } catch (error) {
     console.error('Error running tests:', error);
