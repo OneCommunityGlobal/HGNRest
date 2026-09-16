@@ -8,11 +8,11 @@ const educatorController = require('../controllers/educatorController');
 
 const controller = educatorController();
 
-const LessonPlan = require('../models/lessonPlan'); 
+const LessonPlan = require('../models/lessonPlan');
 const EducationTask = require('../models/educationTask');
 const UserProfile = require('../models/userProfile');
 const LessonPlanLog = require('../models/lessonPlanLog');
-
+const { hasPermission } = require('../utilities/permissions');
 
 /**
  * @route   POST /api/educator/assign-tasks
@@ -22,12 +22,17 @@ const LessonPlanLog = require('../models/lessonPlanLog');
 router.post('/assign-tasks', async (req, res) => {
   const { lessonPlanId, assignmentDate, isAutoAssigned } = req.body;
 
+  if (!(await hasPermission(req.body.requestor, 'assignLessonTasks'))) {
+    return res
+      .status(403)
+      .json({ error: 'You are not authorized to assign tasks for this lesson plan.' });
+  }
+
   if (!lessonPlanId) {
     return res.status(400).json({ message: 'Request is missing lesson_plan_id.' });
   }
 
   try {
-    
     const lessonPlan = await LessonPlan.findById(lessonPlanId);
 
     if (!lessonPlan?.subTasks?.length) {
@@ -37,7 +42,6 @@ router.post('/assign-tasks', async (req, res) => {
     }
 
     const eligibleStudents = await UserProfile.find({
-
       isActive: true,
       role: { $nin: ['Administrator', 'Owner', 'Manager'] },
     });
@@ -86,7 +90,7 @@ router.post('/assign-tasks', async (req, res) => {
               lessonPlanId,
               title: subTask.name,
               assignedDate: assignmentDate,
-              dueDate: subTask.dueDate, 
+              dueDate: subTask.dueDate,
               status: 'Assigned',
               assignedBy: assignerId,
             });
@@ -99,18 +103,17 @@ router.post('/assign-tasks', async (req, res) => {
           assignedCount++;
         } else {
           console.warn(`Lesson plan ${lessonPlanId} has no subTasks for student ${student._id}.`);
-          skippedCount++; 
+          skippedCount++;
         }
       } else {
         skippedCount++;
       }
     });
 
-
     if (tasksToCreate.length > 0) {
       await EducationTask.insertMany(tasksToCreate);
     }
-   
+
     await LessonPlanLog.create({
       lessonPlanId,
       editorId: assignerId,
@@ -123,12 +126,11 @@ router.post('/assign-tasks', async (req, res) => {
       skippedCount,
     });
   } catch (error) {
-
     console.error('-----------------------------------------');
     console.error('Error occurred in /api/educator/assign-tasks:');
     console.error('Timestamp:', new Date().toISOString());
     console.error('Request Body:', req.body);
-    console.error('Error Details:', error); 
+    console.error('Error Details:', error);
     console.error('-----------------------------------------');
 
     const errorMessage =
