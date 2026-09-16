@@ -1,8 +1,20 @@
 const Template = require('../models/TemplateModel');
+const {
+  canAccessJobFormManagement,
+  canCreateFormQuestions,
+  canEditFormQuestions,
+  canDeleteFormQuestions,
+} = require('../utilities/jobFormPermissions');
+
+const getRequestor = (req) => req.body?.requestor;
 
 // Get all templates
 exports.getAllTemplates = async (req, res) => {
   try {
+    if (!(await canAccessJobFormManagement(getRequestor(req)))) {
+      return res.status(403).json({ message: 'You are not authorized to view templates.' });
+    }
+
     const templates = await Template.find();
     if (templates.length === 0) {
       return res.status(200).json({ templates: [] });
@@ -17,7 +29,12 @@ exports.getAllTemplates = async (req, res) => {
 // Create a new template
 exports.createTemplate = async (req, res) => {
   try {
-    const { name, fields } = req.body;
+    const { name, fields, requestor } = req.body;
+
+    if (!(await canCreateFormQuestions(requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to create templates.' });
+    }
+
     // Validate input
     if (!name || !fields || fields.length === 0) {
       return res.status(400).json({ message: 'Template name and fields are required.' });
@@ -46,6 +63,10 @@ exports.createTemplate = async (req, res) => {
 // Get a template by ID
 exports.getTemplateById = async (req, res) => {
   try {
+    if (!(await canAccessJobFormManagement(getRequestor(req)))) {
+      return res.status(403).json({ message: 'You are not authorized to view templates.' });
+    }
+
     const { id } = req.params;
     const template = await Template.findById(id);
     if (!template) {
@@ -62,7 +83,11 @@ exports.getTemplateById = async (req, res) => {
 exports.updateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, fields } = req.body;
+    const { name, fields, requestor } = req.body;
+
+    if (!(await canEditFormQuestions(requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to update templates.' });
+    }
 
     // Validate input
     if (!name || !fields || fields.length === 0) {
@@ -91,6 +116,12 @@ exports.updateTemplate = async (req, res) => {
 exports.deleteTemplate = async (req, res) => {
   try {
     const { id } = req.params;
+    const { requestor } = req.body;
+
+    if (!(await canDeleteFormQuestions(requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to delete templates.' });
+    }
+
     const template = await Template.findByIdAndDelete(id);
 
     if (!template) {

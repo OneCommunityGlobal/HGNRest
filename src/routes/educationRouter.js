@@ -1,5 +1,4 @@
 const express = require('express');
-
 const controller = require('../controllers/educationUserProfileController');
 
 const studentProfileRouter = express.Router();

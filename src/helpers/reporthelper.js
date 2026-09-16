@@ -9,9 +9,10 @@ const userProfile = require('../models/userProfile');
  * @returns The absolute value of the difference in weeks between the two input dates.
  */
 const absoluteDifferenceInWeeks = (dateOfWork, pstEnd) => {
-  dateOfWork = moment(dateOfWork).endOf('week');
-  pstEnd = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
-  return Math.abs(dateOfWork.diff(pstEnd, 'weeks'));
+  // Align BOTH sides to America/Los_Angeles so week boundaries match the UI tabs
+  const dowLA = moment(dateOfWork).tz('America/Los_Angeles').endOf('week');
+  const pstEndLA = moment(pstEnd).tz('America/Los_Angeles').endOf('week');
+  return Math.abs(dowLA.diff(pstEndLA, 'weeks'));
 };
 
 const reporthelper = function () {
@@ -39,7 +40,7 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: true },
+        $match: { isActive: { $in: [true, false] } },
       },
       {
         $lookup: {
@@ -174,6 +175,7 @@ const reporthelper = function () {
     results.forEach((result) => {
       // create Array(4) to hold totalSeconds for each week
       result.totalSeconds = [0, 0, 0, 0];
+      result.totalTangibleSeconds = [0, 0, 0, 0];
 
       if (!result.timeEntries || result.timeEntries.length === 0) return;
       const isSingleWeekRequest = startWeekIndex === endWeekIndex;
@@ -191,13 +193,25 @@ const reporthelper = function () {
         if (index >= 0 && index < 4) {
           result.totalSeconds[index] =
             (result.totalSeconds[index] || 0) + (entry.totalSeconds || 0);
+          if (entry.isTangible) {
+            result.totalTangibleSeconds[index] =
+              (result.totalTangibleSeconds[index] || 0) + (entry.totalSeconds || 0);
+          }
         }
       });
 
       result.totalSeconds = result.totalSeconds.map((seconds) =>
         seconds === 0 ? undefined : seconds,
       );
+      result.totalTangibleSeconds = result.totalTangibleSeconds.map((seconds) =>
+        seconds === 0 ? undefined : seconds,
+      );
 
+      if (result.endDate) {
+        result.finalWeekIndex = absoluteDifferenceInWeeks(result.endDate, pstEnd);
+      } else {
+        result.finalWeekIndex = undefined;
+      }
       delete result.timeEntries;
     });
 
@@ -261,34 +275,23 @@ const reporthelper = function () {
    * @param {Object} results An array of user objects with selected fields.
    * @return {Object} An array of user objects with properly sorted weeklySummaries by due date.
    */
+  // refactor that handles any week index without hardcoded cases
+
   const formatSummaries = function (results) {
     return results.map((user) => {
       const { weeklySummaries: wS } = user;
-      const wSummaries = [];
 
-      if (Array.isArray(wS) && wS.length && wS.length < 3) {
-        // Common cases for the first entry.
-        if (getTheWeek(wS[0].dueDate) === 0) wSummaries[0] = { ...wS[0] };
-        if (getTheWeek(wS[0].dueDate) === 1) {
-          wSummaries[0] = null;
-          wSummaries[1] = { ...wS[0] };
+      if (!Array.isArray(wS) || !wS.length || wS.length >= 3) return user;
+
+      const wSummaries = [];
+      wS.forEach((entry) => {
+        const weekIndex = getTheWeek(entry.dueDate);
+        if (weekIndex >= 0) {
+          wSummaries[weekIndex] = { ...entry };
         }
-        // When single entry.
-        if (wS.length === 1) {
-          // Special case when first entry belongs to week before last.
-          if (getTheWeek(wS[0].dueDate) === 2) {
-            wSummaries[0] = null;
-            wSummaries[1] = null;
-            wSummaries[2] = { ...wS[0] };
-          }
-        } else {
-          // When two entries.
-          if (getTheWeek(wS[1].dueDate) === 1) wSummaries[1] = { ...wS[1] };
-          if (getTheWeek(wS[1].dueDate) === 2) wSummaries[2] = { ...wS[1] };
-        }
-        user = { ...user, weeklySummaries: wSummaries };
-      }
-      return user;
+      });
+
+      return { ...user, weeklySummaries: wSummaries };
     });
   };
 

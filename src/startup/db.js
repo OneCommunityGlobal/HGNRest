@@ -6,6 +6,8 @@ const logger = require('./logger');
 require('dotenv').config();
 
 mongoose.Promise = Promise;
+mongoose.set('useCreateIndex', true);
+mongoose.set('useFindAndModify', false);
 
 /* 👇 ADD HERE */
 mongoose.connection.on('connected', () => {
@@ -46,12 +48,11 @@ const afterConnect = async () => {
 
 module.exports = function () {
   const appName = process.env.appName || 'HGNRest';
-  const uri = `mongodb+srv://${process.env.user}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
+  const uri = `mongodb+srv://${encodeURIComponent(process.env.user)}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
   mongoose
     .connect(uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      useFindAndModify: false,
     })
     .then(afterConnect)
     .catch((err) => logger.logException(err));

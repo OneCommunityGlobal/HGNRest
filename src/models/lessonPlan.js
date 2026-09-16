@@ -48,12 +48,18 @@ const lessonPlanSchema = new Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
-      required: true, // Kept strict requirement from incoming
+      required: true,
     },
     lastEditedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
     },
+    atomTasks: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AtomTaskTemplate',
+      },
+    ],
   },
   {
     timestamps: true, // This will automatically manage createdAt and updatedAt fields

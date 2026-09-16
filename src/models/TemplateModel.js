@@ -13,7 +13,7 @@ const templateSchema = new mongoose.Schema(
         questionType: {
           type: String,
           required: true,
-          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date'],
+          enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date', 'file', 'email'],
         },
         visible: { type: Boolean, default: true },
         isRequired: { type: Boolean, default: false },
