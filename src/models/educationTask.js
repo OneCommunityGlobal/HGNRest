@@ -17,23 +17,36 @@ const educationTaskSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+    title: {
+      type: String,
+    },
+    assignedDate: {
+      type: Date,
+    },
+    dueDate: {
+      type: Date,
+    },
+    submission: {
+      type: String, 
+    },
+
     atomIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Atom',
-        required: true,
       },
     ],
     type: {
       type: String,
-      required: true,
-      enum: ['read', 'write', 'practice', 'quiz', 'project'],
     },
     status: {
       type: String,
-      required: true,
-      enum: ['assigned', 'in_progress', 'completed', 'graded'],
-      default: 'assigned',
+      default: 'Assigned',
     },
     submissionStatus: {
       type: String,
@@ -46,7 +59,6 @@ const educationTaskSchema = new mongoose.Schema(
     },
     dueAt: {
       type: Date,
-      required: true,
     },
     completedAt: {
       type: Date,

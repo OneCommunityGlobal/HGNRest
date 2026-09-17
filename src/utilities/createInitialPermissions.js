@@ -28,6 +28,7 @@ const permissionsRoles = [
       // Tasks
       'importTask',
       'postTask',
+      'assignLessonTasks',
       'updateTask',
       'swapTask',
       'deleteTask',
@@ -156,6 +157,7 @@ const permissionsRoles = [
     permissions: [
       'getReporteesLimitRoles',
       'postTask',
+      'assignLessonTasks',
       'updateTask',
       'suggestTask',
       'putReviewStatus',
@@ -353,7 +355,7 @@ const createInitialPermissions = async () => {
         const role = new Role();
         role.roleName = roleName;
         role.permissions = permissions;
-        role.save();
+        await role.save();
 
         // If role exists in db and does not have every permission, add the missing permissions
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
