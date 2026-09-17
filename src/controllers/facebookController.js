@@ -1,3 +1,4 @@
+const net = require('net');
 const axios = require('axios');
 const moment = require('moment-timezone');
 const FormData = require('form-data');
@@ -9,22 +10,74 @@ const { hasPermission } = require('../utilities/permissions');
 const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
 const PST_TIMEZONE = 'America/Los_Angeles';
 
-const ALLOWED_POST_STATUSES = ['pending', 'sending', 'sent', 'failed'];
-const ALLOWED_POST_METHODS = ['direct', 'scheduled'];
+const ALLOWED_POST_STATUSES = new Set(['pending', 'sending', 'sent', 'failed']);
+const ALLOWED_POST_METHODS = new Set(['direct', 'scheduled']);
 
 const fallbackPageId = process.env.FACEBOOK_PAGE_ID;
 const fallbackPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
-const sanitizeFbId = (id) => String(id ?? '').replace(/[^\d]/g, '');
-
 const assertValidFbId = (id) => {
-  const cleaned = sanitizeFbId(id);
-  if (!cleaned || !/^\d+$/.test(cleaned)) {
+  const candidate = typeof id === 'number' && Number.isSafeInteger(id) ? String(id) : id;
+  if (typeof candidate !== 'string' || !/^\d+$/.test(candidate)) {
     const err = new Error('Invalid Facebook Page ID format. Must be numeric.');
     err.status = 400;
     throw err;
   }
-  return cleaned;
+  return candidate;
+};
+
+const resolveTrustedPageId = (credentials, requestedPageId) => {
+  const trustedPageId = assertValidFbId(credentials.pageId);
+  if (requestedPageId !== undefined && requestedPageId !== null && requestedPageId !== '') {
+    const validatedRequestPageId = assertValidFbId(requestedPageId);
+    if (validatedRequestPageId !== trustedPageId) {
+      const err = new Error('Requested Facebook Page ID does not match the connected Page.');
+      err.status = 400;
+      throw err;
+    }
+  }
+  return trustedPageId;
+};
+
+const isBlockedImageHostname = (hostname) =>
+  hostname === 'localhost' ||
+  hostname.endsWith('.localhost') ||
+  hostname.endsWith('.local') ||
+  hostname.endsWith('.internal') ||
+  net.isIP(hostname.replace(/^\[|\]$/g, '')) !== 0;
+
+const validateFacebookImageUrl = (imageUrl) => {
+  if (imageUrl === undefined || imageUrl === null || imageUrl === '') return undefined;
+  if (typeof imageUrl !== 'string') {
+    const err = new Error('Invalid imageUrl. A public HTTPS URL is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    const err = new Error('Invalid imageUrl. A public HTTPS URL is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (
+    parsedUrl.protocol !== 'https:' ||
+    parsedUrl.username ||
+    parsedUrl.password ||
+    parsedUrl.hash ||
+    !hostname ||
+    isBlockedImageHostname(hostname)
+  ) {
+    const err = new Error('Invalid imageUrl. A public HTTPS URL is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  return parsedUrl.href;
 };
 
 const buildGraphPageUrl = (pageId, path) => {
@@ -117,7 +170,7 @@ const validateScheduleInput = (req, res, credentials) => {
 
   let targetPageId;
   try {
-    targetPageId = assertValidFbId(pageId || credentials.pageId);
+    targetPageId = resolveTrustedPageId(credentials, pageId);
   } catch (err) {
     res.status(err.status || 400).send({ error: err.message });
     return null;
@@ -214,8 +267,10 @@ const publishToFacebook = async ({
   }
 
   let targetPageId;
+  let safeImageUrl;
   try {
-    targetPageId = assertValidFbId(pageId || credentials.pageId);
+    targetPageId = resolveTrustedPageId(credentials, pageId);
+    safeImageUrl = validateFacebookImageUrl(imageUrl);
   } catch (err) {
     if (!err.status) err.status = 400;
     throw err;
@@ -239,13 +294,13 @@ const publishToFacebook = async ({
   }
 
   const isDirectUpload = Boolean(imageBuffer);
-  const isPhotoPost = isDirectUpload || Boolean(imageUrl);
+  const isPhotoPost = isDirectUpload || Boolean(safeImageUrl);
   const endpoint = buildGraphPageUrl(targetPageId, isPhotoPost ? 'photos' : 'feed');
 
   try {
     const response = isDirectUpload
       ? await uploadImageToFacebook(endpoint, pageAccessToken, imageBuffer, imageMimeType, message)
-      : await postPayloadToFacebook(endpoint, pageAccessToken, message, link, imageUrl);
+      : await postPayloadToFacebook(endpoint, pageAccessToken, message, link, safeImageUrl);
 
     return {
       postId: response.data.id,
@@ -276,7 +331,7 @@ const saveDirectPostToHistory = async ({
       message,
       link,
       imageUrl,
-      pageId: pageId || credentials?.pageId,
+      pageId: credentials?.pageId || pageId,
       scheduledFor: new Date(),
       timezone: PST_TIMEZONE,
       status: 'sent',
@@ -308,8 +363,8 @@ const postToFacebook = async (req, res) => {
     await saveDirectPostToHistory({
       message,
       link,
-      imageUrl,
-      pageId: pageId || credentials?.pageId,
+      imageUrl: validateFacebookImageUrl(imageUrl),
+      pageId: credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
       createdBy: buildCreatedBy(req.user),
@@ -357,7 +412,7 @@ const postToFacebookWithImage = async (req, res) => {
       message,
       link,
       imageUrl: `(uploaded: ${imageFile.originalname})`,
-      pageId: pageId || credentials?.pageId,
+      pageId: credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
       createdBy: buildCreatedBy(req.user),
@@ -394,6 +449,14 @@ const scheduleFacebookPost = async (req, res) => {
     return;
   }
 
+  let safeImageUrl;
+  try {
+    safeImageUrl = validateFacebookImageUrl(imageUrl);
+  } catch (error) {
+    res.status(error.status || 400).send({ error: error.message });
+    return;
+  }
+
   const credentials = await getCredentials();
   const validation = validateScheduleInput(req, res, credentials);
   if (!validation) return;
@@ -403,7 +466,7 @@ const scheduleFacebookPost = async (req, res) => {
     const scheduledPost = new ScheduledFacebookPost({
       message,
       link,
-      imageUrl,
+      imageUrl: safeImageUrl,
       pageId: targetPageId,
       scheduledFor: scheduledMoment.toDate(),
       timezone: targetTimezone,
@@ -471,6 +534,25 @@ const scheduleFacebookPostWithImage = async (req, res) => {
   }
 };
 
+const buildScheduledPostsQuery = (status) => {
+  if (typeof status !== 'string' || !ALLOWED_POST_STATUSES.has(status)) {
+    return { status: { $in: ['pending', 'sending'] } };
+  }
+
+  switch (status) {
+    case 'pending':
+      return { status: 'pending' };
+    case 'sending':
+      return { status: 'sending' };
+    case 'sent':
+      return { status: 'sent' };
+    case 'failed':
+      return { status: 'failed' };
+    default:
+      return { status: { $in: ['pending', 'sending'] } };
+  }
+};
+
 const getScheduledPosts = async (req, res) => {
   const canPost = await hasPermission(req.user, 'postFacebookContent');
   const canSendEmails = await hasPermission(req.user, 'sendEmails');
@@ -480,18 +562,11 @@ const getScheduledPosts = async (req, res) => {
   }
 
   const { status: rawStatus, limit = 50, skip = 0 } = req.query;
-  const safeStatus =
-    typeof rawStatus === 'string' && ALLOWED_POST_STATUSES.includes(rawStatus) ? rawStatus : null;
   const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 200);
   const safeSkip = Math.max(Number.parseInt(skip, 10) || 0, 0);
 
   try {
-    const query = {};
-    if (safeStatus) {
-      query.status = safeStatus;
-    } else {
-      query.status = { $in: ['pending', 'sending'] };
-    }
+    const query = buildScheduledPostsQuery(rawStatus);
 
     const scheduledPosts = await ScheduledFacebookPost.find(query)
       .select('-imageData')
@@ -519,14 +594,34 @@ const getScheduledPosts = async (req, res) => {
 };
 
 const buildMongoHistoryQuery = (status, postMethod) => {
-  const query = {};
-  const safeStatus =
-    typeof status === 'string' && (status === 'sent' || status === 'failed') ? status : null;
-  query.status = safeStatus || { $in: ['sent', 'failed'] };
-  if (typeof postMethod === 'string' && ALLOWED_POST_METHODS.includes(postMethod)) {
-    query.postMethod = postMethod;
+  let statusFilter;
+  if (typeof status !== 'string' || !ALLOWED_POST_STATUSES.has(status)) {
+    statusFilter = { $in: ['sent', 'failed'] };
+  } else {
+    switch (status) {
+      case 'sent':
+        statusFilter = 'sent';
+        break;
+      case 'failed':
+        statusFilter = 'failed';
+        break;
+      default:
+        statusFilter = { $in: ['sent', 'failed'] };
+    }
   }
-  return query;
+
+  if (typeof postMethod !== 'string' || !ALLOWED_POST_METHODS.has(postMethod)) {
+    return { status: statusFilter };
+  }
+
+  switch (postMethod) {
+    case 'direct':
+      return { status: statusFilter, postMethod: 'direct' };
+    case 'scheduled':
+      return { status: statusFilter, postMethod: 'scheduled' };
+    default:
+      return { status: statusFilter };
+  }
 };
 
 const fetchFacebookFeedPosts = async (credentials, targetPageId, limit) => {
@@ -599,7 +694,8 @@ const getPostHistory = async (req, res) => {
   let targetPageId = null;
   let facebookApiError;
   try {
-    targetPageId = assertValidFbId(pageId || credentials?.pageId);
+    if (credentials) targetPageId = resolveTrustedPageId(credentials, pageId);
+    else assertValidFbId(pageId);
   } catch {
     facebookApiError = 'No valid Facebook Page ID available. Showing database posts only.';
   }
@@ -660,7 +756,7 @@ const cancelScheduledPost = async (req, res) => {
     return;
   }
 
-  if (!MongoTypes.ObjectId.isValid(postId)) {
+  if (typeof postId !== 'string' || !/^[a-f\d]{24}$/i.test(postId)) {
     res.status(400).send({ error: 'Invalid postId format.' });
     return;
   }
@@ -708,7 +804,7 @@ const updateScheduledPost = async (req, res) => {
     return;
   }
 
-  if (!MongoTypes.ObjectId.isValid(postId)) {
+  if (typeof postId !== 'string' || !/^[a-f\d]{24}$/i.test(postId)) {
     res.status(400).send({ error: 'Invalid postId format.' });
     return;
   }
@@ -740,7 +836,14 @@ const updateScheduledPost = async (req, res) => {
 
     if (message !== undefined) post.message = message;
     if (link !== undefined) post.link = link;
-    if (imageUrl !== undefined) post.imageUrl = imageUrl;
+    if (imageUrl !== undefined) {
+      try {
+        post.imageUrl = validateFacebookImageUrl(imageUrl);
+      } catch (validationError) {
+        res.status(validationError.status || 400).send({ error: validationError.message });
+        return;
+      }
+    }
 
     await post.save();
 

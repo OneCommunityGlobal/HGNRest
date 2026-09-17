@@ -38,6 +38,10 @@ const expectNoTokenExposure = (value) => {
 };
 
 describe('facebookScheduler token selection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('independently reloads the page token when a scheduled post becomes due', async () => {
     const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -83,6 +87,50 @@ describe('facebookScheduler token selection', () => {
     expectNoTokenExposure(consoleLog.mock.calls);
     expectNoTokenExposure(consoleError.mock.calls);
     expectNoTokenExposure(logger.logException.mock.calls);
+
+    consoleLog.mockRestore();
+    consoleError.mockRestore();
+  });
+
+  it('does not let a stale stored pageId alter the connected Graph destination', async () => {
+    const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    let scheduledCallback;
+    cron.schedule.mockImplementation((expression, callback) => {
+      scheduledCallback = callback;
+    });
+    FacebookConnection.getActiveConnection.mockResolvedValue({
+      pageId: '12345',
+      pageName: 'One Community',
+      pageAccessToken: PAGE_TOKEN,
+    });
+    const scheduledPost = {
+      _id: 'scheduled-post-id',
+      message: 'Scheduled message',
+      pageId: '99999',
+      attempts: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    ScheduledFacebookPost.findOneAndUpdate
+      .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(scheduledPost) })
+      .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(null) });
+
+    startFacebookScheduler();
+    await Promise.resolve();
+    await scheduledCallback();
+
+    expect(axios.post).not.toHaveBeenCalled();
+    expect(scheduledPost.status).toBe('pending');
+    expect(scheduledPost.attempts).toBe(1);
+    expect(scheduledPost.lastError).toBe(
+      'Requested Facebook Page ID does not match the connected Page.',
+    );
+    expect(scheduledPost.save).toHaveBeenCalledTimes(1);
+    expect(logger.logException).toHaveBeenCalledWith(
+      expect.any(Error),
+      'facebookScheduler.process',
+      expect.objectContaining({ scheduledId: 'scheduled-post-id' }),
+    );
 
     consoleLog.mockRestore();
     consoleError.mockRestore();
