@@ -1,4 +1,4 @@
-const net = require('net');
+const net = require('node:net');
 const axios = require('axios');
 const moment = require('moment-timezone');
 const FormData = require('form-data');
