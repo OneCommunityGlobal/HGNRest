@@ -3,7 +3,7 @@ const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cacheClosure = require('../utilities/nodeCache');
-// const userHelper = require('../helpers/userHelper')();
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -13,67 +13,10 @@ const badgeController = function (Badge) {
    */
   const cache = cacheClosure();
 
-  // const awardBadgesTest = async function (req, res) {
-  //   await userHelper.awardNewBadges();
-  //   res.status(200).send('Badges awarded');
-  // };
-
-  // const updateBadgeUsers = async function (req, res) {
-  //   console.log('Assigning Users to Badges');
-
-  //   try {
-  //     // First make sure all badges have users array
-  //     await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
-
-  //     // Get all user profiles with badges
-  //     const userProfiles = await UserProfile.find({
-  //       'badgeCollection.0': { $exists: true },
-  //     }).select('_id badgeCollection');
-
-  //     // Filter out any null badge items and validate badge IDs
-  //     const updatePromises = userProfiles.map((profile) =>
-  //       Promise.all(
-  //         profile.badgeCollection
-  //           .filter((badgeItem) => badgeItem && badgeItem.badge) // Filter out null items
-  //           .map((badgeItem) =>
-  //             Badge.findByIdAndUpdate(badgeItem.badge, {
-  //               $addToSet: {
-  //                 users: {
-  //                   userId: profile._id,
-  //                 },
-  //               },
-  //             }).catch((err) =>
-  //               console.error(`Error updating badge ${badgeItem.badge}: ${err.message}`),
-  //             ),
-  //           ),
-  //       ),
-  //     );
-
-  //     await Promise.all(updatePromises);
-
-  //     // Clear cache
-  //     if (cache.hasCache('allBadges')) {
-  //       cache.removeCache('allBadges');
-  //     }
-
-  //     const totalUpdates = userProfiles.reduce(
-  //       (sum, profile) =>
-  //         sum + (profile.badgeCollection?.filter((item) => item && item.badge)?.length || 0),
-  //       0,
-  //     );
-
-  //     res.status(200).send({
-  //       message: `Successfully processed ${totalUpdates} badge-user associations`,
-  //       processedUsers: userProfiles.length,
-  //     });
-  //   } catch (error) {
-  //     console.error('Full error:', error);
-  //     res.status(500).send({
-  //       error: 'Error updating badge users',
-  //       details: error.message,
-  //     });
-  //   }
-  // };
+  const awardNewBadges = async function (req, res) {
+    await userHelper.awardNewBadges();
+    res.status(200).send('Badges awarded');
+  };
 
   const updateBadgesWithUsers = async function (req, res) {
     console.log('Updating Badges');
@@ -107,30 +50,6 @@ const badgeController = function (Badge) {
       });
     }
   };
-
-  // const getBadge = async function (req, res) {
-  //   const { badgeId } = req.params;
-
-  //   try {
-  //     const badge = await Badge.findById(badgeId)
-  //       .populate({
-  //         path: 'project',
-  //         select: '_id projectName',
-  //       })
-  //       .populate({
-  //         path: 'users.userId',
-  //         select: '_id',
-  //       });
-
-  //     if (!badge) {
-  //       return res.status(404).send({ error: 'Badge not found' });
-  //     }
-
-  //     res.status(200).send(badge);
-  //   } catch (error) {
-  //     res.status(500).send({ error: error.message });
-  //   }
-  // };
 
   const getAllBadges = async function (req, res) {
     // console.log(req.body.requestor);  // Retain logging from development branch for debugging
@@ -193,19 +112,6 @@ const badgeController = function (Badge) {
    */
 
   const assignBadges = async function (req, res) {
-    // const canAssignBadges = await helper.hasPermission(req.body.requestor, 'assignBadges');
-    // const canModifyBadgeAmount = await helper.hasPermission(
-    //   req.body.requestor,
-    //   'modifyBadgeAmount',
-    // );
-    // if (!(canAssignBadges || canModifyBadgeAmount)) {
-    //   res.status(403).send('You are not authorized to assign badges.');
-    //   return;
-    // } else if (!canAssignBadges) {
-    //   res.status(403).send('You are not authorized to assign badges.');
-    // } else if (!canModifyBadgeAmount) {
-    //   res.status(403).send('You are not authorized to modify badge amounts.');
-    // }
     if (!(await helper.hasPermission(req.body.requestor, 'assignBadges'))) {
       res.status(403).send('You are not authorized to assign badges.');
       return;
@@ -480,7 +386,7 @@ const badgeController = function (Badge) {
   };
 
   return {
-    // awardBadgesTest,
+    awardNewBadges,
     getAllBadges,
     assignBadges,
     postBadge,

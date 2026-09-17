@@ -113,13 +113,17 @@ describe('bmMaterialsController', () => {
 
   describe('bmPurchaseMaterials', () => {
     it('should create new material purchase record when material does not exist', async () => {
+      const validProjectId = '507f1f77bcf86cd799439011';
+      const validMaterialTypeId = '507f1f77bcf86cd799439012';
+      const validRequestorId = '507f1f77bcf86cd799439013';
+
       const purchaseData = {
-        primaryId: 'project123',
-        secondaryId: 'materialType456',
+        primaryId: validProjectId,
+        secondaryId: validMaterialTypeId,
         quantity: 100,
         priority: 'High',
         brand: 'Premium Brand',
-        requestor: { requestorId: 'user789' },
+        requestor: { requestorId: validRequestorId },
       };
 
       req.body = purchaseData;
@@ -134,18 +138,18 @@ describe('bmMaterialsController', () => {
       await controller.bmPurchaseMaterials(req, res);
 
       expect(BuildingMaterialMock.findOne).toHaveBeenCalledWith({
-        project: 'project123',
-        itemType: 'materialType456',
+        project: validProjectId,
+        itemType: validMaterialTypeId,
       });
       expect(BuildingMaterialMock.create).toHaveBeenCalledWith({
-        itemType: 'materialType456',
-        project: 'project123',
+        itemType: validMaterialTypeId,
+        project: validProjectId,
         purchaseRecord: [
           {
             quantity: 100,
             priority: 'High',
             brandPref: 'Premium Brand',
-            requestedBy: 'user789',
+            requestedBy: validRequestorId,
           },
         ],
         stockBought: 100,
@@ -292,6 +296,7 @@ describe('bmMaterialsController', () => {
       };
 
       BuildingMaterialMock.findOne.mockResolvedValue(mockMaterial);
+      BuildingMaterialMock.findOneAndUpdate.mockResolvedValue(mockMaterial);
 
       await controller.bmupdatePurchaseStatus(req, res);
 

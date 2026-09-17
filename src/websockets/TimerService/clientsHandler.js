@@ -2,6 +2,7 @@
 /* eslint-disable radix */
 const moment = require('moment');
 const Timer = require('../../models/timer');
+const TimelogTracking = require('../../models/timelogTracking');
 const logger = require('../../startup/logger');
 
 const getClient = async (clients, userId) => {
@@ -39,6 +40,7 @@ const action = {
   ADD_GOAL: 'ADD_TO_GOAL',
   REMOVE_GOAL: 'REMOVE_FROM_GOAL',
   FORCED_PAUSE: 'FORCED_PAUSE',
+  WEEK_CLOSE_PAUSE: 'WEEK_CLOSE_PAUSE',
   ACK_FORCED: 'ACK_FORCED',
   START_CHIME: 'START_CHIME',
   HEARTBEAT: 'ping',
@@ -56,7 +58,21 @@ const updatedTimeSinceStart = (client) => {
   return updatedTime > 0 ? updatedTime : 0;
 };
 
-const startTimer = (client) => {
+const logTimelogEvent = async (userId, eventType) => {
+  try {
+    // Store timestamp in UTC only - timezone conversion happens on frontend
+    await TimelogTracking.create({
+      userId,
+      eventType,
+      timestamp: new Date(), // UTC timestamp
+    });
+  } catch (error) {
+    logger.logException(error);
+    // Don't throw error to avoid breaking timer functionality
+  }
+};
+
+const startTimer = async (client) => {
   client.startAt = moment.utc();
   client.paused = false;
   if (!client.started) {
@@ -64,9 +80,12 @@ const startTimer = (client) => {
     client.time = client.goal;
   }
   if (client.forcedPause) client.forcedPause = false;
+
+  // Log the timelog resumed event
+  await logTimelogEvent(client.userId, 'Timelog Resumed');
 };
 
-const pauseTimer = (client, forced = false) => {
+const pauseTimer = async (client, forced = false) => {
   if (client.paused) return;
 
   client.time = updatedTimeSinceStart(client);
@@ -74,6 +93,10 @@ const pauseTimer = (client, forced = false) => {
   client.startAt = moment.invalid(); // invalid can not be saved in database
   client.paused = true;
   if (forced) client.forcedPause = true;
+
+  // Log the appropriate pause event
+  const eventType = forced ? 'Automatic Pause' : 'Timelog Paused';
+  await logTimelogEvent(client.userId, eventType);
 };
 
 const startChime = (client, msg) => {
@@ -87,8 +110,8 @@ const ackForcedPause = (client) => {
   client.startAt = moment.invalid();
 };
 
-const stopTimer = (client) => {
-  if (client.started) pauseTimer(client);
+const stopTimer = async (client) => {
+  if (client.started) await pauseTimer(client);
   client.startAt = moment.invalid();
   client.started = false;
   client.pause = false;
@@ -100,6 +123,9 @@ const stopTimer = (client) => {
   } else {
     client.goal = client.time;
   }
+
+  // Log the time logged event
+  await logTimelogEvent(client.userId, 'Time Logged');
 };
 
 const clearTimer = (client) => {
@@ -176,10 +202,12 @@ const handleMessage = async (msg, clients, userId) => {
 
   const client = await getClient(clients, userId);
   let resp = null;
+  let timelogEvent = null; // Track if a timelog event was created
 
   switch (msg.action) {
     case action.START_TIMER:
-      startTimer(client);
+      await startTimer(client);
+      timelogEvent = { eventType: 'Timelog Resumed', timestamp: new Date() };
       break;
     case action.GET_TIMER:
       resp = client;
@@ -197,19 +225,25 @@ const handleMessage = async (msg, clients, userId) => {
       startChime(client, msg);
       break;
     case action.PAUSE_TIMER:
-      pauseTimer(client);
+      await pauseTimer(client);
+      timelogEvent = { eventType: 'Timelog Paused', timestamp: new Date() };
       break;
     case action.FORCED_PAUSE:
-      pauseTimer(client, true);
+      await pauseTimer(client, true);
+      timelogEvent = { eventType: 'Automatic Pause', timestamp: new Date() };
+      break;
+    case action.WEEK_CLOSE_PAUSE:
+      pauseTimer(client);
       break;
     case action.ACK_FORCED:
       ackForcedPause(client);
       break;
     case action.CLEAR_TIMER:
-      clearTimer(client);
+      await clearTimer(client);
       break;
     case action.STOP_TIMER:
-      stopTimer(client);
+      await stopTimer(client);
+      timelogEvent = { eventType: 'Time Logged', timestamp: new Date() };
       break;
     default:
       resp = {
@@ -222,7 +256,12 @@ const handleMessage = async (msg, clients, userId) => {
   saveClient(client);
   clients.set(userId, client);
   if (resp === null) resp = client;
-  return JSON.stringify(resp);
+
+  // Return both the timer response and any timelog event
+  return {
+    timerResponse: JSON.stringify(resp),
+    timelogEvent: timelogEvent ? { ...timelogEvent, userId } : null,
+  };
 };
 
 module.exports = {

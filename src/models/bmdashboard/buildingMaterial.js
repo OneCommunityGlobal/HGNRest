@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const buildingMaterial = new Schema({
-  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingInventoryType' },
+  itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   stockBought: { type: Number, default: 0 }, // total amount of item bought for use in the project
   stockUsed: { type: Number, default: 0 }, // total amount of item used successfully in the project

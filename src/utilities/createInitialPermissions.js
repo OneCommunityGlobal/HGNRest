@@ -46,6 +46,7 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       // User Profile
+      'accessPRTeamDashboard',
       'putUserProfilePermissions',
       'postUserProfile',
       'putUserProfile',
@@ -106,6 +107,17 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      // Meeting
+      'scheduleMeetings',
+      'setFinalDay',
+      // Job Form Management (Permissions Management > Job Form Management)
+      // manageJobForms: full form/template management
+      // createFormQuestions | editFormQuestions | deleteFormQuestions: granular access
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -163,6 +175,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'scheduleMeetings',
     ],
   },
   {
@@ -191,6 +204,7 @@ const permissionsRoles = [
   {
     roleName: 'Owner',
     permissions: [
+      'accessPRTeamDashboard',
       'postRole',
       'deleteRole',
       'putRole',
@@ -199,7 +213,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -241,7 +254,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -276,6 +288,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'scheduleMeetings',
       'requestBio',
 
       // Title
@@ -293,6 +306,15 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
+      'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
+      // Job Form Management (Permissions Management > Job Form Management)
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];
@@ -302,6 +324,16 @@ const createInitialPermissions = async () => {
   const userEmail = { email: 'jae@onecommunityglobal.org' };
   const update = { role: 'Owner' };
   await User.findOneAndUpdate(userEmail, update);
+
+  // One-time assignment: Add resendBlueSquareAndSummaryEmails permission to Jae
+  const jaeProfile = await User.findOne({ email: 'jae@onecommunityglobal.org' });
+  if (
+    jaeProfile &&
+    !jaeProfile.permissions.frontPermissions.includes('resendBlueSquareAndSummaryEmails')
+  ) {
+    jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
+    await jaeProfile.save();
+  }
 
   // Get Roles From DB
   const allRoles = await Role.find();

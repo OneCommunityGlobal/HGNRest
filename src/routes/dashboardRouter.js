@@ -13,44 +13,43 @@ const route = function () {
     .get(controller.getPromptCopiedDate)
     .put(controller.updateCopiedPrompt);
 
-  Dashboardrouter.route('/dashboard/:userId')
-    .get(controller.dashboarddata);
+  Dashboardrouter.route('/dashboard/:userId').get(controller.dashboarddata);
 
-  Dashboardrouter.route('/dashboard/monthlydata/:userId/:fromDate/:toDate')
-    .get(controller.monthlydata);
+  Dashboardrouter.route('/dashboard/monthlydata/:userId/:fromDate/:toDate').get(
+    controller.monthlydata,
+  );
 
-  Dashboardrouter.route('/dashboard/weeklydata/:userId/:fromDate/:toDate')
-    .get(controller.weeklydata);
+  Dashboardrouter.route('/dashboard/weeklydata/:userId/:fromDate/:toDate').get(
+    controller.weeklydata,
+  );
 
-  Dashboardrouter.route('/dashboard/leaderboard/:userId')
-    .get(controller.leaderboarddata);
+  Dashboardrouter.route('/dashboard/leaderboard/:userId').get(controller.leaderboarddata);
 
-  Dashboardrouter.route('/dashboard/leaderboard/org/data')
-    .get(controller.orgData);
+  Dashboardrouter.route('/dashboard/leaderboard/org/data').get(controller.orgData);
 
-  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId/:trophyFollowedUp')
-    .post(controller.postTrophyIcon);  
+  Dashboardrouter.route('/dashboard/leaderboard/trophyIcon/:userId/:trophyFollowedUp').post(
+    controller.postTrophyIcon,
+  );
 
-  Dashboardrouter.route('/dashboard/suggestionoption/:userId')
-    .get(controller.getSuggestionOption);
+  Dashboardrouter.route('/dashboard/suggestionoption/:userId').get(controller.getSuggestionOption);
 
-  Dashboardrouter.route('/dashboard/bugreport/:userId')
-    .post(controller.sendBugReport);
+  Dashboardrouter.route('/dashboard/bugreport/:userId').post(controller.sendBugReport);
 
-  Dashboardrouter.route('/dashboard/suggestionoption/:userId')
-    .post(controller.editSuggestionOption);
+  Dashboardrouter.route('/dashboard/suggestionoption/:userId').post(
+    controller.editSuggestionOption,
+  );
 
-  Dashboardrouter.route('/dashboard/makesuggestion/:userId')
-    .post(controller.sendMakeSuggestion);
-    
-  Dashboardrouter.route('/dashboard/questionaire/feedbackrequest')
-    .post(controller.requestFeedbackModal);
+  Dashboardrouter.route('/dashboard/makesuggestion/:userId').post(controller.sendMakeSuggestion);
 
-    Dashboardrouter.route('/dashboard/questionaire/userNamesList')
-    .get(controller.getUserNames);
+  Dashboardrouter.route('/dashboard/questionaire/feedbackrequest').post(
+    controller.requestFeedbackModal,
+  );
 
-    Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere')
-    .post(controller.checkUserFoundHelpSomewhere);
+  Dashboardrouter.route('/dashboard/questionaire/userNamesList').get(controller.getUserNames);
+
+  Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere').post(
+    controller.checkUserFoundHelpSomewhere,
+  );
 
   return Dashboardrouter;
 };

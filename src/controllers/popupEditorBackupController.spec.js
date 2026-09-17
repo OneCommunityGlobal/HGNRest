@@ -1,7 +1,7 @@
-const popupEditorBackupController = require('./popupEditorBackupController');
 const { mockReq, mockRes, assertResMock } = require('../test');
 const PopupEditorBackups = require('../models/popupEditorBackup');
 const helper = require('../utilities/permissions');
+const popupEditorBackupController = require('./popupEditorBackupController');
 
 const makeSut = () => {
   const {
