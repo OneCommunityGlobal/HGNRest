@@ -103,6 +103,26 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+
+/** aggregates role distribution statistics
+ * counts total number of volunteers that fall within each of the different roles
+ * NOTE: This shows ALL active users regardless of createdDate to provide
+ * a complete picture of current role distribution in the organization
+ */
+async function getRoleDistributionStats() {
+  // Always match only active users, ignore date filters for role distribution
+  // This ensures all current roles are displayed, not just recently created users.
+  // Role distribution is a live snapshot, not a time-series metric, so comparison
+  // periods do not apply here — always return a flat array of {_id: role, count}.
+  const matchStage = { isActive: true };
+  const result = await UserProfile.aggregate([
+    { $match: matchStage },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+
+  return result;
+
+}
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -998,25 +1018,6 @@ const overviewReportHelper = function () {
         comparisonPercentage: comparisonPercentageNotInTeam,
       },
     };
-  }
-
-  /** aggregates role distribution statistics
-   * counts total number of volunteers that fall within each of the different roles
-   * NOTE: This shows ALL active users regardless of createdDate to provide
-   * a complete picture of current role distribution in the organization
-   */
-  async function getRoleDistributionStats() {
-    // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users.
-    // Role distribution is a live snapshot, not a time-series metric, so comparison
-    // periods do not apply here — always return a flat array of {_id: role, count}.
-    const matchStage = { isActive: true };
-    const result = await UserProfile.aggregate([
-      { $match: matchStage },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-    ]);
-
-    return result;
   }
 
   /**

@@ -173,3 +173,37 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getRoleDistributionStats', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('aggregates active users grouped by role, ignoring date filters', async () => {
+    const mockResult = [
+      { _id: 'Volunteer', count: 40 },
+      { _id: 'Manager', count: 5 },
+    ];
+    const aggregateSpy = jest
+      .spyOn(UserProfile, 'aggregate')
+      .mockImplementation(async () => mockResult);
+
+    const { getRoleDistributionStats } = overviewReportHelper();
+    const result = await getRoleDistributionStats();
+
+    expect(aggregateSpy).toHaveBeenCalledWith([
+      { $match: { isActive: true } },
+      { $group: { _id: '$role', count: { $sum: 1 } } },
+    ]);
+    expect(result).toEqual(mockResult);
+  });
+
+  it('returns an empty array when there are no active users', async () => {
+    jest.spyOn(UserProfile, 'aggregate').mockImplementation(async () => []);
+
+    const { getRoleDistributionStats } = overviewReportHelper();
+    const result = await getRoleDistributionStats();
+
+    expect(result).toEqual([]);
+  });
+});
