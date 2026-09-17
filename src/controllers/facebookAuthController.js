@@ -57,6 +57,10 @@ const canManageConnection = async (requestor) => {
  * Returns current connection status
  */
 const getConnectionStatus = async (req, res) => {
+  if (!(await canManageConnection(req.user))) {
+    return res.status(403).json({ error: 'You are not authorized to manage Facebook.' });
+  }
+
   try {
     const connection = await FacebookConnection.getActiveConnection();
 
@@ -356,6 +360,10 @@ const disconnectPage = async (req, res) => {
  * POST /api/social/facebook/auth/verify
  */
 const verifyConnection = async (req, res) => {
+  if (!(await canManageConnection(req.user))) {
+    return res.status(403).json({ error: 'You are not authorized to manage Facebook.' });
+  }
+
   try {
     const connection = await FacebookConnection.getActiveConnection();
 
