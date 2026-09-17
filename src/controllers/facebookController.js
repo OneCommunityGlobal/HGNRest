@@ -32,25 +32,6 @@ const buildGraphPageUrl = (pageId, path) => {
   return `${graphBaseUrl}/${safeId}/${path}`;
 };
 
-/**
- * Extracts requestor from request - handles both body (POST) and query (GET)
- */
-const getRequestor = (req) => {
-  if (req.body?.requestor) {
-    return req.body.requestor;
-  }
-
-  if (req.query?.requestor) {
-    try {
-      return JSON.parse(req.query.requestor);
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-};
-
 const getCredentials = async () => {
   const connection = await FacebookConnection.getActiveConnection();
 
@@ -73,14 +54,6 @@ const getCredentials = async () => {
   }
 
   return null;
-};
-
-const parseFormDataRequestor = (req) => {
-  try {
-    return req.body.requestor ? JSON.parse(req.body.requestor) : null;
-  } catch {
-    return req.body.requestor;
-  }
 };
 
 const ensureFacebookPermission = async (requestor, res, errorMessage) => {
@@ -298,11 +271,7 @@ const saveDirectPostToHistory = async ({
 
 const postToFacebook = async (req, res) => {
   if (
-    !(await ensureFacebookPermission(
-      req.body.requestor,
-      res,
-      'You are not authorized to post to Facebook.',
-    ))
+    !(await ensureFacebookPermission(req.user, res, 'You are not authorized to post to Facebook.'))
   )
     return;
 
@@ -319,7 +288,7 @@ const postToFacebook = async (req, res) => {
       pageId: pageId || credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
-      createdBy: buildCreatedBy(req.body.requestor),
+      createdBy: buildCreatedBy(req.user),
     });
 
     res.status(200).send({
@@ -335,10 +304,8 @@ const postToFacebook = async (req, res) => {
 };
 
 const postToFacebookWithImage = async (req, res) => {
-  const requestor = parseFormDataRequestor(req);
-
   if (
-    !(await ensureFacebookPermission(requestor, res, 'You are not authorized to post to Facebook.'))
+    !(await ensureFacebookPermission(req.user, res, 'You are not authorized to post to Facebook.'))
   )
     return;
 
@@ -369,7 +336,7 @@ const postToFacebookWithImage = async (req, res) => {
       pageId: pageId || credentials?.pageId,
       postId: result.postId,
       postType: result.postType,
-      createdBy: buildCreatedBy(requestor),
+      createdBy: buildCreatedBy(req.user),
     });
 
     res.status(200).send({
@@ -388,7 +355,7 @@ const postToFacebookWithImage = async (req, res) => {
 const scheduleFacebookPost = async (req, res) => {
   if (
     !(await ensureFacebookPermission(
-      req.body.requestor,
+      req.user,
       res,
       'You are not authorized to schedule Facebook posts.',
     ))
@@ -416,7 +383,7 @@ const scheduleFacebookPost = async (req, res) => {
       pageId: targetPageId,
       scheduledFor: scheduledMoment.toDate(),
       timezone: targetTimezone,
-      createdBy: buildCreatedBy(req.body.requestor),
+      createdBy: buildCreatedBy(req.user),
     });
 
     await scheduledPost.save();
@@ -432,11 +399,9 @@ const scheduleFacebookPost = async (req, res) => {
  * Stores the image in MongoDB until posting time.
  */
 const scheduleFacebookPostWithImage = async (req, res) => {
-  const requestor = parseFormDataRequestor(req);
-
   if (
     !(await ensureFacebookPermission(
-      requestor,
+      req.user,
       res,
       'You are not authorized to schedule Facebook posts.',
     ))
@@ -466,7 +431,7 @@ const scheduleFacebookPostWithImage = async (req, res) => {
       imageData: imageFile?.buffer || null,
       imageMimeType: imageFile?.mimetype || null,
       imageOriginalName: imageFile?.originalname || null,
-      createdBy: buildCreatedBy(requestor),
+      createdBy: buildCreatedBy(req.user),
     });
 
     await scheduledPost.save();
@@ -483,9 +448,8 @@ const scheduleFacebookPostWithImage = async (req, res) => {
 };
 
 const getScheduledPosts = async (req, res) => {
-  const requestor = getRequestor(req);
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  const canPost = await hasPermission(req.user, 'postFacebookContent');
+  const canSendEmails = await hasPermission(req.user, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view scheduled posts.' });
     return;
@@ -596,9 +560,8 @@ const mapMongoPostForHistory = (p) => ({
 });
 
 const getPostHistory = async (req, res) => {
-  const requestor = getRequestor(req);
-  const canPost = await hasPermission(requestor, 'postFacebookContent');
-  const canSendEmails = await hasPermission(requestor, 'sendEmails');
+  const canPost = await hasPermission(req.user, 'postFacebookContent');
+  const canSendEmails = await hasPermission(req.user, 'sendEmails');
   if (!canPost && !canSendEmails) {
     res.status(403).send({ error: 'You are not authorized to view post history.' });
     return;
@@ -658,7 +621,7 @@ const getPostHistory = async (req, res) => {
 const cancelScheduledPost = async (req, res) => {
   if (
     !(await ensureFacebookPermission(
-      req.body.requestor,
+      req.user,
       res,
       'You are not authorized to cancel scheduled posts.',
     ))
@@ -705,7 +668,7 @@ const cancelScheduledPost = async (req, res) => {
 const updateScheduledPost = async (req, res) => {
   if (
     !(await ensureFacebookPermission(
-      req.body.requestor,
+      req.user,
       res,
       'You are not authorized to update scheduled posts.',
     ))

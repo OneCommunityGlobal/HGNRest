@@ -43,7 +43,7 @@ setInterval(
 );
 
 /**
- * Check if user can manage Facebook connection (Owner/Admin only)
+ * Check whether the authenticated user can manage the Facebook connection.
  */
 const canManageConnection = async (requestor) => {
   const isOwner = requestor?.role === 'Owner';
@@ -105,7 +105,7 @@ const getConnectionStatus = async (req, res) => {
  * Stores tokens SERVER-SIDE and returns only page metadata + nonce.
  */
 const handleAuthCallback = async (req, res) => {
-  const { requestor } = req.body;
+  const requestor = req.user;
 
   if (!(await canManageConnection(requestor))) {
     return res.status(403).json({ error: 'Only Owners and Administrators can connect Facebook.' });
@@ -210,7 +210,7 @@ const handleAuthCallback = async (req, res) => {
  */
 const connectPage = async (req, res) => {
   console.log('[FacebookAuth] ===== CONNECT PAGE =====');
-  const { requestor } = req.body;
+  const requestor = req.user;
 
   if (!(await canManageConnection(requestor))) {
     return res.status(403).json({ error: 'Only Owners and Administrators can connect Facebook.' });
@@ -319,7 +319,7 @@ const connectPage = async (req, res) => {
  * POST /api/social/facebook/auth/disconnect
  */
 const disconnectPage = async (req, res) => {
-  const { requestor } = req.body;
+  const requestor = req.user;
 
   if (!(await canManageConnection(requestor))) {
     return res

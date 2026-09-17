@@ -32,6 +32,11 @@ const {
 const OWNER = { requestorId: 'owner-id', role: 'Owner' };
 const ADMINISTRATOR = { requestorId: 'administrator-id', role: 'Administrator' };
 const VOLUNTEER = { requestorId: 'volunteer-id', role: 'Volunteer' };
+const EMAIL_SENDER = {
+  requestorId: 'email-sender-id',
+  role: 'Volunteer',
+  permissions: ['sendEmails'],
+};
 const FORBIDDEN_RESPONSE = { error: 'You are not authorized to manage Facebook.' };
 
 const makeResponse = () => ({
@@ -91,11 +96,12 @@ describe('facebookAuthController connection-management authorization', () => {
       });
     });
 
-    it('rejects an unprivileged user before reading connection metadata', async () => {
+    it('does not treat sendEmails as Facebook connection-management permission', async () => {
       const res = makeResponse();
 
-      await getConnectionStatus({ user: VOLUNTEER }, res);
+      await getConnectionStatus({ user: EMAIL_SENDER }, res);
 
+      expect(hasPermission).toHaveBeenCalledWith(EMAIL_SENDER, 'postFacebookContent');
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith(FORBIDDEN_RESPONSE);
       expect(FacebookConnection.getActiveConnection).not.toHaveBeenCalled();
@@ -161,15 +167,17 @@ describe('facebookAuthController connection-management authorization', () => {
   });
 
   describe('existing protected connection operations', () => {
-    it('keeps callback and connect blocked for an unprivileged user', async () => {
+    it('uses the authenticated user instead of forged callback and connect bodies', async () => {
       const callbackRes = makeResponse();
       const connectRes = makeResponse();
+      const forgedBody = { requestor: OWNER };
 
-      await handleAuthCallback({ body: { requestor: VOLUNTEER } }, callbackRes);
-      await connectPage({ body: { requestor: VOLUNTEER } }, connectRes);
+      await handleAuthCallback({ user: VOLUNTEER, body: forgedBody }, callbackRes);
+      await connectPage({ user: VOLUNTEER, body: forgedBody }, connectRes);
 
       expect(callbackRes.status).toHaveBeenCalledWith(403);
       expect(connectRes.status).toHaveBeenCalledWith(403);
+      expect(hasPermission).toHaveBeenCalledWith(VOLUNTEER, 'postFacebookContent');
       expect(axios.get).not.toHaveBeenCalled();
     });
 
@@ -177,8 +185,8 @@ describe('facebookAuthController connection-management authorization', () => {
       const callbackRes = makeResponse();
       const connectRes = makeResponse();
 
-      await handleAuthCallback({ body: { requestor: OWNER } }, callbackRes);
-      await connectPage({ body: { requestor: OWNER } }, connectRes);
+      await handleAuthCallback({ user: OWNER, body: {} }, callbackRes);
+      await connectPage({ user: OWNER, body: {} }, connectRes);
 
       expect(callbackRes.status).toHaveBeenCalledWith(400);
       expect(callbackRes.json).toHaveBeenCalledWith({
@@ -193,7 +201,7 @@ describe('facebookAuthController connection-management authorization', () => {
     it('keeps disconnect authorization and behavior unchanged', async () => {
       const forbiddenRes = makeResponse();
 
-      await disconnectPage({ body: { requestor: VOLUNTEER } }, forbiddenRes);
+      await disconnectPage({ user: VOLUNTEER, body: { requestor: OWNER } }, forbiddenRes);
 
       expect(forbiddenRes.status).toHaveBeenCalledWith(403);
       expect(FacebookConnection.deactivateAll).not.toHaveBeenCalled();
@@ -201,7 +209,7 @@ describe('facebookAuthController connection-management authorization', () => {
       FacebookConnection.deactivateAll.mockResolvedValue({ modifiedCount: 0 });
       const ownerRes = makeResponse();
 
-      await disconnectPage({ body: { requestor: OWNER } }, ownerRes);
+      await disconnectPage({ user: OWNER, body: { requestor: VOLUNTEER } }, ownerRes);
 
       expect(FacebookConnection.deactivateAll).toHaveBeenCalledWith({
         odUserId: 'owner-id',
