@@ -7,7 +7,7 @@ const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
 const FacebookConnection = require('../models/facebookConnections');
 const { hasPermission } = require('../utilities/permissions');
 
-const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
+const FACEBOOK_GRAPH_BASE_URL = 'https://graph.facebook.com/v19.0';
 const PST_TIMEZONE = 'America/Los_Angeles';
 
 const ALLOWED_POST_STATUSES = new Set(['pending', 'sending', 'sent', 'failed']);
@@ -80,7 +80,14 @@ const validateFacebookImageUrl = (imageUrl) => {
 
 const buildGraphPageUrl = (pageId, path) => {
   const safeId = assertValidFbId(pageId);
-  return `${graphBaseUrl}/${safeId}/${path}`;
+  switch (path) {
+    case 'feed':
+      return `${FACEBOOK_GRAPH_BASE_URL}/${safeId}/feed`;
+    case 'photos':
+      return `${FACEBOOK_GRAPH_BASE_URL}/${safeId}/photos`;
+    default:
+      throw new Error('Unsupported Facebook Graph path.');
+  }
 };
 
 const getCredentials = async () => {

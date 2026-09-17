@@ -17,7 +17,7 @@ const dropOldIndex = async () => {
 };
 dropOldIndex();
 
-const graphBaseUrl = process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com/v19.0';
+const FACEBOOK_GRAPH_BASE_URL = 'https://graph.facebook.com/v19.0';
 const appId = process.env.FACEBOOK_APP_ID;
 const appSecret = process.env.FACEBOOK_APP_SECRET;
 
@@ -128,7 +128,7 @@ const handleAuthCallback = async (req, res) => {
   try {
     // Step 1: Exchange short-lived token for long-lived user token
     console.log('[FacebookAuth] Exchanging for long-lived token...');
-    const tokenExchangeUrl = `${graphBaseUrl}/oauth/access_token`;
+    const tokenExchangeUrl = `${FACEBOOK_GRAPH_BASE_URL}/oauth/access_token`;
     const tokenResponse = await axios.get(tokenExchangeUrl, {
       params: {
         grant_type: 'fb_exchange_token',
@@ -146,7 +146,7 @@ const handleAuthCallback = async (req, res) => {
 
     // Step 2: Get list of Pages the user manages
     console.log('[FacebookAuth] Fetching user Pages...');
-    const pagesUrl = `${graphBaseUrl}/${sanitizeFbId(userID)}/accounts`;
+    const pagesUrl = `${FACEBOOK_GRAPH_BASE_URL}/${sanitizeFbId(userID)}/accounts`;
     const pagesResponse = await axios.get(pagesUrl, {
       params: {
         access_token: longLivedUserToken,
@@ -248,7 +248,7 @@ const connectPage = async (req, res) => {
   try {
     // Verify the token works
     console.log('[FacebookAuth] Verifying page token...');
-    const verifyUrl = `${graphBaseUrl}/${sanitizeFbId(pageId)}`;
+    const verifyUrl = `${FACEBOOK_GRAPH_BASE_URL}/${sanitizeFbId(pageId)}`;
     const verifyResponse = await axios.get(verifyUrl, {
       params: {
         access_token: pageAccessToken,
@@ -374,7 +374,7 @@ const verifyConnection = async (req, res) => {
       return res.status(200).json({ valid: false, reason: 'No active connection' });
     }
 
-    const verifyUrl = `${graphBaseUrl}/${connection.pageId}`;
+    const verifyUrl = `${FACEBOOK_GRAPH_BASE_URL}/${connection.pageId}`;
     await axios.get(verifyUrl, {
       params: {
         access_token: connection.pageAccessToken,

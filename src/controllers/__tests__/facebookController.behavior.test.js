@@ -170,7 +170,7 @@ describe('facebookController secure behavior', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('uses the connected pageId when a matching request pageId is supplied', async () => {
+    it('uses the fixed Graph host and connected pageId when a matching request pageId is supplied', async () => {
       axios.post.mockResolvedValue({ data: { id: 'facebook-id' } });
       const save = jest.fn().mockResolvedValue(undefined);
       ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
