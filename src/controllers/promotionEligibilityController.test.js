@@ -118,8 +118,6 @@ describe('promotionEligibilityController', () => {
       expect(bob.weeklyRequirementsMet).toBe(false);
       expect(bob.isNewMember).toBe(true);
 
-      // bulkWrite is fire-and-forget, so flush microtasks before asserting on it.
-      await new Promise(setImmediate);
       expect(PromotionEligibility.bulkWrite).toHaveBeenCalledTimes(1);
       const bulkOps = PromotionEligibility.bulkWrite.mock.calls[0][0];
       expect(bulkOps).toHaveLength(2);
@@ -138,7 +136,7 @@ describe('promotionEligibilityController', () => {
       expect(PromotionEligibility.bulkWrite).not.toHaveBeenCalled();
     });
 
-    it('logs but does not fail the response when the snapshot bulkWrite rejects', async () => {
+    it('returns 500 when the snapshot bulkWrite rejects, since it is awaited before responding', async () => {
       const users = [
         {
           _id: 'user1',
@@ -156,11 +154,10 @@ describe('promotionEligibilityController', () => {
 
       await controller.getPromotionEligibilityData(mockReq, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-
-      await new Promise(setImmediate);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith('Error fetching promotion eligibility data.');
       expect(logger.logException).toHaveBeenCalledWith(bulkWriteError, {
-        endpoint: 'getPromotionEligibilityData:bulkWrite',
+        endpoint: 'getPromotionEligibilityData',
       });
     });
 

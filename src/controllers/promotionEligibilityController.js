@@ -110,11 +110,11 @@ const promotionEligibilityController = function (
         };
       });
 
-      // Persist the computed snapshot for promoteMembers to read/update later. The response
-      // below already reflects the freshly computed data, so this write does not need to
-      // block the request — it just needs to happen.
+      // Persist the computed snapshot for promoteMembers to read/update later. Must be awaited:
+      // promoteMembers's own update has no upsert, so if it runs before this snapshot exists,
+      // the promotion silently fails to record isPromoted/promotionDate for that user.
       if (eligibilityData.length > 0) {
-        PromotionEligibility.bulkWrite(
+        await PromotionEligibility.bulkWrite(
           eligibilityData.map((dataEntry) => ({
             updateOne: {
               filter: { reviewerId: dataEntry.reviewerId },
@@ -122,9 +122,10 @@ const promotionEligibilityController = function (
               upsert: true,
             },
           })),
-        ).catch((error) => {
-          logger.logException(error, { endpoint: 'getPromotionEligibilityData:bulkWrite' });
-        });
+          // Each op targets a distinct reviewerId, so there's no ordering dependency between
+          // them — unordered lets MongoDB execute them without serializing on write errors.
+          { ordered: false },
+        );
       }
 
       res.status(200).json(eligibilityData);
