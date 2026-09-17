@@ -26,8 +26,7 @@ const assertValidFbId = (id) => {
   return candidate;
 };
 
-const resolveTrustedPageId = (credentials, requestedPageId) => {
-  const trustedPageId = assertValidFbId(credentials.pageId);
+const assertRequestedPageMatchesConnectedPage = (trustedPageId, requestedPageId) => {
   if (requestedPageId !== undefined && requestedPageId !== null && requestedPageId !== '') {
     const validatedRequestPageId = assertValidFbId(requestedPageId);
     if (validatedRequestPageId !== trustedPageId) {
@@ -36,7 +35,6 @@ const resolveTrustedPageId = (credentials, requestedPageId) => {
       throw err;
     }
   }
-  return trustedPageId;
 };
 
 const isBlockedImageHostname = (hostname) =>
@@ -170,7 +168,8 @@ const validateScheduleInput = (req, res, credentials) => {
 
   let targetPageId;
   try {
-    targetPageId = resolveTrustedPageId(credentials, pageId);
+    targetPageId = assertValidFbId(credentials.pageId);
+    assertRequestedPageMatchesConnectedPage(targetPageId, pageId);
   } catch (err) {
     res.status(err.status || 400).send({ error: err.message });
     return null;
@@ -269,7 +268,8 @@ const publishToFacebook = async ({
   let targetPageId;
   let safeImageUrl;
   try {
-    targetPageId = resolveTrustedPageId(credentials, pageId);
+    targetPageId = assertValidFbId(credentials.pageId);
+    assertRequestedPageMatchesConnectedPage(targetPageId, pageId);
     safeImageUrl = validateFacebookImageUrl(imageUrl);
   } catch (err) {
     if (!err.status) err.status = 400;
@@ -694,8 +694,11 @@ const getPostHistory = async (req, res) => {
   let targetPageId = null;
   let facebookApiError;
   try {
-    if (credentials) targetPageId = resolveTrustedPageId(credentials, pageId);
-    else assertValidFbId(pageId);
+    if (credentials) {
+      const connectedPageId = assertValidFbId(credentials.pageId);
+      assertRequestedPageMatchesConnectedPage(connectedPageId, pageId);
+      targetPageId = connectedPageId;
+    } else assertValidFbId(pageId);
   } catch {
     facebookApiError = 'No valid Facebook Page ID available. Showing database posts only.';
   }

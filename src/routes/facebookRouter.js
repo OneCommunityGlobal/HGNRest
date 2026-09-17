@@ -18,9 +18,9 @@ const {
   verifyConnection,
 } = require('../controllers/facebookAuthController');
 
-// This matches the existing Facebook composer contract. Uploads are limited to one allowed image.
+// Keep in-memory uploads bounded to one allow-listed image.
 // eslint-disable-next-line no-magic-numbers
-const MAX_FACEBOOK_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_FACEBOOK_IMAGE_SIZE = 8_000_000;
 
 const upload = multer({
   storage: multer.memoryStorage(),

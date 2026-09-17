@@ -65,10 +65,10 @@ describe('facebookRouter image upload restrictions', () => {
     expect(facebookController.postToFacebookWithImage).not.toHaveBeenCalled();
   });
 
-  it('rejects a single image larger than the existing 10 MB contract', async () => {
+  it('rejects a single image larger than 8,000,000 bytes', async () => {
     const response = await request(makeApp())
       .post('/api/social/facebook/post/upload')
-      .attach('image', Buffer.alloc(10 * 1024 * 1024 + 1), {
+      .attach('image', Buffer.alloc(8_000_001), {
         filename: 'oversized.jpg',
         contentType: 'image/jpeg',
       });
