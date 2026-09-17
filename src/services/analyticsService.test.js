@@ -26,6 +26,11 @@ const selectedResponseQuery = (responses) => ({
   select: jest.fn().mockReturnValue(responseQuery(responses)),
 });
 
+const VALID_STUDENT_ID = '64f1a2b3c4d5e6f7a8b9c0d1';
+const OTHER_STUDENT_ID = '64f1a2b3c4d5e6f7a8b9c0d2';
+const VALID_CLASS_ID = '64f1a2b3c4d5e6f7a8b9c0e1';
+const EMPTY_CLASS_ID = '64f1a2b3c4d5e6f7a8b9c0e2';
+
 const overviewResponses = [
   {
     submittedBy: 'student-1',
@@ -198,10 +203,10 @@ describe('analyticsService student metrics', () => {
     const endDate = new Date('2026-09-03T23:59:59.999Z');
     FormResponse.find.mockReturnValue(responseQuery(overviewResponses));
 
-    await getOverview({ studentId: 'student-1', startDate, endDate });
+    await getOverview({ studentId: VALID_STUDENT_ID, startDate, endDate });
 
     expect(FormResponse.find).toHaveBeenCalledWith({
-      submittedBy: 'student-1',
+      submittedBy: VALID_STUDENT_ID,
       submittedAt: { $gte: startDate, $lte: endDate },
     });
     expect(StudentMetrics.aggregate).not.toHaveBeenCalled();
@@ -232,17 +237,17 @@ describe('analyticsService student metrics', () => {
 
   test('filters by class membership and applies a student filter within that class', async () => {
     StudentGroupMember.find.mockReturnValue(
-      selectedResponseQuery([{ student_id: 'student-1' }, { student_id: 'student-2' }]),
+      selectedResponseQuery([{ student_id: VALID_STUDENT_ID }, { student_id: OTHER_STUDENT_ID }]),
     );
 
-    await getOverview({ classId: 'group-1', studentId: 'student-1' });
+    await getOverview({ classId: VALID_CLASS_ID, studentId: VALID_STUDENT_ID });
 
-    expect(StudentGroupMember.find).toHaveBeenCalledWith({ group_id: 'group-1' });
-    expect(FormResponse.find).toHaveBeenCalledWith({ submittedBy: { $in: ['student-1'] } });
+    expect(StudentGroupMember.find).toHaveBeenCalledWith({ group_id: VALID_CLASS_ID });
+    expect(FormResponse.find).toHaveBeenCalledWith({ submittedBy: { $in: [VALID_STUDENT_ID] } });
   });
 
   test('returns an empty result instead of global analytics for an empty class', async () => {
-    const result = await getOverview({ classId: 'empty-group' });
+    const result = await getOverview({ classId: EMPTY_CLASS_ID });
 
     expect(FormResponse.find).toHaveBeenCalledWith({ submittedBy: { $in: [] } });
     expect(result).toEqual(
@@ -275,5 +280,29 @@ describe('analyticsService student metrics', () => {
         ],
       }),
     );
+  });
+
+  describe('overview filter id validation', () => {
+    test.each([
+      ['a NoSQL operator object as studentId', { studentId: { $ne: null } }],
+      ['a NoSQL operator object as classId', { classId: { $gt: '' } }],
+      ['an array studentId', { studentId: [VALID_STUDENT_ID, OTHER_STUDENT_ID] }],
+      ['a malformed studentId', { studentId: 'not-a-valid-id' }],
+      ['a malformed classId', { classId: '12345' }],
+    ])('rejects %s with a 400 before querying Mongo', async (_label, filters) => {
+      await expect(getOverview(filters)).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(FormResponse.find).not.toHaveBeenCalled();
+      expect(StudentGroupMember.find).not.toHaveBeenCalled();
+    });
+
+    test('accepts valid ObjectId-formatted studentId and classId filters', async () => {
+      StudentGroupMember.find.mockReturnValue(selectedResponseQuery([]));
+
+      await getOverview({ studentId: VALID_STUDENT_ID, classId: VALID_CLASS_ID });
+
+      expect(StudentGroupMember.find).toHaveBeenCalledWith({ group_id: VALID_CLASS_ID });
+      expect(FormResponse.find).toHaveBeenCalledWith({ submittedBy: { $in: [] } });
+    });
   });
 });

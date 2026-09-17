@@ -8,11 +8,33 @@
     adjustments can plug the real assessment/session models.
   - Persistent refreshes cache computed metrics in the `StudentMetrics` collection.
 */
+const mongoose = require('mongoose');
 const StudentMetrics = require('../models/studentMetrics');
 const FormResponse = require('../models/formResponse');
 const StudentGroup = require('../models/studentGroup');
 const StudentGroupMember = require('../models/studentGroupMember');
 const UserProfile = require('../models/userProfile');
+
+// Blocks NoSQL operator injection (e.g. studentId[$ne]=...) from reaching Mongo queries.
+const sanitizeObjectId = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^[0-9a-fA-F]{24}$/.test(trimmed) || !mongoose.Types.ObjectId.isValid(trimmed)) {
+    return null;
+  }
+  return trimmed;
+};
+
+const validateFilterId = (value, label) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const sanitized = sanitizeObjectId(value);
+  if (!sanitized) {
+    const error = new Error(`Invalid ${label} filter`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return sanitized;
+};
 
 const parseAnalyticsNumber = (value) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -232,23 +254,26 @@ const getStudentMetrics = async (studentId, { forceRefresh = false } = {}) => {
 };
 
 const getOverview = async ({ studentId, classId, startDate, endDate } = {}) => {
-  const hasFilters = Boolean(studentId || classId || startDate || endDate);
+  const sanitizedStudentId = validateFilterId(studentId, 'studentId');
+  const sanitizedClassId = validateFilterId(classId, 'classId');
+
+  const hasFilters = Boolean(sanitizedStudentId || sanitizedClassId || startDate || endDate);
   const responseQuery = {};
 
-  if (studentId) responseQuery.submittedBy = studentId;
+  if (sanitizedStudentId) responseQuery.submittedBy = sanitizedStudentId;
   if (startDate || endDate) {
     responseQuery.submittedAt = {};
     if (startDate) responseQuery.submittedAt.$gte = startDate;
     if (endDate) responseQuery.submittedAt.$lte = endDate;
   }
 
-  if (classId) {
-    const members = await StudentGroupMember.find({ group_id: classId })
+  if (sanitizedClassId) {
+    const members = await StudentGroupMember.find({ group_id: sanitizedClassId })
       .select('student_id')
       .lean();
     const classStudentIds = members.map((member) => member.student_id.toString());
-    responseQuery.submittedBy = studentId
-      ? { $in: classStudentIds.filter((id) => id === studentId) }
+    responseQuery.submittedBy = sanitizedStudentId
+      ? { $in: classStudentIds.filter((id) => id === sanitizedStudentId) }
       : { $in: classStudentIds };
   }
 

@@ -86,4 +86,25 @@ describe('analyticsController student metrics', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(analyticsService.getOverview).not.toHaveBeenCalled();
   });
+
+  test('GET overview returns 400 when the service rejects an invalid filter id', async () => {
+    const res = response();
+    const filterError = Object.assign(new Error('Invalid studentId filter'), { statusCode: 400 });
+    analyticsService.getOverview.mockRejectedValue(filterError);
+
+    await getOverview({ query: { studentId: 'not-a-valid-id' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid studentId filter' });
+  });
+
+  test('GET overview returns 500 for unexpected service errors', async () => {
+    const res = response();
+    analyticsService.getOverview.mockRejectedValue(new Error('boom'));
+
+    await getOverview({ query: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
+  });
 });

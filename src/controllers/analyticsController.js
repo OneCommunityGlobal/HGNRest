@@ -32,6 +32,9 @@ const getOverview = async (req, res) => {
     res.set('Cache-Control', 'public, max-age=60');
     return res.json(overview);
   } catch (error) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching analytics overview:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
