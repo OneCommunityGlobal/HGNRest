@@ -165,3 +165,68 @@ describe('POST /api/educator/assign-tasks', () => {
     );
   });
 });
+
+describe('POST /api/educator/assign-tasks - error handling', () => {
+  let app;
+
+  beforeEach(() => {
+    app = buildApp();
+    jest.clearAllMocks();
+  });
+
+  it('returns 500 with error details when an unexpected error is thrown', async () => {
+    hasPermission.mockResolvedValue(true);
+    LessonPlan.findById.mockRejectedValue(new Error('DB connection lost'));
+
+    const response = await request(app)
+      .post('/api/educator/assign-tasks')
+      .send({
+        lessonPlanId: '507f1f77bcf86cd799439011',
+        assignmentDate: '2026-09-16',
+        isAutoAssigned: false,
+        requestor: { requestorId: 'admin1', role: 'Administrator' },
+      });
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toContain('DB connection lost');
+  });
+});
+
+describe('GET /api/educator/logs/:lessonPlanId', () => {
+  let app;
+
+  beforeEach(() => {
+    app = buildApp();
+    jest.clearAllMocks();
+  });
+
+  it('returns 200 with the sorted, populated logs for a lesson plan', async () => {
+    const mockLogs = [{ _id: 'log1', action: 'Manual Assignment' }];
+    const sortMock = jest.fn().mockResolvedValue(mockLogs);
+    const populateMock = jest.fn().mockReturnValue({ sort: sortMock });
+    LessonPlanLog.find.mockReturnValue({ populate: populateMock });
+
+    const response = await request(app).get(
+      '/api/educator/logs/507f1f77bcf86cd799439011',
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(mockLogs);
+    expect(LessonPlanLog.find).toHaveBeenCalledWith({
+      lessonPlanId: '507f1f77bcf86cd799439011',
+    });
+  });
+
+  it('returns 500 when fetching logs fails', async () => {
+    LessonPlanLog.find.mockImplementation(() => {
+      throw new Error('DB error');
+    });
+
+    const response = await request(app).get(
+      '/api/educator/logs/507f1f77bcf86cd799439011',
+    );
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ message: 'Error fetching logs' });
+  });
+});
