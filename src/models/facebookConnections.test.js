@@ -10,8 +10,8 @@ describe('FacebookConnection token selection', () => {
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create({
-      binary: { version: '4.0.27' },
-      instance: { ip: '127.0.0.1' },
+      binary: { version: '8.0.12' },
+      instance: { ip: '127.0.0.1', storageEngine: 'wiredTiger' },
     });
     await mongoose.connect(mongoServer.getUri(), {
       useNewUrlParser: true,
@@ -20,12 +20,19 @@ describe('FacebookConnection token selection', () => {
   });
 
   afterEach(async () => {
-    await FacebookConnection.deleteMany({});
+    if (mongoose.connection.readyState === 1) {
+      await FacebookConnection.deleteMany({});
+    }
   });
 
   afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    try {
+      await mongoose.disconnect();
+    } finally {
+      if (mongoServer) {
+        await mongoServer.stop();
+      }
+    }
   });
 
   it('hides tokens by default and restores them only through explicit selection', async () => {

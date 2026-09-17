@@ -30,7 +30,7 @@ const pendingConnections = new Map();
 const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Periodic cleanup every 5 minutes for any expired entries
-setInterval(
+const pendingConnectionCleanupInterval = setInterval(
   () => {
     const now = Date.now();
     for (const [nonce, entry] of pendingConnections) {
@@ -41,6 +41,7 @@ setInterval(
   },
   5 * 60 * 1000,
 );
+pendingConnectionCleanupInterval.unref();
 
 /**
  * Check whether the authenticated user can manage the Facebook connection.
