@@ -33,7 +33,9 @@ const buildGraphPageUrl = (pageId, path) => {
 };
 
 const getCredentials = async () => {
-  const connection = await FacebookConnection.getActiveConnection();
+  const connection = await FacebookConnection.getActiveConnection({
+    includePageAccessToken: true,
+  });
 
   if (connection?.pageAccessToken) {
     return {
@@ -48,6 +50,28 @@ const getCredentials = async () => {
     return {
       pageId: fallbackPageId,
       pageAccessToken: fallbackPageAccessToken,
+      source: 'env',
+      pageName: null,
+    };
+  }
+
+  return null;
+};
+
+const getConnectionMetadata = async () => {
+  const connection = await FacebookConnection.getActiveConnection();
+
+  if (connection) {
+    return {
+      pageId: connection.pageId,
+      source: 'oauth',
+      pageName: connection.pageName,
+    };
+  }
+
+  if (fallbackPageAccessToken && fallbackPageId) {
+    return {
+      pageId: fallbackPageId,
       source: 'env',
       pageName: null,
     };
@@ -247,7 +271,7 @@ const saveDirectPostToHistory = async ({
   createdBy,
 }) => {
   try {
-    const credentials = await getCredentials();
+    const credentials = await getConnectionMetadata();
     const directPost = new ScheduledFacebookPost({
       message,
       link,
@@ -280,7 +304,7 @@ const postToFacebook = async (req, res) => {
   try {
     const result = await publishToFacebook({ message, link, imageUrl, pageId });
 
-    const credentials = await getCredentials();
+    const credentials = await getConnectionMetadata();
     await saveDirectPostToHistory({
       message,
       link,
@@ -328,7 +352,7 @@ const postToFacebookWithImage = async (req, res) => {
       pageId,
     });
 
-    const credentials = await getCredentials();
+    const credentials = await getConnectionMetadata();
     await saveDirectPostToHistory({
       message,
       link,
@@ -569,7 +593,8 @@ const getPostHistory = async (req, res) => {
 
   const { limit = 25, source = 'all', pageId, status, postMethod } = req.query;
   const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 200);
-  const credentials = await getCredentials();
+  const shouldFetchFacebook = source === 'all' || source === 'facebook';
+  const credentials = shouldFetchFacebook ? await getCredentials() : await getConnectionMetadata();
 
   let targetPageId = null;
   let facebookApiError;
@@ -592,7 +617,7 @@ const getPostHistory = async (req, res) => {
         .exec();
     }
 
-    if ((source === 'all' || source === 'facebook') && credentials && targetPageId) {
+    if (shouldFetchFacebook && credentials && targetPageId) {
       const { posts, apiError } = await fetchFacebookFeedPosts(
         credentials,
         targetPageId,

@@ -11,14 +11,14 @@ const FacebookConnectionSchema = new Schema(
     // Page details
     pageId: { type: String, required: true },
     pageName: { type: String },
-    pageAccessToken: { type: String, required: true },
+    pageAccessToken: { type: String, required: true, select: false },
 
     // Token metadata
     tokenExpiresAt: { type: Date }, // Long-lived tokens expire in ~60 days
     tokenType: { type: String, default: 'page_access_token' },
 
     // User token (used to refresh page token if needed)
-    userAccessToken: { type: String },
+    userAccessToken: { type: String, select: false },
     userTokenExpiresAt: { type: Date },
     userId: { type: String }, // Facebook user ID who connected
 
@@ -58,8 +58,14 @@ FacebookConnectionSchema.index({ isActive: 1, createdAt: -1 });
 /**
  * Static method to get the active connection (if any)
  */
-FacebookConnectionSchema.statics.getActiveConnection = async function () {
-  return this.findOne({ isActive: true }).sort({ createdAt: -1 }).exec();
+FacebookConnectionSchema.statics.getActiveConnection = async function (options = {}) {
+  const query = this.findOne({ isActive: true }).sort({ createdAt: -1 });
+
+  if (options?.includePageAccessToken === true) {
+    query.select('+pageAccessToken');
+  }
+
+  return query.exec();
 };
 
 /**

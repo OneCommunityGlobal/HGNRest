@@ -365,7 +365,9 @@ const verifyConnection = async (req, res) => {
   }
 
   try {
-    const connection = await FacebookConnection.getActiveConnection();
+    const connection = await FacebookConnection.getActiveConnection({
+      includePageAccessToken: true,
+    });
 
     if (!connection) {
       return res.status(200).json({ valid: false, reason: 'No active connection' });
