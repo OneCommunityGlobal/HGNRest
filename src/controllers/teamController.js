@@ -13,7 +13,13 @@ const getMostFrequentActiveTeamCode = (members = []) => {
   const codeCounts = new Map();
 
   members.forEach((member) => {
-    if (member.isActive !== true || typeof member.teamCode !== 'string') return;
+    if (
+      member.isActive !== true ||
+      member.visible === false ||
+      typeof member.teamCode !== 'string'
+    ) {
+      return;
+    }
 
     const teamCode = member.teamCode.trim();
     if (!teamCode) return;

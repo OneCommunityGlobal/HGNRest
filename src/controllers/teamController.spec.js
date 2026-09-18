@@ -92,12 +92,12 @@ describe('teamController', () => {
           teamName: 'City Center Architecture',
           isActive: true,
           members: [
-            { _id: 'active-1', teamCode: ' C-ARCH ', isActive: true },
-            { _id: 'active-2', teamCode: 'C-ARCH', isActive: true },
-            { _id: 'active-3', teamCode: 'OTHER', isActive: true },
-            { _id: 'inactive-1', teamCode: 'OLD-C', isActive: false },
-            { _id: 'inactive-2', teamCode: 'OLD-C', isActive: false },
-            { _id: 'inactive-3', teamCode: 'OLD-C', isActive: false },
+            { _id: 'active-1', teamCode: ' C-ARCH ', isActive: true, visible: true },
+            { _id: 'active-2', teamCode: 'C-ARCH', isActive: true, visible: true },
+            { _id: 'active-3', teamCode: 'OTHER', isActive: true, visible: true },
+            { _id: 'inactive-1', teamCode: 'OLD-C', isActive: false, visible: true },
+            { _id: 'inactive-2', teamCode: 'OLD-C', isActive: false, visible: true },
+            { _id: 'inactive-3', teamCode: 'OLD-C', isActive: false, visible: true },
           ],
         },
       ];
@@ -119,6 +119,25 @@ describe('teamController', () => {
         },
       ]);
       expect(mockRes.send.mock.calls[0][0][0].members).toHaveLength(6);
+    });
+
+    test('ignores codes from invisible team members when visible members have no valid code', async () => {
+      jest.spyOn(Team, 'aggregate').mockResolvedValue([
+        {
+          _id: 'team-id',
+          members: [
+            { _id: 'inactive-1', teamCode: 'test-2', isActive: true, visible: false },
+            { _id: 'inactive-2', teamCode: 'H-hhcc', isActive: true, visible: false },
+            { _id: 'active-1', teamCode: '', isActive: true, visible: true },
+          ],
+        },
+      ]);
+
+      makeSut().getAllTeams(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.send.mock.calls[0][0][0].teamCode).toBe('');
+      expect(mockRes.send.mock.calls[0][0][0].members).toHaveLength(3);
     });
 
     test('ignores active members with missing, non-string, or blank codes', async () => {
