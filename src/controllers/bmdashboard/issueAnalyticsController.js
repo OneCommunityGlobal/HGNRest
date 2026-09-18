@@ -34,13 +34,15 @@ const IssueAnalyticsController = function () {
       // Case 3: only start
       else if (start && !end) {
         startDate = new Date(start);
-        if (Number.isNaN(startDate)) return res.status(400).json({ error: 'Invalid start date' });
+        if (Number.isNaN(startDate.getTime()))
+          return res.status(400).json({ error: 'Invalid start date' });
         endDate = new Date();
       }
       // Case 4: only end
       else if (!start && end) {
         endDate = new Date(end);
-        if (Number.isNaN(endDate)) return res.status(400).json({ error: 'Invalid end date' });
+        if (Number.isNaN(endDate.getTime()))
+          return res.status(400).json({ error: 'Invalid end date' });
         startDate = new Date();
         startDate.setDate(endDate.getDate() - MAX_WEEKS * 7);
       }
@@ -48,7 +50,7 @@ const IssueAnalyticsController = function () {
       else {
         startDate = new Date(start);
         endDate = new Date(end);
-        if (Number.isNaN(startDate) || Number.isNaN(endDate))
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
           return res.status(400).json({ error: 'Invalid date format' });
       }
 
@@ -197,7 +199,7 @@ const IssueAnalyticsController = function () {
           .json({ error: 'Missing required query parameters: start/end or weeks' });
       }
 
-      if (Number.isNaN(startDate) || Number.isNaN(endDate))
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
         return res.status(400).json({ error: 'Invalid date format' });
 
       const weeksRange = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 7));
