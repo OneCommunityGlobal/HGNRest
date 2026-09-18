@@ -29,20 +29,20 @@ function sendLinkMessage(Link) {
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
 function sendRefreshedLinkMessage(Link) {
   const message = `<p>Hello,</p>
-    <p>You setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
+    <p>Your setup link is refreshed! Welcome to the One Community Highest Good Network! We’re excited to have you as a new member of our team.<br>
     To work as a member of our volunteer team, you need to complete the following profile setup by:</p>   
     <p><a href="${Link}">Click to Complete Profile</a>  </p>
     <p><b>Please complete the profile setup within 21 days of this invite. </b></p>
     <p>Please complete all fields and be accurate. If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
@@ -52,7 +52,7 @@ function sendCancelLinkMessage() {
     <p>If you have any questions or need assistance during the profile setup process, please contact your manager.</p>
     <p>Thank you and welcome!</p>
     <p>With Gratitude,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 
@@ -109,7 +109,7 @@ function informManagerMessage(user) {
     </table> 
     <br>
     <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 }
 

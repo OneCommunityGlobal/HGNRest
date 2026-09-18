@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 const { execSync } = require('node:child_process');
+// eslint-disable-next-line import/no-unresolved
 const { chromium } = require('playwright');
 
 async function ensureBrowserInstalled() {

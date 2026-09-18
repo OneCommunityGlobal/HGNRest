@@ -210,7 +210,10 @@ const progressController = function () {
       }
 
       // Check if progress record already exists
-      const existingProgress = await Progress.findOne({ studentId: sanitizedStudentId, atomId: sanitizedAtomId });
+      const existingProgress = await Progress.findOne({
+        studentId: sanitizedStudentId,
+        atomId: sanitizedAtomId,
+      });
       if (existingProgress) {
         return res
           .status(400)
@@ -532,7 +535,9 @@ const progressController = function () {
         .select('name description difficulty moleculeType subjectId');
 
       // Find unearned atoms (atoms not in progress records)
-      const progressAtomIds = new Set(progressRecords.map((p) => p.atomId?._id.toString()).filter(Boolean));
+      const progressAtomIds = new Set(
+        progressRecords.map((p) => p.atomId?._id.toString()).filter(Boolean),
+      );
       const unearnedAtoms = allAtoms
         .filter((atom) => !progressAtomIds.has(atom._id.toString()))
         .map((atom) => ({

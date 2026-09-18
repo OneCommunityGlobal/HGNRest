@@ -28,10 +28,17 @@ const lessonPlanSchema = new mongoose.Schema(
       ref: 'userProfile',
       required: true,
     },
+    // needs to be removed- not as per requirements
     activities: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Activity',
+      },
+    ],
+    atomTasks: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AtomTaskTemplate',
       },
     ],
   },

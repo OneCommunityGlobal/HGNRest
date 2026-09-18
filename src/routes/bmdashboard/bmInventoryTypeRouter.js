@@ -8,6 +8,7 @@ const routes = function (
   toolType,
   equipType,
   invTypeHistory,
+  invUnit,
 ) {
   const inventoryTypeRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(
@@ -18,6 +19,7 @@ const routes = function (
     toolType,
     equipType,
     invTypeHistory,
+    invUnit,
   );
 
   // Route for fetching all material types
@@ -57,7 +59,7 @@ const routes = function (
 
   inventoryTypeRouter
     .route('/inventoryUnits')
-    .get(controller.fetchInvUnitsFromJson)
+    .get(controller.fetchInvUnits)
     .post(controller.addInvUnit)
     .delete(controller.deleteInvUnit);
 

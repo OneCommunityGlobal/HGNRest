@@ -7,6 +7,8 @@ const routes = function () {
 
   studentTaskRouter.route('/student/tasks').get(controller.getStudentTasks);
 
+  studentTaskRouter.route('/student/tasks/:taskId/log-hours').post(controller.logHours);
+
   studentTaskRouter.route('/student/tasks/:taskId/progress').put(controller.updateTaskProgress);
 
   studentTaskRouter
