@@ -2,6 +2,7 @@
 /* eslint-disable consistent-return */
 const fs = require('node:fs');
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 // eslint-disable-next-line import/no-unresolved
 const reporthelperClosure = require('../helpers/reporthelper');
 const overviewReportHelperClosure = require('../helpers/overviewReportHelper');
@@ -103,8 +104,14 @@ const reportsController = function () {
       });
     }
 
-    const isoStartDate = new Date(`${startDate}T00:00:00-07:00`);
-    const isoEndDate = new Date(`${endDate}T23:59:00-07:00`);
+    const isoStartDate = moment
+      .tz(startDate, 'YYYY-MM-DD', true, 'America/Los_Angeles')
+      .startOf('day')
+      .toDate();
+    const isoEndDate = moment
+      .tz(endDate, 'YYYY-MM-DD', true, 'America/Los_Angeles')
+      .endOf('day')
+      .toDate();
 
     // Check if dates are valid
     if (Number.isNaN(isoStartDate.getTime())) {
@@ -132,8 +139,14 @@ const reportsController = function () {
         });
       }
 
-      isoComparisonStartDate = new Date(comparisonStartDate);
-      isoComparisonEndDate = new Date(comparisonEndDate);
+      isoComparisonStartDate = moment
+        .tz(comparisonStartDate, 'YYYY-MM-DD', true, 'America/Los_Angeles')
+        .startOf('day')
+        .toDate();
+      isoComparisonEndDate = moment
+        .tz(comparisonEndDate, 'YYYY-MM-DD', true, 'America/Los_Angeles')
+        .endOf('day')
+        .toDate();
 
       // Validate comparison dates if provided
       if (
@@ -243,10 +256,10 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getTaskAndProjectStats(
-          startDate,
-          endDate,
-          comparisonStartDate,
-          comparisonEndDate,
+          isoStartDate,
+          isoEndDate,
+          isoComparisonStartDate,
+          isoComparisonEndDate,
         ),
         overviewReportHelper.getVolunteersOverAssignedTime(isoStartDate, isoEndDate),
         overviewReportHelper.getVolunteersCompletedAssignedHours(
@@ -287,6 +300,32 @@ const reportsController = function () {
           error: 'Invalid date parameters',
         });
       }
+
+      // Use tasksStats for accurate assigned/completed counts (from getTasksStats)
+      const normalizedTasksAssignedCount =
+        tasksStats?.active?.current ??
+        taskAndProjectStats?.tasksAssignedThisWeek ??
+        taskAndProjectStats?.tasksDueThisWeek ??
+        0;
+
+      const normalizedTasksCompletedCount =
+        tasksStats?.complete?.current ?? taskAndProjectStats?.tasksCompletedThisWeek ?? 0;
+
+      const normalizedTaskAndProjectStats = {
+        ...taskAndProjectStats,
+        // Properly separate assigned and completed counts for chart display
+        tasksDueThisWeek: normalizedTasksAssignedCount,
+        tasksCompletedThisWeek: normalizedTasksCompletedCount,
+        tasksAssignedThisWeek: normalizedTasksAssignedCount,
+        // Include raw data for frontend flexibility
+        raw: {
+          current: {
+            assigned: normalizedTasksAssignedCount,
+            completed: normalizedTasksCompletedCount,
+          },
+        },
+      };
+
       const responseData = {
         volunteerNumberStats,
         mentorNumberStats,
@@ -302,7 +341,7 @@ const reportsController = function () {
         totalActiveTeams,
         userLocations,
         completedHours,
-        taskAndProjectStats,
+        taskAndProjectStats: normalizedTaskAndProjectStats,
         volunteersOverAssignedTime,
         completedAssignedHours,
         totalSummariesSubmitted,

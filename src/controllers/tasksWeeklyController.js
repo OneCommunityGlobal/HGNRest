@@ -1,3 +1,4 @@
+const TERMINAL_STATUS_REGEX = /^(complete|completed|closed|done|finished)$/i;
 const TERMINAL_STATUSES = ['Completed', 'Closed', 'Complete'];
 // eslint-disable-next-line no-unused-vars
 const mongoose = require('mongoose');
@@ -86,33 +87,77 @@ function buildWeekBuckets(endWeekZoned, weeks) {
  */
 async function getTrends(req, res) {
   try {
-    const { endWeek, weeks } = querySchema.parse(req.query);
+    const { startWeek, endWeek, weeks } = querySchema.parse(req.query);
 
     const buckets = buildWeekBuckets(endWeek, weeks);
-    const rangeStartUTC = buckets[0].startUTC;
-    const rangeEndUTC = buckets[buckets.length - 1].endUTC;
+    const rangeStartUTC = startWeek;
+    const rangeEndUTC = endWeek;
 
     const tasks = await Task.aggregate([
       {
         $match: {
-          completedDatetime: { $ne: null, $gte: rangeStartUTC, $lte: rangeEndUTC },
+          deleted: { $ne: true },
+          isActive: { $ne: false },
+          $or: [
+            { createdDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC } },
+            {
+              createdDatetime: { $exists: false },
+              modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
+            },
+            { completedDatetime: { $ne: null, $gte: rangeStartUTC, $lte: rangeEndUTC } },
+            {
+              completedDatetime: null,
+              status: { $regex: TERMINAL_STATUS_REGEX },
+              modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
+            },
+            {
+              'resources.completedTask': true,
+              modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
+            },
+          ],
         },
       },
-      { $project: { completedDatetime: 1 } },
+      {
+        $project: {
+          createdDatetime: 1,
+          modifiedDatetime: 1,
+          completedDatetime: 1,
+          status: 1,
+          resources: 1,
+        },
+      },
     ]);
 
-    const counts = Object.fromEntries(buckets.map((b) => [b.label, 0]));
+    const counts = Object.fromEntries(buckets.map((b) => [b.label, { assigned: 0, completed: 0 }]));
 
     for (const t of tasks) {
       for (const b of buckets) {
-        if (t.completedDatetime >= b.startUTC && t.completedDatetime <= b.endUTC) {
-          counts[b.label] += 1;
-          break;
+        const bucketStart = b.startUTC < rangeStartUTC ? rangeStartUTC : b.startUTC;
+        const bucketEnd = b.endUTC > rangeEndUTC ? rangeEndUTC : b.endUTC;
+        const assignedAt = t.createdDatetime || t.modifiedDatetime;
+        const completedAt = t.completedDatetime || t.modifiedDatetime;
+        const isCompleted =
+          (t.completedDatetime &&
+            t.completedDatetime >= bucketStart &&
+            t.completedDatetime <= bucketEnd) ||
+          (!t.completedDatetime &&
+            TERMINAL_STATUS_REGEX.test(t.status || '') &&
+            t.modifiedDatetime >= bucketStart &&
+            t.modifiedDatetime <= bucketEnd) ||
+          (t.resources?.some((resource) => resource.completedTask === true) &&
+            t.modifiedDatetime >= bucketStart &&
+            t.modifiedDatetime <= bucketEnd);
+
+        if (assignedAt >= bucketStart && assignedAt <= bucketEnd) {
+          counts[b.label].assigned += 1;
+        }
+        if (isCompleted && completedAt >= bucketStart && completedAt <= bucketEnd) {
+          counts[b.label].completed += 1;
         }
       }
     }
 
-    const data = buckets.map((b) => ({ week: b.label, completed: counts[b.label] || 0 }));
+    const data = buckets.map((b) => ({ week: b.label, ...counts[b.label] }));
     return res.json(data);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message || 'Invalid request' });
@@ -141,7 +186,20 @@ async function getSummary(req, res) {
     });
 
     const completedThisWeekPromise = Task.countDocuments({
-      completedDatetime: { $ne: null, $gte: latest.startUTC, $lte: latest.endUTC },
+      deleted: { $ne: true },
+      isActive: { $ne: false },
+      $or: [
+        { completedDatetime: { $ne: null, $gte: latest.startUTC, $lte: latest.endUTC } },
+        {
+          completedDatetime: null,
+          status: { $regex: TERMINAL_STATUS_REGEX },
+          modifiedDatetime: { $gte: latest.startUTC, $lte: latest.endUTC },
+        },
+        {
+          'resources.completedTask': true,
+          modifiedDatetime: { $gte: latest.startUTC, $lte: latest.endUTC },
+        },
+      ],
     });
 
     const openTasksPromise = Task.countDocuments({
