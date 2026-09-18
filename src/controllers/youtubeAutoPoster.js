@@ -286,6 +286,25 @@ const buildYoutubeRequestBody = (metadata) => {
 const getYoutubeErrorMessage = (error, fallback = 'Failed to upload video to YouTube') =>
   error.response?.data?.error?.message || error.errors?.[0]?.message || error.message || fallback;
 
+const sendYoutubeErrorResponse = (error, res) => {
+  if (error instanceof z.ZodError) {
+    const errors = formatZodErrors(error);
+    return res.status(400).json({
+      success: false,
+      message: errors[0].message,
+      errors,
+    });
+  }
+
+  const statusCode = error.response?.status || error.statusCode;
+  const safeStatusCode =
+    statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
+  return res.status(safeStatusCode).json({
+    success: false,
+    message: getYoutubeErrorMessage(error),
+  });
+};
+
 const getYoutubeAuthorizationUrl = (req, res) => {
   try {
     if (!req.session) {
@@ -358,22 +377,7 @@ const connectYoutubeAccount = async (req, res) => {
       expiresAt: tokens.expiry_date || null,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors = formatZodErrors(error);
-      return res.status(400).json({
-        success: false,
-        message: errors[0].message,
-        errors,
-      });
-    }
-
-    const statusCode = error.response?.status || error.statusCode;
-    const safeStatusCode =
-      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
-    return res.status(safeStatusCode).json({
-      success: false,
-      message: getYoutubeErrorMessage(error),
-    });
+    return sendYoutubeErrorResponse(error, res);
   }
 };
 
@@ -539,22 +543,7 @@ const uploadVideo = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors = formatZodErrors(error);
-      return res.status(400).json({
-        success: false,
-        message: errors[0].message,
-        errors,
-      });
-    }
-
-    const statusCode = error.response?.status || error.statusCode;
-    const safeStatusCode =
-      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
-    return res.status(safeStatusCode).json({
-      success: false,
-      message: getYoutubeErrorMessage(error),
-    });
+    return sendYoutubeErrorResponse(error, res);
   }
 };
 
