@@ -21,7 +21,12 @@ const createProjectMaterial = async (req, res) => {
   }
 
   const { projectName, toolName, replacedPercentage, date } = projectMaterialbody;
-  const newProjectMaterial = new ProjectMaterial({ projectName, toolName, replacedPercentage, date });
+  const newProjectMaterial = new ProjectMaterial({
+    projectName,
+    toolName,
+    replacedPercentage,
+    date,
+  });
 
   try {
     await newProjectMaterial.save();

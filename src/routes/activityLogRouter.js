@@ -3,10 +3,19 @@ const express = require('express');
 const routes = function () {
   const activityLogRouter = express.Router();
   const controller = require('../controllers/activityLogController')();
-  activityLogRouter.route('/student/daily-log').get(controller.fetchStudentDailyLog);
-  activityLogRouter.route('/educator/daily-log/:studentId').get(controller.fetchEducatorDailyLog);
-  activityLogRouter.route('/student/daily-log').post(controller.createStudentDailyLog);
+
+  activityLogRouter.get(
+    ['/educator/daily-log/:studentId', '/support/daily-log/:studentId'],
+    controller.fetchStudentDailyLogsByStaff,
+  );
+
+  activityLogRouter
+    .route('/student/daily-log')
+    .get(controller.fetchStudentDailyLog)
+    .post(controller.createStudentDailyLog);
+
   activityLogRouter.route('/student/daily-log/:logId').put(controller.updateStudentDailyLog);
+
   return activityLogRouter;
 };
 

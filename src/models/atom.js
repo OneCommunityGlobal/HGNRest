@@ -1,48 +1,45 @@
 const mongoose = require('mongoose');
 
-const atomSchema = new mongoose.Schema(
-  {
-    subjectId: {
+const atomSchema = new mongoose.Schema({
+  subjectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subject',
+    required: true,
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  description: {
+    type: String,
+    trim: true,
+  },
+  difficulty: {
+    type: String,
+    enum: ['beginner', 'intermediate', 'advanced'],
+    default: 'beginner',
+  },
+  prerequisites: [
+    {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      ref: 'Atom',
     },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    description: {
+  ],
+  learningStrategies: [
+    {
       type: String,
       trim: true,
     },
-    difficulty: {
+  ],
+  learningTools: [
+    {
       type: String,
-      enum: ['beginner', 'intermediate', 'advanced'],
-      default: 'beginner',
+      trim: true,
     },
-    prerequisites: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Atom',
-      },
-    ],
-    learningStrategies: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    learningTools: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-  },
-  {
-    timestamps: true,
-  },
-);
+  ],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
 
 module.exports = mongoose.model('Atom', atomSchema);
