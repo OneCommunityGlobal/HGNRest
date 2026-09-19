@@ -13,7 +13,7 @@ const anonymousInteractionSchema = new Schema({
     required: true,
     enum: [
       'page_view',
-      'job_view', 
+      'job_view',
       'job_search',
       'ad_click',
       'download',
@@ -21,7 +21,7 @@ const anonymousInteractionSchema = new Schema({
       'social_share',
       'email_signup',
       'contact_form',
-      'filter_use'
+      'filter_use',
     ],
   },
   targetId: {
@@ -80,10 +80,17 @@ anonymousInteractionSchema.index({ interactionType: 1, timestamp: 1 });
 anonymousInteractionSchema.index({ targetId: 1, timestamp: 1 });
 anonymousInteractionSchema.index({ sessionId: 1, timestamp: 1 });
 
-anonymousInteractionSchema.index({ 
-  timestamp: 1 
-}, { 
-  expireAfterSeconds: 2592000 
-});
+anonymousInteractionSchema.index(
+  {
+    timestamp: 1,
+  },
+  {
+    expireAfterSeconds: 2592000,
+  },
+);
 
-module.exports = mongoose.model('AnonymousInteraction', anonymousInteractionSchema, 'anonymousInteractions');
+module.exports = mongoose.model(
+  'AnonymousInteraction',
+  anonymousInteractionSchema,
+  'anonymousInteractions',
+);

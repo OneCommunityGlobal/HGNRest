@@ -3,11 +3,8 @@ const {
   //  TextbeltSMS: TextbeltSMSSender,
   TelesignSMS: TelesignSMSSender,
 } = require('../../utilities/SMSSender');
-
 const { addBidToHistory } = require('../../controllers/lbdashboard/bidDeadlinesController')();
-
 const emailSender = require('../../utilities/emailSender');
-
 const BidDeadlines = require('../../models/lbdashboard/bidDeadline');
 
 let io = null; // socket will be stored here

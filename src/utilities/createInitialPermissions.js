@@ -107,6 +107,17 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      // Meeting
+      'scheduleMeetings',
+      'setFinalDay',
+      // Job Form Management (Permissions Management > Job Form Management)
+      // manageJobForms: full form/template management
+      // createFormQuestions | editFormQuestions | deleteFormQuestions: granular access
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -164,6 +175,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'scheduleMeetings',
     ],
   },
   {
@@ -201,7 +213,6 @@ const permissionsRoles = [
       'highlightEligibleBios',
       'manageTimeOffRequests',
       'changeUserRehireableStatus',
-      'setTrackingManagement',
       'changeUserStatus',
       'viewTrackingOverview',
       'issueTrackingWarnings',
@@ -243,7 +254,6 @@ const permissionsRoles = [
       'deleteTimeEntry',
       'postTimeEntry',
       'sendEmails',
-      'sendEmailToAll',
       'updatePassword',
       'resetPassword',
       'getUserProfiles',
@@ -278,6 +288,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'scheduleMeetings',
       'requestBio',
 
       // Title
@@ -295,6 +306,15 @@ const permissionsRoles = [
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      'manageHGNAccessSetup',
+      'setFinalDay',
+      'resendBlueSquareAndSummaryEmails',
+      // Job Form Management (Permissions Management > Job Form Management)
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];
@@ -313,7 +333,6 @@ const createInitialPermissions = async () => {
   ) {
     jaeProfile.permissions.frontPermissions.push('resendBlueSquareAndSummaryEmails');
     await jaeProfile.save();
-    console.log('Added resendBlueSquareAndSummaryEmails permission to Jae');
   }
 
   // Get Roles From DB

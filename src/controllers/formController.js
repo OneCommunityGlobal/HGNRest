@@ -1,3 +1,12 @@
+/* eslint-disable prefer-template */
+/* eslint-disable camelcase */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable eqeqeq */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable object-shorthand */
+/* eslint-disable no-plusplus */
+/* eslint-disable new-cap */
+/* eslint-disable prefer-const */
 const userprofile = require('../models/userProfile');
 
 const formController = function (Form, FormResponse) {

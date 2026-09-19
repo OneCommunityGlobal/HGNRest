@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');

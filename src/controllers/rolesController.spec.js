@@ -6,7 +6,6 @@ const Role = require('../models/role');
 const UserProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const { mockReq, mockRes, assertResMock } = require('../test');
-
 const rolesController = require('./rolesController');
 
 const flushPromises = () => new Promise(setImmediate);

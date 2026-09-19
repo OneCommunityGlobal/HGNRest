@@ -58,10 +58,13 @@ const logincontroller = function () {
               canAccessBMPortal: false,
             },
             email: user.email,
-            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
+            expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units).toISOString(),
           };
 
-          const token = jwt.sign(jwtPayload, JWT_SECRET);
+          const token = jwt.sign(jwtPayload, JWT_SECRET, {
+            expiresIn: `${process.env.TOKEN_LIFETIME} ${process.env.TOKEN_LIFETIME_UNITS}`,
+          });
+          // Added expiryTimestamp to the JWT to ensure that the token has a valid expiration time.
 
           res.status(200).send({ token });
         } else {
@@ -71,7 +74,6 @@ const logincontroller = function () {
         }
       }
     } catch (err) {
-      console.log(err);
       res.json(err);
     }
   };

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 const cron = require('node-cron');
 const UserPreferences = require('../models/lbdashboard/userPreferences');
 const Message = require('../models/lbdashboard/message');

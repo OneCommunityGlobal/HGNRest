@@ -67,4 +67,4 @@ const studentTaskSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model('StudentTasks', studentTaskSchema);
+module.exports = mongoose.model('StudentTask', studentTaskSchema);

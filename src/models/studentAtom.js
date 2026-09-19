@@ -1,30 +1,50 @@
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
+const studentAtomSchema = new mongoose.Schema(
+  {
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+      required: true,
+    },
+    atomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Atom',
+      required: true,
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+      required: true,
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    note: {
+      type: String,
+      trim: true,
+    },
+    activityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Activity',
+    },
+    status: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'completed'],
+      default: 'not_started',
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
-const studentAtomSchema = new Schema({
-  studentId: {
-    type: Schema.Types.ObjectId,
-    ref: 'userProfile',
-    required: true,
-  },
-  atomId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Atom',
-    required: true,
-  },
-  status: {
-    type: String,
-    enum: ['not_started', 'in_progress', 'completed'],
-    default: 'not_started',
-  },
-  notes: {
-    type: String,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+// Compound index to ensure unique atom assignment per student
+studentAtomSchema.index({ studentId: 1, atomId: 1 }, { unique: true });
 
-module.exports = mongoose.model('studentAtom', studentAtomSchema);
+module.exports = mongoose.model('StudentAtom', studentAtomSchema);

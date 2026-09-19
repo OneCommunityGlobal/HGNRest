@@ -6,6 +6,8 @@ const strategySchema = new Schema({
   name: {
     type: String,
     required: true,
+    unique: true,
+    trim: true,
   },
   type: {
     type: String,
@@ -14,6 +16,15 @@ const strategySchema = new Schema({
   },
   description: {
     type: String,
+    trim: true,
+  },
+  color: {
+    type: String,
+    default: '#6c757d',
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
   },
   createdAt: {
     type: Date,
@@ -23,10 +34,15 @@ const strategySchema = new Schema({
     type: Date,
     default: Date.now,
   },
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
 });
+
+strategySchema.pre('save', function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+strategySchema.index({ type: 1 });
+strategySchema.index({ name: 1 });
+strategySchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('Strategy', strategySchema);
