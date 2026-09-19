@@ -1770,6 +1770,13 @@
   resolved "https://registry.npmjs.org/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz"
   integrity sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
 
+"@emnapi/runtime@^1.11.1":
+  version "1.11.2"
+  resolved "https://registry.npmjs.org/@emnapi/runtime/-/runtime-1.11.2.tgz"
+  integrity sha512-kyOl3X0DuTiT1h2ft8r2fYO8JYtU9a9Xis/zBSiGArNaagCOWx90N1k2wxp18czFDH+OgcWGb5ZP/XMt3dcyPA==
+  dependencies:
+    tslib "^2.4.0"
+
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.9.0"
   dependencies:
@@ -3723,9 +3730,9 @@ baseline-browser-mapping@^2.10.29, baseline-browser-mapping@^2.8.19:
   integrity sha512-girxaJ7WZssDOFhzCGZTDKoTa1gk6A1TbflaYTpykLJ4UU9Fz9kx1aREM8JCuoVHbL8X8T/mJg7w2oYSq72Oig==
 
 basic-ftp@^5.0.2:
-  version "5.2.2"
-  resolved "https://registry.npmjs.org/basic-ftp/-/basic-ftp-5.2.2.tgz"
-  integrity sha512-1tDrzKsdCg70WGvbFss/ulVAxupNauGnOlgpyjKzeQxzyllBLS0CGLV7tjIXTK3ZQA9/FBEm9qyFFN1bciA6pw==
+  version "5.3.1"
+  resolved "https://registry.npmjs.org/basic-ftp/-/basic-ftp-5.3.1.tgz"
+  integrity sha512-bopVNp6ugyA150DDuZfPFdt1KZ5a94ZDiwX4hMgZDzF+GttD80lEy8kj98kbyhLXnPvhtIo93mdnLIjpCAeeOw==
 
 bcrypt-pbkdf@^1.0.0:
   version "1.0.2"
