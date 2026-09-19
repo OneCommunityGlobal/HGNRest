@@ -205,6 +205,7 @@ const ownerMessageRouter = require('../routes/ownerMessageRouter')(ownerMessage)
 const ownerMessageLogRouter = require('../routes/ownerMessageLogRouter')();
 
 const emailRouter = require('../routes/emailRouter')();
+const facebookRouter = require('../routes/facebookRouter')();
 const emailOutboxRouter = require('../routes/emailOutboxRouter');
 const reasonRouter = require('../routes/reasonRouter')(reason, userProfile);
 const mouseoverTextRouter = require('../routes/mouseoverTextRouter')(mouseoverText);
@@ -519,6 +520,7 @@ module.exports = function (app) {
   app.use('/api', permissionChangeLogRouter);
   app.use('/api', emailOutboxRouter);
   app.use('/api', emailRouter);
+  app.use('/api', facebookRouter);
   app.use('/api', isEmailExistsRouter);
   app.use('/api', faqRouter);
   app.use('/api', mapLocationRouter);
