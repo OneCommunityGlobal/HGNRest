@@ -175,6 +175,24 @@ describe('jobsController', () => {
       );
     });
 
+    it('updateJob: keeps encoded tags from becoming stored markup', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        { new: true },
+      );
+    });
+
     it('deleteJob: should delete successfully', async () => {
       Job.findByIdAndDelete.mockResolvedValue({ _id: jobId });
       await deleteJob({ params: { id: jobId } }, res);
@@ -289,6 +307,20 @@ describe('jobsController', () => {
 
       const savedInstance = saveSpy.mock.instances.at(-1);
       expect(savedInstance.description).toBe('Build useful tools');
+    });
+
+    it('keeps encoded tags from becoming markup in a new job description', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: { ...newJobBody, description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)&gt;');
     });
 
     it('defaults displayOrder to 0 when no jobs exist yet', async () => {

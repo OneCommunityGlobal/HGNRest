@@ -1,5 +1,4 @@
 const sanitizeHtml = require('sanitize-html');
-const cheerio = require('cheerio');
 
 // Please refer to https://www.npmjs.com/package/sanitize-html?activeTab=readme for more information.
 // eslint-disable-next-line import/prefer-default-export
@@ -19,9 +18,9 @@ const stripHtml = (dirty) => {
     allowedTags: [],
     allowedAttributes: {},
   });
-  const decodedText = cheerio.load(`<body>${sanitizedText}</body>`)('body').text();
-
-  return decodedText
+  // Do not decode entities after sanitizing. Decoding `&lt;img ...&gt;` here would
+  // recreate markup after it was made safe, allowing it to be stored as HTML.
+  return sanitizedText
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)

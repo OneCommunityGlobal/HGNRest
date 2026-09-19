@@ -64,10 +64,23 @@ describe('stripHtml', () => {
     expect(stripHtml(dirty)).toBe('Hello world\nOne\nTwo');
   });
 
-  it('removes script content and decodes HTML entities', () => {
+  it('removes script content without recreating encoded markup', () => {
     const dirty = '<script>alert("xss")</script><p>Safe &amp; sound; 2 &lt; 3</p>';
 
-    expect(stripHtml(dirty)).toBe('Safe & sound; 2 < 3');
+    expect(stripHtml(dirty)).toBe('Safe &amp; sound; 2 &lt; 3');
+  });
+
+  it('keeps encoded tags as text instead of recreating them as markup', () => {
+    expect(stripHtml('&lt;img src=x onerror=alert(1)&gt;')).toBe(
+      '&lt;img src=x onerror=alert(1)&gt;',
+    );
+    expect(stripHtml('&#60;img src=x onerror=alert(1)&#62;')).toBe(
+      '&lt;img src=x onerror=alert(1)&gt;',
+    );
+    expect(stripHtml('&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;')).toBe(
+      '&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;',
+    );
+    expect(stripHtml('&amp;lt;img&amp;gt;')).toBe('&amp;lt;img&amp;gt;');
   });
 
   it('handles plain, empty, and missing values', () => {
