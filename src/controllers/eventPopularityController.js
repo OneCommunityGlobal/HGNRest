@@ -29,6 +29,30 @@ const buildDateFilter = (startDate, endDate) => {
   return { dateFilter, invalidDate };
 };
 
+const INVALID_DATE_MESSAGE = 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)';
+
+/**
+ * Builds the base { isActive: true } query, adding the date range when provided.
+ * Returns { query, invalidDate }.
+ */
+const buildEventQuery = (startDate, endDate) => {
+  const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+  const query = { isActive: true };
+  if (Object.keys(dateFilter).length > 0) {
+    query.date = dateFilter;
+  }
+  return { query, invalidDate };
+};
+
+const sendServerError = (res, handlerName, message, error) => {
+  console.error(`Error in ${handlerName}:`, error);
+  res.status(500).json({
+    error: message,
+    details: error.message,
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+  });
+};
+
 const eventPopularityController = () => {
   // Calculate popularity metrics by event type
   const getPopularityMetrics = async (req, res) => {
@@ -36,15 +60,9 @@ const eventPopularityController = () => {
       const { startDate, endDate } = req.query;
 
       // Build date filter if provided
-      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      const { query, invalidDate } = buildEventQuery(startDate, endDate);
       if (invalidDate) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
-      }
-      const query = { isActive: true };
-      if (Object.keys(dateFilter).length > 0) {
-        query.date = dateFilter;
+        return res.status(400).json({ error: INVALID_DATE_MESSAGE });
       }
 
       // Get all events with attendance data
@@ -98,12 +116,7 @@ const eventPopularityController = () => {
 
       res.json({ metrics: result });
     } catch (error) {
-      console.error('Error in getPopularityMetrics:', error);
-      res.status(500).json({
-        error: 'Failed to fetch popularity metrics',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      });
+      sendServerError(res, 'getPopularityMetrics', 'Failed to fetch popularity metrics', error);
     }
   };
 
@@ -112,15 +125,9 @@ const eventPopularityController = () => {
     try {
       const { startDate, endDate, format } = req.query; // format: 'Virtual' or 'In person'
 
-      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      const { query, invalidDate } = buildEventQuery(startDate, endDate);
       if (invalidDate) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
-      }
-      const query = { isActive: true };
-      if (Object.keys(dateFilter).length > 0) {
-        query.date = dateFilter;
+        return res.status(400).json({ error: INVALID_DATE_MESSAGE });
       }
 
       let safeFormat;
@@ -203,12 +210,7 @@ const eventPopularityController = () => {
         },
       });
     } catch (error) {
-      console.error('Error in getEngagementMetrics:', error);
-      res.status(500).json({
-        error: 'Failed to fetch engagement metrics',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      });
+      sendServerError(res, 'getEngagementMetrics', 'Failed to fetch engagement metrics', error);
     }
   };
 
@@ -217,15 +219,9 @@ const eventPopularityController = () => {
     try {
       const { startDate, endDate } = req.query;
 
-      const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
+      const { query, invalidDate } = buildEventQuery(startDate, endDate);
       if (invalidDate) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
-      }
-      const query = { isActive: true };
-      if (Object.keys(dateFilter).length > 0) {
-        query.date = dateFilter;
+        return res.status(400).json({ error: INVALID_DATE_MESSAGE });
       }
 
       const events = await Event.find(query).lean();
@@ -278,12 +274,7 @@ const eventPopularityController = () => {
         },
       });
     } catch (error) {
-      console.error('Error in getEventValue:', error);
-      res.status(500).json({
-        error: 'Failed to fetch event values',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      });
+      sendServerError(res, 'getEventValue', 'Failed to fetch event values', error);
     }
   };
 
@@ -297,9 +288,7 @@ const eventPopularityController = () => {
 
       const { dateFilter, invalidDate } = buildDateFilter(startDate, endDate);
       if (invalidDate) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid startDate or endDate (use YYYY-MM-DD or ISO)' });
+        return res.status(400).json({ error: INVALID_DATE_MESSAGE });
       }
       if (Object.keys(dateFilter).length > 0) {
         virtualQuery.date = dateFilter;
@@ -334,12 +323,7 @@ const eventPopularityController = () => {
         },
       });
     } catch (error) {
-      console.error('Error in getFormatComparison:', error);
-      res.status(500).json({
-        error: 'Failed to fetch format comparison',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      });
+      sendServerError(res, 'getFormatComparison', 'Failed to fetch format comparison', error);
     }
   };
 
