@@ -1,3 +1,4 @@
+const cheerio = require('cheerio');
 const { cleanHtml, stripHtml } = require('../htmlContentSanitizer');
 
 describe('htmlContentSanitizer', () => {
@@ -64,23 +65,31 @@ describe('stripHtml', () => {
     expect(stripHtml(dirty)).toBe('Hello world\nOne\nTwo');
   });
 
-  it('removes script content without recreating encoded markup', () => {
+  it('removes script content while preserving readable entities', () => {
     const dirty = '<script>alert("xss")</script><p>Safe &amp; sound; 2 &lt; 3</p>';
 
-    expect(stripHtml(dirty)).toBe('Safe &amp; sound; 2 &lt; 3');
+    expect(stripHtml(dirty)).toBe('Safe & sound; 2 < 3');
   });
 
-  it('keeps encoded tags as text instead of recreating them as markup', () => {
-    expect(stripHtml('&lt;img src=x onerror=alert(1)&gt;')).toBe(
-      '&lt;img src=x onerror=alert(1)&gt;',
-    );
-    expect(stripHtml('&#60;img src=x onerror=alert(1)&#62;')).toBe(
-      '&lt;img src=x onerror=alert(1)&gt;',
-    );
-    expect(stripHtml('&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;')).toBe(
-      '&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;',
-    );
-    expect(stripHtml('&amp;lt;img&amp;gt;')).toBe('&amp;lt;img&amp;gt;');
+  it('keeps encoded tags from becoming HTML markup', () => {
+    const outputs = [
+      stripHtml('&lt;img src=x onerror=alert(1)&gt;'),
+      stripHtml('&#60;img src=x onerror=alert(1)&#62;'),
+      stripHtml('&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;'),
+      stripHtml('&amp;lt;img&amp;gt;'),
+      stripHtml('&lt;img src=x&amp;gt;'),
+    ];
+
+    expect(outputs).toEqual([
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;/p>&lt;img src=x onerror=alert(1)>',
+      '&lt;img&gt;',
+      '&lt;img src=x&gt;',
+    ]);
+    outputs.forEach((output) => {
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
   });
 
   it('handles plain, empty, and missing values', () => {

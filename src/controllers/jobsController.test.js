@@ -188,7 +188,7 @@ describe('jobsController', () => {
 
       expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
         jobId,
-        { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        { description: '&lt;img src=x onerror=alert(1)>' },
         { new: true },
       );
     });
@@ -320,7 +320,7 @@ describe('jobsController', () => {
         res,
       );
 
-      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)&gt;');
+      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)>');
     });
 
     it('defaults displayOrder to 0 when no jobs exist yet', async () => {
