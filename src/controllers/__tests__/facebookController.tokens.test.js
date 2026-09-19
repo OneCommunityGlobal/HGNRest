@@ -91,8 +91,7 @@ describe('facebookController token selection and exposure', () => {
     expect(FacebookConnection.getActiveConnection).toHaveBeenNthCalledWith(1, {
       includePageAccessToken: true,
     });
-    expect(FacebookConnection.getActiveConnection).toHaveBeenNthCalledWith(2);
-    expect(FacebookConnection.getActiveConnection).toHaveBeenNthCalledWith(3);
+    expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
     expect(axios.post).toHaveBeenCalledWith(
       'https://graph.facebook.com/v19.0/12345/feed',
       expect.objectContaining({ access_token: PAGE_TOKEN, message: 'Token-safe post' }),

@@ -1,6 +1,9 @@
 const cron = require('node-cron');
 const ScheduledFacebookPost = require('../models/scheduledFacebookPost');
-const { publishToFacebook, getCredentials } = require('../controllers/facebookController');
+const {
+  createScheduledFacebookPublisher,
+  getCredentials,
+} = require('../controllers/facebookController');
 const logger = require('../startup/logger');
 
 const PST_TIMEZONE = 'America/Los_Angeles';
@@ -53,10 +56,8 @@ const processNextScheduledPost = async () => {
   let nextPost;
 
   try {
-    const credentials = await getCredentials();
-    if (!credentials) {
-      return false;
-    }
+    const publishScheduledPost = await createScheduledFacebookPublisher();
+    if (!publishScheduledPost) return false;
 
     nextPost = await ScheduledFacebookPost.findOneAndUpdate(
       { status: 'pending', scheduledFor: { $lte: new Date() } },
@@ -70,13 +71,13 @@ const processNextScheduledPost = async () => {
 
     const hasStoredImage = nextPost.imageData && nextPost.imageMimeType;
 
-    const result = await publishToFacebook({
+    const result = await publishScheduledPost({
+      scheduledPageId: nextPost.pageId,
       message: nextPost.message || undefined,
       link: nextPost.link,
       imageUrl: hasStoredImage ? undefined : nextPost.imageUrl,
       imageBuffer: hasStoredImage ? nextPost.imageData : undefined,
       imageMimeType: hasStoredImage ? nextPost.imageMimeType : undefined,
-      pageId: nextPost.pageId,
     });
 
     nextPost.status = 'sent';

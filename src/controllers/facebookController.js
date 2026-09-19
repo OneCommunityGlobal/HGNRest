@@ -254,43 +254,25 @@ const applyScheduleUpdate = (post, scheduledFor, timezone) => {
   if (timezone) post.timezone = timezone;
 };
 
-const publishToFacebook = async ({
-  message,
-  link,
-  imageUrl,
-  imageBuffer,
-  imageMimeType,
-  pageId,
-}) => {
-  const credentials = await getCredentials();
+const createPublishingCredentialSnapshot = (credentials) => ({
+  pageId: assertValidFbId(credentials.pageId),
+  pageAccessToken: credentials.pageAccessToken,
+  source: credentials.source,
+});
 
-  if (!credentials) {
-    const error = new Error(
-      'Facebook is not connected. Please connect a Facebook Page in settings, or configure FACEBOOK_PAGE_ACCESS_TOKEN.',
-    );
-    error.status = 500;
-    throw error;
-  }
-
-  let targetPageId;
+const publishUsingCredentialSnapshot = async (
+  { pageId, pageAccessToken, source },
+  { message, link, imageUrl, imageBuffer, imageMimeType },
+) => {
   let safeImageUrl;
   try {
-    targetPageId = assertValidFbId(credentials.pageId);
-    assertRequestedPageMatchesConnectedPage(targetPageId, pageId);
     safeImageUrl = validateFacebookImageUrl(imageUrl);
   } catch (err) {
     if (!err.status) err.status = 400;
     throw err;
   }
 
-  const { pageAccessToken } = credentials;
-
-  console.log(
-    '[FacebookPost] Using credentials from:',
-    credentials.source,
-    'pageId:',
-    targetPageId,
-  );
+  console.log('[FacebookPost] Using credentials from:', source, 'pageId:', pageId);
 
   if (!message && !link && !imageUrl && !imageBuffer) {
     const error = new Error(
@@ -302,7 +284,7 @@ const publishToFacebook = async ({
 
   const isDirectUpload = Boolean(imageBuffer);
   const isPhotoPost = isDirectUpload || Boolean(safeImageUrl);
-  const endpoint = buildGraphPageUrl(targetPageId, isPhotoPost ? 'photos' : 'feed');
+  const endpoint = buildGraphPageUrl(pageId, isPhotoPost ? 'photos' : 'feed');
 
   try {
     const response = isDirectUpload
@@ -312,6 +294,7 @@ const publishToFacebook = async ({
     return {
       postId: response.data.id,
       postType: isPhotoPost ? 'photo' : 'feed',
+      pageId,
     };
   } catch (error) {
     const fbError = error.response?.data?.error;
@@ -321,6 +304,38 @@ const publishToFacebook = async ({
     err.details = fbError || error.message;
     throw err;
   }
+};
+
+const publishToFacebook = async (content) => {
+  const credentials = await getCredentials();
+
+  if (!credentials) {
+    const error = new Error(
+      'Facebook is not connected. Please connect a Facebook Page in settings, or configure FACEBOOK_PAGE_ACCESS_TOKEN.',
+    );
+    error.status = 500;
+    throw error;
+  }
+
+  const snapshot = createPublishingCredentialSnapshot(credentials);
+  return publishUsingCredentialSnapshot(snapshot, content);
+};
+
+const createScheduledFacebookPublisher = async () => {
+  const credentials = await getCredentials();
+  if (!credentials) return null;
+
+  const snapshot = createPublishingCredentialSnapshot(credentials);
+  return async ({ scheduledPageId, ...content }) => {
+    const safeScheduledPageId = assertValidFbId(scheduledPageId);
+    if (safeScheduledPageId !== snapshot.pageId) {
+      const error = new Error('Requested Facebook Page ID does not match the connected Page.');
+      error.status = 400;
+      throw error;
+    }
+
+    return publishUsingCredentialSnapshot(snapshot, content);
+  };
 };
 
 const saveDirectPostToHistory = async ({
@@ -333,12 +348,11 @@ const saveDirectPostToHistory = async ({
   createdBy,
 }) => {
   try {
-    const credentials = await getConnectionMetadata();
     const directPost = new ScheduledFacebookPost({
       message,
       link,
       imageUrl,
-      pageId: credentials?.pageId || pageId,
+      pageId,
       scheduledFor: new Date(),
       timezone: PST_TIMEZONE,
       status: 'sent',
@@ -361,17 +375,16 @@ const postToFacebook = async (req, res) => {
   )
     return;
 
-  const { message, link, imageUrl, pageId } = req.body || {};
+  const { message, link, imageUrl } = req.body || {};
 
   try {
-    const result = await publishToFacebook({ message, link, imageUrl, pageId });
+    const result = await publishToFacebook({ message, link, imageUrl });
 
-    const credentials = await getConnectionMetadata();
     await saveDirectPostToHistory({
       message,
       link,
       imageUrl: validateFacebookImageUrl(imageUrl),
-      pageId: credentials?.pageId,
+      pageId: result.pageId,
       postId: result.postId,
       postType: result.postType,
       createdBy: buildCreatedBy(req.user),
@@ -379,7 +392,8 @@ const postToFacebook = async (req, res) => {
 
     res.status(200).send({
       success: true,
-      ...result,
+      postId: result.postId,
+      postType: result.postType,
     });
   } catch (error) {
     res.status(error.status || 500).send({
@@ -395,7 +409,7 @@ const postToFacebookWithImage = async (req, res) => {
   )
     return;
 
-  const { message, link, pageId } = req.body;
+  const { message, link } = req.body;
   const imageFile = req.file;
 
   if (!imageFile) {
@@ -411,15 +425,13 @@ const postToFacebookWithImage = async (req, res) => {
       link,
       imageBuffer: imageFile.buffer,
       imageMimeType: imageFile.mimetype,
-      pageId,
     });
 
-    const credentials = await getConnectionMetadata();
     await saveDirectPostToHistory({
       message,
       link,
       imageUrl: `(uploaded: ${imageFile.originalname})`,
-      pageId: credentials?.pageId,
+      pageId: result.pageId,
       postId: result.postId,
       postType: result.postType,
       createdBy: buildCreatedBy(req.user),
@@ -427,7 +439,8 @@ const postToFacebookWithImage = async (req, res) => {
 
     res.status(200).send({
       success: true,
-      ...result,
+      postId: result.postId,
+      postType: result.postType,
     });
   } catch (error) {
     console.error('[FacebookPost] postToFacebookWithImage error:', error.message);
@@ -865,6 +878,8 @@ const updateScheduledPost = async (req, res) => {
 };
 
 module.exports = {
+  assertValidFbId,
+  createScheduledFacebookPublisher,
   publishToFacebook,
   postToFacebook,
   postToFacebookWithImage,

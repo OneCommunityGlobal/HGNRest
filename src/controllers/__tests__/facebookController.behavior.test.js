@@ -154,40 +154,38 @@ describe('facebookController secure behavior', () => {
   });
 
   describe('trusted Facebook destinations', () => {
-    it.each([
-      'https://attacker.example/path/999',
-      '12345/../../evil',
-      { $ne: '12345' },
-      ['12345'],
-      '99999',
-    ])('rejects request pageId %p without making an outbound request', async (pageId) => {
-      const res = makeResponse();
-
-      await postToFacebook({ user: USER, body: { message: 'hello', pageId } }, res);
-
-      expect(axios.post).not.toHaveBeenCalled();
-      expect(ScheduledFacebookPost).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('uses the fixed Graph host and connected pageId when a matching request pageId is supplied', async () => {
+    it('ignores an attacker-controlled pageId and persists the connected pageId', async () => {
+      const laterCredentials = { ...CREDENTIALS, pageId: '77777' };
+      FacebookConnection.getActiveConnection
+        .mockReset()
+        .mockResolvedValueOnce(CREDENTIALS)
+        .mockResolvedValue(laterCredentials);
       axios.post.mockResolvedValue({ data: { id: 'facebook-id' } });
       const save = jest.fn().mockResolvedValue(undefined);
       ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
       const res = makeResponse();
 
-      await postToFacebook(
-        { user: USER, body: { message: 'hello', pageId: CREDENTIALS.pageId } },
-        res,
-      );
+      await postToFacebook({ user: USER, body: { message: 'hello', pageId: '99999' } }, res);
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://graph.facebook.com/v19.0/12345/feed',
         expect.objectContaining({ message: 'hello' }),
       );
+      expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
       expect(ScheduledFacebookPost).toHaveBeenCalledWith(
         expect.objectContaining({ pageId: CREDENTIALS.pageId }),
       );
+      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pageId: '99999' }),
+      );
+      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pageId: laterCredentials.pageId }),
+      );
+      expect(res.send).toHaveBeenCalledWith({
+        success: true,
+        postId: 'facebook-id',
+        postType: 'feed',
+      });
     });
 
     it('preserves facebook-only history semantics when pageId does not match', async () => {
@@ -248,13 +246,22 @@ describe('facebookController secure behavior', () => {
       const res = makeResponse();
 
       await postToFacebook(
-        { user: USER, body: { imageUrl: 'https://images.example/photo.jpg' } },
+        {
+          user: USER,
+          body: { imageUrl: 'https://images.example/photo.jpg', pageId: '99999' },
+        },
         res,
       );
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://graph.facebook.com/v19.0/12345/photos',
         expect.objectContaining({ url: 'https://images.example/photo.jpg' }),
+      );
+      expect(ScheduledFacebookPost).toHaveBeenCalledWith(
+        expect.objectContaining({ pageId: CREDENTIALS.pageId }),
+      );
+      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pageId: '99999' }),
       );
       expect(res.send).toHaveBeenCalledWith({
         success: true,
@@ -384,7 +391,7 @@ describe('facebookController secure behavior', () => {
       await postToFacebookWithImage(
         {
           user: USER,
-          body: { message: 'image', pageId: CREDENTIALS.pageId },
+          body: { message: 'image', pageId: '99999' },
           file: {
             buffer: Buffer.from('image'),
             mimetype: 'image/png',
@@ -401,6 +408,9 @@ describe('facebookController secure behavior', () => {
       );
       expect(ScheduledFacebookPost).toHaveBeenCalledWith(
         expect.objectContaining({ pageId: CREDENTIALS.pageId, imageUrl: '(uploaded: photo.png)' }),
+      );
+      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pageId: '99999' }),
       );
       expect(res.status).toHaveBeenCalledWith(200);
     });
