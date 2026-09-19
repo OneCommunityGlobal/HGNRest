@@ -7,7 +7,7 @@ jest.mock('googleapis', () => ({
   },
 }));
 
-jest.mock('fs', () => ({
+jest.mock('node:fs', () => ({
   createReadStream: jest.fn(() => ({ pathStream: true })),
 }));
 

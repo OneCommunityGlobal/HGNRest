@@ -26,17 +26,17 @@ jest.mock('../controllers/youtubeAutoPoster', () => ({
   uploadVideo: mockUploadVideo,
 }));
 
-jest.mock('fs', () => ({
+jest.mock('node:fs', () => ({
   promises: {
     unlink: mockUnlink,
   },
 }));
 
-jest.mock('os', () => ({
+jest.mock('node:os', () => ({
   tmpdir: mockTmpdir,
 }));
 
-jest.mock('crypto', () => ({
+jest.mock('node:crypto', () => ({
   randomUUID: mockRandomUUID,
 }));
 

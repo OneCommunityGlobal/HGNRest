@@ -1,6 +1,6 @@
-const crypto = require('crypto');
-const fs = require('fs');
-const { Readable } = require('stream');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const { Readable } = require('node:stream');
 const { google } = require('googleapis');
 const { z } = require('zod');
 
@@ -143,9 +143,12 @@ const youtubeMetadataSchema = z
 const metadataJsonSchema = z.string().transform((value, context) => {
   try {
     const metadata = JSON.parse(value);
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error();
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw new Error('Metadata JSON must be an object');
+    }
     return metadata;
   } catch (error) {
+    // Invalid metadata is reported as a validation issue below; parse details are intentionally omitted.
     context.addIssue({ code: 'custom', message: 'metadata must be valid JSON' });
     return z.NEVER;
   }
