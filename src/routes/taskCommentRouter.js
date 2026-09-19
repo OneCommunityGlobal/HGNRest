@@ -19,6 +19,11 @@ const routes = function () {
     taskCommentController.getStudentCommentsbyEducator,
   );
 
+  taskCommentRouter.delete(
+    '/student/tasks/:taskId/comments/:commentId',
+    taskCommentController.deleteStudentComment,
+  );
+
   return taskCommentRouter;
 };
 
