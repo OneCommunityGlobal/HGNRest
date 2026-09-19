@@ -15,6 +15,7 @@ const LOGGER = require('../startup/logger');
 
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
+const TOKEN_INVALID_MESSAGE = 'INVALID';
 const TOKEN_EXPIRED_MESSAGE = 'EXPIRED';
 const TOKEN_NOT_FOUND_MESSAGE = 'NOT_FOUND';
 const { startSession } = mongoose;
@@ -329,23 +330,23 @@ const profileInitialSetupController = function (
             expiryTimestamp: moment().add(config.TOKEN.Lifetime, config.TOKEN.Units),
           };
 
-          const jwtToken = jwt.sign(jwtPayload, JWT_SECRET);
+          const token = jwt.sign(jwtPayload, JWT_SECRET);
 
-          // const locationData = {
-          //   title: '',
-          //   firstName: req.body.firstName,
-          //   lastName: req.body.lastName,
-          //   jobTitle: req.body.jobTitle,
-          //   location: req.body.homeCountry,
-          //   isActive: true,
-          // };
+          const locationData = {
+            title: '',
+            firstName: req.body.firstName,
+            lastName: req.body.lastName,
+            jobTitle: req.body.jobTitle,
+            location: req.body.homeCountry,
+            isActive: true,
+          };
 
-          res.status(200).send({ token: jwtToken });
+          res.status(200).send({ token });
 
-          // const mapEntryResult = await setMapLocation(locationData);
-          // if (mapEntryResult.type === 'Error') {
-          //   console.log(mapEntryResult.message);
-          // }
+          const mapEntryResult = await setMapLocation(locationData);
+          if (mapEntryResult.type === 'Error') {
+            console.log(mapEntryResult.message);
+          }
 
           const NewUserCache = {
             permissions: savedUser.permissions,
@@ -536,7 +537,7 @@ const profileInitialSetupController = function (
     const { role } = req.body.requestor;
 
     const { permissions } = req.body.requestor;
-    const userPermissions = [
+    const user_permissions = [
       'searchUserProfile',
       'getUserProfiles',
       'postUserProfile',
@@ -548,7 +549,7 @@ const profileInitialSetupController = function (
       role === 'Owner' ||
       role === 'Manager' ||
       role === 'Mentor' ||
-      userPermissions.some((e) => permissions.frontPermissions.includes(e))
+      user_permissions.some((e) => permissions.frontPermissions.includes(e))
     ) {
       try {
         ProfileInitialSetupToken.find({ isSetupCompleted: false })
