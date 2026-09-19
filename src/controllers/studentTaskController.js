@@ -1,10 +1,200 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+const StudentTask = require('../models/studentTask');
+const StudentAtom = require('../models/studentAtom');
 const EducationTask = require('../models/educationTask');
+const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
+const LessonPlan = require('../models/lessonPlan');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const config = require('../config');
 
+// Roles allowed to manage student task assignments
+const STUDENT_TASK_ALLOWED_ROLES = ['Administrator', 'Owner', 'Educator', 'Program Manager'];
+const STUDENT_TASK_STATUSES = ['incomplete', 'in_progress', 'completed', 'graded'];
+
+const hasStudentTaskAccess = (requestor) =>
+  !!requestor?.role && STUDENT_TASK_ALLOWED_ROLES.includes(requestor.role);
+
 const studentTaskController = function () {
+  // Utility function to calculate deadline
+  const calculateDeadline = (assignmentDate, offsetDays = 7) => {
+    const deadline = new Date(assignmentDate);
+    deadline.setDate(deadline.getDate() + offsetDays);
+    return deadline;
+  };
+
+  // Create a new student task
+  const createStudentTask = async (req, res) => {
+    try {
+      const { requestor } = req.body;
+      if (!hasStudentTaskAccess(requestor)) {
+        return res.status(403).json({
+          error: 'Access restricted to admin, owner, educator, or program manager roles.',
+        });
+      }
+
+      const {
+        studentId,
+        taskId,
+        lessonPlanId,
+        subject,
+        colorLevel,
+        activityGroup,
+        teachingStrategy,
+        lifeStrategy,
+        isAutoAssigned,
+        deadlineOffsetDays = 7,
+      } = req.body;
+
+      if (!studentId || !taskId || !lessonPlanId) {
+        return res.status(400).json({
+          error: 'studentId, taskId, and lessonPlanId are required',
+        });
+      }
+
+      const objectIdFields = {
+        studentId,
+        taskId,
+        lessonPlanId,
+        ...(subject && { subject }),
+        ...(activityGroup && { activityGroup }),
+        ...(teachingStrategy && { teachingStrategy }),
+        ...(lifeStrategy && { lifeStrategy }),
+      };
+      const invalidField = Object.keys(objectIdFields).find(
+        (field) => !mongoose.Types.ObjectId.isValid(objectIdFields[field]),
+      );
+      if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} is not a valid id` });
+      }
+
+      if (!Number.isFinite(Number(deadlineOffsetDays))) {
+        return res.status(400).json({ error: 'deadlineOffsetDays must be a number' });
+      }
+
+      const [student, task, lessonPlan] = await Promise.all([
+        UserProfile.findById(studentId).select('_id'),
+        Task.findById(taskId).select('_id'),
+        LessonPlan.findById(lessonPlanId).select('_id'),
+      ]);
+      if (!student) return res.status(404).json({ error: 'studentId does not exist' });
+      if (!task) return res.status(404).json({ error: 'taskId does not exist' });
+      if (!lessonPlan) return res.status(404).json({ error: 'lessonPlanId does not exist' });
+
+      const existingAssignment = await StudentTask.findOne({ studentId, taskId });
+      if (existingAssignment) {
+        return res.status(409).json({ error: 'This task is already assigned to this student' });
+      }
+
+      const assignment = new StudentTask({
+        studentId,
+        taskId,
+        lessonPlanId,
+        subject,
+        colorLevel,
+        activityGroup,
+        teachingStrategy,
+        lifeStrategy,
+        isAutoAssigned,
+        status: 'incomplete',
+        assignment_timestamp: new Date(),
+        deadline: calculateDeadline(new Date(), Number(deadlineOffsetDays)),
+      });
+
+      await assignment.save();
+
+      res.status(201).json({
+        message: 'Task assigned successfully',
+        assignment,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Get all student tasks
+  const getAllStudentTasks = async (req, res) => {
+    try {
+      if (!hasStudentTaskAccess(req.body.requestor)) {
+        return res.status(403).json({
+          error: 'Access restricted to admin, owner, educator, or program manager roles.',
+        });
+      }
+
+      const tasks = await StudentTask.find();
+      res.json(tasks);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Get tasks for a specific student
+  const getTasksByStudent = async (req, res) => {
+    try {
+      if (!hasStudentTaskAccess(req.body.requestor)) {
+        return res.status(403).json({
+          error: 'Access restricted to admin, owner, educator, or program manager roles.',
+        });
+      }
+
+      const { studentId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ error: 'studentId is not a valid id' });
+      }
+
+      const tasks = await StudentTask.find({ studentId });
+      res.json(tasks);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Update task status
+  const updateStudentTask = async (req, res) => {
+    try {
+      if (!hasStudentTaskAccess(req.body.requestor)) {
+        return res.status(403).json({
+          error: 'Access restricted to admin, owner, educator, or program manager roles.',
+        });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: 'id is not a valid id' });
+      }
+      if (!STUDENT_TASK_STATUSES.includes(status)) {
+        return res.status(400).json({
+          error: `status must be one of: ${STUDENT_TASK_STATUSES.join(', ')}`,
+        });
+      }
+
+      const task = await StudentTask.findByIdAndUpdate(
+        id,
+        { status, updatedAt: new Date(), completedAt: new Date() },
+        { new: true, runValidators: true },
+      );
+
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+
+      if (status === 'completed') {
+        // No runValidators here: assignedBy is required on StudentAtom but isn't known at
+        // this call site, and this upsert must not fail when no assignment doc exists yet.
+        await StudentAtom.findOneAndUpdate(
+          { studentId: task.studentId, atomId: task.taskId },
+          { status: 'completed', updatedAt: new Date(), completedAt: new Date() },
+          { upsert: true, new: true },
+        );
+      }
+
+      res.json({ message: 'Task updated successfully', task });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   const groupTasks = (tasks) => {
     const grouped = {};
 
@@ -434,6 +624,10 @@ const studentTaskController = function () {
   };
 
   return {
+    createStudentTask,
+    getAllStudentTasks,
+    getTasksByStudent,
+    updateStudentTask,
     getStudentTasks,
     updateTaskProgress,
     uploadFile,
