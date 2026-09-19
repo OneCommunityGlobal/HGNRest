@@ -15,23 +15,19 @@ function bmInventoryTypeController(
 ) {
   async function fetchMaterialTypes(req, res) {
     try {
-      MatType.find()
-        .exec()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
+      const result = await MatType.find().exec();
+      return res.status(200).send(result);
     } catch (err) {
-      res.json(err);
+      return res.status(500).send(err);
     }
   }
 
   async function fetchReusableTypes(req, res) {
     try {
-      ReusType.find()
-        .exec()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
+      const result = await ReusType.find().exec();
+      return res.status(200).send(result);
     } catch (err) {
-      res.json(err);
+      return res.status(500).send(err);
     }
   }
 
@@ -102,8 +98,15 @@ function bmInventoryTypeController(
     try {
       const { id } = req.params;
       const updatedData = {};
-      if (req.body.name) updatedData.name = req.body.name;
-      if (req.body.description) updatedData.description = req.body.description;
+      if (typeof req.body.name === 'string' && req.body.name.trim()) {
+        updatedData.name = req.body.name.trim();
+      }
+      if (typeof req.body.description === 'string' && req.body.description.trim()) {
+        updatedData.description = req.body.description.trim();
+      }
+      if (!Object.keys(updatedData).length) {
+        return res.status(400).json({ message: 'No valid fields to update' });
+      }
 
       const updated = await Model.findByIdAndUpdate(id, updatedData, {
         new: true,
@@ -124,90 +127,52 @@ function bmInventoryTypeController(
   };
 
   async function addMaterialType(req, res) {
-    const {
-      name,
-      description,
-      requestor: { requestorId },
-    } = req.body;
+    const { name, description, requestor } = req.body;
+    const requestorId = requestor?.requestorId;
     const unit = req.body.unit || req.body.customUnit;
     try {
-      MatType.find({ name })
-        .then((result) => {
-          if (result.length) {
-            res.status(409).send('Oops!! Material already exists!');
-          } else {
-            const newDoc = {
-              category: 'Material',
-              name,
-              description,
-              unit,
-              createdBy: requestorId,
-            };
-            MatType.create(newDoc)
-              .then((results) => {
-                res.status(201).send(results);
-                if (req.body.customUnit) {
-                  InvUnit.create({ unit: req.body.customUnit, category: 'Material' }).catch((e) =>
-                    console.error('Error saving custom unit:', e),
-                  );
-                }
-              })
-              .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error);
-                } else {
-                  res.status(500).send(error);
-                }
-              });
-          }
-        })
-        .catch((error) => res.status(500).send(error));
+      const result = await MatType.find({ name });
+      if (result.length) return res.status(409).send('Oops!! Material already exists!');
+      const results = await MatType.create({
+        category: 'Material',
+        name,
+        description,
+        unit,
+        createdBy: requestorId,
+      });
+      res.status(201).send(results);
+      if (req.body.customUnit && InvUnit?.create) {
+        InvUnit.create({ unit: req.body.customUnit, category: 'Material' }).catch((e) =>
+          console.error('Error saving custom unit:', e),
+        );
+      }
     } catch (error) {
-      res.status(500).send(error);
+      return error?._message?.includes('validation failed')
+        ? res.status(400).send(error)
+        : res.status(500).send(error);
     }
   }
 
   async function addConsumableType(req, res) {
-    const {
-      name,
-      description,
-      unit,
-      size,
-      requestor: { requestorId },
-    } = req.body;
+    const { name, description, unit, size, requestor } = req.body;
+    const requestorId = requestor?.requestorId;
 
     try {
-      ConsType.find({ name })
-        .then((result) => {
-          if (result.length) {
-            res.status(409).send('Oops!! Consumable already exists!');
-          } else {
-            const newDoc = {
-              category: 'Consumable',
-              name,
-              description,
-              unit,
-              size,
-              createdBy: requestorId,
-            };
-            ConsType.create(newDoc)
-              .then((results) => {
-                res.status(201).send(results);
-              })
-              .catch((error) => {
-                if (error._message.includes('validation failed')) {
-                  res.status(400).send(error.errors.unit.message);
-                } else {
-                  res.status(500).send(error);
-                }
-              });
-          }
-        })
-        .catch((error) => {
-          res.status(500).send(error);
-        });
+      const result = await ConsType.find({ name });
+      if (result.length) return res.status(409).send('Oops!! Consumable already exists!');
+      const results = await ConsType.create({
+        category: 'Consumable',
+        name,
+        description,
+        unit,
+        size,
+        createdBy: requestorId,
+      });
+      return res.status(201).send(results);
     } catch (error) {
-      res.status(500).send(error);
+      if (error?._message?.includes('validation failed'))
+        return res.status(400).send(error.errors?.unit?.message || error);
+      return res.status(500).send(error);
     }
   }
 
@@ -229,8 +194,9 @@ function bmInventoryTypeController(
       totalPriceWithShipping,
       images,
       link,
-      requestor: { requestorId },
+      requestor,
     } = req.body;
+    const requestorId = requestor?.requestorId;
 
     try {
       ToolType.find({ name })
@@ -263,7 +229,7 @@ function bmInventoryTypeController(
                 res.status(201).send(results);
               })
               .catch((error) => {
-                if (error._message.includes('validation failed')) {
+                if (error?._message?.includes('validation failed')) {
                   res.status(400).send(error.errors.unit.message);
                 } else {
                   res.status(500).send(error);
@@ -294,23 +260,19 @@ function bmInventoryTypeController(
       SelectedType = EquipType;
     }
     try {
-      SelectedType.find()
-        .exec()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
+      const result = await SelectedType.find().exec();
+      return res.status(200).send(result);
     } catch (err) {
-      res.json(err);
+      return res.status(500).send(err);
     }
   }
 
   const fetchConsumableTypes = async (req, res) => {
     try {
-      ConsType.find()
-        .exec()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
+      const result = await ConsType.find().exec();
+      return res.status(200).send(result);
     } catch (err) {
-      res.json(err);
+      return res.status(500).send(err);
     }
   };
 
@@ -338,7 +300,7 @@ function bmInventoryTypeController(
             EquipType.create(newDoc)
               .then(() => res.status(201).send())
               .catch((error) => {
-                if (error._message && error._message.includes('validation failed')) {
+                if (error?._message?.includes('validation failed')) {
                   res.status(400).json({ error: 'Validation failed. Please check your input.' });
                 } else {
                   res.status(500).json({ error: 'Failed to create equipment. Please try again.' });
@@ -354,21 +316,16 @@ function bmInventoryTypeController(
 
   async function fetchEquipmentTypes(req, res) {
     try {
-      EquipType.find()
-        .exec()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
+      const result = await EquipType.find().exec();
+      return res.status(200).send(result);
     } catch (err) {
-      res.json(err);
+      return res.status(500).send(err);
     }
   }
 
   async function addReusableType(req, res) {
-    const {
-      name,
-      description,
-      requestor: { requestorId },
-    } = req.body;
+    const { name, description, requestor } = req.body;
+    const requestorId = requestor?.requestorId;
     try {
       ReusType.find({ name })
         .then((result) => {
@@ -384,7 +341,7 @@ function bmInventoryTypeController(
             ReusType.create(newDoc)
               .then(() => res.status(201).send())
               .catch((error) => {
-                if (error._message.includes('validation failed')) {
+                if (error?._message?.includes('validation failed')) {
                   res.status(400).send(error);
                 } else {
                   res.status(500).send(error);
@@ -402,6 +359,7 @@ function bmInventoryTypeController(
     const { invtypeId } = req.params;
     try {
       const result = await InvType.findById(invtypeId).exec();
+      if (!result) return res.status(404).send('Inventory type not found');
       res.status(200).send(result);
     } catch (error) {
       res.status(500).send(error);
@@ -411,12 +369,8 @@ function bmInventoryTypeController(
   const updateNameAndUnit = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-      const {
-        name,
-        unit,
-        type: rawType,
-        requestor: { requestorId },
-      } = req.body;
+      const { name, unit, type: rawType, requestor } = req.body;
+      const requestorId = requestor?.requestorId;
       const historyDocs = [];
       const updateData = {};
       // Selection of Collection depending on Type
@@ -485,6 +439,10 @@ function bmInventoryTypeController(
           editedBy: requestorId,
         });
         updateData.unit = safeUnit;
+      }
+
+      if (!Object.keys(updateData).length) {
+        return res.status(200).json(invType);
       }
 
       //  Save history (if any)
