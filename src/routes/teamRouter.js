@@ -11,6 +11,7 @@ const router = function (team) {
     .post(controller.postTeam)
     .put(controller.updateTeamVisibility);
 
+  teamRouter.route('/team/committed-hours').post(controller.getTeamsCommittedHours);
   teamRouter.route('/team/reports').post(controller.getAllTeamMembers);
 
   teamRouter
