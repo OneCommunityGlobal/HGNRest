@@ -127,6 +127,190 @@ describe('weeklyProjectSummaryService', () => {
     expect(result.current.metrics.totalLaborHoursInvested.percentageChange).toBeNull();
   });
 
+  test('preserves legitimate zero values when aggregate rows exist', async () => {
+    mockAggregates({
+      statusRows: [],
+      completedRows: [{ completedProjects: 0, avgDurationMs: 0 }],
+      usageRows: [{ totalMaterialUsed: 0, materialWasted: 0 }],
+      purchaseRows: [{ totalMaterialCost: 0 }],
+      availableRows: [{ materialAvailable: 0 }],
+      laborRows: [{ totalLaborCost: 0 }],
+    });
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+    });
+
+    expect(result.current.metrics.completedProjects).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+    expect(result.current.metrics.avgProjectDuration).toMatchObject({
+      value: 0,
+      unit: 'hrs',
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+    expect(result.current.metrics.totalMaterialCost).toMatchObject({
+      value: 0,
+      unit: 'USD',
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+    expect(result.current.metrics.totalMaterialUsed).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+    expect(result.current.metrics.materialWasted).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+    expect(result.current.metrics.totalLaborCost).toMatchObject({
+      value: 0,
+      unit: 'USD',
+      comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+  });
+
+  test('marks period-comparable metrics unavailable when current-period source rows are missing', async () => {
+    mockAggregates({
+      completedRows: [],
+      usageRows: [],
+      purchaseRows: [],
+      laborRows: [],
+    });
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+    });
+
+    [
+      'completedProjects',
+      'avgProjectDuration',
+      'totalMaterialCost',
+      'totalMaterialUsed',
+      'materialWasted',
+      'totalLaborCost',
+    ].forEach((metricName) => {
+      expect(result.current.metrics[metricName]).toMatchObject({
+        value: null,
+        comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+        percentageChange: null,
+        unavailableReason: 'No data exists for the selected period.',
+      });
+    });
+
+    expect(result.current.metrics.totalProjects.comparisonType).toBe(COMPARISON_TYPES.CURRENT_ONLY);
+    expect(result.current.metrics.activeProjects.comparisonType).toBe(
+      COMPARISON_TYPES.CURRENT_ONLY,
+    );
+    expect(result.current.metrics.delayedProjects.comparisonType).toBe(
+      COMPARISON_TYPES.CURRENT_ONLY,
+    );
+    expect(result.current.metrics.materialAvailable.comparisonType).toBe(
+      COMPARISON_TYPES.CURRENT_ONLY,
+    );
+    expect(result.current.metrics.totalLaborHoursInvested).toMatchObject({
+      value: null,
+      comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+    });
+  });
+
+  test('reports no comparison data when comparison-period source rows are missing', async () => {
+    mockAggregates();
+    mockAggregates({
+      completedRows: [],
+      usageRows: [],
+      purchaseRows: [],
+      laborRows: [],
+    });
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+      comparisonStartDate: COMPARISON_START,
+      comparisonEndDate: COMPARISON_END,
+    });
+
+    [
+      'completedProjects',
+      'avgProjectDuration',
+      'totalMaterialCost',
+      'totalMaterialUsed',
+      'materialWasted',
+      'totalLaborCost',
+    ].forEach((metricName) => {
+      expect(result.current.metrics[metricName]).toMatchObject({
+        comparisonValue: null,
+        percentageChange: 'No Comparison Data',
+      });
+      expect(result.comparison.metrics[metricName]).toMatchObject({
+        value: null,
+        comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+      });
+    });
+  });
+
+  test('handles zero comparison values without changing normal comparison behavior', async () => {
+    mockAggregates({
+      completedRows: [{ completedProjects: 0, avgDurationMs: 0 }],
+      usageRows: [{ totalMaterialUsed: 0, materialWasted: 0 }],
+      purchaseRows: [{ totalMaterialCost: 0 }],
+      laborRows: [{ totalLaborCost: 0 }],
+    });
+    mockAggregates({
+      completedRows: [{ completedProjects: 0, avgDurationMs: 0 }],
+      usageRows: [{ totalMaterialUsed: 0, materialWasted: 0 }],
+      purchaseRows: [{ totalMaterialCost: 0 }],
+      laborRows: [{ totalLaborCost: 0 }],
+    });
+
+    const zeroResult = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+      comparisonStartDate: COMPARISON_START,
+      comparisonEndDate: COMPARISON_END,
+    });
+
+    expect(zeroResult.current.metrics.completedProjects.percentageChange).toBe(0);
+    expect(zeroResult.current.metrics.totalMaterialUsed.percentageChange).toBe(0);
+    expect(zeroResult.current.metrics.totalMaterialCost.percentageChange).toBe(0);
+    expect(zeroResult.current.metrics.materialWasted.percentageChange).toBe(0);
+    expect(zeroResult.current.metrics.totalLaborCost.percentageChange).toBe(0);
+
+    jest.clearAllMocks();
+    mockAggregates();
+    mockAggregates({
+      completedRows: [{ completedProjects: 0, avgDurationMs: 0 }],
+      usageRows: [{ totalMaterialUsed: 0, materialWasted: 0 }],
+      purchaseRows: [{ totalMaterialCost: 0 }],
+      laborRows: [{ totalLaborCost: 0 }],
+    });
+
+    const noComparisonDataResult = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+      comparisonStartDate: COMPARISON_START,
+      comparisonEndDate: COMPARISON_END,
+    });
+
+    expect(noComparisonDataResult.current.metrics.completedProjects.percentageChange).toBe(
+      'No Comparison Data',
+    );
+    expect(noComparisonDataResult.current.metrics.totalMaterialUsed.percentageChange).toBe(
+      'No Comparison Data',
+    );
+    expect(noComparisonDataResult.current.metrics.totalMaterialCost.percentageChange).toBe(
+      'No Comparison Data',
+    );
+    expect(noComparisonDataResult.current.metrics.materialWasted.percentageChange).toBe(
+      'No Comparison Data',
+    );
+    expect(noComparisonDataResult.current.metrics.totalLaborCost.percentageChange).toBe(
+      'No Comparison Data',
+    );
+  });
+
   test('filters selected projects through BuildingProject id, material project id, and name-based weak mappings', async () => {
     mockProject();
     mockAggregates();
@@ -217,9 +401,9 @@ describe('weeklyProjectSummaryService', () => {
     ).rejects.toMatchObject({ status: 404, message: 'Building project not found' });
   });
 
-  test('handles previous zero according to HGN comparison convention', () => {
+  test('calculates numeric percentage changes', () => {
     expect(calculatePercentageChange(0, 0)).toBe(0);
-    expect(calculatePercentageChange(10, 0)).toBe('No Comparison Data');
+    expect(calculatePercentageChange(10, 0)).toBe(0);
     expect(calculatePercentageChange(15, 10)).toBe(0.5);
   });
 });

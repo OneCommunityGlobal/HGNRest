@@ -25,6 +25,8 @@ const MATERIAL_AVAILABLE_CURRENT_ONLY_REASON =
 const PROJECT_STATUS_CURRENT_ONLY_REASON =
   'ProjectStatus stores current status only; historical Active/Delayed state cannot be reconstructed.';
 
+const NO_PERIOD_DATA_REASON = 'No data exists for the selected period.';
+
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const MINUTES_PER_HOUR = 60;
@@ -38,8 +40,9 @@ function toDateRange(startDate, endDate) {
 }
 
 function calculatePercentageChange(current, previous) {
+  // Keep this helper numeric-only; attachComparison owns non-numeric sentinel messages.
   if (previous === 0) {
-    return current === 0 ? 0 : 'No Comparison Data';
+    return 0;
   }
 
   return Math.round(((current - previous) / previous) * 100) / 100;
@@ -148,10 +151,22 @@ async function getCompletedProjectStats(project, startDate, endDate) {
     },
   ]);
 
+  // No aggregate row means no completed-project source data for this period, not a real zero.
+  if (rows.length === 0) {
+    return {
+      completedProjects: null,
+      avgProjectDuration: null,
+    };
+  }
+
   const stats = rows[0] || {};
+  // Empty aggregate arrays mean no dated records matched; rows containing 0 remain valid zeros.
   return {
-    completedProjects: stats.completedProjects || 0,
-    avgProjectDuration: stats.avgDurationMs ? Math.round(stats.avgDurationMs / HOUR_MS) : 0,
+    completedProjects: stats.completedProjects ?? 0,
+    avgProjectDuration:
+      stats.avgDurationMs === null || stats.avgDurationMs === undefined
+        ? null
+        : Math.round(stats.avgDurationMs / HOUR_MS),
   };
 }
 
@@ -202,9 +217,9 @@ async function getMaterialStats(project, startDate, endDate) {
   ]);
 
   return {
-    totalMaterialUsed: usageRows[0]?.totalMaterialUsed || 0,
-    materialWasted: usageRows[0]?.materialWasted || 0,
-    totalMaterialCost: purchaseRows[0]?.totalMaterialCost || 0,
+    totalMaterialUsed: usageRows.length === 0 ? null : usageRows[0].totalMaterialUsed ?? 0,
+    materialWasted: usageRows.length === 0 ? null : usageRows[0].materialWasted ?? 0,
+    totalMaterialCost: purchaseRows.length === 0 ? null : purchaseRows[0].totalMaterialCost ?? 0,
     materialAvailable: availableRows[0]?.materialAvailable || 0,
   };
 }
@@ -223,7 +238,15 @@ async function getLaborCost(project, startDate, endDate) {
     { $group: { _id: null, totalLaborCost: { $sum: '$cost' } } },
   ]);
 
-  return rows[0]?.totalLaborCost || 0;
+  // Preserve real zero costs while marking periods with no labor records as unavailable.
+  return rows.length === 0 ? null : rows[0].totalLaborCost ?? 0;
+}
+
+function comparableOrUnavailableMetric(value, unit) {
+  // Reuse the existing UNAVAILABLE/null contract so the frontend can render N/A consistently.
+  return value === null
+    ? unavailableMetric(NO_PERIOD_DATA_REASON, unit)
+    : comparableMetric(value, unit);
 }
 
 async function calculatePeriodMetrics({ project, startDate, endDate }) {
@@ -239,7 +262,7 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       currentProjectStatus.totalProjects,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
     ),
-    completedProjects: comparableMetric(completedStats.completedProjects),
+    completedProjects: comparableOrUnavailableMetric(completedStats.completedProjects),
     delayedProjects: currentOnlyMetric(
       currentProjectStatus.delayedProjects,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
@@ -248,16 +271,16 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       currentProjectStatus.activeProjects,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
     ),
-    avgProjectDuration: comparableMetric(completedStats.avgProjectDuration, 'hrs'),
-    totalMaterialCost: comparableMetric(materialStats.totalMaterialCost, 'USD'),
-    totalMaterialUsed: comparableMetric(materialStats.totalMaterialUsed),
+    avgProjectDuration: comparableOrUnavailableMetric(completedStats.avgProjectDuration, 'hrs'),
+    totalMaterialCost: comparableOrUnavailableMetric(materialStats.totalMaterialCost, 'USD'),
+    totalMaterialUsed: comparableOrUnavailableMetric(materialStats.totalMaterialUsed),
     totalLaborHoursInvested: unavailableMetric(LABOR_HOURS_UNAVAILABLE_REASON, 'hrs'),
-    totalLaborCost: comparableMetric(totalLaborCost, 'USD'),
+    totalLaborCost: comparableOrUnavailableMetric(totalLaborCost, 'USD'),
     materialAvailable: currentOnlyMetric(
       materialStats.materialAvailable,
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
-    materialWasted: comparableMetric(materialStats.materialWasted),
+    materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
   };
 }
 
@@ -268,18 +291,21 @@ function attachComparison(currentMetrics, comparisonMetrics) {
         return [metricName, metric];
       }
 
-      const comparisonValue = comparisonMetrics[metricName]?.value;
+      const comparisonValue = comparisonMetrics[metricName]?.value ?? null;
       const hasNumericValues =
         typeof metric.value === 'number' && typeof comparisonValue === 'number';
+      // A zero comparison period is only comparable when the current period is also zero.
+      const percentageChange =
+        hasNumericValues && (comparisonValue !== 0 || metric.value === 0)
+          ? calculatePercentageChange(metric.value, comparisonValue)
+          : 'No Comparison Data';
 
       return [
         metricName,
         {
           ...metric,
           comparisonValue,
-          percentageChange: hasNumericValues
-            ? calculatePercentageChange(metric.value, comparisonValue)
-            : null,
+          percentageChange,
         },
       ];
     }),
