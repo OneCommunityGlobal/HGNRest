@@ -2571,52 +2571,61 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) => {
-    const getSummariesCount = async (start, end) => {
-      const startDateObj = new Date(moment(start).tz('America/Los_Angeles').startOf('day').toISOString());
-      const endDateObj = new Date(moment(end).tz('America/Los_Angeles').endOf('day').toISOString());
-
-      const result = await UserProfile.aggregate([
+    // Helper function to count summaries submitted within a date range
+    const getSummariesCount = async (start, end) =>
+      UserProfile.aggregate([
         {
+          // Stage 1: Match users who have weeklySummaries array
           $match: {
-            $or: [
-              { weeklySummaries: { $exists: true, $ne: [] } },
-              { summaries: { $exists: true, $ne: [] } }
-            ]
-          }
+            weeklySummaries: { $exists: true, $ne: [] },
+          },
         },
         {
-          $addFields: {
-            allSummaries: { $concatArrays: [{ $ifNull: ['$weeklySummaries', []] }, { $ifNull: ['$summaries', []] }] }
-          }
+          // Stage 2: Project only the summaries that meet ALL criteria
+          $project: {
+            validSummaries: {
+              $filter: {
+                input: '$weeklySummaries',
+                as: 'summary',
+                cond: {
+                  $and: [
+                    // Condition 1: Summary content is not empty
+                    { $ne: ['$$summary.summary', ''] },
+                    { $ne: ['$$summary.summary', null] },
+                    // Condition 2: uploadDate field exists
+                    { $ne: ['$$summary.uploadDate', null] },
+                    // Condition 3: uploadDate is within the date range
+                    { $gte: ['$$summary.uploadDate', new Date(start)] },
+                    { $lte: ['$$summary.uploadDate', new Date(end)] },
+                  ],
+                },
+              },
+            },
+          },
         },
-        { $unwind: '$allSummaries' },
         {
-          $addFields: {
-            summaryParsedDate: {
-              $cond: {
-                if: { $ne: ['$allSummaries.uploadDate', null] },
-                then: { $toDate: '$allSummaries.uploadDate' },
-                else: { $toDate: '$allSummaries.date' }
-              }
-            }
-          }
+          // Stage 3: Count the valid summaries for each user
+          $project: {
+            summaryCount: { $size: '$validSummaries' },
+          },
         },
         {
-          $match: {
-            'allSummaries.summary': { $exists: true, $nin: ['', null] },
-            summaryParsedDate: { $gte: startDateObj, $lte: endDateObj }
-          }
+          // Stage 4: Sum across all users
+          $group: {
+            _id: null,
+            totalSummaries: { $sum: '$summaryCount' },
+          },
         },
-        { $count: 'totalSummaries' }
       ]);
 
-      return result[0]?.totalSummaries || 0;
-    };
+    // Get summaries count for the current date range
+    const currentSummaries = await getSummariesCount(startDate, endDate);
+    const totalCurrentSummaries = currentSummaries[0]?.totalSummaries || 0;
 
-    const totalCurrentSummaries = await getSummariesCount(startDate, endDate);
-
+    // If comparison dates are provided, calculate the comparison percentage
     if (comparisonStartDate && comparisonEndDate) {
-      const totalComparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
+      const comparisonSummaries = await getSummariesCount(comparisonStartDate, comparisonEndDate);
+      const totalComparisonSummaries = comparisonSummaries[0]?.totalSummaries || 0;
       const comparisonPercentage = calculateGrowthPercentage(
         totalCurrentSummaries,
         totalComparisonSummaries,
@@ -2625,6 +2634,7 @@ const overviewReportHelper = function () {
       return { count: totalCurrentSummaries, comparisonPercentage };
     }
 
+    // If no comparison dates, return only the count
     return { count: totalCurrentSummaries };
   };
 
