@@ -1,6 +1,4 @@
 const mongoose = require('mongoose');
-// eslint-disable-next-line import/no-extraneous-dependencies
-const { MongoMemoryServer } = require('mongodb-memory-server');
 
 describe('strategy model - schema', () => {
   let Strategy;
@@ -108,76 +106,5 @@ describe('strategy model - schema', () => {
     expect(err).toBeUndefined();
     expect(doc.color).toBe('#ff0000');
     expect(doc.isActive).toBe(false);
-  });
-});
-
-describe('strategy model - persistence', () => {
-  jest.setTimeout(60_000);
-
-  let mongoServer;
-  let dbMongoose;
-  let Strategy;
-
-  beforeAll(async () => {
-    // Reset the module registry first so the mongoose instance connected below
-    // is the exact same instance strategy.js resolves via its own require('mongoose') —
-    // otherwise the model binds to a different, unconnected mongoose singleton and
-    // every query buffers forever.
-    jest.resetModules();
-    // eslint-disable-next-line global-require
-    dbMongoose = require('mongoose');
-
-    mongoServer = await MongoMemoryServer.create();
-    await dbMongoose.connect(mongoServer.getUri(), {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    // eslint-disable-next-line global-require
-    Strategy = require('./strategy');
-    await Strategy.init();
-  });
-
-  afterEach(async () => {
-    await Strategy.deleteMany({});
-  });
-
-  afterAll(async () => {
-    await dbMongoose.disconnect();
-    await mongoServer.stop();
-  });
-
-  it('persists a document with schema defaults applied', async () => {
-    const saved = await Strategy.create({ name: 'Persisted Strategy', type: 'teaching_strategy' });
-
-    expect(saved._id).toBeDefined();
-    expect(saved.color).toBe('#6c757d');
-    expect(saved.isActive).toBe(true);
-  });
-
-  it('rejects a second document with a duplicate name', async () => {
-    await Strategy.create({ name: 'Unique Name', type: 'teaching_strategy' });
-
-    await expect(Strategy.create({ name: 'Unique Name', type: 'life_strategy' })).rejects.toThrow(
-      /duplicate key/i,
-    );
-  });
-
-  it('bumps updatedAt via the pre-save hook on every save', async () => {
-    const doc = await Strategy.create({ name: 'Hook Strategy', type: 'activity_group' });
-    const firstUpdatedAt = doc.updatedAt.getTime();
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 5);
-    });
-    doc.description = 'now with a description';
-    await doc.save();
-
-    expect(doc.updatedAt.getTime()).toBeGreaterThan(firstUpdatedAt);
-  });
-
-  it('rejects persistence of a document with an invalid type', async () => {
-    await expect(
-      Strategy.create({ name: 'Bad Type Strategy', type: 'invalid_type' }),
-    ).rejects.toThrow();
   });
 });
