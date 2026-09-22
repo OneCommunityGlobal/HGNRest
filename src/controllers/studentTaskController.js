@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
-const StudentTask = require('../models/studentTask');
+const StudentTask = require('../models/bmdashboard/studentTask');
 const StudentAtom = require('../models/studentAtom');
 const EducationTask = require('../models/educationTask');
 const UserProfile = require('../models/userProfile');
