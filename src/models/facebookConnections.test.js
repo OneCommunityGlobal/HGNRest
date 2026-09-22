@@ -10,13 +10,13 @@ describe('FacebookConnection token selection', () => {
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create({
-      binary: { version: '8.0.12' },
-      instance: { ip: '127.0.0.1', storageEngine: 'wiredTiger' },
+      instance: { ip: '127.0.0.1' },
     });
     await mongoose.connect(mongoServer.getUri(), {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+    await FacebookConnection.init();
   });
 
   afterEach(async () => {
