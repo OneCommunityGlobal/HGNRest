@@ -168,6 +168,23 @@ describe('bmExpenditureController', () => {
       expect(Expenditures.aggregate).not.toHaveBeenCalled();
     });
 
+    it('returns 400 when projectId is an object instead of a string (NoSQL injection attempt)', async () => {
+      // aggregate() sends $match straight to MongoDB with no Mongoose schema casting, so an
+      // object like { $ne: null } for the id param would inject a query operator if it ever
+      // reached the pipeline unchecked.
+      const req = { params: { id: { $ne: null } }, query: {} };
+      const res = makeRes();
+
+      await bmExpenditureController.getCostBreakdown(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'projectId is required',
+      });
+      expect(Expenditures.aggregate).not.toHaveBeenCalled();
+    });
+
     it('returns 400 for an invalid startDate', async () => {
       const req = { params: { id: 'proj1' }, query: { startDate: 'not-a-date' } };
       const res = makeRes();

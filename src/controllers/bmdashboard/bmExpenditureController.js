@@ -2,7 +2,7 @@
 const moment = require('moment');
 const Expenditures = require('../../models/bmdashboard/buildingExpenditure');
 
-const COST_BREAKDOWN_CATEGORIES = ['plumbing', 'electrical', 'structural', 'mechanical'];
+const COST_BREAKDOWN_CATEGORIES = new Set(['plumbing', 'electrical', 'structural', 'mechanical']);
 const ALL_PROJECTS_ID = 'all';
 
 const bmExpenditureController = {
@@ -60,11 +60,15 @@ const bmExpenditureController = {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
-      if (!projectId) {
+      if (!projectId || typeof projectId !== 'string') {
         return res.status(400).json({ success: false, error: 'projectId is required' });
       }
 
-      const projectMatch = projectId === ALL_PROJECTS_ID ? {} : { projectId };
+      // Coerce to a primitive string before it reaches the aggregation pipeline.
+      // aggregate() sends $match straight to MongoDB with no Mongoose schema casting,
+      // so passing the raw param through unsanitized would let an object value
+      // (e.g. { $ne: null }) inject a query operator instead of matching a literal id.
+      const projectMatch = projectId === ALL_PROJECTS_ID ? {} : { projectId: String(projectId) };
 
       // normalizedDate is excluded from being null so we always filter out rows whose
       // `date` couldn't be coerced (see the $addFields stage below).
@@ -127,7 +131,7 @@ const bmExpenditureController = {
         }
 
         const categoryKey = String(category).toLowerCase();
-        if (COST_BREAKDOWN_CATEGORIES.includes(categoryKey)) {
+        if (COST_BREAKDOWN_CATEGORIES.has(categoryKey)) {
           monthsByKey.get(key)[categoryKey] = totalCost;
         }
       });
