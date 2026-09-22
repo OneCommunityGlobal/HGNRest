@@ -5,6 +5,7 @@ jest.mock('node-cron', () => ({
 jest.mock('axios', () => ({
   get: jest.fn(),
   post: jest.fn(),
+  request: jest.fn(),
 }));
 
 jest.mock('../models/facebookConnections', () => ({
@@ -28,6 +29,14 @@ const startFacebookScheduler = require('./facebookScheduler');
 
 const PAGE_TOKEN = 'scheduler-page-token-secret';
 const USER_TOKEN = 'scheduler-user-token-secret';
+const UNSAFE_PAGE_IDS = [
+  'https://169.254.169.254/latest/meta-data/',
+  'http://localhost:3000',
+  '//evil.example',
+  '12345/../../admin',
+  '12345?x=https://evil.example',
+  '12345#fragment',
+];
 
 const expectNoTokenExposure = (value) => {
   const serialized = JSON.stringify(value);
@@ -80,10 +89,10 @@ describe('facebookScheduler token selection', () => {
     FacebookConnection.getActiveConnection
       .mockResolvedValueOnce(pageACredentials)
       .mockResolvedValue(pageBCredentials);
-    axios.post.mockImplementation(async (url, payload) => {
+    axios.request.mockImplementation(async ({ url, data }) => {
       expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
       expect(url).toBe('https://graph.facebook.com/v19.0/12345/feed');
-      expect(payload).toEqual(expect.objectContaining({ access_token: PAGE_TOKEN }));
+      expect(data).toEqual(expect.objectContaining({ access_token: PAGE_TOKEN }));
       return { data: { id: 'scheduled-facebook-post-id' } };
     });
     await scheduledCallback();
@@ -92,10 +101,11 @@ describe('facebookScheduler token selection', () => {
     FacebookConnection.getActiveConnection.mock.calls.forEach((args) => {
       expect(args).toEqual([{ includePageAccessToken: true }]);
     });
-    expect(axios.post).toHaveBeenCalledWith(
-      'https://graph.facebook.com/v19.0/12345/feed',
-      expect.objectContaining({ access_token: PAGE_TOKEN }),
-    );
+    expect(axios.request).toHaveBeenCalledWith({
+      method: 'post',
+      url: 'https://graph.facebook.com/v19.0/12345/feed',
+      data: expect.objectContaining({ access_token: PAGE_TOKEN }),
+    });
     expect(scheduledPost.status).toBe('sent');
     expect(scheduledPost.save).toHaveBeenCalledTimes(1);
     expect(logger.logException).not.toHaveBeenCalled();
@@ -125,7 +135,7 @@ describe('facebookScheduler token selection', () => {
       pageAccessToken: 'other-page-token',
     };
     FacebookConnection.getActiveConnection.mockResolvedValue(pageACredentials);
-    axios.post.mockResolvedValueOnce({ data: { id: 'page-a-post' } }).mockResolvedValueOnce({
+    axios.request.mockResolvedValueOnce({ data: { id: 'page-a-post' } }).mockResolvedValueOnce({
       data: { id: 'page-b-post' },
     });
     const pageAPost = {
@@ -156,16 +166,16 @@ describe('facebookScheduler token selection', () => {
       .mockResolvedValue(pageBCredentials);
     await scheduledCallback();
 
-    expect(axios.post).toHaveBeenNthCalledWith(
-      1,
-      'https://graph.facebook.com/v19.0/12345/feed',
-      expect.objectContaining({ access_token: PAGE_TOKEN }),
-    );
-    expect(axios.post).toHaveBeenNthCalledWith(
-      2,
-      'https://graph.facebook.com/v19.0/99999/feed',
-      expect.objectContaining({ access_token: 'other-page-token' }),
-    );
+    expect(axios.request).toHaveBeenNthCalledWith(1, {
+      method: 'post',
+      url: 'https://graph.facebook.com/v19.0/12345/feed',
+      data: expect.objectContaining({ access_token: PAGE_TOKEN }),
+    });
+    expect(axios.request).toHaveBeenNthCalledWith(2, {
+      method: 'post',
+      url: 'https://graph.facebook.com/v19.0/99999/feed',
+      data: expect.objectContaining({ access_token: 'other-page-token' }),
+    });
     expect(pageAPost.status).toBe('sent');
     expect(pageBPost.status).toBe('sent');
 
@@ -200,6 +210,7 @@ describe('facebookScheduler token selection', () => {
     await Promise.resolve();
     await scheduledCallback();
 
+    expect(axios.request).not.toHaveBeenCalled();
     expect(axios.post).not.toHaveBeenCalled();
     expect(scheduledPost.status).toBe('pending');
     expect(scheduledPost.attempts).toBe(1);
@@ -217,7 +228,7 @@ describe('facebookScheduler token selection', () => {
     consoleError.mockRestore();
   });
 
-  it('rejects an invalid scheduled pageId before Axios', async () => {
+  it.each(UNSAFE_PAGE_IDS)('rejects invalid scheduled pageId %p before Axios', async (pageId) => {
     const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     let scheduledCallback;
@@ -232,7 +243,7 @@ describe('facebookScheduler token selection', () => {
     const scheduledPost = {
       _id: 'scheduled-post-id',
       message: 'Scheduled message',
-      pageId: '12345/../../evil',
+      pageId,
       attempts: 0,
       save: jest.fn().mockResolvedValue(undefined),
     };
@@ -244,6 +255,7 @@ describe('facebookScheduler token selection', () => {
     await Promise.resolve();
     await scheduledCallback();
 
+    expect(axios.request).not.toHaveBeenCalled();
     expect(axios.post).not.toHaveBeenCalled();
     expect(scheduledPost.status).toBe('pending');
     expect(scheduledPost.attempts).toBe(1);
@@ -268,6 +280,7 @@ describe('facebookScheduler token selection', () => {
     await scheduledCallback();
 
     expect(ScheduledFacebookPost.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(axios.request).not.toHaveBeenCalled();
     expect(axios.post).not.toHaveBeenCalled();
 
     consoleLog.mockRestore();

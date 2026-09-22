@@ -1,6 +1,7 @@
 jest.mock('axios', () => ({
   get: jest.fn(),
   post: jest.fn(),
+  request: jest.fn(),
 }));
 
 jest.mock('../../models/facebookConnections', () => ({
@@ -81,7 +82,7 @@ describe('facebookController token selection and exposure', () => {
       pageAccessToken: PAGE_TOKEN,
       userAccessToken: USER_TOKEN,
     });
-    axios.post.mockResolvedValue({ data: { id: 'facebook-post-id' } });
+    axios.request.mockResolvedValue({ data: { id: 'facebook-post-id' } });
     const save = jest.fn().mockResolvedValue(undefined);
     ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
     const res = makeResponse();
@@ -92,10 +93,11 @@ describe('facebookController token selection and exposure', () => {
       includePageAccessToken: true,
     });
     expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
-    expect(axios.post).toHaveBeenCalledWith(
-      'https://graph.facebook.com/v19.0/12345/feed',
-      expect.objectContaining({ access_token: PAGE_TOKEN, message: 'Token-safe post' }),
-    );
+    expect(axios.request).toHaveBeenCalledWith({
+      method: 'post',
+      url: 'https://graph.facebook.com/v19.0/12345/feed',
+      data: expect.objectContaining({ access_token: PAGE_TOKEN, message: 'Token-safe post' }),
+    });
     expect(save).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
     expectNoTokenExposure(res.send.mock.calls);

@@ -235,7 +235,11 @@ const postPayloadToFacebook = async (endpoint, pageAccessToken, message, link, i
   if (imageUrl) payload.url = imageUrl;
 
   console.log('[FacebookPost] endpoint:', endpoint);
-  return axios.post(endpoint, payload);
+  return axios.request({
+    method: 'post',
+    url: endpoint,
+    data: payload,
+  });
 };
 
 const applyScheduleUpdate = (post, scheduledFor, timezone) => {

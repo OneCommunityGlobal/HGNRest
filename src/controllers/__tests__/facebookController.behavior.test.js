@@ -1,6 +1,7 @@
 jest.mock('axios', () => ({
   get: jest.fn(),
   post: jest.fn(),
+  request: jest.fn(),
 }));
 
 jest.mock('../../models/facebookConnections', () => ({
@@ -41,6 +42,14 @@ const CREDENTIALS = {
   pageName: 'One Community',
   pageAccessToken: 'page-token',
 };
+const UNSAFE_PAGE_IDS = [
+  'https://169.254.169.254/latest/meta-data/',
+  'http://localhost:3000',
+  '//evil.example',
+  '12345/../../admin',
+  '12345?x=https://evil.example',
+  '12345#fragment',
+];
 const POST_ID = '507f1f77bcf86cd799439011';
 
 const makeResponse = () => ({
@@ -154,39 +163,57 @@ describe('facebookController secure behavior', () => {
   });
 
   describe('trusted Facebook destinations', () => {
-    it('ignores an attacker-controlled pageId and persists the connected pageId', async () => {
-      const laterCredentials = { ...CREDENTIALS, pageId: '77777' };
-      FacebookConnection.getActiveConnection
-        .mockReset()
-        .mockResolvedValueOnce(CREDENTIALS)
-        .mockResolvedValue(laterCredentials);
-      axios.post.mockResolvedValue({ data: { id: 'facebook-id' } });
-      const save = jest.fn().mockResolvedValue(undefined);
-      ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
-      const res = makeResponse();
+    it.each(UNSAFE_PAGE_IDS)(
+      'ignores attacker-controlled request pageId %p and persists the connected pageId',
+      async (pageId) => {
+        const laterCredentials = { ...CREDENTIALS, pageId: '77777' };
+        FacebookConnection.getActiveConnection
+          .mockReset()
+          .mockResolvedValueOnce(CREDENTIALS)
+          .mockResolvedValue(laterCredentials);
+        axios.request.mockResolvedValue({ data: { id: 'facebook-id' } });
+        const save = jest.fn().mockResolvedValue(undefined);
+        ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
+        const res = makeResponse();
 
-      await postToFacebook({ user: USER, body: { message: 'hello', pageId: '99999' } }, res);
+        await postToFacebook({ user: USER, body: { message: 'hello', pageId } }, res);
 
-      expect(axios.post).toHaveBeenCalledWith(
-        'https://graph.facebook.com/v19.0/12345/feed',
-        expect.objectContaining({ message: 'hello' }),
-      );
-      expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
-      expect(ScheduledFacebookPost).toHaveBeenCalledWith(
-        expect.objectContaining({ pageId: CREDENTIALS.pageId }),
-      );
-      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
-        expect.objectContaining({ pageId: '99999' }),
-      );
-      expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
-        expect.objectContaining({ pageId: laterCredentials.pageId }),
-      );
-      expect(res.send).toHaveBeenCalledWith({
-        success: true,
-        postId: 'facebook-id',
-        postType: 'feed',
-      });
-    });
+        expect(axios.request).toHaveBeenCalledWith({
+          method: 'post',
+          url: 'https://graph.facebook.com/v19.0/12345/feed',
+          data: expect.objectContaining({ message: 'hello' }),
+        });
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(FacebookConnection.getActiveConnection).toHaveBeenCalledTimes(1);
+        expect(ScheduledFacebookPost).toHaveBeenCalledWith(
+          expect.objectContaining({ pageId: CREDENTIALS.pageId }),
+        );
+        expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(expect.objectContaining({ pageId }));
+        expect(ScheduledFacebookPost).not.toHaveBeenCalledWith(
+          expect.objectContaining({ pageId: laterCredentials.pageId }),
+        );
+        expect(res.send).toHaveBeenCalledWith({
+          success: true,
+          postId: 'facebook-id',
+          postType: 'feed',
+        });
+      },
+    );
+
+    it.each(UNSAFE_PAGE_IDS)(
+      'rejects unsafe connected pageId %p before any outbound request',
+      async (pageId) => {
+        FacebookConnection.getActiveConnection.mockResolvedValue({ ...CREDENTIALS, pageId });
+        const res = makeResponse();
+
+        await postToFacebook({ user: USER, body: { message: 'hello' } }, res);
+
+        expect(axios.request).not.toHaveBeenCalled();
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(axios.get).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(400);
+      },
+    );
 
     it('preserves facebook-only history semantics when pageId does not match', async () => {
       const res = makeResponse();
@@ -224,9 +251,11 @@ describe('facebookController secure behavior', () => {
 
   describe('URL image validation', () => {
     it.each([
+      'https://169.254.169.254/latest/meta-data/',
       'http://images.example/photo.jpg',
       'https://localhost/photo.jpg',
       'https://127.0.0.1/photo.jpg',
+      '//evil.example',
       'https://user:password@images.example/photo.jpg',
       'https://images.example/photo.jpg#fragment',
       { $ne: 'https://images.example/photo.jpg' },
@@ -235,12 +264,13 @@ describe('facebookController secure behavior', () => {
 
       await postToFacebook({ user: USER, body: { imageUrl } }, res);
 
+      expect(axios.request).not.toHaveBeenCalled();
       expect(axios.post).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('normalizes and sends a public HTTPS image URL to the trusted photos endpoint', async () => {
-      axios.post.mockResolvedValue({ data: { id: 'photo-id' } });
+    it('keeps a public HTTPS image URL in request data and uses the trusted photos endpoint', async () => {
+      axios.request.mockResolvedValue({ data: { id: 'photo-id' } });
       const save = jest.fn().mockResolvedValue(undefined);
       ScheduledFacebookPost.mockImplementation((data) => ({ ...data, _id: 'history-id', save }));
       const res = makeResponse();
@@ -253,10 +283,11 @@ describe('facebookController secure behavior', () => {
         res,
       );
 
-      expect(axios.post).toHaveBeenCalledWith(
-        'https://graph.facebook.com/v19.0/12345/photos',
-        expect.objectContaining({ url: 'https://images.example/photo.jpg' }),
-      );
+      expect(axios.request).toHaveBeenCalledWith({
+        method: 'post',
+        url: 'https://graph.facebook.com/v19.0/12345/photos',
+        data: expect.objectContaining({ url: 'https://images.example/photo.jpg' }),
+      });
       expect(ScheduledFacebookPost).toHaveBeenCalledWith(
         expect.objectContaining({ pageId: CREDENTIALS.pageId }),
       );
@@ -459,6 +490,7 @@ describe('facebookController secure behavior', () => {
 
       await postToFacebook({ user: USER, body: {} }, res);
 
+      expect(axios.request).not.toHaveBeenCalled();
       expect(axios.post).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.send).toHaveBeenCalledWith({
@@ -473,6 +505,7 @@ describe('facebookController secure behavior', () => {
 
       await postToFacebook({ user: USER, body: { message: 'hello' } }, res);
 
+      expect(axios.request).not.toHaveBeenCalled();
       expect(axios.post).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.send).toHaveBeenCalledWith(
@@ -481,7 +514,7 @@ describe('facebookController secure behavior', () => {
     });
 
     it('preserves Facebook Graph error status and details', async () => {
-      axios.post.mockRejectedValue({
+      axios.request.mockRejectedValue({
         response: { status: 429, data: { error: { message: 'Rate limited', code: 4 } } },
       });
       const res = makeResponse();
@@ -500,6 +533,7 @@ describe('facebookController secure behavior', () => {
 
       await postToFacebookWithImage({ user: USER, body: {} }, res);
 
+      expect(axios.request).not.toHaveBeenCalled();
       expect(axios.post).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.send).toHaveBeenCalledWith({
