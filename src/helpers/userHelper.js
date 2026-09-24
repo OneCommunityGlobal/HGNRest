@@ -17,12 +17,15 @@ const sharp = require('sharp');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const { v4: uuidv4 } = require('uuid');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
+const currentWarnings = require('../models/currentWarnings');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
+const warningsHelper = require('./warningsHelper');
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
@@ -164,6 +167,23 @@ const userHelper = function () {
       )
       .exec();
   };
+
+  // helper to get the team members admin emails
+  async function getUserRoleByEmail(user) {
+    const recipients = ['jae@onecommunityglobal.org'];
+
+    for (const teamId of user.teams) {
+      // eslint-disable-next-line no-await-in-loop
+      const managementEmails = await getTeamManagementEmail(teamId);
+      if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+        managementEmails.forEach((management) => {
+          recipients.push(management.email);
+        });
+      }
+    }
+
+    return [...new Set(recipients)];
+  }
 
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -1276,7 +1296,7 @@ const userHelper = function () {
         : { isActive: true };
       const users = await userProfile.find(
         query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq',
+        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
       );
 
       const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
@@ -1318,9 +1338,124 @@ const userHelper = function () {
 
         // Remove the blue square from the database if hours were close enough
         if (templateKey === 'MISSED_HOURS_BY_<15%') {
+          // Remove the system-assigned blue square for that day
           await userProfile.findByIdAndUpdate(user._id, {
             $pull: { infringements: { date: assignmentDate } },
           });
+
+          const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+
+          // Count existing occurrences of this specific warning
+          const existingWarningsCount = user.warnings
+            ? user.warnings.filter((w) => w.description === WARNING_DESC).length
+            : 0;
+          const occurrence = existingWarningsCount + 1;
+
+          // Determine Warning Color & Blue Square logic based on occurrence
+          let color = 'blue';
+          let issueBlueSquare = false;
+
+          if (occurrence === 3) {
+            color = 'yellow';
+          } else if (occurrence >= 4) {
+            color = 'red';
+            issueBlueSquare = true;
+          }
+
+          const currentWarningDescriptions = await currentWarnings
+            .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+            .sort({ order: 1 });
+          // Fetch Warning ID if descriptions array is available in scope
+          let warningId = '';
+          if (typeof currentWarningDescriptions !== 'undefined') {
+            const warningDescObj = currentWarningDescriptions.find(
+              (w) => w.warningTitle === WARNING_DESC,
+            );
+            if (warningDescObj) warningId = warningDescObj._id;
+          }
+
+          const newWarning = {
+            iconId: uuidv4(),
+            color,
+            date: assignmentDate,
+            description: WARNING_DESC,
+            warningId,
+          };
+
+          // Push the warning to the user's profile
+          const updatedUser = await userProfile.findByIdAndUpdate(
+            user._id,
+            { $push: { warnings: newWarning } },
+            { new: true },
+          );
+
+          const { sendEmail, size } = warningsHelper.filterWarnings(
+            currentWarningDescriptions,
+            updatedUser.warnings,
+            newWarning.iconId,
+            color,
+          );
+
+          const adminEmails = await getUserRoleByEmail(user);
+          const userAssignedWarning = {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+          };
+
+          const monitorData = {
+            firstName: 'Jae',
+            lastName: 'Sabol',
+            email: 'jae@onecommunityglobal.org',
+          };
+
+          if (sendEmail !== null) {
+            warningsHelper.sendEmailToUser(
+              sendEmail,
+              'Removed Blue Square for Hours Close Enough',
+              userAssignedWarning,
+              monitorData,
+              size,
+              adminEmails,
+            );
+          }
+
+          // Automatically assign the Blue Square for 4th+ offenses
+          if (issueBlueSquare) {
+            const newInfringement = {
+              date: assignmentDate,
+              description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
+              createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
+              manuallyAssigned: false,
+              reason: 'missingHours',
+              reasons: ['time not met'],
+              editedBy: [],
+            };
+
+            const status = await userProfile.findByIdAndUpdate(
+              user._id,
+              { $push: { infringements: newInfringement } },
+              { new: true }, // ensures status holds the newly updated infringements array
+            );
+
+            // Update infringement count
+            await userProfile.findByIdAndUpdate(user._id, {
+              $set: { infringementCount: status.infringements.length },
+            });
+
+            // Trigger standard blue square assignment email notification
+            await notifyInfringements(
+              user.infringements || [],
+              status.infringements,
+              status.firstName,
+              status.lastName,
+              status.email,
+              status.role,
+              status.startDate,
+              status.jobTitle ? status.jobTitle[0] : 'Member',
+              status.weeklycommittedHours,
+            );
+          }
         }
 
         await sendBlueSquareEmail(
@@ -3533,6 +3668,7 @@ const userHelper = function () {
     sendUserCancelledSeparationEmail,
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
+    getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
   };
