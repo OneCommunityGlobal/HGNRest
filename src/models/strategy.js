@@ -12,7 +12,7 @@ const strategySchema = new Schema({
   type: {
     type: String,
     required: true,
-    enum: ['activity_group', 'teaching_strategy', 'life_strategy'],
+    enum: ['teaching_strategy', 'life_strategy', 'activity_group'],
   },
   description: {
     type: String,
@@ -26,20 +26,18 @@ const strategySchema = new Schema({
     type: Boolean,
     default: true,
   },
-  created_at: {
+  createdAt: {
     type: Date,
     default: Date.now,
-    required: true,
   },
-  updated_at: {
+  updatedAt: {
     type: Date,
     default: Date.now,
-    required: true,
   },
 });
 
 strategySchema.pre('save', function (next) {
-  this.updated_at = Date.now();
+  this.updatedAt = Date.now();
   next();
 });
 
@@ -47,4 +45,4 @@ strategySchema.index({ type: 1 });
 strategySchema.index({ name: 1 });
 strategySchema.index({ isActive: 1 });
 
-module.exports = mongoose.model('Strategy', strategySchema, 'strategies');
+module.exports = mongoose.model('Strategy', strategySchema);
