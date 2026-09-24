@@ -115,6 +115,28 @@ describe('overviewReportHelper tests', () => {
         expect(result).toEqual({ current: 11 });
       },
     );
+
+    it("includes 'person' entryType time entries as valid worked hours (regression: previously excluded via $not/$nin, undercounting Total Hours Worked)", async () => {
+      let capturedCondition;
+      jest.spyOn(UserProfile, 'aggregate').mockImplementation(async (pipeline) => {
+        capturedCondition = pipeline[2].$project.timeEntryData.$filter.cond.$and;
+        return [{ totaltime_hrs: 0 }];
+      });
+
+      const { getTotalHoursWorked } = overviewReportHelper();
+      await getTotalHoursWorked('2026-07-19', '2026-07-25');
+
+      const entryTypeCondition = capturedCondition[2];
+
+      // Must be an inclusive $in check, not a $not/$nin exclusion.
+      expect(entryTypeCondition.$not).toBeUndefined();
+      expect(entryTypeCondition.$in).toBeDefined();
+
+      // 'person' represents legitimate individual task hours and must be
+      // included, not excluded alongside 'team'/'project'.
+      const allowedTypes = entryTypeCondition.$in[1];
+      expect(allowedTypes).toEqual(expect.arrayContaining(['default', 'person']));
+    });
   });
 });
 
