@@ -1605,12 +1605,12 @@ const overviewReportHelper = function () {
               },
               { $count: 'count' },
             ],
-            // Deactivated volunteers: all inactive users created before or during the date range
+            // Deactivated volunteers: inactive users whose final day falls within the date range
             deactivatedVolunteers: [
               {
                 $match: {
                   isActive: false,
-                  lastModifiedDate: { $gte: isoStartDate, $lte: isoEndDate },
+                  endDate: { $gte: isoStartDate, $lte: isoEndDate },
                 },
               },
               { $count: 'count' },
