@@ -91,6 +91,14 @@ module.exports = function (app) {
       return;
     }
 
+    // Public FAQ list: the job listing page at /collaboration is reachable without
+    // signing in, and its FAQ section reads from here. Matched exactly so the
+    // search, history and unanswered FAQ routes stay behind authentication.
+    if (req.path === '/api/faqs' && req.method === 'GET') {
+      next();
+      return;
+    }
+
     if (req.originalUrl.startsWith('/api/bluesky')) {
       next();
       return;
