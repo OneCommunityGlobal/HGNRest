@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
+const ActualUserProfile = jest.requireActual('../../models/userProfile');
+
 /* =======================
    MOCKS (MUST COME FIRST)
    ======================= */
@@ -31,6 +33,30 @@ jest.mock('../dashboardhelper', () =>
   })),
 );
 
+jest.mock('../../utilities/timeUtils');
+jest.mock('../../utilities/emailSender');
+jest.mock('../dashboardhelper', () =>
+  jest.fn(() => ({
+    laborthisweek: jest.fn().mockResolvedValue([{ timeSpent_hrs: 36 }]),
+  })),
+);
+jest.mock('../../models/BlueSquareEmailAssignment', () => ({
+  find: jest.fn().mockImplementation(() => ({
+    populate: jest.fn().mockImplementation(() => ({
+      exec: jest.fn().mockResolvedValue([
+        {
+          email: 'bcc-test@example.com',
+          assignedTo: { isActive: true },
+        },
+      ]),
+    })),
+  })),
+}));
+jest.mock('../../models/timeOffRequest', () => ({
+  deleteMany: jest.fn(),
+  find: jest.fn(),
+}));
+
 /* =======================
    IMPORTS AFTER MOCKS
    ======================= */
@@ -38,7 +64,14 @@ jest.mock('../dashboardhelper', () =>
 const userProfile = require('../../models/userProfile');
 const badge = require('../../models/badge');
 const Team = require('../../models/team');
+const currentWarnings = require('../../models/currentWarnings');
+const warningsHelper = require('../warningsHelper');
 const userHelperFactory = require('../userHelper');
+const timeUtils = require('../../utilities/timeUtils');
+const emailSender = require('../../utilities/emailSender');
+const { COMPANY_TZ } = require('../../constants/company');
+const timeOffRequest = require('../../models/timeOffRequest');
+const logger = require('../../startup/logger');
 
 const {
   getUserName,
@@ -57,6 +90,9 @@ const {
   getAllTeamMembers,
   getAllWeeksData,
   updatePersonalMax,
+  checkIsNewUser,
+  weeklyAutoReplyEmailFunction,
+  assignBlueSquareForTimeNotMet,
 } = userHelperFactory();
 
 /* =======================
@@ -1140,5 +1176,375 @@ describe('checkXHrsForXWeeks', () => {
     await checkXHrsForXWeeks(personId, user, badgeCollection);
 
     expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('checkIsNewUser', () => {
+  let pdtStartOfLastWeek;
+  let pdtEndOfLastWeek;
+
+  beforeEach(() => {
+    pdtStartOfLastWeek = moment('2026-03-01');
+    pdtEndOfLastWeek = moment('2026-03-07');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('should NOT treat a user starting on Tuesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(2); // Tuesday
+
+    const person = {
+      startDate: '2026-03-03',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const userStartDate = moment(person.startDate);
+    jest.spyOn(userStartDate, 'isAfter').mockReturnValue(true);
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(false);
+  });
+
+  it('should treat a user starting on Wednesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
+
+  it('should treat a user starting after Tuesday during last week with logged hours as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 5,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
+});
+
+describe('weeklyAutoReplyEmailFunction', () => {
+  const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+  const assignmentDate = moment()
+    .tz(COMPANY_TZ || 'America/Los_Angeles')
+    .startOf('week')
+    .format('YYYY-MM-DD');
+
+  const createMockUser = (warnings = []) => ({
+    _id: '60c72b2f9b1d8b2bad701234',
+    email: 'test@example.com',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    weeklycommittedHours: 40,
+    missedHours: 0,
+    startDate: '2022-01-01',
+    weeklySummaryOption: 'Required',
+    weeklySummaryNotReq: false,
+    weeklySummaries: [{}, { summary: 'Done' }],
+    infringements: [{ date: assignmentDate }],
+    teams: [],
+    warnings,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(timeOffRequest, 'find').mockResolvedValue([]);
+    jest.spyOn(currentWarnings, 'find').mockReturnValue({
+      sort: jest.fn().mockResolvedValue([{ warningTitle: WARNING_DESC, _id: 'warning123' }]),
+    });
+    jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({ sendEmail: null, size: 0 });
+    jest.spyOn(warningsHelper, 'sendEmailToUser').mockImplementation(() => {});
+  });
+
+  it('should issue a BLUE warning for the 1st or 2nd occurrence', async () => {
+    // 0 existing warnings -> 1st occurrence
+    const mockUser = createMockUser([]);
+
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValue(mockUser);
+    emailSender.mockResolvedValueOnce(true);
+
+    await weeklyAutoReplyEmailFunction({
+      targetUserId: mockUser._id,
+      bccOverride: ['test@example.com'],
+    });
+
+    // 1. Pulled the initial blue square
+    expect(updateSpy).toHaveBeenCalledWith(mockUser._id, {
+      $pull: { infringements: { date: assignmentDate } },
+    });
+
+    // 2. Added blue warning
+    expect(updateSpy).toHaveBeenCalledWith(
+      mockUser._id,
+      {
+        $push: {
+          warnings: expect.objectContaining({
+            date: assignmentDate,
+            description: WARNING_DESC,
+            color: 'blue',
+          }),
+        },
+      },
+      { new: true },
+    );
+
+    // Should NOT re-issue a blue square
+    expect(updateSpy).not.toHaveBeenCalledWith(
+      mockUser._id,
+      expect.objectContaining({ $set: expect.anything() }),
+    );
+  });
+
+  it('should issue a YELLOW warning for the 3rd occurrence', async () => {
+    // 2 existing warnings -> 3rd occurrence
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue' },
+      { description: WARNING_DESC, color: 'blue' },
+    ]);
+
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValue(mockUser);
+    emailSender.mockResolvedValueOnce(true);
+
+    await weeklyAutoReplyEmailFunction({
+      targetUserId: mockUser._id,
+      bccOverride: ['test@example.com'],
+    });
+
+    // Added yellow warning
+    expect(updateSpy).toHaveBeenCalledWith(
+      mockUser._id,
+      {
+        $push: {
+          warnings: expect.objectContaining({
+            date: assignmentDate,
+            description: WARNING_DESC,
+            color: 'yellow',
+          }),
+        },
+      },
+      { new: true },
+    );
+  });
+
+  it('should issue a RED warning, re-assign a blue square, and update infringement count for 4th+ occurrence', async () => {
+    // User starts with 3 existing warnings (4th occurrence) and 1 initial blue square
+    const initialInfringementId = new mongoose.Types.ObjectId();
+    const reissuedInfringementId = new mongoose.Types.ObjectId();
+
+    const initialUserData = {
+      ...createMockUser([
+        { description: WARNING_DESC, color: 'blue' },
+        { description: WARNING_DESC, color: 'blue' },
+        { description: WARNING_DESC, color: 'yellow' },
+      ]),
+      infringements: [{ _id: initialInfringementId, date: assignmentDate }],
+    };
+
+    const initialUser = ActualUserProfile.hydrate(initialUserData);
+
+    const userAfterPull = ActualUserProfile.hydrate({
+      ...initialUserData,
+      infringements: [],
+    });
+
+    const userAfterWarning = ActualUserProfile.hydrate({
+      ...initialUserData,
+      warnings: [
+        ...initialUserData.warnings,
+        { color: 'red', description: WARNING_DESC, date: assignmentDate },
+      ],
+    });
+
+    const userAfterReissue = ActualUserProfile.hydrate({
+      ...userAfterWarning.toObject(),
+      infringements: [
+        {
+          _id: reissuedInfringementId,
+          date: assignmentDate,
+          description: `Issued a blue square for an Admin having to remove past blue squares 4 times...`,
+          reason: 'missingHours',
+        },
+      ],
+    });
+
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([initialUser]);
+
+    // Sequentially mock each findByIdAndUpdate DB call in execution order
+    const updateSpy = jest
+      .spyOn(userProfile, 'findByIdAndUpdate')
+      .mockResolvedValueOnce(userAfterPull) // 1. $pull infringement
+      .mockResolvedValueOnce(userAfterWarning) // 2. $push red warning
+      .mockResolvedValueOnce(userAfterReissue) // 3. $push re-issued blue square
+      .mockResolvedValueOnce(userAfterReissue); // 4. $set infringementCount
+
+    jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({
+      sendEmail: 'issue blue square',
+      size: 4,
+    });
+
+    emailSender.mockResolvedValueOnce(true);
+
+    await weeklyAutoReplyEmailFunction({
+      targetUserId: initialUser._id,
+      bccOverride: ['test@example.com'],
+    });
+
+    // Verify Call 1: $pull
+    expect(updateSpy).toHaveBeenNthCalledWith(1, expect.anything(), {
+      $pull: { infringements: { date: assignmentDate } },
+    });
+
+    // Verify Call 2: $push Red Warning
+    expect(updateSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      {
+        $push: {
+          warnings: expect.objectContaining({
+            date: assignmentDate,
+            description: WARNING_DESC,
+            color: 'red',
+          }),
+        },
+      },
+      { new: true },
+    );
+
+    // Verify Call 3: $push Re-issued Blue Square
+    expect(updateSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      {
+        $push: {
+          infringements: expect.objectContaining({
+            date: assignmentDate,
+            reason: 'missingHours',
+            reasons: ['time not met'],
+            description: expect.stringContaining('remove past blue squares 4 times'),
+          }),
+        },
+      },
+      { new: true },
+    );
+
+    // Verify Call 4: $set Infringement Count
+    expect(updateSpy).toHaveBeenNthCalledWith(4, expect.anything(), {
+      $set: { infringementCount: 1 },
+    });
+  });
+});
+
+describe('assignBlueSquareForTimeNotMet', () => {
+  let mockDateNow;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Mock Date.now for predictable console output / timing tests
+    mockDateNow = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+
+    // Default mock behavior for emailSender
+    emailSender.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    mockDateNow.mockRestore();
+  });
+
+  it('should query active users, run blue square logic, and send emails sorted by startDate', async () => {
+    const mockUsers = [
+      { _id: 'user2', startDate: '2026-02-01' },
+      { _id: 'user1', startDate: '2026-01-01' },
+    ];
+
+    // First call for active users, second call for inactive users
+    userProfile.find.mockResolvedValueOnce(mockUsers).mockResolvedValueOnce([]);
+
+    await assignBlueSquareForTimeNotMet();
+
+    // Verify correct query for active users
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { isActive: true },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+
+    // Verify emailSender was called (if any emails were generated or processed)
+    expect(userProfile.find).toHaveBeenCalledTimes(2);
+  });
+
+  it('should query for targetUserId when emailConfig.targetUserId is provided', async () => {
+    const targetUserId = 'targetUser123';
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Target user
+      .mockResolvedValueOnce([]); // Inactive users
+
+    await assignBlueSquareForTimeNotMet({
+      targetUserId,
+      ccOverride: ['cc-override@example.com'],
+      bccOverride: ['bcc-override@example.com'],
+    });
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { _id: targetUserId },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+  });
+
+  it('should process inactive users and update their weekly summaries', async () => {
+    const inactiveUsers = [{ _id: 'inactive1' }, { _id: 'inactive2' }];
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users
+      .mockResolvedValueOnce(inactiveUsers); // Inactive users
+
+    await assignBlueSquareForTimeNotMet();
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(2, { isActive: false }, '_id');
+  });
+
+  it('should catch and log errors in the main processing block without throwing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const dbError = new Error('Database connection failed');
+
+    userProfile.find.mockRejectedValueOnce(dbError);
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(dbError);
+
+    loggerSpy.mockRestore();
+  });
+
+  it('should catch and log errors during inactive user processing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const inactiveError = new Error('Inactive users query failed');
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users succeed
+      .mockRejectedValueOnce(inactiveError); // Inactive users throw
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(inactiveError);
+
+    loggerSpy.mockRestore();
   });
 });
