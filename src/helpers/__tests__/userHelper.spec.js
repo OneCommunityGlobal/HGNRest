@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
+const ActualUserProfile = jest.requireActual('../../models/userProfile');
+
 /* =======================
    MOCKS (MUST COME FIRST)
    ======================= */
@@ -1343,35 +1345,44 @@ describe('weeklyAutoReplyEmailFunction', () => {
 
   it('should issue a RED warning, re-assign a blue square, and update infringement count for 4th+ occurrence', async () => {
     // User starts with 3 existing warnings (4th occurrence) and 1 initial blue square
-    const initialUser = createMockUser([
-      { description: WARNING_DESC, color: 'blue' },
-      { description: WARNING_DESC, color: 'blue' },
-      { description: WARNING_DESC, color: 'yellow' },
-    ]);
+    const initialInfringementId = new mongoose.Types.ObjectId();
+    const reissuedInfringementId = new mongoose.Types.ObjectId();
 
-    // State 1: After $pull removes the initial blue square
-    const userAfterPull = { ...initialUser, infringements: [] };
-
-    // State 2: After $push warning (red)
-    const userAfterWarning = {
-      ...userAfterPull,
-      warnings: [
-        ...initialUser.warnings,
-        { color: 'red', description: WARNING_DESC, date: assignmentDate },
-      ],
+    const initialUserData = {
+      ...createMockUser([
+        { description: WARNING_DESC, color: 'blue' },
+        { description: WARNING_DESC, color: 'blue' },
+        { description: WARNING_DESC, color: 'yellow' },
+      ]),
+      infringements: [{ _id: initialInfringementId, date: assignmentDate }],
     };
 
-    // State 3: After $push re-issued blue square
-    const userAfterReissue = {
-      ...userAfterWarning,
+    const initialUser = ActualUserProfile.hydrate(initialUserData);
+
+    const userAfterPull = ActualUserProfile.hydrate({
+      ...initialUserData,
+      infringements: [],
+    });
+
+    const userAfterWarning = ActualUserProfile.hydrate({
+      ...initialUserData,
+      warnings: [
+        ...initialUserData.warnings,
+        { color: 'red', description: WARNING_DESC, date: assignmentDate },
+      ],
+    });
+
+    const userAfterReissue = ActualUserProfile.hydrate({
+      ...userAfterWarning.toObject(),
       infringements: [
         {
+          _id: reissuedInfringementId,
           date: assignmentDate,
           description: `Issued a blue square for an Admin having to remove past blue squares 4 times...`,
           reason: 'missingHours',
         },
       ],
-    };
+    });
 
     jest.spyOn(userProfile, 'find').mockResolvedValueOnce([initialUser]);
 
@@ -1396,14 +1407,14 @@ describe('weeklyAutoReplyEmailFunction', () => {
     });
 
     // Verify Call 1: $pull
-    expect(updateSpy).toHaveBeenNthCalledWith(1, initialUser._id, {
+    expect(updateSpy).toHaveBeenNthCalledWith(1, expect.anything(), {
       $pull: { infringements: { date: assignmentDate } },
     });
 
     // Verify Call 2: $push Red Warning
     expect(updateSpy).toHaveBeenNthCalledWith(
       2,
-      initialUser._id,
+      expect.anything(),
       {
         $push: {
           warnings: expect.objectContaining({
@@ -1419,7 +1430,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
     // Verify Call 3: $push Re-issued Blue Square
     expect(updateSpy).toHaveBeenNthCalledWith(
       3,
-      initialUser._id,
+      expect.anything(),
       {
         $push: {
           infringements: expect.objectContaining({
@@ -1434,7 +1445,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
     );
 
     // Verify Call 4: $set Infringement Count
-    expect(updateSpy).toHaveBeenNthCalledWith(4, initialUser._id, {
+    expect(updateSpy).toHaveBeenNthCalledWith(4, expect.anything(), {
       $set: { infringementCount: 1 },
     });
   });

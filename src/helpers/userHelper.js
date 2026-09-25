@@ -892,7 +892,7 @@ const userHelper = function () {
 
       const resolvedCCs = resolveCCs(emailConfig);
 
-      const resolvedBCCs = resolveBCCs(emailConfig);
+      const resolvedBCCs = await resolveBCCs(emailConfig);
 
       console.log('Email BCCs for blue square assignment:', resolvedBCCs);
 
@@ -1156,7 +1156,7 @@ const userHelper = function () {
   /**
    * Returns CC list: override if provided, else defaults.
    */
-  const resolveCCs = async (emailConfig) => {
+  const resolveCCs = (emailConfig) => {
     if (emailConfig.ccOverride) return emailConfig.ccOverride;
     return DEFAULT_CC_EMAILS;
   };
@@ -1296,7 +1296,7 @@ const userHelper = function () {
         : { isActive: true };
       const users = await userProfile.find(
         query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
+        '_id weeklycommittedHours missedHours email firstName lastName teams infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
       );
 
       const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
