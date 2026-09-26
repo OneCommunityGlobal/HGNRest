@@ -175,6 +175,38 @@ describe('HgnFormResponseController', () => {
       expect(result[1]._id).toBe('1');
     });
 
+    it('topSkills should include every selected skill the matched user has, even if it is not their highest-scoring skill', async () => {
+      // EnvironmentSetup is the user's lowest-scoring backend skill, so the old
+      // "top 4 of the matched section" logic dropped it from topSkills even
+      // though it was one of the filters that matched this user.
+      mockReq.query = { skills: 'EnvironmentSetup,AdvancedCoding,AgileDevelopment' };
+      UserProfile.find = jest.fn().mockResolvedValue([{ _id: '123', isActive: true }]);
+
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: '1',
+          user_id: '123',
+          userInfo: { name: 'John' },
+          frontend: {},
+          backend: {
+            EnvironmentSetup: '3',
+            AdvancedCoding: '9',
+            AgileDevelopment: '8',
+            MongoDB: '9',
+            Database: '9',
+          },
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      const result = mockRes.json.mock.calls[0][0];
+      expect(result[0].topSkills).toEqual(
+        expect.arrayContaining(['EnvironmentSetup', 'AdvancedCoding', 'AgileDevelopment']),
+      );
+    });
+
     it('should return all users if no query params are provided', async () => {
       UserProfile.find = jest.fn().mockResolvedValue([
         { _id: '123', isActive: true },
