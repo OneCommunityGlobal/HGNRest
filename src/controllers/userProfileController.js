@@ -1809,12 +1809,40 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
     const { userIds, replaceCode } = req.body;
-    if (userIds === null || userIds.length <= 0 || replaceCode === undefined) {
+    if (!Array.isArray(userIds) || userIds.length === 0 || replaceCode === undefined) {
       return res.status(400).send({ error: 'Missing property or value' });
     }
-    return UserProfile.updateMany({ _id: { $in: userIds } }, { $set: { teamCode: replaceCode } })
-      .then((result) => res.status(200).send({ isUpdated: result.nModified > 0 }))
-      .catch((error) => res.status(500).send(error));
+    try {
+      const result = await UserProfile.updateMany(
+        { _id: { $in: userIds } },
+        { $set: { teamCode: replaceCode } },
+      );
+      const updatedUsers = await UserProfile.find({ _id: { $in: userIds } });
+      const warningUpdates = await Promise.all(
+        updatedUsers.map(async (user) => ({
+          userId: user._id.toString(),
+          teamCodeWarning: user.isActive ? await userHelper.checkTeamCodeMismatch(user) : false,
+        })),
+      );
+      if (warningUpdates.length > 0) {
+        await UserProfile.bulkWrite(
+          warningUpdates.map(({ userId, teamCodeWarning }) => ({
+            updateOne: {
+              filter: { _id: userId },
+              update: { $set: { teamCodeWarning } },
+            },
+          })),
+        );
+      }
+      cache.removeCache('teamCodes');
+      cache.clearByPrefix('weeklySummaries');
+      return res.status(200).send({
+        isUpdated: (result.modifiedCount ?? result.nModified ?? 0) > 0,
+        updatedUsers: warningUpdates,
+      });
+    } catch (error) {
+      return res.status(500).send(error);
+    }
   };
 
   const updatepassword = async function (req, res) {
@@ -2100,10 +2128,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!user.isActive) {
         user.teamCodeWarning = false;
       } else if (wasInactive) {
-        const mismatch = await userHelper.checkTeamCodeMismatch(user);
-        if (mismatch) {
-          user.teamCodeWarning = true;
-        }
+        user.teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
       }
       await user.save();
 

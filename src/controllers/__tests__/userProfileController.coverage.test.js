@@ -65,6 +65,9 @@ const MockUserProfile = jest.fn(function MockUserProfile() {
 
 MockUserProfile.findOne = jest.fn();
 MockUserProfile.findById = jest.fn();
+MockUserProfile.find = jest.fn();
+MockUserProfile.updateMany = jest.fn();
+MockUserProfile.bulkWrite = jest.fn();
 MockUserProfile.aggregate = jest.fn();
 
 const userProfileController = require('../userProfileController');
@@ -131,6 +134,39 @@ describe('userProfileController targeted coverage tests', () => {
     expect(res.send).toHaveBeenCalledWith(
       'The firstName field is locked and cannot be changed for Production-linked accounts.',
     );
+  });
+
+  test('updating a report row recalculates and returns its team-code warning', async () => {
+    const req = {
+      body: {
+        requestor: { requestorId: validUserId },
+        userIds: [validUserId],
+        replaceCode: 'HaHUS',
+      },
+    };
+    const res = makeRes();
+    const user = { _id: { toString: () => validUserId }, isActive: true, teamCode: 'HaHUS' };
+    MockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+    MockUserProfile.find.mockResolvedValue([user]);
+    MockUserProfile.bulkWrite.mockResolvedValue({});
+    mockUserHelper.checkTeamCodeMismatch.mockResolvedValue(true);
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(mockUserHelper.checkTeamCodeMismatch).toHaveBeenCalledWith(user);
+    expect(MockUserProfile.bulkWrite).toHaveBeenCalledWith([
+      {
+        updateOne: {
+          filter: { _id: validUserId },
+          update: { $set: { teamCodeWarning: true } },
+        },
+      },
+    ]);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      isUpdated: true,
+      updatedUsers: [{ userId: validUserId, teamCodeWarning: true }],
+    });
   });
 
   test('getUserProfiles executes aggregate projection with production identity fields', async () => {
