@@ -127,7 +127,12 @@ describe('overviewReportHelper tests', () => {
     let mongoServer;
 
     beforeAll(async () => {
-      mongoServer = await MongoMemoryServer.create();
+      // The library's default MongoDB 4.0 has no build for current Ubuntu CI runners, and
+      // MongoDB 7+ dropped the library's default ephemeralForTest engine, so pin both.
+      mongoServer = await MongoMemoryServer.create({
+        binary: { version: '8.0.4' },
+        instance: { storageEngine: 'wiredTiger' },
+      });
       await mongoose.connect(mongoServer.getUri(), {
         useNewUrlParser: true,
         useUnifiedTopology: true,
@@ -136,7 +141,7 @@ describe('overviewReportHelper tests', () => {
 
     afterAll(async () => {
       await mongoose.disconnect();
-      await mongoServer.stop();
+      await mongoServer?.stop();
     });
 
     it('matches the leaderboard: all active users, every entry type, no inactive entries', async () => {
