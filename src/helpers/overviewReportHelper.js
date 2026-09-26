@@ -1985,22 +1985,34 @@ const overviewReportHelper = function () {
       { $unwind: '$badgeCollection.earnedDate' },
       {
         $addFields: {
+          earnedDateString: {
+            $convert: {
+              input: '$badgeCollection.earnedDate',
+              to: 'string',
+              onError: '',
+              onNull: '',
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
           fixedDateString: {
             $cond: {
               if: {
                 $regexMatch: {
-                  input: '$badgeCollection.earnedDate',
+                  input: '$earnedDateString',
                   regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
               },
               then: {
                 $concat: [
-                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  { $substr: ['$earnedDateString', 0, 6] },
                   '-20',
-                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                  { $substr: ['$earnedDateString', 7, 2] },
                 ],
               },
-              else: '$badgeCollection.earnedDate',
+              else: '$earnedDateString',
             },
           },
         },
@@ -2227,7 +2239,7 @@ const overviewReportHelper = function () {
             dateOfWork: { $gte: start, $lte: end },
             isTangible: { $eq: true },
             isActive: { $ne: false }, // Only include active entries
-            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
+            entryType: { $in: ['default', 'person', null] }, // Task entries: matches pattern used elsewhere (e.g. line ~1043)
           },
         },
         {

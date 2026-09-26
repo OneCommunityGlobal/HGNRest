@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const userProfile = require('../models/userProfile');
 const ProductionVerificationLog = require('../models/productionVerificationLog');
 const { productionIdentityConfig } = require('../config/productionIdentityConfig');
