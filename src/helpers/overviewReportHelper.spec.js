@@ -1,3 +1,6 @@
+const mongoose = require('mongoose');
+// eslint-disable-next-line import/no-extraneous-dependencies
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const UserProfile = require('../models/userProfile');
 const overviewReportHelper = require('./overviewReportHelper');
 
@@ -115,22 +118,65 @@ describe('overviewReportHelper tests', () => {
         expect(result).toEqual({ current: 11 });
       },
     );
+  });
 
-    it('uses the same user and time-entry inclusion rules as the leaderboard', async () => {
-      const aggregateSpy = jest
-        .spyOn(UserProfile, 'aggregate')
-        .mockResolvedValueOnce([{ totaltime_hrs: 12.5 }]);
+  // Runs the real aggregation against seeded data, so the inclusion/exclusion rules are
+  // exercised by MongoDB rather than asserted on the pipeline shape. Hours are distinct
+  // powers of two so a wrong total points straight at the rule that broke.
+  describe('getTotalHoursWorked inclusion rules against real data', () => {
+    let mongoServer;
+
+    beforeAll(async () => {
+      mongoServer = await MongoMemoryServer.create();
+      await mongoose.connect(mongoServer.getUri(), {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+    });
+
+    afterAll(async () => {
+      await mongoose.disconnect();
+      await mongoServer.stop();
+    });
+
+    it('matches the leaderboard: all active users, every entry type, no inactive entries', async () => {
+      const volunteerId = new mongoose.Types.ObjectId();
+      const zeroCommitmentMentorId = new mongoose.Types.ObjectId();
+      const inactiveUserId = new mongoose.Types.ObjectId();
+
+      await mongoose.connection.collection('userProfiles').insertMany([
+        { _id: volunteerId, isActive: true, role: 'Volunteer', weeklycommittedHours: 10 },
+        { _id: zeroCommitmentMentorId, isActive: true, role: 'Mentor', weeklycommittedHours: 0 },
+        { _id: inactiveUserId, isActive: false, role: 'Volunteer', weeklycommittedHours: 10 },
+      ]);
+
+      const entry = (personId, hours, overrides = {}) => ({
+        personId,
+        dateOfWork: '2026-09-01',
+        totalSeconds: hours * 3600,
+        entryType: 'default',
+        isActive: true,
+        ...overrides,
+      });
+      const legacyEntryWithoutIsActive = entry(volunteerId, 32);
+      delete legacyEntryWithoutIsActive.isActive;
+
+      await mongoose.connection.collection('timeEntries').insertMany([
+        entry(volunteerId, 1), // included: default entry
+        entry(volunteerId, 2, { entryType: 'person' }), // included
+        entry(volunteerId, 4, { entryType: 'team' }), // included
+        entry(volunteerId, 8, { entryType: 'project' }), // included
+        entry(volunteerId, 16, { isActive: false }), // excluded: inactive entry
+        legacyEntryWithoutIsActive, // included: missing isActive is not "false"
+        entry(volunteerId, 64, { dateOfWork: '2026-08-29' }), // excluded: before range
+        entry(volunteerId, 128, { dateOfWork: '2026-09-06' }), // excluded: after range
+        entry(zeroCommitmentMentorId, 256), // included: 0-hr mentors count like the leaderboard
+        entry(inactiveUserId, 512), // excluded: inactive user
+      ]);
 
       const result = await overviewReportHelper().getTotalHoursWorked('2026-08-30', '2026-09-05');
-      const pipeline = aggregateSpy.mock.calls[0][0];
 
-      expect(pipeline[0]).toEqual({ $match: { isActive: true } });
-      expect(pipeline[2].$project.timeEntryData.$filter.cond.$and).toEqual([
-        { $gte: ['$$timeentry.dateOfWork', '2026-08-30'] },
-        { $lte: ['$$timeentry.dateOfWork', '2026-09-05'] },
-        { $ne: ['$$timeentry.isActive', false] },
-      ]);
-      expect(result).toEqual({ current: 12.5 });
+      expect(result).toEqual({ current: 1 + 2 + 4 + 8 + 32 + 256 });
     });
   });
 });
