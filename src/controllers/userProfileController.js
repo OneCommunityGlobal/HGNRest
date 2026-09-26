@@ -1809,15 +1809,21 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
     const { userIds, replaceCode } = req.body;
-    if (!Array.isArray(userIds) || userIds.length === 0 || replaceCode === undefined) {
+    if (
+      !Array.isArray(userIds) ||
+      userIds.length === 0 ||
+      !userIds.every((id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id)) ||
+      replaceCode === undefined
+    ) {
       return res.status(400).send({ error: 'Missing property or value' });
     }
+    const safeUserIds = userIds.map((id) => new mongoose.Types.ObjectId(id));
     try {
       const result = await UserProfile.updateMany(
-        { _id: { $in: userIds } },
+        { _id: { $in: safeUserIds } },
         { $set: { teamCode: replaceCode } },
       );
-      const updatedUsers = await UserProfile.find({ _id: { $in: userIds } });
+      const updatedUsers = await UserProfile.find({ _id: { $in: safeUserIds } });
       const warningUpdates = await Promise.all(
         updatedUsers.map(async (user) => ({
           userId: user._id.toString(),

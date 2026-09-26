@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const mockCache = {
   getCache: jest.fn(),
   setCache: jest.fn(),
@@ -153,6 +155,13 @@ describe('userProfileController targeted coverage tests', () => {
 
     await controller.updateAllMembersTeamCode(req, res);
 
+    expect(MockUserProfile.updateMany).toHaveBeenCalledWith(
+      { _id: { $in: [expect.any(mongoose.Types.ObjectId)] } },
+      { $set: { teamCode: 'HaHUS' } },
+    );
+    expect(MockUserProfile.find).toHaveBeenCalledWith({
+      _id: { $in: [expect.any(mongoose.Types.ObjectId)] },
+    });
     expect(mockUserHelper.checkTeamCodeMismatch).toHaveBeenCalledWith(user);
     expect(MockUserProfile.bulkWrite).toHaveBeenCalledWith([
       {
@@ -167,6 +176,81 @@ describe('userProfileController targeted coverage tests', () => {
       isUpdated: true,
       updatedUsers: [{ userId: validUserId, teamCodeWarning: true }],
     });
+  });
+
+  test.each([undefined, [], [{ $ne: null }], ['not-an-object-id'], [123]])(
+    'rejects invalid team-code user IDs: %p',
+    async (userIds) => {
+      const req = { body: { requestor: {}, userIds, replaceCode: 'HaHUS' } };
+      const res = makeRes();
+
+      await controller.updateAllMembersTeamCode(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(MockUserProfile.updateMany).not.toHaveBeenCalled();
+      expect(MockUserProfile.find).not.toHaveBeenCalled();
+    },
+  );
+
+  test('does not recalculate a warning for an inactive user', async () => {
+    const req = {
+      body: { requestor: {}, userIds: [validUserId], replaceCode: 'HaHUS' },
+    };
+    const res = makeRes();
+    MockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+    MockUserProfile.find.mockResolvedValue([
+      { _id: { toString: () => validUserId }, isActive: false },
+    ]);
+    MockUserProfile.bulkWrite.mockResolvedValue({});
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(mockUserHelper.checkTeamCodeMismatch).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith({
+      isUpdated: true,
+      updatedUsers: [{ userId: validUserId, teamCodeWarning: false }],
+    });
+  });
+
+  test('returns an empty update result without writing warnings when no users match', async () => {
+    const req = {
+      body: { requestor: {}, userIds: [validUserId], replaceCode: 'HaHUS' },
+    };
+    const res = makeRes();
+    MockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 0 });
+    MockUserProfile.find.mockResolvedValue([]);
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(MockUserProfile.bulkWrite).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith({ isUpdated: false, updatedUsers: [] });
+  });
+
+  test('does not update team codes without edit permission', async () => {
+    mockHasPermission.mockResolvedValue(false);
+    const req = {
+      body: { requestor: {}, userIds: [validUserId], replaceCode: 'HaHUS' },
+    };
+    const res = makeRes();
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(MockUserProfile.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('returns a server error if the team-code update fails', async () => {
+    const req = {
+      body: { requestor: {}, userIds: [validUserId], replaceCode: 'HaHUS' },
+    };
+    const res = makeRes();
+    const error = new Error('database unavailable');
+    MockUserProfile.updateMany.mockRejectedValue(error);
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith(error);
   });
 
   test('getUserProfiles executes aggregate projection with production identity fields', async () => {
