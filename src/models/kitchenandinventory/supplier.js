@@ -8,48 +8,65 @@ const Supplier = new Schema({
     required: true,
     trim: true,
   },
+
   contact: {
     type: String,
     trim: true,
   },
+
   email: {
     type: String,
     required: true,
     lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Provide Valid email address'],
+    trim: true,
+    validate: {
+      validator: (value) => {
+        const atIndex = value.indexOf('@');
+        const dotIndex = value.lastIndexOf('.');
+
+        return atIndex > 0 && dotIndex > atIndex + 1 && dotIndex < value.length - 1;
+      },
+      message: 'Provide valid email address',
+    },
   },
+
   phone: {
     type: String,
     required: true,
     trim: true,
   },
+
   specialities: [
     {
       type: String,
       trim: true,
     },
   ],
+
   website: {
     type: String,
     trim: true,
-    match: [
-      /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/,
-      'Provide valid website url',
-    ],
   },
+
   isActive: {
     type: Boolean,
     default: true,
   },
+
   created: {
     type: Date,
-    required: true,
     default: Date.now,
   },
+
   updated: {
     type: Date,
     default: Date.now,
   },
+});
+
+Supplier.pre('save', function updateTimestamp(next) {
+  this.updated = new Date();
+  next();
 });
 
 module.exports = mongoose.model('supplier', Supplier, 'suppliers');
