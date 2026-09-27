@@ -123,7 +123,16 @@ const kitchenSupplierController = function () {
         if (typeof name !== 'string' || !name.trim()) {
           return res.status(400).json({ message: 'Invalid supplier name' });
         }
-        update.name = name.trim();
+        const normalizedName = name.trim();
+        const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const existingSupplier = await Supplier.findOne({
+          _id: { $ne: new mongoose.Types.ObjectId(String(supplierId)) },
+          name: { $regex: `^${escapedName}$`, $options: 'i' },
+        });
+        if (existingSupplier) {
+          return res.status(400).json({ message: 'Supplier already exists' });
+        }
+        update.name = normalizedName;
       }
       if (contactName !== undefined) {
         update.contactName = contactName;

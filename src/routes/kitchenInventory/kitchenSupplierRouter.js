@@ -1,8 +1,11 @@
 const express = require('express');
+const requireKitchenInventoryRole = require('../../middleware/kitchenInventoryRoleCheck');
 
 const routes = function () {
   const controller = require('../../controllers/kitchenInventory/kitchenSupplierController')();
   const kitchenSupplierRouter = express.Router();
+
+  kitchenSupplierRouter.use('/suppliers', requireKitchenInventoryRole);
 
   kitchenSupplierRouter
     .route('/suppliers')
