@@ -1,6 +1,5 @@
 // Bluesky Service
 const { BskyAgent } = require('@atproto/api');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 
 // Add required globals for @atproto/api
