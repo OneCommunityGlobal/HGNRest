@@ -85,18 +85,20 @@ const hgnFormController = () => {
           ? allSkills.reduce((a, b) => a + b.score, 0) / allSkills.length
           : 0;
 
-        // Decide which section to use for topSkills
-        let sectionToUse = null;
+        // When a skills filter is active, the displayed "Top Skills" must include
+        // the skills that actually matched the filter (that's why this user is in
+        // the results), ranked first; remaining slots fill with the user's other
+        // highest-scoring skills so the list still shows up to 4.
+        let matchedSkills = [];
         if (skills) {
           const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
-          const match = allSkills.find((s) => skillList.includes(s.skill.toLowerCase()));
-          if (match) sectionToUse = match.section;
+          matchedSkills = allSkills.filter((s) => skillList.includes(s.skill.toLowerCase()));
         }
+        const remainingSkills = allSkills
+          .filter((s) => !matchedSkills.includes(s))
+          .sort((a, b) => b.score - a.score);
 
-        // Pick top 4 from chosen section, or global top 4
-        const topSkills = allSkills
-          .filter((s) => (sectionToUse ? s.section === sectionToUse : true))
-          .sort((a, b) => b.score - a.score)
+        const topSkills = [...matchedSkills.sort((a, b) => b.score - a.score), ...remainingSkills]
           .slice(0, 4)
           .map((s) => s.skill);
 
