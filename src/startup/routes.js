@@ -468,6 +468,10 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   resourceRequestController,
 );
 
+//education portal
+
+const studentTasksRouter = require('../routes/studentTasksRouter')();
+
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
 
@@ -586,6 +590,8 @@ module.exports = function (app) {
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
   app.use('/api', jobHitsAndApplicationsRoutes);
   app.use('/api/analytics', applicationTimeRoutes);
+
+  app.use('/api/studentTasks', studentTasksRouter);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
