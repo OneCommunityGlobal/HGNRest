@@ -142,6 +142,9 @@ describe('current warnings controller module', () => {
       jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
       const saveSpy = jest.spyOn(currentWarnings.prototype, 'save').mockResolvedValue(testWarning);
       jest.spyOn(currentWarnings, 'find').mockResolvedValueOnce(testWarning);
+      jest.spyOn(currentWarnings, 'findOne').mockImplementationOnce(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
 
       const res = await postNewWarningDescription(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');

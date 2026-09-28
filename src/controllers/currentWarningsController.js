@@ -59,7 +59,7 @@ const currentWarningsController = function (currentWarnings) {
       return;
     }
     try {
-      const { newWarning, activeWarning, isPermanent } = req.body;
+      const { newWarning, activeWarning, isPermanent, newWarningDescription } = req.body;
       const normalizedWarningTitle = normalizeWarningTitle(newWarning);
       const trimmedWarning = newWarning.trim();
       // Validate first
@@ -79,11 +79,15 @@ const currentWarningsController = function (currentWarnings) {
           error: 'Warning already exists, please try a different name',
         });
       }
+      const lastWarning = await currentWarnings.findOne().sort({ order: -1 });
+      const newOrder = lastWarning ? lastWarning.order + 1 : 0;
 
       await new currentWarnings({
         warningTitle: trimmedWarning,
         activeWarning,
         isPermanent,
+        order: newOrder,
+        description: newWarningDescription,
       }).save();
 
       setOutdatedWarningsFlag();
