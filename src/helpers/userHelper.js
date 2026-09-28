@@ -40,6 +40,7 @@ const Team = require('../models/team');
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
 const { COMPANY_TZ } = require('../constants/company');
+const { MONITOR_CONTACT_CONFIG } = require('../config/monitorContactConfig');
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -377,7 +378,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       // After:
@@ -1299,6 +1300,10 @@ const userHelper = function () {
         '_id weeklycommittedHours missedHours email firstName lastName teams infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
       );
 
+      const currentWarningDescriptions = await currentWarnings
+        .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+        .sort({ order: 1 });
+
       const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
       // Compute once — all blue squares from this Sunday's assignment run share this date
       const assignmentDate = moment().tz(COMPANY_TZ).startOf('week').format('YYYY-MM-DD');
@@ -1362,17 +1367,11 @@ const userHelper = function () {
             issueBlueSquare = true;
           }
 
-          const currentWarningDescriptions = await currentWarnings
-            .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
-            .sort({ order: 1 });
-          // Fetch Warning ID if descriptions array is available in scope
-          let warningId = '';
-          if (typeof currentWarningDescriptions !== 'undefined') {
-            const warningDescObj = currentWarningDescriptions.find(
-              (w) => w.warningTitle === WARNING_DESC,
-            );
-            if (warningDescObj) warningId = warningDescObj._id;
-          }
+          // Fetch Warning ID
+          const warningDescObj = currentWarningDescriptions.find(
+            (w) => w.warningTitle === WARNING_DESC,
+          );
+          const warningId = warningDescObj?._id;
 
           const newWarning = {
             iconId: uuidv4(),
@@ -1404,9 +1403,9 @@ const userHelper = function () {
           };
 
           const monitorData = {
-            firstName: 'Jae',
-            lastName: 'Sabol',
-            email: 'jae@onecommunityglobal.org',
+            firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
+            lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
+            email: MONITOR_CONTACT_CONFIG.EMAIL,
           };
 
           if (sendEmail !== null) {
