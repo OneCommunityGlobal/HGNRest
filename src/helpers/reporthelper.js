@@ -1,6 +1,7 @@
 /* eslint-disable quotes */
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
+const { getFinalWeekIndex } = require('../utilities/finalWeekIndex');
 
 /**
  *
@@ -40,7 +41,19 @@ const reporthelper = function () {
 
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        // Active users, plus users who left during the requested weeks so
+        // their final week can still be reported. Paused users are
+        // excluded because they are expected to return.
+        $match: {
+          $or: [
+            { isActive: true },
+            {
+              isActive: false,
+              inactiveReason: { $ne: 'Paused' },
+              endDate: { $gte: pstStart, $lte: pstEnd },
+            },
+          ],
+        },
       },
       {
         $lookup: {
@@ -177,6 +190,12 @@ const reporthelper = function () {
       result.totalSeconds = [0, 0, 0, 0];
       result.totalTangibleSeconds = [0, 0, 0, 0];
 
+      // Only users who have already left have a final week. Active users
+      // may carry an endDate for a scheduled separation; ignore it.
+      // Set before the early return below, so a user who logged no time in
+      // their final week still gets an index.
+      result.finalWeekIndex = result.isActive ? null : getFinalWeekIndex(result.endDate);
+
       if (!result.timeEntries || result.timeEntries.length === 0) return;
       const isSingleWeekRequest = startWeekIndex === endWeekIndex;
       result.timeEntries.forEach((entry) => {
@@ -207,11 +226,6 @@ const reporthelper = function () {
         seconds === 0 ? undefined : seconds,
       );
 
-      if (result.endDate) {
-        result.finalWeekIndex = absoluteDifferenceInWeeks(result.endDate, pstEnd);
-      } else {
-        result.finalWeekIndex = undefined;
-      }
       delete result.timeEntries;
     });
 
