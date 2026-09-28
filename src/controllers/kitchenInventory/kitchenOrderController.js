@@ -1,5 +1,6 @@
 /* eslint-disable max-lines-per-function */
 const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
 const Supplier = require('../../models/kitchenInventory/supplier');
 const Order = require('../../models/kitchenInventory/order');
 
@@ -86,6 +87,7 @@ const kitchenOrderController = function () {
       const saved = await order.save();
       res.status(201).json(saved);
     } catch (err) {
+      logger.logException(err);
       res.status(400).json({ err: 'Unable to create order' });
     }
   };
@@ -125,6 +127,7 @@ const kitchenOrderController = function () {
 
       res.status(200).send(results);
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };
@@ -146,6 +149,7 @@ const kitchenOrderController = function () {
 
       res.status(200).json(order);
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };
@@ -220,6 +224,7 @@ const kitchenOrderController = function () {
 
       res.status(200).send(updated);
     } catch (err) {
+      logger.logException(err);
       res.status(400).json({ err: 'Unable to update order' });
     }
   };
@@ -241,6 +246,7 @@ const kitchenOrderController = function () {
 
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };

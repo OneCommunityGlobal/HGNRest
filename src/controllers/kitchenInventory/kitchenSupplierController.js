@@ -1,4 +1,5 @@
 /* eslint-disable max-lines-per-function */ const mongoose = require('mongoose');
+const logger = require('../../startup/logger');
 const Supplier = require('../../models/kitchenInventory/supplier');
 const Order = require('../../models/kitchenInventory/order');
 
@@ -16,7 +17,7 @@ const kitchenSupplierController = function () {
       }
 
       const normalizedName = name.trim();
-      const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
       const existingSupplier = await Supplier.findOne({
         name: { $regex: `^${escapedName}$`, $options: 'i' },
@@ -59,6 +60,7 @@ const kitchenSupplierController = function () {
 
       res.status(201).json(result);
     } catch (err) {
+      logger.logException(err);
       res.status(400).json({ err: 'Unable to create supplier' });
     }
   };
@@ -67,6 +69,7 @@ const kitchenSupplierController = function () {
       const results = await Supplier.find().lean();
       res.status(200).json(results);
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };
@@ -108,6 +111,7 @@ const kitchenSupplierController = function () {
       };
       res.status(200).json(response);
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };
@@ -124,7 +128,7 @@ const kitchenSupplierController = function () {
           return res.status(400).json({ message: 'Invalid supplier name' });
         }
         const normalizedName = name.trim();
-        const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
         const existingSupplier = await Supplier.findOne({
           _id: { $ne: new mongoose.Types.ObjectId(String(supplierId)) },
           name: { $regex: `^${escapedName}$`, $options: 'i' },
@@ -134,21 +138,13 @@ const kitchenSupplierController = function () {
         }
         update.name = normalizedName;
       }
-      if (contactName !== undefined) {
-        update.contactName = contactName;
-      }
-      if (email !== undefined) {
-        update.email = email;
-      }
-      if (phone !== undefined) {
-        update.phone = phone;
-      }
-      if (address !== undefined) {
-        update.address = address;
-      }
-      if (specialities !== undefined) {
-        update.specialities = specialities;
-      }
+      Object.entries({ contactName, email, phone, address, specialities }).forEach(
+        ([field, value]) => {
+          if (value !== undefined) {
+            update[field] = value;
+          }
+        },
+      );
       if (isActive !== undefined) {
         if (typeof isActive !== 'boolean') {
           return res.status(400).json({ message: 'Invalid isActive value' });
@@ -166,6 +162,7 @@ const kitchenSupplierController = function () {
       }
       res.status(200).json(updated);
     } catch (err) {
+      logger.logException(err);
       res.status(400).json({ err: 'Unable to update supplier' });
     }
   };
@@ -183,6 +180,7 @@ const kitchenSupplierController = function () {
       }
       res.status(200).json({ message: 'Deleted' });
     } catch (err) {
+      logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
     }
   };
