@@ -14,6 +14,8 @@ const routes = function (buildingMaterial) {
 
   materialsRouter.route('/updateMaterialRecordBulk').post(controller.bmPostMaterialUpdateBulk);
 
+  materialsRouter.route('/materials/bulk-actions').post(controller.bmApplyMaterialBulkAction);
+
   materialsRouter.route('/updateMaterialStatus').post(controller.bmupdatePurchaseStatus);
 
   materialsRouter.route('/materials/stock-out-risk').get(controller.bmGetMaterialStockOutRisk);
