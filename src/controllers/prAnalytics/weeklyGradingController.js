@@ -229,9 +229,43 @@ const weeklyGradingController = function (weeklyGradingModel) {
     }
   };
 
+  const deleteWeeklyGrading = async (req, res) => {
+    try {
+      const { team, date, reviewer } = req.query;
+      if (!team || !date || !reviewer) {
+        return res.status(400).json({ error: 'team, date, and reviewer query params are required' });
+      }
+
+      const gradingDate = new Date(date);
+      if (Number.isNaN(gradingDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+
+      const startOfDay = new Date(gradingDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(gradingDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const result = await weeklyGradingModel.findOneAndDelete({
+        teamCode: team,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        reviewer,
+      });
+
+      if (!result) {
+        return res.status(404).json({ error: 'Grading record not found' });
+      }
+      return res.status(200).json({ message: `Reviewer "${reviewer}" removed successfully` });
+    } catch (error) {
+      console.error('Error deleting weekly grading:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   return {
     getWeeklyGrading,
     saveWeeklyGrading,
+    deleteWeeklyGrading,
   };
 };
 
