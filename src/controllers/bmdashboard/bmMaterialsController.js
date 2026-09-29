@@ -317,6 +317,8 @@ const bmMaterialsController = function (BuildingMaterial) {
       return res.status(400).send('Invalid bulk action.');
     }
 
+    const objectIds = materialIds.map((id) => new mongoose.Types.ObjectId(id));
+
     const update = {};
 
     if (action === 'hold') {
@@ -338,7 +340,7 @@ const bmMaterialsController = function (BuildingMaterial) {
     try {
       const result = await BuildingMaterial.updateMany(
         {
-          _id: { $in: materialIds },
+          _id: { $in: objectIds },
         },
         update,
       );

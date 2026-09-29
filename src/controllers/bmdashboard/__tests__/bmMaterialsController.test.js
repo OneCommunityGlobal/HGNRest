@@ -537,7 +537,7 @@ describe('bmMaterialsController', () => {
       await controller.bmApplyMaterialBulkAction(req, res);
 
       expect(mockUpdateMany).toHaveBeenCalledWith(
-        { _id: { $in: validIds } },
+        { _id: { $in: validIds.map((id) => new mongoose.Types.ObjectId(id)) } },
         { $set: { notes: 'Damaged pallet' } },
       );
       expect(res.status).toHaveBeenCalledWith(200);
