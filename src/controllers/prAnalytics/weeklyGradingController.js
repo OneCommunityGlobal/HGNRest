@@ -233,8 +233,17 @@ const weeklyGradingController = function (weeklyGradingModel) {
     try {
       const { team, date, reviewer } = req.query;
       if (!team || !date || !reviewer) {
-        return res.status(400).json({ error: 'team, date, and reviewer query params are required' });
+        return res
+          .status(400)
+          .json({ error: 'team, date, and reviewer query params are required' });
       }
+
+      if (typeof team !== 'string' || typeof reviewer !== 'string') {
+        return res.status(400).json({ error: 'Invalid query parameters' });
+      }
+
+      const sanitizedTeam = String(team).trim();
+      const sanitizedReviewer = String(reviewer).trim();
 
       const gradingDate = new Date(date);
       if (Number.isNaN(gradingDate.getTime())) {
@@ -247,9 +256,9 @@ const weeklyGradingController = function (weeklyGradingModel) {
       endOfDay.setHours(23, 59, 59, 999);
 
       const result = await weeklyGradingModel.findOneAndDelete({
-        teamCode: team,
+        teamCode: sanitizedTeam,
         date: { $gte: startOfDay, $lte: endOfDay },
-        reviewer,
+        reviewer: sanitizedReviewer,
       });
 
       if (!result) {
