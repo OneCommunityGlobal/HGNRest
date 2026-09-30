@@ -18,6 +18,7 @@ async function requireAnnouncementsPermission(req, res, next) {
     if (await hasPermission(req.body?.requestor, 'sendEmails')) return next();
     return res.status(403).json({ error: 'You are not authorized to post to Mastodon.' });
   } catch (err) {
+    console.error('Mastodon permission check failed:', err.message);
     return res.status(500).json({ error: 'Failed to check permissions.' });
   }
 }

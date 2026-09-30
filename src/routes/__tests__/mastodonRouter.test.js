@@ -50,6 +50,21 @@ describe('mastodonRouter', () => {
       expect(MastodonSchedule.find).not.toHaveBeenCalled();
     });
 
+    it('returns 500 and logs the error when the permission check fails', async () => {
+      hasPermission.mockRejectedValue(new Error('database unavailable'));
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await request(app).get('/api/mastodon/schedule');
+
+      expect(res.status).toBe(500);
+      expect(consoleError).toHaveBeenCalledWith(
+        'Mastodon permission check failed:',
+        'database unavailable',
+      );
+      expect(MastodonSchedule.find).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
     it('lets people with the permission through', async () => {
       MastodonSchedule.find.mockResolvedValue([]);
 
