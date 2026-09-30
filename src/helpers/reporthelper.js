@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 /* eslint-disable quotes */
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
@@ -37,6 +38,22 @@ const reporthelper = function () {
 
     const pstStartStr = moment(pstStart).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const pstEndStr = moment(pstEnd).tz('America/Los_Angeles').format('YYYY-MM-DD');
+
+    // Badge earnedDate values are stored as an array of date strings.
+    // Build the valid date strings for the requested week so each earned
+    // date can be checked individually.
+    const badgeEarnedDatesInRange = [];
+    const badgeDateCursor = moment(pstStart).tz('America/Los_Angeles').startOf('day');
+    const badgeDateEnd = moment(pstEnd).tz('America/Los_Angeles').startOf('day');
+
+    while (badgeDateCursor.isSameOrBefore(badgeDateEnd, 'day')) {
+      // Support both the existing production format and ISO-style legacy values.
+      badgeEarnedDatesInRange.push(
+        badgeDateCursor.format('MMM-DD-YY'),
+        badgeDateCursor.format('YYYY-MM-DD'),
+      );
+      badgeDateCursor.add(1, 'day');
+    }
 
     const results = await userProfile.aggregate([
       {
@@ -104,14 +121,17 @@ const reporthelper = function () {
               cond: {
                 $or: [
                   {
-                    $and: [
-                      {
-                        $gte: ['$$badge.earnedDate', moment(pstStart).format('YYYY-MM-DD')],
+                    $anyElementTrue: {
+                      $map: {
+                        input: {
+                          $cond: [{ $isArray: '$$badge.earnedDate' }, '$$badge.earnedDate', []],
+                        },
+                        as: 'earnedDate',
+                        in: {
+                          $in: ['$$earnedDate', badgeEarnedDatesInRange],
+                        },
                       },
-                      {
-                        $lte: ['$$badge.earnedDate', moment(pstEnd).format('YYYY-MM-DD')],
-                      },
-                    ],
+                    },
                   },
                   {
                     $and: [
