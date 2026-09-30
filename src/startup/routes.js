@@ -54,6 +54,9 @@ const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
 const PRGradingConfig = require('../models/prAnalytics/prGradingConfig');
 const prGradingConfigRouter = require('../routes/prAnalytics/prGradingConfigRouter')(
   PRGradingConfig,
+  userProfile,
+  hgnFormResponses,
+  require('../models/team'),
 );
 
 // Title
