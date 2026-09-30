@@ -136,6 +136,7 @@ describe('validateProfilePic', () => {
 
 describe('checkTeamCodeMismatch', () => {
   const validTeamId = new mongoose.Types.ObjectId().toString();
+  const validUserId = new mongoose.Types.ObjectId().toString();
 
   test('returns false if user missing', async () => {
     expect(await checkTeamCodeMismatch(null)).toBe(false);
@@ -145,34 +146,101 @@ describe('checkTeamCodeMismatch', () => {
     expect(await checkTeamCodeMismatch({ teams: [] })).toBe(false);
   });
 
-  test('returns false if no team code found', async () => {
+  test('returns false if no other active teammates exist to compare against', async () => {
     userProfile.aggregate.mockResolvedValue([]);
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(false);
   });
 
-  test('returns true on mismatch', async () => {
-    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ' }]);
+  test('returns false if the user has no team code', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'ABC123' }]);
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: '',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+  });
+
+  test('returns true on mismatch when suffix matches but full code differs', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ123' }]);
+
+    const user = {
+      _id: validUserId,
+      teams: [validTeamId],
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(true);
+  });
+
+  test('returns false when full team code matches', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'ABC123' }]);
+
+    const user = {
+      _id: validUserId,
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+  });
+
+  test('returns false when suffix differs', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ456' }]);
+
+    const user = {
+      _id: validUserId,
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+  });
+
+  test('returns true if any teammate (out of several) shares the suffix with a different prefix', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ456' }, { teamCode: 'DEF123' }]);
+
+    const user = {
+      _id: validUserId,
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    expect(await checkTeamCodeMismatch(user)).toBe(true);
+  });
+
+  test('excludes the user themselves from the comparison query', async () => {
+    userProfile.aggregate.mockResolvedValue([]);
+
+    const user = {
+      _id: validUserId,
+      teams: [validTeamId],
+      teamCode: 'ABC123',
+    };
+
+    await checkTeamCodeMismatch(user);
+
+    const aggregateArgs = userProfile.aggregate.mock.calls[0][0];
+    const matchStage = aggregateArgs.find((stage) => stage.$match);
+    expect(matchStage.$match._id).toEqual({ $ne: expect.anything() });
   });
 
   test('returns false on exception', async () => {
     userProfile.aggregate.mockRejectedValue(new Error('fail'));
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(false);
