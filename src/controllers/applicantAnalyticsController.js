@@ -379,6 +379,123 @@ const analyticsController = function (
     }
   };
 
+
+  // Get device-specific engagement breakdown (sessions, bounce rate, avg
+  // engagement time per device type), for the Job Analytics device chart.
+  // Admin/owner only.
+  const getDeviceBreakdown = async (req, res) => {
+    try {
+      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+
+      if (start > end) {
+        return res.status(400).json({
+          error: 'Invalid date range: startDate cannot be after endDate',
+        });
+      }
+
+      // Previous period: same length, immediately preceding startDate.
+      const rangeMs = end.getTime() - start.getTime();
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - rangeMs);
+
+      const buildDeviceStatsPipeline = (rangeStart, rangeEnd) => [
+        {
+          $match: {
+            timestamp: { $gte: rangeStart, $lte: rangeEnd },
+          },
+        },
+        // Stage 1: collapse raw interactions into one row per session,
+        // capturing how many interactions happened and the session's
+        // recorded duration (engagement time).
+        {
+          $group: {
+            _id: { sessionId: '$sessionId', deviceType: '$deviceType' },
+            interactionCount: { $sum: 1 },
+            sessionDuration: { $max: '$sessionDuration' },
+          },
+        },
+        // Stage 2: aggregate sessions by device type.
+        {
+          $group: {
+            _id: '$_id.deviceType',
+            sessions: { $sum: 1 },
+            bouncedSessions: {
+              $sum: { $cond: [{ $eq: ['$interactionCount', 1] }, 1, 0] },
+            },
+            avgEngagementTime: { $avg: '$sessionDuration' },
+          },
+        },
+      ];
+
+      const [currentStats, previousStats] = await Promise.all([
+        AnonymousInteraction.aggregate(buildDeviceStatsPipeline(start, end)),
+        AnonymousInteraction.aggregate(buildDeviceStatsPipeline(prevStart, prevEnd)),
+      ]);
+
+      const DEVICE_TYPES = ['desktop', 'mobile', 'tablet'];
+
+      const toMap = stats => {
+        const map = {};
+        stats.forEach(row => {
+          map[row._id] = row;
+        });
+        return map;
+      };
+
+      const currentMap = toMap(currentStats);
+      const previousMap = toMap(previousStats);
+
+      const currentTotalSessions = currentStats.reduce((sum, row) => sum + row.sessions, 0);
+      const previousTotalSessions = previousStats.reduce((sum, row) => sum + row.sessions, 0);
+
+      const deviceBreakdown = DEVICE_TYPES.map(device => {
+        const current = currentMap[device] || { sessions: 0, bouncedSessions: 0, avgEngagementTime: 0 };
+        const previous = previousMap[device] || { sessions: 0, bouncedSessions: 0, avgEngagementTime: 0 };
+
+        const value =
+          currentTotalSessions > 0
+            ? Math.round((current.sessions / currentTotalSessions) * 100)
+            : 0;
+        const previousValue =
+          previousTotalSessions > 0
+            ? Math.round((previous.sessions / previousTotalSessions) * 100)
+            : 0;
+        const bounceRate =
+          current.sessions > 0
+            ? Math.round((current.bouncedSessions / current.sessions) * 1000) / 10
+            : 0;
+
+        return {
+          name: device.charAt(0).toUpperCase() + device.slice(1),
+          value,
+          previousValue,
+          sessions: current.sessions,
+          bounceRate,
+          avgEngagementTime: Math.round(current.avgEngagementTime || 0),
+        };
+      });
+
+      return res.status(200).json({ deviceBreakdown });
+    } catch (error) {
+      console.error('Error fetching device breakdown:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  };
   // Manual aggregation trigger (admin/owner only) - backup for cron job
   const triggerAggregation = async (req, res) => {
     try {
@@ -651,6 +768,7 @@ const analyticsController = function (
     trackApplication,
     getInteractionSummary,
     getConversionMetrics,
+    getDeviceBreakdown,
     triggerAggregation,
   };
 };
