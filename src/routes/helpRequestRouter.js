@@ -1,25 +1,20 @@
 const express = require('express');
-
-const router = express.Router();
+const authenticateHelpRequest = require('../middleware/authenticateHelpRequest');
 const {
   createHelpRequest,
   checkIfModalShouldShow,
   updateRequestDate,
   getAllHelpRequests,
+  checkHelpRequestEligibility,
 } = require('../controllers/helpRequestController');
 
-// Temporarily bypass auth for testing
-router.post(
-  '/create',
-  (req, res, next) => {
-    req.body.requestor = { requestorId: req.body.userId };
-    next();
-  },
-  createHelpRequest,
-);
+const router = express.Router();
+
+router.post('/create', authenticateHelpRequest, createHelpRequest);
 
 router.get('/check-modal/:userId', checkIfModalShouldShow);
 router.put('/update-date', updateRequestDate);
 router.get('/all', getAllHelpRequests);
+router.get('/eligibility', authenticateHelpRequest, checkHelpRequestEligibility);
 
 module.exports = router;
