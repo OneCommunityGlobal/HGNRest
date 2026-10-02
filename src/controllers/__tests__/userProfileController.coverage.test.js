@@ -65,6 +65,7 @@ const MockUserProfile = jest.fn(function MockUserProfile() {
 
 MockUserProfile.findOne = jest.fn();
 MockUserProfile.findById = jest.fn();
+MockUserProfile.findByIdAndUpdate = jest.fn();
 MockUserProfile.aggregate = jest.fn();
 
 const userProfileController = require('../userProfileController');
@@ -98,6 +99,56 @@ describe('userProfileController targeted coverage tests', () => {
     mockUserHelper.checkTeamCodeMismatch.mockResolvedValue(false);
 
     controller = userProfileController(MockUserProfile, {});
+  });
+
+  const runRehireableStatusUpdate = async (isRehireable, notRehireableReason) => {
+    const verifiedUser = { email: 'user@example.com', isRehireable };
+    MockUserProfile.findByIdAndUpdate.mockImplementation((userId, update, options, callback) => {
+      callback(null, verifiedUser);
+    });
+    MockUserProfile.findById.mockImplementation((userId, callback) => {
+      callback(null, verifiedUser);
+    });
+
+    const req = {
+      params: { userId: validUserId },
+      body: {
+        requestor: { requestorId: validUserId },
+        isRehireable,
+        notRehireableReason,
+      },
+    };
+    const res = makeRes();
+
+    await controller.changeUserRehireableStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    return MockUserProfile.findByIdAndUpdate.mock.calls[0][1];
+  };
+
+  test('changeUserRehireableStatus persists a trimmed reason when disabling rehireability', async () => {
+    const update = await runRehireableStatusUpdate(false, '  Not a good fit  ');
+
+    expect(update).toEqual({
+      $set: { isRehireable: false, notRehireableReason: 'Not a good fit' },
+    });
+  });
+
+  test.each([
+    ['empty', ''],
+    ['omitted', undefined],
+  ])(
+    'changeUserRehireableStatus clears stale reason when the reason is %s',
+    async (_caseName, reason) => {
+      const update = await runRehireableStatusUpdate(false, reason);
+
+      expect(update).toEqual({ $set: { isRehireable: false }, $unset: { notRehireableReason: 1 } });
+    },
+  );
+
+  test('changeUserRehireableStatus clears the reason when restoring rehireability', async () => {
+    const update = await runRehireableStatusUpdate(true, 'Old reason');
+
+    expect(update).toEqual({ $set: { isRehireable: true }, $unset: { notRehireableReason: 1 } });
   });
 
   test('putUserProfile returns 400 when locked identity fields are changed', async () => {
