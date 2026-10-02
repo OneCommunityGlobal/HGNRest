@@ -467,6 +467,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   userProfile,
   resourceRequestController,
 );
+const helpRequestRouter = require('../routes/helpRequestRouter');
+const helpFeedbackRouter = require('../routes/helpFeedbackRouter');
 
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
@@ -742,4 +744,7 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
+
+  app.use('/api/helprequest', helpRequestRouter);
+  app.use('/api/feedback', helpFeedbackRouter);
 };

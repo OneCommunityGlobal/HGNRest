@@ -4,6 +4,7 @@
 /* eslint-disable radix */
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
+const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
 
 const hgnFormController = () => {
@@ -41,12 +42,9 @@ const hgnFormController = () => {
       const { preferences, skills } = req.query;
       const responses = await FormResponse.find();
 
-      // FIX ISSUE #8: Manually fetch user profiles to get isActive
-      const UserProfile = require('../models/userProfile');
       const userIds = responses.map((r) => r.user_id).filter(Boolean);
       const users = await UserProfile.find({ _id: { $in: userIds } }, 'isActive');
 
-      // Create a map for quick lookup
       const userMap = {};
       users.forEach((u) => {
         userMap[u._id.toString()] = u.isActive;
@@ -100,7 +98,6 @@ const hgnFormController = () => {
           .slice(0, 4)
           .map((s) => s.skill);
 
-        // FIX ISSUE #8: Get isActive from userMap
         const userId = user.user_id?.toString();
         const isActive = userId && userMap[userId] !== undefined ? userMap[userId] : true;
 

@@ -64,13 +64,11 @@ const closePermanently = async (req, res) => {
     res.status(500).json({ error: 'Failed to close permanently' });
   }
 };
-// FOR TESTING ONLY - DELETE CLOSE PERMANENTLY RECORD
 const deleteClosePermanently = async (req, res) => {
   try {
     const { userId } = req.body;
 
     const result = await HelpFeedback.deleteMany({
-      // CHANGED FROM deleteOne TO deleteMany
       userId,
       closedPermanently: true,
     });

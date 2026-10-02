@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const HelpRequest = require('../models/helpRequest');
 const HelpFeedback = require('../models/helpFeedback');
 
@@ -23,16 +22,10 @@ const checkIfModalShouldShow = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    console.log('=== CHECK MODAL DEBUG ===');
-    console.log('userId from params:', userId);
-
-    // FIX ISSUE #5: Check if user has closed permanently
     const permanentlyClosed = await HelpFeedback.findOne({
-      userId, // USE STRING DIRECTLY, NOT OBJECTID
+      userId,
       closedPermanently: true,
     });
-
-    console.log('permanentlyClosed:', permanentlyClosed);
 
     if (permanentlyClosed) {
       return res.status(200).json({ shouldShow: false });
@@ -41,15 +34,11 @@ const checkIfModalShouldShow = async (req, res) => {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    console.log('oneWeekAgo:', oneWeekAgo);
-
     const helpRequest = await HelpRequest.findOne({
-      userId, // USE STRING DIRECTLY, NOT OBJECTID
+      userId,
       requestedAt: { $lte: oneWeekAgo },
       feedbackSubmitted: false,
     }).sort({ requestedAt: -1 });
-
-    console.log('helpRequest found:', helpRequest);
 
     if (helpRequest) {
       return res.status(200).json({
