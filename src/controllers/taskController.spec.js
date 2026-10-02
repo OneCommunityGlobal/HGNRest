@@ -20,6 +20,7 @@ const emailSender = require('../utilities/emailSender');
 
 // MongoDB Model imports
 const Task = require('../models/task');
+const TaskChangeLog = require('../models/taskChangeLog');
 const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const TaskChangeTracker = require('../middleware/taskChangeTracker');
@@ -79,6 +80,7 @@ const makeSut = () => {
     sendReviewReq,
     getTasksForTeamsByUser,
     updateTaskStatus,
+    getResolvedTasks,
   } = taskController(Task);
 
   return {
@@ -99,6 +101,7 @@ const makeSut = () => {
     sendReviewReq,
     getTasksForTeamsByUser,
     updateTaskStatus,
+    getResolvedTasks,
   };
 };
 
@@ -1444,6 +1447,65 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getResolvedTasks function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Returns resolved tasks with pagination', async () => {
+      const { getResolvedTasks } = makeSut();
+
+      mockReq.query = {
+        page: '2',
+        limit: '10',
+      };
+
+      const resolvedTasks = [
+        {
+          _id: 'log-1',
+          changeType: 'status_change',
+          newValue: 'Resolved',
+        },
+      ];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(resolvedTasks),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(25);
+
+      await getResolvedTasks(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+      expect(findChain.sort).toHaveBeenCalledWith({ timestamp: -1 });
+      expect(findChain.skip).toHaveBeenCalledWith(10);
+      expect(findChain.limit).toHaveBeenCalledWith(10);
+      expect(countSpy).toHaveBeenCalledWith({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        tasks: resolvedTasks,
+        pagination: {
+          page: 2,
+          limit: 10,
+          total: 25,
+          pages: 3,
+        },
+      });
     });
   });
 });
