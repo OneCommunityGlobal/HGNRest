@@ -29,53 +29,7 @@ const getInstagramCredentials = async () => {
   };
 };
 
-const saveBase64Media = async (media) => {
-  if (!media || !media.base64) {
-    throw new Error('Media is required.');
-  }
-
-  const match = media.base64.match(/^data:(image\/[^;]+|video\/[^;]+);base64,(.+)$/);
-
-  if (!match) {
-    throw new Error('Invalid media data.');
-  }
-
-  const mimeType = match[1];
-  const base64Data = match[2];
-
-  const extension = mimeType.split('/')[1] || 'bin';
-
-  const fileName = `${crypto.randomUUID()}.${extension}`;
-
-  const uploadDirectory = path.join(process.cwd(), 'uploads', 'instagram');
-
-  fs.mkdirSync(uploadDirectory, {
-    recursive: true,
-  });
-
-  const filePath = path.join(uploadDirectory, fileName);
-
-  fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-
-  /*
-   * This URL MUST be publicly accessible to Meta.
-   *
-   * Configure INSTAGRAM_MEDIA_BASE_URL to point
-   * to your public backend URL.
-   */
-
-  const baseUrl = process.env.INSTAGRAM_MEDIA_BASE_URL;
-
-  if (!baseUrl) {
-    throw new Error('INSTAGRAM_MEDIA_BASE_URL is not configured.');
-  }
-
-  return {
-    mediaUrl: `${baseUrl}/uploads/instagram/${fileName}`,
-
-    mediaType: mimeType.startsWith('video') ? 'VIDEO' : 'IMAGE',
-  };
-};
+const { saveBase64Media } = require('../services/saveMediaCloudinary');
 
 const createPost = async (req, res) => {
   try {
@@ -153,7 +107,8 @@ const schedulePost = async (req, res) => {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 
-    const { caption, media, altText, scheduledTime } = req.body;
+    const { caption, media, altText, scheduledTime, existingMediaUrl, existingMediaType } =
+      req.body;
 
     if (!caption || !caption.trim()) {
       return res.status(400).json({
@@ -161,7 +116,10 @@ const schedulePost = async (req, res) => {
       });
     }
 
-    if (!media || !media.base64) {
+    const hasNewMedia = Boolean(media && media.base64);
+    const hasExistingMedia = Boolean(existingMediaUrl);
+
+    if (!hasNewMedia && !hasExistingMedia) {
       return res.status(400).json({
         error: 'Media is required.',
       });
@@ -181,7 +139,12 @@ const schedulePost = async (req, res) => {
       });
     }
 
-    const uploadedMedia = await saveBase64Media(media);
+    // A real new upload gets saved/hosted as before. Editing without
+    // re-uploading reuses the URL/type that's already public — media.base64
+    // is null in that case since it came from an existing post, not a fresh file.
+    const uploadedMedia = hasNewMedia
+      ? await saveBase64Media(media)
+      : { mediaUrl: existingMediaUrl, mediaType: existingMediaType || 'IMAGE' };
 
     const post = await InstagramScheduledPost.create({
       userId,

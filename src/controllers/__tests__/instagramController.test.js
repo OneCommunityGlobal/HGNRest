@@ -28,6 +28,10 @@ jest.mock('node:fs', () => ({
   writeFileSync: jest.fn(),
 }));
 
+jest.mock('../../services/saveMediaCloudinary', () => ({
+  saveBase64Media: jest.fn(),
+}));
+
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const InstagramScheduledPost = require('../../models/instagramScheduledPost');
@@ -42,6 +46,7 @@ const {
   getHistory,
   retryScheduledPost,
 } = require('../instagramController');
+const { saveBase64Media } = require('../../services/saveMediaCloudinary');
 
 // ─── test utilities ─────────────────────────────────────────────────────────
 
@@ -82,11 +87,14 @@ beforeEach(() => {
   process.env = {
     ...ORIGINAL_ENV,
     INSTAGRAM_ACCOUNT_ID: 'ig-account-123',
-    INSTAGRAM_MEDIA_BASE_URL: 'https://backend.example.com',
   };
   fs.mkdirSync.mockReturnValue(undefined);
   fs.writeFileSync.mockReturnValue(undefined);
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('fixed-uuid');
+  saveBase64Media.mockResolvedValue({
+    mediaUrl: 'https://res.cloudinary.com/test/image/upload/instagram-autoposter/test-image.png',
+    mediaType: 'IMAGE',
+  });
 });
 
 afterEach(() => {
@@ -181,32 +189,14 @@ describe('createPost', () => {
       accessToken: 'valid-token',
       expiresAt: new Date(Date.now() + 100000),
     });
+    saveBase64Media.mockRejectedValue(new Error('Invalid media data.'));
     const req = buildReq({
       body: { caption: 'Hello world', media: { base64: 'not-a-real-data-url' } },
     });
     const res = buildRes();
-
     await createPost(req, res);
-
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Invalid media data.' });
-  });
-
-  test('returns 500 when INSTAGRAM_MEDIA_BASE_URL is not configured', async () => {
-    delete process.env.INSTAGRAM_MEDIA_BASE_URL;
-    MetaToken.findOne.mockResolvedValue({
-      accessToken: 'valid-token',
-      expiresAt: new Date(Date.now() + 100000),
-    });
-    const req = buildReq({
-      body: { caption: 'Hello world', media: { base64: VALID_MEDIA_BASE64 } },
-    });
-    const res = buildRes();
-
-    await createPost(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'INSTAGRAM_MEDIA_BASE_URL is not configured.' });
   });
 
   test('returns 500 with the Graph API error message when publishing fails', async () => {
@@ -267,20 +257,15 @@ describe('createPost', () => {
     const res = buildRes();
 
     await createPost(req, res);
-
-    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('uploads'), {
-      recursive: true,
+    expect(saveBase64Media).toHaveBeenCalledWith({
+      base64: VALID_MEDIA_BASE64,
     });
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('fixed-uuid.png'),
-      expect.any(Buffer),
-    );
 
     expect(publishInstagramPost).toHaveBeenCalledWith({
       instagramAccountId: 'ig-account-123',
       accessToken: 'valid-token',
       caption: 'Hello world',
-      mediaUrl: 'https://backend.example.com/uploads/instagram/fixed-uuid.png',
+      mediaUrl: 'https://res.cloudinary.com/test/image/upload/instagram-autoposter/test-image.png',
       mediaType: 'IMAGE',
     });
 
@@ -327,9 +312,10 @@ describe('createPost', () => {
 
     await createPost(req, res);
 
-    expect(publishInstagramPost).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaType: 'VIDEO' }),
-    );
+    saveBase64Media.mockResolvedValue({
+      mediaUrl: 'https://res.cloudinary.com/test/video/upload/instagram-autoposter/test-video.mp4',
+      mediaType: 'VIDEO',
+    });
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });
@@ -421,17 +407,12 @@ describe('schedulePost', () => {
   });
 
   test('returns 500 when media is malformed', async () => {
+    saveBase64Media.mockRejectedValue(new Error('Invalid media data.'));
     const req = buildReq({
-      body: {
-        caption: 'Hello',
-        media: { base64: 'garbage' },
-        scheduledTime: futureDate(),
-      },
+      body: { caption: 'Hello', media: { base64: 'garbage' }, scheduledTime: futureDate() },
     });
     const res = buildRes();
-
     await schedulePost(req, res);
-
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Invalid media data.' });
   });
