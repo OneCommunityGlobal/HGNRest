@@ -16,7 +16,11 @@ const followUpSchema = new Schema({
     default: 0,
   },
   taskId: { type: mongoose.SchemaTypes.ObjectId, ref: 'task', required: true },
-  userId: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+  userId: {
+    type: mongoose.SchemaTypes.ObjectId,
+    ref: 'userProfiles',
+    required: true,
+  },
 });
 
 module.exports = mongoose.model('followUp', followUpSchema, 'followUps');
