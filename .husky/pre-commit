@@ -1,3 +1,6 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
 echo "✅ Husky pre-commit is running..."
 npx lint-staged --allow-empty
 

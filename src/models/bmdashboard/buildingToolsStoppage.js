@@ -36,4 +36,10 @@ const toolsStoppageReasonSchema = new Schema(
   { collection: 'toolStoppageReason' },
 );
 
+// Compound index for efficient querying by projectId and date
+toolsStoppageReasonSchema.index({ projectId: 1, date: 1 });
+
+// Index for toolName to optimize sorting
+toolsStoppageReasonSchema.index({ toolName: 1 });
+
 module.exports = mongoose.model('toolStoppageReason', toolsStoppageReasonSchema);

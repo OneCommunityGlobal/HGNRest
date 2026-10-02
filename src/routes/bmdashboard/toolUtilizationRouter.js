@@ -7,6 +7,8 @@ const routes = function (BuildingTool) {
   );
 
   toolUtilizationRouter.route('/tools/utilization').get(controller.getUtilization);
+  toolUtilizationRouter.route('/tools/utilization/insights').get(controller.getInsights);
+  toolUtilizationRouter.route('/tools/utilization/export').get(controller.exportReport);
 
   return toolUtilizationRouter;
 };
