@@ -1285,11 +1285,18 @@ describe('weeklyAutoReplyEmailFunction', () => {
     });
 
     // 1. Pulled the initial blue square
+    expect(updateSpy).toHaveBeenCalledWith(
+      mockUser._id,
+      { $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } } },
+      { new: true },
+    );
+
+    // 2. Synced infringement count
     expect(updateSpy).toHaveBeenCalledWith(mockUser._id, {
-      $pull: { infringements: { date: assignmentDate } },
+      $set: { infringementCount: expect.any(Number) },
     });
 
-    // 2. Added blue warning
+    // 3. Added blue warning
     expect(updateSpy).toHaveBeenCalledWith(
       mockUser._id,
       {
@@ -1307,7 +1314,8 @@ describe('weeklyAutoReplyEmailFunction', () => {
     // Should NOT re-issue a blue square
     expect(updateSpy).not.toHaveBeenCalledWith(
       mockUser._id,
-      expect.objectContaining({ $set: expect.anything() }),
+      expect.objectContaining({ $push: { infringements: expect.anything() } }),
+      expect.anything(),
     );
   });
 
@@ -1390,9 +1398,10 @@ describe('weeklyAutoReplyEmailFunction', () => {
     const updateSpy = jest
       .spyOn(userProfile, 'findByIdAndUpdate')
       .mockResolvedValueOnce(userAfterPull) // 1. $pull infringement
-      .mockResolvedValueOnce(userAfterWarning) // 2. $push red warning
-      .mockResolvedValueOnce(userAfterReissue) // 3. $push re-issued blue square
-      .mockResolvedValueOnce(userAfterReissue); // 4. $set infringementCount
+      .mockResolvedValueOnce(userAfterPull) // 2. $set infringementCount
+      .mockResolvedValueOnce(userAfterWarning) // 3. $push red warning
+      .mockResolvedValueOnce(userAfterReissue) // 4. $push re-issued blue square
+      .mockResolvedValueOnce(userAfterReissue);
 
     jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({
       sendEmail: 'issue blue square',
@@ -1407,13 +1416,21 @@ describe('weeklyAutoReplyEmailFunction', () => {
     });
 
     // Verify Call 1: $pull
-    expect(updateSpy).toHaveBeenNthCalledWith(1, expect.anything(), {
-      $pull: { infringements: { date: assignmentDate } },
+    expect(updateSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      { $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } } },
+      { new: true },
+    );
+
+    // Verify Call 2: $set Infringement Count (syncing after pull)
+    expect(updateSpy).toHaveBeenNthCalledWith(2, expect.anything(), {
+      $set: { infringementCount: 0 },
     });
 
-    // Verify Call 2: $push Red Warning
+    // Verify Call 3: $push Red Warning
     expect(updateSpy).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.anything(),
       {
         $push: {
@@ -1427,9 +1444,9 @@ describe('weeklyAutoReplyEmailFunction', () => {
       { new: true },
     );
 
-    // Verify Call 3: $push Re-issued Blue Square
+    // Verify Call 4: $push Re-issued Blue Square
     expect(updateSpy).toHaveBeenNthCalledWith(
-      3,
+      4,
       expect.anything(),
       {
         $push: {
@@ -1444,8 +1461,8 @@ describe('weeklyAutoReplyEmailFunction', () => {
       { new: true },
     );
 
-    // Verify Call 4: $set Infringement Count
-    expect(updateSpy).toHaveBeenNthCalledWith(4, expect.anything(), {
+    // Verify Call 5: $set Infringement Count (after re-issue)
+    expect(updateSpy).toHaveBeenNthCalledWith(5, expect.anything(), {
       $set: { infringementCount: 1 },
     });
   });

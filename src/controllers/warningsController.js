@@ -187,7 +187,7 @@ const warningsController = function (UserProfile) {
 
       const adminEmails = await userHelper.getUserRoleByEmail(record);
       if (sendEmail !== null) {
-        warningsHelper.sendEmailToUser(
+        await warningsHelper.sendEmailToUser(
           sendEmail,
           updatedDescription || null,
           userAssignedWarning,

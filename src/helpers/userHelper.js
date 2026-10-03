@@ -935,7 +935,9 @@ const userHelper = function () {
         );
       }
 
-      await deleteOldTimeOffRequests();
+      if (!emailConfig.targetUserId) {
+        await deleteOldTimeOffRequests();
+      }
 
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
@@ -952,13 +954,15 @@ const userHelper = function () {
     }
 
     // Process weekly summaries for inactive users
-    try {
-      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
-      for (const user of inactiveUsers) {
-        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+    if (!emailConfig.targetUserId) {
+      try {
+        const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
+        for (const user of inactiveUsers) {
+          await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+        }
+      } catch (err) {
+        logger.logException(err);
       }
-    } catch (err) {
-      logger.logException(err);
     }
   };
 
@@ -1342,13 +1346,29 @@ const userHelper = function () {
         console.log(`[autoReply] ${user.email} → ${templateKey}`);
 
         // Remove the blue square from the database if hours were close enough
-        if (templateKey === 'MISSED_HOURS_BY_<15%') {
-          // Remove the system-assigned blue square for that day
-          await userProfile.findByIdAndUpdate(user._id, {
-            $pull: { infringements: { date: assignmentDate } },
-          });
-
+        if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
           const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+
+          // Prevent duplicate actions on script re-runs
+          const alreadyProcessedToday = user.warnings?.some(
+            (w) => w.description === WARNING_DESC && w.date === assignmentDate,
+          );
+
+          if (alreadyProcessedToday) continue;
+
+          // Remove only the system-assigned blue square for that day
+          const userAfterPull = await userProfile.findByIdAndUpdate(
+            user._id,
+            {
+              $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } },
+            },
+            { new: true },
+          );
+
+          // Prevent stale infringementCount
+          await userProfile.findByIdAndUpdate(user._id, {
+            $set: { infringementCount: userAfterPull.infringements.length },
+          });
 
           // Count existing occurrences of this specific warning
           const existingWarningsCount = user.warnings
@@ -1409,7 +1429,7 @@ const userHelper = function () {
           };
 
           if (sendEmail !== null) {
-            warningsHelper.sendEmailToUser(
+            await warningsHelper.sendEmailToUser(
               sendEmail,
               'Removed Blue Square for Hours Close Enough',
               userAssignedWarning,
@@ -1454,6 +1474,9 @@ const userHelper = function () {
               status.jobTitle ? status.jobTitle[0] : 'Member',
               status.weeklycommittedHours,
             );
+
+            // Skip sending the "close enough" template email if we just issued them a 4th offense Blue Square
+            continue;
           }
         }
 

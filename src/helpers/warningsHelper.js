@@ -99,7 +99,7 @@ const sendEmailToUser = async (
     <p>One Community Admin Team</p>`;
   }
 
-  emailSender(
+  await emailSender(
     `${userAssignedWarning.email}`,
     subject,
     emailTemplate,
