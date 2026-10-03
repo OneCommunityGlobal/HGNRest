@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
 const HGNFormResponses = require('../models/hgnFormResponse');
 const team = require('../models/team');
@@ -6,10 +7,62 @@ const { hasPermission } = require('../utilities/permissions');
 const cache = require('../utilities/nodeCache')();
 const Logger = require('../startup/logger');
 const helper = require('../utilities/permissions');
+const placement = require('../helpers/teamPlacementHelper');
 const TimeEntry = require('../models/timeentry');
 
 const INTERNAL_SERVER_ERROR = 'Internal server error';
-const moment = require('moment-timezone');
+
+/**
+ * Validate the optional placement fields used by the Promotion Eligibility
+ * dashboard (doc item #23), and return only the ones the caller actually sent.
+ *
+ * Absent means "leave alone", which matters because putTeam assigns fields
+ * unconditionally: reading these the same way would let any existing client
+ * that does not know about them wipe them on every save. Explicit null is the
+ * way to clear one, and that takes the team out of placement.
+ *
+ * @returns {{error: string|null, updates: object}}
+ */
+const readPlacementFields = function (body) {
+  const updates = {};
+
+  if ('hoursBand' in body) {
+    const value = body.hoursBand;
+    if (value !== null && !placement.HOURS_BANDS.includes(value)) {
+      return {
+        error: `hoursBand must be one of ${placement.HOURS_BANDS.join(', ')}, or null`,
+        updates,
+      };
+    }
+    updates.hoursBand = value;
+  }
+
+  if ('standupDay' in body) {
+    const value = body.standupDay;
+    if (value !== null && !placement.DAYS.includes(value)) {
+      return { error: `standupDay must be a full weekday name, or null`, updates };
+    }
+    updates.standupDay = value;
+  }
+
+  if ('standupTime' in body) {
+    const value = body.standupTime;
+    if (value !== null && placement.toMinutes(value) === null) {
+      return { error: 'standupTime must look like "11AM", "9:30 PM" or "14:00", or null', updates };
+    }
+    updates.standupTime = value;
+  }
+
+  if ('standupTimezone' in body) {
+    const value = body.standupTimezone;
+    if (value !== null && (typeof value !== 'string' || !value.trim())) {
+      return { error: 'standupTimezone must be a non-empty string, or null', updates };
+    }
+    updates.standupTimezone = value;
+  }
+
+  return { error: null, updates };
+};
 
 const teamcontroller = function (Team) {
   const getAllTeams = function (req, res) {
@@ -152,6 +205,14 @@ const teamcontroller = function (Team) {
       return;
     }
 
+    // Validated before the duplicate-name lookup, so a malformed request is
+    // rejected without a database round trip.
+    const { error: placementError, updates: placementUpdates } = readPlacementFields(req.body);
+    if (placementError) {
+      res.status(400).send({ error: placementError });
+      return;
+    }
+
     if (await Team.exists({ teamName: req.body.teamName })) {
       res.status(403).send({ error: `Team Name "${req.body.teamName}" already exists` });
       return;
@@ -162,6 +223,7 @@ const teamcontroller = function (Team) {
     newTeam.isActive = req.body.isActive;
     newTeam.createdDatetime = Date.now();
     newTeam.modifiedDatetime = Date.now();
+    Object.assign(newTeam, placementUpdates);
 
     try {
       const result = await newTeam.save();
@@ -207,6 +269,12 @@ const teamcontroller = function (Team) {
 
     const { teamId } = req.params;
 
+    const { error: placementError, updates: placementUpdates } = readPlacementFields(req.body);
+    if (placementError) {
+      res.status(400).send({ error: placementError });
+      return;
+    }
+
     Team.findById(teamId, async (error, record) => {
       if (error || record === null) {
         res.status(400).send('No valid records found');
@@ -222,6 +290,9 @@ const teamcontroller = function (Team) {
       record.teamCode = newTeamCode;
       record.createdDatetime = Date.now();
       record.modifiedDatetime = Date.now();
+      // Only the placement fields the caller actually sent, so a client that
+      // knows nothing about them cannot clear them by omission.
+      Object.assign(record, placementUpdates);
 
       try {
         const savedTeam = await record.save();
