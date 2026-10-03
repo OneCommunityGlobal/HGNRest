@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const LaborHours = require('../../models/summaryDashboard/laborHours');
 const logger = require('../../startup/logger');
 const cache = require('../../utilities/nodeCache')();
@@ -8,13 +9,17 @@ const PERCENTAGE_MULTIPLIER = 100;
 /**
  * Build aggregation pipeline for labor hours distribution
  */
-function buildDistributionAggregation(startDate, endDate, categoryFilter) {
+function buildDistributionAggregation(startDate, endDate, categoryFilter, memberId) {
   const matchStage = {
     date: { $gte: new Date(startDate), $lte: new Date(endDate) },
   };
 
   if (categoryFilter) {
     matchStage.category = categoryFilter;
+  }
+
+  if (memberId) {
+    matchStage.userId = mongoose.Types.ObjectId(memberId);
   }
 
   return [
@@ -52,17 +57,15 @@ function isValidCalendarDate(dateString) {
 }
 
 /**
- * Validate query parameters
+ * Validate the start_date/end_date pair, pushing any errors onto the given array
  */
-function validateParams(query) {
-  const { start_date: startDate, end_date: endDate, category } = query;
-  const errors = [];
+function validateDateRange(startDate, endDate, errors) {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
   if (!startDate || !endDate) {
     errors.push('Missing required query parameters: start_date and end_date are required');
   }
 
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (startDate && !dateRegex.test(startDate)) {
     errors.push('Invalid start_date format. Please use YYYY-MM-DD format');
   } else if (startDate && !isValidCalendarDate(startDate)) {
@@ -77,8 +80,22 @@ function validateParams(query) {
   if (errors.length === 0 && startDate && endDate && new Date(startDate) > new Date(endDate)) {
     errors.push('Invalid date range: start_date must be before or equal to end_date');
   }
+}
 
-  return { startDate, endDate, category, errors };
+/**
+ * Validate query parameters
+ */
+function validateParams(query) {
+  const { start_date: startDate, end_date: endDate, category, member } = query;
+  const errors = [];
+
+  validateDateRange(startDate, endDate, errors);
+
+  if (member && !mongoose.Types.ObjectId.isValid(member)) {
+    errors.push('Invalid member: must be a valid user id');
+  }
+
+  return { startDate, endDate, category, member, errors };
 }
 
 /**
@@ -93,6 +110,7 @@ const laborHoursDistributionController = function () {
    * - start_date (required): Start date in YYYY-MM-DD format
    * - end_date (required): End date in YYYY-MM-DD format
    * - category (optional): Filter by specific category
+   * - member (optional): Filter by a specific user's id (userId)
    *
    * Response:
    * {
@@ -114,17 +132,24 @@ const laborHoursDistributionController = function () {
           .json({ error: 'You are not authorized to access labor hours distribution data' });
       }
 
-      const { startDate, endDate, category, errors } = validateParams(req.query);
+      const { startDate, endDate, category, member, errors } = validateParams(req.query);
       if (errors.length > 0) {
         return res.status(400).json({ error: errors[0] });
       }
 
-      const cacheKey = `labor_hours_distribution:${startDate}:${endDate}:${category || 'all'}`;
+      const cacheKey = `labor_hours_distribution:${startDate}:${endDate}:${
+        category || 'all'
+      }:${member || 'all'}`;
       if (cache.hasCache(cacheKey)) {
         return res.status(200).json(cache.getCache(cacheKey));
       }
 
-      const aggregationPipeline = buildDistributionAggregation(startDate, endDate, category);
+      const aggregationPipeline = buildDistributionAggregation(
+        startDate,
+        endDate,
+        category,
+        member,
+      );
       const aggregationResult = await LaborHours.aggregate(aggregationPipeline);
 
       const totalHours = aggregationResult.reduce((sum, item) => sum + (item.hours || 0), 0);
