@@ -176,6 +176,18 @@ describe('jobsController', () => {
       );
     });
 
+    it('updateJob: keeps a valid datePosted supplied in the request body', async () => {
+      const newDate = new Date('2024-01-01');
+      Job.findById.mockResolvedValue({ _id: jobId, datePosted: new Date() });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, datePosted: newDate });
+      await updateJob({ params: { id: jobId }, body: { datePosted: newDate } }, res);
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        expect.objectContaining({ datePosted: newDate }),
+        { new: true },
+      );
+    });
+
     it('updateJob: strips a falsy datePosted from the request body so it cannot be cleared', async () => {
       Job.findById.mockResolvedValue({ _id: jobId, datePosted: new Date() });
       Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, title: 'New' });
