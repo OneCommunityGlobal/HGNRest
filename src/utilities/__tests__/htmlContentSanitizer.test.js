@@ -92,6 +92,54 @@ describe('stripHtml', () => {
     });
   });
 
+  it('keeps double- and triple-encoded onerror tags from becoming markup', () => {
+    const outputs = [
+      stripHtml('&amp;lt;img src=x onerror=alert(1)&amp;gt;'),
+      stripHtml('&amp;amp;lt;img src=x onerror=alert(1)&amp;amp;gt;'),
+      stripHtml('&amp;#x3c;img src=x onerror=alert(1)&amp;#x3e;'),
+    ];
+
+    expect(outputs).toEqual([
+      '&lt;img src=x onerror=alert(1)&gt;',
+      '&amp;lt;img src=x onerror=alert(1)&amp;gt;',
+      '&#x3c;img src=x onerror=alert(1)&#x3e;',
+    ]);
+    outputs.forEach((output) => {
+      expect(output).not.toMatch(/<(?=\/|[a-z!?\d])/i);
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
+  });
+
+  it('escapes numeric and hex encoded tags after one decode', () => {
+    const outputs = [
+      stripHtml('&#x3c;img src=x onerror=alert(1)&#x3e;'),
+      stripHtml('&#X3C;img src=x onerror=alert(1)&#X3E;'),
+      stripHtml('&#x00003c;img src=x onerror=alert(1)&#x00003e;'),
+      stripHtml('&#00060;img src=x onerror=alert(1)&#00062;'),
+      stripHtml('&LT;IMG SRC=x ONERROR=alert(1)&GT;'),
+    ];
+
+    expect(outputs.slice(0, 4)).toEqual([
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+    ]);
+    expect(outputs[4]).toBe('&lt;IMG SRC=x ONERROR=alert(1)>');
+    outputs.forEach((output) => {
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
+  });
+
+  it('strips javascript and onerror handlers with their tags', () => {
+    expect(stripHtml('<a href="javascript:alert(1)">click</a>')).toBe('click');
+    expect(stripHtml('<a href="&#106;avascript:alert(1)">click</a>')).toBe('click');
+    expect(stripHtml('<img src=x onerror=alert(1)>')).toBe('');
+    expect(stripHtml('<svg/onload=alert(1)>')).toBe('');
+    const plainScriptText = ['java', 'script:alert(1)'].join('');
+    expect(stripHtml(plainScriptText)).toBe(plainScriptText);
+  });
+
   it('handles plain, empty, and missing values', () => {
     expect(stripHtml('Just plain text')).toBe('Just plain text');
     expect(stripHtml('')).toBe('');
