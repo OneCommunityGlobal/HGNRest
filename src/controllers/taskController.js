@@ -14,8 +14,7 @@ const logger = require('../startup/logger');
 
 const taskController = function (Task) {
   const canSeeTaskExtensionCount = async (requestor) =>
-    (await hasPermission(requestor, 'seeNumberOfTimesTimeAdded')) ||
-    (await hasPermission(requestor, 'viewTaskExtensionCount'));
+    (await hasPermission(requestor, 'seeNumberOfTimesTimeAdded'));
 
   const removeTaskExtensionCounts = (value) => {
     if (Array.isArray(value)) {
