@@ -173,7 +173,8 @@ async function scheduleStatus(req, res) {
 //  Fetch scheduled posts
 async function fetchScheduledStatus(_req, res) {
   try {
-    const scheduled = await MastodonSchedule.find();
+    // Posted records are kept as delivery history, not shown as scheduled
+    const scheduled = await MastodonSchedule.find({ status: { $ne: 'posted' } });
     res.json(scheduled);
   } catch (err) {
     res.status(500).send('Failed to fetch scheduled pins');
@@ -183,9 +184,13 @@ async function fetchScheduledStatus(_req, res) {
 //  Delete scheduled post
 async function deleteScheduledStatus(req, res) {
   try {
-    const result = await MastodonSchedule.deleteOne({ _id: req.params.id });
+    // A post being published or already posted cannot be deleted
+    const result = await MastodonSchedule.deleteOne({
+      _id: req.params.id,
+      status: { $in: ['pending', null, 'failed'] },
+    });
     if (!result?.deletedCount) {
-      return res.status(404).send('Scheduled post not found');
+      return res.status(404).send('Scheduled post not found or already being published');
     }
     return res.send('Scheduled post deleted successfully');
   } catch {

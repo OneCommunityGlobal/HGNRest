@@ -114,7 +114,10 @@ describe('mastodonRouter', () => {
       const res = await request(app).delete('/api/mastodon/schedule/abc123');
 
       expect(res.status).toBe(200);
-      expect(MastodonSchedule.deleteOne).toHaveBeenCalledWith({ _id: 'abc123' });
+      expect(MastodonSchedule.deleteOne).toHaveBeenCalledWith({
+        _id: 'abc123',
+        status: { $in: ['pending', null, 'failed'] },
+      });
     });
 
     it('returns 404 when the post does not exist', async () => {
