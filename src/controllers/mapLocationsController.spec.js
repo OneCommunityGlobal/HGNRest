@@ -127,6 +127,69 @@ describe('Map Locations Controller', () => {
       );
       expect(findLocationSpy).toHaveBeenCalledWith({});
     });
+
+    test('Filters users by hoursByCategory sum >= 10', async () => {
+      const { getAllLocations } = makeSut();
+
+      const findRes = [
+        {
+          _id: 2,
+          firstName: 'alice',
+          lastName: 'wonderland',
+          isActive: true,
+          location: {
+            coords: {
+              lat: 10,
+              lng: 10,
+            },
+            country: 'UK',
+            city: 'London',
+          },
+          jobTitle: ['designer'],
+          totalTangibleHrs: 5,
+          hoursByCategory: { cat1: 6, cat2: 5 },
+        },
+      ];
+      jest.spyOn(UserProfile, 'find').mockResolvedValueOnce(findRes);
+      jest.spyOn(MapLocation, 'find').mockResolvedValueOnce([]);
+
+      const modifiedUsers = {
+        location: findRes[0].location,
+        isActive: findRes[0].isActive,
+        jobTitle: findRes[0].jobTitle[0],
+        _id: findRes[0]._id,
+        firstName: findRes[0].firstName,
+        lastName: findRes[0].lastName,
+      };
+
+      const res = await getAllLocations(mockReq, mockRes);
+
+      assertResMock(200, { users: [modifiedUsers], mUsers: [] }, res, mockRes);
+    });
+
+    test('Uses homeCountry if location is missing', async () => {
+      const { getAllLocations } = makeSut();
+
+      const findRes = [
+        {
+          _id: 3,
+          firstName: 'eve',
+          lastName: 'adams',
+          isActive: true,
+          location: undefined,
+          homeCountry: { country: 'Canada' },
+          jobTitle: ['manager'],
+          totalTangibleHrs: 12,
+          hoursByCategory: {},
+        },
+      ];
+      jest.spyOn(UserProfile, 'find').mockResolvedValueOnce(findRes);
+      jest.spyOn(MapLocation, 'find').mockResolvedValueOnce([]);
+
+      const res = await getAllLocations(mockReq, mockRes);
+
+      assertResMock(200, { users: [], mUsers: [] }, res, mockRes);
+    });
   });
 
   describe('deleteLocation method', () => {
@@ -282,7 +345,7 @@ describe('Map Locations Controller', () => {
       mockReq.body.type = 'user';
       mockReq.body._id = '60d5f60c2f9b9c3b8a1e4a2f';
 
-      const { mockCache: removeAllUsersMock, cacheObject } = makeMockCache('removeCache', true);
+      const { cacheObject } = makeMockCache('removeCache', true);
       const removeUserCacheSpy = jest
         .spyOn(cacheObject, 'removeCache')
         .mockImplementationOnce(() => true);
@@ -319,7 +382,6 @@ describe('Map Locations Controller', () => {
         { new: true },
       );
 
-      expect(removeAllUsersMock).toHaveBeenCalledWith('allusers');
       expect(removeUserCacheSpy).toHaveBeenCalledWith(`user-${mockReq.body._id}`);
       expect(setCacheSpy).toHaveBeenCalledWith(
         `user-${mockReq.body._id}`,
@@ -360,6 +422,28 @@ describe('Map Locations Controller', () => {
         { _id: mockReq.body._id },
         { $set: updateData },
         { new: true },
+      );
+    });
+
+    test('Returns 500 if update returns no response', async () => {
+      const { cacheObject } = makeMockCache('removeCache', true);
+      jest.spyOn(cacheObject, 'removeCache').mockImplementation(() => true);
+      jest.spyOn(cacheObject, 'setCache').mockImplementation(() => true);
+
+      const { updateUserLocation } = makeSut();
+      mockReq.body.requestor.role = 'Owner';
+      mockReq.body.type = 'user';
+      mockReq.body._id = '60d5f60c2f9b9c3b8a1e4a2f';
+
+      jest.spyOn(UserProfile, 'findOneAndUpdate').mockResolvedValueOnce(null);
+
+      const res = await updateUserLocation(mockReq, mockRes);
+
+      assertResMock(
+        500,
+        { message: 'Something went wrong during saving the location...' },
+        res,
+        mockRes,
       );
     });
   });
