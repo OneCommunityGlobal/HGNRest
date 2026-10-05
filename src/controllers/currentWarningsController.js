@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const { setOutdatedWarningsFlag } = require('../utilities/warningsCache');
+const { cleanHtml } = require('../utilities/htmlContentSanitizer');
 const currentWarningsController = function (currentWarnings) {
   const normalizeWarningTitle = (warningTitle /*: string */) => warningTitle.toLowerCase().trim();
 
@@ -33,6 +34,33 @@ const currentWarningsController = function (currentWarnings) {
     }));
   };
 
+  const addMissingDescriptions = async (warnings) => {
+    const updates = [];
+    warnings.forEach((warning) => {
+      if (
+        warning.description === null ||
+        warning.description === undefined ||
+        warning.description === -1
+      ) {
+        updates.push({
+          updateOne: {
+            filter: { _id: warning._id },
+            update: { $set: { description: 'No description provided yet' } },
+          },
+        });
+      }
+    });
+
+    if (updates.length > 0) {
+      await currentWarnings.bulkWrite(updates);
+    }
+    // only updates warnings missing a description
+    return warnings.map((warning) => ({
+      ...warning,
+      description: warning.description ?? 'No description provided yet',
+    }));
+  };
+
   const getCurrentWarnings = async (req, res) => {
     try {
       const response = await currentWarnings.find({}).sort({ order: 1 });
@@ -44,8 +72,16 @@ const currentWarningsController = function (currentWarnings) {
       const missingOrder = response.some(
         (warning) => warning.order === null || warning.order === undefined || warning.order === -1,
       );
-
-      const updatedWarnings = missingOrder ? await addMissingOrderValues(response) : response;
+      const warningsWithOrder = missingOrder ? await addMissingOrderValues(response) : response;
+      const missingDescription = warningsWithOrder.some(
+        (warning) =>
+          warning.description === null ||
+          warning.description === undefined ||
+          warning.description === -1,
+      );
+      const updatedWarnings = missingDescription
+        ? await addMissingDescriptions(response)
+        : response;
       return res.status(200).send({ currentWarningDescriptions: updatedWarnings });
     } catch (error) {
       console.log('Entered error of fetch warnings');
@@ -60,8 +96,16 @@ const currentWarningsController = function (currentWarnings) {
     }
     try {
       const { newWarning, activeWarning, isPermanent, newWarningDescription } = req.body;
+      if (typeof newWarningDescription !== 'string') {
+        return res.status(400).send('Description must be a string');
+      }
+      if (newWarningDescription.length > 500)
+        return res.status(400).send('Description cannot exceed 500 characters');
       const normalizedWarningTitle = normalizeWarningTitle(newWarning);
       const trimmedWarning = newWarning.trim();
+
+      const trimmedDescription = newWarningDescription.trim();
+      const cleanedDescription = cleanHtml(trimmedDescription);
       // Validate first
       if (checkIfSpecialCharacter(normalizedWarningTitle)) {
         return res.status(400).send({
@@ -80,14 +124,14 @@ const currentWarningsController = function (currentWarnings) {
         });
       }
       const lastWarning = await currentWarnings.findOne().sort({ order: -1 });
-      const newOrder = lastWarning ? lastWarning.order + 1 : 0;
+      const newOrder = (lastWarning?.order ?? -1) + 1;
 
       await new currentWarnings({
         warningTitle: trimmedWarning,
         activeWarning,
         isPermanent,
         order: newOrder,
-        description: newWarningDescription,
+        ...(cleanedDescription && { description: cleanedDescription }),
       }).save();
 
       setOutdatedWarningsFlag();
@@ -231,7 +275,7 @@ const currentWarningsController = function (currentWarnings) {
         },
       );
       setOutdatedWarningsFlag();
-      return res.status(200);
+      return res.status(200).send({ message: 'warning description was successfully deleted' });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }

@@ -26,14 +26,6 @@ async function getWarningDescriptions() {
 const checkWarningDescriptions = async () => {
   const warningsOutdated = areWarningsInfoOutdated();
   if (!currentWarningDescriptions || warningsOutdated) {
-    await currentWarnings.updateMany(
-      { description: { $exists: false } },
-      {
-        $set: {
-          description: 'No description provided yet',
-        },
-      },
-    );
     await getWarningDescriptions();
   }
 };

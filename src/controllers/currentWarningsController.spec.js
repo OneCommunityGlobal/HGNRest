@@ -37,6 +37,7 @@ const mockHasPermission = (value) =>
 describe('current warnings controller module', () => {
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('get current warnings method', () => {
@@ -65,10 +66,16 @@ describe('current warnings controller module', () => {
 
     test('Ensure getCurrentWarnings returns warning list', async () => {
       const { getCurrentWarnings } = makeSut();
-      const testWarnings = [{ order: 1 }, { order: 2 }];
+      const testWarnings = [
+        { order: 1, description: 'No description' },
+        { order: 2, description: 'No description provided' },
+      ];
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockReturnValueOnce([{ order: 1 }, { order: 2 }]),
+        sort: jest.fn().mockReturnValueOnce([
+          { order: 1, description: 'No description' },
+          { order: 2, description: 'No description provided' },
+        ]),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
@@ -89,6 +96,7 @@ describe('current warnings controller module', () => {
       mockReq.body.newWarning = '#new';
       mockReq.body.isPermanent = true;
       mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = '';
       const { postNewWarningDescription } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
       const res = await postNewWarningDescription(mockReq, mockRes);
@@ -132,10 +140,16 @@ describe('current warnings controller module', () => {
     });
 
     test('Ensure postNewWarningDescription returns error 201 if warning creation was successful', async () => {
-      const testWarning = { newWarning: 'example', isPermanent: true, activeWarning: true };
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: '',
+      };
       mockReq.body.newWarning = testWarning.newWarning;
       mockReq.body.isPermanent = testWarning.isPermanent;
       mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
       const { postNewWarningDescription } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
 
