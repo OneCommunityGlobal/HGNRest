@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const VALID_FUEL_TYPES = ['Diesel', 'Biodiesel', 'Gasoline', 'Natural Gas', 'Ethanol'];
+const SUPPORTED_INVENTORY_TYPES = ['materials', 'consumables', 'tools', 'reusables', 'equipments'];
+const UNSUPPORTED_INVENTORY_TYPE_ERROR =
+  'Unsupported inventory type. Expected one of: materials, consumables, tools, reusables, equipments.';
+
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 
 // eslint-disable-next-line max-lines-per-function
 function bmInventoryTypeController(
@@ -382,15 +387,15 @@ function bmInventoryTypeController(
         return res.status(400).json({ message: 'Invalid inventory type ID' });
       }
       // Sanitize name
-      const safeName = String(name).trim();
-      if (!safeName) {
+      if (!isNonEmptyString(name)) {
         return res.status(400).json({ message: 'Invalid inventory name' });
       }
+      const safeName = name.trim();
       // Extract and sanitize
-      const safeUnit = String(unit).trim();
-      if (!safeUnit || safeUnit.length > 50) {
+      if (!isNonEmptyString(unit) || unit.trim().length > 50) {
         return res.status(400).json({ message: 'Invalid unit value' });
       }
+      const safeUnit = unit.trim();
 
       let CollectionName = InvType;
       if (itemTtype === 'Material') {
@@ -512,9 +517,16 @@ function bmInventoryTypeController(
     const { type, invtypeId } = req.params;
     const { name, description, unit, fuel } = req.body;
 
+    if (!SUPPORTED_INVENTORY_TYPES.includes(type)) {
+      return res.status(400).json({ error: UNSUPPORTED_INVENTORY_TYPE_ERROR });
+    }
+    if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
+      return res.status(400).json({ error: 'Invalid inventory type ID' });
+    }
+
     try {
       if (type === 'materials') {
-        if (name?.trim() === '' || description?.trim() === '' || unit?.trim() === '') {
+        if (!isNonEmptyString(name) || !isNonEmptyString(description) || !isNonEmptyString(unit)) {
           return res.status(400).json({ error: 'Name, description, and unit are required.' });
         }
 
@@ -529,7 +541,7 @@ function bmInventoryTypeController(
 
         res.status(200).json(updatedMaterialType);
       } else if (type === 'consumables') {
-        if (name?.trim() === '' || description?.trim() === '' || unit?.length === '') {
+        if (!isNonEmptyString(name) || !isNonEmptyString(description) || !isNonEmptyString(unit)) {
           return res.status(400).json({ error: 'Name, description, and unit are required.' });
         }
 
@@ -544,7 +556,7 @@ function bmInventoryTypeController(
 
         res.status(200).json(updatedConsumableType);
       } else if (type === 'equipments') {
-        if (name?.trim() === '' || description?.trim() === '' || fuel?.trim() === '') {
+        if (!isNonEmptyString(name) || !isNonEmptyString(description) || !isNonEmptyString(fuel)) {
           return res.status(400).json({ error: 'Name, description, and fuel type are required.' });
         }
         const updatedEquipType = await EquipType.findByIdAndUpdate(
@@ -558,7 +570,7 @@ function bmInventoryTypeController(
 
         res.status(200).json(updatedEquipType);
       } else if (type === 'reusables') {
-        if (name?.trim() === '' || description?.trim() === '') {
+        if (!isNonEmptyString(name) || !isNonEmptyString(description)) {
           return res.status(400).json({ error: 'Name and description are required.' });
         }
 
@@ -573,7 +585,7 @@ function bmInventoryTypeController(
 
         res.status(200).json(updatedReusType);
       } else if (type === 'tools') {
-        if (name?.trim() === '' || description?.trim() === '') {
+        if (!isNonEmptyString(name) || !isNonEmptyString(description)) {
           return res.status(400).json({ error: 'Name and description are required.' });
         }
 
@@ -583,7 +595,7 @@ function bmInventoryTypeController(
           { new: true, runValidators: true },
         );
         if (!updatedToolType) {
-          return res.status(404).json({ error: 'Reusable does not exist' });
+          return res.status(404).json({ error: 'Tool does not exist' });
         }
 
         res.status(200).json(updatedToolType);
@@ -601,6 +613,13 @@ function bmInventoryTypeController(
 
   const deleteSingleInvType = async (req, res) => {
     const { type, invtypeId } = req.params;
+
+    if (!SUPPORTED_INVENTORY_TYPES.includes(type)) {
+      return res.status(400).json({ error: UNSUPPORTED_INVENTORY_TYPE_ERROR });
+    }
+    if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
+      return res.status(400).json({ error: 'Invalid inventory type ID' });
+    }
 
     try {
       let deletedResult;
@@ -642,11 +661,6 @@ function bmInventoryTypeController(
           return;
         }
         updatedList = await ReusType.find();
-      } else {
-        return res.status(400).json({
-          error:
-            'Unsupported inventory type. Expected one of: materials, consumables, tools, reusables, equipments.',
-        });
       }
       // send the updated list
       res.status(200).json(updatedList);
@@ -658,10 +672,10 @@ function bmInventoryTypeController(
   const fetchInvTypeHistory = async (req, res) => {
     try {
       const { invtypeId } = req.params;
-      const safeInvTypeId = new mongoose.Types.ObjectId(invtypeId);
       if (!mongoose.Types.ObjectId.isValid(invtypeId)) {
         return res.status(400).json({ message: 'Invalid inventory type id' });
       }
+      const safeInvTypeId = new mongoose.Types.ObjectId(invtypeId);
 
       const history = await invTypeHistory
         .find({ invtypeId: safeInvTypeId })
