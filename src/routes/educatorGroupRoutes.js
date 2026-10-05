@@ -12,7 +12,11 @@ const authorizeRoles =
     next();
   };
 
-router.post('/groups', authorizeRoles('Educator', 'Manager', 'Administrator'), ctrl.createGroup);
+router.post(
+  '/groups',
+  authorizeRoles('Educator', 'Manager', 'Administrator', 'Owner'),
+  ctrl.createGroup,
+);
 router.get('/groups', ctrl.getGroups);
 router.put('/groups/:groupId', ctrl.updateGroup);
 router.delete('/groups/:groupId', ctrl.deleteGroup);

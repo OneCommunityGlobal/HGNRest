@@ -28,7 +28,7 @@ exports.createGroup = async (req, res) => {
     if (!currentUser?.requestorId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const allowedRoles = ['Educator', 'Manager', 'Administrator'];
+    const allowedRoles = ['Educator', 'Manager', 'Administrator', 'Owner'];
     if (!allowedRoles.includes(currentUser.role)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
