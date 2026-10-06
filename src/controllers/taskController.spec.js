@@ -1410,6 +1410,7 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on success - updateTaskStatus', async () => {
       const { updateTaskStatus } = makeSut();
+      hasPermission.mockResolvedValueOnce(true);
 
       mockReq.params = {
         ...mockReq.params,
@@ -1438,6 +1439,7 @@ describe('Unit Tests for taskController.js', () => {
     test('Returns 400 on error', async () => {
       const { updateTaskStatus } = makeSut();
       const error = new Error('some error');
+      hasPermission.mockResolvedValueOnce(true);
 
       mockReq.params = {
         ...mockReq.params,
@@ -1460,6 +1462,23 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Returns 403 when task deadline permission is missing', async () => {
+      const { updateTaskStatus } = makeSut();
+      hasPermission.mockResolvedValueOnce(false);
+
+      const response = await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      assertResMock(
+        403,
+        { error: 'You are not authorized to update task deadline status.' },
+        response,
+        mockRes,
+      );
+      expect(Task.findById).not.toHaveBeenCalled();
+      expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
     });
   });
 });

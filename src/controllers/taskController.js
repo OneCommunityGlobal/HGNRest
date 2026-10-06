@@ -14,7 +14,7 @@ const logger = require('../startup/logger');
 
 const taskController = function (Task) {
   const canSeeTaskExtensionCount = async (requestor) =>
-    (await hasPermission(requestor, 'seeNumberOfTimesTimeAdded'));
+    await hasPermission(requestor, 'seeNumberOfTimesTimeAdded');
 
   const removeTaskExtensionCounts = (value) => {
     if (Array.isArray(value)) {
@@ -1311,6 +1311,12 @@ const taskController = function (Task) {
 
   const updateTaskStatus = async (req, res) => {
     try {
+      if (!(await hasPermission(req.body.requestor, 'viewAndInteractWithTaskDeadlinesBoxes'))) {
+        return res.status(403).send({
+          error: 'You are not authorized to update task deadline status.',
+        });
+      }
+
       const { taskId } = req.params;
       const currentTask = await Task.findById(taskId);
       const currentwbs = await WBS.findById(currentTask.wbsId);
