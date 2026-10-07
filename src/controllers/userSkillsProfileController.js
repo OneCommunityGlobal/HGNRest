@@ -137,7 +137,9 @@ const userSkillsProfileController = function (UserProfile) {
           firstName: userProfile.firstName,
           lastName: userProfile.lastName,
           displayName:
-            formResponses?.userInfo?.name || `${userProfile.firstName} ${userProfile.lastName}`,
+            `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() ||
+            formResponses?.userInfo?.name ||
+            'Not provided',
         },
         contactInfo,
         jobTitle: userProfile.jobTitle || [],
