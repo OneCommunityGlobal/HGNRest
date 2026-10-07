@@ -276,6 +276,253 @@ exports.getFormResponses = async (req, res) => {
   }
 };
 
+function tryParseJSON(str) {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+}
+
+// Public Dropbox upload for job form file answers
+exports.postFormResponseUpload = async (req, res) => {
+  const uploadFile = req.file;
+
+  const errorMap = {
+    expired_access_token: 'Dropbox access token expired. Please reconnect Dropbox.',
+    shared_link_already_exists: 'A shared link already exists for this file.',
+    path_conflict: 'A file with this name already exists in Dropbox.',
+  };
+
+  const accessTokenResponse = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: process.env.DROPBOX_REFRESH_TOKEN,
+      client_id: process.env.DROPBOX_APP_KEY,
+      client_secret: process.env.DROPBOX_APP_SECRET,
+    }),
+  });
+
+  try {
+    if (!uploadFile) return res.status(400).json({ message: 'No file uploaded' });
+
+    if (uploadFile.size > 5 * 1024 * 1024) {
+      return res.status(500).json({ message: 'File size should be less than or equal to 5MB' });
+    }
+
+    if (
+      ![
+        'application/pdf',
+        'application/doc',
+        'application/docx',
+        'image/jpeg',
+        'image/png',
+        'image/bmp',
+      ].includes(uploadFile.mimetype)
+    ) {
+      return res.status(500).json({
+        message: 'Invalid file type. Please upload a PDF, DOC, DOCX, JPG, PNG, or BMP file.',
+      });
+    }
+
+    const dropboxPath = `${process.env.DROPBOX_PATH}/${uploadFile.originalname}`;
+    const tokenData = await accessTokenResponse.json();
+
+    const uploadFileResponse = await fetch('https://content.dropboxapi.com/2/files/upload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        'Dropbox-API-Arg': JSON.stringify({
+          autorename: true,
+          mode: 'add',
+          path: dropboxPath,
+        }),
+        'Content-Type': 'application/octet-stream',
+      },
+      body: uploadFile.buffer,
+    });
+
+    if (!uploadFileResponse.ok) {
+      const text = await uploadFileResponse.text();
+      let shortMessage = 'Dropbox upload failed';
+      const errorObj = tryParseJSON(text);
+      if (errorObj) {
+        const tag = errorObj?.error?.['.tag'];
+        const summary = errorObj?.error_summary;
+        shortMessage = errorMap[tag] || `Dropbox error: ${summary || tag || 'Unknown error'}`;
+      } else if (text.includes('malformed')) {
+        shortMessage = 'Dropbox access token is malformed. Please re-authenticate.';
+      } else if (text.includes('expired_access_token')) {
+        shortMessage = 'Dropbox access token expired. Please reconnect Dropbox.';
+      } else {
+        shortMessage = `Dropbox upload failed: ${text}`;
+      }
+      return res.status(500).json({ message: `${shortMessage}` });
+    }
+
+    const uploadFileSharedLinkRes = await fetch(
+      'https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: dropboxPath,
+        }),
+      },
+    );
+
+    if (!uploadFileSharedLinkRes.ok) {
+      const uploadFileSharedLinkResText = await uploadFileSharedLinkRes.text();
+      let sharedShortMessage = 'Dropbox upload failed';
+      const sharedErrorObj = tryParseJSON(uploadFileSharedLinkResText);
+      if (sharedErrorObj) {
+        const sharedTag = sharedErrorObj?.error?.['.tag'];
+        const summary = sharedErrorObj?.error_summary;
+        sharedShortMessage =
+          errorMap[sharedTag] || `Dropbox error: ${summary || sharedTag || 'Unknown error'}`;
+      } else if (uploadFileSharedLinkResText.includes('malformed')) {
+        sharedShortMessage = 'Dropbox access token is malformed. Please re-authenticate.';
+      } else if (uploadFileSharedLinkResText.includes('expired_access_token')) {
+        sharedShortMessage = 'Dropbox access token expired. Please reconnect Dropbox.';
+      } else {
+        sharedShortMessage = `Dropbox upload failed: ${uploadFileSharedLinkResText}`;
+      }
+      return res.status(500).json({ message: `${sharedShortMessage}` });
+    }
+
+    const uploadFileSharedLinkResData = await uploadFileSharedLinkRes.json();
+    res.status(200).json({ data: uploadFileSharedLinkResData });
+  } catch (error) {
+    res.status(500).json({ message: 'Error Uploading', error });
+  }
+};
+
+// Public submit of job form responses
+exports.postFormResponses = async (req, res) => {
+  try {
+    const { answers } = req.body;
+    const formId = new mongoose.Types.ObjectId(req.body.formId);
+    const respondent = answers[1]?.answer;
+
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ message: 'Form not found.' });
+    }
+
+    if (!Array.isArray(form.questions)) {
+      return res.status(404).json({ message: 'Form not found or has no questions.' });
+    }
+
+    const formMap = Object.fromEntries(
+      form.questions.map((q) => [
+        q._id.toString(),
+        {
+          questionText: q._doc?.questionText || q.questionText,
+          isRequired: q._doc?.isRequired || q.isRequired,
+          answer: null,
+        },
+      ]),
+    );
+
+    let answerError = null;
+    answers.some((ans) => {
+      const qid = ans.questionId.toString();
+      if (!formMap[qid]) {
+        answerError = {
+          status: 404,
+          message: `Invalid question ID: ${qid}`,
+        };
+        return true;
+      }
+      formMap[qid].answer = ans.answer;
+      return false;
+    });
+
+    if (answerError) {
+      return res.status(answerError.status).json({
+        message: answerError.message,
+      });
+    }
+
+    let requiredError = null;
+    Object.values(formMap).some((item) => {
+      const empty = item.answer === '' || item.answer === null || item.answer === undefined;
+      if (item.isRequired && empty) {
+        requiredError = {
+          status: 400,
+          message: `Answer required for question: ${item.questionText}`,
+        };
+        return true;
+      }
+      return false;
+    });
+
+    if (requiredError) {
+      return res.status(requiredError.status).json({
+        message: requiredError.message,
+      });
+    }
+
+    const response = new Response({
+      formId,
+      answers,
+      respondent,
+    });
+
+    await response.save();
+
+    // eslint-disable-next-line global-require
+    const emailSender = require('../utilities/emailSender');
+    const emailBody = `
+          subject: ${form.title} Application Received from ${respondent}!,
+          html: 
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+    <h2 style="color: #2c3e50;">Application Received ${respondent}!</h2>
+    <p>We’ve successfully received your application. Below are your responses:</p>
+
+    <div style="margin-top: 10px;">
+      ${answers
+        .map((answer) => {
+          const computedQuestionId = answer.questionId?.toString?.() ?? String(answer.questionId);
+          const questionText = formMap[computedQuestionId]?.questionText || 'Unknown Question';
+          return `
+            <div style="margin-bottom: 10px;">
+              <strong style="color: #1a73e8;">
+              ${questionText}
+              </strong><br>
+              <span>${answer.answer}</span>
+            </div>
+          `;
+        })
+        .join('')}
+    </div>
+
+    <br>
+    <p>Regards,<br><strong>Software Team HGN</strong></p>
+  </div>
+`;
+    emailSender(
+      process.env.JOB_APPLICATION_RECIPIENT_EMAIL,
+      `${form.title} Application Received from ${respondent}!`,
+      emailBody,
+      null,
+      null,
+      'jae@onecommunityglobal.org',
+    );
+
+    res.status(201).json({ message: 'Responses submitted successfully.', response });
+  } catch (error) {
+    res.status(500).json({ message: 'Error Saving form responses.', error });
+  }
+};
+
 // Get formats of all forms
 exports.getAllFormsFormat = async (req, res) => {
   try {

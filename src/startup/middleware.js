@@ -91,6 +91,21 @@ module.exports = function (app) {
       return;
     }
 
+    if (req.originalUrl.startsWith('/api/jobforms') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    if (req.originalUrl.startsWith('/api/jobforms/responses') && req.method === 'POST') {
+      next();
+      return;
+    }
+
+    if (req.originalUrl.startsWith('/api/jobforms/responses/upload') && req.method === 'POST') {
+      next();
+      return;
+    }
+
     // Public FAQ list: the job listing page at /collaboration is reachable without
     // signing in, and its FAQ section reads from here. Matched exactly so the
     // search, history and unanswered FAQ routes stay behind authentication.

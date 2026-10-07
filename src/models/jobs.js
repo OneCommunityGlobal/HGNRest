@@ -6,6 +6,9 @@ const jobSchema = new Schema({
   title: { type: String, required: true }, // Job title
   category: { type: String, required: true }, // General category (e.g., Engineering, Marketing)
   description: { type: String, required: true }, // Detailed job description
+  requirements: { type: String, required: true }, // Detailed requirements section
+  projects: { type: String, required: true }, // list of projects seperated by comma
+  ourCommunity: { type: String, required: true }, // Detailed who we are section
   imageUrl: { type: String, required: true }, // URL of the job-related image
   location: { type: String, required: true }, // Job location (optional for remote jobs)
   applyLink: { type: String, required: true }, // URL for the application form
@@ -13,6 +16,15 @@ const jobSchema = new Schema({
   datePosted: { type: Date, default: Date.now }, // Date the job was posted
   jobDetailsLink: { type: String, required: true }, // Specific job details URL
   displayOrder: { type: Number, default: 0 }, // Order for displaying jobs on the landing page
+});
+
+jobSchema.pre('validate', function preValidateJobDetailsLink(next) {
+  if (!this.jobDetailsLink) {
+    const baseFrontendUrl =
+      `${process.env.BASE_FRONTEND_URL}/jobDetailsLink` || 'http://localhost:5173/jobDetailsLink';
+    this.jobDetailsLink = `${baseFrontendUrl}/${this._id}`;
+  }
+  next();
 });
 
 module.exports = mongoose.model('Job', jobSchema);

@@ -1,9 +1,66 @@
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const JobForms = require('../models/JobFormsModel');
+const helper = require('../utilities/permissions');
 
 /* ============================================================
    UTILS
    ============================================================ */
+
+const EIGHTEEN = 18;
+const MIN_WORDS = 30;
+
+function getWordCount(input) {
+  const excludedSymbols = new Set(['.', '#', '$', '*', '-', '–', '—', '_']);
+
+  const wordCount = input
+    .trim()
+    .split(/\s+/)
+    .filter((word) => {
+      const cleanedWord = word.trim();
+      return cleanedWord && !excludedSymbols.has(cleanedWord);
+    }).length;
+
+  return wordCount;
+}
+
+const checkPermission = async function checkPermission(req, permission) {
+  return helper.hasPermission(req.body.requestor, permission);
+};
+
+const validateCategory = async function validateCategory(category) {
+  const result = await JobPositionCategory.find({ category });
+  if (!result || result.length === 0) {
+    return { error: 'Category not found' };
+  }
+  return null;
+};
+
+const validateTitle = async function validateTitle(title) {
+  const jobPosition = await JobPositionCategory.find({ position: title });
+  if (!jobPosition || jobPosition.length === 0) {
+    return { error: 'Title not found' };
+  }
+  return null;
+};
+
+const validateTitleCategoryMatch = async function validateTitleCategoryMatch(title, category) {
+  const jobPositionCategory = await JobPositionCategory.find({ position: title, category });
+  if (!jobPositionCategory || jobPositionCategory.length === 0) {
+    return { error: 'Title and Category not matched' };
+  }
+  return null;
+};
+
+const validateApplyLink = async function validateApplyLink(applyLink) {
+  const formId = applyLink.split('jobforms/')[1];
+
+  const jobForms = await JobForms.find({ _id: formId });
+  if (!jobForms || jobForms.length === 0) {
+    return { error: 'Mismatched ApplyLink' };
+  }
+  return null;
+};
 
 const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
@@ -59,7 +116,7 @@ const buildConditions = ({ search, category, position }) => {
    ============================================================ */
 
 const paginationForJobs = async (req, res) => {
-  const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
+  const { page = 1, limit = EIGHTEEN, search = '', category = '', position = '' } = req.query;
 
   try {
     const pageNumber = Math.max(1, parseInt(page, 10));
@@ -151,7 +208,7 @@ const getJobTitleSuggestions = async (req, res) => {
 };
 
 const resetJobsFilters = async (req, res) => {
-  const { page = 1, limit = 18 } = req.query;
+  const { page = 1, limit = EIGHTEEN } = req.query;
 
   try {
     const pageNumber = Math.max(1, parseInt(page, 10));
@@ -197,7 +254,10 @@ const getCategories = async (req, res) => {
 
 const getPositions = async (req, res) => {
   try {
-    const positions = await JobPositionCategory.distinct('position', {});
+    const categoryIn = req?.query?.category || req?.params?.category || '';
+    const filterCategory = categoryIn ? { category: categoryIn } : {};
+
+    const positions = await JobPositionCategory.distinct('position', filterCategory);
     positions.sort((a, b) => a.localeCompare(b));
     res.status(200).json({ positions });
   } catch {
@@ -222,7 +282,67 @@ const getJobById = async (req, res) => {
 };
 
 const createJob = async (req, res) => {
-  const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
+  const {
+    title,
+    category,
+    description,
+    imageUrl,
+    applyLink,
+    requirements,
+    projects,
+    ourCommunity,
+  } = req.body;
+
+  if (!(await checkPermission(req, 'createCollabJobAds'))) {
+    return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+  }
+
+  const categoryValidation = await validateCategory(category);
+  if (categoryValidation) {
+    return res.status(500).json(categoryValidation);
+  }
+
+  const titleValidation = await validateTitle(title);
+  if (titleValidation) {
+    return res.status(500).json(titleValidation);
+  }
+
+  const titleCategoryMatch = await validateTitleCategoryMatch(title, category);
+  if (titleCategoryMatch) {
+    return res.status(404).json(titleCategoryMatch);
+  }
+
+  const applyLinkValidation = await validateApplyLink(applyLink);
+  if (applyLinkValidation) {
+    return res.status(404).json(applyLinkValidation);
+  }
+
+  const descriptionWordCount = getWordCount(description);
+  if (descriptionWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for description`,
+    });
+  }
+
+  const requirementsWordCount = getWordCount(requirements);
+  if (requirementsWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for Requireents`,
+    });
+  }
+
+  if (!projects || projects.length === 0) {
+    return res.status(403).json({
+      error: 'Please enter at least one project',
+    });
+  }
+
+  const ourCommunityWordCount = getWordCount(ourCommunity);
+  if (ourCommunityWordCount < MIN_WORDS) {
+    return res.status(403).json({
+      error: `Please enter a minimum of ${MIN_WORDS} words for ourCommunity`,
+    });
+  }
 
   try {
     const highestOrderJob = await Job.findOne().sort({ displayOrder: -1 });
@@ -233,10 +353,12 @@ const createJob = async (req, res) => {
       category,
       description,
       imageUrl,
-      location,
+      location: 'remote',
       applyLink,
-      jobDetailsLink,
       displayOrder: newDisplayOrder,
+      requirements,
+      projects,
+      ourCommunity,
     });
 
     const savedJob = await newJob.save();

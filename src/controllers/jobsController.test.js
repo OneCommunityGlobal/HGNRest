@@ -1,5 +1,12 @@
+jest.mock('../models/jobs');
+jest.mock('../models/jobPositionCategory');
+jest.mock('../models/JobFormsModel');
+jest.mock('../utilities/permissions');
+
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const JobForms = require('../models/JobFormsModel');
+const helper = require('../utilities/permissions');
 const {
   getJobs,
   getJobSummaries,
@@ -14,11 +21,7 @@ const {
   reorderJobs,
 } = require('./jobsController');
 
-// 1. Mock the modules
-jest.mock('../models/jobs');
-jest.mock('../models/jobPositionCategory');
-
-// 2. Explicitly define Mongoose methods as Jest mocks to avoid "not a function" errors
+// Explicitly define Mongoose methods as Jest mocks to avoid "not a function" errors
 Job.find = jest.fn();
 Job.findOne = jest.fn();
 Job.findById = jest.fn();
@@ -27,6 +30,8 @@ Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
 Job.bulkWrite = jest.fn();
 JobPositionCategory.distinct = jest.fn();
+JobPositionCategory.find = jest.fn();
+JobForms.find = jest.fn();
 
 // --- HELPER FACTORIES ---
 
@@ -232,15 +237,26 @@ describe('jobsController', () => {
   });
 
   describe('createJob', () => {
+    const longText = Array.from({ length: 35 }, (_, i) => `word${i}`).join(' ');
     const newJobBody = {
       title: 'Developer',
       category: 'Software & IT',
-      description: 'Build things',
+      description: longText,
       imageUrl: 'http://example.com/img.png',
       location: 'Remote',
-      applyLink: 'http://example.com/apply',
+      applyLink: 'http://example.com/jobforms/507f1f77bcf86cd799439011',
       jobDetailsLink: 'http://example.com/details',
+      requirements: longText,
+      projects: ['Project A'],
+      ourCommunity: longText,
+      requestor: { role: 'Administrator', permissions: { frontPermissions: [] } },
     };
+
+    beforeEach(() => {
+      jest.spyOn(helper, 'hasPermission').mockResolvedValue(true);
+      JobPositionCategory.find.mockResolvedValue([{ _id: 'match' }]);
+      JobForms.find.mockResolvedValue([{ _id: '507f1f77bcf86cd799439011' }]);
+    });
 
     it('assigns the next displayOrder and saves the job', async () => {
       Job.findOne.mockReturnValue({
