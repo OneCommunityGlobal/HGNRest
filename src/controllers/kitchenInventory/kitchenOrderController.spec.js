@@ -23,6 +23,13 @@ const VALID_OID = '507f1f77bcf86cd799439011';
 const SUPPLIER_OID = '507f1f77bcf86cd799439012';
 const INVALID_OID = 'not-a-valid-id';
 
+function validationError(errors) {
+  const err = new Error('Validation failed');
+  err.name = 'ValidationError';
+  err.errors = errors;
+  return err;
+}
+
 const ITEMS = [
   { itemName: 'Tomatoes', quantity: 2, pricePerItem: 1.5 },
   { itemName: 'Onions', quantity: 4, pricePerItem: 0.5 },
@@ -130,12 +137,39 @@ describe('kitchenOrderController', () => {
     });
 
     test.each([
-      ['quantity is not a number', { quantity: '2', pricePerItem: 1 }],
-      ['pricePerItem is not a number', { quantity: 2, pricePerItem: '1' }],
-      ['quantity is negative', { quantity: -1, pricePerItem: 1 }],
-      ['pricePerItem is negative', { quantity: 1, pricePerItem: -1 }],
-      ['item is null', null],
-    ])('returns 400 when an item is invalid (%s)', async (_label, item) => {
+      ['itemName is missing', { quantity: 1, pricePerItem: 1 }, 'Item 1: itemName is required'],
+      [
+        'itemName is blank',
+        { itemName: '  ', quantity: 1, pricePerItem: 1 },
+        'Item 1: itemName is required',
+      ],
+      [
+        'quantity is not a number',
+        { itemName: 'Rice', quantity: '2', pricePerItem: 1 },
+        'Item 1: quantity must be a number of at least 1',
+      ],
+      [
+        'quantity is 0',
+        { itemName: 'Rice', quantity: 0, pricePerItem: 1 },
+        'Item 1: quantity must be a number of at least 1',
+      ],
+      [
+        'quantity is negative',
+        { itemName: 'Rice', quantity: -1, pricePerItem: 1 },
+        'Item 1: quantity must be a number of at least 1',
+      ],
+      [
+        'pricePerItem is not a number',
+        { itemName: 'Rice', quantity: 2, pricePerItem: '1' },
+        'Item 1: pricePerItem must be a number of at least 0',
+      ],
+      [
+        'pricePerItem is negative',
+        { itemName: 'Rice', quantity: 1, pricePerItem: -1 },
+        'Item 1: pricePerItem must be a number of at least 0',
+      ],
+      ['item is null', null, 'Item 1: invalid order item'],
+    ])('returns 400 when an item is invalid (%s)', async (_label, item, message) => {
       Supplier.findById.mockResolvedValue({ _id: SUPPLIER_OID, isActive: true });
       const res = makeRes();
 
@@ -145,7 +179,7 @@ describe('kitchenOrderController', () => {
       );
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid order item' });
+      expect(res.json).toHaveBeenCalledWith({ message });
       expect(Order).not.toHaveBeenCalled();
     });
 
@@ -196,10 +230,48 @@ describe('kitchenOrderController', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    test('reports which item is invalid', async () => {
+      Supplier.findById.mockResolvedValue({ _id: SUPPLIER_OID, isActive: true });
+      const res = makeRes();
+
+      await controller.createOrder(
+        makeReq({
+          body: {
+            supplierId: SUPPLIER_OID,
+            items: [...ITEMS, { itemName: 'Garlic', quantity: 0, pricePerItem: 1 }],
+          },
+        }),
+        res,
+      );
+
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Item 3: quantity must be a number of at least 1',
+      });
+    });
+
+    test('returns the mongoose validation message when save fails validation', async () => {
+      Supplier.findById.mockResolvedValue({ _id: SUPPLIER_OID, isActive: true });
+      Order.mockImplementation(() => ({
+        save: jest.fn().mockRejectedValue(
+          validationError({
+            expectedDeliveryDate: { message: 'Cast to date failed for value "soon"' },
+          }),
+        ),
+      }));
+      const res = makeRes();
+
+      await controller.createOrder(makeReq({ body: { supplierId: SUPPLIER_OID } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Cast to date failed for value "soon"',
+      });
+    });
+
     test('returns 400 when save fails', async () => {
       Supplier.findById.mockResolvedValue({ _id: SUPPLIER_OID, isActive: true });
       Order.mockImplementation(() => ({
-        save: jest.fn().mockRejectedValue(new Error('validation failed')),
+        save: jest.fn().mockRejectedValue(new Error('boom')),
       }));
       const res = makeRes();
 
@@ -349,17 +421,49 @@ describe('kitchenOrderController', () => {
       await controller.updateOrder(
         makeReq({
           params: { orderId: VALID_OID },
-          body: { items: [{ quantity: -1, pricePerItem: 1 }] },
+          body: { items: [{ itemName: 'Rice', quantity: 0, pricePerItem: 1 }] },
         }),
         res,
       );
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid order item' });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Item 1: quantity must be a number of at least 1',
+      });
       expect(Order.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
+    test.each([
+      ['does not exist', null],
+      ['is inactive', { _id: SUPPLIER_OID, isActive: false }],
+    ])('returns 400 when the new supplier %s', async (_label, supplier) => {
+      Supplier.findById.mockResolvedValue(supplier);
+      const res = makeRes();
+
+      await controller.updateOrder(
+        makeReq({ params: { orderId: VALID_OID }, body: { supplierId: SUPPLIER_OID } }),
+        res,
+      );
+
+      expect(String(Supplier.findById.mock.calls[0][0])).toBe(SUPPLIER_OID);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Supplier Not Found' });
+      expect(Order.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('does not look up the supplier when supplierId is not sent', async () => {
+      Order.findByIdAndUpdate.mockResolvedValue({ _id: VALID_OID });
+
+      await controller.updateOrder(
+        makeReq({ params: { orderId: VALID_OID }, body: { status: 'Shipped' } }),
+        makeRes(),
+      );
+
+      expect(Supplier.findById).not.toHaveBeenCalled();
+    });
+
     test('updates the order and recalculates totalAmount from items', async () => {
+      Supplier.findById.mockResolvedValue({ _id: SUPPLIER_OID, isActive: true });
       const updated = { _id: VALID_OID, status: 'Delivered' };
       Order.findByIdAndUpdate.mockResolvedValue(updated);
       const res = makeRes();
@@ -417,8 +521,24 @@ describe('kitchenOrderController', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Order Not Found' });
     });
 
+    test('returns the mongoose validation message when the update fails validation', async () => {
+      const castError = new Error('Cast failed');
+      castError.name = 'CastError';
+      castError.path = 'orderDate';
+      Order.findByIdAndUpdate.mockRejectedValue(castError);
+      const res = makeRes();
+
+      await controller.updateOrder(
+        makeReq({ params: { orderId: VALID_OID }, body: { orderDate: 'not-a-date' } }),
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid value for orderDate' });
+    });
+
     test('returns 400 when the update fails', async () => {
-      Order.findByIdAndUpdate.mockRejectedValue(new Error('validation failed'));
+      Order.findByIdAndUpdate.mockRejectedValue(new Error('boom'));
       const res = makeRes();
 
       await controller.updateOrder(

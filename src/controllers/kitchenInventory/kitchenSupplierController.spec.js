@@ -18,6 +18,14 @@ const kitchenSupplierController = require('./kitchenSupplierController');
 const VALID_OID = '507f1f77bcf86cd799439011';
 const OTHER_OID = '507f1f77bcf86cd799439012';
 const INVALID_OID = 'not-a-valid-id';
+const REQUIRED_FIELDS = { email: 'a@acme.com', phone: '123' };
+
+function validationError(errors) {
+  const err = new Error('Validation failed');
+  err.name = 'ValidationError';
+  err.errors = errors;
+  return err;
+}
 
 function makeReq(overrides = {}) {
   return {
@@ -79,7 +87,10 @@ describe('kitchenSupplierController', () => {
 
     test('returns 400 when isActive is not a boolean', async () => {
       const res = makeRes();
-      await controller.createSupplier(makeReq({ body: { name: 'Acme', isActive: 'yes' } }), res);
+      await controller.createSupplier(
+        makeReq({ body: { name: 'Acme', ...REQUIRED_FIELDS, isActive: 'yes' } }),
+        res,
+      );
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'Invalid isActive value' });
@@ -88,7 +99,7 @@ describe('kitchenSupplierController', () => {
     test('returns 400 when a supplier with the same name already exists', async () => {
       Supplier.findOne.mockResolvedValue({ _id: OTHER_OID, name: 'Acme' });
       const res = makeRes();
-      await controller.createSupplier(makeReq({ body: { name: 'acme' } }), res);
+      await controller.createSupplier(makeReq({ body: { name: 'acme', ...REQUIRED_FIELDS } }), res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'Supplier already exists' });
@@ -98,7 +109,10 @@ describe('kitchenSupplierController', () => {
       Supplier.findOne.mockResolvedValue(null);
       Supplier.mockImplementation((data) => ({ save: jest.fn().mockResolvedValue(data) }));
       const res = makeRes();
-      await controller.createSupplier(makeReq({ body: { name: '  A+B (Foods)  ' } }), res);
+      await controller.createSupplier(
+        makeReq({ body: { name: '  A+B (Foods)  ', ...REQUIRED_FIELDS } }),
+        res,
+      );
 
       expect(Supplier.findOne).toHaveBeenCalledWith({
         name: { $regex: '^A\\+B \\(Foods\\)$', $options: 'i' },
@@ -136,21 +150,81 @@ describe('kitchenSupplierController', () => {
       expect(res.json).toHaveBeenCalledWith({ _id: VALID_OID, name: 'Acme' });
     });
 
-    test('does not include fields that were not sent', async () => {
+    test.each([
+      ['email is missing', { phone: '123' }, 'Supplier email is required'],
+      ['email is blank', { email: '  ', phone: '123' }, 'Supplier email is required'],
+      ['phone is missing', { email: 'a@acme.com' }, 'Supplier phone is required'],
+      ['phone is not a string', { email: 'a@acme.com', phone: 123 }, 'Supplier phone is required'],
+    ])('returns 400 when %s', async (_label, fields, message) => {
+      const res = makeRes();
+      await controller.createSupplier(makeReq({ body: { name: 'Acme', ...fields } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message });
+      expect(Supplier.findOne).not.toHaveBeenCalled();
+    });
+
+    test('saves contact and website using the schema field names', async () => {
       Supplier.findOne.mockResolvedValue(null);
       Supplier.mockImplementation(() => ({ save: jest.fn().mockResolvedValue({}) }));
-      await controller.createSupplier(makeReq({ body: { name: 'Acme' } }), makeRes());
+      await controller.createSupplier(
+        makeReq({
+          body: {
+            name: 'Acme',
+            ...REQUIRED_FIELDS,
+            contact: 'Jane Doe',
+            website: 'https://acme.com',
+            address: '1 Main St',
+          },
+        }),
+        makeRes(),
+      );
 
-      expect(Supplier).toHaveBeenCalledWith({ name: 'Acme' });
+      expect(Supplier).toHaveBeenCalledWith({
+        name: 'Acme',
+        ...REQUIRED_FIELDS,
+        contact: 'Jane Doe',
+        website: 'https://acme.com',
+      });
+    });
+
+    test('does not include optional fields that were not sent', async () => {
+      Supplier.findOne.mockResolvedValue(null);
+      Supplier.mockImplementation(() => ({ save: jest.fn().mockResolvedValue({}) }));
+      await controller.createSupplier(
+        makeReq({ body: { name: 'Acme', ...REQUIRED_FIELDS } }),
+        makeRes(),
+      );
+
+      expect(Supplier).toHaveBeenCalledWith({ name: 'Acme', ...REQUIRED_FIELDS });
+    });
+
+    test('returns the mongoose validation message when save fails validation', async () => {
+      Supplier.findOne.mockResolvedValue(null);
+      Supplier.mockImplementation(() => ({
+        save: jest.fn().mockRejectedValue(
+          validationError({
+            email: { message: 'Provide Valid email address' },
+            website: { message: 'Provide valid website url' },
+          }),
+        ),
+      }));
+      const res = makeRes();
+      await controller.createSupplier(makeReq({ body: { name: 'Acme', ...REQUIRED_FIELDS } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Provide Valid email address, Provide valid website url',
+      });
     });
 
     test('returns 400 when save fails', async () => {
       Supplier.findOne.mockResolvedValue(null);
       Supplier.mockImplementation(() => ({
-        save: jest.fn().mockRejectedValue(new Error('validation failed')),
+        save: jest.fn().mockRejectedValue(new Error('boom')),
       }));
       const res = makeRes();
-      await controller.createSupplier(makeReq({ body: { name: 'Acme' } }), res);
+      await controller.createSupplier(makeReq({ body: { name: 'Acme', ...REQUIRED_FIELDS } }), res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ err: 'Unable to create supplier' });
@@ -345,6 +419,50 @@ describe('kitchenSupplierController', () => {
       expect(res.json).toHaveBeenCalledWith(updated);
     });
 
+    test('updates contact and website using the schema field names', async () => {
+      Supplier.findByIdAndUpdate.mockResolvedValue({ _id: VALID_OID });
+
+      await controller.updateSupplier(
+        makeReq({
+          params: { supplierId: VALID_OID },
+          body: { contact: 'Jane Doe', website: 'acme.com', address: '1 Main St' },
+        }),
+        makeRes(),
+      );
+
+      const update = Supplier.findByIdAndUpdate.mock.calls[0][1];
+      expect(update).toEqual(expect.objectContaining({ contact: 'Jane Doe', website: 'acme.com' }));
+      expect(update).not.toHaveProperty('address');
+      expect(update).not.toHaveProperty('contactName');
+    });
+
+    test.each([
+      ['email', { email: '' }, 'Supplier email is required'],
+      ['phone', { phone: '   ' }, 'Supplier phone is required'],
+    ])('returns 400 when %s is sent blank', async (_label, body, message) => {
+      const res = makeRes();
+      await controller.updateSupplier(makeReq({ params: { supplierId: VALID_OID }, body }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message });
+      expect(Supplier.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('returns the mongoose validation message when the update fails validation', async () => {
+      Supplier.findByIdAndUpdate.mockRejectedValue(
+        validationError({ email: { message: 'Provide Valid email address' } }),
+      );
+      const res = makeRes();
+
+      await controller.updateSupplier(
+        makeReq({ params: { supplierId: VALID_OID }, body: { email: 'bad' } }),
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Provide Valid email address' });
+    });
+
     test('returns 404 when the supplier does not exist', async () => {
       Supplier.findByIdAndUpdate.mockResolvedValue(null);
       const res = makeRes();
@@ -359,7 +477,7 @@ describe('kitchenSupplierController', () => {
     });
 
     test('returns 400 when the update fails', async () => {
-      Supplier.findByIdAndUpdate.mockRejectedValue(new Error('validation failed'));
+      Supplier.findByIdAndUpdate.mockRejectedValue(new Error('boom'));
       const res = makeRes();
 
       await controller.updateSupplier(
@@ -379,11 +497,11 @@ describe('kitchenSupplierController', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'Invalid Supplier Id' });
-      expect(Supplier.findByIdAndDelete).not.toHaveBeenCalled();
+      expect(Supplier.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
     test('returns 404 when the supplier does not exist', async () => {
-      Supplier.findByIdAndDelete.mockResolvedValue(null);
+      Supplier.findByIdAndUpdate.mockResolvedValue(null);
       const res = makeRes();
 
       await controller.deleteSupplier(makeReq({ params: { supplierId: VALID_OID } }), res);
@@ -392,19 +510,27 @@ describe('kitchenSupplierController', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Supplier Not Found' });
     });
 
-    test('deletes the supplier and returns 200', async () => {
-      Supplier.findByIdAndDelete.mockResolvedValue({ _id: VALID_OID });
+    test('soft deletes the supplier by marking it inactive and returns 200', async () => {
+      const deactivated = { _id: VALID_OID, isActive: false };
+      Supplier.findByIdAndUpdate.mockResolvedValue(deactivated);
       const res = makeRes();
 
       await controller.deleteSupplier(makeReq({ params: { supplierId: VALID_OID } }), res);
 
-      expect(String(Supplier.findByIdAndDelete.mock.calls[0][0])).toBe(VALID_OID);
+      const [id, update, options] = Supplier.findByIdAndUpdate.mock.calls[0];
+      expect(String(id)).toBe(VALID_OID);
+      expect(update).toEqual({ isActive: false, updated: expect.any(Number) });
+      expect(options).toEqual({ new: true });
+      expect(Supplier.findByIdAndDelete).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Deleted' });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Supplier deactivated',
+        supplier: deactivated,
+      });
     });
 
     test('returns 500 when the delete fails', async () => {
-      Supplier.findByIdAndDelete.mockRejectedValue(new Error('boom'));
+      Supplier.findByIdAndUpdate.mockRejectedValue(new Error('boom'));
       const res = makeRes();
 
       await controller.deleteSupplier(makeReq({ params: { supplierId: VALID_OID } }), res);

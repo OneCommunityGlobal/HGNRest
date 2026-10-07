@@ -2,14 +2,25 @@
 const logger = require('../../startup/logger');
 const Supplier = require('../../models/kitchenInventory/supplier');
 const Order = require('../../models/kitchenInventory/order');
+const getValidationErrorMessage = require('./validationErrorMessage');
+
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 
 const kitchenSupplierController = function () {
   const createSupplier = async (req, res) => {
     try {
-      const { name, contactName, email, phone, address, specialities, isActive } = req.body;
+      const { name, contact, email, phone, website, specialities, isActive } = req.body;
 
       if (typeof name !== 'string' || !name.trim()) {
         return res.status(400).json({ message: 'Invalid supplier name' });
+      }
+
+      if (!isNonEmptyString(email)) {
+        return res.status(400).json({ message: 'Supplier email is required' });
+      }
+
+      if (!isNonEmptyString(phone)) {
+        return res.status(400).json({ message: 'Supplier phone is required' });
       }
 
       if (isActive !== undefined && typeof isActive !== 'boolean') {
@@ -29,22 +40,16 @@ const kitchenSupplierController = function () {
 
       const supplierData = {
         name: normalizedName,
+        email,
+        phone,
       };
 
-      if (contactName !== undefined) {
-        supplierData.contactName = contactName;
+      if (contact !== undefined) {
+        supplierData.contact = contact;
       }
 
-      if (email !== undefined) {
-        supplierData.email = email;
-      }
-
-      if (phone !== undefined) {
-        supplierData.phone = phone;
-      }
-
-      if (address !== undefined) {
-        supplierData.address = address;
+      if (website !== undefined) {
+        supplierData.website = website;
       }
 
       if (specialities !== undefined) {
@@ -60,6 +65,10 @@ const kitchenSupplierController = function () {
 
       res.status(201).json(result);
     } catch (err) {
+      const validationMessage = getValidationErrorMessage(err);
+      if (validationMessage) {
+        return res.status(400).json({ message: validationMessage });
+      }
       logger.logException(err);
       res.status(400).json({ err: 'Unable to create supplier' });
     }
@@ -121,7 +130,7 @@ const kitchenSupplierController = function () {
       return res.status(400).json({ message: 'Invalid Supplier Id' });
     }
     try {
-      const { name, contactName, email, phone, address, specialities, isActive } = req.body;
+      const { name, contact, email, phone, website, specialities, isActive } = req.body;
       const update = { updated: Date.now() };
       if (name !== undefined) {
         if (typeof name !== 'string' || !name.trim()) {
@@ -138,13 +147,17 @@ const kitchenSupplierController = function () {
         }
         update.name = normalizedName;
       }
-      Object.entries({ contactName, email, phone, address, specialities }).forEach(
-        ([field, value]) => {
-          if (value !== undefined) {
-            update[field] = value;
-          }
-        },
-      );
+      if (email !== undefined && !isNonEmptyString(email)) {
+        return res.status(400).json({ message: 'Supplier email is required' });
+      }
+      if (phone !== undefined && !isNonEmptyString(phone)) {
+        return res.status(400).json({ message: 'Supplier phone is required' });
+      }
+      Object.entries({ contact, email, phone, website, specialities }).forEach(([field, value]) => {
+        if (value !== undefined) {
+          update[field] = value;
+        }
+      });
       if (isActive !== undefined) {
         if (typeof isActive !== 'boolean') {
           return res.status(400).json({ message: 'Invalid isActive value' });
@@ -162,6 +175,10 @@ const kitchenSupplierController = function () {
       }
       res.status(200).json(updated);
     } catch (err) {
+      const validationMessage = getValidationErrorMessage(err);
+      if (validationMessage) {
+        return res.status(400).json({ message: validationMessage });
+      }
       logger.logException(err);
       res.status(400).json({ err: 'Unable to update supplier' });
     }
@@ -172,13 +189,16 @@ const kitchenSupplierController = function () {
       return res.status(400).json({ message: 'Invalid Supplier Id' });
     }
     try {
-      const removed = await Supplier.findByIdAndDelete(
+      // Soft delete: orders keep referencing the supplier, so its history stays intact.
+      const deactivated = await Supplier.findByIdAndUpdate(
         new mongoose.Types.ObjectId(String(supplierId)),
+        { isActive: false, updated: Date.now() },
+        { new: true },
       );
-      if (!removed) {
+      if (!deactivated) {
         return res.status(404).json({ message: 'Supplier Not Found' });
       }
-      res.status(200).json({ message: 'Deleted' });
+      res.status(200).json({ message: 'Supplier deactivated', supplier: deactivated });
     } catch (err) {
       logger.logException(err);
       res.status(500).json({ err: 'Internal server error' });
