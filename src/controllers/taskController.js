@@ -1280,7 +1280,12 @@ const taskController = function (Task) {
   };
 
   const updateTaskStatus = async (req, res) => {
-    if (!(await hasPermission(req.body.requestor, 'viewAndInteractWithTaskDeadlinesBoxes'))) {
+    if (
+      !(await hasPermission(
+        req.body.requestor,
+        'viewAndInteractWithTaskDeadlinesBoxes',
+      ))
+    ) {
       return res.status(403).send({
         error: 'You are not authorized to update task deadline status.',
       });
