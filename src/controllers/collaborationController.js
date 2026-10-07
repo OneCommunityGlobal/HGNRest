@@ -290,14 +290,14 @@ const DROPBOX_ERROR_MAP = {
   path_conflict: 'A file with this name already exists in Dropbox.',
 };
 
-const ALLOWED_UPLOAD_MIME_TYPES = [
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
   'application/pdf',
   'application/doc',
   'application/docx',
   'image/jpeg',
   'image/png',
   'image/bmp',
-];
+]);
 
 const FIVE_MB = 5 * 1024 * 1024;
 
@@ -357,7 +357,7 @@ function validateUploadFile(uploadFile) {
   if (uploadFile.size > FIVE_MB) {
     return { status: 500, message: 'File size should be less than or equal to 5MB' };
   }
-  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(uploadFile.mimetype)) {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.has(uploadFile.mimetype)) {
     return {
       status: 500,
       message: 'Invalid file type. Please upload a PDF, DOC, DOCX, JPG, PNG, or BMP file.',
