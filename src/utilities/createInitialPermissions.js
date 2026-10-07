@@ -119,6 +119,8 @@ const permissionsRoles = [
       'deleteFormQuestions',
       'manageJobForms',
       'interactWithPauseUserButton',
+      // Collaboration Job Ads (Other Links > Job Ads Creation)
+      'createCollabJobAds',
     ],
   },
   {
@@ -317,6 +319,8 @@ const permissionsRoles = [
       'deleteFormQuestions',
       'manageJobForms',
       'interactWithPauseUserButton',
+      // Collaboration Job Ads (Other Links > Job Ads Creation)
+      'createCollabJobAds',
     ],
   },
 ];
