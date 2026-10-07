@@ -3,7 +3,11 @@ const express = require('express');
 const formController = require('../controllers/collaborationController');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const FIVE_MB = 5 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: FIVE_MB },
+});
 
 // Create a new form
 router.post('/jobforms', formController.createForm);

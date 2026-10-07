@@ -138,6 +138,21 @@ describe('jobsController', () => {
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
     });
+
+    it('should filter positions by sanitized category', async () => {
+      JobPositionCategory.distinct.mockResolvedValue(['Pos1']);
+      await getPositions({ query: { category: 'Engineering' } }, res);
+      expect(JobPositionCategory.distinct).toHaveBeenCalledWith('position', {
+        category: 'Engineering',
+      });
+      expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
+    });
+
+    it('should ignore NoSQL operator category values', async () => {
+      JobPositionCategory.distinct.mockResolvedValue(['Pos1']);
+      await getPositions({ query: { category: { $gt: '' } } }, res);
+      expect(JobPositionCategory.distinct).toHaveBeenCalledWith('position', {});
+    });
   });
 
   describe('CRUD Operations', () => {
@@ -291,6 +306,56 @@ describe('jobsController', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ error: 'Failed to create job' }),
       );
+    });
+
+    it('returns 403 when createCollabJobAds permission is missing', async () => {
+      helper.hasPermission.mockResolvedValue(false);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('returns 500 when category is invalid', async () => {
+      JobPositionCategory.find.mockResolvedValueOnce([]);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Category not found' });
+    });
+
+    it('returns 404 when applyLink form id is invalid', async () => {
+      JobForms.find.mockResolvedValue([]);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Mismatched ApplyLink' });
+    });
+
+    it('returns 403 when description is under the minimum word count', async () => {
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: 'too short',
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.stringContaining('minimum of 30 words') }),
+      );
+    });
+
+    it('returns 403 when projects are missing', async () => {
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            projects: [],
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Please enter at least one project' });
     });
   });
 

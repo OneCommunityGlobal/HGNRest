@@ -2,6 +2,10 @@ const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
 const JobForms = require('../models/JobFormsModel');
 const helper = require('../utilities/permissions');
+const {
+  sanitizeQueryString,
+  sanitizeObjectIdQuery,
+} = require('../utilities/mongoQuerySanitizer');
 
 /* ============================================================
    UTILS
@@ -11,6 +15,7 @@ const EIGHTEEN = 18;
 const MIN_WORDS = 30;
 
 function getWordCount(input) {
+  if (typeof input !== 'string') return 0;
   const excludedSymbols = new Set(['.', '#', '$', '*', '-', '–', '—', '_']);
 
   const wordCount = input
@@ -29,7 +34,11 @@ const checkPermission = async function checkPermission(req, permission) {
 };
 
 const validateCategory = async function validateCategory(category) {
-  const result = await JobPositionCategory.find({ category });
+  const safeCategory = sanitizeQueryString(category);
+  if (!safeCategory) {
+    return { error: 'Category not found' };
+  }
+  const result = await JobPositionCategory.find({ category: safeCategory });
   if (!result || result.length === 0) {
     return { error: 'Category not found' };
   }
@@ -37,7 +46,11 @@ const validateCategory = async function validateCategory(category) {
 };
 
 const validateTitle = async function validateTitle(title) {
-  const jobPosition = await JobPositionCategory.find({ position: title });
+  const safeTitle = sanitizeQueryString(title);
+  if (!safeTitle) {
+    return { error: 'Title not found' };
+  }
+  const jobPosition = await JobPositionCategory.find({ position: safeTitle });
   if (!jobPosition || jobPosition.length === 0) {
     return { error: 'Title not found' };
   }
@@ -45,7 +58,15 @@ const validateTitle = async function validateTitle(title) {
 };
 
 const validateTitleCategoryMatch = async function validateTitleCategoryMatch(title, category) {
-  const jobPositionCategory = await JobPositionCategory.find({ position: title, category });
+  const safeTitle = sanitizeQueryString(title);
+  const safeCategory = sanitizeQueryString(category);
+  if (!safeTitle || !safeCategory) {
+    return { error: 'Title and Category not matched' };
+  }
+  const jobPositionCategory = await JobPositionCategory.find({
+    position: safeTitle,
+    category: safeCategory,
+  });
   if (!jobPositionCategory || jobPositionCategory.length === 0) {
     return { error: 'Title and Category not matched' };
   }
@@ -53,7 +74,14 @@ const validateTitleCategoryMatch = async function validateTitleCategoryMatch(tit
 };
 
 const validateApplyLink = async function validateApplyLink(applyLink) {
-  const formId = applyLink.split('jobforms/')[1];
+  const safeApplyLink = sanitizeQueryString(applyLink);
+  if (!safeApplyLink) {
+    return { error: 'Mismatched ApplyLink' };
+  }
+  const formId = sanitizeObjectIdQuery(safeApplyLink.split('jobforms/')[1]);
+  if (!formId) {
+    return { error: 'Mismatched ApplyLink' };
+  }
 
   const jobForms = await JobForms.find({ _id: formId });
   if (!jobForms || jobForms.length === 0) {
@@ -254,7 +282,7 @@ const getCategories = async (req, res) => {
 
 const getPositions = async (req, res) => {
   try {
-    const categoryIn = req?.query?.category || req?.params?.category || '';
+    const categoryIn = sanitizeQueryString(req?.query?.category || req?.params?.category || '');
     const filterCategory = categoryIn ? { category: categoryIn } : {};
 
     const positions = await JobPositionCategory.distinct('position', filterCategory);

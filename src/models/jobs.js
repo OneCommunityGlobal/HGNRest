@@ -20,9 +20,8 @@ const jobSchema = new Schema({
 
 jobSchema.pre('validate', function preValidateJobDetailsLink(next) {
   if (!this.jobDetailsLink) {
-    const baseFrontendUrl =
-      `${process.env.BASE_FRONTEND_URL}/jobDetailsLink` || 'http://localhost:5173/jobDetailsLink';
-    this.jobDetailsLink = `${baseFrontendUrl}/${this._id}`;
+    const baseFrontendUrl = process.env.BASE_FRONTEND_URL || 'http://localhost:5173';
+    this.jobDetailsLink = `${baseFrontendUrl}/jobDetailsLink/${this._id}`;
   }
   next();
 });
