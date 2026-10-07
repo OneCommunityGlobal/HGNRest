@@ -1280,6 +1280,12 @@ const taskController = function (Task) {
   };
 
   const updateTaskStatus = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'viewAndInteractWithTaskDeadlinesBoxes'))) {
+      return res.status(403).send({
+        error: 'You are not authorized to update task deadline status.',
+      });
+    }
+
     const { taskId } = req.params;
     Task.findById(taskId).then((currentTask) => {
       WBS.findById(currentTask.wbsId).then((currentwbs) => {
@@ -1306,7 +1312,7 @@ const taskController = function (Task) {
         <p>The following task is available to review:</p>
         <p><b>${taskName}</b></p>
         <p>Thank you,</p>
-        <p>One Community</p>`;
+        <p>One Community Admin Team</p>`;
 
     return text;
   };

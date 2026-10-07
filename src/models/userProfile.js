@@ -76,7 +76,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  copiedAiPrompt: { type: Date, default: Date.now() },
+  copiedAiPrompt: { type: Date, default: Date.now },
   emailSubscriptions: {
     type: Boolean,
     default: false,
@@ -195,6 +195,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -350,6 +351,12 @@ const userProfileSchema = new Schema({
   ],
   // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
   actualEmail: { type: String },
+  productionUserId: { type: String, index: true },
+  linkedProdEmail: { type: String, index: true },
+  identityLocked: { type: Boolean, default: false },
+  identityVerifiedAt: { type: Date },
+  deactivatedByProductionSync: { type: Boolean, default: false, index: true },
+  productionDeactivatedAt: { type: Date },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
@@ -368,7 +375,6 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
-
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -411,6 +417,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [
@@ -426,7 +435,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
@@ -451,7 +460,7 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },

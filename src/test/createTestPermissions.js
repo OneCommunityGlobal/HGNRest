@@ -29,6 +29,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewAndInteractWithTaskDeadlinesBoxes',
       'viewTaskExtensionCount', // to view task extension count
       'updateNum',
       // Teams
@@ -79,6 +80,11 @@ const permissionsRoles = [
 
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      // Job Form Management
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
     ],
   },
   {
@@ -193,6 +199,7 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewAndInteractWithTaskDeadlinesBoxes',
       'postTeam',
       'deleteTeam',
       'putTeam',

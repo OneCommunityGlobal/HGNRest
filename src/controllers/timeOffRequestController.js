@@ -12,12 +12,12 @@ const userNotificationEmail = (name, action = '') => {
     <p>We wanted to inform you that your scheduled time-off request has been deleted.</p>
     <p>No further action is needed on your part regarding this request.</p>
     <p>Thank you,</p>
-    <p>One Community</p>`
+    <p>One Community Admin Team</p>`
       : `<p>Hello,</p>
     <p>Thank you ${name} for scheduling your time off.</p> 
     <p>The Admin and your Managers have been notified of this request and no further action is needed on your part.</p>   
     <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 };
 
@@ -38,7 +38,7 @@ const adminsNotificationEmail = (
   <p>We wanted to update you that this time-off request has been canceled.</p>
   <p>If any schedule adjustments or plans were made, please take note to revert them accordingly.</p>
   <p>Thank you for your understanding,</p>
-  <p>One Community</p>`
+  <p>One Community Admin Team</p>`
       : `<p>Hello,</p>
     <p>${firstName} ${lastName} has requested the following week off: <b>${moment(startDate).format(
       'MM-DD-YYYY',
@@ -47,7 +47,7 @@ const adminsNotificationEmail = (
     <p>If you need to, please make a note of this in your schedule and make any necessary plans for their action item(s).<br>
      As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the time they are off.</p>
      <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 };
 
