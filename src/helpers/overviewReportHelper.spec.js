@@ -1,4 +1,5 @@
 const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
 const overviewReportHelper = require('./overviewReportHelper');
 
 // const makeSut = () => {
@@ -8,6 +9,24 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
+  describe('getTasksStats date boundaries', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('filters the non-comparison totals by the selected date range', async () => {
+      const startDate = new Date('2026-07-19T00:00:00-07:00');
+      const endDate = new Date('2026-07-25T23:59:00-07:00');
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      await getTasksStats(startDate, endDate);
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]);
+    });
+  });
+
   describe('getHoursStats date boundaries', () => {
     const originalTimezone = process.env.TZ;
 
