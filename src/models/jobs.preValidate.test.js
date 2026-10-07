@@ -1,26 +1,14 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const Job = require('./jobs');
 
 describe('Job model pre-validate jobDetailsLink', () => {
-  let mongoServer;
+  const originalBaseFrontendUrl = process.env.BASE_FRONTEND_URL;
 
-  beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    await mongoose.connect(mongoServer.getUri(), {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect();
-    if (mongoServer) await mongoServer.stop();
-  });
-
-  afterEach(async () => {
-    await Job.deleteMany({});
-    delete process.env.BASE_FRONTEND_URL;
+  afterEach(() => {
+    if (originalBaseFrontendUrl === undefined) {
+      delete process.env.BASE_FRONTEND_URL;
+    } else {
+      process.env.BASE_FRONTEND_URL = originalBaseFrontendUrl;
+    }
   });
 
   const baseJob = {
@@ -43,6 +31,7 @@ describe('Job model pre-validate jobDetailsLink', () => {
   });
 
   it('falls back to localhost when BASE_FRONTEND_URL is unset', async () => {
+    delete process.env.BASE_FRONTEND_URL;
     const job = new Job(baseJob);
     await job.validate();
     expect(job.jobDetailsLink).toBe(`http://localhost:5173/jobDetailsLink/${job._id}`);
