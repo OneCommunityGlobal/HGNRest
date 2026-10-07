@@ -1394,7 +1394,6 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on success - updateTaskStatus', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(true);
 
       mockReq.params = {
         ...mockReq.params,
@@ -1420,24 +1419,32 @@ describe('Unit Tests for taskController.js', () => {
       expect(projectFindByIdSpy).toHaveBeenCalled();
     });
 
-    test('Returns 403 when task deadline permission is missing', async () => {
+    test('Does not require the task deadline permission (submit for review)', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(false);
+      hasPermission.mockResolvedValue(false);
 
-      const response = await updateTaskStatus(mockReq, mockRes);
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+      };
 
-      assertResMock(
-        403,
-        { error: 'You are not authorized to update task deadline status.' },
-        response,
-        mockRes,
-      );
-      expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
+      jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindOneAndUpdateSpy = jest
+        .spyOn(Task, 'findOneAndUpdate')
+        .mockResolvedValueOnce(true);
+      jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+      jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).not.toBeCalledWith(403);
+      expect(mockRes.status).toBeCalledWith(201);
+      expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
     });
 
     test('Returns 400 on error', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(true);
       const error = new Error('some error');
 
       mockReq.params = {
