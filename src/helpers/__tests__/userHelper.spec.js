@@ -1256,7 +1256,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
     weeklySummaryOption: 'Required',
     weeklySummaryNotReq: false,
     weeklySummaries: [{}, { summary: 'Done' }],
-    infringements: [{ date: assignmentDate }],
+    infringements: [{ date: assignmentDate, manuallyAssigned: false }],
     teams: [],
     warnings,
   });

@@ -1330,7 +1330,9 @@ const userHelper = function () {
 
         const numMonths = getNumMonthsOnTeam(user);
         const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
+        const hasTodayBlueSquare = user.infringements.some(
+          (inf) => inf.date === assignmentDate && inf.manuallyAssigned === false,
+        );
 
         const templateKey = resolveAutoReplyTemplate(
           timeSpent,
