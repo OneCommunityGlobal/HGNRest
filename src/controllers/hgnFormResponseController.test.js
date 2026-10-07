@@ -171,6 +171,7 @@ describe('HgnFormResponseController', () => {
 
       expect(FormResponse.find).toHaveBeenCalled();
       expect(result[0]._id).toBe('2'); // Jane should be ranked higher
+      expect(result[0].userId).toBe('456');
       expect(result[0].topSkills).toEqual(expect.arrayContaining(['React']));
       expect(result[1]._id).toBe('1');
     });
@@ -207,7 +208,7 @@ describe('HgnFormResponseController', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ _id: '1' }),
-          expect.objectContaining({ _id: '2' }),
+          expect.objectContaining({ _id: '2', userId: '456' }),
         ]),
       );
     });
