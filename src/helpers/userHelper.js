@@ -1351,134 +1351,124 @@ const userHelper = function () {
         if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
           const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
 
-          // Prevent duplicate actions on script re-runs
-          const alreadyProcessedToday = user.warnings?.some(
-            (w) => w.description === WARNING_DESC && w.date === assignmentDate,
-          );
+          const occurrence =
+            (user.warnings?.filter((w) => w.description === WARNING_DESC).length ?? 0) + 1;
 
-          if (alreadyProcessedToday) continue;
-
-          // Remove only the system-assigned blue square for that day
-          const userAfterPull = await userProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } },
-            },
-            { new: true },
-          );
-
-          // Prevent stale infringementCount
-          await userProfile.findByIdAndUpdate(user._id, {
-            $set: { infringementCount: userAfterPull.infringements.length },
-          });
-
-          // Count existing occurrences of this specific warning
-          const existingWarningsCount = user.warnings
-            ? user.warnings.filter((w) => w.description === WARNING_DESC).length
-            : 0;
-          const occurrence = existingWarningsCount + 1;
-
-          // Determine Warning Color & Blue Square logic based on occurrence
           let color = 'blue';
-          let issueBlueSquare = false;
-
-          if (occurrence === 3) {
-            color = 'yellow';
-          } else if (occurrence >= 4) {
-            color = 'red';
-            issueBlueSquare = true;
-          }
-
-          // Fetch Warning ID
-          const warningDescObj = currentWarningDescriptions.find(
-            (w) => w.warningTitle === WARNING_DESC,
-          );
-          const warningId = warningDescObj?._id;
+          if (occurrence === 3) color = 'yellow';
+          else if (occurrence >= 4) color = 'red';
+          const issueBlueSquare = occurrence >= 4;
 
           const newWarning = {
             iconId: uuidv4(),
             color,
             date: assignmentDate,
             description: WARNING_DESC,
-            warningId,
+            warningId: currentWarningDescriptions.find((w) => w.warningTitle === WARNING_DESC)?._id,
           };
 
-          // Push the warning to the user's profile
-          const updatedUser = await userProfile.findByIdAndUpdate(
-            user._id,
-            { $push: { warnings: newWarning } },
+          const replacementSquares = issueBlueSquare
+            ? [
+                {
+                  date: assignmentDate,
+                  description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
+                  createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
+                  manuallyAssigned: false,
+                  reason: 'missingHours',
+                  reasons: ['time not met'],
+                  editedBy: [],
+                },
+              ]
+            : [];
+
+          const updatedUser = await userProfile.findOneAndUpdate(
+            {
+              _id: user._id,
+              // system square for this week must still exist
+              infringements: {
+                $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
+              },
+              // and this week's warning must not have been recorded yet
+              warnings: {
+                $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+              },
+            },
+            [
+              {
+                $set: {
+                  infringements: {
+                    $concatArrays: [
+                      {
+                        $filter: {
+                          input: { $ifNull: ['$infringements', []] },
+                          cond: {
+                            $not: {
+                              $and: [
+                                { $eq: ['$$this.date', assignmentDate] },
+                                { $ne: ['$$this.manuallyAssigned', true] },
+                              ],
+                            },
+                          },
+                        },
+                      },
+                      replacementSquares, // empty unless 4th+ offense
+                    ],
+                  },
+                  warnings: { $concatArrays: [{ $ifNull: ['$warnings', []] }, [newWarning]] },
+                },
+              },
+              { $set: { infringementCount: { $size: '$infringements' } } },
+            ],
             { new: true },
           );
 
-          const { sendEmail, size } = warningsHelper.filterWarnings(
-            currentWarningDescriptions,
-            updatedUser.warnings,
-            newWarning.iconId,
-            color,
-          );
+          // Another run (cron/manual) already claimed this user/week, or nothing to remove
+          if (!updatedUser) continue;
 
-          const adminEmails = await getUserRoleByEmail(user);
-          const userAssignedWarning = {
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-          };
-
-          const monitorData = {
-            firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
-            lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
-            email: MONITOR_CONTACT_CONFIG.EMAIL,
-          };
-
-          if (sendEmail !== null) {
-            await warningsHelper.sendEmailToUser(
-              sendEmail,
-              'Removed Blue Square for Hours Close Enough',
-              userAssignedWarning,
-              monitorData,
-              size,
-              adminEmails,
+          // ---- State is fully committed. Emails below can fail without corrupting data ----
+          try {
+            const { sendEmail, size } = warningsHelper.filterWarnings(
+              currentWarningDescriptions,
+              updatedUser.warnings,
+              newWarning.iconId,
+              color,
             );
+            if (sendEmail !== null) {
+              const adminEmails = await getUserRoleByEmail(user);
+              await warningsHelper.sendEmailToUser(
+                sendEmail,
+                'Removed Blue Square for Hours Close Enough',
+                { firstName: user.firstName, lastName: user.lastName, email: user.email },
+                {
+                  firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
+                  lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
+                  email: MONITOR_CONTACT_CONFIG.EMAIL,
+                },
+                size,
+                adminEmails,
+              );
+            }
+          } catch (err) {
+            console.error(`[autoReply] warning email failed for ${user.email}:`, err);
           }
 
-          // Automatically assign the Blue Square for 4th+ offenses
           if (issueBlueSquare) {
-            const newInfringement = {
-              date: assignmentDate,
-              description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
-              createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
-              manuallyAssigned: false,
-              reason: 'missingHours',
-              reasons: ['time not met'],
-              editedBy: [],
-            };
-
-            const status = await userProfile.findByIdAndUpdate(
-              user._id,
-              { $push: { infringements: newInfringement } },
-              { new: true }, // ensures status holds the newly updated infringements array
-            );
-
-            // Update infringement count
-            await userProfile.findByIdAndUpdate(user._id, {
-              $set: { infringementCount: status.infringements.length },
-            });
-
-            // Trigger standard blue square assignment email notification
-            await notifyInfringements(
-              user.infringements || [],
-              status.infringements,
-              status.firstName,
-              status.lastName,
-              status.email,
-              status.role,
-              status.startDate,
-              status.jobTitle ? status.jobTitle[0] : 'Member',
-              status.weeklycommittedHours,
-            );
-
-            // Skip sending the "close enough" template email if we just issued them a 4th offense Blue Square
-            continue;
+            try {
+              await notifyInfringements(
+                user.infringements || [],
+                updatedUser.infringements,
+                updatedUser.firstName,
+                updatedUser.lastName,
+                updatedUser.email,
+                updatedUser.role,
+                updatedUser.startDate,
+                updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
+                updatedUser.weeklycommittedHours,
+              );
+            } catch (err) {
+              console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
+            }
+            continue; // skip the "close enough" template on a 4th+ offense
           }
         }
 

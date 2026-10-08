@@ -12,6 +12,7 @@ jest.mock('../../models/userProfile', () => ({
   find: jest.fn(),
   aggregate: jest.fn(),
   updateOne: jest.fn().mockResolvedValue({}),
+  findOneAndUpdate: jest.fn(),
   findByIdAndUpdate: jest.fn((id, update, cb) => {
     if (typeof cb === 'function') cb(null);
     return Promise.resolve({});
@@ -1261,6 +1262,25 @@ describe('weeklyAutoReplyEmailFunction', () => {
     warnings,
   });
 
+  const getClaimCall = (spy) => {
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [filter, pipeline, options] = spy.mock.calls[0];
+    return { filter, pipeline, options };
+  };
+  const getAppliedWarning = (pipeline) => pipeline[0].$set.warnings.$concatArrays[1][0];
+  const getReplacementSquares = (pipeline) => pipeline[0].$set.infringements.$concatArrays[1];
+
+  // Result of the claim (what Mongo would return with { new: true })
+  const claimedUser = (base, { warning, squares = [] }) => ({
+    ...base,
+    warnings: [...base.warnings, warning],
+    infringements: squares,
+    infringementCount: squares.length,
+  });
+
+  let findOneAndUpdateSpy;
+  let findByIdAndUpdateSpy;
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(timeOffRequest, 'find').mockResolvedValue([]);
@@ -1269,202 +1289,156 @@ describe('weeklyAutoReplyEmailFunction', () => {
     });
     jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({ sendEmail: null, size: 0 });
     jest.spyOn(warningsHelper, 'sendEmailToUser').mockImplementation(() => {});
+
+    findOneAndUpdateSpy = jest.spyOn(userProfile, 'findOneAndUpdate');
+    findByIdAndUpdateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate');
   });
 
-  it('should issue a BLUE warning for the 1st or 2nd occurrence', async () => {
-    // 0 existing warnings -> 1st occurrence
-    const mockUser = createMockUser([]);
-
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
-    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValue(mockUser);
-    emailSender.mockResolvedValueOnce(true);
-
-    await weeklyAutoReplyEmailFunction({
-      targetUserId: mockUser._id,
+  const run = (user) =>
+    weeklyAutoReplyEmailFunction({
+      targetUserId: user._id,
       bccOverride: ['test@example.com'],
     });
 
-    // 1. Pulled the initial blue square
-    expect(updateSpy).toHaveBeenCalledWith(
-      mockUser._id,
-      { $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } } },
-      { new: true },
+  it('should issue a BLUE warning for the 1st occurrence using one atomic claim', async () => {
+    const mockUser = createMockUser([]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    emailSender.mockResolvedValueOnce(true);
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, { warning: getAppliedWarning(pipeline), squares: [] }),
     );
 
-    // 2. Synced infringement count
-    expect(updateSpy).toHaveBeenCalledWith(mockUser._id, {
-      $set: { infringementCount: expect.any(Number) },
+    await run(mockUser);
+
+    const { filter, pipeline, options } = getClaimCall(findOneAndUpdateSpy);
+
+    // Guard: system square must still exist AND this week's warning must be absent
+    expect(filter._id).toBe(mockUser._id);
+    expect(filter.infringements).toEqual({
+      $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
     });
+    expect(filter.warnings).toEqual({
+      $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+    });
+    expect(options).toEqual({ new: true });
 
-    // 3. Added blue warning
-    expect(updateSpy).toHaveBeenCalledWith(
-      mockUser._id,
-      {
-        $push: {
-          warnings: expect.objectContaining({
-            date: assignmentDate,
-            description: WARNING_DESC,
-            color: 'blue',
-          }),
-        },
-      },
-      { new: true },
+    // State change: blue warning, no replacement square
+    expect(getAppliedWarning(pipeline)).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'blue' }),
     );
+    expect(getReplacementSquares(pipeline)).toEqual([]);
 
-    // Should NOT re-issue a blue square
-    expect(updateSpy).not.toHaveBeenCalledWith(
-      mockUser._id,
-      expect.objectContaining({ $push: { infringements: expect.anything() } }),
-      expect.anything(),
-    );
+    // infringementCount is recomputed inside the same atomic write
+    expect(pipeline[1]).toEqual({ $set: { infringementCount: { $size: '$infringements' } } });
+
+    // The old multi-step writes must be gone
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
   });
 
   it('should issue a YELLOW warning for the 3rd occurrence', async () => {
-    // 2 existing warnings -> 3rd occurrence
     const mockUser = createMockUser([
-      { description: WARNING_DESC, color: 'blue' },
-      { description: WARNING_DESC, color: 'blue' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
     ]);
-
     jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
-    const updateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate').mockResolvedValue(mockUser);
     emailSender.mockResolvedValueOnce(true);
 
-    await weeklyAutoReplyEmailFunction({
-      targetUserId: mockUser._id,
-      bccOverride: ['test@example.com'],
-    });
-
-    // Added yellow warning
-    expect(updateSpy).toHaveBeenCalledWith(
-      mockUser._id,
-      {
-        $push: {
-          warnings: expect.objectContaining({
-            date: assignmentDate,
-            description: WARNING_DESC,
-            color: 'yellow',
-          }),
-        },
-      },
-      { new: true },
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, { warning: getAppliedWarning(pipeline), squares: [] }),
     );
+
+    await run(mockUser);
+
+    const { pipeline } = getClaimCall(findOneAndUpdateSpy);
+    expect(getAppliedWarning(pipeline)).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'yellow' }),
+    );
+    expect(getReplacementSquares(pipeline)).toEqual([]);
   });
 
-  it('should issue a RED warning, re-assign a blue square, and update infringement count for 4th+ occurrence', async () => {
-    // User starts with 3 existing warnings (4th occurrence) and 1 initial blue square
-    const initialInfringementId = new mongoose.Types.ObjectId();
-    const reissuedInfringementId = new mongoose.Types.ObjectId();
+  it('should issue a RED warning and a replacement blue square in the SAME atomic write for the 4th+ occurrence', async () => {
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
+      { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
+    ]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
 
-    const initialUserData = {
-      ...createMockUser([
-        { description: WARNING_DESC, color: 'blue' },
-        { description: WARNING_DESC, color: 'blue' },
-        { description: WARNING_DESC, color: 'yellow' },
-      ]),
-      infringements: [{ _id: initialInfringementId, date: assignmentDate }],
-    };
-
-    const initialUser = ActualUserProfile.hydrate(initialUserData);
-
-    const userAfterPull = ActualUserProfile.hydrate({
-      ...initialUserData,
-      infringements: [],
-    });
-
-    const userAfterWarning = ActualUserProfile.hydrate({
-      ...initialUserData,
-      warnings: [
-        ...initialUserData.warnings,
-        { color: 'red', description: WARNING_DESC, date: assignmentDate },
-      ],
-    });
-
-    const userAfterReissue = ActualUserProfile.hydrate({
-      ...userAfterWarning.toObject(),
-      infringements: [
-        {
-          _id: reissuedInfringementId,
-          date: assignmentDate,
-          description: `Issued a blue square for an Admin having to remove past blue squares 4 times...`,
-          reason: 'missingHours',
-        },
-      ],
-    });
-
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([initialUser]);
-
-    // Sequentially mock each findByIdAndUpdate DB call in execution order
-    const updateSpy = jest
-      .spyOn(userProfile, 'findByIdAndUpdate')
-      .mockResolvedValueOnce(userAfterPull) // 1. $pull infringement
-      .mockResolvedValueOnce(userAfterPull) // 2. $set infringementCount
-      .mockResolvedValueOnce(userAfterWarning) // 3. $push red warning
-      .mockResolvedValueOnce(userAfterReissue) // 4. $push re-issued blue square
-      .mockResolvedValueOnce(userAfterReissue);
-
-    jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({
-      sendEmail: 'issue blue square',
-      size: 4,
-    });
-
-    emailSender.mockResolvedValueOnce(true);
-
-    await weeklyAutoReplyEmailFunction({
-      targetUserId: initialUser._id,
-      bccOverride: ['test@example.com'],
-    });
-
-    // Verify Call 1: $pull
-    expect(updateSpy).toHaveBeenNthCalledWith(
-      1,
-      expect.anything(),
-      { $pull: { infringements: { date: assignmentDate, manuallyAssigned: { $ne: true } } } },
-      { new: true },
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, {
+        warning: getAppliedWarning(pipeline),
+        squares: getReplacementSquares(pipeline),
+      }),
     );
 
-    // Verify Call 2: $set Infringement Count (syncing after pull)
-    expect(updateSpy).toHaveBeenNthCalledWith(2, expect.anything(), {
-      $set: { infringementCount: 0 },
-    });
+    await run(mockUser);
 
-    // Verify Call 3: $push Red Warning
-    expect(updateSpy).toHaveBeenNthCalledWith(
-      3,
-      expect.anything(),
-      {
-        $push: {
-          warnings: expect.objectContaining({
-            date: assignmentDate,
-            description: WARNING_DESC,
-            color: 'red',
-          }),
-        },
-      },
-      { new: true },
+    // Exactly ONE write: removal + warning + replacement + count together
+    const { pipeline } = getClaimCall(findOneAndUpdateSpy);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+
+    expect(getAppliedWarning(pipeline)).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'red' }),
     );
 
-    // Verify Call 4: $push Re-issued Blue Square
-    expect(updateSpy).toHaveBeenNthCalledWith(
-      4,
-      expect.anything(),
-      {
-        $push: {
-          infringements: expect.objectContaining({
-            date: assignmentDate,
-            reason: 'missingHours',
-            reasons: ['time not met'],
-            description: expect.stringContaining('remove past blue squares 4 times'),
-          }),
-        },
-      },
-      { new: true },
+    const squares = getReplacementSquares(pipeline);
+    expect(squares).toHaveLength(1);
+    expect(squares[0]).toEqual(
+      expect.objectContaining({
+        date: assignmentDate,
+        reason: 'missingHours',
+        reasons: ['time not met'],
+        manuallyAssigned: false,
+        description: expect.stringContaining('remove past blue squares 4 times'),
+      }),
     );
 
-    // Verify Call 5: $set Infringement Count (after re-issue)
-    expect(updateSpy).toHaveBeenNthCalledWith(5, expect.anything(), {
-      $set: { infringementCount: 1 },
-    });
+    // The "close enough" template email is skipped on a 4th+ offense
+    expect(emailSender).not.toHaveBeenCalled();
+  });
+
+  it('should do nothing when another run already claimed this user/week (claim returns null)', async () => {
+    const mockUser = createMockUser([]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    findOneAndUpdateSpy.mockResolvedValue(null);
+
+    await run(mockUser);
+
+    expect(findOneAndUpdateSpy).toHaveBeenCalledTimes(1);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+    expect(warningsHelper.sendEmailToUser).not.toHaveBeenCalled();
+    expect(emailSender).not.toHaveBeenCalled();
+  });
+
+  it('should not roll back or re-run state changes when the warning email fails', async () => {
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
+      { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
+    ]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
+    warningsHelper.sendEmailToUser.mockRejectedValueOnce(new Error('SMTP rejected'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, {
+        warning: getAppliedWarning(pipeline),
+        squares: getReplacementSquares(pipeline),
+      }),
+    );
+
+    await expect(run(mockUser)).resolves.not.toThrow();
+
+    // State was committed once, and nothing else touched the profile afterwards
+    expect(findOneAndUpdateSpy).toHaveBeenCalledTimes(1);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('warning email failed'),
+      expect.any(Error),
+    );
   });
 });
 
