@@ -1346,8 +1346,11 @@ const overviewReportHelper = function () {
    * though pausing does not record an end date.
    */
   const workedDuringPeriodMatch = async (periodStart, periodEnd) => {
+    // Coerce request dates to plain YYYY-MM-DD strings so they can't inject query operators
+    const safeStart = moment(String(periodStart)).format('YYYY-MM-DD');
+    const safeEnd = moment(String(periodEnd)).format('YYYY-MM-DD');
     const personIds = await TimeEntries.distinct('personId', {
-      dateOfWork: { $gte: periodStart, $lte: periodEnd },
+      dateOfWork: { $gte: safeStart, $lte: safeEnd },
     });
     return { $or: [{ isActive: true }, { _id: { $in: personIds } }] };
   };
