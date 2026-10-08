@@ -758,7 +758,7 @@ const userHelper = function () {
       requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${startingDateStr}, To ${endingDateStr}, due to: <b>${requestForTimeOffreason}</b></span>`;
     }
 
-    if ((timeNotMet || !hasWeeklySummary) && !hasTimeOffRequest) {
+    if (timeNotMet || !hasWeeklySummary) {
       const description = buildInfringementDescription(
         person,
         timeNotMet,
@@ -1341,7 +1341,7 @@ const userHelper = function () {
     if (metHours) return null;
 
     // Priority 2: 85–99% hours, got a blue square today, fewer than 4 total
-    if (nearMiss && hasTodayBlueSquare && infringementCount < 4 && !hasTimeOff) {
+    if (nearMiss && hasTodayBlueSquare && infringementCount < 4) {
       return 'MISSED_HOURS_BY_<15%';
     }
 
