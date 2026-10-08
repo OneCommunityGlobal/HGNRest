@@ -1,5 +1,11 @@
 const UserProfile = require('../models/userProfile');
 const Task = require('../models/task');
+const TimeEntries = require('../models/timeentry');
+
+// getHoursStats / getTotalHoursWorked look up who logged time in the period
+beforeEach(() => {
+  jest.spyOn(TimeEntries, 'distinct').mockResolvedValue([]);
+});
 const overviewReportHelper = require('./overviewReportHelper');
 
 // const makeSut = () => {

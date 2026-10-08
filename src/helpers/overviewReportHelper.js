@@ -1341,6 +1341,18 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Match users who are active now OR logged time in the period. Hours logged in the
+   * selected period still count after the volunteer is deactivated or paused, even
+   * though pausing does not record an end date.
+   */
+  const workedDuringPeriodMatch = async (periodStart, periodEnd) => {
+    const personIds = await TimeEntries.distinct('personId', {
+      dateOfWork: { $gte: periodStart, $lte: periodEnd },
+    });
+    return { $or: [{ isActive: true }, { _id: { $in: personIds } }] };
+  };
+
+  /**
    * Get volunteer hours distribution stats based on weekly averages
    * Requirements:
    * - Calculate weekly average only for weeks where user logged time
@@ -1361,11 +1373,11 @@ const overviewReportHelper = function () {
       return { error: validation.error };
     }
 
-    // Get all active users with their time entries
+    // Users active at any point in the period (incl. deactivated later), with time entries
     const usersWithTimeEntries = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(startDate, endDate)),
         },
       },
       {
@@ -1489,7 +1501,7 @@ const overviewReportHelper = function () {
     const data = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(pdtstart, pdtend)),
           weeklycommittedHours: { $gte: 1 },
           role: { $ne: 'Mentor' },
         },
