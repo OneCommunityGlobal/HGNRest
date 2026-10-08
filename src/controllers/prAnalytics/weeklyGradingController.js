@@ -93,6 +93,7 @@ const buildUpdateData = (params) => {
   } = params;
   const updateData = {
     teamName,
+    teamCode: teamName,
     date: gradingDate,
     reviewer,
     prsNeeded,
@@ -129,7 +130,11 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
     validateGradingEntry(grading);
 
-    const query = { teamName, date: gradingDate, reviewer };
+    const query = {
+      $or: [{ teamName }, { teamCode: teamName }],
+      date: gradingDate,
+      reviewer,
+    };
     const existingEntry = await weeklyGradingModel.findOne(query);
 
     const mergedGradedPrs = mergeGradedPrs(existingEntry?.gradedPrs, gradedPrs);
@@ -157,7 +162,9 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(400).json({ error: 'Team parameter is required' });
       }
 
-      const query = { teamName: team };
+      const query = {
+        $or: [{ teamName: team }, { teamCode: team }],
+      };
 
       // If weekStart is provided, filter by the full 7-day week range (Sun–Sat)
       if (weekStart) {
@@ -254,7 +261,7 @@ const weeklyGradingController = function (weeklyGradingModel) {
       endDate.setHours(23, 59, 59, 999);
 
       const result = await weeklyGradingModel.deleteOne({
-        teamName: team,
+        $or: [{ teamName: team }, { teamCode: team }],
         reviewer,
         date: { $gte: startDate, $lte: endDate },
       });

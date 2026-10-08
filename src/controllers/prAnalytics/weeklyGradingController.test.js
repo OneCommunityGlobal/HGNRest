@@ -39,7 +39,9 @@ describe('weeklyGradingController', () => {
 
       await controller.getWeeklyGrading(req, res);
 
-      expect(mockModel.find).toHaveBeenCalledWith({ teamName: 'Team 1' });
+      expect(mockModel.find).toHaveBeenCalledWith({
+        $or: [{ teamName: 'Team 1' }, { teamCode: 'Team 1' }],
+      });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith([
         { reviewer: 'Alice', prsNeeded: 7, prsReviewed: 5, gradedPrs: [] },
@@ -53,7 +55,7 @@ describe('weeklyGradingController', () => {
       await controller.getWeeklyGrading(req, res);
 
       const callArg = mockModel.find.mock.calls[0][0];
-      expect(callArg.teamName).toBe('Team 1');
+      expect(callArg.$or).toEqual([{ teamName: 'Team 1' }, { teamCode: 'Team 1' }]);
       expect(callArg.date.$gte).toBeDefined();
       expect(callArg.date.$lte).toBeDefined();
       // Range spans ~7 days (start at 00:00:00, end at 23:59:59.999 = 6.999... days)
@@ -159,6 +161,40 @@ describe('weeklyGradingController', () => {
         status: 'ok',
         message: 'Weekly grades saved successfully',
       });
+    });
+
+    it('supports legacy teamCode records and writes both team identifiers', async () => {
+      req.body = {
+        teamName: 'Team 1',
+        date: '2026-06-15',
+        gradings: [validGrading],
+      };
+
+      const existing = {
+        teamCode: 'Team 1',
+        version: 1,
+        prsNeeded: 7,
+        prsReviewed: 3,
+        gradedPrs: [],
+        updatedAt: new Date(),
+      };
+
+      mockModel.findOne.mockResolvedValue(existing);
+      mockModel.findOneAndUpdate.mockResolvedValue({});
+
+      await controller.saveWeeklyGrading(req, res);
+
+      expect(mockModel.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: [{ teamName: 'Team 1' }, { teamCode: 'Team 1' }],
+          reviewer: 'Alice',
+        }),
+      );
+
+      const updateArg = mockModel.findOneAndUpdate.mock.calls[0][1];
+
+      expect(updateArg.teamName).toBe('Team 1');
+      expect(updateArg.teamCode).toBe('Team 1');
     });
 
     it('upserts existing entry — increments version', async () => {
@@ -329,7 +365,7 @@ describe('weeklyGradingController', () => {
       await controller.deleteReviewerGrading(req, res);
 
       const deleteArg = mockModel.deleteOne.mock.calls[0][0];
-      expect(deleteArg.teamName).toBe('Team 1');
+      expect(deleteArg.$or).toEqual([{ teamName: 'Team 1' }, { teamCode: 'Team 1' }]);
       expect(deleteArg.reviewer).toBe('Alice');
       expect(deleteArg.date.$gte).toBeDefined();
       expect(deleteArg.date.$lte).toBeDefined();

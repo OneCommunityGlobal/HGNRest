@@ -5,6 +5,11 @@ const { Schema } = mongoose;
 const WeeklyGradingSchema = new Schema(
   {
     teamName: { type: String, required: true, index: true },
+
+    // Legacy field retained temporarily for compatibility with the existing
+    // teamCode/date/reviewer MongoDB index until the production migration runs.
+    teamCode: { type: String },
+
     date: { type: Date, required: true, index: true },
     reviewer: { type: String, required: true, index: true },
     prsNeeded: { type: Number, required: true },
