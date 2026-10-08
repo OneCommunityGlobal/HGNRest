@@ -2579,7 +2579,10 @@ const overviewReportHelper = function () {
       const hoursStats = await UserProfile.aggregate([
         {
           $match: {
-            isActive: true,
+            ...(await workedDuringPeriodMatch(
+              moment(start).format('YYYY-MM-DD'),
+              moment(end).format('YYYY-MM-DD'),
+            )),
           },
         },
         {
