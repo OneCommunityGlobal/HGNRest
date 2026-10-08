@@ -21,6 +21,9 @@ const CLEAR_LOCK = { lockOwner: '', lockedUntil: '' };
 
 const WORKER_ID = `${os.hostname()}:${process.pid}:${crypto.randomUUID()}`;
 
+// Thrown when a worker no longer owns a post it was about to publish
+class ClaimLostError extends Error {}
+
 function getAuthHeaders() {
   if (!ACCESS_TOKEN) throw new Error('MASTODON_ACCESS_TOKEN not set');
   return { Authorization: `Bearer ${ACCESS_TOKEN}` };
@@ -32,7 +35,9 @@ function getIdempotencyKey(postId) {
   return `hgn-mastodon-schedule-${postId}`;
 }
 
-async function postToMastodon(postData, idempotencyKey) {
+// beforePublish runs right before the status request, after any slow
+// media upload, so a post whose claim has expired is never sent
+async function postToMastodon(postData, idempotencyKey, beforePublish = async () => {}) {
   const url = `${MASTODON_ENDPOINT}/api/v1/statuses`;
   const headers = { ...getAuthHeaders(), 'Idempotency-Key': idempotencyKey };
 
@@ -53,7 +58,9 @@ async function postToMastodon(postData, idempotencyKey) {
       // eslint-disable-next-line camelcase
       const altText = data.mediaAltText || null;
       // eslint-disable-next-line camelcase
-      const mediaId = await uploadMedia(data.local_media_base64, altText);
+      const mediaId = await uploadMedia(data.local_media_base64, altText, {
+        timeout: REQUEST_TIMEOUT_MS,
+      });
       console.log('Image uploaded, media ID:', mediaId);
       // eslint-disable-next-line camelcase
       mastodonData.media_ids = [mediaId];
@@ -62,6 +69,8 @@ async function postToMastodon(postData, idempotencyKey) {
       // Continue without image
     }
   }
+
+  await beforePublish();
 
   console.log('Posting to Mastodon:', `${mastodonData.status.substring(0, 50)}...`);
 
@@ -109,22 +118,40 @@ function claimNextDuePost(workerId, dueBefore, triedIds) {
   );
 }
 
-// Only a clear rejection from Mastodon is retried. A timeout or lost
-// connection may mean the post went through, so it is not retried.
-function isRetryable(err) {
-  const status = err.response?.status;
-  return status === 429 || status >= 500;
+// Renew the claim right before publishing. Fails if the claim expired
+// (for example during a slow media upload) and was marked failed, which
+// also means the post may since have been deleted.
+async function confirmClaim(post, workerId) {
+  const now = new Date();
+  const renewed = await MastodonSchedule.findOneAndUpdate(
+    { _id: post._id, status: 'publishing', lockOwner: workerId, lockedUntil: { $gt: now } },
+    { $set: { lockedUntil: new Date(now.getTime() + LEASE_MS) } },
+    { new: true },
+  );
+  if (!renewed) throw new ClaimLostError('Claim expired before publishing');
+}
+
+// Only a 429 is retried: Mastodon rate-limited the request, so nothing
+// was posted. A server or gateway error (5xx) may come back after the
+// post was accepted, and Mastodon keeps the Idempotency-Key for at most
+// an hour, so a later retry could publish it twice. Those posts, like
+// timeouts and lost connections, are marked failed for the user to
+// reschedule.
+function isRetryable(post, err) {
+  return err.response?.status === 429 && (post.attempts || 0) < MAX_ATTEMPTS;
 }
 
 async function releaseFailedClaim(post, workerId, err) {
-  const retry = isRetryable(err) && (post.attempts || 0) < MAX_ATTEMPTS;
+  const retry = isRetryable(post, err);
   const message = err.response?.data?.error || err.message;
   console.error(`❌ Failed to post scheduled Mastodon post ${post._id}:`, message);
+
+  const update = { status: retry ? 'pending' : 'failed', lastError: message };
 
   try {
     await MastodonSchedule.updateOne(
       { _id: post._id, status: 'publishing', lockOwner: workerId },
-      { $set: { status: retry ? 'pending' : 'failed', lastError: message }, $unset: CLEAR_LOCK },
+      { $set: update, $unset: CLEAR_LOCK },
     );
   } catch (updateErr) {
     // The claim stays in place and expires to failed, so nothing is resent
@@ -156,8 +183,15 @@ async function publishClaimedPost(post, workerId) {
   console.log(`Processing scheduled post ${post._id}`);
   let response;
   try {
-    response = await postToMastodon(post.postData, getIdempotencyKey(post._id));
+    response = await postToMastodon(post.postData, getIdempotencyKey(post._id), () =>
+      confirmClaim(post, workerId),
+    );
   } catch (err) {
+    if (err instanceof ClaimLostError) {
+      // Another run already marked this post failed; leave it as it is
+      console.error(`Skipped scheduled Mastodon post ${post._id}:`, err.message);
+      return;
+    }
     await releaseFailedClaim(post, workerId, err);
     return;
   }

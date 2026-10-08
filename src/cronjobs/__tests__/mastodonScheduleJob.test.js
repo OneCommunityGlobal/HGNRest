@@ -17,14 +17,20 @@ function matchesCondition(value, condition) {
       if (op === '$ne') return value !== expected;
       if (op === '$lte') return value <= expected;
       if (op === '$lt') return value < expected;
+      if (op === '$gt') return value > expected;
       throw new Error(`Unsupported operator ${op}`);
     });
   }
+  // Like MongoDB, null matches a missing field
+  if (condition === null) return value == null;
   return value === condition;
 }
 
 function matches(doc, filter) {
-  return Object.entries(filter).every(([key, condition]) => matchesCondition(doc[key], condition));
+  return Object.entries(filter).every(([key, condition]) => {
+    if (key === '$or') return condition.some((sub) => matches(doc, sub));
+    return matchesCondition(doc[key], condition);
+  });
 }
 
 function applyUpdate(doc, update) {
@@ -201,10 +207,73 @@ describe('mastodonScheduleJob', () => {
     expect(store.docs[0].status).toBe('failed');
   });
 
-  it('retries a post that Mastodon rejected with a server error', async () => {
+  it('does not retry when the request times out, since the post may have gone through', async () => {
+    useStore([duePost()]);
+    axios.post.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
+
+    await job.processScheduledPosts();
+    await job.processScheduledPosts();
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(store.docs[0].status).toBe('failed');
+  });
+
+  it('does not publish when a slow image upload outlasts the claim', async () => {
+    const { uploadMedia } = require('../../controllers/mastodonPostController');
+    useStore([
+      duePost({
+        postData: JSON.stringify({
+          status: 'With image',
+          local_media_base64: 'data:image/png;base64,AA',
+        }),
+      }),
+    ]);
+    // While the upload is running, the claim expires, another run marks
+    // the post failed, and the user deletes it
+    uploadMedia.mockImplementation(async () => {
+      store.docs[0].lockedUntil = new Date(Date.now() - 1000);
+      await job.processScheduledPosts({ workerId: 'other-run' });
+      store.docs.splice(0, 1);
+      return 'media-1';
+    });
+
+    await job.processScheduledPosts();
+
+    expect(uploadMedia).toHaveBeenCalledWith('data:image/png;base64,AA', null, {
+      timeout: 30000,
+    });
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it('renews the claim before publishing after an image upload', async () => {
+    const { uploadMedia } = require('../../controllers/mastodonPostController');
+    useStore([
+      duePost({
+        postData: JSON.stringify({
+          status: 'With image',
+          local_media_base64: 'data:image/png;base64,AA',
+        }),
+      }),
+    ]);
+    uploadMedia.mockResolvedValue('media-1');
+    axios.post.mockImplementation(async () => {
+      // The renewed claim is still held while the status request runs
+      expect(store.docs[0].status).toBe('publishing');
+      expect(store.docs[0].lockedUntil.getTime()).toBeGreaterThan(Date.now() + 9 * 60 * 1000);
+      return { data: { id: '1' } };
+    });
+
+    await job.processScheduledPosts();
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post.mock.calls[0][1].media_ids).toEqual(['media-1']);
+    expect(store.docs[0].status).toBe('posted');
+  });
+
+  it('retries a rate-limited post with the same idempotency key', async () => {
     useStore([duePost()]);
     axios.post.mockRejectedValueOnce(
-      Object.assign(new Error('Server error'), { response: { status: 503, data: {} } }),
+      Object.assign(new Error('Too many requests'), { response: { status: 429, data: {} } }),
     );
     axios.post.mockResolvedValue({ data: { id: '1' } });
 
@@ -217,21 +286,48 @@ describe('mastodonScheduleJob', () => {
     expect(store.docs[0].status).toBe('posted');
   });
 
-  it('does not retry when the request times out, since the post may have gone through', async () => {
-    useStore([duePost()]);
-    axios.post.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
+  it.each([500, 502, 503, 504])(
+    'does not retry a %i response, since the post may have been accepted',
+    async (status) => {
+      useStore([duePost()]);
+      axios.post.mockRejectedValue(
+        Object.assign(new Error('Server error'), { response: { status, data: {} } }),
+      );
 
+      await job.processScheduledPosts();
+      await job.processScheduledPosts();
+
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(store.docs[0].status).toBe('failed');
+      expect(store.docs[0].lastError).toBe('Server error');
+    },
+  );
+
+  it('does not publish again after a gateway error and an outage longer than the key window', async () => {
+    useStore([duePost()]);
+    // Mastodon accepted the post, but the gateway returned 502
+    axios.post.mockRejectedValueOnce(
+      Object.assign(new Error('Bad gateway'), { response: { status: 502, data: {} } }),
+    );
+    axios.post.mockResolvedValue({ data: { id: '2' } });
     await job.processScheduledPosts();
-    await job.processScheduledPosts();
+
+    // 61 minutes later the Idempotency-Key has expired
+    jest.useFakeTimers({ now: Date.now() + 61 * 60 * 1000, doNotFake: ['setImmediate'] });
+    try {
+      await job.processScheduledPosts();
+    } finally {
+      jest.useRealTimers();
+    }
 
     expect(axios.post).toHaveBeenCalledTimes(1);
     expect(store.docs[0].status).toBe('failed');
   });
 
-  it('stops retrying after the maximum number of attempts', async () => {
+  it('stops retrying rate-limited posts after the maximum number of attempts', async () => {
     useStore([duePost()]);
     axios.post.mockRejectedValue(
-      Object.assign(new Error('Server error'), { response: { status: 500, data: {} } }),
+      Object.assign(new Error('Too many requests'), { response: { status: 429, data: {} } }),
     );
 
     await job.processScheduledPosts();

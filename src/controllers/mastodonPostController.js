@@ -12,7 +12,7 @@ function getAuthHeaders() {
 }
 
 //  Upload image to Mastodon with optional alt text and get media ID
-async function uploadMedia(base64Image, altText = null) {
+async function uploadMedia(base64Image, altText = null, { timeout } = {}) {
   try {
     // Convert base64 to buffer
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
@@ -31,7 +31,10 @@ async function uploadMedia(base64Image, altText = null) {
       ...formData.getHeaders(),
     };
 
-    const uploadResponse = await axios.post(uploadUrl, formData, { headers: uploadHeaders });
+    const uploadResponse = await axios.post(uploadUrl, formData, {
+      headers: uploadHeaders,
+      timeout,
+    });
     const mediaId = uploadResponse.data.id;
 
     console.log('Image uploaded, media ID:', mediaId);
@@ -50,7 +53,7 @@ async function uploadMedia(base64Image, altText = null) {
         {
           description: altText.trim(),
         },
-        { headers: updateHeaders },
+        { headers: updateHeaders, timeout },
       );
 
       console.log('Alt text updated successfully');
