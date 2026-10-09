@@ -77,18 +77,37 @@ const supplierPerformanceController = function () {
     try {
       const projectIds = await SupplierPerformance.distinct('projectId');
 
-      const projectsWithData = await Project.find({
-        _id: {
-          $in: projectIds,
-        },
+      const validProjectIds = projectIds
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+      if (validProjectIds.length === 0) {
+        return res.status(200).send([]);
+      }
+
+      const projects = await Project.find({
+        _id: { $in: validProjectIds },
       })
         .select('_id projectName')
-        .sort({
-          projectName: 1,
-        })
         .lean();
 
-      return res.status(200).send(projectsWithData);
+      const projectNames = new Map(
+        projects.map((project) => [String(project._id), project.projectName]),
+      );
+
+      const results = validProjectIds.map((id) => {
+        const idString = String(id);
+        const projectName = projectNames.get(idString);
+
+        return {
+          _id: id,
+          projectName: projectName || `Unknown project (…${idString.slice(-4)})`,
+        };
+      });
+
+      results.sort((a, b) => a.projectName.localeCompare(b.projectName));
+
+      return res.status(200).send(results);
     } catch (error) {
       logger.logException(error);
       return res.status(500).send('Error fetching projects with supplier data. Please try again.');

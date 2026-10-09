@@ -126,12 +126,18 @@ const toolAvailabilityController = function (ToolAvailability) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      // Get the unique project IDs that actually have tool availability data.
       const projectIds = await ToolAvailability.distinct('projectId');
 
-      // Only return projects that still exist in the BuildingProject collection.
+      const validProjectIds = projectIds
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => new ObjectId(String(id)));
+
+      if (validProjectIds.length === 0) {
+        return res.json([]);
+      }
+
       const projects = await BuildingProject.find({
-        _id: { $in: projectIds },
+        _id: { $in: validProjectIds },
       })
         .select('_id name')
         .sort({ name: 1 })
