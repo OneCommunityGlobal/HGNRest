@@ -14,7 +14,29 @@ const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
 
-function validateQuery({ type, location, sortBy }) {
+const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
+
+function getMonthRangeAround(inputDate) {
+  const [year, month] = inputDate.split('-').map(Number);
+
+  // include two months before and two months after the requested month
+  const startDate = new Date(Date.UTC(year, month - 3, 1));
+  const endDate = new Date(Date.UTC(year, month + 2, 1));
+
+  return { startDate, endDate };
+}
+
+function isValidDateString(value) {
+  if (typeof value !== 'string' || !DATE_FORMAT.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function validateQuery({ type, location, sortBy, date }) {
   if (type && !VALID_TYPES.has(type)) {
     throw new Error('Invalid Type of Event.');
   }
@@ -25,6 +47,10 @@ function validateQuery({ type, location, sortBy }) {
 
   if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
     throw new Error('Invalid Sort Field.');
+  }
+
+  if (date !== undefined && !isValidDateString(date)) {
+    throw new Error('Invalid Date format.');
   }
 }
 
@@ -52,25 +78,6 @@ function buildSafeQuery(location, type) {
   return query;
 }
 
-function getPagination(page, limit, total) {
-  if (!page || !limit) {
-    return {
-      pageNumber: 1,
-      limitNumber: total,
-      skip: 0,
-    };
-  }
-
-  const pageNumber = Math.max(1, Number(page));
-  const limitNumber = Math.max(1, Number(limit));
-
-  return {
-    pageNumber,
-    limitNumber,
-    skip: (pageNumber - 1) * limitNumber,
-  };
-}
-
 function formatEvent(event, userId) {
   event.status = updateEventStatus(event);
 
@@ -91,27 +98,81 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy } = req.query;
+    const { page, limit, type, location, sortBy = 'date', date } = req.query;
 
-    validateQuery({ type, location, sortBy });
+    validateQuery({ type, location, sortBy, date });
 
     const safeQuery = buildSafeQuery(location, type);
-    const totalEvents = await Event.countDocuments(safeQuery);
-    const { pageNumber, limitNumber, skip } = getPagination(page, limit, totalEvents);
 
-    const events = await Event.find(safeQuery)
+    if (date !== undefined) {
+      const { startDate, endDate } = getMonthRangeAround(date);
+
+      safeQuery.date = {
+        $gte: startDate,
+        $lt: endDate,
+      };
+    }
+
+    const totalEvents = await Event.countDocuments(safeQuery);
+
+    const hasLimit = limit !== undefined;
+    let pageNumber = 1;
+    let limitNumber = totalEvents;
+    let skip = 0;
+
+    if (hasLimit) {
+      pageNumber = Number(page ?? 1);
+      limitNumber = Number(limit);
+
+      if (
+        !Number.isSafeInteger(pageNumber) ||
+        pageNumber < 1 ||
+        !Number.isSafeInteger(limitNumber) ||
+        limitNumber < 1
+      ) {
+        return res.status(400).json({
+          error: 'Invalid pagination parameters.',
+        });
+      }
+
+      skip = (pageNumber - 1) * limitNumber;
+
+      if (!Number.isSafeInteger(skip)) {
+        return res.status(400).json({
+          error: 'Invalid pagination parameters.',
+        });
+      }
+    } else if (page !== undefined) {
+      return res.status(400).json({
+        error: 'Invalid pagination parameters.',
+      });
+    }
+
+    let eventQuery = Event.find(safeQuery)
       .populate('resources.userID')
-      .sort(sortBy ? { [sortBy]: 1 } : {})
-      .skip(skip)
-      .limit(limitNumber);
+      .sort({ [sortBy]: 1, _id: 1 });
+
+    if (hasLimit) {
+      eventQuery = eventQuery.skip(skip).limit(limitNumber);
+    }
+
+    const events = await eventQuery;
 
     const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
 
-    res.json({
+    let totalPages = 0;
+
+    if (hasLimit) {
+      totalPages = Math.ceil(totalEvents / limitNumber);
+    } else if (totalEvents > 0) {
+      totalPages = 1;
+    }
+
+    return res.json({
       events: formattedEvents,
       pagination: {
         total: totalEvents,
-        totalPages: Math.ceil(totalEvents / limitNumber),
+        totalPages,
         currentPage: pageNumber,
         limit: limitNumber,
       },
@@ -121,7 +182,7 @@ const getEvents = async function (req, res) {
       return res.status(400).send(error.message);
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to fetch events',
       details: error.message,
     });
