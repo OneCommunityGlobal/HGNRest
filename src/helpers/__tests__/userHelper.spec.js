@@ -1262,6 +1262,8 @@ describe('weeklyAutoReplyEmailFunction', () => {
     warnings,
   });
 
+  const asDoc = (data) => ActualUserProfile.hydrate(data);
+
   const getClaimCall = (spy) => {
     expect(spy).toHaveBeenCalledTimes(1);
     const [filter, pipeline, options] = spy.mock.calls[0];
@@ -1270,19 +1272,25 @@ describe('weeklyAutoReplyEmailFunction', () => {
   const getAppliedWarning = (pipeline) => pipeline[0].$set.warnings.$concatArrays[1][0];
   const getReplacementSquares = (pipeline) => pipeline[0].$set.infringements.$concatArrays[1];
 
-  // Result of the claim (what Mongo would return with { new: true })
-  const claimedUser = (base, { warning, squares = [] }) => ({
-    ...base,
-    warnings: [...base.warnings, warning],
-    infringements: squares,
-    infringementCount: squares.length,
-  });
+  // Result of the claim (what Mongo would return with { new: true }), as a hydrated document
+  const claimedUser = (base, { warning, squares = [] }) =>
+    asDoc({
+      ...base,
+      warnings: [...base.warnings, warning],
+      infringements: squares,
+      infringementCount: squares.length,
+    });
+
+  // notifyInfringements sends the "New Infringement Assigned" email through emailSender
+  const infringementEmailCalls = () =>
+    emailSender.mock.calls.filter((args) => args.includes('New Infringement Assigned'));
 
   let findOneAndUpdateSpy;
   let findByIdAndUpdateSpy;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(timeOffRequest, 'find').mockResolvedValue([]);
     jest.spyOn(currentWarnings, 'find').mockReturnValue({
       sort: jest.fn().mockResolvedValue([{ warningTitle: WARNING_DESC, _id: 'warning123' }]),
@@ -1302,7 +1310,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
 
   it('should issue a BLUE warning for the 1st occurrence using one atomic claim', async () => {
     const mockUser = createMockUser([]);
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
     emailSender.mockResolvedValueOnce(true);
 
     findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
@@ -1314,7 +1322,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
     const { filter, pipeline, options } = getClaimCall(findOneAndUpdateSpy);
 
     // Guard: system square must still exist AND this week's warning must be absent
-    expect(filter._id).toBe(mockUser._id);
+    expect(String(filter._id)).toBe(mockUser._id);
     expect(filter.infringements).toEqual({
       $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
     });
@@ -1324,12 +1332,15 @@ describe('weeklyAutoReplyEmailFunction', () => {
     expect(options).toEqual({ new: true });
 
     // State change: blue warning, no replacement square
-    expect(getAppliedWarning(pipeline)).toEqual(
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
       expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'blue' }),
     );
     expect(getReplacementSquares(pipeline)).toEqual([]);
 
-    // infringementCount is recomputed inside the same atomic write
+    expect(warning._id).toBeInstanceOf(mongoose.Types.ObjectId);
+    expect(warning.warningId).toBe('warning123');
+    expect(typeof warning.warningId).toBe('string');
     expect(pipeline[1]).toEqual({ $set: { infringementCount: { $size: '$infringements' } } });
 
     // The old multi-step writes must be gone
@@ -1341,7 +1352,7 @@ describe('weeklyAutoReplyEmailFunction', () => {
       { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
       { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
     ]);
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
     emailSender.mockResolvedValueOnce(true);
 
     findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
@@ -1351,20 +1362,22 @@ describe('weeklyAutoReplyEmailFunction', () => {
     await run(mockUser);
 
     const { pipeline } = getClaimCall(findOneAndUpdateSpy);
-    expect(getAppliedWarning(pipeline)).toEqual(
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
       expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'yellow' }),
     );
     expect(getReplacementSquares(pipeline)).toEqual([]);
   });
 
-  it('should issue a RED warning and a replacement blue square in the SAME atomic write for the 4th+ occurrence', async () => {
+  it('should issue a RED warning and a replacement blue square in the SAME atomic write for the 4th+ occurrence, and send the infringement email', async () => {
     const mockUser = createMockUser([
       { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
       { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
       { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
     ]);
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
     warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
+    emailSender.mockResolvedValue(true);
 
     findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
       claimedUser(mockUser, {
@@ -1379,9 +1392,11 @@ describe('weeklyAutoReplyEmailFunction', () => {
     const { pipeline } = getClaimCall(findOneAndUpdateSpy);
     expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
 
-    expect(getAppliedWarning(pipeline)).toEqual(
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
       expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'red' }),
     );
+    expect(warning._id).toBeInstanceOf(mongoose.Types.ObjectId);
 
     const squares = getReplacementSquares(pipeline);
     expect(squares).toHaveLength(1);
@@ -1394,14 +1409,24 @@ describe('weeklyAutoReplyEmailFunction', () => {
         description: expect.stringContaining('remove past blue squares 4 times'),
       }),
     );
+    // Without an _id the square can't be viewed, edited or deleted from the UI
+    expect(squares[0]._id).toBeInstanceOf(mongoose.Types.ObjectId);
+
+    // notifyInfringements must succeed (no swallowed TypeError) and send the email
+    expect(console.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('infringement email failed'),
+      expect.anything(),
+    );
+    expect(infringementEmailCalls()).toHaveLength(1);
 
     // The "close enough" template email is skipped on a 4th+ offense
-    expect(emailSender).not.toHaveBeenCalled();
+    // (the only emailSender call is the infringement email)
+    expect(emailSender).toHaveBeenCalledTimes(1);
   });
 
   it('should do nothing when another run already claimed this user/week (claim returns null)', async () => {
     const mockUser = createMockUser([]);
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
     findOneAndUpdateSpy.mockResolvedValue(null);
 
     await run(mockUser);
@@ -1418,10 +1443,10 @@ describe('weeklyAutoReplyEmailFunction', () => {
       { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
       { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
     ]);
-    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([mockUser]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
     warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
     warningsHelper.sendEmailToUser.mockRejectedValueOnce(new Error('SMTP rejected'));
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    emailSender.mockResolvedValue(true);
 
     findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
       claimedUser(mockUser, {
@@ -1439,6 +1464,9 @@ describe('weeklyAutoReplyEmailFunction', () => {
       expect.stringContaining('warning email failed'),
       expect.any(Error),
     );
+
+    // A failed warning email must not stop the infringement email
+    expect(infringementEmailCalls()).toHaveLength(1);
   });
 });
 

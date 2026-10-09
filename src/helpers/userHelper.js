@@ -1360,6 +1360,7 @@ const userHelper = function () {
           const issueBlueSquare = occurrence >= 4;
 
           const newWarning = {
+            _id: new mongoose.Types.ObjectId(),
             iconId: uuidv4(),
             color,
             date: assignmentDate,
@@ -1370,6 +1371,7 @@ const userHelper = function () {
           const replacementSquares = issueBlueSquare
             ? [
                 {
+                  _id: new mongoose.Types.ObjectId(),
                   date: assignmentDate,
                   description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
                   createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
