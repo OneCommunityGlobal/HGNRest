@@ -208,6 +208,71 @@ describe('HgnFormResponseController', () => {
       );
     });
 
+    it('skills filter excludes users who only have the selected skill at a low score', async () => {
+      // Every form response stores a score for every skill, so "has the skill"
+      // must not be enough to match. Low ranks EnvironmentSetup last in backend
+      // (1/10), High ranks it in their top 4, so only High should be returned.
+      mockReq.query = { skills: 'EnvironmentSetup' };
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: 'u1', isActive: true },
+        { _id: 'u2', isActive: true },
+      ]);
+      const backend = (env) => ({
+        EnvironmentSetup: env,
+        AdvancedCoding: '8',
+        MongoDB: '8',
+        Database: '8',
+        AgileDevelopment: '8',
+      });
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: 'low',
+          user_id: 'u1',
+          userInfo: { name: 'Low' },
+          frontend: {},
+          backend: backend('1'),
+          general: {},
+        },
+        {
+          _id: 'high',
+          user_id: 'u2',
+          userInfo: { name: 'High' },
+          frontend: {},
+          backend: backend('9'),
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      const result = mockRes.json.mock.calls[0][0];
+      expect(result.map((u) => u._id)).toEqual(['high']);
+      expect(result[0].topSkills[0]).toBe('EnvironmentSetup');
+      // internal flag must not leak into the API response
+      expect(result[0]).not.toHaveProperty('matchesSkills');
+    });
+
+    it('uses the linked profile name when the form response name is empty', async () => {
+      mockReq.query = {};
+      UserProfile.find = jest
+        .fn()
+        .mockResolvedValue([{ _id: 'u1', isActive: true, firstName: 'Ada', lastName: 'Lovelace' }]);
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: 'r1',
+          user_id: 'u1',
+          userInfo: { name: '' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      expect(mockRes.json.mock.calls[0][0][0].name).toBe('Ada Lovelace');
+    });
+
     it('should return all users if no query params are provided', async () => {
       UserProfile.find = jest.fn().mockResolvedValue([
         { _id: '123', isActive: true },
