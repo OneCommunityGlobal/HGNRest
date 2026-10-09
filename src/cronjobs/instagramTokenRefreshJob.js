@@ -1,16 +1,24 @@
-// cronjobs/instagramTokenRefreshJob.js
-const cron = require('node-cron'); // or whatever scheduler this repo already uses — check cronjobs/userProfileJobs.js for the pattern
+const cron = require('node-cron');
 const refreshInstagramToken = require('../services/refreshInstagramToken');
 const logger = require('../startup/logger');
 
 const scheduleInstagramTokenRefresh = () => {
-  // Run daily at 3am — refreshing well before the 60-day expiry
+  // Runs daily at 3am. The service only calls Meta when the token is within
+  // its refresh window; otherwise it just checks the stored expiry and skips.
   cron.schedule('0 3 * * *', async () => {
     try {
-      const tokenDoc = await refreshInstagramToken();
-      logger.logInfo(`Instagram token refreshed, expires ${tokenDoc.expiresAt}`);
+      const { tokenDoc, refreshed } = await refreshInstagramToken();
+
+      if (refreshed) {
+        logger.logInfo(`Instagram token refreshed, expires ${tokenDoc.expiresAt}`);
+      } else {
+        logger.logInfo(`Instagram token refresh skipped, expires ${tokenDoc.expiresAt}`);
+      }
     } catch (err) {
-      logger.logException(err, 'Instagram token refresh failed');
+      // Log only a safe message. A raw axios error can include the request
+      // params, which here contain the App Secret and the access token.
+      const safeMessage = err?.response?.data?.error?.message || err?.message || 'Unknown error';
+      logger.logException(new Error(safeMessage), 'Instagram token refresh failed');
     }
   });
 };

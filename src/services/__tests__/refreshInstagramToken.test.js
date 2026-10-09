@@ -68,6 +68,7 @@ describe('refreshInstagramToken', () => {
             client_secret: 'app-secret-456',
             fb_exchange_token: 'old-access-token',
           },
+          timeout: 15000,
         },
       );
     });
@@ -119,7 +120,8 @@ describe('refreshInstagramToken', () => {
 
       const result = await refreshInstagramToken();
 
-      expect(result).toBe(tokenDoc);
+      expect(result.tokenDoc).toBe(tokenDoc);
+      expect(result.refreshed).toBe(true);
     });
 
     it('propagates the error and does not save if the Graph API call fails', async () => {
@@ -154,6 +156,58 @@ describe('refreshInstagramToken', () => {
       expect(tokenDoc.accessToken).not.toBe(existingToken.accessToken);
       expect(tokenDoc.expiresAt.getTime()).not.toBe(existingToken.expiresAt.getTime());
       expect(tokenDoc.lastRefreshedAt.getTime()).not.toBe(existingToken.lastRefreshedAt.getTime());
+    });
+
+    it('skips the Graph API call when the token is not close to expiry', async () => {
+      tokenDoc.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      const result = await refreshInstagramToken();
+
+      expect(result).toEqual({ tokenDoc, refreshed: false });
+      expect(axios.get).not.toHaveBeenCalled();
+      expect(tokenDoc.save).not.toHaveBeenCalled();
+      expect(tokenDoc.accessToken).toBe('old-access-token');
+    });
+
+    it('throws only the Meta error message, without leaking the app secret or token', async () => {
+      axios.get.mockRejectedValue(
+        Object.assign(new Error('Request failed with status code 400'), {
+          response: { data: { error: { message: 'Invalid OAuth access token.' } } },
+          config: {
+            params: { client_secret: 'app-secret-456', fb_exchange_token: 'old-access-token' },
+          },
+        }),
+      );
+
+      const error = await refreshInstagramToken().catch((err) => err);
+
+      expect(error.message).toBe('Instagram token refresh failed: Invalid OAuth access token.');
+      expect(error.message).not.toContain('app-secret-456');
+      expect(error.message).not.toContain('old-access-token');
+      expect(tokenDoc.save).not.toHaveBeenCalled();
+    });
+
+    it('reports an unknown error when the rejection has no message', async () => {
+      axios.get.mockRejectedValue({});
+
+      await expect(refreshInstagramToken()).rejects.toThrow(
+        'Instagram token refresh failed: Unknown error',
+      );
+    });
+
+    it.each([
+      ['has no access_token', { expires_in: 3600 }],
+      ['has no expires_in', { access_token: 'new-access-token' }],
+      ['has a zero expires_in', { access_token: 'new-access-token', expires_in: 0 }],
+    ])('throws and does not save when the response %s', async (_label, data) => {
+      axios.get.mockResolvedValue({ data });
+
+      await expect(refreshInstagramToken()).rejects.toThrow(
+        'Instagram token refresh failed: response had no access_token or expires_in.',
+      );
+
+      expect(tokenDoc.save).not.toHaveBeenCalled();
+      expect(tokenDoc.accessToken).toBe('old-access-token');
     });
   });
 });
