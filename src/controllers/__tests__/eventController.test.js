@@ -1,10 +1,11 @@
 jest.mock('../../models/event', () => ({
   countDocuments: jest.fn(),
   find: jest.fn(),
+  findById: jest.fn(),
 }));
 
 const Event = require('../../models/event');
-const { getEvents } = require('../eventController');
+const { getEvents, getEventById } = require('../eventController');
 
 describe('eventController.getEvents', () => {
   let req;
@@ -57,6 +58,15 @@ describe('eventController.getEvents', () => {
           totalPages: 1,
         }),
       }),
+    );
+  });
+
+  it('restricts populated attendee user fields', async () => {
+    await getEvents(req, res);
+
+    expect(query.populate).toHaveBeenCalledWith(
+      'resources.userID',
+      'firstName lastName profilePic',
     );
   });
 
@@ -151,5 +161,36 @@ describe('eventController.getEvents', () => {
         limit: 0,
       },
     });
+  });
+});
+
+describe('eventController.getEventById', () => {
+  it('restricts populated attendee user fields', async () => {
+    const event = {
+      currentAttendees: 0,
+      attendeesThreshold: 5,
+      maxAttendees: 10,
+    };
+
+    const query = {
+      populate: jest.fn().mockResolvedValue(event),
+    };
+
+    Event.findById.mockReturnValue(query);
+
+    const req = { params: { id: 'event123' } };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+
+    await getEventById(req, res);
+
+    expect(Event.findById).toHaveBeenCalledWith('event123');
+    expect(query.populate).toHaveBeenCalledWith(
+      'resources.userID',
+      'firstName lastName profilePic',
+    );
+    expect(res.json).toHaveBeenCalledWith(event);
   });
 });

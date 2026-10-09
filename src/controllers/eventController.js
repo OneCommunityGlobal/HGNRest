@@ -149,7 +149,7 @@ const getEvents = async function (req, res) {
     }
 
     let eventQuery = Event.find(safeQuery)
-      .populate('resources.userID')
+      .populate('resources.userID', 'firstName lastName profilePic')
       .sort({ [sortBy]: 1, _id: 1 });
 
     if (hasLimit) {
@@ -193,7 +193,10 @@ const getEventById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const event = await Event.findById(id).populate('resources.userID');
+    const event = await Event.findById(id).populate(
+      'resources.userID',
+      'firstName lastName profilePic'
+    );
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
