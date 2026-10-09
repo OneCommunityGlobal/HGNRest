@@ -192,3 +192,52 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getTotalActiveTeamCount', () => {
+  // eslint-disable-next-line global-require
+  const Team = require('../models/team');
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('uses the Team Stats definition: active teams with 2+ active members', async () => {
+    const aggregateSpy = jest.spyOn(Team, 'aggregate').mockResolvedValue([{ totalTeams: 211 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 211 });
+    expect(aggregateSpy.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([{ $match: { activeMembersCount: { $gte: 2 } } }]),
+    );
+  });
+
+  it('returns current and comparison counts when comparison dates are given', async () => {
+    jest
+      .spyOn(Team, 'aggregate')
+      .mockResolvedValueOnce([{ totalTeams: 10 }])
+      .mockResolvedValueOnce([{ totalTeams: 8 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount(
+      '2026-10-04',
+      '2026-10-10',
+      '2026-09-27',
+      '2026-10-03',
+    );
+
+    expect(result.current).toBe(10);
+    expect(result.comparison).toBe(8);
+    expect(result).toHaveProperty('percentage');
+  });
+
+  it('returns 0 when no team qualifies', async () => {
+    jest.spyOn(Team, 'aggregate').mockResolvedValue([]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 0 });
+  });
+});
