@@ -6,7 +6,7 @@ async function refreshInstagramToken() {
   const tokenDoc = await MetaToken.findOne({ platform: 'instagram' });
   if (!tokenDoc) throw new Error('No Instagram token found — run bootstrap script first.');
 
-  const { data } = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
+  const { data } = await axios.get('https://graph.facebook.com/v23.0/oauth/access_token', {
     params: {
       grant_type: 'fb_exchange_token',
       client_id: process.env.META_APP_ID,

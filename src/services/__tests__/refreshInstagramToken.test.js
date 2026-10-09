@@ -60,7 +60,7 @@ describe('refreshInstagramToken', () => {
 
       expect(axios.get).toHaveBeenCalledTimes(1);
       expect(axios.get).toHaveBeenCalledWith(
-        'https://graph.facebook.com/v19.0/oauth/access_token',
+        'https://graph.facebook.com/v23.0/oauth/access_token',
         {
           params: {
             grant_type: 'fb_exchange_token',
