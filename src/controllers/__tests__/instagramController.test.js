@@ -251,7 +251,6 @@ describe('createPost', () => {
       body: {
         caption: '  Hello world  ',
         media: { base64: VALID_MEDIA_BASE64 },
-        altText: 'A photo',
       },
     });
     const res = buildRes();
@@ -430,7 +429,6 @@ describe('schedulePost', () => {
       body: {
         caption: '  Hello  ',
         media: { base64: VALID_MEDIA_BASE64 },
-        altText: 'desc',
         scheduledTime,
       },
     });
@@ -442,7 +440,6 @@ describe('schedulePost', () => {
       expect.objectContaining({
         caption: 'Hello',
         mediaType: 'IMAGE',
-        mediaAltText: 'desc',
         status: 'scheduled',
       }),
     );
@@ -453,24 +450,6 @@ describe('schedulePost', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Post scheduled.' }));
-  });
-
-  test('defaults mediaAltText to null when altText is not provided', async () => {
-    InstagramScheduledPost.create.mockResolvedValue({ _id: VALID_POST_ID });
-    const req = buildReq({
-      body: {
-        caption: 'Hello',
-        media: { base64: VALID_MEDIA_BASE64 },
-        scheduledTime: futureDate(),
-      },
-    });
-    const res = buildRes();
-
-    await schedulePost(req, res);
-
-    expect(InstagramScheduledPost.create).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaAltText: null }),
-    );
   });
 
   test('returns 500 when InstagramScheduledPost.create throws', async () => {

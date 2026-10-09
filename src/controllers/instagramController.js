@@ -107,8 +107,7 @@ const schedulePost = async (req, res) => {
       return res.status(401).json({ detail: 'Not authenticated' });
     }
 
-    const { caption, media, altText, scheduledTime, existingMediaUrl, existingMediaType } =
-      req.body;
+    const { caption, media, scheduledTime, existingMediaUrl, existingMediaType } = req.body;
 
     if (!caption || !caption.trim()) {
       return res.status(400).json({
@@ -151,7 +150,6 @@ const schedulePost = async (req, res) => {
       caption: caption.trim(),
       mediaUrl: uploadedMedia.mediaUrl,
       mediaType: uploadedMedia.mediaType,
-      mediaAltText: altText || null,
       scheduledTime: scheduledDate,
       status: 'scheduled',
     });

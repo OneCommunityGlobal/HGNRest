@@ -24,11 +24,6 @@ const InstagramScheduledPostSchema = new mongoose.Schema(
       required: true,
     },
 
-    mediaAltText: {
-      type: String,
-      default: null,
-    },
-
     scheduledTime: {
       type: Date,
       required: true,
