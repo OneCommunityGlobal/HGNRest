@@ -107,6 +107,8 @@ const notifyEditByEmail = async (
  * @returns {Void}
  */
 const notifyDeleteByEmail = async (userprofile, requestorId, timeEntry) => {
+  // no email for people deleting their own entries, or for entries with no owner (project/team)
+  if (!userprofile || String(timeEntry.personId) === String(requestorId)) return;
   const [requestor, project] = await Promise.all([
     UserProfile.findById(requestorId, 'firstName lastName role'),
     timeEntry.projectId ? Project.findById(timeEntry.projectId, 'projectName') : null,
@@ -129,10 +131,18 @@ const notifyDeleteByEmail = async (userprofile, requestorId, timeEntry) => {
   const subject = 'One of your time logs was deleted';
   // emailSender skips non-production silently; print it locally so the email can be checked
   if (process.env.NODE_ENV === 'local') {
-    logger.logInfo(`[deleted time log email] to=${userprofile.email} subject="${subject}"
-${emailBody}`);
+    logger.logInfo(
+      `[deleted time log email] to=${userprofile.email} subject="${subject}"\n${emailBody}`,
+    );
   }
-  emailSender(userprofile.email, subject, emailBody, null, null, 'onecommunityglobal@gmail.com');
+  await emailSender(
+    userprofile.email,
+    subject,
+    emailBody,
+    null,
+    null,
+    'onecommunityglobal@gmail.com',
+  );
 };
 
 /**
@@ -1050,11 +1060,9 @@ const timeEntrycontroller = function (TimeEntry) {
       res.status(200).send({ message: 'Successfully deleted' });
 
       // after the response: a failed email must not undo or fail the delete
-      if (userprofile && !isForAuthUser) {
-        notifyDeleteByEmail(userprofile, req.body.requestor.requestorId, timeEntry).catch((error) =>
-          logger.logException(error),
-        );
-      }
+      notifyDeleteByEmail(userprofile, req.body.requestor.requestorId, timeEntry).catch((error) =>
+        logger.logException(error),
+      );
     } catch (error) {
       await session.abortTransaction();
       logger.logException(error);
