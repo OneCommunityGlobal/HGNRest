@@ -359,6 +359,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
+const eventRouter = require('../routes/eventRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
 const questionSetRouter = require('../routes/questionSetRouter');
