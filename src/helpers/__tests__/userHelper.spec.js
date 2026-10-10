@@ -617,11 +617,35 @@ describe('checkLeadTeamOfXplus', () => {
     badge.find.mockReset();
   });
 
-  test('returns early for roles that cannot lead teams', async () => {
-    const user = { role: 'Volunteer' };
-    await checkLeadTeamOfXplus(personId, user, []);
+  // The Badges Detail doc describes this badge as being for "a Manager, Core
+  // Team, or Admin class", and Jae's comment on that doc puts it as "the Users
+  // Class being one of the Management classes". Mentor is not named there but
+  // has always been allowed and stays allowed deliberately. Owner is not named
+  // either and stays ineligible, which is the behaviour that was already here.
+  const eligibleRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
+  const ineligibleRoles = ['Volunteer', 'Owner'];
+
+  test.each(ineligibleRoles)('returns early for %s, who cannot lead teams', async (role) => {
+    await checkLeadTeamOfXplus(personId, { role }, []);
 
     expect(Team.aggregate).not.toHaveBeenCalled();
+  });
+
+  test.each(eligibleRoles)('sizes the team and awards a badge for %s', async (role) => {
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: new mongoose.Types.ObjectId(), role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    await checkLeadTeamOfXplus(personId, { role }, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
 
   test('adds a qualifying team-size badge for an eligible leader', async () => {
@@ -690,7 +714,9 @@ describe('checkLeadTeamOfXplus', () => {
     const user = { role: 'Manager' };
     await checkLeadTeamOfXplus(personId, user, []);
 
-    expect(badge.find).toHaveBeenCalledWith(expect.objectContaining({ people: { $lte: 1 } }));
+    expect(badge.find).toHaveBeenCalledWith(
+      expect.objectContaining({ people: { $lte: 1, $gt: 0 } }),
+    );
   });
 
   test('skips badgeCollection entries that are not team-size badges', async () => {
@@ -737,6 +763,32 @@ describe('checkLeadTeamOfXplus', () => {
     await checkLeadTeamOfXplus(personId, user, badgeCollection);
 
     expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('never asks for a badge whose threshold is zero people', async () => {
+    const members = [
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+    ];
+
+    Team.aggregate.mockResolvedValue([
+      { _id: new mongoose.Types.ObjectId(), teamName: 'Team A', members },
+    ]);
+    badge.find.mockReturnValue(makeQuery([]));
+
+    await checkLeadTeamOfXplus(personId, { role: 'Manager' }, []);
+
+    // Pinned as a whole object rather than objectContaining, so neither the
+    // type filter nor the zero guard can be dropped without this failing.
+    // Dev holds a badge called "0 Hours for 7 Week Streak" saved with this
+    // type and people: 0. Without $gt it is the highest match for anyone
+    // leading 1 to 4 people, so they would be handed an hours-streak badge
+    // for leading a team.
+    expect(badge.find).toHaveBeenCalledWith({
+      type: 'Lead a team of X+',
+      people: { $lte: 3, $gt: 0 },
+    });
   });
 
   test('does nothing when no team-size badge qualifies', async () => {
