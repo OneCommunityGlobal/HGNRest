@@ -1141,7 +1141,8 @@ const overviewReportHelper = function () {
       };
     }
 
-    // Apply the selected range even when comparison mode is off.
+    // non-comparison branch — filter by the same date range so the count reflects
+    // tasks modified (completed/activated) within the selected period, not all time.
     const taskStats = await Task.aggregate([
       {
         $match: {
