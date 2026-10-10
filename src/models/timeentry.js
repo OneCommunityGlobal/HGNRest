@@ -15,6 +15,8 @@ const TimeEntry = new Schema({
   isTangible: { type: Boolean, default: false },
   createdDateTime: { type: Date },
   lastModifiedDateTime: { type: Date, default: Date.now },
+  // who last edited the entry; null until it is edited (shown as "edited by" on the time log)
+  lastModifiedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
   isActive: { type: Boolean, default: true },
 });
 TimeEntry.index({ personId: 1, dateOfWork: 1 });

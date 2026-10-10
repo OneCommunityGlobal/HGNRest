@@ -487,6 +487,7 @@ describe('Unit Tests: timeEntryController', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(emailSender).toHaveBeenCalled();
+      expect(initial.lastModifiedBy).toBe('u1');
     });
 
     test('catches error and returns 400', async () => {
@@ -615,7 +616,8 @@ describe('Unit Tests: timeEntryController', () => {
           projectId: new mongoose.Types.ObjectId(),
         }),
       };
-      TimeEntry.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([te]) });
+      const populate = jest.fn().mockReturnThis();
+      TimeEntry.find.mockReturnValue({ populate, sort: jest.fn().mockResolvedValue([te]) });
       Task.findById.mockResolvedValue({ taskName: 'Task A' });
       Project.findById.mockResolvedValue({ projectName: 'Proj A' });
 
@@ -629,6 +631,8 @@ describe('Unit Tests: timeEntryController', () => {
       expect(data[0].minutes).toBe(5);
       expect(data[0].taskName).toBe('Task A');
       expect(data[0].projectName).toBe('Proj A');
+      // editor name and role are sent for the "edited by" notice
+      expect(populate).toHaveBeenCalledWith('lastModifiedBy', 'firstName lastName role');
     });
   });
 

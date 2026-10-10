@@ -793,6 +793,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.totalSeconds = newTotalSeconds;
       timeEntry.isTangible = newIsTangible;
       timeEntry.lastModifiedDateTime = moment().utc().toISOString();
+      timeEntry.lastModifiedBy = req.body.requestor.requestorId;
       if (newProjectId) timeEntry.projectId = mongoose.Types.ObjectId(newProjectId);
       timeEntry.wbsId = newWbsId ? mongoose.Types.ObjectId(newWbsId) : null;
       timeEntry.taskId = newTaskId ? mongoose.Types.ObjectId(newTaskId) : null;
@@ -1044,7 +1045,9 @@ const timeEntrycontroller = function (TimeEntry) {
         personId: userId,
         dateOfWork: { $gte: fromDateStr, $lte: toDateStr },
         // include the time entries for the archived projects
-      }).sort('-lastModifiedDateTime');
+      })
+        .populate('lastModifiedBy', 'firstName lastName role')
+        .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(
         timeEntries.map(async (timeEntry) => {
