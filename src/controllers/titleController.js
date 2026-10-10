@@ -45,12 +45,21 @@ const titlecontroller = function (Title) {
   } */
   async function checkTeamCodeExists(teamCode) {
     try {
+      const normalizedTeamCode = teamCode?.trim().toLowerCase();
+
+      if (!normalizedTeamCode) {
+        return false;
+      }
+
       if (cache.getCache('teamCodes')) {
         const teamCodes = JSON.parse(cache.getCache('teamCodes'));
-        return teamCodes.includes(teamCode);
+
+        return teamCodes.some((code) => code?.trim().toLowerCase() === normalizedTeamCode);
       }
+
       const teamCodes = await getAllTeamCodeHelper();
-      return teamCodes.includes(teamCode);
+
+      return teamCodes.some((code) => code?.trim().toLowerCase() === normalizedTeamCode);
     } catch (error) {
       console.error('Error checking if team code exists:', error);
       throw error;
