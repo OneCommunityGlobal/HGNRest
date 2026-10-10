@@ -33,6 +33,7 @@ const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
 const timeUtils = require('../utilities/timeUtils');
 const Team = require('../models/team');
+const { buildCoreTeamMissedHoursAggregation } = require('./coreTeamMissedHoursAggregation');
 
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
@@ -236,25 +237,23 @@ const userHelper = function () {
         .localeData()
         .ordinal(totalInfringements)}</b> blue square of 5.</p>`;
     } else {
-      let hrThisweek = weeklycommittedHours || 0 + coreTeamExtraHour;
+      const baseCommitment = weeklycommittedHours || 0;
+      const penaltyHours = coreTeamExtraHour || 0;
       const remainHr = timeRemaining || 0;
-      hrThisweek += remainHr;
-      finalParagraph = `Please complete ALL owed time this week (${
-        hrThisweek + totalInfringements - 5
-      } hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
-      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${moment
-        .localeData()
-        .ordinal(
-          totalInfringements,
-        )}</b> blue square of 5 and that means you have ${totalInfringements - 5} hour(s) added to your
-          requirement this week. This is in addition to any hours missed for last week:
-          ${weeklycommittedHours} hours commitment + ${remainHr} hours owed for last week + ${totalInfringements - 5} hours
-          owed for this being your <b>${moment
-            .localeData()
-            .ordinal(
-              totalInfringements,
-            )} blue square = ${hrThisweek + totalInfringements - 5} hours required for this week.
-          .</p>`;
+      const totalOwed = baseCommitment + remainHr + penaltyHours;
+      const ordinalLabel = moment.localeData().ordinal(totalInfringements);
+      const penaltyIntro =
+        penaltyHours > 0
+          ? ` and that means you have ${penaltyHours} hour(s) added to your requirement this week. This is in addition to any hours missed for last week:`
+          : ' and This is in addition to any hours missed for last week:';
+      const penaltyBreakdown =
+        penaltyHours > 0
+          ? ` + ${penaltyHours} hours owed for this being your <b>${ordinalLabel}</b> blue square`
+          : '';
+
+      finalParagraph = `Please complete ALL owed time this week (${totalOwed} hours) to avoid receiving another blue square. If you have any questions about any of this, please see the <a href="https://www.onecommunityglobal.org/policies-and-procedures/">"One Community Core Team Policies and Procedures"</a> page.`;
+      descrInfringement = `<p><b>Total Infringements:</b> This is your <b>${ordinalLabel}</b> blue square of 5${penaltyIntro}
+          ${baseCommitment} hours commitment + ${remainHr} hours owed for last week${penaltyBreakdown} = ${totalOwed} hours required for this week.</p>`;
     }
     // bold description for 'System auto-assigned infringement for two reasons ....' and 'not submitting a weekly summary' and logged hrs
     let emailDescription = requestForTimeOffEmailBody;
@@ -622,14 +621,14 @@ const userHelper = function () {
 
     if (timeNotMet && !hasWeeklySummary) {
       if (person.role === 'Core Team') {
-        return `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${startStr} and ending ${endStr}, you logged ${loggedStr} hours against a committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${ordinal} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${loggedStr} hours.`;
+        return `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. In the week starting ${startStr} and ending ${endStr}, you logged ${loggedStr} hours against a committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${ordinal} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${loggedStr} hours.`;
       }
       return `System auto-assigned infringement for two reasons: not meeting weekly volunteer time commitment as well as not submitting a weekly summary. For the hours portion, you logged ${loggedStr} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${startStr} and ending ${endStr}.`;
     }
 
     if (timeNotMet) {
       if (person.role === 'Core Team') {
-        return `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${startStr} and ending ${endStr}, you logged ${loggedStr} hours against a committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${ordinal} blue square. So you should have completed ${weeklycommittedHours + coreTeamExtraHour} hours and you completed ${loggedStr} hours.`;
+        return `System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting ${startStr} and ending ${endStr}, you logged ${loggedStr} hours against a committed effort of ${person.weeklycommittedHours} hours + ${person.missedHours ?? 0} hours owed for last week + ${coreTeamExtraHour} hours owed for this being your ${ordinal} blue square. So you should have completed ${weeklycommittedHours} hours and you completed ${loggedStr} hours.`;
       }
       return `System auto-assigned infringement for not meeting weekly volunteer time commitment. You logged ${loggedStr} hours against a committed effort of ${weeklycommittedHours} hours in the week starting ${startStr} and ending ${endStr}.`;
     }
@@ -694,10 +693,23 @@ const userHelper = function () {
       console.log(`⚠️ No laborThisWeek results for user ${personId}`);
     }
     const timeSpent = results?.[0]?.timeSpent_hrs ?? 0;
-    const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-    const timeNotMet = timeSpent < weeklycommittedHours;
-    const timeRemaining = weeklycommittedHours - timeSpent;
     const isNewUser = checkIsNewUser(person, timeSpent, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    const cutOffDate = moment().subtract(1, 'year');
+    const oldInfringements = [];
+    for (const inf of user.infringements ?? []) {
+      if (moment(inf.date).diff(cutOffDate) >= 0) {
+        oldInfringements.push(inf);
+      }
+    }
+
+    const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
+    const weeklycommittedHours =
+      user.weeklycommittedHours +
+      (user.missedHours ?? 0) +
+      (person.role === 'Core Team' ? coreTeamExtraHour : 0);
+    const timeNotMet = timeSpent < weeklycommittedHours;
+    const timeRemaining = Math.max(weeklycommittedHours - timeSpent, 0);
 
     const updateResult = await userProfile.findByIdAndUpdate(
       personId,
@@ -715,17 +727,6 @@ const userHelper = function () {
       updateResult?.weeklySummaryOption === 'Not Required' ||
       !!updateResult?.weeklySummaryNotReq;
 
-    // Collect recent infringements (within last year)
-    const cutOffDate = moment().subtract(1, 'year');
-    const oldInfringements = [];
-    for (const inf of updateResult?.infringements ?? []) {
-      if (moment(inf.date).diff(cutOffDate) >= 0) {
-        oldInfringements.push(inf);
-      } else {
-        continue;
-      }
-    }
-
     if (oldInfringements.length) {
       await userProfile.findByIdAndUpdate(
         personId,
@@ -735,7 +736,6 @@ const userHelper = function () {
     }
 
     const historyInfringements = buildHistoryInfringements(oldInfringements);
-    const coreTeamExtraHour = Math.max(0, oldInfringements.length + 1 - 5);
 
     const utcStartMoment = moment(pdtStartOfLastWeek).add(1, 'second');
     const utcEndMoment = moment(pdtEndOfLastWeek).subtract(1, 'day').subtract(1, 'second');
@@ -806,7 +806,7 @@ const userHelper = function () {
                 coreTeamExtraHour,
                 requestForTimeOffEmailBody,
                 administrativeContent,
-                weeklycommittedHours,
+                person.weeklycommittedHours,
               )
             : getInfringementEmailBody(
                 status.firstName,
@@ -959,90 +959,11 @@ const userHelper = function () {
         .subtract(1, 'week')
         .format('YYYY-MM-DD');
 
-      const missedHours = await userProfile.aggregate([
-        {
-          $match: {
-            role: 'Core Team',
-            isActive: true,
-          },
-        },
-        {
-          $lookup: {
-            from: 'timeEntries',
-            localField: '_id',
-            foreignField: 'personId',
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$isTangible', true] },
-                      { $gte: ['$dateOfWork', startOfLastWeek] },
-                      { $lte: ['$dateOfWork', endOfLastWeek] },
-                    ],
-                  },
-                },
-              },
-            ],
-            as: 'timeEntries',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            missedHours: {
-              $let: {
-                vars: {
-                  baseMissedHours: {
-                    $max: [
-                      {
-                        $subtract: [
-                          {
-                            $sum: [{ $ifNull: ['$missedHours', 0] }, '$weeklycommittedHours'],
-                          },
-                          {
-                            $divide: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: '$timeEntries',
-                                    in: '$$this.totalSeconds',
-                                  },
-                                },
-                              },
-                              3600,
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                  infringementsAdjustment: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $gt: ['$infringements', null] },
-                          { $gt: [{ $size: '$infringements' }, 5] },
-                        ],
-                      },
-                      { $subtract: [{ $size: '$infringements' }, 5] },
-                      0,
-                    ],
-                  },
-                },
-                in: {
-                  $cond: [
-                    { $gt: ['$$baseMissedHours', 0] },
-                    { $add: ['$$baseMissedHours', '$$infringementsAdjustment'] },
-                    '$$baseMissedHours',
-                  ],
-                },
-              },
-            },
-          },
-        },
-      ]);
+      const cutOffDate = moment().tz(COMPANY_TZ).subtract(1, 'year').format('YYYY-MM-DD');
+
+      const missedHours = await userProfile.aggregate(
+        buildCoreTeamMissedHoursAggregation(startOfLastWeek, endOfLastWeek, cutOffDate),
+      );
 
       const bulkOps = [];
 
@@ -1050,12 +971,14 @@ const userHelper = function () {
         bulkOps.push({
           updateOne: {
             filter: { _id: obj._id },
-            update: { missedHours: obj.missedHours },
+            update: { $set: { missedHours: obj.missedHours } },
           },
         });
       });
 
-      await userProfile.bulkWrite(bulkOps);
+      if (bulkOps.length > 0) {
+        await userProfile.bulkWrite(bulkOps);
+      }
     } catch (err) {
       logger.logException(err);
     }
@@ -3114,7 +3037,16 @@ const userHelper = function () {
 
         const totalSeconds = results.reduce((acc, log) => acc + (log.totalSeconds || 0), 0);
         const hoursLogged = totalSeconds / 3600;
-        const weeklycommittedHours = (user.weeklycommittedHours || 0) + (user.missedHours || 0);
+
+        const cutOffDate = moment().tz(COMPANY_TZ).subtract(1, 'year');
+        const activeInfringements = (user.infringements ?? []).filter(
+          (inf) => moment(inf.date).diff(cutOffDate) >= 0,
+        );
+        const coreTeamExtraHour = Math.max(0, activeInfringements.length - 5);
+        const weeklycommittedHours =
+          (user.weeklycommittedHours || 0) +
+          (user.missedHours || 0) +
+          (user.role === 'Core Team' ? coreTeamExtraHour : 0);
         const timeRemaining = Math.max(weeklycommittedHours - hoursLogged, 0);
 
         const administrativeContent = {
@@ -3132,10 +3064,10 @@ const userHelper = function () {
                 infringement,
                 user.infringements.length,
                 timeRemaining,
-                0,
+                coreTeamExtraHour,
                 null,
                 administrativeContent,
-                weeklycommittedHours,
+                user.weeklycommittedHours || 0,
               )
             : getInfringementEmailBody(
                 user.firstName,
