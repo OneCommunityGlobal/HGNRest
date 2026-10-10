@@ -17,6 +17,7 @@ require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
+require('./cronjobs/xScheduleJob').start();
 
 // Process pending and stuck emails on startup (only after DB is connected)
 mongoose.connection.once('connected', () => {
