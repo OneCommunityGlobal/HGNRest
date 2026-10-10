@@ -728,6 +728,11 @@ const overviewReportHelper = function () {
         },
         {
           $addFields: {
+            infringementDescription: {
+              $toString: {
+                $ifNull: ['$infringements.description', ''],
+              },
+            },
             'infringements.parsedDate': {
               $convert: {
                 input: '$infringements.date',
@@ -753,28 +758,26 @@ const overviewReportHelper = function () {
               $switch: {
                 branches: [
                   {
-                    // Matches when user is on vacation
                     case: {
                       $regexMatch: {
-                        input: '$infringements.description',
+                        input: '$infringementDescription',
                         regex: /request for time off/i,
                       },
                     },
                     then: 'vacationTime',
                   },
                   {
-                    // Matches "not meeting weekly volunteer time commitment" AND "not submitting a weekly summary"
                     case: {
                       $and: [
                         {
                           $regexMatch: {
-                            input: '$infringements.description',
+                            input: '$infringementDescription',
                             regex: /not meeting weekly volunteer time commitment/i,
                           },
                         },
                         {
                           $regexMatch: {
-                            input: '$infringements.description',
+                            input: '$infringementDescription',
                             regex: /not submitting a weekly summary/i,
                           },
                         },
@@ -783,20 +786,18 @@ const overviewReportHelper = function () {
                     then: 'missingHoursAndSummary',
                   },
                   {
-                    // Matches "not meeting weekly volunteer time commitment" only
                     case: {
                       $regexMatch: {
-                        input: '$infringements.description',
+                        input: '$infringementDescription',
                         regex: /not meeting weekly volunteer time commitment/i,
                       },
                     },
                     then: 'missingHours',
                   },
                   {
-                    // Matches "not submitting a weekly summary" only
                     case: {
                       $regexMatch: {
-                        input: '$infringements.description',
+                        input: '$infringementDescription',
                         regex: /not submitting a weekly summary/i,
                       },
                     },
@@ -1074,95 +1075,97 @@ const overviewReportHelper = function () {
     ]);
   }
 
+  /**
+   * Counts tasks created in the date range as assigned, falling back to their
+   * modified date when no creation date is stored.
+   */
   async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
-    if (comparisonStartDate && comparisonEndDate) {
-      const taskStats = await Task.aggregate([
-        {
-          $facet: {
-            current: [
-              {
-                $match: {
-                  modifiedDatetime: { $gte: startDate, $lte: endDate },
-                },
-              },
-              {
-                $group: {
-                  _id: '$status',
-                  count: { $sum: 1 },
-                },
-              },
-            ],
-            comparison: [
-              {
-                $match: {
-                  modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate },
-                },
-              },
-              {
-                $group: {
-                  _id: '$status',
-                  count: { $sum: 1 },
-                },
-              },
-            ],
+    const terminalStatusRegex = /^(complete|completed|closed|done|finished)$/i;
+    const baseTaskFilter = { isActive: true, deleted: { $ne: true } };
+
+    const getAssignedCount = (rangeStart, rangeEnd) =>
+      Task.countDocuments({
+        ...baseTaskFilter,
+        $or: [
+          {
+            createdDatetime: { $gte: rangeStart, $lte: rangeEnd },
           },
-        },
-      ]);
+          {
+            createdDatetime: { $exists: false },
+            modifiedDatetime: { $gte: rangeStart, $lte: rangeEnd },
+          },
+        ],
+      });
 
-      if (!taskStats.length) {
-        return {
-          active: { current: 0, percentage: 0 },
-          complete: { current: 0, percentage: 0 },
-          raw: { current: [], comparison: [] },
-        };
-      }
+    const getCompletedCount = (rangeStart, rangeEnd) =>
+      Task.countDocuments({
+        ...baseTaskFilter,
+        $or: [
+          {
+            completedDatetime: { $ne: null, $gte: rangeStart, $lte: rangeEnd },
+          },
+          {
+            completedDatetime: null,
+            status: { $regex: terminalStatusRegex },
+            modifiedDatetime: { $gte: rangeStart, $lte: rangeEnd },
+          },
+          {
+            'resources.completedTask': true,
+            modifiedDatetime: { $gte: rangeStart, $lte: rangeEnd },
+          },
+        ],
+      });
 
-      const currentStats = taskStats[0].current || [];
-      const comparisonStats = taskStats[0].comparison || [];
+    const toExportRows = (assigned, completed) => [
+      { _id: 'Assigned', count: assigned },
+      { _id: 'Completed', count: completed },
+    ];
 
-      const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
-      const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
-      const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
-      const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
+    const currentAssigned = await getAssignedCount(startDate, endDate);
+    const currentCompleted = await getCompletedCount(startDate, endDate);
+
+    if (comparisonStartDate && comparisonEndDate) {
+      const comparisonAssigned = await getAssignedCount(comparisonStartDate, comparisonEndDate);
+      const comparisonCompleted = await getCompletedCount(comparisonStartDate, comparisonEndDate);
 
       return {
         active: {
-          current: currentActive,
-          percentage: calculateGrowthPercentage(currentActive, comparisonActive),
+          current: currentAssigned,
+          percentage: calculateGrowthPercentage(currentAssigned, comparisonAssigned),
         },
         complete: {
-          current: currentComplete,
-          percentage: calculateGrowthPercentage(currentComplete, comparisonComplete),
+          current: currentCompleted,
+          percentage: calculateGrowthPercentage(currentCompleted, comparisonCompleted),
         },
         raw: {
-          current: currentStats, // full status breakdown in current range
-          comparison: comparisonStats, // full status breakdown in comparison range
+          current: toExportRows(currentAssigned, currentCompleted),
+          comparison: toExportRows(comparisonAssigned, comparisonCompleted),
+          counts: {
+            current: {
+              assigned: currentAssigned,
+              completed: currentCompleted,
+            },
+            comparison: {
+              assigned: comparisonAssigned,
+              completed: comparisonCompleted,
+            },
+          },
         },
       };
     }
 
-    // Apply the selected range even when comparison mode is off.
-    const taskStats = await Task.aggregate([
-      {
-        $match: {
-          modifiedDatetime: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
-    const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
-
     return {
-      active: { current: active },
-      complete: { current: complete },
-      raw: { current: taskStats }, // full status breakdown
+      active: { current: currentAssigned },
+      complete: { current: currentCompleted },
+      raw: {
+        current: toExportRows(currentAssigned, currentCompleted),
+        counts: {
+          current: {
+            assigned: currentAssigned,
+            completed: currentCompleted,
+          },
+        },
+      },
     };
   }
 
@@ -2040,7 +2043,11 @@ const overviewReportHelper = function () {
             $cond: {
               if: {
                 $regexMatch: {
-                  input: '$earnedDateString',
+                  input: {
+                    $toString: {
+                      $ifNull: ['$badgeCollection.earnedDate', ''],
+                    },
+                  },
                   regex: /^[A-Z][a-z]{2}-\d{2}-\d{2}$/,
                 },
               },
@@ -2064,16 +2071,30 @@ const overviewReportHelper = function () {
                 {
                   case: {
                     $regexMatch: {
-                      input: '$fixedDateString',
+                      input: {
+                        $toString: {
+                          $ifNull: ['$fixedDateString', ''],
+                        },
+                      },
                       regex: /T\d{2}:/,
                     },
                   },
-                  then: { $toDate: '$fixedDateString' },
+                  then: {
+                    $dateFromString: {
+                      dateString: '$fixedDateString',
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
                 },
                 {
                   case: {
                     $regexMatch: {
-                      input: '$fixedDateString',
+                      input: {
+                        $toString: {
+                          $ifNull: ['$fixedDateString', ''],
+                        },
+                      },
                       regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
                     },
                   },
@@ -2269,6 +2290,15 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
+    const startDateString = moment(startDate).format('YYYY-MM-DD');
+    const endDateString = moment(endDate).format('YYYY-MM-DD');
+    const comparisonStartDateString = comparisonStartDate
+      ? moment(comparisonStartDate).format('YYYY-MM-DD')
+      : comparisonStartDate;
+    const comparisonEndDateString = comparisonEndDate
+      ? moment(comparisonEndDate).format('YYYY-MM-DD')
+      : comparisonEndDate;
+
     // 1. Retrieves the total hours logged to tasks for a given date range.
     // Tasks are entries where entryType is NOT 'person', 'team', or 'project' (defaulting to 'default')
     const getTaskHours = async (start, end) => {
@@ -2295,7 +2325,7 @@ const overviewReportHelper = function () {
       ]);
       return taskHours[0]?.totalHours;
     };
-    let taskHours = await getTaskHours(startDate, endDate);
+    let taskHours = await getTaskHours(startDateString, endDateString);
     taskHours = taskHours ? Number(taskHours.toFixed(2)) : 0;
 
     // 2. Retrieves the total hours logged to projects for a given date range.
@@ -2324,7 +2354,7 @@ const overviewReportHelper = function () {
       ]);
       return projectHours[0]?.totalHours;
     };
-    let projectHours = await getProjectHours(startDate, endDate);
+    let projectHours = await getProjectHours(startDateString, endDateString);
     projectHours = projectHours ? Number(projectHours.toFixed(2)) : 0;
 
     // 3. Calculates comparison percentages for task and project hours
@@ -2332,8 +2362,14 @@ const overviewReportHelper = function () {
     let projectsComparisonPercentage;
     let hoursSubmittedToTasksComparisonPercentage;
     if (comparisonStartDate && comparisonEndDate) {
-      const comparisonTaskHours = await getTaskHours(comparisonStartDate, comparisonEndDate);
-      const comparisonProjectHours = await getProjectHours(comparisonStartDate, comparisonEndDate);
+      const comparisonTaskHours = await getTaskHours(
+        comparisonStartDateString,
+        comparisonEndDateString,
+      );
+      const comparisonProjectHours = await getProjectHours(
+        comparisonStartDateString,
+        comparisonEndDateString,
+      );
       tasksComparisonPercentage = calculateGrowthPercentage(taskHours, comparisonTaskHours);
       projectsComparisonPercentage = calculateGrowthPercentage(
         projectHours,
@@ -2422,9 +2458,42 @@ const overviewReportHelper = function () {
       _id: { $nin: membersWithTasks },
     });
 
-    // 7. Number of tasks with due date within the date range
-    const tasksDueWithinDate = await Task.countDocuments({
-      dueDatetime: { $gte: startDate, $lte: endDate },
+    // 7. Number of assigned tasks within the date range
+    // Tasks are assigned if created or modified within the date range
+    const dueDateStart = moment(startDate).startOf('day').toDate();
+    const dueDateEnd = moment(endDate).endOf('day').toDate();
+    const baseTaskFilter = { isActive: true, deleted: { $ne: true } };
+
+    const tasksAssignedWithinDate = await Task.countDocuments({
+      ...baseTaskFilter,
+      $or: [
+        {
+          createdDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
+        },
+        {
+          createdDatetime: { $exists: false },
+          modifiedDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
+        },
+      ],
+    });
+
+    // 8. Number of completed tasks within the date range
+    const tasksCompletedWithinDate = await Task.countDocuments({
+      ...baseTaskFilter,
+      $or: [
+        {
+          completedDatetime: { $ne: null, $gte: dueDateStart, $lte: dueDateEnd },
+        },
+        {
+          completedDatetime: null,
+          status: { $regex: /^(complete|completed|closed|done|finished)$/i },
+          modifiedDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
+        },
+        {
+          'resources.completedTask': true,
+          modifiedDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
+        },
+      ],
     });
 
     // Calculate total tangible hours for percentage distribution
@@ -2459,7 +2528,17 @@ const overviewReportHelper = function () {
 
       membersWithTasks: membersWithTasks.length,
       membersWithoutTasks,
-      tasksDueThisWeek: tasksDueWithinDate,
+      // Correct values for assigned and completed tasks
+      tasksDueThisWeek: tasksAssignedWithinDate,
+      tasksCompletedThisWeek: tasksCompletedWithinDate,
+      // Additional fields for chart support
+      tasksAssignedThisWeek: tasksAssignedWithinDate,
+      raw: {
+        current: {
+          assigned: tasksAssignedWithinDate,
+          completed: tasksCompletedWithinDate,
+        },
+      },
     };
 
     return taskAndProjectStats;
