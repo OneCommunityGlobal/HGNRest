@@ -43,23 +43,24 @@ const titlecontroller = function (Title) {
       throw error;
     }
   } */
+
   async function checkTeamCodeExists(teamCode) {
     try {
       const normalizedTeamCode = teamCode?.trim().toLowerCase();
 
       if (!normalizedTeamCode) {
-        return false;
+        return null;
       }
 
-      if (cache.getCache('teamCodes')) {
-        const teamCodes = JSON.parse(cache.getCache('teamCodes'));
+      const cached = cache.getCache('teamCodes');
+      const teamCodes = cached ? JSON.parse(cached) : await getAllTeamCodeHelper();
 
-        return teamCodes.some((code) => code?.trim().toLowerCase() === normalizedTeamCode);
-      }
+      const matchingCode = teamCodes.find(
+        (code) => typeof code === 'string' && code.trim().toLowerCase() === normalizedTeamCode,
+      );
 
-      const teamCodes = await getAllTeamCodeHelper();
-
-      return teamCodes.some((code) => code?.trim().toLowerCase() === normalizedTeamCode);
+      // Return the canonical stored code, not a boolean.
+      return matchingCode ? matchingCode.trim() : null;
     } catch (error) {
       console.error('Error checking if team code exists:', error);
       throw error;
@@ -101,10 +102,8 @@ const titlecontroller = function (Title) {
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
 
-    if (!title.titleCode || !title.titleCode.trim()) {
-      return res
-        .status(400)
-        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+    if (!title.teamCode || !title.teamCode.trim()) {
+      return res.status(400).send({ message: 'Please provide a team code.' });
     }
 
     const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
@@ -141,11 +140,14 @@ const titlecontroller = function (Title) {
       return;
     }
 
-    const teamCodeExists = await checkTeamCodeExists(title.teamCode);
-    if (!teamCodeExists) {
-      res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-      return;
+    const canonicalTeamCode = await checkTeamCodeExists(title.teamCode);
+    if (!canonicalTeamCode) {
+      return res
+        .status(400)
+        .send({ message: 'Invalid team code. Please provide a valid team code.' });
     }
+
+    title.teamCode = canonicalTeamCode;
 
     // validate if project exist
     const projectExist = await checkProjectExists(title.projectAssigned._id);
@@ -242,11 +244,16 @@ const titlecontroller = function (Title) {
         return;
       }
 
-      const teamCodeExists = await checkTeamCodeExists(req.body.teamCode);
+      const canonicalTeamCode = await checkTeamCodeExists(req.body.teamCode);
 
-      if (!teamCodeExists) {
-        res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-        return;
+      if (!canonicalTeamCode) {
+        return res
+          .status(400)
+          .send({ message: 'Invalid team code. Please provide a valid team code.' });
+      }
+
+      if (!req.body.teamCode || !req.body.teamCode.trim()) {
+        return res.status(400).send({ message: 'Please provide a team code.' });
       }
 
       // validate if project exist
@@ -265,7 +272,7 @@ const titlecontroller = function (Title) {
       const oldTeamCode = result.teamCode;
       result.titleName = req.body.titleName;
       result.titleCode = req.body.titleCode;
-      result.teamCode = req.body.teamCode;
+      result.teamCode = canonicalTeamCode;
       result.projectAssigned = req.body.projectAssigned;
       result.mediaFolder = req.body.mediaFolder;
       result.teamAssiged = req.body.teamAssiged;
@@ -273,7 +280,7 @@ const titlecontroller = function (Title) {
 
       await userProfile.updateMany(
         { teamCode: oldTeamCode },
-        { $set: { teamCode: req.body.teamCode } },
+        { $set: { teamCode: canonicalTeamCode } },
       );
 
       cache.removeCache('teamCodes');
