@@ -110,6 +110,7 @@ const {
   UserStatusOperations,
   LifecycleStatus,
 } = require('../constants/userProfile');
+const { pauseFields, activeFields, LIFECYCLE_PROJECTION } = require('../helpers/userStatusFields');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -2008,9 +2009,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       cache.removeCache(`user-${userId}`);
       const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
 
+      // deactivatedAt is in the projection because the resume email reports the
+      // date the user was paused on, and a field left out of the projection
+      // reads as undefined rather than as its stored value.
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason deactivatedByProductionSync',
+        `email firstName lastName teams teamCode deactivatedByProductionSync ${LIFECYCLE_PROJECTION}`,
       );
 
       if (!user) {
@@ -2036,13 +2040,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 'This Dev account was deactivated because the linked Production account is inactive. It can only be reactivated when Production reactivates the account.',
             });
           }
-          user.isActive = true;
-          user.inactiveReason = undefined;
-          user.deactivatedAt = null;
-          user.reactivationDate = null;
-          user.endDate = null;
-          user.isSet = false;
-          user.finalEmailThreeWeeksSent = false;
+          user.set(activeFields());
           break;
         }
 
@@ -2078,15 +2076,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (!reactivationDate) {
             return res.status(400).send({ error: 'Reactivation date is required for pause' });
           }
-          user.isActive = false;
-          user.inactiveReason = InactiveReason.PAUSED;
-          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
-          user.reactivationDate = moment(reactivationDate)
-            .tz(COMPANY_TZ)
-            .startOf('day')
-            .toISOString();
-          user.endDate = null;
-          user.isSet = false;
+          user.set(pauseFields(reactivationDate));
           break;
         }
 
@@ -2166,18 +2156,31 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change user status');
     }
 
+    if (!status && !activationDate) {
+      return res.status(400).send({ error: 'Reactivation date is required for pause' });
+    }
+
     cache.removeCache(`user-${userId}`);
 
     try {
-      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      const user = await UserProfile.findById(
+        userId,
+        `email firstName lastName ${LIFECYCLE_PROJECTION}`,
+      );
       if (!user) {
         return res.status(404).send({ error: 'User not found' });
       }
 
-      user.set({
-        isActive: status,
-        reactivationDate: activationDate,
-      });
+      // Read before the update, because the resume email reports the date the
+      // user was paused on and the update clears it.
+      const pausedOn = user.deactivatedAt;
+      const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
+
+      // The same fields the lifecycle endpoint writes. These two are the only
+      // ways to pause or resume from the UI and they have to agree about what
+      // paused and active mean.
+      const appliedFields = status ? activeFields() : pauseFields(activationDate);
+      user.set(appliedFields);
 
       await user.save();
 
@@ -2186,13 +2189,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         const allUserData = JSON.parse(cache.getCache('allusers'));
         const userIdx = allUserData.findIndex((u) => u._id === userId);
         if (userIdx !== -1) {
-          const userData = allUserData[userIdx];
-          userData.isActive = user.isActive;
-          userData.reactivationDate = null;
-          userData.endDate = null;
+          const userData = { ...allUserData[userIdx], ...appliedFields };
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
+      }
+
+      if (status) {
+        userHelper.sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
+      } else {
+        userHelper.sendUserPausedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          reactivationDate: user.reactivationDate,
+          recipients,
+        });
       }
 
       auditIfProtectedAccountUpdated({
