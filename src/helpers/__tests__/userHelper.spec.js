@@ -136,43 +136,114 @@ describe('validateProfilePic', () => {
 
 describe('checkTeamCodeMismatch', () => {
   const validTeamId = new mongoose.Types.ObjectId().toString();
+  const validUserId = new mongoose.Types.ObjectId().toString();
 
   test('returns false if user missing', async () => {
     expect(await checkTeamCodeMismatch(null)).toBe(false);
   });
 
-  test('returns false if no teams', async () => {
-    expect(await checkTeamCodeMismatch({ teams: [] })).toBe(false);
+  test('returns false if the user has no code', async () => {
+    expect(await checkTeamCodeMismatch({ _id: validUserId, teamCode: '' })).toBe(false);
   });
 
-  test('returns false if no team code found', async () => {
+  test('returns false when there are no other active codes', async () => {
     userProfile.aggregate.mockResolvedValue([]);
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(false);
   });
 
-  test('returns true on mismatch', async () => {
-    userProfile.aggregate.mockResolvedValue([{ teamCode: 'XYZ' }]);
+  test('flags a different full code with the same three-character suffix', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'DaHUS' }]);
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'HaHUS',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(true);
+    expect(userProfile.aggregate).toHaveBeenCalledWith([
+      {
+        $match: {
+          isActive: true,
+          _id: { $ne: expect.any(mongoose.Types.ObjectId) },
+        },
+      },
+      { $project: { teamCode: 1 } },
+    ]);
+  });
+
+  test('checks all active codes instead of only the first result', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'RaENG' }, { teamCode: 'DaHUS' }]);
+
+    expect(
+      await checkTeamCodeMismatch({
+        _id: validUserId,
+        teams: [validTeamId],
+        teamCode: 'HaHUS',
+      }),
+    ).toBe(true);
+  });
+
+  test('finds a matching code even when the user has no recorded team', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'DaHUS' }]);
+
+    expect(
+      await checkTeamCodeMismatch({
+        _id: validUserId,
+        teams: [],
+        teamCode: 'HaHUS',
+      }),
+    ).toBe(true);
+  });
+
+  test('does not flag an unrelated unique code or an identical code', async () => {
+    const user = { _id: validUserId, teams: [validTeamId], teamCode: 'HaHUS' };
+
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'RaENG' }]);
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'HaHUS' }]);
+    expect(await checkTeamCodeMismatch(user)).toBe(false);
+  });
+
+  test('ignores surrounding whitespace when comparing codes', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'DaHUS ' }]);
+
+    expect(
+      await checkTeamCodeMismatch({
+        _id: validUserId,
+        teams: [validTeamId],
+        teamCode: ' HaHUS ',
+      }),
+    ).toBe(true);
+  });
+
+  test('does not compare codes shorter than three characters', async () => {
+    userProfile.aggregate.mockResolvedValue([{ teamCode: 'DaHUS' }]);
+
+    expect(
+      await checkTeamCodeMismatch({
+        _id: validUserId,
+        teams: [validTeamId],
+        teamCode: 'US',
+      }),
+    ).toBe(false);
   });
 
   test('returns false on exception', async () => {
     userProfile.aggregate.mockRejectedValue(new Error('fail'));
 
     const user = {
+      _id: validUserId,
       teams: [validTeamId],
-      teamCode: 'ABC',
+      teamCode: 'ABC123',
     };
 
     expect(await checkTeamCodeMismatch(user)).toBe(false);

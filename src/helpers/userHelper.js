@@ -66,44 +66,41 @@ const userHelper = function () {
     });
   };
 
-  async function getCurrentTeamCode(teamId) {
-    // Ensure teamId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  async function getActiveTeamCodes(excludeUserId) {
+    if (!mongoose.Types.ObjectId.isValid(excludeUserId)) {
+      return [];
+    }
 
-    // Fetch the current team code of the given teamId from active users
+    // Quick Setup team codes can be out of sync with recorded team memberships.
     const result = await userProfile.aggregate([
       {
         $match: {
-          teams: mongoose.Types.ObjectId(teamId),
           isActive: true,
+          _id: { $ne: mongoose.Types.ObjectId(excludeUserId) },
         },
       },
-      { $limit: 1 },
       { $project: { teamCode: 1 } },
     ]);
 
-    // Return the teamCode if found
-    return result.length > 0 ? result[0].teamCode : null;
+    return result
+      .map(({ teamCode }) => (typeof teamCode === 'string' ? teamCode.trim() : ''))
+      .filter(Boolean);
   }
 
   async function checkTeamCodeMismatch(user) {
     try {
-      // no user or no teams → nothing to compare
-      if (!user || !user.teams.length) {
+      if (!user) {
         return false;
       }
 
-      // looks like they always checked the first (latest) team
-      const latestTeamId = user.teams[0];
-
-      // this was in your diff: getCurrentTeamCode(latestTeamId)
-      const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-      if (!teamCodeFromFirstActive) {
+      const userCode = typeof user.teamCode === 'string' ? user.teamCode.trim() : '';
+      if (userCode.length < 3) {
         return false;
       }
+      const userSuffix = userCode.slice(-3);
 
-      // mismatch if user's stored teamCode != that team's current code
-      return teamCodeFromFirstActive !== user.teamCode;
+      const otherActiveCodes = await getActiveTeamCodes(user._id);
+      return otherActiveCodes.some((code) => code.endsWith(userSuffix) && code !== userCode);
     } catch (error) {
       logger.logException(error);
       return false;
