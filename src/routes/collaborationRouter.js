@@ -1,7 +1,13 @@
+const multer = require('multer');
 const express = require('express');
 const formController = require('../controllers/collaborationController');
 
 const router = express.Router();
+const FIVE_MB = 5 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: FIVE_MB },
+});
 
 // Create a new form
 router.post('/jobforms', formController.createForm);
@@ -16,6 +22,16 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 
 // Get all responses of a form
 router.get('/jobforms/:formId/responses', formController.getFormResponses);
+
+// Public Dropbox file upload for job form responses (no auth)
+router.post(
+  '/jobforms/responses/upload',
+  upload.single('file'),
+  formController.postFormResponseUpload,
+);
+
+// Public submit of job form responses (no auth)
+router.post('/jobforms/responses', formController.postFormResponses);
 
 // Submit a job application (public)
 router.post(

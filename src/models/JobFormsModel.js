@@ -50,7 +50,7 @@ const formSchema = new mongoose.Schema(
           required: true,
           enum: ['textbox', 'textarea', 'checkbox', 'radio', 'dropdown', 'date', 'file', 'email'],
         },
-        isRequired: { type: Boolean, default: false },
+        isRequired: { type: Boolean, default: true },
         options: [String],
         placeholder: { type: String, default: '' },
         validationRules: {

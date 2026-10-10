@@ -1,5 +1,12 @@
+jest.mock('../models/jobs');
+jest.mock('../models/jobPositionCategory');
+jest.mock('../models/JobFormsModel');
+jest.mock('../utilities/permissions');
+
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const JobForms = require('../models/JobFormsModel');
+const helper = require('../utilities/permissions');
 const {
   getJobs,
   getJobSummaries,
@@ -14,11 +21,7 @@ const {
   reorderJobs,
 } = require('./jobsController');
 
-// 1. Mock the modules
-jest.mock('../models/jobs');
-jest.mock('../models/jobPositionCategory');
-
-// 2. Explicitly define Mongoose methods as Jest mocks to avoid "not a function" errors
+// Explicitly define Mongoose methods as Jest mocks to avoid "not a function" errors
 Job.find = jest.fn();
 Job.findOne = jest.fn();
 Job.findById = jest.fn();
@@ -27,6 +30,8 @@ Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
 Job.bulkWrite = jest.fn();
 JobPositionCategory.distinct = jest.fn();
+JobPositionCategory.find = jest.fn();
+JobForms.find = jest.fn();
 
 // --- HELPER FACTORIES ---
 
@@ -133,6 +138,21 @@ describe('jobsController', () => {
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
     });
+
+    it('should filter positions by sanitized category', async () => {
+      JobPositionCategory.distinct.mockResolvedValue(['Pos1']);
+      await getPositions({ query: { category: 'Engineering' } }, res);
+      expect(JobPositionCategory.distinct).toHaveBeenCalledWith('position', {
+        category: 'Engineering',
+      });
+      expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
+    });
+
+    it('should ignore NoSQL operator category values', async () => {
+      JobPositionCategory.distinct.mockResolvedValue(['Pos1']);
+      await getPositions({ query: { category: { $gt: '' } } }, res);
+      expect(JobPositionCategory.distinct).toHaveBeenCalledWith('position', {});
+    });
   });
 
   describe('CRUD Operations', () => {
@@ -232,15 +252,26 @@ describe('jobsController', () => {
   });
 
   describe('createJob', () => {
+    const longText = Array.from({ length: 35 }, (_, i) => `word${i}`).join(' ');
     const newJobBody = {
       title: 'Developer',
       category: 'Software & IT',
-      description: 'Build things',
+      description: longText,
       imageUrl: 'http://example.com/img.png',
       location: 'Remote',
-      applyLink: 'http://example.com/apply',
+      applyLink: 'http://example.com/jobforms/507f1f77bcf86cd799439011',
       jobDetailsLink: 'http://example.com/details',
+      requirements: longText,
+      projects: ['Project A'],
+      ourCommunity: longText,
+      requestor: { role: 'Administrator', permissions: { frontPermissions: [] } },
     };
+
+    beforeEach(() => {
+      jest.spyOn(helper, 'hasPermission').mockResolvedValue(true);
+      JobPositionCategory.find.mockResolvedValue([{ _id: 'match' }]);
+      JobForms.find.mockResolvedValue([{ _id: '507f1f77bcf86cd799439011' }]);
+    });
 
     it('assigns the next displayOrder and saves the job', async () => {
       Job.findOne.mockReturnValue({
@@ -275,6 +306,56 @@ describe('jobsController', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ error: 'Failed to create job' }),
       );
+    });
+
+    it('returns 403 when createCollabJobAds permission is missing', async () => {
+      helper.hasPermission.mockResolvedValue(false);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('returns 500 when category is invalid', async () => {
+      JobPositionCategory.find.mockResolvedValueOnce([]);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Category not found' });
+    });
+
+    it('returns 404 when applyLink form id is invalid', async () => {
+      JobForms.find.mockResolvedValue([]);
+      await createJob({ body: newJobBody }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Mismatched ApplyLink' });
+    });
+
+    it('returns 403 when description is under the minimum word count', async () => {
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: 'too short',
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.stringContaining('minimum of 30 words') }),
+      );
+    });
+
+    it('returns 403 when projects are missing', async () => {
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            projects: [],
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Please enter at least one project' });
     });
   });
 
