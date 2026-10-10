@@ -85,16 +85,41 @@ describe('overviewReportHelper.getTasksStats', () => {
       active: { current: 6, percentage: 2 },
       complete: { current: 5, percentage: 4 },
       raw: {
-        current: {
-          assigned: 6,
-          completed: 5,
-        },
-        comparison: {
-          assigned: 2,
-          completed: 1,
+        current: [
+          { _id: 'Assigned', count: 6 },
+          { _id: 'Completed', count: 5 },
+        ],
+        comparison: [
+          { _id: 'Assigned', count: 2 },
+          { _id: 'Completed', count: 1 },
+        ],
+        counts: {
+          current: {
+            assigned: 6,
+            completed: 5,
+          },
+          comparison: {
+            assigned: 2,
+            completed: 1,
+          },
         },
       },
     });
+  });
+
+  it('keeps export rows array-shaped while returning date-range counts', async () => {
+    Task.countDocuments.mockResolvedValueOnce(7).mockResolvedValueOnce(8);
+
+    const result = await helper.getTasksStats(
+      new Date('2026-08-01T00:00:00.000Z'),
+      new Date('2026-08-07T23:59:59.999Z'),
+    );
+
+    expect(result.raw.current).toEqual([
+      { _id: 'Assigned', count: 7 },
+      { _id: 'Completed', count: 8 },
+    ]);
+    expect(result.raw.counts.current).toEqual({ assigned: 7, completed: 8 });
   });
 });
 
@@ -153,5 +178,46 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
         }),
       ]),
     );
+  });
+});
+
+describe('overviewReportHelper.getBlueSquareStats', () => {
+  const helper = overviewReportHelperFactory();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('converts stored date-only infringements before applying the category date range', async () => {
+    UserProfile.aggregate
+      .mockResolvedValueOnce([{ _id: 'missingHours', count: 1 }])
+      .mockResolvedValueOnce([{ totalBlueSquares: 1 }]);
+
+    const startDate = new Date('2026-09-01T07:00:00.000Z');
+    const endDate = new Date('2026-10-01T06:59:59.999Z');
+    const result = await helper.getBlueSquareStats(startDate, endDate);
+
+    const categoryPipeline = UserProfile.aggregate.mock.calls[0][0];
+    const convertStage = categoryPipeline.find(
+      (stage) => stage.$addFields?.['infringements.parsedDate']?.$convert,
+    );
+    const rangeMatchIndex = categoryPipeline.findIndex(
+      (stage) => stage.$match?.['infringements.parsedDate'],
+    );
+
+    expect(convertStage.$addFields['infringements.parsedDate'].$convert).toEqual({
+      input: '$infringements.date',
+      to: 'date',
+      onError: null,
+      onNull: null,
+    });
+    expect(rangeMatchIndex).toBeGreaterThan(categoryPipeline.indexOf(convertStage));
+    expect(categoryPipeline[rangeMatchIndex].$match['infringements.parsedDate']).toEqual({
+      $ne: null,
+      $gte: startDate,
+      $lte: endDate,
+    });
+    expect(result.missingHours.count).toBe(1);
+    expect(result.totalBlueSquares.count).toBe(1);
   });
 });

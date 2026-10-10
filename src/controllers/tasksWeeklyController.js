@@ -1,19 +1,16 @@
 const TERMINAL_STATUS_REGEX = /^(complete|completed|closed|done|finished)$/i;
 const TERMINAL_STATUSES = ['Completed', 'Closed', 'Complete'];
-// eslint-disable-next-line no-unused-vars
-const mongoose = require('mongoose');
-const { startOfWeek, endOfWeek, addWeeks, differenceInCalendarDays, isValid } = require('date-fns');
-const { zonedTimeToUtc, format } = require('date-fns-tz');
+const moment = require('moment-timezone');
 const { z } = require('zod');
 const Task = require('../models/task'); // adjust path if needed
 
-const TZ = 'America/Chicago';
+const TZ = 'America/Los_Angeles';
 const MAX_WEEKS = 12;
 const ALLOWED_WEEKS = new Set([4, 8, 12]);
 
 function parseDateOnlyInZone(dateStr) {
   if (!dateStr) return null;
-  return zonedTimeToUtc(`${dateStr}T00:00:00`, TZ);
+  return moment.tz(dateStr, 'YYYY-MM-DD', true, TZ).startOf('day').toDate();
 }
 
 const querySchema = z
@@ -23,22 +20,20 @@ const querySchema = z
     weeks: z.union([z.string(), z.number()]).optional(),
   })
   .transform((raw) => {
-    const now = new Date();
+    const defaultEnd = moment().tz(TZ).endOf('week');
+    const defaultStart = defaultEnd.clone().startOf('week').subtract(7, 'weeks');
 
-    const defaultEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const defaultStart = addWeeks(startOfWeek(defaultEnd, { weekStartsOn: 1 }), -7);
+    const start = raw.start ? parseDateOnlyInZone(raw.start) : defaultStart.toDate();
+    const end = raw.end ? parseDateOnlyInZone(raw.end) : defaultEnd.toDate();
 
-    const start = raw.start ? parseDateOnlyInZone(raw.start) : defaultStart;
-    const end = raw.end ? parseDateOnlyInZone(raw.end) : defaultEnd;
-
-    if (!isValid(start) || !isValid(end) || end < start) {
+    if (!start || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
       const err = new Error('Invalid start or end date.');
       err.status = 400;
       throw err;
     }
 
-    const startWeek = startOfWeek(start, { weekStartsOn: 1 });
-    const endWeek = endOfWeek(end, { weekStartsOn: 1 });
+    const startWeek = moment(start).tz(TZ).startOf('week').toDate();
+    const endWeek = moment(end).tz(TZ).endOf('week').toDate();
 
     const weeksNormalized =
       raw.weeks === undefined || raw.weeks === '' ? undefined : Number(raw.weeks);
@@ -49,7 +44,9 @@ const querySchema = z
       throw err;
     }
 
-    const rangeDays = differenceInCalendarDays(endWeek, startWeek) + 1;
+    const rangeDays =
+      moment(endWeek).tz(TZ).startOf('day').diff(moment(startWeek).tz(TZ).startOf('day'), 'days') +
+      1;
     if (rangeDays > MAX_WEEKS * 7) {
       const err = new Error('Date range cannot exceed 12 weeks.');
       err.status = 400;
@@ -63,27 +60,29 @@ const querySchema = z
 
 function buildWeekBuckets(endWeekZoned, weeks) {
   const buckets = [];
-  let cursor = endWeekZoned;
+  let cursor = moment(endWeekZoned).tz(TZ).startOf('week');
 
   for (let i = 0; i < weeks; i += 1) {
-    const wEndZ = cursor;
-    const wStartZ = startOfWeek(wEndZ, { weekStartsOn: 1 });
+    const wStartZ = cursor.clone();
+    const wEndZ = cursor.clone().endOf('week');
 
     buckets.push({
-      startUTC: wStartZ,
-      endUTC: wEndZ,
-      label: format(wStartZ, 'yyyy-MM-dd', { timeZone: TZ }),
+      startUTC: wStartZ.toDate(),
+      endUTC: wEndZ.toDate(),
+      label: wStartZ.format('YYYY-MM-DD'),
     });
 
-    cursor = addWeeks(wEndZ, -1);
+    cursor = cursor.subtract(1, 'week');
   }
 
   return buckets.reverse();
 }
 
 /** GET /api/tasks/trends
- * Params: start (ISO), end (ISO), weeks (4|8|12 default 8)
- * Return: [{ week: 'YYYY-MM-DD', completed: number }, ...]
+ * Params: start (YYYY-MM-DD), end (YYYY-MM-DD), weeks (4|8|12 default 8)
+ * Return: [{ week: 'YYYY-MM-DD', assigned: number, completed: number }, ...]
+ * Weeks begin Sunday in America/Los_Angeles. Assigned counts tasks created during
+ * the bucket (or modified during it when no creation date is stored).
  */
 async function getTrends(req, res) {
   try {

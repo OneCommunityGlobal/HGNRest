@@ -733,6 +733,14 @@ const overviewReportHelper = function () {
                 $ifNull: ['$infringements.description', ''],
               },
             },
+            'infringements.parsedDate': {
+              $convert: {
+                input: '$infringements.date',
+                to: 'date',
+                onError: null,
+                onNull: null,
+              },
+            },
           },
         },
         {
@@ -1067,6 +1075,10 @@ const overviewReportHelper = function () {
     ]);
   }
 
+  /**
+   * Counts tasks created in the date range as assigned, falling back to their
+   * modified date when no creation date is stored.
+   */
   async function getTasksStats(startDate, endDate, comparisonStartDate, comparisonEndDate) {
     const terminalStatusRegex = /^(complete|completed|closed|done|finished)$/i;
     const baseTaskFilter = { isActive: true, deleted: { $ne: true } };
@@ -1104,6 +1116,11 @@ const overviewReportHelper = function () {
         ],
       });
 
+    const toExportRows = (assigned, completed) => [
+      { _id: 'Assigned', count: assigned },
+      { _id: 'Completed', count: completed },
+    ];
+
     const currentAssigned = await getAssignedCount(startDate, endDate);
     const currentCompleted = await getCompletedCount(startDate, endDate);
 
@@ -1121,13 +1138,17 @@ const overviewReportHelper = function () {
           percentage: calculateGrowthPercentage(currentCompleted, comparisonCompleted),
         },
         raw: {
-          current: {
-            assigned: currentAssigned,
-            completed: currentCompleted,
-          },
-          comparison: {
-            assigned: comparisonAssigned,
-            completed: comparisonCompleted,
+          current: toExportRows(currentAssigned, currentCompleted),
+          comparison: toExportRows(comparisonAssigned, comparisonCompleted),
+          counts: {
+            current: {
+              assigned: currentAssigned,
+              completed: currentCompleted,
+            },
+            comparison: {
+              assigned: comparisonAssigned,
+              completed: comparisonCompleted,
+            },
           },
         },
       };
@@ -1137,9 +1158,12 @@ const overviewReportHelper = function () {
       active: { current: currentAssigned },
       complete: { current: currentCompleted },
       raw: {
-        current: {
-          assigned: currentAssigned,
-          completed: currentCompleted,
+        current: toExportRows(currentAssigned, currentCompleted),
+        counts: {
+          current: {
+            assigned: currentAssigned,
+            completed: currentCompleted,
+          },
         },
       },
     };
