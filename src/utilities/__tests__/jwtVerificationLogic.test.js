@@ -100,7 +100,7 @@ describe('jwtVerificationLogic', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.send).toHaveBeenCalledWith(
-        'Unauthorized request: Token expired or invalid payload'
+        'Unauthorized request: Token expired or invalid payload',
       );
       expect(result).toEqual(mockRes);
     });
@@ -116,7 +116,7 @@ describe('jwtVerificationLogic', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.send).toHaveBeenCalledWith(
-        'Unauthorized request: Token expired or invalid payload'
+        'Unauthorized request: Token expired or invalid payload',
       );
       expect(result).toEqual(mockRes);
     });
@@ -133,7 +133,7 @@ describe('jwtVerificationLogic', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.send).toHaveBeenCalledWith(
-        'Unauthorized request: Token expired or invalid payload'
+        'Unauthorized request: Token expired or invalid payload',
       );
       expect(result).toEqual(mockRes);
     });

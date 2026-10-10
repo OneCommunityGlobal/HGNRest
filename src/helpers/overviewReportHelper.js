@@ -1394,10 +1394,10 @@ const overviewReportHelper = function () {
               cond: {
                 $and: [
                   {
-                    $gte: ['$$entry.dateOfWork', moment(startDate).format('YYYY-MM-DD')],
+                    $gte: ['$$entry.dateOfWork', startDate],
                   },
                   {
-                    $lte: ['$$entry.dateOfWork', moment(endDate).format('YYYY-MM-DD')],
+                    $lte: ['$$entry.dateOfWork', endDate],
                   },
                 ],
               },
@@ -1478,19 +1478,16 @@ const overviewReportHelper = function () {
   }
 
   /**
-   * Aggregates total hours worked this week across all active volunteers,
+   * Aggregates total hours worked in the selected date range across all active volunteers,
    * matching the dashboard's getOrgData logic exactly:
-   * - Current week (America/Los_Angeles) date range, ignoring any passed-in date filters
+   * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
    * - Only active users with weeklycommittedHours >= 1 and role != Mentor
    * - Excludes entryType of 'person', 'team', or 'project'
    */
   async function getTotalHoursWorked(startDate, endDate) {
-    const pdtstart = startDate
-      ? moment(startDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
-    const pdtend = endDate
-      ? moment(endDate).format('YYYY-MM-DD')
-      : moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
+    const pdtstart =
+      startDate || moment().tz('America/Los_Angeles').startOf('week').format('YYYY-MM-DD');
+    const pdtend = endDate || moment().tz('America/Los_Angeles').endOf('week').format('YYYY-MM-DD');
 
     const data = await UserProfile.aggregate([
       {
@@ -1991,6 +1988,18 @@ const overviewReportHelper = function () {
       { $unwind: '$badgeCollection.earnedDate' },
       {
         $addFields: {
+          earnedDateString: {
+            $convert: {
+              input: '$badgeCollection.earnedDate',
+              to: 'string',
+              onError: '',
+              onNull: '',
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
           fixedDateString: {
             $cond: {
               if: {
@@ -2005,12 +2014,12 @@ const overviewReportHelper = function () {
               },
               then: {
                 $concat: [
-                  { $substr: ['$badgeCollection.earnedDate', 0, 6] },
+                  { $substr: ['$earnedDateString', 0, 6] },
                   '-20',
-                  { $substr: ['$badgeCollection.earnedDate', 7, 2] },
+                  { $substr: ['$earnedDateString', 7, 2] },
                 ],
               },
-              else: '$badgeCollection.earnedDate',
+              else: '$earnedDateString',
             },
           },
         },
@@ -2260,7 +2269,7 @@ const overviewReportHelper = function () {
             dateOfWork: { $gte: start, $lte: end },
             isTangible: { $eq: true },
             isActive: { $ne: false }, // Only include active entries
-            entryType: { $nin: ['person', 'team', 'project'] }, // Exclude person, team, project entries
+            entryType: { $in: ['default', 'person', null] }, // Task entries: matches pattern used elsewhere (e.g. line ~1043)
           },
         },
         {

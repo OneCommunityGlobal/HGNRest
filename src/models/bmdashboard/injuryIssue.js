@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const injuryIssue = new Schema({
-  projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'Project', required: true },
+  projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject', required: true },
   name: { type: String, required: true },
   openDate: { type: Date, default: Date.now },
   category: { type: String, required: true },

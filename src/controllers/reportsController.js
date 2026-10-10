@@ -199,12 +199,12 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getHoursStats(
-          isoStartDate,
-          isoEndDate,
-          isoComparisonStartDate,
-          isoComparisonEndDate,
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
         ),
-        overviewReportHelper.getTotalHoursWorked(isoStartDate, isoEndDate),
+        overviewReportHelper.getTotalHoursWorked(startDate, endDate),
         overviewReportHelper.getTasksStats(
           isoStartDate,
           isoEndDate,

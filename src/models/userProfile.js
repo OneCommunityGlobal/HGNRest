@@ -375,7 +375,6 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
-
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -436,7 +435,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
@@ -461,7 +460,7 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
