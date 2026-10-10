@@ -99,6 +99,43 @@ const notifyEditByEmail = async (
 };
 
 /**
+ * Tells the owner of a time entry that someone else deleted it. A deleted entry has no card
+ * left to show an "edited by" notice on, so the email is the record.
+ * @param {*} userprofile The user profile object of the user that owned the time entry
+ * @param {*} requestorId The id of the user that deleted the time entry
+ * @param {*} timeEntry The deleted time entry
+ * @returns {Void}
+ */
+const notifyDeleteByEmail = async (userprofile, requestorId, timeEntry) => {
+  const [requestor, project] = await Promise.all([
+    UserProfile.findById(requestorId, 'firstName lastName role'),
+    timeEntry.projectId ? Project.findById(timeEntry.projectId, 'projectName') : null,
+  ]);
+  const [hours, minutes] = formatSeconds(timeEntry.totalSeconds);
+  const deletedBy = requestor
+    ? `${requestor.role}: ${requestor.firstName} ${requestor.lastName}`
+    : 'an administrator';
+  const emailBody = `<p>Hi ${userprofile.firstName},</p>
+    <p>Your time log for <b>${moment(timeEntry.dateOfWork).format('MMM D, YYYY')}</b> was deleted on
+    <b>${moment().tz(COMPANY_TZ).format('MMM D, YYYY')}</b> by <b>${deletedBy}</b>.</p>
+    <ul>
+      <li><b>Time:</b> ${hours}h ${minutes}m (${timeEntry.isTangible ? 'Tangible' : 'Intangible'})</li>
+      <li><b>Project:</b> ${project?.projectName || 'N/A'}</li>
+      <li><b>Notes:</b> ${timeEntry.notes || ''}</li>
+    </ul>
+    <p>If you have questions about this change, please reply to this email.</p>
+    <p>Thank you,</p>
+    <p>One Community Admin Team</p>`;
+  const subject = 'One of your time logs was deleted';
+  // emailSender skips non-production silently; print it locally so the email can be checked
+  if (process.env.NODE_ENV === 'local') {
+    logger.logInfo(`[deleted time log email] to=${userprofile.email} subject="${subject}"
+${emailBody}`);
+  }
+  emailSender(userprofile.email, subject, emailBody, null, null, 'onecommunityglobal@gmail.com');
+};
+
+/**
  * Sends an email notification indicating that a user logged more hours than estimated for a task
  * @param {*} userProfile The user profile object of the user that owns the time entry
  * @param {*} task The task object that the user logged time for
@@ -560,6 +597,7 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.notes = req.body.notes;
       timeEntry.isTangible = req.body.isTangible;
       timeEntry.createdDateTime = now;
+      timeEntry.createdBy = req.body.requestor.requestorId;
       timeEntry.lastModifiedDateTime = now;
       timeEntry.entryType = req.body.entryType;
 
@@ -1010,6 +1048,13 @@ const timeEntrycontroller = function (TimeEntry) {
 
       await session.commitTransaction();
       res.status(200).send({ message: 'Successfully deleted' });
+
+      // after the response: a failed email must not undo or fail the delete
+      if (userprofile && !isForAuthUser) {
+        notifyDeleteByEmail(userprofile, req.body.requestor.requestorId, timeEntry).catch((error) =>
+          logger.logException(error),
+        );
+      }
     } catch (error) {
       await session.abortTransaction();
       logger.logException(error);
@@ -1046,7 +1091,7 @@ const timeEntrycontroller = function (TimeEntry) {
         dateOfWork: { $gte: fromDateStr, $lte: toDateStr },
         // include the time entries for the archived projects
       })
-        .populate('lastModifiedBy', 'firstName lastName role')
+        .populate('lastModifiedBy createdBy', 'firstName lastName role')
         .sort('-lastModifiedDateTime');
 
       const results = await Promise.all(

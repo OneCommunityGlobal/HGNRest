@@ -595,6 +595,55 @@ describe('Unit Tests: timeEntryController', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
+
+    test('emails the owner when someone else deletes their entry, not when they delete their own', async () => {
+      const ownerId = '000000000000000000000001';
+      const profile = {
+        _id: ownerId,
+        firstName: 'Vol',
+        email: 'vol@x.com',
+        hoursByCategory: { unassigned: 0 },
+        totalTangibleHrs: 5,
+        totalIntangibleHrs: 1,
+        save: jest.fn().mockResolvedValue(true),
+      };
+      const entry = () => ({
+        personId: new mongoose.Types.ObjectId(ownerId),
+        totalSeconds: 5400,
+        dateOfWork: '2020-01-01',
+        isTangible: false,
+        projectId: null,
+        taskId: null,
+        notes: 'old notes',
+        remove: jest.fn().mockResolvedValue(true),
+      });
+      hasPermission.mockResolvedValue(true);
+      UserProfile.findById.mockImplementation(async (id) =>
+        id === 'admin1' ? { firstName: 'Jane', lastName: 'Doe', role: 'Administrator' } : profile,
+      );
+      emailSender.mockClear();
+
+      TimeEntry.findById.mockResolvedValue(entry());
+      await controller.deleteTimeEntry(
+        { params: { timeEntryId: 'te1' }, body: { requestor: { requestorId: 'admin1' } } },
+        mockRes,
+      );
+      await flush();
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      const [to, , body] = emailSender.mock.calls[0];
+      expect(to).toBe('vol@x.com');
+      expect(body).toContain('Administrator: Jane Doe');
+      expect(body).toContain('1h 30m');
+
+      emailSender.mockClear();
+      TimeEntry.findById.mockResolvedValue(entry());
+      await controller.deleteTimeEntry(
+        { params: { timeEntryId: 'te1' }, body: { requestor: { requestorId: ownerId } } },
+        mockRes,
+      );
+      await flush();
+      expect(emailSender).not.toHaveBeenCalled();
+    });
   });
 
   describe('getTimeEntriesForSpecifiedPeriod()', () => {
@@ -631,8 +680,8 @@ describe('Unit Tests: timeEntryController', () => {
       expect(data[0].minutes).toBe(5);
       expect(data[0].taskName).toBe('Task A');
       expect(data[0].projectName).toBe('Proj A');
-      // editor name and role are sent for the "edited by" notice
-      expect(populate).toHaveBeenCalledWith('lastModifiedBy', 'firstName lastName role');
+      // editor and creator name and role are sent for the "edited by" / "added by" notices
+      expect(populate).toHaveBeenCalledWith('lastModifiedBy createdBy', 'firstName lastName role');
     });
   });
 

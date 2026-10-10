@@ -14,6 +14,8 @@ const TimeEntry = new Schema({
   notes: { type: String },
   isTangible: { type: Boolean, default: false },
   createdDateTime: { type: Date },
+  // who logged the entry; differs from personId when someone logs time for another user
+  createdBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
   lastModifiedDateTime: { type: Date, default: Date.now },
   // who last edited the entry; null until it is edited (shown as "edited by" on the time log)
   lastModifiedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
