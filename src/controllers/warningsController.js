@@ -15,7 +15,10 @@ const {
 let currentWarningDescriptions = null;
 async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings
-    .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+    .find(
+      { activeWarning: true },
+      { warningTitle: 1, _id: 1, abbreviation: 1, order: 1, description: 1 },
+    )
     .sort({ order: 1 });
   clearOutdatedWarningsFlag();
 }
@@ -23,6 +26,14 @@ async function getWarningDescriptions() {
 const checkWarningDescriptions = async () => {
   const warningsOutdated = areWarningsInfoOutdated();
   if (!currentWarningDescriptions || warningsOutdated) {
+    await currentWarnings.updateMany(
+      { description: { $exists: false } },
+      {
+        $set: {
+          description: 'No description provided yet',
+        },
+      },
+    );
     await getWarningDescriptions();
   }
 };
@@ -274,12 +285,13 @@ const filterWarnings = (
   });
 
   const completedData = [];
-  for (const { warningTitle, abbreviation, order } of warningDescriptions) {
+  for (const { warningTitle, abbreviation, order, description } of warningDescriptions) {
     completedData.push({
       title: warningTitle,
       warnings: warns[warningTitle] ? warns[warningTitle] : [],
       abbreviation: abbreviation || null,
       order,
+      description,
     });
   }
 
