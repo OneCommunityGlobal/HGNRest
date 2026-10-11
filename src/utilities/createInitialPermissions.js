@@ -33,7 +33,6 @@ const permissionsRoles = [
       'deleteTask',
       'viewAndInteractWithTaskDeadlinesBoxes',
       'viewTaskExtensionCount', // to view task extension count
-      'seeNumberOfTimesTimeAdded',
       'updateNum',
       // Teams
       'postTeam',
@@ -238,7 +237,6 @@ const permissionsRoles = [
       'importTask',
       'postTask',
       'viewTaskExtensionCount', // to view task extension count
-      'seeNumberOfTimesTimeAdded',
       'updateNum',
       'updateTask',
       'swapTask',
@@ -357,25 +355,21 @@ const createInitialPermissions = async () => {
         const role = new Role();
         role.roleName = roleName;
         role.permissions = permissions;
-        promises.push(role.save());
+        role.save();
 
         // If role exists in db and does not have every permission, add the missing permissions
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
         promises.push(
-          (async () => {
-            const record = await Role.findById(roleId);
-            if (!record) {
-              throw new Error(`Role ${roleName} was not found while updating permissions.`);
-            }
+          Role.findById(roleId, (_, record) => {
             permissions.forEach((perm) => {
               if (!record.permissions.includes(perm)) {
                 record.permissions.push(perm);
               }
             });
-            return record.save();
-          })(),
+            record.save();
+          }),
         );
       }
     }
@@ -393,7 +387,7 @@ const createInitialPermissions = async () => {
       defaultPreset.roleName = roleName;
       defaultPreset.presetName = defaultName;
       defaultPreset.permissions = permissions;
-      promises.push(defaultPreset.save());
+      defaultPreset.save();
 
       // If role exists in db and is not updated, update default
     } else if (
@@ -403,16 +397,10 @@ const createInitialPermissions = async () => {
       const presetId = presetDataBase._id;
 
       promises.push(
-        (async () => {
-          const record = await RolePreset.findById(presetId);
-          if (!record) {
-            throw new Error(
-              `Default preset for role ${roleName} was not found while updating permissions.`,
-            );
-          }
+        RolePreset.findById(presetId, (_, record) => {
           record.permissions = permissions;
-          return record.save();
-        })(),
+          record.save();
+        }),
       );
     }
   }

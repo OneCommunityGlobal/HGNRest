@@ -31,7 +31,6 @@ const permissionsRoles = [
       'deleteTask',
       'viewAndInteractWithTaskDeadlinesBoxes',
       'viewTaskExtensionCount', // to view task extension count
-      'seeNumberOfTimesTimeAdded',
       'updateNum',
       // Teams
       'postTeam',
@@ -196,7 +195,6 @@ const permissionsRoles = [
       'importTask',
       'postTask',
       'viewTaskExtensionCount', // to view task extension count
-      'seeNumberOfTimesTimeAdded',
       'updateNum',
       'updateTask',
       'swapTask',
