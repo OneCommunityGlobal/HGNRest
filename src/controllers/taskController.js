@@ -1280,25 +1280,27 @@ const taskController = function (Task) {
   };
 
   const updateTaskStatus = async (req, res) => {
-    const { taskId } = req.params;
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
+    try {
+      // This endpoint is the Review button, not the deadline boxes. The
+      // viewAndInteractWithTaskDeadlinesBoxes permission stays on the frontend.
+      const { taskId } = req.params;
+      const currentTask = await Task.findById(taskId);
+      const currentwbs = await WBS.findById(currentTask.wbsId);
+      const currentProject = await Project.findById(currentwbs.projectId);
+      const modifiedDatetime = Date.now();
 
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
-    });
-    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
-      .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+      currentwbs.modifiedDatetime = modifiedDatetime;
+      currentProject.modifiedDatetime = modifiedDatetime;
+
+      await Promise.all([
+        currentwbs.save(),
+        currentProject.save(),
+        Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime }),
+      ]);
+      return res.status(201).send();
+    } catch (error) {
+      return res.status(404).send(error);
+    }
   };
 
   const getReviewReqEmailBody = function (name, taskName) {
