@@ -12,7 +12,7 @@ function getAuthHeaders() {
 }
 
 //  Upload image to Mastodon with optional alt text and get media ID
-async function uploadMedia(base64Image, altText = null) {
+async function uploadMedia(base64Image, altText = null, { timeout } = {}) {
   try {
     // Convert base64 to buffer
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
@@ -31,7 +31,10 @@ async function uploadMedia(base64Image, altText = null) {
       ...formData.getHeaders(),
     };
 
-    const uploadResponse = await axios.post(uploadUrl, formData, { headers: uploadHeaders });
+    const uploadResponse = await axios.post(uploadUrl, formData, {
+      headers: uploadHeaders,
+      timeout,
+    });
     const mediaId = uploadResponse.data.id;
 
     console.log('Image uploaded, media ID:', mediaId);
@@ -50,7 +53,7 @@ async function uploadMedia(base64Image, altText = null) {
         {
           description: altText.trim(),
         },
-        { headers: updateHeaders },
+        { headers: updateHeaders, timeout },
       );
 
       console.log('Alt text updated successfully');
@@ -130,7 +133,17 @@ async function scheduleStatus(req, res) {
     // Don't upload the image yet for scheduled posts
     // Just store the base64 data and alt text
     const text = req.body.description || req.body.title;
-    if (!text?.trim()) throw new Error("Post content can't be empty");
+    if (!text?.trim()) {
+      return res.status(400).json({ error: "Post content can't be empty" });
+    }
+
+    const scheduledTime = new Date(req.body.scheduledTime);
+    if (!req.body.scheduledTime || Number.isNaN(scheduledTime.getTime())) {
+      return res.status(400).json({ error: 'A valid scheduled date and time is required' });
+    }
+    if (scheduledTime <= new Date()) {
+      return res.status(400).json({ error: 'Scheduled time must be in the future' });
+    }
 
     const postData = {
       status: text.trim(),
@@ -149,22 +162,22 @@ async function scheduleStatus(req, res) {
       postData.local_media_url = req.body.mediaItems;
     }
 
-    const { scheduledTime } = req.body;
     await MastodonSchedule.create({
       postData: JSON.stringify(postData),
       scheduledTime,
     });
-    res.sendStatus(200);
+    return res.sendStatus(200);
   } catch (err) {
     console.error('Schedule failed:', err.message);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
 //  Fetch scheduled posts
 async function fetchScheduledStatus(_req, res) {
   try {
-    const scheduled = await MastodonSchedule.find();
+    // Posted records are kept as delivery history, not shown as scheduled
+    const scheduled = await MastodonSchedule.find({ status: { $ne: 'posted' } });
     res.json(scheduled);
   } catch (err) {
     res.status(500).send('Failed to fetch scheduled pins');
@@ -174,10 +187,17 @@ async function fetchScheduledStatus(_req, res) {
 //  Delete scheduled post
 async function deleteScheduledStatus(req, res) {
   try {
-    await MastodonSchedule.deleteOne({ _id: req.params.id });
-    res.send('Scheduled post deleted successfully');
+    // A post being published or already posted cannot be deleted
+    const result = await MastodonSchedule.deleteOne({
+      _id: req.params.id,
+      status: { $in: ['pending', null, 'failed'] },
+    });
+    if (!result?.deletedCount) {
+      return res.status(404).send('Scheduled post not found or already being published');
+    }
+    return res.send('Scheduled post deleted successfully');
   } catch {
-    res.status(500).send('Failed to delete scheduled post');
+    return res.status(500).send('Failed to delete scheduled post');
   }
 }
 
