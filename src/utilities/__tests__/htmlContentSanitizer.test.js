@@ -105,7 +105,7 @@ describe('stripHtml', () => {
       '&#x3c;img src=x onerror=alert(1)&#x3e;',
     ]);
     outputs.forEach((output) => {
-      expect(output).not.toMatch(/<(?=\/|[a-z!?\d])/i);
+      expect(output).not.toMatch(/<(?=\/|[a-z!?])/i);
       expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
     });
   });
@@ -138,6 +138,16 @@ describe('stripHtml', () => {
     expect(stripHtml('<svg/onload=alert(1)>')).toBe('');
     const plainScriptText = ['java', 'script:alert(1)'].join('');
     expect(stripHtml(plainScriptText)).toBe(plainScriptText);
+  });
+
+  it('keeps comparison signs that are not tag names', () => {
+    expect(stripHtml('Must lift <50 lbs')).toBe('Must lift <50 lbs');
+    expect(stripHtml('C++ <3 Python')).toBe('C++ <3 Python');
+    expect(stripHtml('Ages 18<25 or a < b')).toBe('Ages 18<25 or a < b');
+  });
+
+  it('collapses the gap left when a non-html bracket word is removed', () => {
+    expect(stripHtml('Use the <Enter> key')).toBe('Use the key');
   });
 
   it('handles plain, empty, and missing values', () => {

@@ -14,7 +14,9 @@ const PLAIN_TEXT_OPTIONS = {
   allowedAttributes: {},
 };
 const decodeHtmlEntities = (text) => cheerio.load(`<body>${text}</body>`)('body').text();
-const escapePotentialHtmlStart = (text) => text.replace(/<(?=\/|[a-z!?\d])/gi, '&lt;');
+// Letters, closing tags, and markup declarations only. A digit (`<50`, `<3`)
+// is not a tag name, so those comparisons stay readable.
+const escapePotentialHtmlStart = (text) => text.replace(/<(?=\/|[a-z!?])/gi, '&lt;');
 
 const stripHtml = (dirty) => {
   if (dirty === null || dirty === undefined) return '';
@@ -24,13 +26,13 @@ const stripHtml = (dirty) => {
     .replace(/<\/(?:p|div|li|h[1-6]|tr|blockquote)\s*>/gi, '\n');
   const sanitizedText = sanitizeHtml(textWithLineBreaks, PLAIN_TEXT_OPTIONS);
   const decodedText = decodeHtmlEntities(sanitizedText);
-  // Decode a single entity layer for readable text, but keep every possible
-  // HTML start escaped so it cannot become markup in a future HTML sink.
+  // Decode one entity layer for readable text, then escape only real tag
+  // starts so encoded markup cannot become a tag in storage.
   const safeText = escapePotentialHtmlStart(decodedText);
 
   return safeText
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => line.replace(/[ \t]{2,}/g, ' ').trim())
     .filter(Boolean)
     .join('\n');
 };
