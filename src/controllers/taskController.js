@@ -1311,12 +1311,8 @@ const taskController = function (Task) {
 
   const updateTaskStatus = async (req, res) => {
     try {
-      if (!(await hasPermission(req.body.requestor, 'viewAndInteractWithTaskDeadlinesBoxes'))) {
-        return res.status(403).send({
-          error: 'You are not authorized to update task deadline status.',
-        });
-      }
-
+      // This endpoint is the Review button, not the deadline boxes. The
+      // viewAndInteractWithTaskDeadlinesBoxes permission stays on the frontend.
       const { taskId } = req.params;
       const currentTask = await Task.findById(taskId);
       const currentwbs = await WBS.findById(currentTask.wbsId);
