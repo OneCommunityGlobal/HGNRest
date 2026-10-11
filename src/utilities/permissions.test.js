@@ -63,6 +63,29 @@ const mockRolePermission = () => {
   );
 };
 
+const mockObjectRequestorPermissions = ({
+  rolePermissions = [],
+  removedDefaultPermissions = [],
+  frontPermissions = [],
+}) => {
+  UserProfile.findById
+    .mockImplementationOnce(() => ({
+      select: jest.fn(() =>
+        makeExecResult({
+          permissions: { removedDefaultPermissions },
+        }),
+      ),
+    }))
+    .mockImplementationOnce(() => ({
+      select: jest.fn(() =>
+        makeExecResult({
+          permissions: { frontPermissions },
+        }),
+      ),
+    }));
+  Role.findOne.mockImplementation(() => makeExecResult({ permissions: rolePermissions }));
+};
+
 describe('hasPermission', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -121,5 +144,56 @@ describe('hasPermission', () => {
     expect(Role.findOne).toHaveBeenCalledWith({
       roleName: 'Owner',
     });
+  });
+
+  it('grants postFacebookContent through the requestor role default', async () => {
+    mockObjectRequestorPermissions({ rolePermissions: ['postFacebookContent'] });
+
+    const result = await hasPermission(
+      { requestorId: 'social-manager-id', role: 'Social Manager' },
+      'postFacebookContent',
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('honors removal of the role-default postFacebookContent permission', async () => {
+    mockObjectRequestorPermissions({
+      rolePermissions: ['postFacebookContent'],
+      removedDefaultPermissions: ['postFacebookContent'],
+    });
+
+    const result = await hasPermission(
+      { requestorId: 'social-manager-id', role: 'Social Manager' },
+      'postFacebookContent',
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('grants an individual postFacebookContent permission', async () => {
+    mockObjectRequestorPermissions({ frontPermissions: ['postFacebookContent'] });
+
+    const result = await hasPermission(
+      { requestorId: 'volunteer-id', role: 'Volunteer' },
+      'postFacebookContent',
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('does not trust supplied permissions or an unrelated role permission', async () => {
+    mockObjectRequestorPermissions({ rolePermissions: ['sendEmails'] });
+
+    const result = await hasPermission(
+      {
+        requestorId: 'volunteer-id',
+        role: 'Volunteer',
+        permissions: ['postFacebookContent'],
+      },
+      'postFacebookContent',
+    );
+
+    expect(result).toBe(false);
   });
 });
