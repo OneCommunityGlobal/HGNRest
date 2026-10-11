@@ -12,18 +12,55 @@ describe('overviewReportHelper tests', () => {
   describe('getTasksStats date boundaries', () => {
     afterEach(() => jest.restoreAllMocks());
 
-    test('filters the non-comparison totals by the selected date range', async () => {
-      const startDate = new Date('2026-07-19T00:00:00-07:00');
-      const endDate = new Date('2026-07-25T23:59:00-07:00');
-      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+    it('filters task totals by the selected date range', async () => {
+      const startDate = new Date('2026-07-19T07:00:00.000Z');
+      const endDate = new Date('2026-07-26T06:59:00.000Z');
+      const countDocumentsSpy = jest
+        .spyOn(Task, 'countDocuments')
+        .mockResolvedValueOnce(3)
+        .mockResolvedValueOnce(2);
 
       const { getTasksStats } = overviewReportHelper();
-      await getTasksStats(startDate, endDate);
+      const result = await getTasksStats(startDate, endDate);
 
-      expect(aggregateSpy).toHaveBeenCalledWith([
-        { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
-        { $group: { _id: '$status', count: { $sum: 1 } } },
-      ]);
+      expect(countDocumentsSpy).toHaveBeenCalledTimes(2);
+      expect(countDocumentsSpy).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          isActive: true,
+          deleted: { $ne: true },
+          $or: expect.arrayContaining([
+            { createdDatetime: { $gte: startDate, $lte: endDate } },
+            {
+              createdDatetime: { $exists: false },
+              modifiedDatetime: { $gte: startDate, $lte: endDate },
+            },
+          ]),
+        }),
+      );
+      expect(countDocumentsSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          isActive: true,
+          deleted: { $ne: true },
+          $or: expect.arrayContaining([
+            {
+              completedDatetime: { $ne: null, $gte: startDate, $lte: endDate },
+            },
+            {
+              completedDatetime: null,
+              status: { $regex: /^(complete|completed|closed|done|finished)$/i },
+              modifiedDatetime: { $gte: startDate, $lte: endDate },
+            },
+            {
+              'resources.completedTask': true,
+              modifiedDatetime: { $gte: startDate, $lte: endDate },
+            },
+          ]),
+        }),
+      );
+      expect(result.active.current).toBe(3);
+      expect(result.complete.current).toBe(2);
     });
   });
 
@@ -69,9 +106,9 @@ describe('overviewReportHelper tests', () => {
 
         const { getHoursStats } = overviewReportHelper();
         const ranges = [
-          ['2026-07-26', '2026-07-31'], // Current week
-          ['2026-07-19', '2026-07-25'], // Previous week
-          ['2026-07-05', '2026-07-11'], // Custom range
+          ['2026-07-26', '2026-07-31'],
+          ['2026-07-19', '2026-07-25'],
+          ['2026-07-05', '2026-07-11'],
         ];
 
         const results = await Promise.all(
