@@ -276,7 +276,7 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
       const result = await weeklyGradingModel.deleteOne({
         $or: [{ teamName: safeTeam }, { teamCode: safeTeam }],
-        reviewer,
+        reviewer: safeReviewer,
         date: { $gte: startDate, $lte: endDate },
       });
 
