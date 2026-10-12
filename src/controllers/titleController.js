@@ -135,7 +135,7 @@ const titlecontroller = function (Title) {
     title.shortName = shortname;
 
     // Validate team code by checking if it exists in the database
-    if (!title.teamCode) {
+    if (!title.teamCode || !title.teamCode.trim()) {
       res.status(400).send({ message: 'Please provide a team code.' });
       return;
     }
@@ -239,7 +239,7 @@ const titlecontroller = function (Title) {
       req.body.shortName = shortname;
 
       // Validate team code by checking if it exists in the database
-      if (!req.body.teamCode) {
+      if (!req.body.teamCode || !req.body.teamCode.trim()) {
         res.status(400).send({ message: 'Please provide a team code.' });
         return;
       }
