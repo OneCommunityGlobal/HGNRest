@@ -33,10 +33,6 @@ module.exports = function (app) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.all('*', (req, res, next) => {
-    // Allow unauthenticated access for Mastodon test APIs
-    if (req.originalUrl.startsWith('/api/mastodon')) {
-      return next();
-    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
@@ -104,6 +100,14 @@ module.exports = function (app) {
 
     // Public: job application form submission (no auth required — external applicants)
     if (pathOnly.match(/^\/api\/jobforms\/[^/]+\/responses$/) && req.method === 'POST') {
+      next();
+      return;
+    }
+
+    // Public FAQ list: the job listing page at /collaboration is reachable without
+    // signing in, and its FAQ section reads from here. Matched exactly so the
+    // search, history and unanswered FAQ routes stay behind authentication.
+    if (req.path === '/api/faqs' && req.method === 'GET') {
       next();
       return;
     }

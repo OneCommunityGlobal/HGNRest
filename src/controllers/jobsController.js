@@ -1,5 +1,6 @@
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const { stripHtml } = require('../utilities/htmlContentSanitizer');
 
 /* ============================================================
    UTILS
@@ -245,7 +246,7 @@ const createJob = async (req, res) => {
     const newJob = new Job({
       title,
       category,
-      description,
+      description: typeof description === 'string' ? stripHtml(description) : description,
       imageUrl,
       location,
       applyLink,
@@ -267,7 +268,12 @@ const updateJob = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const updatedJob = await Job.findByIdAndUpdate(id, req.body, { new: true });
+    const updates = { ...req.body };
+    if (typeof updates.description === 'string') {
+      updates.description = stripHtml(updates.description);
+    }
+
+    const updatedJob = await Job.findByIdAndUpdate(id, updates, { new: true });
     if (!updatedJob) return res.status(404).json({ error: 'Job not found' });
 
     res.json(updatedJob);

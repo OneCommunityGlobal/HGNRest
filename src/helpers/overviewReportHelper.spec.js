@@ -1,4 +1,11 @@
 const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
+const TimeEntries = require('../models/timeentry');
+
+// getHoursStats / getTotalHoursWorked look up who logged time in the period
+beforeEach(() => {
+  jest.spyOn(TimeEntries, 'distinct').mockResolvedValue([]);
+});
 const overviewReportHelper = require('./overviewReportHelper');
 
 // const makeSut = () => {
@@ -8,6 +15,24 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
+  describe('getTasksStats date boundaries', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('filters the non-comparison totals by the selected date range', async () => {
+      const startDate = new Date('2026-07-19T00:00:00-07:00');
+      const endDate = new Date('2026-07-25T23:59:00-07:00');
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      await getTasksStats(startDate, endDate);
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]);
+    });
+  });
+
   describe('getHoursStats date boundaries', () => {
     const originalTimezone = process.env.TZ;
 
@@ -173,3 +198,48 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getCommittedHoursStats', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const mockUsers = (users) =>
+    jest.spyOn(UserProfile, 'find').mockReturnValue({ lean: jest.fn().mockResolvedValue(users) });
+
+  it('groups active volunteers into upper-limit committed-hours buckets', async () => {
+    const findSpy = mockUsers(
+      [1, 5, 10, 11, 20, 21, 30, 31, 35, 40, 41, 60].map((h) => ({ weeklycommittedHours: h })),
+    );
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 3 },
+      { _id: '20', count: 2 },
+      { _id: '30', count: 2 },
+      { _id: '40', count: 3 },
+      { _id: '40+', count: 2 },
+    ]);
+    expect(findSpy).toHaveBeenCalledWith(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    );
+  });
+
+  it('returns every bucket with a zero count when there are no volunteers', async () => {
+    mockUsers([]);
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 0 },
+      { _id: '20', count: 0 },
+      { _id: '30', count: 0 },
+      { _id: '40', count: 0 },
+      { _id: '40+', count: 0 },
+    ]);
+  });
+});
