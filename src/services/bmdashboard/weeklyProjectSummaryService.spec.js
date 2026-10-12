@@ -3,6 +3,17 @@ const CURRENT_START = '2026-08-30';
 const CURRENT_END = '2026-09-05';
 const COMPARISON_START = '2026-08-23';
 const COMPARISON_END = '2026-08-29';
+const HISTORICAL_START = '2001-01-01';
+const HISTORICAL_END = '2001-01-07';
+const TODAY = '2026-09-03';
+const YESTERDAY = '2026-09-02';
+const TOMORROW = '2026-09-04';
+const SNAPSHOT_METRICS = [
+  'totalProjects',
+  'activeProjects',
+  'delayedProjects',
+  'materialAvailable',
+];
 
 jest.mock('../../models/bmdashboard/buildingMaterial', () => ({
   aggregate: jest.fn(),
@@ -57,7 +68,12 @@ function mockAggregates({
 
 describe('weeklyProjectSummaryService', () => {
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-03T12:00:00.000Z'));
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   test('returns current-period metrics without placeholder or fallback values', async () => {
@@ -115,6 +131,13 @@ describe('weeklyProjectSummaryService', () => {
     });
 
     expect(result.comparison.startDate).toBe(COMPARISON_START);
+    SNAPSHOT_METRICS.forEach((metricName) => {
+      expect(result.comparison.metrics[metricName]).toMatchObject({
+        value: null,
+        comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+        percentageChange: null,
+      });
+    });
     expect(result.current.metrics.completedProjects.percentageChange).toBe(1);
     expect(result.current.metrics.totalMaterialUsed.percentageChange).toBe(1);
     expect(result.current.metrics.totalMaterialCost.percentageChange).toBe(1);
@@ -142,6 +165,22 @@ describe('weeklyProjectSummaryService', () => {
       endDate: CURRENT_END,
     });
 
+    expect(result.current.metrics.totalProjects).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
+    expect(result.current.metrics.activeProjects).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
+    expect(result.current.metrics.delayedProjects).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
+    expect(result.current.metrics.materialAvailable).toMatchObject({
+      value: 0,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
     expect(result.current.metrics.completedProjects).toMatchObject({
       value: 0,
       comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
@@ -168,6 +207,116 @@ describe('weeklyProjectSummaryService', () => {
       value: 0,
       unit: 'USD',
       comparisonType: COMPARISON_TYPES.PERIOD_COMPARABLE,
+    });
+  });
+
+  test('marks current-only snapshot metrics unavailable for historical periods', async () => {
+    mockAggregates();
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      startDate: HISTORICAL_START,
+      endDate: HISTORICAL_END,
+    });
+
+    SNAPSHOT_METRICS.forEach((metricName) => {
+      expect(result.current.metrics[metricName]).toMatchObject({
+        value: null,
+        comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+        percentageChange: null,
+        unavailableReason: 'Historical snapshots are not available for the selected period.',
+      });
+    });
+    expect(result.current.metrics.completedProjects.value).toBe(2);
+    expect(result.current.metrics.totalMaterialUsed.value).toBe(20);
+  });
+
+  test('classifies snapshot metrics inclusively at today boundary dates', async () => {
+    const cases = [
+      { startDate: TODAY, endDate: TOMORROW, comparisonType: COMPARISON_TYPES.CURRENT_ONLY },
+      { startDate: YESTERDAY, endDate: TODAY, comparisonType: COMPARISON_TYPES.CURRENT_ONLY },
+      { startDate: YESTERDAY, endDate: YESTERDAY, comparisonType: COMPARISON_TYPES.UNAVAILABLE },
+      { startDate: TOMORROW, endDate: TOMORROW, comparisonType: COMPARISON_TYPES.UNAVAILABLE },
+    ];
+
+    await cases.reduce(async (previousCase, testCase) => {
+      await previousCase;
+      mockAggregates();
+      const result = await getWeeklyProjectSummaryProjectStatus({
+        startDate: testCase.startDate,
+        endDate: testCase.endDate,
+      });
+
+      SNAPSHOT_METRICS.forEach((metricName) => {
+        expect(result.current.metrics[metricName].comparisonType).toBe(testCase.comparisonType);
+      });
+    }, Promise.resolve());
+  });
+
+  test('handles current and comparison snapshot availability independently', async () => {
+    mockAggregates();
+    mockAggregates({
+      statusRows: [{ _id: 'Active', count: 2 }],
+      availableRows: [{ materialAvailable: 45 }],
+    });
+
+    const currentWithHistoricalComparison = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+      comparisonStartDate: HISTORICAL_START,
+      comparisonEndDate: HISTORICAL_END,
+    });
+
+    expect(currentWithHistoricalComparison.current.metrics.totalProjects).toMatchObject({
+      value: 7,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
+    expect(currentWithHistoricalComparison.comparison.metrics.totalProjects).toMatchObject({
+      value: null,
+      comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+    });
+
+    jest.clearAllMocks();
+    mockAggregates();
+    mockAggregates({
+      statusRows: [{ _id: 'Active', count: 2 }],
+      availableRows: [{ materialAvailable: 45 }],
+    });
+
+    const historicalWithCurrentComparison = await getWeeklyProjectSummaryProjectStatus({
+      startDate: HISTORICAL_START,
+      endDate: HISTORICAL_END,
+      comparisonStartDate: CURRENT_START,
+      comparisonEndDate: CURRENT_END,
+    });
+
+    expect(historicalWithCurrentComparison.current.metrics.totalProjects).toMatchObject({
+      value: null,
+      comparisonType: COMPARISON_TYPES.UNAVAILABLE,
+    });
+    expect(historicalWithCurrentComparison.comparison.metrics.totalProjects).toMatchObject({
+      value: 2,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+    });
+  });
+
+  test('rounds monetary metrics to two decimal places', async () => {
+    mockAggregates({
+      purchaseRows: [{ totalMaterialCost: 10.005000000000003 }],
+      laborRows: [{ totalLaborCost: 20.335000000000004 }],
+    });
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+    });
+
+    expect(result.current.metrics.totalMaterialCost).toMatchObject({
+      value: 10.01,
+      unit: 'USD',
+    });
+    expect(result.current.metrics.totalLaborCost).toMatchObject({
+      value: 20.34,
+      unit: 'USD',
     });
   });
 

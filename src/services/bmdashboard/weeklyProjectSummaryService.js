@@ -25,6 +25,9 @@ const MATERIAL_AVAILABLE_CURRENT_ONLY_REASON =
 const PROJECT_STATUS_CURRENT_ONLY_REASON =
   'ProjectStatus stores current status only; historical Active/Delayed state cannot be reconstructed.';
 
+const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
+  'Historical snapshots are not available for the selected period.';
+
 const NO_PERIOD_DATA_REASON = 'No data exists for the selected period.';
 
 const MS_PER_SECOND = 1000;
@@ -37,6 +40,18 @@ function toDateRange(startDate, endDate) {
     start: dayjs(startDate).startOf('day').toDate(),
     end: dayjs(endDate).endOf('day').toDate(),
   };
+}
+
+function dateRangeIncludesToday(startDate, endDate) {
+  const startDay = dayjs(startDate).format('YYYY-MM-DD');
+  const endDay = dayjs(endDate).format('YYYY-MM-DD');
+  const today = dayjs().format('YYYY-MM-DD');
+
+  return startDay <= today && today <= endDay;
+}
+
+function roundToTwoDecimals(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function calculatePercentageChange(current, previous) {
@@ -74,6 +89,12 @@ function unavailableMetric(reason, unit) {
     percentageChange: null,
     unavailableReason: reason,
   };
+}
+
+function currentSnapshotMetric(value, includesToday, reason, unit) {
+  return includesToday
+    ? currentOnlyMetric(value, reason, unit)
+    : unavailableMetric(HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON, unit);
 }
 
 async function resolveProject(projectId) {
@@ -219,7 +240,8 @@ async function getMaterialStats(project, startDate, endDate) {
   return {
     totalMaterialUsed: usageRows.length === 0 ? null : usageRows[0].totalMaterialUsed ?? 0,
     materialWasted: usageRows.length === 0 ? null : usageRows[0].materialWasted ?? 0,
-    totalMaterialCost: purchaseRows.length === 0 ? null : purchaseRows[0].totalMaterialCost ?? 0,
+    totalMaterialCost:
+      purchaseRows.length === 0 ? null : roundToTwoDecimals(purchaseRows[0].totalMaterialCost ?? 0),
     materialAvailable: availableRows[0]?.materialAvailable || 0,
   };
 }
@@ -239,7 +261,7 @@ async function getLaborCost(project, startDate, endDate) {
   ]);
 
   // Preserve real zero costs while marking periods with no labor records as unavailable.
-  return rows.length === 0 ? null : rows[0].totalLaborCost ?? 0;
+  return rows.length === 0 ? null : roundToTwoDecimals(rows[0].totalLaborCost ?? 0);
 }
 
 function comparableOrUnavailableMetric(value, unit) {
@@ -250,6 +272,7 @@ function comparableOrUnavailableMetric(value, unit) {
 }
 
 async function calculatePeriodMetrics({ project, startDate, endDate }) {
+  const includesToday = dateRangeIncludesToday(startDate, endDate);
   const [currentProjectStatus, completedStats, materialStats, totalLaborCost] = await Promise.all([
     getCurrentProjectStatusMetrics(project),
     getCompletedProjectStats(project, startDate, endDate),
@@ -258,17 +281,20 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
   ]);
 
   return {
-    totalProjects: currentOnlyMetric(
+    totalProjects: currentSnapshotMetric(
       currentProjectStatus.totalProjects,
+      includesToday,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
     ),
     completedProjects: comparableOrUnavailableMetric(completedStats.completedProjects),
-    delayedProjects: currentOnlyMetric(
+    delayedProjects: currentSnapshotMetric(
       currentProjectStatus.delayedProjects,
+      includesToday,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
     ),
-    activeProjects: currentOnlyMetric(
+    activeProjects: currentSnapshotMetric(
       currentProjectStatus.activeProjects,
+      includesToday,
       PROJECT_STATUS_CURRENT_ONLY_REASON,
     ),
     avgProjectDuration: comparableOrUnavailableMetric(completedStats.avgProjectDuration, 'hrs'),
@@ -276,8 +302,9 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
     totalMaterialUsed: comparableOrUnavailableMetric(materialStats.totalMaterialUsed),
     totalLaborHoursInvested: unavailableMetric(LABOR_HOURS_UNAVAILABLE_REASON, 'hrs'),
     totalLaborCost: comparableOrUnavailableMetric(totalLaborCost, 'USD'),
-    materialAvailable: currentOnlyMetric(
+    materialAvailable: currentSnapshotMetric(
       materialStats.materialAvailable,
+      includesToday,
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
     materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
