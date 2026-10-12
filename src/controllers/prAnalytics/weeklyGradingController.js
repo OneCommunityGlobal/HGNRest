@@ -249,6 +249,20 @@ const weeklyGradingController = function (weeklyGradingModel) {
           error: 'Missing required query params: team, reviewer, and weekStart',
         });
       }
+      if (
+        typeof team !== 'string' ||
+        typeof reviewer !== 'string' ||
+        typeof weekStart !== 'string'
+      ) {
+        return res.status(400).json({ error: 'Invalid query parameter format' });
+      }
+
+      const safeTeam = team.trim();
+      const safeReviewer = reviewer.trim();
+
+      if (!safeTeam || !safeReviewer) {
+        return res.status(400).json({ error: 'Team and reviewer must be non-empty strings' });
+      }
 
       const startDate = new Date(weekStart);
       if (Number.isNaN(startDate.getTime())) {
@@ -261,7 +275,7 @@ const weeklyGradingController = function (weeklyGradingModel) {
       endDate.setHours(23, 59, 59, 999);
 
       const result = await weeklyGradingModel.deleteOne({
-        $or: [{ teamName: team }, { teamCode: team }],
+        $or: [{ teamName: safeTeam }, { teamCode: safeTeam }],
         reviewer,
         date: { $gte: startDate, $lte: endDate },
       });
