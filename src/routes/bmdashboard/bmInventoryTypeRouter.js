@@ -55,6 +55,12 @@ const routes = function (
     .delete(controller.deleteSingleInvType)
     .put(controller.updateSingleInvType);
 
+  // Routes used by inventory type list edit and delete actions
+  inventoryTypeRouter
+    .route('/invtypes/:id')
+    .put(controller.updateInvType)
+    .delete(controller.deleteInvType);
+
   inventoryTypeRouter
     .route('/inventoryUnits')
     .get(controller.fetchInvUnits)
