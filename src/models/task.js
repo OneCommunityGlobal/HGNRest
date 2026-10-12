@@ -47,6 +47,7 @@ const taskschema = new Schema({
   intentInfo: { type: String },
   endstateInfo: { type: String },
   classification: { type: String },
+  atomId: { type: mongoose.SchemaTypes.ObjectId, ref: 'Atom' },
   completedDatetime: { type: Date, default: null },
   deleted: { type: Boolean, default: false },
   // Flag to indicate if task category differs from project category (display purpose)
