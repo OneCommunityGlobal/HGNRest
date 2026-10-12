@@ -101,6 +101,11 @@ const titlecontroller = function (Title) {
     title.projectAssigned = req.body.projectAssigned;
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
+    if (title.titleCode == null) {
+      return res
+        .status(400)
+        .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+    }
 
     if (!title.teamCode || !title.teamCode.trim()) {
       return res.status(400).send({ message: 'Please provide a team code.' });

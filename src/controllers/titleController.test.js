@@ -376,6 +376,41 @@ describe('TitleController', () => {
       expect(savedTitle.save).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['omitted', undefined],
+      ['null', null],
+    ])('should return 400 when titleCode is %s', async (_, titleCode) => {
+      mockReq.body = {
+        titleName: 'Software Engineer',
+        teamCode: 'TEAM1',
+        projectAssigned: { _id: '507f1f77bcf86cd799439011' },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      // Only include titleCode when the test value is explicitly null.
+      if (titleCode == null) {
+        mockReq.body.titleCode = null;
+      }
+
+      const savedTitle = {
+        titleName: mockReq.body.titleName,
+        titleCode,
+        teamCode: mockReq.body.teamCode,
+        save: jest.fn(),
+      };
+
+      const MockTitleConstructor = jest.fn(() => savedTitle);
+      const testController = titleController(MockTitleConstructor);
+      await testController.postTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Title Code must contain atleast one upper or lower case letters.',
+      });
+      expect(savedTitle.save).not.toHaveBeenCalled();
+    });
+
     it('should return error for missing team code', async () => {
       mockReq.body = {
         titleName: 'Software Engineer',
