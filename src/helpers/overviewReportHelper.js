@@ -486,6 +486,50 @@ const overviewReportHelper = function () {
     ]);
   }
 
+  /** Count distinct volunteer countries, including profiles without map coordinates. */
+  async function getCountryCounts() {
+    const profiles = await UserProfile.find(
+      {},
+      {
+        isActive: 1,
+        'location.country': 1,
+        'location.coords.lat': 1,
+        'location.coords.lng': 1,
+        'homeCountry.country': 1,
+      },
+    ).lean();
+    const allTime = new Set();
+    const active = new Set();
+    const aliases = new Map([
+      ['united states of america', 'united states'],
+      ['usa', 'united states'],
+      ['u.s.a.', 'united states'],
+      ['uk', 'united kingdom'],
+      ['reino unido', 'united kingdom'],
+    ]);
+
+    profiles.forEach((profile) => {
+      const country = profile.location?.country?.trim() || profile.homeCountry?.country?.trim();
+      if (!country) return;
+
+      const normalized = country.replace(/\s+/g, ' ').toLowerCase();
+      const countryKey = aliases.get(normalized) || normalized;
+      allTime.add(countryKey);
+      const { lat, lng } = profile.location?.coords || {};
+      if (
+        profile.isActive === true &&
+        lat !== null &&
+        lat !== undefined &&
+        lng !== null &&
+        lng !== undefined
+      ) {
+        active.add(countryKey);
+      }
+    });
+
+    return { allTime: allTime.size, active: active.size };
+  }
+
   /**
    * Get the total number of active teams
    * A team is considered active only if:
@@ -2724,6 +2768,7 @@ const overviewReportHelper = function () {
   return {
     getVolunteerTrends,
     getMapLocations,
+    getCountryCounts,
     getTotalActiveTeamCount,
     getAnniversaries,
     getRoleDistributionStats,
