@@ -57,6 +57,19 @@ describe('submitFormResponse', () => {
     });
   });
 
+  it('returns 400 when the email domain ending is not a real TLD', async () => {
+    await submitFormResponse(
+      { params: { formId }, body: { ...validBody, email: 'rabstu@gmail.con' } },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: '".con" isn\'t a valid email domain ending. Check for a typo.',
+    });
+    expect(Form.findById).not.toHaveBeenCalled();
+    expect(Response.findOne).not.toHaveBeenCalled();
+  });
+
   it('returns 400 for invalid payload JSON', async () => {
     await submitFormResponse({ params: { formId }, body: { payload: '{bad json' } }, res);
     expect(res.status).toHaveBeenCalledWith(400);

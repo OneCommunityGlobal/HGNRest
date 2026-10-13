@@ -1,4 +1,6 @@
+const { domainToASCII } = require('url');
 const { EMAIL_CONFIG } = require('../config/emailConfig');
+const { IANA_TLDS } = require('./ianaTlds');
 
 /**
  * Validate email address format
@@ -9,6 +11,24 @@ function isValidEmailAddress(email) {
   if (!email || typeof email !== 'string') return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email.trim());
+}
+
+/**
+ * Check that an email address is well formed and ends in a real top-level domain,
+ * so typos like "name@gmail.con" are caught (the basic format check accepts them).
+ * @param {string} email - Email address to validate
+ * @returns {string} Error message, or '' when the address is acceptable
+ */
+function getEmailDomainError(email) {
+  if (!isValidEmailAddress(email)) return 'Please enter a valid email address.';
+  const domain = email.trim().split('@').pop();
+  const tld = domain.split('.').pop();
+  // IANA lists internationalized TLDs in punycode (e.g. "xn--fiqs8s")
+  const asciiTld = (domainToASCII(domain).split('.').pop() || tld).toLowerCase();
+  if (!IANA_TLDS.has(asciiTld)) {
+    return `".${tld}" isn't a valid email domain ending. Check for a typo.`;
+  }
+  return '';
 }
 
 /**
@@ -94,6 +114,7 @@ function normalizeEmailField(field) {
 
 module.exports = {
   isValidEmailAddress,
+  getEmailDomainError,
   normalizeRecipientsToArray,
   normalizeRecipientsToObjects,
   ensureHtmlWithinLimit,
