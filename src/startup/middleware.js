@@ -87,6 +87,25 @@ module.exports = function (app) {
       return;
     }
 
+    const pathOnly = req.originalUrl.split('?')[0];
+
+    // Public job-application apply flow (no login):
+    // - GET form schemas so anonymous applicants can render the form
+    // - POST responses so anyone can submit an application
+    // NOT public: GET /api/jobforms/:formId/responses (applicant PII — JWT + manageJobForms)
+    if (
+      req.method === 'GET' &&
+      (pathOnly === '/api/jobforms/all' || /^\/api\/jobforms\/[^/]+$/.test(pathOnly))
+    ) {
+      next();
+      return;
+    }
+
+    if (pathOnly.match(/^\/api\/jobforms\/[^/]+\/responses$/) && req.method === 'POST') {
+      next();
+      return;
+    }
+
     // Public FAQ list: the job listing page at /collaboration is reachable without
     // signing in, and its FAQ section reads from here. Matched exactly so the
     // search, history and unanswered FAQ routes stay behind authentication.
@@ -157,9 +176,11 @@ module.exports = function (app) {
 
     req.user = requestor;
 
-    if (req.body) {
-      req.body.requestor = requestor;
+    // Always attach requestor so GET handlers (e.g. viewing applications) can authorize
+    if (!req.body) {
+      req.body = {};
     }
+    req.body.requestor = requestor;
 
     return next();
   });

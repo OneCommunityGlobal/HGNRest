@@ -7,6 +7,7 @@ const {
   resetJobsFilters,
   getCategories,
   getPositions,
+  getActiveJobPositions,
   getJobById,
   createJob,
   updateJob,
@@ -26,6 +27,7 @@ Job.findByIdAndUpdate = jest.fn();
 Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
 Job.bulkWrite = jest.fn();
+Job.distinct = jest.fn();
 JobPositionCategory.distinct = jest.fn();
 
 // --- HELPER FACTORIES ---
@@ -132,6 +134,16 @@ describe('jobsController', () => {
       JobPositionCategory.distinct.mockResolvedValue(['Pos1']);
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
+    });
+
+    it('should return distinct job titles for the application form dropdown', async () => {
+      Job.distinct.mockResolvedValue(['Writer', 'Software Developer', '', 'Analyst']);
+      await getActiveJobPositions({}, res);
+      expect(Job.distinct).toHaveBeenCalledWith('title', {});
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        positions: ['Analyst', 'Software Developer', 'Writer'],
+      });
     });
   });
 
