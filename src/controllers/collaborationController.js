@@ -511,10 +511,11 @@ exports.submitFormResponse = async (req, res) => {
   }
 };
 
-// Get all responses of a form
+// Get all responses of a form (auth required — Owner/Admin via manageJobForms; not public)
 exports.getFormResponses = async (req, res) => {
   try {
-    if (!(await canManageJobForms(req.body.requestor))) {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
       return res.status(403).json({ message: 'You are not authorized to view form responses.' });
     }
 
