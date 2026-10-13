@@ -46,4 +46,11 @@ describe('getEmailDomainError', () => {
     );
     expect(getEmailDomainError(`a@${'a'.repeat(248)}.com`)).toBe('');
   });
+
+  it('rejects a huge input fast, before the format check (a slow check would stall the API)', () => {
+    const huge = `a@${'.'.repeat(1000000)}@`;
+    const started = Date.now();
+    expect(getEmailDomainError(huge)).toBe('Please enter a valid email address.');
+    expect(Date.now() - started).toBeLessThan(50);
+  });
 });

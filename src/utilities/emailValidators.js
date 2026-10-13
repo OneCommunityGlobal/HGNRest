@@ -13,6 +13,8 @@ const HIDDEN_CHARACTERS = /[\u200B-\u200D\u2060\uFEFF]/;
  */
 function isValidEmailAddress(email) {
   if (!email || typeof email !== 'string') return false;
+  // Check length first: the regex slows down badly on huge input (a public-route stall)
+  if (email.trim().length > MAX_EMAIL_LENGTH) return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email.trim());
 }
@@ -24,9 +26,7 @@ function isValidEmailAddress(email) {
  * @returns {string} Error message, or '' when the address is acceptable
  */
 function getEmailDomainError(email) {
-  if (!isValidEmailAddress(email) || email.trim().length > MAX_EMAIL_LENGTH) {
-    return 'Please enter a valid email address.';
-  }
+  if (!isValidEmailAddress(email)) return 'Please enter a valid email address.';
   if (HIDDEN_CHARACTERS.test(email)) {
     return 'This email has a hidden character in it. Please retype it.';
   }
