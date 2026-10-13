@@ -25,7 +25,7 @@ describe('getEmailDomainError', () => {
     );
   });
 
-  it.each(['', 'ada', 'ada@gmail', 'ada @gmail.com', null, undefined])(
+  it.each(['', 'ada', 'ada@gmail', 'ada @gmail.com', 'ada@gmail.com.', null, undefined])(
     'rejects malformed input %p',
     (email) => {
       expect(getEmailDomainError(email)).toBe('Please enter a valid email address.');

@@ -22,6 +22,7 @@ function isValidEmailAddress(email) {
 function getEmailDomainError(email) {
   if (!isValidEmailAddress(email)) return 'Please enter a valid email address.';
   const domain = email.trim().split('@').pop();
+  if (domain.endsWith('.')) return 'Please enter a valid email address.';
   const tld = domain.split('.').pop();
   // IANA lists internationalized TLDs in punycode (e.g. "xn--fiqs8s")
   const asciiTld = (domainToASCII(domain).split('.').pop() || tld).toLowerCase();
