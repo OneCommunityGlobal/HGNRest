@@ -1,11 +1,102 @@
 const geoIP = require('geoip-lite');
 const fallbackApplicantSources = require('../data/applicantSourcesFallback.json');
 
+// Same buckets the chart always used: a value on a boundary falls in the lower bucket
+const EXPERIENCE_BUCKETS = [
+  { label: '0-1 years', maxYears: 1 },
+  { label: '1-3 years', maxYears: 3 },
+  { label: '3-5 years', maxYears: 5 },
+  { label: '5+ years', maxYears: Infinity },
+];
+const EXPERIENCE_CATEGORIES = EXPERIENCE_BUCKETS.map((b) => b.label);
+// "5+" means more than 5, so nudge it past the boundary into the next bucket
+const MORE_THAN_NUDGE_YEARS = 0.5;
+const PERCENT = 100;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+// Years come from a free-text form answer ("2", "2 years", "5+"), parsed like the form does.
+function toExperienceYears(raw) {
+  const years = Number.parseFloat(raw);
+  if (!Number.isFinite(years) || years < 0) return null;
+  const moreThan = /\+\s*(years?)?\s*$/i.test(String(raw));
+  return moreThan ? years + MORE_THAN_NUDGE_YEARS : years;
+}
+
+function experienceCategory(years) {
+  return EXPERIENCE_BUCKETS.find((bucket) => years <= bucket.maxYears).label;
+}
+
+function getApplicantProfile(application) {
+  const entry = (application.answers || []).find(
+    (a) => a && a.answer && a.answer.type === 'applicantProfile',
+  );
+  return entry ? entry.answer : {};
+}
+
+function parseRoles(roles) {
+  if (!roles) return [];
+  const list = Array.isArray(roles) ? roles : String(roles).split(',');
+  return list.map((r) => r.trim().toLowerCase()).filter(Boolean);
+}
+
+// startDate/endDate are calendar days (yyyy-MM-dd, UTC); the end day is included.
+function parseDateRange(startDate, endDate) {
+  if (!startDate && !endDate) return {};
+  const range = {};
+  if (startDate) {
+    if (!DATE_ONLY.test(startDate) || Number.isNaN(Date.parse(startDate))) {
+      return { error: 'startDate must be a valid date (YYYY-MM-DD).' };
+    }
+    range.$gte = new Date(`${startDate}T00:00:00.000Z`);
+  }
+  if (endDate) {
+    if (!DATE_ONLY.test(endDate) || Number.isNaN(Date.parse(endDate))) {
+      return { error: 'endDate must be a valid date (YYYY-MM-DD).' };
+    }
+    range.$lte = new Date(`${endDate}T23:59:59.999Z`);
+  }
+  if (range.$gte && range.$lte && range.$gte > range.$lte) {
+    return { error: 'startDate must be on or before endDate.' };
+  }
+  return { range };
+}
+
+function buildExperienceBreakdown(applications, roles) {
+  const counts = Object.fromEntries(EXPERIENCE_CATEGORIES.map((c) => [c, 0]));
+  let notReported = 0;
+
+  applications.forEach((application) => {
+    const profile = getApplicantProfile(application);
+    const jobTitle = String(profile.jobTitle || '')
+      .trim()
+      .toLowerCase();
+    if (roles.length && !roles.includes(jobTitle)) return;
+
+    const years = toExperienceYears(profile.fullTimeYears);
+    if (years === null) {
+      notReported += 1;
+      return;
+    }
+    counts[experienceCategory(years)] += 1;
+  });
+
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  const breakdown = total
+    ? EXPERIENCE_CATEGORIES.map((experience) => ({
+        experience,
+        count: counts[experience],
+        percentage: Number(((counts[experience] / total) * PERCENT).toFixed(1)),
+      }))
+    : [];
+  return { breakdown, total, notReported };
+}
+
 const analyticsController = function (
   Applicant,
   AnonymousInteraction,
   AnonymousApplication,
   AnalyticsSummary,
+  JobApplication,
 ) {
   // Helper function to extract location from request
   const getLocationFromRequest = (req) => {
@@ -64,7 +155,7 @@ const analyticsController = function (
     }
   };
 
-  // Experience breakdown - shows all-time data (roles filtering supported)
+  // Experience breakdown of real job applications, filterable by submission date and role
   const getExperienceBreakdown = async (req, res) => {
     try {
       // Check admin/owner permissions
@@ -72,75 +163,16 @@ const analyticsController = function (
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      const { roles } = req.query;
-      const pipeline = [];
-
-      // Filter by roles only
-      if (roles) {
-        const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-        pipeline.push({
-          $match: {
-            roles: { $in: rolesArray },
-          },
-        });
+      const { range, error } = parseDateRange(req.query.startDate, req.query.endDate);
+      if (error) {
+        return res.status(400).json({ error });
       }
 
-      // Add experience category
-      pipeline.push({
-        $addFields: {
-          experienceCategory: {
-            $switch: {
-              branches: [
-                { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
-                {
-                  case: {
-                    $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
-                  },
-                  then: '1-3 years',
-                },
-                {
-                  case: {
-                    $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
-                  },
-                  then: '3-5 years',
-                },
-              ],
-              default: '5+ years',
-            },
-          },
-        },
-      });
+      const query = range ? { submittedAt: range } : {};
+      const applications = await JobApplication.find(query, 'answers submittedAt').lean();
+      const roles = parseRoles(req.query.roles);
 
-      // Group by category
-      pipeline.push({
-        $group: {
-          _id: '$experienceCategory',
-          count: { $sum: 1 },
-        },
-      });
-
-      // Final format
-      pipeline.push({
-        $project: {
-          _id: 0,
-          experience: '$_id',
-          count: 1,
-        },
-      });
-
-      const breakdown = await Applicant.aggregate(pipeline);
-
-      if (!breakdown.length) {
-        return res.status(404).json({ message: 'No Data Available' });
-      }
-
-      const total = breakdown.reduce((sum, item) => sum + item.count, 0);
-      const data = breakdown.map((item) => ({
-        ...item,
-        percentage: ((item.count / total) * 100).toFixed(2),
-      }));
-
-      return res.status(200).json(data);
+      return res.status(200).json(buildExperienceBreakdown(applications, roles));
     } catch (error) {
       console.error('Error fetching experience breakdown:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -633,9 +665,16 @@ const analyticsController = function (
     }
   };
 
+  // Job titles applicants applied for, for the experience chart's role filter
   const getAllRoles = async (req, res) => {
     try {
-      const roles = await Applicant.distinct('roles');
+      const applications = await JobApplication.find({}, 'answers').lean();
+      const titles = new Map();
+      applications.forEach((application) => {
+        const title = String(getApplicantProfile(application).jobTitle || '').trim();
+        if (title && !titles.has(title.toLowerCase())) titles.set(title.toLowerCase(), title);
+      });
+      const roles = [...titles.values()].sort((a, b) => a.localeCompare(b));
       return res.status(200).json(roles);
     } catch (error) {
       console.error('Error fetching roles:', error);
