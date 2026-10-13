@@ -1141,8 +1141,13 @@ const overviewReportHelper = function () {
       };
     }
 
-    // non-comparison branch
+    // Apply the selected range even when comparison mode is off.
     const taskStats = await Task.aggregate([
+      {
+        $match: {
+          modifiedDatetime: { $gte: startDate, $lte: endDate },
+        },
+      },
       {
         $group: {
           _id: '$status',
@@ -1336,6 +1341,21 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Match users who are active now OR logged time in the period. Hours logged in the
+   * selected period still count after the volunteer is deactivated or paused, even
+   * though pausing does not record an end date.
+   */
+  const workedDuringPeriodMatch = async (periodStart, periodEnd) => {
+    // Coerce request dates to plain YYYY-MM-DD strings so they can't inject query operators
+    const safeStart = moment(String(periodStart)).format('YYYY-MM-DD');
+    const safeEnd = moment(String(periodEnd)).format('YYYY-MM-DD');
+    const personIds = await TimeEntries.distinct('personId', {
+      dateOfWork: { $gte: safeStart, $lte: safeEnd },
+    });
+    return { $or: [{ isActive: true }, { _id: { $in: personIds } }] };
+  };
+
+  /**
    * Get volunteer hours distribution stats based on weekly averages
    * Requirements:
    * - Calculate weekly average only for weeks where user logged time
@@ -1356,11 +1376,11 @@ const overviewReportHelper = function () {
       return { error: validation.error };
     }
 
-    // Get all active users with their time entries
+    // Users active at any point in the period (incl. deactivated later), with time entries
     const usersWithTimeEntries = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(startDate, endDate)),
         },
       },
       {
@@ -1470,6 +1490,30 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Distribution of active volunteers by their weekly committed hours.
+   * Bucket ids are UPPER limits, matching the frontend labels:
+   * '10' = 1-10 hrs, '20' = 11-20, '30' = 21-30, '40' = 31-40, '40+' = over 40.
+   * Same population as the other volunteer stats: active, committed >= 1, not a Mentor.
+   */
+  async function getCommittedHoursStats() {
+    const users = await UserProfile.find(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    ).lean();
+
+    const buckets = { 10: 0, 20: 0, 30: 0, 40: 0, '40+': 0 };
+    users.forEach(({ weeklycommittedHours: hours }) => {
+      if (hours <= 10) buckets[10] += 1;
+      else if (hours <= 20) buckets[20] += 1;
+      else if (hours <= 30) buckets[30] += 1;
+      else if (hours <= 40) buckets[40] += 1;
+      else buckets['40+'] += 1;
+    });
+
+    return ['10', '20', '30', '40', '40+'].map((id) => ({ _id: id, count: buckets[id] }));
+  }
+
+  /**
    * Aggregates total hours worked in the selected date range across all active volunteers,
    * matching the dashboard's getOrgData logic exactly:
    * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
@@ -1484,7 +1528,7 @@ const overviewReportHelper = function () {
     const data = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(pdtstart, pdtend)),
           weeklycommittedHours: { $gte: 1 },
           role: { $ne: 'Mentor' },
         },
@@ -2562,7 +2606,10 @@ const overviewReportHelper = function () {
       const hoursStats = await UserProfile.aggregate([
         {
           $match: {
-            isActive: true,
+            ...(await workedDuringPeriodMatch(
+              moment(start).format('YYYY-MM-DD'),
+              moment(end).format('YYYY-MM-DD'),
+            )),
           },
         },
         {
@@ -2728,6 +2775,7 @@ const overviewReportHelper = function () {
     getWorkDistributionStats,
     getTotalHoursWorked,
     getHoursStats,
+    getCommittedHoursStats,
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
     getAnniversaryCount,
