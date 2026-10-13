@@ -529,16 +529,13 @@ const taskController = function (Task) {
       });
 
       const saveTask = _task.save();
-      const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-      const saveProject = WBS.findById(wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
+      const currentWbs = await WBS.findById(wbsId);
+      currentWbs.modifiedDatetime = Date.now();
+      const saveWbs = currentWbs.save();
+
+      const currentProject = await Project.findById(currentWbs.projectId);
+      currentProject.modifiedDatetime = Date.now();
+      const saveProject = currentProject.save();
 
       Promise.all([saveTask, saveWbs, saveProject])
         .then(async ([savedTask]) => {
@@ -646,13 +643,14 @@ const taskController = function (Task) {
     res.status(200).send(true);
   };
 
-  const moveTask = (req, res) => {
+  const moveTask = async (req, res) => {
     if (!req.body.fromNum || !req.body.toNum) {
       res.status(400).send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
       return;
     }
 
-    Task.find({ wbsId: { $in: req.params.wbsId } }).then((tasks) => {
+    try {
+      const tasks = await Task.find({ wbsId: { $in: req.params.wbsId } });
       const fromNumArr = req.body.fromNum.replace(/\.0/g, '').split('.');
       const toNumArr = req.body.toNum.replace(/\.0/g, '').split('.');
 
@@ -692,10 +690,11 @@ const taskController = function (Task) {
         queries.push(task.save());
       });
 
-      Promise.all(queries)
-        .then(() => res.status(200).send('Success!'))
-        .catch((err) => res.status(400).send(err));
-    });
+      await Promise.all(queries);
+      return res.status(200).send('Success!');
+    } catch (err) {
+      return res.status(400).send(err);
+    }
   };
 
   const deleteTask = async (req, res) => {
@@ -1281,24 +1280,34 @@ const taskController = function (Task) {
 
   const updateTaskStatus = async (req, res) => {
     const { taskId } = req.params;
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
 
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
+    try {
+      const currentTask = await Task.findById(taskId);
+
+      if (!currentTask) {
+        return res.status(404).send({ error: 'Task not found' });
+      }
+
+      const currentWbs = await WBS.findById(currentTask.wbsId);
+
+      if (currentWbs) {
+        currentWbs.modifiedDatetime = Date.now();
+        await currentWbs.save();
+
+        const currentProject = await Project.findById(currentWbs.projectId);
+
+        if (currentProject) {
           currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
-    });
-    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
-      .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
+          await currentProject.save();
+        }
+      }
+
+      await Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() });
+
+      return res.status(201).send();
+    } catch (error) {
+      return res.status(404).send(error);
+    }
   };
 
   const getReviewReqEmailBody = function (name, taskName) {
