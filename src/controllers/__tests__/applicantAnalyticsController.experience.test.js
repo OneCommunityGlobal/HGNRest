@@ -17,6 +17,11 @@ const createMockRes = () => {
 };
 
 const admin = { requestor: { role: 'Administrator' } };
+// Only the applicant's profile answer is loaded, not every free-text answer
+const PROFILE_PROJECTION = {
+  submittedAt: 1,
+  answers: { $elemMatch: { 'answer.type': 'applicantProfile' } },
+};
 
 describe('getExperienceBreakdown', () => {
   let JobApplication;
@@ -73,13 +78,35 @@ describe('getExperienceBreakdown', () => {
           $lte: new Date('2026-09-30T23:59:59.999Z'),
         },
       },
-      'answers submittedAt',
+      PROFILE_PROJECTION,
+    );
+  });
+
+  it('uses exact instants when the client sends its local day bounds', async () => {
+    givenApplications([]);
+
+    await controller.getExperienceBreakdown(
+      {
+        body: admin,
+        query: { startDate: '2026-09-01T07:00:00.000Z', endDate: '2026-10-01T06:59:59.999Z' },
+      },
+      res,
+    );
+
+    expect(JobApplication.find).toHaveBeenCalledWith(
+      {
+        submittedAt: {
+          $gte: new Date('2026-09-01T07:00:00.000Z'),
+          $lte: new Date('2026-10-01T06:59:59.999Z'),
+        },
+      },
+      PROFILE_PROJECTION,
     );
   });
 
   it.each([
-    [{ startDate: '2026-13-45' }, 'startDate must be a valid date (YYYY-MM-DD).'],
-    [{ endDate: 'yesterday' }, 'endDate must be a valid date (YYYY-MM-DD).'],
+    [{ startDate: '2026-13-45' }, 'startDate must be a valid date (YYYY-MM-DD or ISO date-time).'],
+    [{ endDate: 'yesterday' }, 'endDate must be a valid date (YYYY-MM-DD or ISO date-time).'],
     [{ startDate: '2026-10-02', endDate: '2026-10-01' }, 'startDate must be on or before endDate.'],
   ])('rejects an invalid date range %p', async (query, error) => {
     await controller.getExperienceBreakdown({ body: admin, query }, res);
@@ -111,6 +138,20 @@ describe('getExperienceBreakdown', () => {
         { experience: '5+ years', count: 1, percentage: 50 },
       ],
     });
+  });
+
+  it('matches role titles that contain commas when roles arrive as a list', async () => {
+    givenApplications([
+      application({ jobTitle: 'Software Engineer, Frontend', fullTimeYears: '2' }),
+      application({ jobTitle: 'Software Engineer', fullTimeYears: '7' }),
+    ]);
+
+    await controller.getExperienceBreakdown(
+      { body: admin, query: { roles: ['Software Engineer, Frontend'] } },
+      res,
+    );
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ total: 1 }));
   });
 
   it('reports applicants without usable years separately instead of guessing', async () => {
@@ -164,9 +205,23 @@ describe('getAllRoles', () => {
     };
     const res = createMockRes();
 
-    await analyticsController({}, {}, {}, {}, JobApplication).getAllRoles({}, res);
+    await analyticsController({}, {}, {}, {}, JobApplication).getAllRoles({ body: admin }, res);
 
+    expect(JobApplication.find).toHaveBeenCalledWith({}, PROFILE_PROJECTION);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(['Software Engineer', 'UX Designer']);
+  });
+
+  it('denies users who are not an Owner or Administrator', async () => {
+    const JobApplication = { find: jest.fn() };
+    const res = createMockRes();
+
+    await analyticsController({}, {}, {}, {}, JobApplication).getAllRoles(
+      { body: { requestor: { role: 'Volunteer' } } },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(JobApplication.find).not.toHaveBeenCalled();
   });
 });

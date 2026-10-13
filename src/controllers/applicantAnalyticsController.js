@@ -13,6 +13,15 @@ const EXPERIENCE_CATEGORIES = EXPERIENCE_BUCKETS.map((b) => b.label);
 const MORE_THAN_NUDGE_YEARS = 0.5;
 const PERCENT = 100;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+// Only the applicant's profile answer is needed, not every free-text answer
+const PROFILE_PROJECTION = {
+  submittedAt: 1,
+  answers: { $elemMatch: { 'answer.type': 'applicantProfile' } },
+};
+
+const canViewApplicantAnalytics = (requestor) =>
+  requestor && (requestor.role === 'Owner' || requestor.role === 'Administrator');
 
 // Years come from a free-text form answer ("2", "2 years", "5+"), parsed like the form does.
 function toExperienceYears(raw) {
@@ -39,21 +48,30 @@ function parseRoles(roles) {
   return list.map((r) => r.trim().toLowerCase()).filter(Boolean);
 }
 
-// startDate/endDate are calendar days (yyyy-MM-dd, UTC); the end day is included.
+// A bound is either an exact ISO instant (the chart sends the viewer's local day bounds) or a
+// calendar day YYYY-MM-DD, read as a whole UTC day; both ends are inclusive.
+function parseDateBound(value, endOfDay) {
+  const text = String(value);
+  if (DATE_TIME.test(text)) {
+    const instant = new Date(text);
+    return Number.isNaN(instant.getTime()) ? null : instant;
+  }
+  if (!DATE_ONLY.test(text) || Number.isNaN(Date.parse(text))) return null;
+  return new Date(`${text}${endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'}`);
+}
+
 function parseDateRange(startDate, endDate) {
   if (!startDate && !endDate) return {};
   const range = {};
   if (startDate) {
-    if (!DATE_ONLY.test(startDate) || Number.isNaN(Date.parse(startDate))) {
-      return { error: 'startDate must be a valid date (YYYY-MM-DD).' };
-    }
-    range.$gte = new Date(`${startDate}T00:00:00.000Z`);
+    range.$gte = parseDateBound(startDate, false);
+    if (!range.$gte)
+      return { error: 'startDate must be a valid date (YYYY-MM-DD or ISO date-time).' };
   }
   if (endDate) {
-    if (!DATE_ONLY.test(endDate) || Number.isNaN(Date.parse(endDate))) {
-      return { error: 'endDate must be a valid date (YYYY-MM-DD).' };
-    }
-    range.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    range.$lte = parseDateBound(endDate, true);
+    if (!range.$lte)
+      return { error: 'endDate must be a valid date (YYYY-MM-DD or ISO date-time).' };
   }
   if (range.$gte && range.$lte && range.$gte > range.$lte) {
     return { error: 'startDate must be on or before endDate.' };
@@ -159,7 +177,7 @@ const analyticsController = function (
   const getExperienceBreakdown = async (req, res) => {
     try {
       // Check admin/owner permissions
-      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
+      if (!canViewApplicantAnalytics(req.body.requestor)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
@@ -169,7 +187,7 @@ const analyticsController = function (
       }
 
       const query = range ? { submittedAt: range } : {};
-      const applications = await JobApplication.find(query, 'answers submittedAt').lean();
+      const applications = await JobApplication.find(query, PROFILE_PROJECTION).lean();
       const roles = parseRoles(req.query.roles);
 
       return res.status(200).json(buildExperienceBreakdown(applications, roles));
@@ -668,7 +686,10 @@ const analyticsController = function (
   // Job titles applicants applied for, for the experience chart's role filter
   const getAllRoles = async (req, res) => {
     try {
-      const applications = await JobApplication.find({}, 'answers').lean();
+      if (!canViewApplicantAnalytics(req.body && req.body.requestor)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const applications = await JobApplication.find({}, PROFILE_PROJECTION).lean();
       const titles = new Map();
       applications.forEach((application) => {
         const title = String(getApplicantProfile(application).jobTitle || '').trim();
