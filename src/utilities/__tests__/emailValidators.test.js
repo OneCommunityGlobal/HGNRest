@@ -31,4 +31,19 @@ describe('getEmailDomainError', () => {
       expect(getEmailDomainError(email)).toBe('Please enter a valid email address.');
     },
   );
+
+  it('rejects hidden zero-width characters (they pass the format check and break duplicate detection)', () => {
+    ['ada@hotmail.com\u200B', 'a\u2060da@gmail.com', '\uFEFFada@gmail.com'].forEach((email) => {
+      expect(getEmailDomainError(email)).toBe(
+        'This email has a hidden character in it. Please retype it.',
+      );
+    });
+  });
+
+  it('rejects addresses longer than 254 characters', () => {
+    expect(getEmailDomainError(`ada@${'a'.repeat(250)}.com`)).toBe(
+      'Please enter a valid email address.',
+    );
+    expect(getEmailDomainError(`a@${'a'.repeat(248)}.com`)).toBe('');
+  });
 });

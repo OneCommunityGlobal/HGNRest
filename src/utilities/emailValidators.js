@@ -2,6 +2,10 @@ const { domainToASCII } = require('url');
 const { EMAIL_CONFIG } = require('../config/emailConfig');
 const { IANA_TLDS } = require('./ianaTlds');
 
+const MAX_EMAIL_LENGTH = 254;
+// Zero-width and word-joiner characters ride along with copy-paste and are invisible on screen
+const HIDDEN_CHARACTERS = /[\u200B-\u200D\u2060\uFEFF]/;
+
 /**
  * Validate email address format
  * @param {string} email - Email address to validate
@@ -20,7 +24,12 @@ function isValidEmailAddress(email) {
  * @returns {string} Error message, or '' when the address is acceptable
  */
 function getEmailDomainError(email) {
-  if (!isValidEmailAddress(email)) return 'Please enter a valid email address.';
+  if (!isValidEmailAddress(email) || email.trim().length > MAX_EMAIL_LENGTH) {
+    return 'Please enter a valid email address.';
+  }
+  if (HIDDEN_CHARACTERS.test(email)) {
+    return 'This email has a hidden character in it. Please retype it.';
+  }
   const domain = email.trim().split('@').pop();
   if (domain.endsWith('.')) return 'Please enter a valid email address.';
   const tld = domain.split('.').pop();
