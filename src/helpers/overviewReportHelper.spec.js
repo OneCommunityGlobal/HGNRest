@@ -2,6 +2,13 @@ const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
+const TimeEntries = require('../models/timeentry');
+
+// getHoursStats / getTotalHoursWorked look up who logged time in the period
+beforeEach(() => {
+  jest.spyOn(TimeEntries, 'distinct').mockResolvedValue([]);
+});
 const overviewReportHelper = require('./overviewReportHelper');
 
 // const makeSut = () => {
@@ -11,6 +18,24 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
+  describe('getTasksStats date boundaries', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('filters the non-comparison totals by the selected date range', async () => {
+      const startDate = new Date('2026-07-19T00:00:00-07:00');
+      const endDate = new Date('2026-07-25T23:59:00-07:00');
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      await getTasksStats(startDate, endDate);
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]);
+    });
+  });
+
   describe('getHoursStats date boundaries', () => {
     const originalTimezone = process.env.TZ;
 
@@ -139,21 +164,37 @@ describe('overviewReportHelper tests', () => {
       });
     });
 
+    // The file-level stub makes TimeEntries.distinct return [], which would hide the
+    // "deactivated later but logged time in the period" rule. Query the seeded data instead.
+    beforeEach(() => TimeEntries.distinct.mockRestore());
+
     afterAll(async () => {
       await mongoose.disconnect();
       await mongoServer?.stop();
     });
 
-    it('matches the leaderboard: all active users, every entry type, no inactive entries', async () => {
+    it('matches the leaderboard rules and keeps hours of users deactivated later', async () => {
       const volunteerId = new mongoose.Types.ObjectId();
       const zeroCommitmentMentorId = new mongoose.Types.ObjectId();
-      const inactiveUserId = new mongoose.Types.ObjectId();
+      const deactivatedLaterId = new mongoose.Types.ObjectId();
+      const deactivatedOnlyDeletedEntryId = new mongoose.Types.ObjectId();
+      const deactivatedOutsideRangeId = new mongoose.Types.ObjectId();
 
-      await mongoose.connection.collection('userProfiles').insertMany([
-        { _id: volunteerId, isActive: true, role: 'Volunteer', weeklycommittedHours: 10 },
-        { _id: zeroCommitmentMentorId, isActive: true, role: 'Mentor', weeklycommittedHours: 0 },
-        { _id: inactiveUserId, isActive: false, role: 'Volunteer', weeklycommittedHours: 10 },
-      ]);
+      const inactiveVolunteer = (_id) => ({
+        _id,
+        isActive: false,
+        role: 'Volunteer',
+        weeklycommittedHours: 10,
+      });
+      await mongoose.connection
+        .collection('userProfiles')
+        .insertMany([
+          { _id: volunteerId, isActive: true, role: 'Volunteer', weeklycommittedHours: 10 },
+          { _id: zeroCommitmentMentorId, isActive: true, role: 'Mentor', weeklycommittedHours: 0 },
+          inactiveVolunteer(deactivatedLaterId),
+          inactiveVolunteer(deactivatedOnlyDeletedEntryId),
+          inactiveVolunteer(deactivatedOutsideRangeId),
+        ]);
 
       const entry = (personId, hours, overrides = {}) => ({
         personId,
@@ -176,12 +217,14 @@ describe('overviewReportHelper tests', () => {
         entry(volunteerId, 64, { dateOfWork: '2026-08-29' }), // excluded: before range
         entry(volunteerId, 128, { dateOfWork: '2026-09-06' }), // excluded: after range
         entry(zeroCommitmentMentorId, 256), // included: 0-hr mentors count like the leaderboard
-        entry(inactiveUserId, 512), // excluded: inactive user
+        entry(deactivatedLaterId, 512), // included: deactivated later, logged time in range
+        entry(deactivatedOnlyDeletedEntryId, 1024, { isActive: false }), // excluded: deleted entry
+        entry(deactivatedOutsideRangeId, 2048, { dateOfWork: '2026-08-29' }), // excluded: out of range
       ]);
 
       const result = await overviewReportHelper().getTotalHoursWorked('2026-08-30', '2026-09-05');
 
-      expect(result).toEqual({ current: 1 + 2 + 4 + 8 + 32 + 256 });
+      expect(result).toEqual({ current: 1 + 2 + 4 + 8 + 32 + 256 + 512 });
     });
   });
 });
@@ -241,3 +284,48 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getCommittedHoursStats', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const mockUsers = (users) =>
+    jest.spyOn(UserProfile, 'find').mockReturnValue({ lean: jest.fn().mockResolvedValue(users) });
+
+  it('groups active volunteers into upper-limit committed-hours buckets', async () => {
+    const findSpy = mockUsers(
+      [1, 5, 10, 11, 20, 21, 30, 31, 35, 40, 41, 60].map((h) => ({ weeklycommittedHours: h })),
+    );
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 3 },
+      { _id: '20', count: 2 },
+      { _id: '30', count: 2 },
+      { _id: '40', count: 3 },
+      { _id: '40+', count: 2 },
+    ]);
+    expect(findSpy).toHaveBeenCalledWith(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    );
+  });
+
+  it('returns every bucket with a zero count when there are no volunteers', async () => {
+    mockUsers([]);
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 0 },
+      { _id: '20', count: 0 },
+      { _id: '30', count: 0 },
+      { _id: '40', count: 0 },
+      { _id: '40+', count: 0 },
+    ]);
+  });
+});
