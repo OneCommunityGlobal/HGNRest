@@ -1120,10 +1120,27 @@ const overviewReportHelper = function () {
       const currentStats = taskStats[0].current || [];
       const comparisonStats = taskStats[0].comparison || [];
 
+      /*
       const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
       const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
       const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
       const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
+      */
+
+      // In-progress tasks use either 'Active' or 'Started' status.
+      // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
+      const currentActive = currentStats
+        .filter((x) => x._id === 'Active' || x._id === 'Started')
+        .reduce((sum, x) => sum + x.count, 0);
+      const currentComplete = currentStats
+        .filter((x) => x._id === 'Complete')
+        .reduce((sum, x) => sum + x.count, 0);
+      const comparisonActive = comparisonStats
+        .filter((x) => x._id === 'Active' || x._id === 'Started')
+        .reduce((sum, x) => sum + x.count, 0);
+      const comparisonComplete = comparisonStats
+        .filter((x) => x._id === 'Complete')
+        .reduce((sum, x) => sum + x.count, 0);
 
       return {
         active: {
@@ -1157,8 +1174,19 @@ const overviewReportHelper = function () {
       },
     ]);
 
+    /*
     const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
     const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
+    */
+
+    // In-progress tasks use either 'Active' or 'Started' status.
+    // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
+    const active = taskStats
+      .filter((x) => x._id === 'Active' || x._id === 'Started')
+      .reduce((sum, x) => sum + x.count, 0);
+    const complete = taskStats
+      .filter((x) => x._id === 'Complete')
+      .reduce((sum, x) => sum + x.count, 0);
 
     return {
       active: { current: active },
