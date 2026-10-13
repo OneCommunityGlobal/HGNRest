@@ -168,6 +168,59 @@ describe('getExperienceBreakdown', () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ total: 1, notReported: 4 }));
   });
 
+  const bucketFor = async (fullTimeYears) => {
+    givenApplications([application({ jobTitle: 'Software Engineer', fullTimeYears })]);
+    await controller.getExperienceBreakdown({ body: admin, query: {} }, res);
+    const { breakdown, notReported } = res.json.mock.calls[0][0];
+    if (notReported) return 'not reported';
+    return breakdown.find((b) => b.count === 1).experience;
+  };
+
+  it.each([
+    ['2', '1-3 years'],
+    [' 4 Years ', '3-5 years'],
+    ['2 yrs', '1-3 years'],
+    ['3.5', '3-5 years'],
+    ['5+', '5+ years'],
+    ['5+ yrs', '5+ years'],
+    ['5 + years', '5+ years'],
+    ['10+ years', '5+ years'],
+    ['6 months', '0-1 years'],
+    ['18 months', '1-3 years'],
+    ['0-1', '0-1 years'],
+    ['1-3 years', '1-3 years'],
+    ['3 - 5 years', '3-5 years'],
+    ['3–5 years', '3-5 years'],
+    ['5-10 years', '5+ years'],
+  ])('reads the answer "%s" as %s', async (answer, bucket) => {
+    expect(await bucketFor(answer)).toBe(bucket);
+  });
+
+  it.each(['1,5', '1e3', 'about 3', 'three', 'N/A', '-2', '200', 'Infinity', '5-3 years'])(
+    'counts the unclear answer "%s" as not reported instead of guessing',
+    async (answer) => {
+      expect(await bucketFor(answer)).toBe('not reported');
+    },
+  );
+
+  it.each([
+    ['startDate', '2026-02-30'],
+    ['startDate', '2026-02-30T00:00:00Z'],
+    ['endDate', '2026-02-28T24:00:00Z'],
+  ])('rejects the impossible %s %s', async (param, value) => {
+    await controller.getExperienceBreakdown({ body: admin, query: { [param]: value } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(JobApplication.find).not.toHaveBeenCalled();
+  });
+
+  it('rejects a roles filter that is not a list of titles (400, not a crash)', async () => {
+    await controller.getExperienceBreakdown({ body: admin, query: { roles: [{ a: '1' }] } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'roles must be a list of job titles.' });
+  });
+
   it('returns an empty breakdown (not an error) when nothing matches', async () => {
     givenApplications([]);
 

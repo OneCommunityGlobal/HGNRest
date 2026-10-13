@@ -11,6 +11,20 @@ const EXPERIENCE_BUCKETS = [
 const EXPERIENCE_CATEGORIES = EXPERIENCE_BUCKETS.map((b) => b.label);
 // "5+" means more than 5, so nudge it past the boundary into the next bucket
 const MORE_THAN_NUDGE_YEARS = 0.5;
+const MONTHS_PER_YEAR = 12;
+// Anything above this is treated as a typo rather than a career length
+const MAX_PLAUSIBLE_YEARS = 60;
+const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
+const YEARS_UNIT = String.raw`(?:years?|yrs?|y)?`;
+// "2", "2 years", "2 yrs", "5+", "5+ years", "5 + yrs"
+const PLAIN_YEARS = new RegExp(String.raw`^${NUMBER}\s*(\+)?\s*${YEARS_UNIT}\s*(\+)?$`, 'i');
+// "6 months", "18 mos"
+const MONTHS = new RegExp(String.raw`^${NUMBER}\s*(?:months?|mos?)$`, 'i');
+// "1-3 years", "3 - 5", "3–5 years", "2 to 4 yrs" (a dropdown option)
+const RANGE_YEARS = new RegExp(
+  String.raw`^${NUMBER}\s*(?:-|–|—|to)\s*${NUMBER}\s*${YEARS_UNIT}$`,
+  'i',
+);
 const PERCENT = 100;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -23,12 +37,28 @@ const PROFILE_PROJECTION = {
 const canViewApplicantAnalytics = (requestor) =>
   requestor && (requestor.role === 'Owner' || requestor.role === 'Administrator');
 
-// Years come from a free-text form answer ("2", "2 years", "5+"), parsed like the form does.
+// Years come from a free-text answer or a dropdown option. Only clear shapes are read;
+// anything else ("about 3", "1,5") counts as not reported rather than being guessed.
+// A range goes to the bucket its midpoint falls in, so "1-3 years" lands in 1-3.
+function parseExperienceYears(text) {
+  const plain = text.match(PLAIN_YEARS);
+  if (plain) {
+    const moreThan = Boolean(plain[2] || plain[3]);
+    return Number(plain[1]) + (moreThan ? MORE_THAN_NUDGE_YEARS : 0);
+  }
+  const months = text.match(MONTHS);
+  if (months) return Number(months[1]) / MONTHS_PER_YEAR;
+  const range = text.match(RANGE_YEARS);
+  if (range && Number(range[1]) < Number(range[2])) {
+    return (Number(range[1]) + Number(range[2])) / 2;
+  }
+  return null;
+}
+
 function toExperienceYears(raw) {
-  const years = Number.parseFloat(raw);
-  if (!Number.isFinite(years) || years < 0) return null;
-  const moreThan = /\+\s*(years?)?\s*$/i.test(String(raw));
-  return moreThan ? years + MORE_THAN_NUDGE_YEARS : years;
+  if (raw === null || raw === undefined) return null;
+  const years = parseExperienceYears(String(raw).trim());
+  return years !== null && years <= MAX_PLAUSIBLE_YEARS ? years : null;
 }
 
 function experienceCategory(years) {
@@ -42,21 +72,47 @@ function getApplicantProfile(application) {
   return entry ? entry.answer : {};
 }
 
+// Returns null when roles isn't a string or a list of strings (e.g. ?roles[0][a]=1)
 function parseRoles(roles) {
   if (!roles) return [];
-  const list = Array.isArray(roles) ? roles : String(roles).split(',');
-  return list.map((r) => r.trim().toLowerCase()).filter(Boolean);
+  const list = Array.isArray(roles) ? roles : [roles];
+  if (!list.every((r) => typeof r === 'string')) return null;
+  // A single string may hold several comma-separated titles; send a list for titles with commas
+  const titles = Array.isArray(roles) ? list : list[0].split(',');
+  return titles.map((r) => r.trim().toLowerCase()).filter(Boolean);
 }
 
 // A bound is either an exact ISO instant (the chart sends the viewer's local day bounds) or a
 // calendar day YYYY-MM-DD, read as a whole UTC day; both ends are inclusive.
+// Date parsing rolls impossible values over (Feb 30 -> Mar 2), so check the parts survive
+const CALENDAR_PARTS = /^(\d{4})-(\d{2})-(\d{2})/;
+const CLOCK_PARTS = /T(\d{2}):(\d{2})(?::(\d{2}))?/;
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+
+function isRealCalendarDate(text) {
+  const [year, month, day] = text.match(CALENDAR_PARTS).slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function isRealClockTime(text) {
+  const [hours, minutes, seconds = 0] = text
+    .match(CLOCK_PARTS)
+    .slice(1)
+    .map((part) => Number(part || 0));
+  return hours < HOURS_PER_DAY && minutes < MINUTES_PER_HOUR && seconds < MINUTES_PER_HOUR;
+}
+
 function parseDateBound(value, endOfDay) {
   const text = String(value);
   if (DATE_TIME.test(text)) {
     const instant = new Date(text);
-    return Number.isNaN(instant.getTime()) ? null : instant;
+    const valid =
+      !Number.isNaN(instant.getTime()) && isRealCalendarDate(text) && isRealClockTime(text);
+    return valid ? instant : null;
   }
-  if (!DATE_ONLY.test(text) || Number.isNaN(Date.parse(text))) return null;
+  if (!DATE_ONLY.test(text) || !isRealCalendarDate(text)) return null;
   return new Date(`${text}${endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'}`);
 }
 
@@ -186,9 +242,13 @@ const analyticsController = function (
         return res.status(400).json({ error });
       }
 
+      const roles = parseRoles(req.query.roles);
+      if (!roles) {
+        return res.status(400).json({ error: 'roles must be a list of job titles.' });
+      }
+
       const query = range ? { submittedAt: range } : {};
       const applications = await JobApplication.find(query, PROFILE_PROJECTION).lean();
-      const roles = parseRoles(req.query.roles);
 
       return res.status(200).json(buildExperienceBreakdown(applications, roles));
     } catch (error) {
