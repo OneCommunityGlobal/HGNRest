@@ -97,6 +97,72 @@ const promotionEligibilityController = function (
     ]);
 
   /**
+   * Same week/PR counts as `weeklyReviewCounts`, but for many reviewers in one
+   * aggregation. `getPromotionPending` used to call the single-user pipeline
+   * once per active volunteer (thousands of round-trips); that made the modal
+   * take 15–20s for a tiny JSON payload.
+   *
+   * @param {Array<mongoose.Types.ObjectId|string>} userIds
+   * @returns {Promise<Map<string, Array<{year: number, week: number, reviewCount: number}>>>}
+   */
+  const weeklyReviewCountsByUserIds = async (userIds) => {
+    const objectIds = (userIds || [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => mongoose.Types.ObjectId(id));
+
+    const countsByUserId = new Map();
+    if (!objectIds.length) {
+      return countsByUserId;
+    }
+
+    const rows = await TimeEntry.aggregate([
+      {
+        $match: {
+          personId: { $in: objectIds },
+          isTangible: true,
+          taskId: { $ne: null },
+        },
+      },
+      { $lookup: { from: 'tasks', localField: 'taskId', foreignField: '_id', as: 'taskInfo' } },
+      { $unwind: '$taskInfo' },
+      { $match: { 'taskInfo.taskName': { $regex: /review|pr/i } } },
+      {
+        $group: {
+          _id: {
+            personId: '$personId',
+            year: { $year: { $toDate: '$dateOfWork' } },
+            week: { $week: { $toDate: '$dateOfWork' } },
+          },
+          reviewedTaskIds: { $addToSet: '$taskId' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          personId: '$_id.personId',
+          year: '$_id.year',
+          week: '$_id.week',
+          reviewCount: { $size: '$reviewedTaskIds' },
+        },
+      },
+      { $sort: { personId: 1, year: -1, week: -1 } },
+    ]);
+
+    rows.forEach((row) => {
+      const key = String(row.personId);
+      const list = countsByUserId.get(key) || [];
+      list.push({
+        year: row.year,
+        week: row.week,
+        reviewCount: row.reviewCount,
+      });
+      countsByUserId.set(key, list);
+    });
+
+    return countsByUserId;
+  };
+
+  /**
    * Resolve the "Review for This Week" group the caller asked to see.
    *
    * Returns null when the whole table is wanted, which is both the default and
@@ -792,15 +858,16 @@ const promotionEligibilityController = function (
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
-      const evaluated = await Promise.all(
-        users.map(async (user) => {
+      const weeklyCountsByUserId = await weeklyReviewCountsByUserIds(users.map((user) => user._id));
+
+      const pendingUsers = users
+        .map((user) => {
           const pledgedHours = user.weeklycommittedHours || 0;
           const { prsNeeded } = resolvePrsNeeded({
             committedHours: pledgedHours,
             existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
           });
-
-          const weeklyCounts = await weeklyReviewCounts(user._id);
+          const weeklyCounts = weeklyCountsByUserId.get(user._id.toString()) || [];
           const { remainingWeeks } = summariseWeeks({
             weeklyCounts,
             prsNeeded,
@@ -808,10 +875,8 @@ const promotionEligibilityController = function (
           });
 
           return { user, weeklyCounts, remainingWeeks };
-        }),
-      );
-
-      const pendingUsers = evaluated.filter((entry) => entry.remainingWeeks === 0);
+        })
+        .filter((entry) => entry.remainingWeeks === 0);
 
       const teamCodes = [
         ...new Set(
@@ -834,35 +899,40 @@ const promotionEligibilityController = function (
         leaderNameByCode = resolveTeamLeaderNames(leaders);
       }
 
-      const rows = await Promise.all(
-        pendingUsers.map(async ({ user, weeklyCounts }) => {
-          const teamCode = user.teamCode || '';
-          const teamLeaderName = leaderNameByCode.get(teamCode) || '';
-          const weeklyPRs = formatWeeklyPRs(weeklyCounts);
-          const prReviewer = `${user.firstName} ${user.lastName}`.trim();
+      const rows = pendingUsers.map(({ user, weeklyCounts }) => {
+        const teamCode = user.teamCode || '';
+        const teamLeaderName = leaderNameByCode.get(teamCode) || '';
+        const weeklyPRs = formatWeeklyPRs(weeklyCounts);
+        const prReviewer = `${user.firstName} ${user.lastName}`.trim();
 
-          await PromotionDetail.findOneAndUpdate(
-            { _id: user._id },
-            {
-              $set: {
-                reviewerName: prReviewer,
-                teamCode,
-                teamReviewerName: teamLeaderName,
-                weeklyPRs,
+        return {
+          reviewerId: user._id,
+          prReviewer,
+          teamCode,
+          teamLeaderName,
+          weeklyPRs,
+        };
+      });
+
+      if (rows.length) {
+        await PromotionDetail.bulkWrite(
+          rows.map((row) => ({
+            updateOne: {
+              filter: { _id: row.reviewerId },
+              update: {
+                $set: {
+                  reviewerName: row.prReviewer,
+                  teamCode: row.teamCode,
+                  teamReviewerName: row.teamLeaderName,
+                  weeklyPRs: row.weeklyPRs,
+                },
               },
+              upsert: true,
             },
-            { upsert: true, new: true },
-          );
-
-          return {
-            reviewerId: user._id,
-            prReviewer,
-            teamCode,
-            teamLeaderName,
-            weeklyPRs,
-          };
-        }),
-      );
+          })),
+          { ordered: false },
+        );
+      }
 
       return res.status(200).json(rows);
     } catch (error) {

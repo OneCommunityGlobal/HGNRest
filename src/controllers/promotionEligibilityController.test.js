@@ -9,6 +9,7 @@ jest.mock('../utilities/permissions', () => ({
 
 jest.mock('../models/promotionDetail', () => ({
   findOneAndUpdate: jest.fn().mockResolvedValue({}),
+  bulkWrite: jest.fn().mockResolvedValue({}),
 }));
 
 const mongoose = require('mongoose');
@@ -1440,6 +1441,7 @@ describe('getPromotionPending', () => {
     jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }).setSystemTime(NOW);
     hasPermission.mockResolvedValue(true);
     PromotionDetail.findOneAndUpdate.mockResolvedValue({});
+    PromotionDetail.bulkWrite.mockResolvedValue({});
 
     UserProfile = {
       find: jest.fn(() => ({
@@ -1447,15 +1449,12 @@ describe('getPromotionPending', () => {
       })),
     };
     TimeEntry = {
-      aggregate: jest
-        .fn()
-        // READY: two prior successful weeks → remainingWeeks 0
-        .mockResolvedValueOnce([
-          { year: 2026, week: 32, reviewCount: 7 },
-          { year: 2026, week: 31, reviewCount: 7 },
-        ])
-        // NOT_READY: one prior successful week → remainingWeeks 1
-        .mockResolvedValueOnce([{ year: 2026, week: 32, reviewCount: 7 }]),
+      // One batched aggregation for all candidate reviewers (not N per-user calls).
+      aggregate: jest.fn().mockResolvedValue([
+        { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+        { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
+        { personId: ID_NOT_READY, year: 2026, week: 32, reviewCount: 7 },
+      ]),
     };
     PromotionEligibility = {
       find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
@@ -1551,26 +1550,33 @@ describe('getPromotionPending', () => {
           ]),
       });
     TimeEntry.aggregate = jest.fn().mockResolvedValue([
-      { year: 2026, week: 32, reviewCount: 7 },
-      { year: 2026, week: 31, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
     ]);
 
     await controller.getPromotionPending(request(), mockRes);
 
-    expect(PromotionDetail.findOneAndUpdate).toHaveBeenCalledWith(
-      { _id: ID_READY },
-      {
-        $set: {
-          reviewerName: 'Akshay Jayaram',
-          teamCode: 'ABC12',
-          teamReviewerName: 'Chris Martinez',
-          weeklyPRs: [
-            { week: '2026-W31', count: 7 },
-            { week: '2026-W32', count: 7 },
-          ],
+    expect(PromotionDetail.bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: { _id: ID_READY },
+            update: {
+              $set: {
+                reviewerName: 'Akshay Jayaram',
+                teamCode: 'ABC12',
+                teamReviewerName: 'Chris Martinez',
+                weeklyPRs: [
+                  { week: '2026-W31', count: 7 },
+                  { week: '2026-W32', count: 7 },
+                ],
+              },
+            },
+            upsert: true,
+          },
         },
-      },
-      { upsert: true, new: true },
+      ],
+      { ordered: false },
     );
   });
 
@@ -1581,7 +1587,7 @@ describe('getPromotionPending', () => {
 
     expect(mockRes.status).toHaveBeenCalledWith(200);
     expect(rows()).toEqual([]);
-    expect(PromotionDetail.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(PromotionDetail.bulkWrite).not.toHaveBeenCalled();
   });
 
   it('drops a reviewer from the pending list once their role is Promoted Reviewer', async () => {
@@ -1600,8 +1606,8 @@ describe('getPromotionPending', () => {
           ]),
       });
     TimeEntry.aggregate = jest.fn().mockResolvedValue([
-      { year: 2026, week: 32, reviewCount: 7 },
-      { year: 2026, week: 31, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
     ]);
 
     await controller.getPromotionPending(request(), mockRes);
