@@ -81,6 +81,8 @@ const makeSut = () => {
     getTasksForTeamsByUser,
     updateTaskStatus,
     getResolvedTasks,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
   } = taskController(Task);
 
   return {
@@ -102,6 +104,8 @@ const makeSut = () => {
     getTasksForTeamsByUser,
     updateTaskStatus,
     getResolvedTasks,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
   };
 };
 
@@ -1739,7 +1743,110 @@ describe('Unit Tests for taskController.js', () => {
       expect(projectFindByIdSpy).toHaveBeenCalled();
     });
   });
+  describe('getTaskChangeLogs function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getTaskChangeLogs } = makeSut();
+      const originalQuery = { ...mockReq.query };
+      const originalParams = { ...mockReq.params };
+
+      mockReq.params.taskId = 'task123';
+      mockReq.query = {};
+
+      const changeLogs = [];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(changeLogs),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getTaskChangeLogs(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        taskId: 'task123',
+      });
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        changeLogs,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+      mockReq.params = originalParams;
+    });
+  });
+  describe('getUserTaskChangeLogs function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getUserTaskChangeLogs } = makeSut();
+      const originalQuery = { ...mockReq.query };
+      const originalParams = { ...mockReq.params };
+
+      mockReq.params.userId = 'user123';
+      mockReq.query = {};
+
+      const changeLogs = [];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(changeLogs),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getUserTaskChangeLogs(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        userId: 'user123',
+      });
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        changeLogs,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+      mockReq.params = originalParams;
+    });
+  });
   describe('getResolvedTasks function()', () => {
     beforeEach(() => {
       jest.clearAllMocks();
@@ -1799,7 +1906,42 @@ describe('Unit Tests for taskController.js', () => {
         },
       });
     });
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getResolvedTasks } = makeSut();
+      const originalQuery = { ...mockReq.query };
 
+      mockReq.query = {};
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getResolvedTasks(mockReq, mockRes);
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        tasks: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+    });
     test('Returns 500 when fetching resolved tasks fails', async () => {
       const { getResolvedTasks } = makeSut();
 
