@@ -254,9 +254,14 @@ const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
 
+  const timerResponse = JSON.parse(JSON.stringify(resp));
+  if (msg.action === action.STOP_TIMER && msg.requestId) {
+    timerResponse.requestId = msg.requestId;
+  }
+
   // Return both the timer response and any timelog event
   return {
-    timerResponse: JSON.stringify(resp),
+    timerResponse: JSON.stringify(timerResponse),
     timelogEvent: timelogEvent ? { ...timelogEvent, userId } : null,
   };
 };
