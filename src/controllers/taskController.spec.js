@@ -392,6 +392,187 @@ describe('Unit Tests for taskController.js', () => {
       projectFindByIdSpy.mockRestore();
       mockReq.body = originalBody;
     });
+    test('Return 400 when parent task does not exist', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'Child Task',
+        isActive: true,
+        mother: 'parent123',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValueOnce(null);
+
+      await postTask(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        error: 'Invalid parent task ID provided.',
+      });
+
+      mockReq.body = originalBody;
+      taskFindByIdSpy.mockRestore();
+    });
+    test('Return 201 when creating child task with existing siblings', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'Child Task',
+        isActive: true,
+        mother: 'parent123',
+        category: 'General',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const parentTask = {
+        _id: 'parent123',
+        level: 1,
+        num: '1',
+      };
+
+      const siblings = [{ num: '1.1' }, { num: '1.2' }];
+
+      const savedTask = {
+        _id: 'task123',
+      };
+
+      const populatedTask = {
+        _id: 'task123',
+        taskName: 'Child Task',
+      };
+
+      const taskFindByIdChain = {
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(populatedTask),
+      };
+
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValueOnce(parentTask)
+        .mockReturnValueOnce(taskFindByIdChain);
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(siblings);
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockResolvedValueOnce(savedTask);
+
+      const mockWbs = {
+        projectId: 'project123',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockProject = {
+        category: 'General',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWbs);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProject);
+
+      await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      expect(Task.find).toHaveBeenCalledWith({ mother: 'parent123' });
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(populatedTask);
+
+      taskFindByIdSpy.mockRestore();
+      taskFindSpy.mockRestore();
+      taskSaveSpy.mockRestore();
+      wbsFindByIdSpy.mockRestore();
+      projectFindByIdSpy.mockRestore();
+      mockReq.body = originalBody;
+    });
+    test('Return 201 when creating first child task under a parent', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'First Child Task',
+        isActive: true,
+        mother: 'parent123',
+        category: 'General',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const parentTask = {
+        _id: 'parent123',
+        level: 1,
+        num: '1',
+      };
+
+      const savedTask = {
+        _id: 'task123',
+      };
+
+      const populatedTask = {
+        _id: 'task123',
+        taskName: 'First Child Task',
+      };
+
+      const taskFindByIdChain = {
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(populatedTask),
+      };
+
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValueOnce(parentTask)
+        .mockReturnValueOnce(taskFindByIdChain);
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce([]);
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockResolvedValueOnce(savedTask);
+
+      const mockWbs = {
+        projectId: 'project123',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockProject = {
+        category: 'General',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWbs);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProject);
+
+      await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      expect(Task.find).toHaveBeenCalledWith({ mother: 'parent123' });
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(populatedTask);
+
+      taskFindByIdSpy.mockRestore();
+      taskFindSpy.mockRestore();
+      taskSaveSpy.mockRestore();
+      wbsFindByIdSpy.mockRestore();
+      projectFindByIdSpy.mockRestore();
+      mockReq.body = originalBody;
+    });
     // TODO: Fix
     // ... (unchanged commented tests)
   });
