@@ -556,16 +556,13 @@ const taskController = function (Task) {
       });
 
       const saveTask = _task.save();
-      const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-      const saveProject = (async () => {
-        const currentwbs = await WBS.findById(wbsId);
-        const currentProject = await Project.findById(currentwbs.projectId);
-        currentProject.modifiedDatetime = Date.now();
-        return currentProject.save();
-      })();
+      const currentWbs = await WBS.findById(wbsId);
+      currentWbs.modifiedDatetime = Date.now();
+      const saveWbs = currentWbs.save();
+
+      const currentProject = await Project.findById(currentWbs.projectId);
+      currentProject.modifiedDatetime = Date.now();
+      const saveProject = currentProject.save();
 
       Promise.all([saveTask, saveWbs, saveProject])
         .then(async ([savedTask]) => {
@@ -1331,6 +1328,7 @@ const taskController = function (Task) {
         currentProject.save(),
         Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime }),
       ]);
+
       return res.status(201).send();
     } catch (error) {
       return res.status(404).send(error);
@@ -1469,8 +1467,8 @@ const taskController = function (Task) {
   const getTaskChangeLogs = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ taskId })
@@ -1497,12 +1495,57 @@ const taskController = function (Task) {
     }
   };
 
+  const getResolvedTasks = async (req, res) => {
+    try {
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'taskId',
+          select: 'taskName num resources projectId',
+          populate: {
+            path: 'resources.userID',
+            model: 'userProfile',
+            select: 'email',
+          },
+        })
+        .populate('userId', 'firstName lastName email')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      res.status(200).json({
+        tasks: changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching resolved tasks:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   // New endpoint to get change logs for a user across all tasks
   const getUserTaskChangeLogs = async (req, res) => {
     try {
       const { userId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ userId })
@@ -1564,6 +1607,7 @@ const taskController = function (Task) {
     fixTaskOverrides,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    getResolvedTasks,
     replicateTasks,
   };
 };
