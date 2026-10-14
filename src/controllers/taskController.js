@@ -16,18 +16,23 @@ const taskController = function (Task) {
   const canSeeTaskExtensionCount = async (requestor) =>
     await hasPermission(requestor, 'seeNumberOfTimesTimeAdded');
 
-  const removeTaskExtensionCounts = (value) => {
+  const stripDeadlineCounts = (value) => {
     if (Array.isArray(value)) {
-      value.forEach(removeTaskExtensionCounts);
-      return value;
+      value.forEach(stripDeadlineCounts);
+    } else if (value && typeof value === 'object') {
+      delete value.deadlineCount;
+      Object.values(value).forEach(stripDeadlineCounts);
     }
-    if (value && typeof value === 'object') {
-      if (Object.prototype.hasOwnProperty.call(value, 'deadlineCount')) {
-        delete value.deadlineCount;
-      }
-      Object.values(value).forEach(removeTaskExtensionCounts);
-    }
-    return value;
+  };
+
+  // Returns a plain copy without deadlineCount. Mongoose documents point back at their
+  // parents, so walking them directly recursed forever (400 on every volunteer dashboard);
+  // the JSON copy is what res.send would serialize anyway and has no cycles.
+  const removeTaskExtensionCounts = (value) => {
+    if (value === undefined || value === null) return value;
+    const plain = JSON.parse(JSON.stringify(value));
+    stripDeadlineCounts(plain);
+    return plain;
   };
   const getTasks = async (req, res) => {
     const { level } = req.params;
@@ -1095,9 +1100,8 @@ const taskController = function (Task) {
       });
 
       const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
-      if (!canSeeCount) removeTaskExtensionCounts(task);
 
-      return res.status(200).send(task);
+      return res.status(200).send(canSeeCount ? task : removeTaskExtensionCounts(task));
     } catch (error) {
       return res.status(500).send({ error: 'Internal Server Error', details: error.message });
     }
