@@ -18,10 +18,18 @@ const {
   isValidRating,
   groupEntriesByWeek,
 } = require('../helpers/prEntryHelper');
+const {
+  TEAM_LEADER_ROLES,
+  formatWeeklyPRs,
+  resolveTeamLeaderNames,
+} = require('../helpers/promotionPendingHelper');
+const PromotionDetail = require('../models/promotionDetail');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PROMOTED_ROLE = 'Promoted Reviewer';
+
+const PENDING_EXCLUDED_ROLES = ['Owner', 'Administrator', PROMOTED_ROLE];
 
 /**
  * Upper bound on a single bulk PR entries read. The active table is about
@@ -748,6 +756,121 @@ const promotionEligibilityController = function (
     }
   };
 
+  /**
+   * Reviewers ready for the confirmation modal: remainingWeeks === 0 and not
+   * already a Promoted Reviewer. Returns the DisplayBox row shape and upserts
+   * PromotionDetail so GET /promotion-details/:id stops 404ing for those ids.
+   *
+   * POST (not GET) for the same requestor-in-body reason as the dashboard read.
+   */
+  const getPromotionPending = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to view pending promotions.');
+    }
+
+    try {
+      const now = new Date();
+      const currentWeek = mongoWeekOf(now);
+
+      const users = await UserProfile.find(
+        {
+          isActive: true,
+          role: { $nin: PENDING_EXCLUDED_ROLES },
+        },
+        '_id firstName lastName weeklycommittedHours teamCode role',
+      ).lean();
+
+      if (!users.length) {
+        return res.status(200).json([]);
+      }
+
+      const existingRecords = await PromotionEligibility.find(
+        { reviewerId: { $in: users.map((user) => user._id) } },
+        'reviewerId pledgedHours prsNeededOverride',
+      ).lean();
+      const recordsByReviewerId = new Map(
+        existingRecords.map((record) => [record.reviewerId.toString(), record]),
+      );
+
+      const evaluated = await Promise.all(
+        users.map(async (user) => {
+          const pledgedHours = user.weeklycommittedHours || 0;
+          const { prsNeeded } = resolvePrsNeeded({
+            committedHours: pledgedHours,
+            existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
+          });
+
+          const weeklyCounts = await weeklyReviewCounts(user._id);
+          const { remainingWeeks } = summariseWeeks({
+            weeklyCounts,
+            prsNeeded,
+            currentWeek,
+          });
+
+          return { user, weeklyCounts, remainingWeeks };
+        }),
+      );
+
+      const pendingUsers = evaluated.filter((entry) => entry.remainingWeeks === 0);
+
+      const teamCodes = [
+        ...new Set(
+          pendingUsers
+            .map((entry) => entry.user.teamCode)
+            .filter((code) => typeof code === 'string' && code.trim() !== ''),
+        ),
+      ];
+
+      let leaderNameByCode = new Map();
+      if (teamCodes.length) {
+        const leaders = await UserProfile.find(
+          {
+            teamCode: { $in: teamCodes },
+            isActive: true,
+            role: { $in: TEAM_LEADER_ROLES },
+          },
+          'firstName lastName teamCode role',
+        ).lean();
+        leaderNameByCode = resolveTeamLeaderNames(leaders);
+      }
+
+      const rows = await Promise.all(
+        pendingUsers.map(async ({ user, weeklyCounts }) => {
+          const teamCode = user.teamCode || '';
+          const teamLeaderName = leaderNameByCode.get(teamCode) || '';
+          const weeklyPRs = formatWeeklyPRs(weeklyCounts);
+          const prReviewer = `${user.firstName} ${user.lastName}`.trim();
+
+          await PromotionDetail.findOneAndUpdate(
+            { _id: user._id },
+            {
+              $set: {
+                reviewerName: prReviewer,
+                teamCode,
+                teamReviewerName: teamLeaderName,
+                weeklyPRs,
+              },
+            },
+            { upsert: true, new: true },
+          );
+
+          return {
+            reviewerId: user._id,
+            prReviewer,
+            teamCode,
+            teamLeaderName,
+            weeklyPRs,
+          };
+        }),
+      );
+
+      return res.status(200).json(rows);
+    } catch (error) {
+      logger.logException(error, { endpoint: 'getPromotionPending' });
+      return res.status(500).send('Error fetching pending promotions.');
+    }
+  };
+
   const promoteMembers = async (req, res) => {
     if (!(await hasPermission(req.body.requestor, 'putUserProfile'))) {
       return res.status(403).send('You are not authorized to promote members.');
@@ -907,6 +1030,7 @@ const promotionEligibilityController = function (
 
   return {
     getPromotionEligibilityData,
+    getPromotionPending,
     updatePrsNeeded,
     getPrRatings,
     getPrEntries,
