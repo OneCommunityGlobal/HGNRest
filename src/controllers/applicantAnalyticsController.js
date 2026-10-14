@@ -1,11 +1,176 @@
 const geoIP = require('geoip-lite');
 const fallbackApplicantSources = require('../data/applicantSourcesFallback.json');
 
+// Same buckets the chart always used: a value on a boundary falls in the lower bucket
+const EXPERIENCE_BUCKETS = [
+  { label: '0-1 years', maxYears: 1 },
+  { label: '1-3 years', maxYears: 3 },
+  { label: '3-5 years', maxYears: 5 },
+  { label: '5+ years', maxYears: Infinity },
+];
+const EXPERIENCE_CATEGORIES = EXPERIENCE_BUCKETS.map((b) => b.label);
+// "5+" means more than 5, so nudge it past the boundary into the next bucket
+const MORE_THAN_NUDGE_YEARS = 0.5;
+const MONTHS_PER_YEAR = 12;
+// Anything above this is treated as a typo rather than a career length
+const MAX_PLAUSIBLE_YEARS = 60;
+const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
+const YEARS_UNIT = '(?:years?|yrs?|y)?';
+// "2", "2 years", "2 yrs", "5+", "5+ years", "5 + yrs"
+const PLAIN_YEARS = new RegExp(String.raw`^${NUMBER}\s*(\+)?\s*${YEARS_UNIT}\s*(\+)?$`, 'i');
+// "6 months", "18 mos"
+const MONTHS = new RegExp(String.raw`^${NUMBER}\s*(?:months?|mos?)$`, 'i');
+// "1-3 years", "3 - 5", "3–5 years", "2 to 4 yrs" (a dropdown option)
+const RANGE_YEARS = new RegExp(
+  String.raw`^${NUMBER}\s*(?:-|–|—|to)\s*${NUMBER}\s*${YEARS_UNIT}$`,
+  'i',
+);
+const PERCENT = 100;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+// Only the applicant's profile answer is needed, not every free-text answer
+const PROFILE_PROJECTION = {
+  submittedAt: 1,
+  answers: { $elemMatch: { 'answer.type': 'applicantProfile' } },
+};
+
+const canViewApplicantAnalytics = (requestor) =>
+  requestor && (requestor.role === 'Owner' || requestor.role === 'Administrator');
+
+// Years come from a free-text answer or a dropdown option. Only clear shapes are read;
+// anything else ("about 3", "1,5") counts as not reported rather than being guessed.
+// A range goes to the bucket its midpoint falls in, so "1-3 years" lands in 1-3.
+function parseExperienceYears(text) {
+  const plain = text.match(PLAIN_YEARS);
+  if (plain) {
+    const moreThan = Boolean(plain[2] || plain[3]);
+    return Number(plain[1]) + (moreThan ? MORE_THAN_NUDGE_YEARS : 0);
+  }
+  const months = text.match(MONTHS);
+  if (months) return Number(months[1]) / MONTHS_PER_YEAR;
+  const range = text.match(RANGE_YEARS);
+  if (range && Number(range[1]) < Number(range[2])) {
+    return (Number(range[1]) + Number(range[2])) / 2;
+  }
+  return null;
+}
+
+function toExperienceYears(raw) {
+  if (raw === null || raw === undefined) return null;
+  const years = parseExperienceYears(String(raw).trim());
+  return years !== null && years <= MAX_PLAUSIBLE_YEARS ? years : null;
+}
+
+function experienceCategory(years) {
+  return EXPERIENCE_BUCKETS.find((bucket) => years <= bucket.maxYears).label;
+}
+
+function getApplicantProfile(application) {
+  const entry = (application.answers || []).find(
+    (a) => a && a.answer && a.answer.type === 'applicantProfile',
+  );
+  return entry ? entry.answer : {};
+}
+
+// Returns null when roles isn't a string or a list of strings (e.g. ?roles[0][a]=1)
+function parseRoles(roles) {
+  if (!roles) return [];
+  const list = Array.isArray(roles) ? roles : [roles];
+  if (!list.every((r) => typeof r === 'string')) return null;
+  // A single string may hold several comma-separated titles; send a list for titles with commas
+  const titles = Array.isArray(roles) ? list : list[0].split(',');
+  return titles.map((r) => r.trim().toLowerCase()).filter(Boolean);
+}
+
+// A bound is either an exact ISO instant (the chart sends the viewer's local day bounds) or a
+// calendar day YYYY-MM-DD, read as a whole UTC day; both ends are inclusive.
+// Date parsing rolls impossible values over (Feb 30 -> Mar 2), so check the parts survive
+const CALENDAR_PARTS = /^(\d{4})-(\d{2})-(\d{2})/;
+const CLOCK_PARTS = /T(\d{2}):(\d{2})(?::(\d{2}))?/;
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+
+function isRealCalendarDate(text) {
+  const [year, month, day] = text.match(CALENDAR_PARTS).slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function isRealClockTime(text) {
+  const [hours, minutes, seconds = 0] = text
+    .match(CLOCK_PARTS)
+    .slice(1)
+    .map((part) => Number(part || 0));
+  return hours < HOURS_PER_DAY && minutes < MINUTES_PER_HOUR && seconds < MINUTES_PER_HOUR;
+}
+
+function parseDateBound(value, endOfDay) {
+  const text = String(value);
+  if (DATE_TIME.test(text)) {
+    const instant = new Date(text);
+    const valid =
+      !Number.isNaN(instant.getTime()) && isRealCalendarDate(text) && isRealClockTime(text);
+    return valid ? instant : null;
+  }
+  if (!DATE_ONLY.test(text) || !isRealCalendarDate(text)) return null;
+  return new Date(`${text}${endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'}`);
+}
+
+function parseDateRange(startDate, endDate) {
+  if (!startDate && !endDate) return {};
+  const range = {};
+  if (startDate) {
+    range.$gte = parseDateBound(startDate, false);
+    if (!range.$gte)
+      return { error: 'startDate must be a valid date (YYYY-MM-DD or ISO date-time).' };
+  }
+  if (endDate) {
+    range.$lte = parseDateBound(endDate, true);
+    if (!range.$lte)
+      return { error: 'endDate must be a valid date (YYYY-MM-DD or ISO date-time).' };
+  }
+  if (range.$gte && range.$lte && range.$gte > range.$lte) {
+    return { error: 'startDate must be on or before endDate.' };
+  }
+  return { range };
+}
+
+function buildExperienceBreakdown(applications, roles) {
+  const counts = Object.fromEntries(EXPERIENCE_CATEGORIES.map((c) => [c, 0]));
+  let notReported = 0;
+
+  applications.forEach((application) => {
+    const profile = getApplicantProfile(application);
+    const jobTitle = String(profile.jobTitle || '')
+      .trim()
+      .toLowerCase();
+    if (roles.length && !roles.includes(jobTitle)) return;
+
+    const years = toExperienceYears(profile.fullTimeYears);
+    if (years === null) {
+      notReported += 1;
+      return;
+    }
+    counts[experienceCategory(years)] += 1;
+  });
+
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  const breakdown = total
+    ? EXPERIENCE_CATEGORIES.map((experience) => ({
+        experience,
+        count: counts[experience],
+        percentage: Number(((counts[experience] / total) * PERCENT).toFixed(1)),
+      }))
+    : [];
+  return { breakdown, total, notReported };
+}
+
 const analyticsController = function (
   Applicant,
   AnonymousInteraction,
   AnonymousApplication,
   AnalyticsSummary,
+  JobApplication,
 ) {
   // Helper function to extract location from request
   const getLocationFromRequest = (req) => {
@@ -64,83 +229,28 @@ const analyticsController = function (
     }
   };
 
-  // Experience breakdown - shows all-time data (roles filtering supported)
+  // Experience breakdown of real job applications, filterable by submission date and role
   const getExperienceBreakdown = async (req, res) => {
     try {
       // Check admin/owner permissions
-      if (req.body.requestor.role !== 'Owner' && req.body.requestor.role !== 'Administrator') {
+      if (!canViewApplicantAnalytics(req.body.requestor)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      const { roles } = req.query;
-      const pipeline = [];
-
-      // Filter by roles only
-      if (roles) {
-        const rolesArray = Array.isArray(roles) ? roles : roles.split(',');
-        pipeline.push({
-          $match: {
-            roles: { $in: rolesArray },
-          },
-        });
+      const { range, error } = parseDateRange(req.query.startDate, req.query.endDate);
+      if (error) {
+        return res.status(400).json({ error });
       }
 
-      // Add experience category
-      pipeline.push({
-        $addFields: {
-          experienceCategory: {
-            $switch: {
-              branches: [
-                { case: { $lte: ['$experience', 1] }, then: '0-1 years' },
-                {
-                  case: {
-                    $and: [{ $gt: ['$experience', 1] }, { $lte: ['$experience', 3] }],
-                  },
-                  then: '1-3 years',
-                },
-                {
-                  case: {
-                    $and: [{ $gt: ['$experience', 3] }, { $lte: ['$experience', 5] }],
-                  },
-                  then: '3-5 years',
-                },
-              ],
-              default: '5+ years',
-            },
-          },
-        },
-      });
-
-      // Group by category
-      pipeline.push({
-        $group: {
-          _id: '$experienceCategory',
-          count: { $sum: 1 },
-        },
-      });
-
-      // Final format
-      pipeline.push({
-        $project: {
-          _id: 0,
-          experience: '$_id',
-          count: 1,
-        },
-      });
-
-      const breakdown = await Applicant.aggregate(pipeline);
-
-      if (!breakdown.length) {
-        return res.status(404).json({ message: 'No Data Available' });
+      const roles = parseRoles(req.query.roles);
+      if (!roles) {
+        return res.status(400).json({ error: 'roles must be a list of job titles.' });
       }
 
-      const total = breakdown.reduce((sum, item) => sum + item.count, 0);
-      const data = breakdown.map((item) => ({
-        ...item,
-        percentage: ((item.count / total) * 100).toFixed(2),
-      }));
+      const query = range ? { submittedAt: range } : {};
+      const applications = await JobApplication.find(query, PROFILE_PROJECTION).lean();
 
-      return res.status(200).json(data);
+      return res.status(200).json(buildExperienceBreakdown(applications, roles));
     } catch (error) {
       console.error('Error fetching experience breakdown:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -633,9 +743,19 @@ const analyticsController = function (
     }
   };
 
+  // Job titles applicants applied for, for the experience chart's role filter
   const getAllRoles = async (req, res) => {
     try {
-      const roles = await Applicant.distinct('roles');
+      if (!canViewApplicantAnalytics(req.body && req.body.requestor)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const applications = await JobApplication.find({}, PROFILE_PROJECTION).lean();
+      const titles = new Map();
+      applications.forEach((application) => {
+        const title = String(getApplicantProfile(application).jobTitle || '').trim();
+        if (title && !titles.has(title.toLowerCase())) titles.set(title.toLowerCase(), title);
+      });
+      const roles = [...titles.values()].sort((a, b) => a.localeCompare(b));
       return res.status(200).json(roles);
     } catch (error) {
       console.error('Error fetching roles:', error);
