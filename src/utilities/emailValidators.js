@@ -1,4 +1,4 @@
-const { domainToASCII } = require('url');
+const { domainToASCII } = require('node:url');
 const { EMAIL_CONFIG } = require('../config/emailConfig');
 const { IANA_TLDS } = require('./ianaTlds');
 
