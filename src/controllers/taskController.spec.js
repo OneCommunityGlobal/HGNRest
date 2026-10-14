@@ -1355,6 +1355,50 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(200, mockData, response, mockRes);
     });
 
+    // Mongoose documents keep references back to their parents; toJSON drops them
+    const makeCyclicMember = () => {
+      const team = { toJSON: () => ({ _id: 't1', teamName: 'Team' }) };
+      team.$parent = team;
+      return {
+        personId: 'u1',
+        teams: [team],
+        tasks: [{ _id: 'k1', taskName: 'A', deadlineCount: 3 }],
+      };
+    };
+
+    test('Returns 200 without deadlineCount for cyclic documents when the user lacks the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce([makeCyclicMember()]);
+      hasPermission.mockResolvedValue(false);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith([
+        {
+          personId: 'u1',
+          teams: [{ _id: 't1', teamName: 'Team' }],
+          tasks: [{ _id: 'k1', taskName: 'A' }],
+        },
+      ]);
+    });
+
+    test('Keeps deadlineCount for users with the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      const data = [makeCyclicMember()];
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce(data);
+      hasPermission.mockResolvedValue(true);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send.mock.calls.at(-1)[0][0].tasks[0].deadlineCount).toBe(3);
+    });
+
     test('Returns 200 on success - getTasksForTeamsByUser', async () => {
       mockReq.params.userId = 1234;
       const mockData = ['mockData'];
