@@ -15,7 +15,7 @@ const MONTHS_PER_YEAR = 12;
 // Anything above this is treated as a typo rather than a career length
 const MAX_PLAUSIBLE_YEARS = 60;
 const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
-const YEARS_UNIT = String.raw`(?:years?|yrs?|y)?`;
+const YEARS_UNIT = '(?:years?|yrs?|y)?';
 // "2", "2 years", "2 yrs", "5+", "5+ years", "5 + yrs"
 const PLAIN_YEARS = new RegExp(String.raw`^${NUMBER}\s*(\+)?\s*${YEARS_UNIT}\s*(\+)?$`, 'i');
 // "6 months", "18 mos"
