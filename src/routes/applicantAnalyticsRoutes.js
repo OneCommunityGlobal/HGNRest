@@ -15,6 +15,7 @@ const {
   trackApplication,
   getInteractionSummary,
   getConversionMetrics,
+  getDeviceBreakdown,
   triggerAggregation,
 } = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
 
@@ -29,6 +30,7 @@ router.post('/track-application', trackApplication);
 // admin only - auth handled in controller
 router.get('/summary', getInteractionSummary);
 router.get('/conversions', getConversionMetrics);
+router.get('/device-breakdown', getDeviceBreakdown);
 
 // Manual aggregation trigger (admin only - backup for cron job)
 router.post('/trigger-aggregation', triggerAggregation);
