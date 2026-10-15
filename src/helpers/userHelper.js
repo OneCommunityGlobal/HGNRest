@@ -17,12 +17,15 @@ const sharp = require('sharp');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const { v4: uuidv4 } = require('uuid');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
+const currentWarnings = require('../models/currentWarnings');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
+const warningsHelper = require('./warningsHelper');
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
@@ -37,6 +40,7 @@ const Team = require('../models/team');
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
 const { COMPANY_TZ } = require('../constants/company');
+const { MONITOR_CONTACT_CONFIG } = require('../config/monitorContactConfig');
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -164,6 +168,23 @@ const userHelper = function () {
       )
       .exec();
   };
+
+  // helper to get the team members admin emails
+  async function getUserRoleByEmail(user) {
+    const recipients = ['jae@onecommunityglobal.org'];
+
+    for (const teamId of user.teams) {
+      // eslint-disable-next-line no-await-in-loop
+      const managementEmails = await getTeamManagementEmail(teamId);
+      if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+        managementEmails.forEach((management) => {
+          recipients.push(management.email);
+        });
+      }
+    }
+
+    return [...new Set(recipients)];
+  }
 
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -307,6 +328,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Name:</b> ${firstName} ${lastName}</p>
         <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -356,7 +378,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       // After:
@@ -582,7 +604,7 @@ const userHelper = function () {
       person.totalIntangibleHrs === 0 &&
       timeSpent === 0 &&
       userStartDate.isAfter(pdtStartOfLastWeek) &&
-      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1 // only Tuesday+ gets a pass
+      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2 // only Wednesday+ gets a pass
     ) {
       return true;
     }
@@ -591,7 +613,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2) // ← > 2 means after Tuesday
     ) {
       return true;
     }
@@ -670,6 +692,7 @@ const userHelper = function () {
     user,
     pdtStartOfLastWeek,
     pdtEndOfLastWeek,
+    emailsCCs,
     emailsBCCs,
     emailQueue,
     usersRequiringBlueSqNotification,
@@ -823,7 +846,7 @@ const userHelper = function () {
           to: status.email,
           subject: 'New Infringement Assigned',
           body: emailBody,
-          cc: DEFAULT_CC_EMAILS,
+          cc: emailsCCs,
           replyTo: status.email,
           bcc: emailsBCCs,
           startDate: person.startDate,
@@ -848,7 +871,7 @@ const userHelper = function () {
   };
 
   // ─── Main function (now lean orchestrator) ───────────────────────────────────
-  const assignBlueSquareForTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
@@ -860,20 +883,19 @@ const userHelper = function () {
       const pdtStartOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week');
       const pdtEndOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
       const users = await userProfile.find(
-        { isActive: true },
+        query,
         '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
 
-      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-      const emailsBCCs =
-        blueSquareBCCs.length > 0
-          ? blueSquareBCCs
-              .filter((assignment) => assignment.assignedTo?.isActive === true)
-              .map((assignment) => assignment.email)
-          : null;
+      const resolvedCCs = resolveCCs(emailConfig);
 
-      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+      const resolvedBCCs = await resolveBCCs(emailConfig);
+
+      console.log('Email BCCs for blue square assignment:', resolvedBCCs);
 
       const emailQueue = [];
       const usersRequiringBlueSqNotification = [];
@@ -888,7 +910,8 @@ const userHelper = function () {
           users[i],
           pdtStartOfLastWeek,
           pdtEndOfLastWeek,
-          emailsBCCs,
+          resolvedCCs,
+          resolvedBCCs,
           emailQueue,
           usersRequiringBlueSqNotification,
         );
@@ -912,7 +935,9 @@ const userHelper = function () {
         );
       }
 
-      await deleteOldTimeOffRequests();
+      if (!emailConfig.targetUserId) {
+        await deleteOldTimeOffRequests();
+      }
 
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
@@ -929,13 +954,15 @@ const userHelper = function () {
     }
 
     // Process weekly summaries for inactive users
-    try {
-      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
-      for (const user of inactiveUsers) {
-        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+    if (!emailConfig.targetUserId) {
+      try {
+        const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
+        for (const user of inactiveUsers) {
+          await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+        }
+      } catch (err) {
+        logger.logException(err);
       }
-    } catch (err) {
-      logger.logException(err);
     }
   };
 
@@ -1132,6 +1159,14 @@ const userHelper = function () {
   };
 
   /**
+   * Returns CC list: override if provided, else defaults.
+   */
+  const resolveCCs = (emailConfig) => {
+    if (emailConfig.ccOverride) return emailConfig.ccOverride;
+    return DEFAULT_CC_EMAILS;
+  };
+
+  /**
    * Sends a blue-square reply email with standard subject/cc/bcc.
    */
   const sendBlueSquareEmail = async (emailConfig, user, weekStart, bodyHtml, resolvedBCCs) => {
@@ -1266,8 +1301,12 @@ const userHelper = function () {
         : { isActive: true };
       const users = await userProfile.find(
         query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq',
+        '_id weeklycommittedHours missedHours email firstName lastName teams infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
       );
+
+      const currentWarningDescriptions = await currentWarnings
+        .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+        .sort({ order: 1 });
 
       const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
       // Compute once — all blue squares from this Sunday's assignment run share this date
@@ -1291,7 +1330,9 @@ const userHelper = function () {
 
         const numMonths = getNumMonthsOnTeam(user);
         const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
+        const hasTodayBlueSquare = user.infringements.some(
+          (inf) => inf.date === assignmentDate && inf.manuallyAssigned === false,
+        );
 
         const templateKey = resolveAutoReplyTemplate(
           timeSpent,
@@ -1305,6 +1346,134 @@ const userHelper = function () {
         if (!templateKey) continue;
 
         console.log(`[autoReply] ${user.email} → ${templateKey}`);
+
+        // Remove the blue square from the database if hours were close enough
+        if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
+          const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+
+          const occurrence =
+            (user.warnings?.filter((w) => w.description === WARNING_DESC).length ?? 0) + 1;
+
+          let color = 'blue';
+          if (occurrence === 3) color = 'yellow';
+          else if (occurrence >= 4) color = 'red';
+          const issueBlueSquare = occurrence >= 4;
+
+          const newWarning = {
+            _id: new mongoose.Types.ObjectId(),
+            iconId: uuidv4(),
+            color,
+            date: assignmentDate,
+            description: WARNING_DESC,
+            warningId: currentWarningDescriptions.find((w) => w.warningTitle === WARNING_DESC)?._id,
+          };
+
+          const replacementSquares = issueBlueSquare
+            ? [
+                {
+                  _id: new mongoose.Types.ObjectId(),
+                  date: assignmentDate,
+                  description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
+                  createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
+                  manuallyAssigned: false,
+                  reason: 'missingHours',
+                  reasons: ['time not met'],
+                  editedBy: [],
+                },
+              ]
+            : [];
+
+          const updatedUser = await userProfile.findOneAndUpdate(
+            {
+              _id: user._id,
+              // system square for this week must still exist
+              infringements: {
+                $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
+              },
+              // and this week's warning must not have been recorded yet
+              warnings: {
+                $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+              },
+            },
+            [
+              {
+                $set: {
+                  infringements: {
+                    $concatArrays: [
+                      {
+                        $filter: {
+                          input: { $ifNull: ['$infringements', []] },
+                          cond: {
+                            $not: {
+                              $and: [
+                                { $eq: ['$$this.date', assignmentDate] },
+                                { $ne: ['$$this.manuallyAssigned', true] },
+                              ],
+                            },
+                          },
+                        },
+                      },
+                      replacementSquares, // empty unless 4th+ offense
+                    ],
+                  },
+                  warnings: { $concatArrays: [{ $ifNull: ['$warnings', []] }, [newWarning]] },
+                },
+              },
+              { $set: { infringementCount: { $size: '$infringements' } } },
+            ],
+            { new: true },
+          );
+
+          // Another run (cron/manual) already claimed this user/week, or nothing to remove
+          if (!updatedUser) continue;
+
+          // ---- State is fully committed. Emails below can fail without corrupting data ----
+          try {
+            const { sendEmail, size } = warningsHelper.filterWarnings(
+              currentWarningDescriptions,
+              updatedUser.warnings,
+              newWarning.iconId,
+              color,
+            );
+            if (sendEmail !== null) {
+              const adminEmails = await getUserRoleByEmail(user);
+              await warningsHelper.sendEmailToUser(
+                sendEmail,
+                'Removed Blue Square for Hours Close Enough',
+                { firstName: user.firstName, lastName: user.lastName, email: user.email },
+                {
+                  firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
+                  lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
+                  email: MONITOR_CONTACT_CONFIG.EMAIL,
+                },
+                size,
+                adminEmails,
+              );
+            }
+          } catch (err) {
+            console.error(`[autoReply] warning email failed for ${user.email}:`, err);
+          }
+
+          if (issueBlueSquare) {
+            try {
+              await notifyInfringements(
+                user.infringements || [],
+                updatedUser.infringements,
+                updatedUser.firstName,
+                updatedUser.lastName,
+                updatedUser.email,
+                updatedUser.role,
+                updatedUser.startDate,
+                updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
+                updatedUser.weeklycommittedHours,
+              );
+            } catch (err) {
+              console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
+            }
+            continue; // skip the "close enough" template on a 4th+ offense
+          }
+        }
+
         await sendBlueSquareEmail(
           emailConfig,
           user,
@@ -3497,6 +3666,7 @@ const userHelper = function () {
     checkLeadTeamOfXplus,
     checkMostHrsWeek,
     checkXHrsInOneWeek,
+    checkIsNewUser,
     updatePersonalMax,
     getAllTeamMembers,
     getAllWeeksData,
@@ -3514,6 +3684,7 @@ const userHelper = function () {
     sendUserCancelledSeparationEmail,
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
+    getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
   };

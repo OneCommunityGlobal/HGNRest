@@ -1,11 +1,16 @@
-const titleController = require('./titleController');
-
-// Mock dependencies
+const mockGetAllTeamCodeHelper = jest.fn();
+// Mock Dependencies
 jest.mock('../models/team');
 jest.mock('../models/project');
 jest.mock('../utilities/nodeCache');
-jest.mock('./userProfileController');
+jest.mock('./userProfileController', () =>
+  jest.fn(() => ({
+    getAllTeamCodeHelper: mockGetAllTeamCodeHelper,
+  })),
+);
 jest.mock('../models/userProfile');
+
+const titleController = require('./titleController');
 
 describe('TitleController', () => {
   let mockTitle;
@@ -33,9 +38,13 @@ describe('TitleController', () => {
 
     // Mock Project model
     mockProject = {
-      findOne: jest.fn().mockReturnThis(),
+      findOne: jest.fn(),
       exec: jest.fn(),
     };
+
+    mockProject.findOne.mockImplementation(() => ({
+      exec: mockProject.exec,
+    }));
 
     // Mock cache
     mockCache = {
@@ -45,7 +54,7 @@ describe('TitleController', () => {
 
     // Mock userProfileController
     mockUserProfileController = {
-      getAllTeamCodeHelper: jest.fn(),
+      getAllTeamCodeHelper: mockGetAllTeamCodeHelper,
     };
 
     // Mock userProfile model
@@ -60,8 +69,8 @@ describe('TitleController', () => {
     const cacheClosure = require('../utilities/nodeCache');
     cacheClosure.mockReturnValue(mockCache);
 
-    const userProfileController = require('./userProfileController');
-    userProfileController.mockReturnValue(mockUserProfileController);
+    // const userProfileController = require('./userProfileController');
+    // userProfileController.mockReturnValue(mockUserProfileController);
 
     const userProfile = require('../models/userProfile');
     userProfile.updateMany = mockUserProfile.updateMany;
@@ -111,9 +120,10 @@ describe('TitleController', () => {
 
   describe('postTitle', () => {
     beforeEach(() => {
-      // Mock successful validation
-      mockUserProfileController.getAllTeamCodeHelper.mockResolvedValue(['TEAM1', 'TEAM2']);
-      mockProject.findOne().exec.mockResolvedValue({ _id: 'project123' });
+      mockGetAllTeamCodeHelper.mockResolvedValue(['TEAM1', 'TEAM2']);
+      mockProject.exec.mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+      });
     });
 
     it('should return error for empty title code', async () => {
@@ -235,6 +245,170 @@ describe('TitleController', () => {
       expect(mockRes.send).toHaveBeenCalledWith({
         message: 'Media folder cannot be empty.',
       });
+    });
+
+    it.each([
+      ['lowercase code', 'ccccc'],
+      ['mixed-case padded code', '  cCcCc  '],
+    ])(
+      'should persist the canonical team code when creating a title with %s',
+      async (_, inputCode) => {
+        const projectId = '507f1f77bcf86cd799439011';
+
+        mockReq.body = {
+          titleName: 'Software Engineer',
+          titleCode: 'SE',
+          teamCode: inputCode,
+          projectAssigned: { _id: projectId },
+          mediaFolder: '/media/engineer',
+          teamAssiged: { _id: 'team123' },
+        };
+
+        mockCache.getCache.mockReturnValue(JSON.stringify(['CCCCC', 'TEAM2']));
+
+        const savedTitle = {
+          save: jest.fn(),
+        };
+        savedTitle.save.mockImplementation(async () => savedTitle);
+
+        const MockTitleConstructor = jest.fn(() => savedTitle);
+        const testController = titleController(MockTitleConstructor);
+
+        await testController.postTitle(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(savedTitle.teamCode).toBe('CCCCC');
+        expect(savedTitle.save).toHaveBeenCalledTimes(1);
+
+        expect(mockUserProfile.updateMany).toHaveBeenCalledWith(
+          {},
+          { $addToSet: { teamCodes: 'CCCCC' } },
+        );
+      },
+    );
+
+    it('should resolve the canonical team code through the uncached path', async () => {
+      const projectId = '507f1f77bcf86cd799439011';
+
+      mockReq.body = {
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: 'ccccc',
+        projectAssigned: { _id: projectId },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      mockCache.getCache.mockReturnValue(null);
+      mockUserProfileController.getAllTeamCodeHelper.mockResolvedValue(['CCCCC', 'TEAM2']);
+
+      const savedTitle = {
+        save: jest.fn(),
+      };
+      savedTitle.save.mockImplementation(async () => savedTitle);
+
+      const MockTitleConstructor = jest.fn(() => savedTitle);
+      const testController = titleController(MockTitleConstructor);
+
+      await testController.postTitle(mockReq, mockRes);
+
+      expect(mockUserProfileController.getAllTeamCodeHelper).toHaveBeenCalledTimes(1);
+      expect(savedTitle.teamCode).toBe('CCCCC');
+      expect(savedTitle.save).toHaveBeenCalledTimes(1);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should reject whitespace-only team codes without saving a title', async () => {
+      mockReq.body = {
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: '   ',
+        projectAssigned: {
+          _id: '507f1f77bcf86cd799439011',
+        },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      const savedTitle = {
+        save: jest.fn(),
+      };
+
+      const MockTitleConstructor = jest.fn(() => savedTitle);
+      const testController = titleController(MockTitleConstructor);
+
+      await testController.postTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Please provide a team code.',
+      });
+      expect(savedTitle.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject an invalid team code without saving a title', async () => {
+      mockReq.body = {
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: 'XXXXX',
+        projectAssigned: {
+          _id: '507f1f77bcf86cd799439011',
+        },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      mockCache.getCache.mockReturnValue(JSON.stringify(['CCCCC', 'TEAM2']));
+
+      const savedTitle = {
+        save: jest.fn(),
+      };
+
+      const MockTitleConstructor = jest.fn(() => savedTitle);
+      const testController = titleController(MockTitleConstructor);
+
+      await testController.postTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Invalid team code. Please provide a valid team code.',
+      });
+      expect(savedTitle.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['omitted', undefined],
+      ['null', null],
+    ])('should return 400 when titleCode is %s', async (_, titleCode) => {
+      mockReq.body = {
+        titleName: 'Software Engineer',
+        teamCode: 'TEAM1',
+        projectAssigned: { _id: '507f1f77bcf86cd799439011' },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      // Only include titleCode when the test value is explicitly null.
+      if (titleCode == null) {
+        mockReq.body.titleCode = null;
+      }
+
+      const savedTitle = {
+        titleName: mockReq.body.titleName,
+        titleCode,
+        teamCode: mockReq.body.teamCode,
+        save: jest.fn(),
+      };
+
+      const MockTitleConstructor = jest.fn(() => savedTitle);
+      const testController = titleController(MockTitleConstructor);
+      await testController.postTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Title Code must contain atleast one upper or lower case letters.',
+      });
+      expect(savedTitle.save).not.toHaveBeenCalled();
     });
 
     it('should return error for missing team code', async () => {
@@ -410,6 +584,131 @@ describe('TitleController', () => {
       expect(mockRes.send).toHaveBeenCalledWith({
         message: 'Please provide a team code.',
       });
+    });
+
+    it.each([
+      ['lowercase code', 'ccccc'],
+      ['mixed-case padded code', '  cCcCc  '],
+    ])(
+      'should persist and propagate the canonical team code when updating with %s',
+      async (_, inputCode) => {
+        const projectId = '507f1f77bcf86cd799439011';
+
+        const existingTitle = {
+          _id: 'title123',
+          teamCode: 'OLD01',
+          save: jest.fn(),
+        };
+        existingTitle.save.mockImplementation(async () => existingTitle);
+
+        mockTitle.findById.mockResolvedValue(existingTitle);
+        mockCache.getCache.mockReturnValue(JSON.stringify(['CCCCC', 'OLD01']));
+        mockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+
+        mockReq.body = {
+          id: 'title123',
+          titleName: 'Software Engineer',
+          titleCode: 'SE',
+          teamCode: inputCode,
+          projectAssigned: { _id: projectId },
+          mediaFolder: '/media/engineer',
+          teamAssiged: { _id: 'team123' },
+        };
+
+        await controller.updateTitle(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(existingTitle.teamCode).toBe('CCCCC');
+        expect(existingTitle.save).toHaveBeenCalledTimes(1);
+
+        expect(mockUserProfile.updateMany).toHaveBeenCalledWith(
+          { teamCode: 'OLD01' },
+          { $set: { teamCode: 'CCCCC' } },
+        );
+      },
+    );
+
+    it('should resolve the canonical team code through the uncached path during update', async () => {
+      const existingTitle = {
+        _id: 'title123',
+        teamCode: 'OLD01',
+        save: jest.fn(),
+      };
+      existingTitle.save.mockImplementation(async () => existingTitle);
+
+      mockTitle.findById.mockResolvedValue(existingTitle);
+      mockCache.getCache.mockReturnValue(null);
+      mockUserProfileController.getAllTeamCodeHelper.mockResolvedValue(['CCCCC', 'OLD01']);
+      mockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+
+      mockReq.body = {
+        id: 'title123',
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: 'ccccc',
+        projectAssigned: {
+          _id: '507f1f77bcf86cd799439011',
+        },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      await controller.updateTitle(mockReq, mockRes);
+
+      expect(mockUserProfileController.getAllTeamCodeHelper).toHaveBeenCalledTimes(1);
+      expect(existingTitle.teamCode).toBe('CCCCC');
+      expect(mockUserProfile.updateMany).toHaveBeenCalledWith(
+        { teamCode: 'OLD01' },
+        { $set: { teamCode: 'CCCCC' } },
+      );
+    });
+
+    it('should reject whitespace-only team codes during update', async () => {
+      mockReq.body = {
+        id: 'title123',
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: '   ',
+        projectAssigned: {
+          _id: '507f1f77bcf86cd799439011',
+        },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      await controller.updateTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Please provide a team code.',
+      });
+      expect(mockTitle.findById).not.toHaveBeenCalled();
+      expect(mockUserProfile.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('should reject an invalid team code during update without modifying profiles', async () => {
+      mockReq.body = {
+        id: 'title123',
+        titleName: 'Software Engineer',
+        titleCode: 'SE',
+        teamCode: 'XXXXX',
+        projectAssigned: {
+          _id: '507f1f77bcf86cd799439011',
+        },
+        mediaFolder: '/media/engineer',
+        teamAssiged: { _id: 'team123' },
+      };
+
+      mockCache.getCache.mockReturnValue(JSON.stringify(['CCCCC', 'OLD01']));
+
+      await controller.updateTitle(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Invalid team code. Please provide a valid team code.',
+      });
+      expect(mockTitle.findById).not.toHaveBeenCalled();
+      expect(mockUserProfile.updateMany).not.toHaveBeenCalled();
     });
   });
 
