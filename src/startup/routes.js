@@ -62,6 +62,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -454,6 +455,7 @@ const educatorRoutes = require('../routes/educatorRoutes');
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
+const eventRouter = require('../routes/eventRouter');
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
@@ -481,6 +483,7 @@ module.exports = function (app) {
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
@@ -645,6 +648,7 @@ module.exports = function (app) {
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
+  app.use('/api', eventRouter);
 
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
