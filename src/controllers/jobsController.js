@@ -1,5 +1,6 @@
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const { stripHtml } = require('../utilities/htmlContentSanitizer');
 
 /* ============================================================
    UTILS
@@ -205,6 +206,20 @@ const getPositions = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/jobs/positions
+ * Distinct job titles from the jobs collection for the job application form dropdown.
+ */
+const getActiveJobPositions = async (req, res) => {
+  try {
+    const positions = (await Job.distinct('title', {})).filter(Boolean);
+    positions.sort((a, b) => a.localeCompare(b));
+    res.status(200).json({ positions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch active job positions', details: error.message });
+  }
+};
+
 const getJobById = async (req, res) => {
   const { id } = req.params;
 
@@ -231,7 +246,7 @@ const createJob = async (req, res) => {
     const newJob = new Job({
       title,
       category,
-      description,
+      description: typeof description === 'string' ? stripHtml(description) : description,
       imageUrl,
       location,
       applyLink,
@@ -264,6 +279,10 @@ const updateJob = async (req, res) => {
 
     if (!existingJob.datePosted && !update.datePosted) {
       update.datePosted = new Date();
+    }
+
+    if (typeof update.description === 'string') {
+      update.description = stripHtml(update.description);
     }
 
     const updatedJob = await Job.findByIdAndUpdate(id, update, { new: true });
@@ -341,4 +360,5 @@ module.exports = {
   getCategories,
   reorderJobs,
   getPositions,
+  getActiveJobPositions,
 };

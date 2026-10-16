@@ -145,6 +145,22 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindSpy).toHaveBeenCalled();
       expect(taskFindSpy).toHaveBeenCalledTimes(1);
     });
+
+    test('Hides deadlineCount when the user lacks task extension count permission', async () => {
+      const { getTasks } = makeSut();
+      const mockData = [{ _id: '1', taskName: 'A', deadlineCount: 5, createdBy: null }];
+      const chain = makeFindChain({ data: mockData });
+      jest.spyOn(Task, 'find').mockReturnValueOnce(chain);
+      hasPermission.mockResolvedValue(false);
+
+      const response = await getTasks(mockReq, mockRes);
+      await flushPromises();
+
+      const expected = mockData.map((t) => ({ ...t, creatorName: undefined }));
+      delete expected[0].deadlineCount;
+      assertResMock(200, expected, response, mockRes);
+      expect(chain.populate).toHaveBeenCalled();
+    });
   });
 
   describe('getWBSId function', () => {
@@ -1339,6 +1355,50 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(200, mockData, response, mockRes);
     });
 
+    // Mongoose documents keep references back to their parents; toJSON drops them
+    const makeCyclicMember = () => {
+      const team = { toJSON: () => ({ _id: 't1', teamName: 'Team' }) };
+      team.$parent = team;
+      return {
+        personId: 'u1',
+        teams: [team],
+        tasks: [{ _id: 'k1', taskName: 'A', deadlineCount: 3 }],
+      };
+    };
+
+    test('Returns 200 without deadlineCount for cyclic documents when the user lacks the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce([makeCyclicMember()]);
+      hasPermission.mockResolvedValue(false);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith([
+        {
+          personId: 'u1',
+          teams: [{ _id: 't1', teamName: 'Team' }],
+          tasks: [{ _id: 'k1', taskName: 'A' }],
+        },
+      ]);
+    });
+
+    test('Keeps deadlineCount for users with the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      const data = [makeCyclicMember()];
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce(data);
+      hasPermission.mockResolvedValue(true);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send.mock.calls.at(-1)[0][0].tasks[0].deadlineCount).toBe(3);
+    });
+
     test('Returns 200 on success - getTasksForTeamsByUser', async () => {
       mockReq.params.userId = 1234;
       const mockData = ['mockData'];
@@ -1417,6 +1477,30 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+
+    test('Does not require the task deadline permission (submit for review)', async () => {
+      const { updateTaskStatus } = makeSut();
+      hasPermission.mockResolvedValue(false);
+
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+      };
+
+      jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindOneAndUpdateSpy = jest
+        .spyOn(Task, 'findOneAndUpdate')
+        .mockResolvedValueOnce(true);
+      jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+      jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).not.toBeCalledWith(403);
+      expect(mockRes.status).toBeCalledWith(201);
+      expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
     });
 
     test('Returns 400 on error', async () => {
