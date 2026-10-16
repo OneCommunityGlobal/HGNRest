@@ -66,6 +66,7 @@ describe('TimeEntryController - postTimeEntry', () => {
         save: jest.fn().mockResolvedValue({ _id: 'time1', totalSeconds: 5400 }),
       };
     };
+    TimeEntry.exists = jest.fn().mockResolvedValue(false);
 
     controller = timeEntryController(TimeEntry);
 

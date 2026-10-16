@@ -73,6 +73,7 @@ describe('Unit Tests: timeEntryController', () => {
       findOne: jest.fn(),
       findById: jest.fn(),
       find: jest.fn(),
+      exists: jest.fn().mockResolvedValue(false),
       findOneAndUpdate: jest.fn(),
       findByIdAndUpdate: jest.fn(),
       aggregate: jest.fn(),

@@ -1,5 +1,3 @@
-const mongoose = require('mongoose');
-
 jest.mock('../startup/logger', () => ({
   logException: jest.fn(),
 }));
@@ -34,6 +32,7 @@ jest.mock('../utilities/nodeCache', () =>
   })),
 );
 
+const mongoose = require('mongoose');
 const UserProfile = require('../models/userProfile');
 const Project = require('../models/project');
 const { hasPermission } = require('../utilities/permissions');

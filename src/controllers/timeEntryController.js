@@ -14,6 +14,10 @@ const { COMPANY_TZ } = require('../constants/company');
 
 const cacheUtil = cacheModule();
 
+const MS_PER_DAY = 86400000;
+const DUPLICATE_WINDOW_DAYS = 7;
+const HTTP_CONFLICT = 409;
+
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -541,6 +545,31 @@ const timeEntrycontroller = function (TimeEntry) {
           isInvalid
         )
           return returnErr(res);
+    }
+
+    // Only new default entries are checked; notes must be a string so a body cannot inject query operators.
+    const isNewDefaultEntry = req.body.entryType === undefined || req.body.entryType === 'default';
+    if (
+      isNewDefaultEntry &&
+      req.body.allowDuplicate !== true &&
+      typeof req.body.notes === 'string'
+    ) {
+      try {
+        const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_DAYS * MS_PER_DAY);
+        const isDuplicate = await TimeEntry.exists({
+          personId: req.body.personId,
+          notes: req.body.notes,
+          createdDateTime: { $gte: windowStart },
+        });
+        if (isDuplicate) {
+          return res
+            .status(HTTP_CONFLICT)
+            .send({ error: 'Duplicate time entry', code: 'DUPLICATE_TIME_ENTRY' });
+        }
+      } catch (err) {
+        logger.logException(err);
+        return res.status(500).send({ error: err.toString() });
+      }
     }
 
     const session = await mongoose.startSession();
