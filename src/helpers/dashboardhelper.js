@@ -683,31 +683,41 @@ const dashboardhelper = function () {
   };
 
   const checkQuestionaireModal = async (req) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return { status: 400, body: { message: 'userId is required' } };
+    }
+
+    let user;
     try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        return { message: 'userId is required' };
-      }
-
-      const user = await userProfile.findOne(
+      user = await userProfile.findOne(
         { _id: mongoose.Types.ObjectId(userId) },
         { questionaireFeedback: 1 },
       );
-
-      if (!user) {
-        return { message: 'User not found' };
-      }
-
-      const { questionaireFeedback } = user;
-      const showModal =
-        !questionaireFeedback || !questionaireFeedback.foundHelpSomeWhereClosePermanently;
-
-      return { showModal };
     } catch (error) {
       console.error('Error checking questionaire modal:', error);
-      return { message: 'Internal server error' };
+      return { status: 500, body: { message: 'Internal server error' } };
     }
+
+    if (!user) {
+      return { status: 404, body: { message: 'User not found' } };
+    }
+
+    const { questionaireFeedback } = user;
+
+    if (questionaireFeedback && questionaireFeedback.foundHelpSomeWhereClosePermanently) {
+      return { status: 200, body: { showModal: false } };
+    }
+
+    if (!questionaireFeedback || !questionaireFeedback.daterequestedFeedback) {
+      return { status: 200, body: { showModal: true } };
+    }
+
+    const oneWeekAgo = moment().subtract(7, 'days').toDate();
+    const showModal = new Date(questionaireFeedback.daterequestedFeedback) <= oneWeekAgo;
+
+    return { status: 200, body: { showModal } };
   };
 
   const checkQuestionaireFeedback = async (req) => {

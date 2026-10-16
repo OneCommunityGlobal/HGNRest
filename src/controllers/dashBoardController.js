@@ -367,8 +367,8 @@ const dashboardcontroller = function () {
 
   const checkQuestionaireModal = async function (req, res) {
     try {
-      const result = await dashboardhelper.checkQuestionaireModal(req);
-      return res.status(200).json(result);
+      const { status, body } = await dashboardhelper.checkQuestionaireModal(req);
+      return res.status(status).json(body);
     } catch (err) {
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
