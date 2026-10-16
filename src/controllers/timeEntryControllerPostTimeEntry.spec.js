@@ -175,6 +175,10 @@ describe('TimeEntryController - postTimeEntry', () => {
   });
 
   it('should handle internal server errors', async () => {
+    const validPersonId = new mongoose.Types.ObjectId().toString();
+    req.body.personId = validPersonId;
+    req.body.requestor.requestorId = validPersonId;
+    req.body.projectId = new mongoose.Types.ObjectId().toString();
     helper.hasPermission.mockResolvedValue(true);
     UserProfile.findById.mockRejectedValue(new Error('DB failure'));
 

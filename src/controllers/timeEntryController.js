@@ -525,13 +525,14 @@ const timeEntrycontroller = function (TimeEntry) {
 
     switch (req.body.entryType) {
       case 'person':
-        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) return returnErr(res);
         break;
       case 'project':
-        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid)
+          return returnErr(res);
         break;
       case 'team':
-        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) return returnErr(res);
         break;
       default:
         if (
@@ -539,7 +540,7 @@ const timeEntrycontroller = function (TimeEntry) {
           !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
           isInvalid
         )
-          returnErr(res);
+          return returnErr(res);
     }
 
     const session = await mongoose.startSession();

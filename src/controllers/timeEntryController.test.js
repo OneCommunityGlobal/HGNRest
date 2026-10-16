@@ -193,8 +193,9 @@ describe('Unit Tests: timeEntryController', () => {
     test('intangible flow: updates only profile and commits', async () => {
       hasPermission.mockResolvedValue(true);
 
+      const self = oid();
       const userprofileDoc = {
-        _id: 'u1',
+        _id: self,
         hoursByCategory: { unassigned: 0 },
         totalTangibleHrs: 3,
         totalIntangibleHrs: 1,
@@ -208,8 +209,8 @@ describe('Unit Tests: timeEntryController', () => {
 
       const req = {
         body: {
-          requestor: { requestorId: 'u1' },
-          personId: 'u1',
+          requestor: { requestorId: self },
+          personId: self,
           projectId: new mongoose.Types.ObjectId().toString(),
           dateOfWork: '2025-01-02',
           hours: 0,
@@ -277,10 +278,11 @@ describe('Unit Tests: timeEntryController', () => {
       UserProfile.findById.mockRejectedValue(new Error('db boom'));
 
       const res = mockRes;
+      const self = oid();
       const req = {
         body: {
-          requestor: { requestorId: 'u1' },
-          personId: 'u1',
+          requestor: { requestorId: self },
+          personId: self,
           projectId: new mongoose.Types.ObjectId().toString(),
           dateOfWork: '2025-01-02',
           hours: 1,
