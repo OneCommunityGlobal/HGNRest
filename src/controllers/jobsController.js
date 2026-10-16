@@ -17,10 +17,10 @@ const parseCategory = (category) => {
     const parsed = JSON.parse(category);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return category
-      .split(',')
-      .map((c) => c.trim())
-      .filter(Boolean);
+    // A plain string is one category. Don't split on commas: names like
+    // "Architecture, Landscape & Environment" contain them. Send multiple as a JSON array.
+    const single = String(category).trim();
+    return single ? [single] : [];
   }
 };
 
