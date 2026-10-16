@@ -46,7 +46,8 @@ describe('current warnings controller module', () => {
       const errorMessage = 'Database Error';
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockRejectedValue(new Error('Database Error')),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(new Error('Database Error')),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
@@ -57,7 +58,8 @@ describe('current warnings controller module', () => {
       const { getCurrentWarnings } = makeSut();
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockReturnValueOnce([]),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce([]),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
@@ -67,19 +69,248 @@ describe('current warnings controller module', () => {
     test('Ensure getCurrentWarnings returns warning list', async () => {
       const { getCurrentWarnings } = makeSut();
       const testWarnings = [
-        { order: 1, description: 'No description' },
-        { order: 2, description: 'No description provided' },
+        { order: 1, description: 'No description', orderSequence: 1 },
+        { order: 2, description: 'No description provided', orderSequence: 2 },
       ];
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockReturnValueOnce([
-          { order: 1, description: 'No description' },
-          { order: 2, description: 'No description provided' },
-        ]),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce(testWarnings),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
-      assertResMock(200, { currentWarningDescriptions: testWarnings }, res);
+      assertResMock(
+        200,
+        {
+          currentWarningDescriptions: [
+            { order: 1, description: 'No description' },
+            { order: 2, description: 'No description provided' },
+          ],
+        },
+        res,
+      );
+    });
+
+    test('Ensure getCurrentWarnings returns warnings list with missing order values added to them', async () => {
+      const { getCurrentWarnings } = makeSut();
+      const testWarnings = [
+        { _id: '1', order: 0, description: 'Description 1', orderSequence: 1 },
+        { _id: '2', order: -1, description: 'Description 2', orderSequence: 2 },
+        { _id: '3', order: null, description: 'Description 3', orderSequence: 3 },
+        { _id: '4', order: undefined, description: 'Description 4', orderSequence: 4 },
+        { _id: '5', description: 'Description 5', orderSequence: 5 },
+      ];
+
+      jest.spyOn(currentWarnings, 'find').mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce(testWarnings),
+      });
+      jest.spyOn(currentWarnings, 'bulkWrite').mockResolvedValue({});
+
+      const res = await getCurrentWarnings(mockReq, mockRes);
+      expect(currentWarnings.bulkWrite).toHaveBeenCalledWith([
+        {
+          updateOne: {
+            filter: { _id: '2' },
+            update: {
+              $set: { order: 1 },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '3' },
+            update: {
+              $set: { order: 2 },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '4' },
+            update: {
+              $set: { order: 3 },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '5' },
+            update: {
+              $set: { order: 4 },
+            },
+          },
+        },
+      ]);
+      assertResMock(
+        200,
+        {
+          currentWarningDescriptions: [
+            {
+              _id: '1',
+              order: 0,
+              description: 'Description 1',
+            },
+            {
+              _id: '2',
+              order: 1,
+              description: 'Description 2',
+            },
+            {
+              _id: '3',
+              order: 2,
+              description: 'Description 3',
+            },
+            {
+              _id: '4',
+              order: 3,
+              description: 'Description 4',
+            },
+            {
+              _id: '5',
+              order: 4,
+              description: 'Description 5',
+            },
+          ],
+        },
+        res,
+      );
+    });
+
+    test('Ensure getCurrentWarnings returns warnings list with missing description values added to them', async () => {
+      const { getCurrentWarnings } = makeSut();
+      const testWarnings = [
+        { _id: '1', order: 0, description: 'Description 1', orderSequence: 1 },
+        { _id: '2', order: 1, description: -1, orderSequence: 2 },
+        { _id: '3', order: 2, description: null, orderSequence: 3 },
+        { _id: '4', order: 3, description: undefined, orderSequence: 4 },
+      ];
+
+      jest.spyOn(currentWarnings, 'find').mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce(testWarnings),
+      });
+      jest.spyOn(currentWarnings, 'bulkWrite').mockResolvedValue({});
+
+      const res = await getCurrentWarnings(mockReq, mockRes);
+      expect(currentWarnings.bulkWrite).toHaveBeenCalledWith([
+        {
+          updateOne: {
+            filter: { _id: '2' },
+            update: {
+              $set: { description: 'No description provided yet' },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '3' },
+            update: {
+              $set: { description: 'No description provided yet' },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '4' },
+            update: {
+              $set: { description: 'No description provided yet' },
+            },
+          },
+        },
+      ]);
+      assertResMock(
+        200,
+        {
+          currentWarningDescriptions: [
+            {
+              _id: '1',
+              order: 0,
+              description: 'Description 1',
+            },
+            {
+              _id: '2',
+              order: 1,
+              description: 'No description provided yet',
+            },
+            {
+              _id: '3',
+              order: 2,
+              description: 'No description provided yet',
+            },
+            {
+              _id: '4',
+              order: 3,
+              description: 'No description provided yet',
+            },
+          ],
+        },
+        res,
+      );
+    });
+
+    test('Ensure getCurrentWarnings returns warnings list with missing orderSequence values added to them', async () => {
+      const { getCurrentWarnings } = makeSut();
+      const testWarnings = [
+        { _id: '1', order: 0, description: 'Description 1', orderSequence: 0 },
+        { _id: '2', order: 1, description: 'Description 2', orderSequence: 1 },
+        { _id: '3', order: 2, description: 'Description 3' },
+        { _id: '4', order: 3, description: 'Description 4' },
+      ];
+
+      jest.spyOn(currentWarnings, 'find').mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce(testWarnings),
+      });
+      jest.spyOn(currentWarnings, 'bulkWrite').mockResolvedValue({});
+
+      const res = await getCurrentWarnings(mockReq, mockRes);
+      expect(currentWarnings.bulkWrite).toHaveBeenCalledWith([
+        {
+          updateOne: {
+            filter: { _id: '3' },
+            update: {
+              $set: { orderSequence: 2 },
+            },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: '4' },
+            update: {
+              $set: { orderSequence: 3 },
+            },
+          },
+        },
+      ]);
+      assertResMock(
+        200,
+        {
+          currentWarningDescriptions: [
+            {
+              _id: '1',
+              order: 0,
+              description: 'Description 1',
+            },
+            {
+              _id: '2',
+              order: 1,
+              description: 'Description 2',
+            },
+            {
+              _id: '3',
+              order: 2,
+              description: 'Description 3',
+            },
+            {
+              _id: '4',
+              order: 3,
+              description: 'Description 4',
+            },
+          ],
+        },
+        res,
+      );
     });
   });
 
@@ -90,6 +321,30 @@ describe('current warnings controller module', () => {
       const res = await postNewWarningDescription(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
       assertResMock(403, 'You are not authorized to add a new WarningTracker.', res);
+    });
+
+    test('Ensure postNewWarningDescription returns error 400 if warning description is not a string', async () => {
+      mockReq.body.newWarning = '#new';
+      mockReq.body.isPermanent = true;
+      mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = 123;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      assertResMock(400, { error: 'Description must be a string' }, res);
+    });
+
+    test('Ensure postNewWarningDescription returns error 400 if warning description length is over 500', async () => {
+      mockReq.body.newWarning = '#new';
+      mockReq.body.isPermanent = true;
+      mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = 'test'.repeat(126);
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      assertResMock(400, { error: 'Description cannot exceed 500 characters' }, res);
     });
 
     test('Ensure postNewWarningDescription returns error 400 if warning title provided has special character as their first letter', async () => {
@@ -155,7 +410,9 @@ describe('current warnings controller module', () => {
 
       jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
       const saveSpy = jest.spyOn(currentWarnings.prototype, 'save').mockResolvedValue(testWarning);
-      jest.spyOn(currentWarnings, 'find').mockResolvedValueOnce(testWarning);
+      jest.spyOn(currentWarnings, 'find').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValue([testWarning]),
+      });
       jest.spyOn(currentWarnings, 'findOne').mockImplementationOnce(() => ({
         sort: jest.fn().mockResolvedValueOnce(null),
       }));
@@ -163,7 +420,7 @@ describe('current warnings controller module', () => {
       const res = await postNewWarningDescription(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
       expect(saveSpy).toHaveBeenCalledTimes(1);
-      assertResMock(201, { newWarnings: testWarning }, res);
+      assertResMock(201, { newWarnings: [testWarning] }, res);
     });
   });
 
