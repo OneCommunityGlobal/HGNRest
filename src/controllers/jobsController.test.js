@@ -7,6 +7,7 @@ const {
   resetJobsFilters,
   getCategories,
   getPositions,
+  getActiveJobPositions,
   getJobById,
   createJob,
   updateJob,
@@ -26,6 +27,7 @@ Job.findByIdAndUpdate = jest.fn();
 Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
 Job.bulkWrite = jest.fn();
+Job.distinct = jest.fn();
 JobPositionCategory.distinct = jest.fn();
 
 // --- HELPER FACTORIES ---
@@ -133,6 +135,16 @@ describe('jobsController', () => {
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
     });
+
+    it('should return distinct job titles for the application form dropdown', async () => {
+      Job.distinct.mockResolvedValue(['Writer', 'Software Developer', '', 'Analyst']);
+      await getActiveJobPositions({}, res);
+      expect(Job.distinct).toHaveBeenCalledWith('title', {});
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        positions: ['Analyst', 'Software Developer', 'Writer'],
+      });
+    });
   });
 
   describe('CRUD Operations', () => {
@@ -155,6 +167,42 @@ describe('jobsController', () => {
       Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, ...updateData });
       await updateJob({ params: { id: jobId }, body: updateData }, res);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining(updateData));
+    });
+
+    it('updateJob: should store the description as plain text', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '<p>Build <strong>useful</strong> tools</p>' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: 'Build useful tools' },
+        { new: true },
+      );
+    });
+
+    it('updateJob: keeps encoded tags from becoming stored markup', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: '&lt;img src=x onerror=alert(1)>' },
+        { new: true },
+      );
     });
 
     it('deleteJob: should delete successfully', async () => {
@@ -253,6 +301,38 @@ describe('jobsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(savedJob);
+    });
+
+    it('stores a new job description as plain text', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: '<p>Build <strong>useful</strong> tools</p><script>bad()</script>',
+          },
+        },
+        res,
+      );
+
+      const savedInstance = saveSpy.mock.instances.at(-1);
+      expect(savedInstance.description).toBe('Build useful tools');
+    });
+
+    it('keeps encoded tags from becoming markup in a new job description', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: { ...newJobBody, description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)>');
     });
 
     it('defaults displayOrder to 0 when no jobs exist yet', async () => {

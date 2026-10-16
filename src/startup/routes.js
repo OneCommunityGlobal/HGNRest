@@ -62,6 +62,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -401,7 +402,7 @@ const listOverviewRouter = require('../routes/lbdashboard/listOverviewRouter')()
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
-const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const educatorGroupRouter = require('../routes/educatorGroupRoutes');
@@ -479,6 +480,7 @@ module.exports = function (app) {
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
