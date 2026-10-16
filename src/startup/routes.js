@@ -360,7 +360,7 @@ const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')
 //commnunity portal
 const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
-
+const eventRouter = require('../routes/eventRouter');
 const collaborationRouter = require('../routes/collaborationRouter');
 const questionSetRouter = require('../routes/questionSetRouter');
 
@@ -414,8 +414,6 @@ const permissionRouter = require('../routes/permissionRouter');
 // Analytics
 const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
-const ReviewerGroup = require('../models/reviewerGroup');
-const PromotionPrEntry = require('../models/promotionPrEntry');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
@@ -455,7 +453,6 @@ const educatorRoutes = require('../routes/educatorRoutes');
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
-const eventRouter = require('../routes/eventRouter');
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
@@ -538,7 +535,7 @@ module.exports = function (app) {
   app.use('/api', materialUtilizationRouter);
   app.use('/api/communityportal/activities', activityRouter);
   app.use('/public/communityportal/activities', activityRouter);
-
+  app.use('/api/communityportal', eventRouter);
   app.use('/api', formRouter);
   app.use('/api', meetingRouter);
   app.use('/api', collaborationRouter);
@@ -648,7 +645,6 @@ module.exports = function (app) {
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
-  app.use('/api', eventRouter);
 
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
@@ -679,19 +675,7 @@ module.exports = function (app) {
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
-  app.use(
-    '/api/',
-    promotionEligibilityRouter(
-      userProfile,
-      timeEntry,
-      task,
-      PromotionEligibility,
-      ReviewerGroup,
-      team,
-      hgnFormResponses,
-      PromotionPrEntry,
-    ),
-  );
+  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
