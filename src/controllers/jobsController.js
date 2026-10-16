@@ -266,15 +266,26 @@ const createJob = async (req, res) => {
 
 const updateJob = async (req, res) => {
   const { id } = req.params;
+  const update = { ...req.body };
+
+  // Never let an update request clear the posted date - fall back to now if missing.
+  if (!update.datePosted) {
+    delete update.datePosted;
+  }
 
   try {
-    const updates = { ...req.body };
-    if (typeof updates.description === 'string') {
-      updates.description = stripHtml(updates.description);
+    const existingJob = await Job.findById(id);
+    if (!existingJob) return res.status(404).json({ error: 'Job not found' });
+
+    if (!existingJob.datePosted && !update.datePosted) {
+      update.datePosted = new Date();
     }
 
-    const updatedJob = await Job.findByIdAndUpdate(id, updates, { new: true });
-    if (!updatedJob) return res.status(404).json({ error: 'Job not found' });
+    if (typeof update.description === 'string') {
+      update.description = stripHtml(update.description);
+    }
+
+    const updatedJob = await Job.findByIdAndUpdate(id, update, { new: true });
 
     res.json(updatedJob);
   } catch (error) {
