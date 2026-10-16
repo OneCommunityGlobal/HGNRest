@@ -1,3 +1,5 @@
+const { hasPermission } = require('../../utilities/permissions');
+
 // Helper function to normalize prNumbers for comparison
 const normalizePrNumbers = (prNumbers) => prNumbers.replace(/\s+/g, ' ').trim();
 
@@ -236,6 +238,14 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res
           .status(400)
           .json({ error: 'team, date, and reviewer query params are required' });
+      }
+
+      const { requestor } = req.body;
+      if (!requestor) {
+        return res.status(400).json({ error: 'requestor is required' });
+      }
+      if (!(await hasPermission(requestor, 'accessPRTeamDashboard'))) {
+        return res.status(403).json({ error: 'You are not authorized to remove a reviewer.' });
       }
 
       if (typeof team !== 'string' || typeof reviewer !== 'string') {
