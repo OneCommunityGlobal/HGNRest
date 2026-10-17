@@ -5,6 +5,7 @@ const upload = require('../middleware/multerMiddleware');
 const QuestionSet = require('../models/questionSet');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
+const { getEmailDomainError } = require('../utilities/emailValidators');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -456,6 +457,11 @@ exports.submitFormResponse = async (req, res) => {
     const { respondent, email, answers, profile } = resolved;
     if (!email || answers == null) {
       return res.status(400).json({ error: 'respondent, email, and answers are required.' });
+    }
+
+    const emailError = getEmailDomainError(String(email));
+    if (emailError) {
+      return res.status(400).json({ error: emailError });
     }
 
     const form = await Form.findById(formId);
