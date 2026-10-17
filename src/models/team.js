@@ -15,12 +15,36 @@ const team = new Schema({
   modifiedDatetime: { type: Date, default: Date.now() },
   members: [
     {
-      userId: { type: mongoose.SchemaTypes.ObjectId, required: true, index : true },
+      userId: { type: mongoose.SchemaTypes.ObjectId, required: true, index: true },
       addDateTime: { type: Date, default: Date.now(), ref: 'userProfile' },
-      visible: { type : 'Boolean', default:true},
-
+      visible: { type: 'Boolean', default: true },
     },
   ],
+  /**
+   * Placement metadata for the Promotion Eligibility dashboard (doc item #23).
+   *
+   * All three are optional and default to null. A team missing any of them is
+   * not a placement candidate, which is deliberate: it means the 1000+ teams
+   * that already exist need no backfill, and only the real PR review teams
+   * have to be configured. Nothing outside that dashboard reads these.
+   *
+   * `standupTime` is stored as typed ("11AM", "14:00") and parsed on read, and
+   * is interpreted in `standupTimezone`, which defaults to Pacific because the
+   * setup questionnaire asks for availability in Pacific.
+   */
+  hoursBand: {
+    type: 'String',
+    enum: ['10-19.99', '20+', null],
+    default: null,
+  },
+  standupDay: {
+    type: 'String',
+    enum: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', null],
+    default: null,
+  },
+  standupTime: { type: 'String', default: null },
+  standupTimezone: { type: 'String', default: 'America/Los_Angeles' },
+
   // Deprecated field
   teamCode: {
     type: 'String',
@@ -35,6 +59,5 @@ const team = new Schema({
     },
   },
 });
-
 
 module.exports = mongoose.model('team', team, 'teams');

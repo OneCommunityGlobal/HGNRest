@@ -103,4 +103,24 @@ describe('getInfringementEmailBody', () => {
 
     expect(result).toContain('time entries <b>3 times</b>');
   });
+
+  it('should include Full name in Administrative Details formatted with firstName and lastName', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: `System auto-assigned infringement for not meeting weekly volunteer time commitment.`,
+    };
+
+    const result = getInfringementEmailBody(
+      'John',
+      'Doe',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      baseAdministrativeContent,
+    );
+
+    expect(result).toContain('<p><b>Name:</b> John Doe</p>');
+  });
 });
