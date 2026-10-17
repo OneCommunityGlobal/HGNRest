@@ -133,7 +133,7 @@ const toolAvailabilityController = function (ToolAvailability) {
         },
         {
           $lookup: {
-            from: 'buildingProject',
+            from: 'buildingProjects',
             localField: '_id',
             foreignField: '_id',
             as: 'projectDetails',
@@ -142,7 +142,7 @@ const toolAvailabilityController = function (ToolAvailability) {
         {
           $project: {
             _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.projectName', 0] },
+            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
           },
         },
         {
@@ -150,10 +150,12 @@ const toolAvailabilityController = function (ToolAvailability) {
         },
       ]);
 
-      // Format the response
+      // Format the response. Leave projectName unset (rather than a generic "Unknown
+      // Project" placeholder) when no matching project exists, so the frontend can fall
+      // back to the still-unique projectId instead of showing indistinguishable labels.
       const formattedResults = results.map((item) => ({
         projectId: item._id,
-        projectName: item.projectName || 'Unknown Project',
+        projectName: item.projectName || null,
       }));
 
       return res.json(formattedResults);
