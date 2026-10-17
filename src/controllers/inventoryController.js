@@ -41,16 +41,15 @@ const inventoryController = function (Item, ItemType, projects) {
       .catch((error) => res.status(404).send(error));
   };
 
-  //update the project’s inventoryModifiedDatetime
-  const updateProjectInventoryModifiedTime = function (projectId) {
-    return projects
-      .findByIdAndUpdate(projectId, { inventoryModifiedDatetime: Date.now() })
-      .then((result) => {
-        return result;
-      })
-      .catch((err) => {
-        throw new Error('Failed to update project inventoryModifiedDatetime: ' + err.message);
-      });
+  // Keep the project-level sort timestamp monotonic and wait for persistence.
+  const updateProjectInventoryModifiedTime = async function (projectId) {
+    const project = await projects.findByIdAndUpdate(
+      projectId,
+      { $max: { inventoryModifiedDatetime: new Date() } },
+      { new: true },
+    );
+    if (!project) throw new Error('Project not found while updating inventory timestamp');
+    return project;
   };
 
   const postInvInProjectWBS = async function (req, res) {
@@ -141,19 +140,17 @@ const inventoryController = function (Item, ItemType, projects) {
           },
         },
         { new: true },
-      ).then((results) => {
-        Item.findByIdAndUpdate(
-          results._id,
-          { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-          { new: true },
-        ).then((result) => {
-          updateProjectInventoryModifiedTime(req.params.projectId)
-            .then(() => {
-              res.status(201).send(result);
-            })
-            .catch((err) => res.status(500).send(err.message));
-        });
-      });
+      )
+        .then(async (results) => {
+          const result = await Item.findByIdAndUpdate(
+            results._id,
+            { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
+            { new: true },
+          );
+          await updateProjectInventoryModifiedTime(req.params.projectId);
+          return res.status(201).send(result);
+        })
+        .catch((errors) => res.status(500).send(errors));
     }
     return res
       .status(400)
@@ -273,20 +270,17 @@ const inventoryController = function (Item, ItemType, projects) {
           },
         },
         { new: true },
-      ).then((results) => {
-        // new call to update the costPer using the new quantities and cost
-        Item.findByIdAndUpdate(
-          results._id,
-          { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-          { new: true },
-        ).then((result) => {
-          updateProjectInventoryModifiedTime(req.params.projectId)
-            .then(() => {
-              res.status(201).send(result);
-            })
-            .catch((err) => res.status(500).send(err.message));
-        });
-      });
+      )
+        .then(async (results) => {
+          const result = await Item.findByIdAndUpdate(
+            results._id,
+            { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
+            { new: true },
+          );
+          await updateProjectInventoryModifiedTime(req.params.projectId);
+          return res.status(201).send(result);
+        })
+        .catch((errors) => res.status(500).send(errors));
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
   };
@@ -711,37 +705,38 @@ const inventoryController = function (Item, ItemType, projects) {
     if (!(await hasPermission(req.body.requestor, 'putInvById'))) {
       return res.status(403).send('You are not authorized to edit inventory by id.');
     }
-    // update the inv by id.
-    // send result just sending something now to have it work and not break anything
     const { invId } = req.params;
-    const data = {
-      quantity: req.body.quantity,
-      poNums: [req.body.poNum],
-      cost: req.body.cost,
-      inventoryItemType: req.body.typeId || req.body.typeID,
-      wasted: false,
-      project: mongoose.Types.ObjectId(req.params.projectId),
-      wbs: null,
-      notes: [
-        {
-          quantity: req.body.quantity,
-          typeOfMovement: 'Purchased',
-          message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-        },
-      ],
-      created: Date.now(),
-    };
-
     try {
-      const record = await Item.findByIdAndUpdate(invId, data, { new: true });
-      if (!record) {
-        return res.status(404).send({ error: 'No valid record found' });
-      }
-      await updateProjectInventoryModifiedTime(req.params.projectId);
+      const existing = await Item.findById(invId);
+      if (!existing) return res.status(404).send({ error: 'No valid record found' });
 
-      res.status(200).send({ message: 'Inventory successfully updated' });
+      // Ownership comes from the item, not from a nonexistent route parameter.
+      const data = {};
+      if (req.body.quantity !== undefined) data.quantity = req.body.quantity;
+      if (req.body.cost !== undefined) data.cost = req.body.cost;
+      if (req.body.poNum !== undefined) data.poNums = [req.body.poNum];
+      const typeId = req.body.typeId || req.body.typeID;
+      if (typeId) data.inventoryItemType = typeId;
+      const quantity = Number(data.quantity ?? existing.quantity);
+      const cost = Number(data.cost ?? existing.cost ?? 0);
+      data.costPer = quantity !== 0 ? cost / quantity : 0;
+      const update = { $set: data };
+      if (req.body.notes !== undefined) {
+        update.$push = {
+          notes: {
+            quantity,
+            typeOfMovement: 'Edited',
+            message: req.body.notes,
+            modified: new Date(),
+          },
+        };
+      }
+      const record = await Item.findByIdAndUpdate(invId, update, { new: true });
+      if (!record) return res.status(404).send({ error: 'No valid record found' });
+      await updateProjectInventoryModifiedTime(existing.project);
+      return res.status(200).send({ message: 'Inventory successfully updated' });
     } catch (error) {
-      res.status(500).send({ error: 'An internal error occurred' });
+      return res.status(500).send({ error: 'An internal error occurred' });
     }
   };
 
