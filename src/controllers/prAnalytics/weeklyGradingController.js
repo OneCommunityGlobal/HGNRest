@@ -161,28 +161,32 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
       const query = { teamCode: team };
 
-      // If date is provided, filter by that date
+      // If date is provided, filter by the full week (Monday to Sunday)
       if (date) {
         const gradingDate = new Date(date);
         if (Number.isNaN(gradingDate.getTime())) {
           return res.status(400).json({ error: 'Invalid date format' });
         }
-        // Set to start of day for comparison
-        const startOfDay = new Date(gradingDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(gradingDate);
-        const HOURS_IN_DAY = 23;
-        const MINUTES_IN_HOUR = 59;
-        const SECONDS_IN_MINUTE = 59;
-        const MILLISECONDS_IN_SECOND = 999;
-        endOfDay.setHours(HOURS_IN_DAY, MINUTES_IN_HOUR, SECONDS_IN_MINUTE, MILLISECONDS_IN_SECOND);
-        query.date = { $gte: startOfDay, $lte: endOfDay };
+        const startOfWeek = new Date(gradingDate);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(gradingDate);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        query.date = { $gte: startOfWeek, $lte: endOfWeek };
       }
 
       const gradingData = await weeklyGradingModel.find(query).lean();
 
-      // Format response - one entry per reviewer
-      const result = gradingData.map((entry) => ({
+      // Deduplicate by reviewer (keep most recently updated), then format response
+      const deduplicated = new Map();
+      gradingData.forEach((entry) => {
+        const existing = deduplicated.get(entry.reviewer);
+        if (!existing || entry.updatedAt > existing.updatedAt) {
+          deduplicated.set(entry.reviewer, entry);
+        }
+      });
+
+      const result = Array.from(deduplicated.values()).map((entry) => ({
         reviewer: entry.reviewer,
         prsNeeded: entry.prsNeeded,
         prsReviewed: entry.prsReviewed,
@@ -260,14 +264,15 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
 
-      const startOfDay = new Date(gradingDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(gradingDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      const startOfWeek = new Date(gradingDate);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(gradingDate);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
 
       const result = await weeklyGradingModel.findOneAndDelete({
         teamCode: sanitizedTeam,
-        date: { $gte: startOfDay, $lte: endOfDay },
+        date: { $gte: startOfWeek, $lte: endOfWeek },
         reviewer: sanitizedReviewer,
       });
 
