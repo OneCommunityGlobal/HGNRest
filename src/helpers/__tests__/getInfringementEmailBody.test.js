@@ -54,11 +54,59 @@ describe('getInfringementEmailBody', () => {
     expect(result).toContain(
       '<p><b>Total Infringements:</b> This is your <b>6th</b> blue square of 5 and that means you have 1 hour(s) added',
     );
+    expect(result).not.toContain('-3 hour');
     expect(result).toContain(
       '<b>not meeting weekly volunteer time commitment as well as not submitting a weekly summary</b>',
     );
     expect(result).toContain('logged <b>4 hours</b>');
     expect(result).toContain('Please complete ALL owed time this week (15 hours)');
+  });
+
+  it('does not show negative penalty hours for 2nd blue square (Bear email scenario)', () => {
+    const infringement = {
+      date: '2026-08-01',
+      description:
+        'System auto-assigned infringement for not meeting weekly volunteer time commitment. In the week starting Sunday 7-26-2026 and ending Saturday 8-1-2026, you logged 0.00 hours against a committed effort of 5 hours + 0 hours owed for last week + 0 hours owed for this being your 2nd blue square. So you should have completed 5 hours and you completed 0.00 hours.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Bear',
+      'Test',
+      infringement,
+      2,
+      5,
+      0,
+      undefined,
+      baseAdministrativeContent,
+      5,
+    );
+
+    expect(result).not.toContain('-3 hour');
+    expect(result).not.toContain('-3 hours');
+    expect(result).toContain('Please complete ALL owed time this week (10 hours)');
+    expect(result).toContain('5 hours commitment + 5 hours owed for last week = 10 hours required');
+  });
+
+  it('calculates owed hours for under 5 blue squares without penalty (Tatyana scenario)', () => {
+    const infringement = {
+      date: '2026-08-01',
+      description: 'logged 3 hours against 5 hours commitment',
+    };
+
+    const result = getInfringementEmailBody(
+      'Core',
+      'Team',
+      infringement,
+      1,
+      2,
+      0,
+      undefined,
+      baseAdministrativeContent,
+      5,
+    );
+
+    expect(result).toContain('Please complete ALL owed time this week (7 hours)');
+    expect(result).toContain('5 hours commitment + 2 hours owed for last week = 7 hours required');
   });
 
   it('wraps plain descriptions in bold tags when no keywords match', () => {
