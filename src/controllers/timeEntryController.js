@@ -426,6 +426,7 @@ const addEditHistory = async (
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
+        <p><b>Name:</b> ${userprofile.firstName} ${userprofile.lastName}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
         <p><b>Title:</b> ${userprofile.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
