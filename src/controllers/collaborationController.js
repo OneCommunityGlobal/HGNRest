@@ -6,6 +6,7 @@ const QuestionSet = require('../models/questionSet');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
 const { getEmailDomainError } = require('../utilities/emailValidators');
+const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -225,18 +226,20 @@ function appendResumeAndProfileAnswers(
 
 async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
   try {
-    const displayName = String(respondent || normalizedEmail).trim();
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const safeTitle = escapeHtml(form.title);
+    const subjectTitle = stripControlChars(form.title).trim();
     const emailBody = `
         <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-          <h2>Application Received — ${form.title}</h2>
+          <h2>Application Received — ${safeTitle}</h2>
           <p>Hi ${displayName},</p>
-          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>Thank you for applying for <strong>${safeTitle}</strong>. We have received your application and will be in touch shortly.</p>
           <p>If you have any questions, feel free to reach out.</p>
           <br/>
           <p>Best regards,<br/>One Community</p>
         </div>
       `;
-    await emailSender([normalizedEmail], `Application Received — ${form.title}`, emailBody);
+    await emailSender([normalizedEmail], `Application Received — ${subjectTitle}`, emailBody);
   } catch (emailErr) {
     console.error('Confirmation email failed (non-fatal):', emailErr.message);
   }
