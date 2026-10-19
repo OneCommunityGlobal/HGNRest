@@ -376,15 +376,26 @@ const imgurPostController = () => {
    */
   const getScheduledPosts = async (req, res) => {
     try {
-      const userId = req.user?._id || req.query.userId;
+      const rawUserId = req.user?._id || req.query.userId;
 
       const query = { status: { $ne: 'posted' } };
-      if (userId) {
-        query.userId = userId;
+      if (rawUserId) {
+        // Validate userId type and format to prevent NoSQL injection attacks
+        if (
+          typeof rawUserId !== 'string' &&
+          typeof rawUserId !== 'number' &&
+          !(typeof rawUserId === 'string' && /^[0-9a-fA-F]{24}$/.test(rawUserId))
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid user ID format',
+          });
+        }
+        query.userId = rawUserId;
       }
 
       const posts = await ImgurPost.find(query)
-        .select('-images.buffer') // Exclude binary image buffers from response
+        .select('-images.buffer') // Exclude binary image buffers from the API response
         .sort({ scheduledTime: 1 });
 
       return res.status(200).json({
