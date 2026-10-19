@@ -13,6 +13,11 @@ const MIME_BY_EXTENSION = {
   jpeg: ['image/jpeg'],
 };
 
+// Browsers on machines without Office often send Word files as a generic type or none.
+// The extension allowlist still applies, so only these two extensions get the fallback.
+const GENERIC_MIME_TYPES = ['application/octet-stream', ''];
+const GENERIC_MIME_EXTENSIONS = ['doc', 'docx'];
+
 const DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx'];
 const ATTACHMENT_EXTENSIONS = [...DOCUMENT_EXTENSIONS, 'png', 'jpg', 'jpeg'];
 
@@ -50,7 +55,10 @@ function checkJobApplicationFile(file) {
   }
   const extension = rawExtension(file);
   const mimetype = String(file?.mimetype || '').toLowerCase();
-  const allowedMimes = MIME_BY_EXTENSION[extension] || [];
+  const allowedMimes = [
+    ...(MIME_BY_EXTENSION[extension] || []),
+    ...(GENERIC_MIME_EXTENSIONS.includes(extension) ? GENERIC_MIME_TYPES : []),
+  ];
   if (!rules.extensions.includes(extension) || !allowedMimes.includes(mimetype)) {
     return { ok: false, reason: 'type', message: rules.message };
   }

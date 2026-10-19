@@ -19,6 +19,27 @@ describe('checkJobApplicationFile', () => {
     expect(checkJobApplicationFile({ fieldname, originalname, mimetype })).toEqual({ ok: true });
   });
 
+  it.each([
+    ['cv.doc', 'application/octet-stream'],
+    ['cv.docx', 'application/octet-stream'],
+    ['cv.docx', ''],
+  ])('accepts %s sent as generic type %p (browsers without Office)', (originalname, mimetype) => {
+    expect(checkJobApplicationFile({ fieldname: 'resume', originalname, mimetype })).toEqual({
+      ok: true,
+    });
+  });
+
+  it.each([
+    ['cv.pdf', 'application/octet-stream'],
+    ['cv.pdf', ''],
+    ['photo.png', 'application/octet-stream'],
+    ['photo.jpg', 'application/octet-stream'],
+  ])('still rejects %s sent as generic type %p', (originalname, mimetype) => {
+    expect(checkJobApplicationFile({ fieldname: QUESTION_FIELD, originalname, mimetype })).toEqual(
+      expect.objectContaining({ ok: false, reason: 'type' }),
+    );
+  });
+
   it('rejects an image for the resume field', () => {
     expect(
       checkJobApplicationFile({
