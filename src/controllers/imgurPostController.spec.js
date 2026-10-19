@@ -4,6 +4,14 @@ jest.mock('node-schedule', () => ({
 }));
 jest.mock('../models/imgurPosts');
 
+const originalClientId = process.env.IMGUR_CLIENT_ID;
+const originalClientSecret = process.env.IMGUR_CLIENT_SECRET;
+const originalAccessToken = process.env.IMGUR_ACCESS_TOKEN;
+const originalRefreshToken = process.env.IMGUR_REFRESH_TOKEN;
+process.env.IMGUR_CLIENT_ID = 'test-client-id';
+process.env.IMGUR_ACCESS_TOKEN = 'test-access-token';
+process.env.IMGUR_REFRESH_TOKEN = 'test-refresh-token';
+
 const axios = require('axios');
 const schedule = require('node-schedule');
 const ImgurPost = require('../models/imgurPosts');
@@ -15,10 +23,6 @@ const makeRes = () => ({
 });
 
 describe('imgurPostController', () => {
-  const originalClientId = process.env.IMGUR_CLIENT_ID;
-  const originalAccessToken = process.env.IMGUR_ACCESS_TOKEN;
-  const originalRefreshToken = process.env.IMGUR_REFRESH_TOKEN;
-
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.IMGUR_CLIENT_ID = 'test-client-id';
@@ -43,6 +47,11 @@ describe('imgurPostController', () => {
     process.env.IMGUR_CLIENT_ID = originalClientId;
     process.env.IMGUR_ACCESS_TOKEN = originalAccessToken;
     process.env.IMGUR_REFRESH_TOKEN = originalRefreshToken;
+    if (originalClientSecret === undefined) {
+      delete process.env.IMGUR_CLIENT_SECRET;
+    } else {
+      process.env.IMGUR_CLIENT_SECRET = originalClientSecret;
+    }
   });
 
   describe('postToImgur', () => {
@@ -193,8 +202,22 @@ describe('imgurPostController', () => {
       await controller.postToImgur(req, res);
 
       // At minimum, verify the function executed without error
-      expect(res.status).toHaveBeenCalled();
-      expect(res.json).toHaveBeenCalled();
+      expect(axios.post).toHaveBeenCalledTimes(3);
+      expect(ImgurPost.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'posted',
+          albumId: 'album123',
+          imgurUrl: 'https://imgur.com/a/album123',
+        }),
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          albumId: 'album123',
+          imgurUrl: 'https://imgur.com/a/album123',
+        }),
+      );
     });
 
     test('returns 500 when Imgur API call fails', async () => {
@@ -224,6 +247,169 @@ describe('imgurPostController', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    });
+
+    test('returns 500 when album creation reports a failure', async () => {
+      const controller = imgurPostController();
+      axios.post.mockResolvedValueOnce({
+        data: { success: false, data: { error: 'Album rejected' } },
+      });
+      const res = makeRes();
+
+      await controller.postToImgur(
+        {
+          body: { title: 'Test Album', userId: '507f1f77bcf86cd799439011' },
+          files: [],
+        },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(ImgurPost.create).not.toHaveBeenCalled();
+    });
+
+    test('returns 500 when image upload reports a failure', async () => {
+      const controller = imgurPostController();
+      axios.post
+        .mockResolvedValueOnce({ data: { success: true, data: { id: 'album123' } } })
+        .mockResolvedValueOnce({
+          data: { success: false, data: { error: 'Image rejected' } },
+        });
+      const res = makeRes();
+
+      await controller.postToImgur(
+        {
+          body: { title: 'Test Album', userId: '507f1f77bcf86cd799439011' },
+          files: [
+            {
+              originalname: 'test.jpg',
+              mimetype: 'image/jpeg',
+              size: 10,
+              buffer: Buffer.from('image'),
+            },
+          ],
+        },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(ImgurPost.create).not.toHaveBeenCalled();
+    });
+
+    test('returns 500 when adding images to the album reports a failure', async () => {
+      const controller = imgurPostController();
+      axios.post
+        .mockResolvedValueOnce({ data: { success: true, data: { id: 'album123' } } })
+        .mockResolvedValueOnce({ data: { success: true, data: { id: 'image123' } } })
+        .mockResolvedValueOnce({
+          data: { success: false, data: { error: 'Unable to add image' } },
+        });
+      const res = makeRes();
+
+      await controller.postToImgur(
+        {
+          body: { title: 'Test Album', userId: '507f1f77bcf86cd799439011' },
+          files: [
+            {
+              originalname: 'test.jpg',
+              mimetype: 'image/jpeg',
+              size: 10,
+              buffer: Buffer.from('image'),
+            },
+          ],
+        },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(ImgurPost.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('scheduled job execution', () => {
+    const schedulePost = async (controller, postId) => {
+      ImgurPost.create.mockResolvedValue({ _id: postId });
+      await controller.postToImgur(
+        {
+          body: {
+            title: 'Scheduled Album',
+            userId: '507f1f77bcf86cd799439011',
+            scheduleTime: new Date(Date.now() + 3600000).toISOString(),
+          },
+          files: [],
+        },
+        makeRes(),
+      );
+    };
+
+    test('publishes a pending post and updates its record', async () => {
+      const controller = imgurPostController();
+      const postRecord = {
+        title: 'Scheduled Album',
+        description: 'Scheduled description',
+        images: [],
+        userId: '507f1f77bcf86cd799439011',
+        status: 'pending',
+        attempts: 0,
+        save: jest.fn().mockResolvedValue({}),
+      };
+      ImgurPost.findById.mockResolvedValue(postRecord);
+      axios.post.mockResolvedValueOnce({
+        data: { success: true, data: { id: 'scheduled-album' } },
+      });
+      await schedulePost(controller, 'scheduled-post');
+
+      await schedule.scheduleJob.mock.calls[0][1]();
+
+      expect(postRecord.status).toBe('posted');
+      expect(postRecord.albumId).toBe('scheduled-album');
+      expect(postRecord.remotePostId).toBe('scheduled-album');
+      expect(postRecord.imgurUrl).toBe('https://imgur.com/a/scheduled-album');
+      expect(postRecord.attempts).toBe(1);
+      expect(postRecord.save).toHaveBeenCalledTimes(2);
+    });
+
+    test('marks a post failed when scheduled publication throws', async () => {
+      const controller = imgurPostController();
+      const postRecord = {
+        title: 'Scheduled Album',
+        description: '',
+        images: [],
+        userId: '507f1f77bcf86cd799439011',
+        status: 'pending',
+        attempts: 0,
+        lockOwner: 'worker',
+        lockedUntil: new Date(),
+        save: jest.fn().mockResolvedValue({}),
+      };
+      ImgurPost.findById.mockResolvedValue(postRecord);
+      axios.post.mockRejectedValueOnce(new Error('Imgur unavailable'));
+      await schedulePost(controller, 'scheduled-post');
+
+      await schedule.scheduleJob.mock.calls[0][1]();
+
+      expect(postRecord.status).toBe('failed');
+      expect(postRecord.lastError).toContain('Imgur unavailable');
+      expect(postRecord.attempts).toBe(1);
+      expect(postRecord.lockOwner).toBeNull();
+      expect(postRecord.lockedUntil).toBeNull();
+      expect(postRecord.save).toHaveBeenCalledTimes(2);
+    });
+
+    test('ignores a missing or non-pending post', async () => {
+      const controller = imgurPostController();
+      await schedulePost(controller, 'scheduled-post');
+      ImgurPost.findById.mockResolvedValue(null);
+
+      await schedule.scheduleJob.mock.calls[0][1]();
+
+      const anotherController = imgurPostController();
+      await schedulePost(anotherController, 'already-published-post');
+      ImgurPost.findById.mockResolvedValue({ status: 'posted' });
+
+      await schedule.scheduleJob.mock.calls[1][1]();
+
+      expect(ImgurPost.findById).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -262,6 +448,8 @@ describe('imgurPostController', () => {
         status: { $ne: 'posted' },
         userId: '507f1f77bcf86cd799439011',
       });
+      expect(mockQuery.select).toHaveBeenCalledWith('-images.buffer');
+      expect(mockQuery.sort).toHaveBeenCalledWith({ scheduledTime: 1 });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -331,7 +519,24 @@ describe('imgurPostController', () => {
   describe('deleteScheduledPost', () => {
     test('deletes a pending post', async () => {
       const controller = imgurPostController();
+      const job = { cancel: jest.fn() };
+      schedule.scheduleJob.mockReturnValue(job);
+      ImgurPost.create.mockResolvedValue({
+        _id: '507f1f77bcf86cd799439012',
+      });
       ImgurPost.deleteOne.mockResolvedValue({ deletedCount: 1 });
+
+      await controller.postToImgur(
+        {
+          body: {
+            title: 'Scheduled post',
+            userId: '507f1f77bcf86cd799439011',
+            scheduleTime: new Date(Date.now() + 3600000).toISOString(),
+          },
+          files: [],
+        },
+        makeRes(),
+      );
 
       const req = { params: { postId: '507f1f77bcf86cd799439012' } };
       const res = makeRes();
@@ -349,6 +554,7 @@ describe('imgurPostController', () => {
           message: 'Scheduled post deleted successfully',
         }),
       );
+      expect(job.cancel).toHaveBeenCalledTimes(1);
     });
 
     test('returns 404 when post is not found or being published', async () => {
@@ -430,6 +636,52 @@ describe('imgurPostController', () => {
       );
     });
 
+    test('cancels the previous job and schedules the updated time', async () => {
+      const controller = imgurPostController();
+      const oldJob = { cancel: jest.fn() };
+      const newJob = { cancel: jest.fn() };
+      schedule.scheduleJob.mockReturnValueOnce(oldJob).mockReturnValueOnce(newJob);
+      const mockPost = {
+        _id: '507f1f77bcf86cd799439012',
+        title: 'Original Title',
+        description: 'Original Description',
+        status: 'pending',
+        save: jest.fn().mockResolvedValue({}),
+      };
+      ImgurPost.create.mockResolvedValue({ _id: mockPost._id });
+      ImgurPost.findOne.mockResolvedValue(mockPost);
+
+      await controller.postToImgur(
+        {
+          body: {
+            title: 'Original Title',
+            userId: '507f1f77bcf86cd799439011',
+            scheduleTime: new Date(Date.now() + 3600000).toISOString(),
+          },
+          files: [],
+        },
+        makeRes(),
+      );
+
+      const newScheduleTime = new Date(Date.now() + 7200000).toISOString();
+      const res = makeRes();
+      await controller.updateScheduledPost(
+        {
+          params: { postId: mockPost._id },
+          body: { title: 'Updated Title', scheduleTime: newScheduleTime },
+          files: [],
+        },
+        res,
+      );
+
+      expect(oldJob.cancel).toHaveBeenCalledTimes(1);
+      expect(schedule.scheduleJob).toHaveBeenCalledTimes(2);
+      expect(schedule.scheduleJob.mock.calls[1][0]).toEqual(new Date(newScheduleTime));
+      expect(mockPost.title).toBe('Updated Title');
+      expect(mockPost.save).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     test('returns 404 when post not found', async () => {
       const controller = imgurPostController();
       ImgurPost.findOne.mockResolvedValue(null);
@@ -465,7 +717,7 @@ describe('imgurPostController', () => {
         params: { postId: '507f1f77bcf86cd799439012' },
         body: {
           title: 'Updated Title',
-          scheduleTime: new Date(Date.now() - 60000).toISOString(),
+          scheduleTime: 'not-a-date',
         },
         files: [],
       };
@@ -476,7 +728,7 @@ describe('imgurPostController', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Schedule time must be in the future',
+          message: 'Schedule time is invalid',
         }),
       );
     });
@@ -549,14 +801,33 @@ describe('imgurPostController', () => {
     });
 
     test('handles successful token exchange when all credentials configured', async () => {
-      // This test verifies the overall flow is correct
-      // Actual OAuth flow is handled by Imgur API
       const controller = imgurPostController();
+      process.env.IMGUR_CLIENT_SECRET = 'test-client-secret';
+      axios.post.mockResolvedValueOnce({
+        data: {
+          access_token: 'new-access-token',
+          refresh_token: 'new-refresh-token',
+          expires_in: 3600,
+        },
+      });
+      const res = makeRes();
 
-      // Test just needs client ID and secret to be configured
-      // which is already set in beforeEach
-      expect(process.env.IMGUR_CLIENT_ID).toBeDefined();
-      expect(process.env.IMGUR_ACCESS_TOKEN).toBeDefined();
+      await controller.authorizeImgur({ body: { code: 'auth-code-123' } }, res);
+
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.imgur.com/oauth2/token',
+        expect.objectContaining({ code: 'auth-code-123' }),
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+          expiresIn: 3600,
+        }),
+      );
+      delete process.env.IMGUR_CLIENT_SECRET;
     });
 
     test('returns 500 when OAuth token exchange fails', async () => {
@@ -587,6 +858,20 @@ describe('imgurPostController', () => {
       if (originalSecret !== undefined) {
         process.env.IMGUR_CLIENT_SECRET = originalSecret;
       }
+    });
+
+    test('returns 500 when the token exchange omits an access token', async () => {
+      process.env.IMGUR_CLIENT_SECRET = 'test-client-secret';
+      axios.post.mockResolvedValueOnce({ data: { refresh_token: 'refresh-token' } });
+      const controller = imgurPostController();
+      const res = makeRes();
+
+      await controller.authorizeImgur({ body: { code: 'auth-code-123' } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Authorization failed' }),
+      );
     });
   });
 });
