@@ -104,3 +104,15 @@ describe('confirmationEmailCap', () => {
     expect(maskEmail('')).toBe('***');
   });
 });
+
+describe('JobApplications indexes for the cap queries', () => {
+  it('serves the per-address and the global 24 h counts', () => {
+    jest.unmock('../../models/jobApplicationsModel');
+    jest.isolateModules(() => {
+      const FreshModel = require('../../models/jobApplicationsModel');
+      const keys = FreshModel.schema.indexes().map(([spec]) => JSON.stringify(spec));
+      expect(keys).toContain(JSON.stringify({ email: 1, createdAt: -1 }));
+      expect(keys).toContain(JSON.stringify({ createdAt: -1 }));
+    });
+  });
+});

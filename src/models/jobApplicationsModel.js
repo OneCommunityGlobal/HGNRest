@@ -38,6 +38,7 @@ const responseSchema = new mongoose.Schema(
 
 // Supports the per-address confirmation email cap (utilities/confirmationEmailCap.js).
 responseSchema.index({ email: 1, createdAt: -1 });
+responseSchema.index({ createdAt: -1 });
 
 const Response = mongoose.model('JobApplications', responseSchema);
 module.exports = Response;
