@@ -26,7 +26,7 @@ const saveClient = async (client) => {
     await Timer.findOneAndUpdate({ userId: client.userId }, client);
   } catch (e) {
     logger.logException(e);
-    throw new Error(`Something happened when trying to save user timer to mongo, Error: ${e}`);
+    // Keep websocket timer controls responsive if persistence is temporarily unavailable.
   }
 };
 
@@ -58,18 +58,15 @@ const updatedTimeSinceStart = (client) => {
   return updatedTime > 0 ? updatedTime : 0;
 };
 
-const logTimelogEvent = async (userId, eventType) => {
-  try {
-    // Store timestamp in UTC only - timezone conversion happens on frontend
-    await TimelogTracking.create({
-      userId,
-      eventType,
-      timestamp: new Date(), // UTC timestamp
-    });
-  } catch (error) {
+const logTimelogEvent = (userId, eventType) => {
+  // Tracking is auxiliary; do not block timer actions on this database write.
+  TimelogTracking.create({
+    userId,
+    eventType,
+    timestamp: new Date(), // UTC timestamp
+  }).catch((error) => {
     logger.logException(error);
-    // Don't throw error to avoid breaking timer functionality
-  }
+  });
 };
 
 const startTimer = async (client) => {
@@ -82,7 +79,7 @@ const startTimer = async (client) => {
   if (client.forcedPause) client.forcedPause = false;
 
   // Log the timelog resumed event
-  await logTimelogEvent(client.userId, 'Timelog Resumed');
+  logTimelogEvent(client.userId, 'Timelog Resumed');
 };
 
 const pauseTimer = async (client, forced = false) => {
@@ -96,7 +93,7 @@ const pauseTimer = async (client, forced = false) => {
 
   // Log the appropriate pause event
   const eventType = forced ? 'Automatic Pause' : 'Timelog Paused';
-  await logTimelogEvent(client.userId, eventType);
+  logTimelogEvent(client.userId, eventType);
 };
 
 const startChime = (client, msg) => {
@@ -125,11 +122,11 @@ const stopTimer = async (client) => {
   }
 
   // Log the time logged event
-  await logTimelogEvent(client.userId, 'Time Logged');
+  logTimelogEvent(client.userId, 'Time Logged');
 };
 
-const clearTimer = (client) => {
-  stopTimer(client);
+const clearTimer = async (client) => {
+  await stopTimer(client);
   client.goal = client.initialGoal;
   client.chiming = false;
   client.time = client.goal;
@@ -257,9 +254,14 @@ const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
 
+  const timerResponse = JSON.parse(JSON.stringify(resp));
+  if (msg.action === action.STOP_TIMER && msg.requestId) {
+    timerResponse.requestId = msg.requestId;
+  }
+
   // Return both the timer response and any timelog event
   return {
-    timerResponse: JSON.stringify(resp),
+    timerResponse: JSON.stringify(timerResponse),
     timelogEvent: timelogEvent ? { ...timelogEvent, userId } : null,
   };
 };
