@@ -27,7 +27,10 @@ async function createCollections() {
 }
 
 if (require.main === module) {
-  createCollections();
+  createCollections().catch((err) => {
+    console.error('Fatal initialization error:', err);
+    process.exit(1);
+  });
 }
 
 module.exports = { connect, createCollections };
