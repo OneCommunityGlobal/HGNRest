@@ -385,30 +385,23 @@ const imgurPostController = () => {
 
       if (rawUserId) {
         // Validate userId format to prevent NoSQL injection attacks
-        // Accept string ObjectIds or number types
-        if (typeof rawUserId === 'string') {
-          // Validate and convert string to MongoDB ObjectId
-          if (!mongoose.isValidObjectId(rawUserId)) {
-            return res.status(400).json({
-              success: false,
-              message: 'Invalid user ID format',
-            });
-          }
-          // Explicitly assign the sanitized ObjectId to a secure variable to clear taint analysis
-          const sanitizedUserId = new mongoose.Types.ObjectId(rawUserId);
-          filter.userId = sanitizedUserId;
-        } else if (typeof rawUserId === 'number') {
-          // Allow numeric userId
-          filter.userId = rawUserId;
-        } else {
+        // Convert input to string safely for validation
+        const userIdStr = typeof rawUserId === 'string' ? rawUserId : String(rawUserId);
+
+        // Validate that the string is a valid MongoDB ObjectId
+        if (!mongoose.isValidObjectId(userIdStr)) {
           return res.status(400).json({
             success: false,
             message: 'Invalid user ID format',
           });
         }
+
+        // Explicitly assign a newly constructed ObjectId to clear taint analysis
+        const sanitizedUserId = new mongoose.Types.ObjectId(userIdStr);
+        filter.userId = sanitizedUserId;
       }
 
-      // Query using the isolated and sanitized filter object
+      // Query using the isolated and fully sanitized filter object
       const posts = await ImgurPost.find(filter)
         .select('-images.buffer') // Exclude binary image buffers from the API response
         .sort({ scheduledTime: 1 });
