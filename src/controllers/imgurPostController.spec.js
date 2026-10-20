@@ -4,6 +4,8 @@ jest.mock('node-schedule', () => ({
 }));
 jest.mock('../models/imgurPosts');
 
+const mongoose = require('mongoose');
+
 const originalClientId = process.env.IMGUR_CLIENT_ID;
 const originalClientSecret = process.env.IMGUR_CLIENT_SECRET;
 const originalAccessToken = process.env.IMGUR_ACCESS_TOKEN;
@@ -446,7 +448,7 @@ describe('imgurPostController', () => {
 
       expect(ImgurPost.find).toHaveBeenCalledWith({
         status: { $ne: 'posted' },
-        userId: '507f1f77bcf86cd799439011',
+        userId: expect.any(mongoose.Types.ObjectId),
       });
       expect(mockQuery.select).toHaveBeenCalledWith('-images.buffer');
       expect(mockQuery.sort).toHaveBeenCalledWith({ scheduledTime: 1 });

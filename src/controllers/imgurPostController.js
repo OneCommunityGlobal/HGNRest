@@ -1,10 +1,12 @@
 const axios = require('axios');
 const schedule = require('node-schedule');
+const mongoose = require('mongoose');
 const ImgurPost = require('../models/imgurPosts');
 
 const IMGUR_API_ENDPOINT = 'https://api.imgur.com/3';
 const { IMGUR_CLIENT_ID } = process.env;
 const { IMGUR_ACCESS_TOKEN } = process.env;
+// eslint-disable-next-line no-unused-vars
 const { IMGUR_REFRESH_TOKEN } = process.env;
 
 // ============================================================================
@@ -14,6 +16,7 @@ const { IMGUR_REFRESH_TOKEN } = process.env;
 /**
  * Summarize media files for API responses
  */
+// eslint-disable-next-line no-unused-vars
 const summarizeMediaFiles = (mediaFiles = []) =>
   mediaFiles.map(({ originalname, mimetype, size }) => ({
     name: originalname,
@@ -379,18 +382,27 @@ const imgurPostController = () => {
 
       const query = { status: { $ne: 'posted' } };
       if (rawUserId) {
-        // Validate userId type and format to prevent NoSQL injection attacks
-        const isValidMongoId = typeof rawUserId === 'string' && /^[0-9a-fA-F]{24}$/.test(rawUserId);
-        const isValidNumber = typeof rawUserId === 'number';
-
-        if (!isValidMongoId && !isValidNumber) {
+        // Validate userId format to prevent NoSQL injection attacks
+        // Accept string ObjectIds or number types
+        if (typeof rawUserId === 'string') {
+          // Validate and convert string to MongoDB ObjectId
+          if (!mongoose.isValidObjectId(rawUserId)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Invalid user ID format',
+            });
+          }
+          // Explicitly convert validated string to ObjectId for taint analysis
+          query.userId = new mongoose.Types.ObjectId(rawUserId);
+        } else if (typeof rawUserId === 'number') {
+          // Allow numeric userId
+          query.userId = rawUserId;
+        } else {
           return res.status(400).json({
             success: false,
             message: 'Invalid user ID format',
           });
         }
-
-        query.userId = rawUserId;
       }
 
       const posts = await ImgurPost.find(query)
