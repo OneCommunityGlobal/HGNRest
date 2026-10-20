@@ -172,11 +172,10 @@ const publishToImgur = async (title, description, mediaFiles, userId) => {
       // Create album if multiple images or any image exists
       albumId = await createImgurAlbum(title, description);
 
-      // Upload each image to the album
-      for (const file of mediaFiles) {
-        const imageId = await uploadImageToImgur(file.buffer, title);
-        uploadedImageIds.push(imageId);
-      }
+      // Upload images in parallel instead of sequentially
+      const uploadPromises = mediaFiles.map((file) => uploadImageToImgur(file.buffer, title));
+      const imageIds = await Promise.all(uploadPromises);
+      uploadedImageIds.push(...imageIds);
 
       // Add images to album
       await addImagesToAlbum(albumId, uploadedImageIds);
@@ -207,13 +206,13 @@ const executeScheduledPost = async (postId, scheduledJobs) => {
   try {
     postRecord = await ImgurPost.findById(postId);
     if (!postRecord) {
-      console.error(`Scheduled post not found: ${postId}`);
+      console.error('Scheduled post not found');
       return;
     }
 
     // Check status to avoid duplicate processing
     if (postRecord.status !== 'pending') {
-      console.log(`Post ${postId} is already being processed or completed`);
+      console.log('Post is already being processed or completed');
       return;
     }
 
@@ -238,9 +237,9 @@ const executeScheduledPost = async (postId, scheduledJobs) => {
     postRecord.attempts += 1;
     await postRecord.save();
 
-    console.log(`Successfully posted to Imgur: ${result.imgurUrl}`);
+    console.log('Successfully posted to Imgur');
   } catch (err) {
-    console.error(`Failed to execute scheduled post ${postId}:`, err.message);
+    console.error('Failed to execute scheduled post:', err.message);
 
     if (postRecord) {
       postRecord.status = 'failed';
@@ -381,16 +380,16 @@ const imgurPostController = () => {
       const query = { status: { $ne: 'posted' } };
       if (rawUserId) {
         // Validate userId type and format to prevent NoSQL injection attacks
-        if (
-          typeof rawUserId !== 'string' &&
-          typeof rawUserId !== 'number' &&
-          !(typeof rawUserId === 'string' && /^[0-9a-fA-F]{24}$/.test(rawUserId))
-        ) {
+        const isValidMongoId = typeof rawUserId === 'string' && /^[0-9a-fA-F]{24}$/.test(rawUserId);
+        const isValidNumber = typeof rawUserId === 'number';
+
+        if (!isValidMongoId && !isValidNumber) {
           return res.status(400).json({
             success: false,
             message: 'Invalid user ID format',
           });
         }
+
         query.userId = rawUserId;
       }
 

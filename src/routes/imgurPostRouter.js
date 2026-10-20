@@ -2,6 +2,38 @@ const express = require('express');
 const multer = require('multer');
 const { hasPermission } = require('../utilities/permissions');
 
+/**
+ * Middleware to check permissions for Imgur posting
+ * Uses the same permission as announcements/emails
+ */
+async function requireImgurPostingPermission(req, res, next) {
+  try {
+    const userId = req.user?._id || req.body?.userId;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
+
+    // Check if user has permission to send announcements (same as emails)
+    if (await hasPermission(userId, 'sendEmails')) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      error: 'You are not authorized to post to Imgur.',
+    });
+  } catch (err) {
+    console.error('Imgur permission check failed:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to check permissions.',
+    });
+  }
+}
+
 const routes = () => {
   // Configure multer for image uploads
   const storage = multer.memoryStorage();
@@ -24,38 +56,6 @@ const routes = () => {
 
   const controller = require('../controllers/imgurPostController')();
   const imgurRouter = express.Router();
-
-  /**
-   * Middleware to check permissions for Imgur posting
-   * Uses the same permission as announcements/emails
-   */
-  async function requireImgurPostingPermission(req, res, next) {
-    try {
-      const userId = req.user?._id || req.body?.userId;
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          message: 'User ID is required',
-        });
-      }
-
-      // Check if user has permission to send announcements (same as emails)
-      if (await hasPermission(userId, 'sendEmails')) {
-        return next();
-      }
-
-      return res.status(403).json({
-        success: false,
-        error: 'You are not authorized to post to Imgur.',
-      });
-    } catch (err) {
-      console.error('Imgur permission check failed:', err.message);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to check permissions.',
-      });
-    }
-  }
 
   /**
    * Error handling middleware for multer
