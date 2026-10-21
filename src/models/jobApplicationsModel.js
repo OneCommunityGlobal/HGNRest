@@ -32,6 +32,26 @@ const responseSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     }, // Timestamp for submission
+    // Track cleanup progress so multiple workers cannot claim the same application.
+    cleanup: {
+      status: {
+        type: String,
+        enum: ['pending', 'processing'],
+        default: 'pending',
+      },
+      claimToken: {
+        type: String,
+        default: null,
+      },
+      leaseExpiresAt: {
+        type: Date,
+        default: null,
+      },
+      lastError: {
+        type: String,
+        default: null,
+      },
+    },
   },
   { timestamps: true },
 );

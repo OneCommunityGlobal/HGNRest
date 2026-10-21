@@ -102,8 +102,41 @@ const uploadFileToAzureBlobStorage = async (file, blobName) => {
   return blockBlobClient.url;
 };
 
+/**
+ * Delete an application upload from the configured Azure container.
+ * Only validated resumes/ blob names are accepted.
+ */
+const deleteApplicationBlob = async (blobName) => {
+  if (
+    typeof blobName !== 'string' ||
+    !/^resumes\/[a-zA-Z0-9_.-]+$/.test(blobName) ||
+    blobName.endsWith('/.') ||
+    blobName.endsWith('/..')
+  ) {
+    throw new Error('Invalid application blob name');
+  }
+
+  const blobServiceClient = BlobServiceClient.fromConnectionString(
+    process.env.AZURE_STORAGE_CONNECTION_STRING,
+  );
+
+  const containerClient = blobServiceClient.getContainerClient(
+    process.env.AZURE_STORAGE_CONTAINER_NAME,
+  );
+
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+  // Missing blobs are considered already cleaned up.
+  const result = await blockBlobClient.deleteIfExists({
+    deleteSnapshots: 'include',
+  });
+
+  return result.succeeded;
+};
+
 module.exports = {
   saveImagestoAzureBlobStorage,
   fetchImagesFromAzureBlobStorage,
   uploadFileToAzureBlobStorage,
+  deleteApplicationBlob,
 };
