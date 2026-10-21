@@ -1059,13 +1059,6 @@ const overviewReportHelper = function () {
       const currentStats = taskStats[0].current || [];
       const comparisonStats = taskStats[0].comparison || [];
 
-      /*
-      const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
-      const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
-      const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
-      const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
-      */
-
       // In-progress tasks use either 'Active' or 'Started' status.
       // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
       const currentActive = currentStats
@@ -1097,8 +1090,7 @@ const overviewReportHelper = function () {
       };
     }
 
-    // non-comparison branch — filter by the same date range so the count reflects
-    // tasks modified (completed/activated) within the selected period, not all time.
+    // Apply the selected range even when comparison mode is off.
     const taskStats = await Task.aggregate([
       {
         $match: {
@@ -1112,11 +1104,6 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-
-    /*
-    const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
-    const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
-    */
 
     // In-progress tasks use either 'Active' or 'Started' status.
     // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
