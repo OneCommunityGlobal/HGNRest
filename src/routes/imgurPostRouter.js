@@ -40,7 +40,7 @@ const routes = () => {
   const upload = multer({
     storage,
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB max file size per Imgur limits
+      fileSize: 10 * 1024 * 1024, // Reduced to 10MB max file size to prevent DoS via large payloads (S5693 fix)
       files: 10, // Maximum 10 images per post
     },
     fileFilter: (req, file, cb) => {
