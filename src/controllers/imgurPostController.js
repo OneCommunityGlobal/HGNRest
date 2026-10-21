@@ -105,14 +105,22 @@ const uploadImageToImgur = async (imageBuffer, title = '') => {
 };
 
 /**
- * Create an album on Imgur
+ * Create an album on Imgur.
+ * @param {string} title - The title of the Imgur album.
+ * @param {string} description - The description of the Imgur album.
+ * @returns {Promise<string>} The unique ID of the created Imgur album.
  */
 const createImgurAlbum = async (title, description = '') => {
   try {
+    // Validate the title input to prevent invalid or empty data payload submission
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+      throw new Error('A valid title is required to create an Imgur album.');
+    }
+
     const response = await axios.post(
       `${IMGUR_API_ENDPOINT}/album`,
       {
-        title,
+        title: title.trim(),
         description,
       },
       {
@@ -120,12 +128,16 @@ const createImgurAlbum = async (title, description = '') => {
       },
     );
 
-    if (!response.data.success) {
-      throw new Error(`Album creation failed: ${response.data.data.error}`);
+    // Verify if the API response indicates a successful operation
+    if (!response.data || !response.data.success) {
+      throw new Error(
+        `Album creation failed: ${response.data?.data?.error || 'Unknown API error'}`,
+      );
     }
 
     return response.data.data.id;
   } catch (err) {
+    // Log the detailed error context for debugging purposes
     console.error('Album creation on Imgur failed:', err.response?.data || err.message);
     throw new Error(`Failed to create Imgur album: ${err.message}`);
   }
@@ -138,6 +150,11 @@ const addImagesToAlbum = async (albumId, imageIds) => {
   try {
     if (!imageIds || imageIds.length === 0) {
       return albumId; // No images to add
+    }
+
+    // Core fix: Add security validation and sanitization for albumId to prevent request forgery / SSRF vulnerabilities
+    if (!albumId || typeof albumId !== 'string' || !/^[a-zA-Z0-9]+$/.test(albumId)) {
+      throw new Error('Invalid or unsafe album ID format.');
     }
 
     const response = await axios.post(
