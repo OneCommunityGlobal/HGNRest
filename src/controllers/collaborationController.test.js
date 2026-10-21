@@ -3,6 +3,7 @@ jest.mock('../models/jobApplicationsModel');
 jest.mock('../models/questionSet');
 jest.mock('../utilities/AzureBlobImages');
 jest.mock('../utilities/emailSender');
+jest.mock('../utilities/optionalStaffAuth', () => ({ isAuthenticatedRequest: jest.fn() }));
 jest.mock('../utilities/jobFormPermissions', () => ({
   canManageJobForms: jest.fn(),
   canCreateFormQuestions: jest.fn(),
@@ -18,7 +19,12 @@ const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
-const { submitFormResponse } = require('./collaborationController');
+const { isAuthenticatedRequest } = require('../utilities/optionalStaffAuth');
+const {
+  submitFormResponse,
+  getAllFormsFormat,
+  getFormFormat,
+} = require('./collaborationController');
 
 const createMockRes = () => {
   const res = {};
@@ -300,5 +306,197 @@ describe('submitFormResponse', () => {
       expect.objectContaining({ fileName: 'cover.pdf', mimeType: 'application/pdf' }),
     );
     expect(savedDoc.answers[0].answer.url).toBeUndefined();
+  });
+});
+
+describe('submitFormResponse response bodies', () => {
+  const formId = '507f1f77bcf86cd799439011';
+  const body = {
+    respondent: 'Ada Lovelace',
+    email: 'ada@example.com',
+    answers: [{ questionId: 'q1', answer: 'yes' }],
+  };
+  let res;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    res = createMockRes();
+    Form.findById = jest.fn().mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne = jest.fn().mockResolvedValue(null);
+    emailSender.mockResolvedValue('ok');
+  });
+
+  it('returns only a message on success, never the stored record', async () => {
+    Response.mockImplementation((data) => ({
+      ...data,
+      resumeUrl: 'https://blob/resume.pdf',
+      save: jest.fn().mockResolvedValue(true),
+    }));
+
+    await submitFormResponse({ params: { formId }, body }, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Application submitted successfully.' });
+  });
+
+  it('returns a generic 500 without the raw error', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    Response.mockImplementation((data) => ({
+      ...data,
+      save: jest.fn().mockRejectedValue(new Error('mongo://secret-host failed')),
+    }));
+
+    await submitFormResponse({ params: { formId }, body }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Error submitting application.' });
+    expect(JSON.stringify(res.json.mock.calls)).not.toContain('secret-host');
+    console.error.mockRestore();
+  });
+});
+
+describe('public job form reads', () => {
+  const staff = { _id: 's1', firstName: 'Sam', lastName: 'Staff' };
+  const makeForm = (overrides = {}) => ({
+    _id: 'f1',
+    title: 'Engineer',
+    description: 'Build things',
+    category: 'Engineering',
+    isActive: true,
+    settings: { requireLogin: false },
+    submissionCount: 7,
+    createdBy: staff,
+    lastModifiedBy: staff,
+    questions: [{ _id: 'q1', questionText: 'Why?', questionType: 'textbox', visible: true }],
+    questionSets: [
+      {
+        _id: 'e1',
+        includeAll: true,
+        selectedQuestions: [],
+        questionSetId: {
+          _id: 'qs1',
+          name: 'Core',
+          category: 'Engineering',
+          createdBy: staff,
+          lastModifiedBy: staff,
+          usageCount: 3,
+          questions: [{ _id: 'q2', questionText: 'Skills?', questionType: 'textarea' }],
+        },
+      },
+    ],
+    ...overrides,
+  });
+
+  const mockListQuery = (forms) => {
+    const query = {
+      where: jest.fn(() => query),
+      equals: jest.fn(() => query),
+      populate: jest.fn(() => query),
+      sort: jest.fn().mockResolvedValue(forms),
+    };
+    Form.find = jest.fn(() => query);
+    return query;
+  };
+
+  let res;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    res = createMockRes();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => console.error.mockRestore());
+
+  it('anonymous list is forced to active forms and carries no staff data', async () => {
+    isAuthenticatedRequest.mockReturnValue(false);
+    const query = mockListQuery([makeForm()]);
+
+    await getAllFormsFormat(
+      { query: { isActive: 'false', createdBy: '507f1f77bcf86cd799439011' } },
+      res,
+    );
+
+    expect(query.where).toHaveBeenCalledWith('isActive');
+    expect(query.equals).toHaveBeenCalledWith(true);
+    expect(query.where).not.toHaveBeenCalledWith('createdBy');
+    expect(query.populate).not.toHaveBeenCalledWith('createdBy', expect.anything());
+
+    const { forms } = res.json.mock.calls[0][0];
+    expect(forms).toHaveLength(1);
+    const text = JSON.stringify(forms);
+    expect(text).not.toContain('Sam');
+    expect(text).not.toContain('createdBy');
+    expect(text).not.toContain('lastModifiedBy');
+    expect(text).not.toContain('submissionCount');
+    expect(forms[0]).toMatchObject({ _id: 'f1', title: 'Engineer', isActive: true });
+    expect(forms[0].questions[0].questionText).toBe('Why?');
+    expect(forms[0].questionSets[0].questionSetId.questions[0].questionText).toBe('Skills?');
+  });
+
+  it('staff list keeps filters and staff names', async () => {
+    isAuthenticatedRequest.mockReturnValue(true);
+    const forms = [makeForm({ isActive: false })];
+    const query = mockListQuery(forms);
+
+    await getAllFormsFormat({ query: { isActive: 'false' } }, res);
+
+    expect(query.equals).toHaveBeenCalledWith(false);
+    expect(query.populate).toHaveBeenCalledWith('createdBy', 'firstName lastName');
+    expect(query.populate).toHaveBeenCalledWith('lastModifiedBy', 'firstName lastName');
+    expect(res.json).toHaveBeenCalledWith({ forms });
+    expect(res.json.mock.calls[0][0].forms[0].createdBy.firstName).toBe('Sam');
+  });
+
+  it('list 500 hides the raw error', async () => {
+    isAuthenticatedRequest.mockReturnValue(false);
+    const query = mockListQuery([]);
+    query.sort.mockRejectedValue(new Error('db password leaked'));
+
+    await getAllFormsFormat({ query: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching all forms format.' });
+  });
+
+  it('anonymous getFormFormat returns 404 for an inactive form', async () => {
+    isAuthenticatedRequest.mockReturnValue(false);
+    Form.findById = jest.fn().mockResolvedValue(makeForm({ isActive: false }));
+
+    await getFormFormat({ params: { formId: 'f1' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Form not found.' });
+  });
+
+  it('anonymous getFormFormat of an active form drops staff metadata', async () => {
+    isAuthenticatedRequest.mockReturnValue(false);
+    Form.findById = jest.fn().mockResolvedValue(makeForm());
+
+    await getFormFormat({ params: { formId: 'f1' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const { form } = res.json.mock.calls[0][0];
+    expect(form.title).toBe('Engineer');
+    expect(JSON.stringify(form)).not.toContain('createdBy');
+    expect(JSON.stringify(form)).not.toContain('lastModifiedBy');
+    expect(JSON.stringify(form)).not.toContain('Sam');
+  });
+
+  it('staff getFormFormat returns the full form even when inactive', async () => {
+    isAuthenticatedRequest.mockReturnValue(true);
+    const form = makeForm({ isActive: false });
+    Form.findById = jest.fn().mockResolvedValue(form);
+
+    await getFormFormat({ params: { formId: 'f1' } }, res);
+
+    expect(res.json).toHaveBeenCalledWith({ form });
+  });
+
+  it('getFormFormat 500 hides the raw error', async () => {
+    Form.findById = jest.fn().mockRejectedValue(new Error('cast failure internals'));
+
+    await getFormFormat({ params: { formId: 'bad' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching form format.' });
   });
 });
