@@ -14,6 +14,17 @@ const { IMGUR_REFRESH_TOKEN } = process.env;
 // ============================================================================
 
 /**
+ * Sanitize log input to prevent Log Injection (S5145) by removing control characters.
+ * @param {any} data - The data to sanitize for logging.
+ * @returns {string} Sanitized string safe for logging.
+ */
+const sanitizeLog = (data) => {
+  if (!data) return '';
+  const str = typeof data === 'object' ? JSON.stringify(data) : String(data);
+  return str.replace(/[\r\n]/g, '_');
+};
+
+/**
  * Summarize media files for API responses
  */
 // eslint-disable-next-line no-unused-vars
@@ -99,8 +110,8 @@ const uploadImageToImgur = async (imageBuffer, title = '') => {
 
     return response.data.data.id; // Returns the image hash/id
   } catch (err) {
-    console.error('Image upload to Imgur failed:', err.response?.data || err.message);
-    throw new Error(`Failed to upload image to Imgur: ${err.message}`);
+    console.error('Image upload to Imgur failed:', sanitizeLog(err.response?.data || err.message));
+    throw new Error(`Failed to upload image to Imgur: ${sanitizeLog(err.message)}`);
   }
 };
 
@@ -131,15 +142,18 @@ const createImgurAlbum = async (title, description = '') => {
     // Verify if the API response indicates a successful operation
     if (!response.data || !response.data.success) {
       throw new Error(
-        `Album creation failed: ${response.data?.data?.error || 'Unknown API error'}`,
+        `Album creation failed: ${sanitizeLog(response.data?.data?.error || 'Unknown API error')}`,
       );
     }
 
     return response.data.data.id;
   } catch (err) {
-    // Log the detailed error context for debugging purposes
-    console.error('Album creation on Imgur failed:', err.response?.data || err.message);
-    throw new Error(`Failed to create Imgur album: ${err.message}`);
+    // Log the detailed error context safely for debugging purposes
+    console.error(
+      'Album creation on Imgur failed:',
+      sanitizeLog(err.response?.data || err.message),
+    );
+    throw new Error(`Failed to create Imgur album: ${sanitizeLog(err.message)}`);
   }
 };
 
@@ -168,13 +182,13 @@ const addImagesToAlbum = async (albumId, imageIds) => {
     );
 
     if (!response.data.success) {
-      throw new Error(`Failed to add images to album: ${response.data.data.error}`);
+      throw new Error(`Failed to add images to album: ${sanitizeLog(response.data.data.error)}`);
     }
 
     return albumId;
   } catch (err) {
-    console.error('Failed to add images to album:', err.response?.data || err.message);
-    throw new Error(`Failed to add images to Imgur album: ${err.message}`);
+    console.error('Failed to add images to album:', sanitizeLog(err.response?.data || err.message));
+    throw new Error(`Failed to add images to Imgur album: ${sanitizeLog(err.message)}`);
   }
 };
 
@@ -213,7 +227,7 @@ const publishToImgur = async (title, description, mediaFiles, userId) => {
       imageIds: uploadedImageIds,
     };
   } catch (err) {
-    console.error('Imgur publication failed:', err.message);
+    console.error('Imgur publication failed:', sanitizeLog(err.message));
     throw err;
   }
 };
@@ -259,7 +273,7 @@ const executeScheduledPost = async (postId, scheduledJobs) => {
 
     console.log('Successfully posted to Imgur');
   } catch (err) {
-    console.error('Failed to execute scheduled post:', err.message);
+    console.error('Failed to execute scheduled post:', sanitizeLog(err.message));
 
     if (postRecord) {
       postRecord.status = 'failed';
@@ -381,7 +395,7 @@ const imgurPostController = () => {
         imgurUrl: result.imgurUrl,
       });
     } catch (err) {
-      console.error('Imgur post error:', err.message);
+      console.error('Imgur post error:', sanitizeLog(err.message));
       return res.status(500).json({
         success: false,
         message: err.message || 'Failed to post to Imgur',
@@ -402,7 +416,6 @@ const imgurPostController = () => {
 
       if (rawUserId) {
         // Validate userId format to prevent NoSQL injection attacks
-        // Convert input to string safely for validation
         const userIdStr = typeof rawUserId === 'string' ? rawUserId : String(rawUserId);
 
         // Validate that the string is a valid MongoDB ObjectId
@@ -428,7 +441,7 @@ const imgurPostController = () => {
         posts,
       });
     } catch (err) {
-      console.error('Error fetching scheduled posts:', err.message);
+      console.error('Error fetching scheduled posts:', sanitizeLog(err.message));
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch scheduled posts',
@@ -470,7 +483,7 @@ const imgurPostController = () => {
         message: 'Scheduled post deleted successfully',
       });
     } catch (err) {
-      console.error('Error deleting scheduled post:', err.message);
+      console.error('Error deleting scheduled post:', sanitizeLog(err.message));
       return res.status(500).json({
         success: false,
         message: 'Failed to delete scheduled post',
@@ -542,7 +555,7 @@ const imgurPostController = () => {
         post,
       });
     } catch (err) {
-      console.error('Error updating scheduled post:', err.message);
+      console.error('Error updating scheduled post:', sanitizeLog(err.message));
       return res.status(500).json({
         success: false,
         message: 'Failed to update scheduled post',
@@ -585,8 +598,6 @@ const imgurPostController = () => {
         throw new Error('Failed to obtain access token from Imgur');
       }
 
-      // Store tokens (implementation depends on your auth strategy)
-      // This is a simplified example - you should store in user profile or secure storage
       console.log('Imgur authorization successful');
 
       return res.status(200).json({
@@ -597,7 +608,7 @@ const imgurPostController = () => {
         expiresIn: response.data.expires_in,
       });
     } catch (err) {
-      console.error('Imgur authorization failed:', err.response?.data || err.message);
+      console.error('Imgur authorization failed:', sanitizeLog(err.response?.data || err.message));
       return res.status(500).json({
         success: false,
         message: 'Authorization failed',
