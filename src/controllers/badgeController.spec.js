@@ -10,9 +10,25 @@ const UserProfile = require('../models/userProfile');
 const badgeController = require('./badgeController');
 
 const makeSut = () => {
-  const { postBadge, getAllBadges, assignBadges, deleteBadge } = badgeController(Badge);
+  const {
+    postBadge,
+    getAllBadges,
+    assignBadges,
+    deleteBadge,
+    putBadge,
+    updateBadgesWithUsers,
+    updateBadgeUsers,
+  } = badgeController(Badge);
 
-  return { postBadge, getAllBadges, assignBadges, deleteBadge };
+  return {
+    postBadge,
+    getAllBadges,
+    assignBadges,
+    deleteBadge,
+    putBadge,
+    updateBadgesWithUsers,
+    updateBadgeUsers,
+  };
 };
 
 const flushPromises = () => new Promise(setImmediate);
@@ -236,6 +252,25 @@ describe('badeController module', () => {
       });
       assertResMock(201, newBadge, response, mockRes);
     });
+
+    test('Initializes the new badge with an empty users array', async () => {
+      makeMockCache('getCache', false);
+      const { postBadge } = makeSut();
+      mockHasPermission(true);
+
+      jest.spyOn(Badge, 'find').mockImplementationOnce(() => Promise.resolve([]));
+      const saveSpy = jest
+        .spyOn(Badge.prototype, 'save')
+        .mockImplementationOnce(function mockSave() {
+          return Promise.resolve(this);
+        });
+
+      await postBadge(mockReq, mockRes);
+
+      const savedInstance = saveSpy.mock.instances[0];
+      expect(Array.from(savedInstance.users)).toEqual([]);
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+    });
   });
 
   // describe('getAllBadges method', () => {
@@ -358,6 +393,45 @@ describe('badeController module', () => {
         ranking: 1,
         badgeName: 1,
       });
+    });
+
+    test('Returns 403 and logs when the user has none of the badge permissions', async () => {
+      const { getAllBadges } = makeSut();
+      const permissionSpy = jest.spyOn(helper, 'hasPermission').mockResolvedValue(false);
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      await getAllBadges(mockReq, mockRes);
+
+      expect(permissionSpy).toHaveBeenCalledTimes(5);
+      expect(logSpy).toHaveBeenCalledWith('User not authorized');
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.send).toHaveBeenCalledWith('You are not authorized to view all badge data.');
+
+      permissionSpy.mockRestore();
+      logSpy.mockRestore();
+    });
+
+    test('Populates users.userId in addition to project', async () => {
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', false);
+      const { getAllBadges } = makeSut();
+      mockHasPermission(true);
+
+      const badges = [{ badge: 'random badge' }];
+      const chain = makeFindChain({ result: badges });
+      jest.spyOn(Badge, 'find').mockReturnValueOnce(chain);
+
+      getAllBadges(mockReq, mockRes);
+      await flushPromises();
+
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(chain.populate).toHaveBeenCalledTimes(2);
+      expect(chain.populate).toHaveBeenCalledWith({
+        path: 'users.userId',
+        select: '_id username firstName lastName',
+      });
+      expect(cacheObject.setCache).toHaveBeenCalledWith('allBadges', badges);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(badges);
     });
   });
 
@@ -640,6 +714,151 @@ describe('badeController module', () => {
       );
       expect(getCacheMock).toHaveBeenCalledWith('allBadges');
       expect(removeCacheSpy).toHaveBeenCalledWith('allBadges');
+    });
+  });
+
+  describe('updateBadgesWithUsers method', () => {
+    let logSpy;
+
+    beforeEach(() => {
+      logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      logSpy.mockRestore();
+    });
+
+    test('Returns 200 with "No badges need updating" when every badge already has users', async () => {
+      const { updateBadgesWithUsers } = makeSut();
+      const findSpy = jest.spyOn(Badge, 'find').mockResolvedValueOnce([]);
+      const updateManySpy = jest.spyOn(Badge, 'updateMany');
+
+      await updateBadgesWithUsers(mockReq, mockRes);
+
+      expect(logSpy).toHaveBeenCalledWith('Updating Badges');
+      expect(findSpy).toHaveBeenCalledWith({ users: { $exists: false } });
+      expect(updateManySpy).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({ message: 'No badges need updating' });
+    });
+
+    test('Updates badges, clears the cache when it exists, and returns 200', async () => {
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', true);
+      const removeCacheSpy = jest.spyOn(cacheObject, 'removeCache').mockReturnValueOnce(null);
+      const { updateBadgesWithUsers } = makeSut();
+
+      const badgesToUpdate = [{ _id: 'b1' }, { _id: 'b2' }];
+      jest.spyOn(Badge, 'find').mockResolvedValueOnce(badgesToUpdate);
+      const updateManySpy = jest.spyOn(Badge, 'updateMany').mockResolvedValueOnce({});
+
+      await updateBadgesWithUsers(mockReq, mockRes);
+
+      expect(updateManySpy).toHaveBeenCalledWith(
+        { users: { $exists: false } },
+        { $set: { users: [] } },
+      );
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(removeCacheSpy).toHaveBeenCalledWith('allBadges');
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Successfully updated 2 badges with users array',
+        updatedBadges: badgesToUpdate,
+      });
+    });
+
+    test('Does not clear the cache when there is no allBadges cache', async () => {
+      const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', false);
+      const { updateBadgesWithUsers } = makeSut();
+
+      const badgesToUpdate = [{ _id: 'b1' }];
+      jest.spyOn(Badge, 'find').mockResolvedValueOnce(badgesToUpdate);
+      jest.spyOn(Badge, 'updateMany').mockResolvedValueOnce({});
+
+      await updateBadgesWithUsers(mockReq, mockRes);
+
+      expect(hasCacheMock).toHaveBeenCalledWith('allBadges');
+      expect(cacheObject.removeCache).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        message: 'Successfully updated 1 badges with users array',
+        updatedBadges: badgesToUpdate,
+      });
+    });
+
+    test('Returns 500 if an error occurs while finding badges', async () => {
+      const { updateBadgesWithUsers } = makeSut();
+      jest.spyOn(Badge, 'find').mockRejectedValueOnce(new Error('find failed'));
+
+      await updateBadgesWithUsers(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        error: 'Error updating badges',
+        details: 'find failed',
+      });
+    });
+
+    test('Returns 500 if updateMany fails', async () => {
+      const { updateBadgesWithUsers } = makeSut();
+      jest.spyOn(Badge, 'find').mockResolvedValueOnce([{ _id: 'b1' }]);
+      jest.spyOn(Badge, 'updateMany').mockRejectedValueOnce(new Error('update failed'));
+
+      await updateBadgesWithUsers(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        error: 'Error updating badges',
+        details: 'update failed',
+      });
+    });
+
+    test('updateBadgeUsers is exported as an alias of updateBadgesWithUsers', () => {
+      const { updateBadgesWithUsers, updateBadgeUsers } = makeSut();
+      expect(updateBadgeUsers).toBe(updateBadgesWithUsers);
+    });
+  });
+
+  describe('putBadge method', () => {
+    test('Delegates to updateBadgesWithUsers when the body only contains the requestor', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const { putBadge } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const findSpy = jest.spyOn(Badge, 'find').mockResolvedValueOnce([]);
+      const findByIdAndUpdateSpy = jest.spyOn(Badge, 'findByIdAndUpdate');
+
+      const req = { ...mockReq, body: { requestor: mockReq.body.requestor } };
+
+      await putBadge(req, mockRes);
+
+      expect(hasPermissionSpy).toHaveBeenCalledWith(req.body.requestor, 'updateBadges');
+      expect(findSpy).toHaveBeenCalledWith({ users: { $exists: false } });
+      expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({ message: 'No badges need updating' });
+
+      logSpy.mockRestore();
+    });
+
+    test('Does not delegate and updates the badge when update data is provided', async () => {
+      makeMockCache('getCache', false);
+      const { putBadge } = makeSut();
+      mockHasPermission(true);
+
+      const findSpy = jest.spyOn(Badge, 'find');
+      const findByIdAndUpdateSpy = jest
+        .spyOn(Badge, 'findByIdAndUpdate')
+        .mockImplementationOnce((_id, _data, callback) => callback(null, { _id: 'b1' }));
+
+      await putBadge(mockReq, mockRes);
+
+      expect(findSpy).not.toHaveBeenCalled();
+      expect(findByIdAndUpdateSpy).toHaveBeenCalledWith(
+        mockReq.params.badgeId,
+        expect.objectContaining({ badgeName: mockReq.body.badgeName }),
+        expect.any(Function),
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith({ message: 'Badge successfully updated' });
     });
   });
 });
