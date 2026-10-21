@@ -1,8 +1,13 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
+const emailRecipientsController = require('../controllers/jobApplicationEmailRecipientsController');
 const upload = require('../middleware/multerMiddleware');
 
 const router = express.Router();
+
+// Protected by JWT middleware and controller-level Owner/Admin authorization.
+router.get('/job-application-email-recipients', emailRecipientsController.getRecipients);
+router.put('/job-application-email-recipients', emailRecipientsController.updateRecipients);
 
 // Create a new form
 router.post('/jobforms', formController.createForm);
