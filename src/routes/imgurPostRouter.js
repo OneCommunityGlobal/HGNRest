@@ -37,14 +37,18 @@ async function requireImgurPostingPermission(req, res, next) {
 const routes = () => {
   // Configure multer for image uploads
   const storage = multer.memoryStorage();
+
+  // Define a safe maximum file size (5MB) to prevent DoS attacks via large payloads (S5693 compliance)
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
   const upload = multer({
     storage,
     limits: {
-      fileSize: 10 * 1024 * 1024, // Reduced to 10MB max file size to prevent DoS via large payloads (S5693 fix)
+      fileSize: MAX_FILE_SIZE,
       files: 10, // Maximum 10 images per post
     },
     fileFilter: (req, file, cb) => {
-      // Only allow image files
+      // Only allow specific image mime types
       const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
@@ -54,9 +58,6 @@ const routes = () => {
     },
   });
 
-  const controller = require('../controllers/imgurPostController')();
-  const imgurRouter = express.Router();
-
   /**
    * Error handling middleware for multer
    */
@@ -65,7 +66,7 @@ const routes = () => {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
           success: false,
-          message: 'File size exceeds the limit of 100MB',
+          message: 'File size exceeds the limit of 5MB',
         });
       }
       if (err.code === 'LIMIT_FILE_COUNT') {
@@ -83,6 +84,10 @@ const routes = () => {
     next();
   }
 
+  // Initialize controller and router instances
+  const controller = require('../controllers/imgurPostController')();
+  const imgurRouter = express.Router();
+
   // =========================================================================
   // ROUTES
   // =========================================================================
@@ -90,15 +95,6 @@ const routes = () => {
   /**
    * POST /imgur/post
    * Post to Imgur immediately or schedule for later
-   *
-   * Request body:
-   * {
-   *   title: string (required),
-   *   description: string (optional),
-   *   scheduleTime: ISO DateTime string (optional - if provided, post is scheduled)
-   * }
-   *
-   * Files: Up to 10 image files
    */
   imgurRouter.post(
     '/imgur/post',
@@ -111,17 +107,12 @@ const routes = () => {
   /**
    * GET /imgur/posts
    * Get all scheduled posts for the current user
-   *
-   * Query params:
-   * - userId: optional, filter by specific user (if authorized)
    */
   imgurRouter.get('/imgur/posts', requireImgurPostingPermission, controller.getScheduledPosts);
 
   /**
    * DELETE /imgur/posts/:postId
    * Delete a scheduled post
-   *
-   * Only pending posts can be deleted
    */
   imgurRouter.delete(
     '/imgur/posts/:postId',
@@ -132,15 +123,6 @@ const routes = () => {
   /**
    * PUT /imgur/posts/:postId
    * Update a scheduled post
-   *
-   * Request body:
-   * {
-   *   title: string (optional),
-   *   description: string (optional),
-   *   scheduleTime: ISO DateTime string (optional)
-   * }
-   *
-   * Files: Up to 10 updated image files (replaces existing images)
    */
   imgurRouter.put(
     '/imgur/posts/:postId',
@@ -153,12 +135,6 @@ const routes = () => {
   /**
    * POST /imgur/authorize
    * Handle Imgur OAuth authorization
-   * This endpoint may not require the same permission level as posting
-   *
-   * Request body:
-   * {
-   *   code: string (authorization code from Imgur OAuth flow)
-   * }
    */
   imgurRouter.post('/imgur/authorize', controller.authorizeImgur);
 
