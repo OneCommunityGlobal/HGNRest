@@ -18,36 +18,43 @@ const badgeController = function (Badge) {
     res.status(200).send('Badges awarded');
   };
 
-  const updateBadgesWithUsers = async function (req, res) {
-    console.log('Updating Badges');
+  const syncBadgeUsers = async function () {
+    // badge id -> unique user ids, built from every profile's badgeCollection
+    const assignments = await UserProfile.aggregate([
+      { $unwind: '$badgeCollection' },
+      { $group: { _id: '$badgeCollection.badge', userIds: { $addToSet: '$_id' } } },
+    ]);
 
+    // Badges that nobody holds
+    await Badge.updateMany(
+      { _id: { $nin: assignments.map((a) => a._id) } },
+      { $set: { users: [] } },
+    );
+
+    if (assignments.length > 0) {
+      await Badge.bulkWrite(
+        assignments.map(({ _id, userIds }) => ({
+          updateOne: {
+            filter: { _id },
+            update: { $set: { users: userIds.map((userId) => ({ userId })) } },
+          },
+        })),
+      );
+    }
+
+    if (cache.hasCache('allBadges')) {
+      cache.removeCache('allBadges');
+    }
+
+    return { badgesWithUsers: assignments.length };
+  };
+
+  const updateBadgeUsers = async function (req, res) {
     try {
-      // Find badges that don't have users field
-      const badgesToUpdate = await Badge.find({
-        users: { $exists: false },
-      });
-
-      if (badgesToUpdate.length === 0) {
-        return res.status(200).send({ message: 'No badges need updating' });
-      }
-
-      // Update all matching badges with empty users array
-      await Badge.updateMany({ users: { $exists: false } }, { $set: { users: [] } });
-
-      // Clear cache since badges were updated
-      if (cache.hasCache('allBadges')) {
-        cache.removeCache('allBadges');
-      }
-
-      res.status(200).send({
-        message: `Successfully updated ${badgesToUpdate.length} badges with users array`,
-        updatedBadges: badgesToUpdate,
-      });
+      const { badgesWithUsers } = await syncBadgeUsers();
+      return res.status(200).send({ message: `Synced users for ${badgesWithUsers} badges` });
     } catch (error) {
-      res.status(500).send({
-        error: 'Error updating badges',
-        details: error.message,
-      });
+      return res.status(500).send({ error: 'Error syncing badge users', details: error.message });
     }
   };
 
@@ -76,7 +83,7 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport users',
     )
       .populate({
         path: 'project',
@@ -200,6 +207,25 @@ const badgeController = function (Badge) {
       }
 
       const results = await record.save();
+
+      const heldBadgeIds = badgeGroupsArray.map((b) => mongoose.Types.ObjectId(b.badge));
+
+      await Promise.all([
+        Badge.updateMany(
+          { _id: { $in: heldBadgeIds }, 'users.userId': { $ne: userToBeAssigned } },
+          { $push: { users: { userId: userToBeAssigned } } },
+        ),
+        Badge.updateMany(
+          { _id: { $nin: heldBadgeIds }, 'users.userId': userToBeAssigned },
+          { $pull: { users: { userId: userToBeAssigned } } },
+        ),
+      ]);
+
+      if (cache.hasCache('allBadges')) {
+        cache.removeCache('allBadges');
+      }
+
+      res.status(201).send(results._id);
       res.status(201).send(results._id);
     } catch (err) {
       res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
@@ -296,9 +322,10 @@ const badgeController = function (Badge) {
     const { badgeId } = req.params;
     const imageUrl = null;
 
-    if (!req.body || Object.keys(req.body).length <= 1) {
-      // Call updateBadgesWithUsers if no update data provided
-      return updateBadgesWithUsers(req, res);
+    const hasUpdateData = Object.keys(req.body).some((key) => key !== 'requestor');
+    if (!hasUpdateData) {
+      res.status(400).send({ error: 'No update data provided' });
+      return;
     }
 
     // If has req.body.file than upload image and insert that url
@@ -395,8 +422,8 @@ const badgeController = function (Badge) {
     getBadgeCount,
     putBadgecount,
     resetBadgecount,
-    updateBadgesWithUsers,
-    updateBadgeUsers: updateBadgesWithUsers,
+    syncBadgeUsers,
+    updateBadgeUsers,
   };
 };
 

@@ -24,6 +24,10 @@ const routes = function (userProfile, project) {
       controller.postUserProfile,
     );
 
+  userProfileRouter
+    .route('/users/search')
+    .get(param('name').exists(), controller.searchUsersByName);
+
   userProfileRouter.route('/userProfile/update').patch(controller.updateUserInformation);
   userProfileRouter.route('/userProfile/:userId/projectHistory/').get(controller.getProjectHistory);
   userProfileRouter.route('/clearAllProjectHistory/').post(controller.postClearProjectHistory);

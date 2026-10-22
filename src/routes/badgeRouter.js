@@ -9,9 +9,6 @@ const routes = function (badge) {
 
   badgeRouter.post('/badge/awardNewBadges', controller.awardNewBadges);
 
-  // to update the schema with array of users for every badge
-  badgeRouter.route('/badge/updateUsers').put(controller.updateBadgesWithUsers);
-
   // to update the array of users
   badgeRouter.route('/badge/updateBadgeUsers').put(controller.updateBadgeUsers);
 

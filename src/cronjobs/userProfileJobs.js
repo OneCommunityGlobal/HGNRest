@@ -1,7 +1,8 @@
 const { CronJob } = require('cron');
 const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
-const badgeController = require('../controllers/badgeController');
+const Badge = require('../models/badge');
+const badgeController = require('../controllers/badgeController')(Badge);
 
 const userProfileJobs = () => {
   /* eslint-disable no-unused-vars */
@@ -24,8 +25,7 @@ const userProfileJobs = () => {
         await userhelper.deleteExpiredTokens();
 
         // New badge-related jobs
-        await badgeController.updateBadgesWithUsers();
-        await badgeController.updateBadgeUsers();
+        await badgeController.syncBadgeUsers();
       }
       await userhelper.awardNewBadges();
       // await userhelper.weeklyCompanySummaryEmail(); - function does not exist, restore when added
