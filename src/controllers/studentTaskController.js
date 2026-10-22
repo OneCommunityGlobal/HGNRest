@@ -374,7 +374,11 @@ const studentTaskController = function () {
   const logHours = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const studentId = req.body.requestor?.requestorId;
+      const studentId = req.user?.requestorId;
+
+      if (!studentId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
       if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
         return res.status(400).json({ error: 'Invalid Task ID' });
@@ -383,7 +387,7 @@ const studentTaskController = function () {
         return res.status(400).json({ error: 'Invalid Student ID' });
       }
 
-      const hours = Number(req.body.hours);
+      const { hours } = req.body;
       if (!Number.isFinite(hours) || hours <= 0) {
         return res.status(400).json({ error: 'hours must be a positive number' });
       }
@@ -397,24 +401,44 @@ const studentTaskController = function () {
         return res.status(404).json({ error: 'Task not found or does not belong to you' });
       }
 
-      if (task.status === 'completed' || task.status === 'graded') {
-        return res.status(400).json({ error: 'Cannot log hours for a completed task' });
+      if (task.type !== 'read') {
+        return res.status(400).json({ error: 'Only read tasks support hours logging' });
+      }
+      if (!['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Cannot log hours for a task with this status' });
       }
 
-      const cap = task.suggestedTotalHours > 0 ? task.suggestedTotalHours : Infinity;
-      const newLoggedHours = Math.min(task.loggedHours + hours, cap);
-
-      const newStatus =
-        task.status === 'assigned' && newLoggedHours > 0 ? 'in_progress' : task.status;
-
+      // Calculate from the stored value atomically and recheck eligibility at write time.
+      const totalHours = { $add: [{ $ifNull: ['$loggedHours', 0] }, hours] };
+      const suggestedHours = { $ifNull: ['$suggestedTotalHours', 0] };
       const updated = await EducationTask.findOneAndUpdate(
-        { _id: mongoose.Types.ObjectId(taskId) },
-        { $set: { loggedHours: newLoggedHours, status: newStatus } },
-        { new: true, runValidators: false },
+        {
+          _id: mongoose.Types.ObjectId(taskId),
+          studentId: mongoose.Types.ObjectId(studentId),
+          type: 'read',
+          status: { $in: ['assigned', 'in_progress'] },
+        },
+        [
+          {
+            $set: {
+              loggedHours: {
+                $cond: [
+                  { $gt: [suggestedHours, 0] },
+                  { $min: [totalHours, suggestedHours] },
+                  totalHours,
+                ],
+              },
+              status: 'in_progress',
+            },
+          },
+        ],
+        { new: true },
       );
 
       if (!updated) {
-        return res.status(404).json({ error: 'Task not found during update' });
+        return res
+          .status(409)
+          .json({ error: 'Task changed and is no longer eligible for logging' });
       }
 
       const canMarkDone =
