@@ -6,6 +6,9 @@ const escapeRegex = require('../utilities/escapeRegex');
 const helper = require('../utilities/permissions');
 const { hasPermission } = require('../utilities/permissions');
 
+// New purchases historically return timestamp failures as messages, rather than error objects.
+class InventoryPurchaseTimestampError extends Error {}
+
 const inventoryController = function (Item, ItemType, projects) {
   const getAllInvInProjectWBS = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'getAllInvInProjectWBS'))) {
@@ -52,16 +55,64 @@ const inventoryController = function (Item, ItemType, projects) {
     return project;
   };
 
+  const getPurchaseMatch = (projectId, wbsId, purchase) => ({
+    project: mongoose.Types.ObjectId(projectId),
+    wbs: wbsId && wbsId !== 'Unassigned' ? mongoose.Types.ObjectId(wbsId) : null,
+    inventoryItemType: purchase.typeId || purchase.typeID,
+    wasted: false,
+  });
+
+  const saveInventoryPurchase = async ({ projectId, wbsId, purchase, inventoryExists }) => {
+    const match = getPurchaseMatch(projectId, wbsId, purchase);
+    const note = {
+      quantity: purchase.quantity,
+      typeOfMovement: 'Purchased',
+      message: `Created ${purchase.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${purchase.notes}`,
+    };
+    let record;
+    if (inventoryExists) {
+      const updated = await Item.findOneAndUpdate(
+        match,
+        {
+          $inc: { quantity: purchase.quantity, cost: purchase.cost },
+          $push: { notes: note, poNums: purchase.poNum },
+        },
+        { new: true },
+      );
+      record = await Item.findByIdAndUpdate(
+        updated._id,
+        { costPer: updated.quantity !== 0 ? updated.cost / updated.quantity : 0 },
+        { new: true },
+      );
+    } else {
+      const inventoryItem = new Item({
+        ...match,
+        quantity: purchase.quantity,
+        poNums: [purchase.poNum],
+        cost: purchase.cost,
+        notes: [note],
+        created: Date.now(),
+      });
+      record = await inventoryItem.save();
+    }
+
+    try {
+      await updateProjectInventoryModifiedTime(projectId);
+    } catch (error) {
+      if (!inventoryExists) {
+        throw new InventoryPurchaseTimestampError(error.message, { cause: error });
+      }
+      throw error;
+    }
+    return record;
+  };
+
+  // Add purchased inventory to the project/WBS, preserving purchase history.
+  // Save the project inventory timestamp before returning success.
   const postInvInProjectWBS = async function (req, res) {
     if (!(await helper.hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
-    // use req.body.projectId and req.body.wbsId req.body.quantity,
-    // req.body.cost, req.body.ponum and req.body.typeId, req.body.message
-    // create the item  using that information with cost per quantity being a calculation.
-    //  Add a note field with "Created/Purchased" in the typeOfMovement field quantity being the full quantity and message being the req.body.message
-    // make sure the item is saved and
-    // send result just sending sucess and any information returned
     const projectExists = await projects
       .findOne({ _id: req.params.projectId })
       .select('_id')
@@ -71,86 +122,24 @@ const inventoryController = function (Item, ItemType, projects) {
       wbsExists = await wbs.findOne({ _id: req.params.wbsId }).select('_id').lean();
     }
     if (req.body.quantity && req.body.typeId && projectExists && wbsExists) {
-      const inventoryExists = await Item.findOne({
-        project: mongoose.Types.ObjectId(req.params.projectId),
-        wbs:
-          req.params.wbsId && req.params.wbsId !== 'Unassigned'
-            ? mongoose.Types.ObjectId(req.params.wbsId)
-            : null,
-        inventoryItemType: req.body.typeId || req.body.typeID,
-        wasted: false,
-      })
+      const inventoryExists = await Item.findOne(
+        getPurchaseMatch(req.params.projectId, req.params.wbsId, req.body),
+      )
         .select('_id')
         .lean();
-      if (!inventoryExists) {
-        const data = {
-          quantity: req.body.quantity,
-          poNums: [req.body.poNum],
-          cost: req.body.cost,
-          inventoryItemType: req.body.typeId || req.body.typeID,
-          wasted: false,
-          project: mongoose.Types.ObjectId(req.params.projectId),
-          wbs:
-            req.params.wbsId && req.params.wbsId !== 'Unassigned'
-              ? mongoose.Types.ObjectId(req.params.wbsId)
-              : null,
-          notes: [
-            {
-              quantity: req.body.quantity,
-              typeOfMovement: 'Purchased',
-              message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-            },
-          ],
-          created: Date.now(),
-        };
-        const inventoryItem = new Item(data);
-
-        return inventoryItem
-          .save()
-          .then((results) => {
-            return updateProjectInventoryModifiedTime(req.params.projectId)
-              .then(() => {
-                res.status(201).send(results);
-              })
-              .catch((err) => {
-                res.status(500).send(err.message);
-              });
-          })
-          .catch((errors) => res.status(500).send(errors));
+      try {
+        const record = await saveInventoryPurchase({
+          projectId: req.params.projectId,
+          wbsId: req.params.wbsId,
+          purchase: req.body,
+          inventoryExists,
+        });
+        return res.status(201).send(record);
+      } catch (error) {
+        return res
+          .status(500)
+          .send(error instanceof InventoryPurchaseTimestampError ? error.message : error);
       }
-      return Item.findOneAndUpdate(
-        {
-          project: mongoose.Types.ObjectId(req.params.projectId),
-          wbs:
-            req.params.wbsId && req.params.wbsId !== 'Unassigned'
-              ? mongoose.Types.ObjectId(req.params.wbsId)
-              : null,
-          inventoryItemType: req.body.typeId || req.body.typeID,
-          wasted: false,
-        },
-        {
-          $inc: { quantity: req.body.quantity, cost: req.body.cost },
-          $push: {
-            notes: {
-              quantity: req.body.quantity,
-              typeOfMovement: 'Purchased',
-              message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-            },
-            poNums: req.body.poNum,
-          },
-        },
-        { new: true },
-      )
-        .then(async (results) => {
-          const result = await Item.findByIdAndUpdate(
-            results._id,
-            { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-            { new: true },
-          );
-          await updateProjectInventoryModifiedTime(req.params.projectId);
-          return res.status(201).send(result);
-        })
-        .catch((errors) => res.status(500).send(errors));
     }
     return res
       .status(400)
@@ -191,12 +180,12 @@ const inventoryController = function (Item, ItemType, projects) {
       .catch((error) => res.status(404).send(error));
   };
 
+  // Add purchased inventory to the project with no assigned WBS, preserving purchase history.
+  // Save the project inventory timestamp before returning success.
   const postInvInProject = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'postInvInProject'))) {
       return res.status(403).send('You are not authorized to post new inventory data.');
     }
-    // same as posting an item inProjectWBS but the WBS is uanassigned(i.e. null)
-
     // Check that both the project and type exists otherwise send an error
     const projectExists = await projects
       .findOne({ _id: req.params.projectId })
@@ -207,80 +196,24 @@ const inventoryController = function (Item, ItemType, projects) {
       .lean();
     if (req.body.quantity && typeExists && projectExists) {
       // See if there is an inventory item already in the project/wbs that is not wasted and of that type.
-      const inventoryExists = await Item.findOne({
-        project: mongoose.Types.ObjectId(req.params.projectId),
-        wbs: null,
-        inventoryItemType: req.body.typeId || req.body.typeID,
-        wasted: false,
-      })
+      const inventoryExists = await Item.findOne(
+        getPurchaseMatch(req.params.projectId, null, req.body),
+      )
         .select('_id')
         .lean();
-      // If no inventory create a new object and save it.
-      if (!inventoryExists) {
-        const data = {
-          quantity: req.body.quantity,
-          poNums: [req.body.poNum],
-          cost: req.body.cost,
-          inventoryItemType: req.body.typeId || req.body.typeID,
-          wasted: false,
-          project: mongoose.Types.ObjectId(req.params.projectId),
-          wbs: null,
-          notes: [
-            {
-              quantity: req.body.quantity,
-              typeOfMovement: 'Purchased',
-              message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-            },
-          ],
-          created: Date.now(),
-        };
-        const inventoryItem = new Item(data);
-
-        return inventoryItem
-          .save()
-          .then((results) => {
-            return updateProjectInventoryModifiedTime(req.params.projectId)
-              .then(() => {
-                res.status(201).send(results);
-              })
-              .catch((err) => {
-                // If project update fails, send error response
-                res.status(500).send(err.message);
-              });
-          })
-          .catch((errors) => res.status(500).send(errors));
+      try {
+        const record = await saveInventoryPurchase({
+          projectId: req.params.projectId,
+          wbsId: null,
+          purchase: req.body,
+          inventoryExists,
+        });
+        return res.status(201).send(record);
+      } catch (error) {
+        return res
+          .status(500)
+          .send(error instanceof InventoryPurchaseTimestampError ? error.message : error);
       }
-      // if item does exist we will update it
-      return Item.findOneAndUpdate(
-        {
-          project: mongoose.Types.ObjectId(req.params.projectId),
-          wbs: null,
-          inventoryItemType: req.body.typeId || req.body.typeID,
-          wasted: false,
-        },
-        {
-          $inc: { quantity: req.body.quantity, cost: req.body.cost },
-          $push: {
-            notes: {
-              quantity: req.body.quantity,
-              typeOfMovement: 'Purchased',
-              message: `Created ${req.body.quantity} on ${moment(Date.now()).format('MM/DD/YYYY')} note: ${req.body.notes}`,
-            },
-            poNums: req.body.poNum,
-          },
-        },
-        { new: true },
-      )
-        .then(async (results) => {
-          const result = await Item.findByIdAndUpdate(
-            results._id,
-            { costPer: results.quantity !== 0 ? results.cost / results.quantity : 0 },
-            { new: true },
-          );
-          await updateProjectInventoryModifiedTime(req.params.projectId);
-          return res.status(201).send(result);
-        })
-        .catch((errors) => res.status(500).send(errors));
     }
     return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
   };

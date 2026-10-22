@@ -497,6 +497,188 @@ describe('inventory sorting timestamps', () => {
     expect(res.send).toHaveBeenCalledWith(record);
   });
 
+  const purchaseCases = [
+    ['postInvInProject', false],
+    ['postInvInProject', true],
+    ['postInvInProjectWBS', false],
+    ['postInvInProjectWBS', true],
+  ];
+
+  test.each(purchaseCases)(
+    '%s preserves purchase data for existing inventory=%s',
+    async (handler, existing) => {
+      const typeId = '6515fcc71dd1dbff0999e158';
+      const wbsId = '6515fcc71dd1dbff0999e159';
+      req.params.wbsId = wbsId;
+      req.body = { quantity: 2, cost: 20, typeId, poNum: 'PO-123', notes: 'Restocked' };
+      Item.findOne.mockImplementation(() => query(existing ? record : null));
+      const match = {
+        project: mongoose.Types.ObjectId(projectId),
+        wbs: handler === 'postInvInProjectWBS' ? mongoose.Types.ObjectId(wbsId) : null,
+        inventoryItemType: typeId,
+        wasted: false,
+      };
+      const note = {
+        quantity: 2,
+        typeOfMovement: 'Purchased',
+        message: expect.stringMatching(/^Created 2 on \d{2}\/\d{2}\/\d{4} note: Restocked$/),
+      };
+      await controller[handler](req, res);
+      expect(Item.findOne).toHaveBeenCalledWith(match);
+      if (existing) {
+        expect(Item).not.toHaveBeenCalled();
+        expect(Item.findOneAndUpdate).toHaveBeenCalledWith(
+          match,
+          { $inc: { quantity: 2, cost: 20 }, $push: { notes: note, poNums: 'PO-123' } },
+          { new: true },
+        );
+        expect(Item.findByIdAndUpdate).toHaveBeenCalledWith(invId, { costPer: 10 }, { new: true });
+      } else {
+        expect(Item).toHaveBeenCalledWith({
+          ...match,
+          quantity: 2,
+          cost: 20,
+          poNums: ['PO-123'],
+          notes: [note],
+          created: expect.any(Number),
+        });
+        expect(Item.mock.results[0].value.save).toHaveBeenCalledTimes(1);
+        expect(Item.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Item.findByIdAndUpdate).not.toHaveBeenCalled();
+      }
+      expect(res.status).toHaveBeenLastCalledWith(201);
+      expect(res.send).toHaveBeenCalledTimes(1);
+      expect(res.send).toHaveBeenCalledWith(record);
+    },
+  );
+
+  test.each([undefined, 'Unassigned'])(
+    'WBS purchases normalize %s to unassigned inventory',
+    async (wbsId) => {
+      req.params.wbsId = wbsId;
+      await controller.postInvInProjectWBS(req, res);
+      expect(Item.findOne).toHaveBeenCalledWith(expect.objectContaining({ wbs: null }));
+      expect(Item).toHaveBeenCalledWith(expect.objectContaining({ wbs: null }));
+      expect(wbs.findOne).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenLastCalledWith(201);
+    },
+  );
+
+  test('project purchases retain support for typeID form values', async () => {
+    req.body.typeID = req.body.typeId;
+    delete req.body.typeId;
+    await controller.postInvInProject(req, res);
+    expect(Item).toHaveBeenCalledWith(
+      expect.objectContaining({ inventoryItemType: req.body.typeID }),
+    );
+    expect(res.status).toHaveBeenLastCalledWith(201);
+  });
+
+  test.each(['postInvInProject', 'postInvInProjectWBS'])(
+    '%s calculates costPer from the merged record and handles zero quantity',
+    async (handler) => {
+      Item.findOne.mockImplementation(() => query(record));
+      Item.findOneAndUpdate.mockResolvedValueOnce({ ...record, quantity: 6, cost: 30 });
+      const updatedRecord = { ...record, quantity: 6, cost: 30, costPer: 5 };
+      Item.findByIdAndUpdate.mockResolvedValueOnce(updatedRecord);
+      await controller[handler](req, res);
+      expect(Item.findByIdAndUpdate).toHaveBeenLastCalledWith(invId, { costPer: 5 }, { new: true });
+      expect(res.send).toHaveBeenLastCalledWith(updatedRecord);
+
+      Item.findOneAndUpdate.mockResolvedValueOnce({ ...record, quantity: 0 });
+      await controller[handler](req, res);
+      expect(Item.findByIdAndUpdate).toHaveBeenLastCalledWith(invId, { costPer: 0 }, { new: true });
+    },
+  );
+
+  test.each(['postInvInProject', 'postInvInProjectWBS'])(
+    '%s waits for costPer persistence before advancing the project timestamp',
+    async (handler) => {
+      Item.findOne.mockImplementation(() => query(record));
+      let finish;
+      Item.findByIdAndUpdate.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const pending = controller[handler](req, res);
+      await flushPromises();
+      expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
+      expect(res.send).not.toHaveBeenCalled();
+      finish(record);
+      await pending;
+      expect(Project.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenLastCalledWith(201);
+      expect(res.send).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test.each([
+    ['postInvInProject', 'save'],
+    ['postInvInProject', 'increment'],
+    ['postInvInProject', 'costPer'],
+    ['postInvInProjectWBS', 'save'],
+    ['postInvInProjectWBS', 'increment'],
+    ['postInvInProjectWBS', 'costPer'],
+  ])('%s stops after a failed %s write', async (handler, stage) => {
+    const error = new Error('purchase write failed');
+    Item.findOne.mockImplementation(() => query(stage === 'save' ? null : record));
+    if (stage === 'save') {
+      Item.mockImplementationOnce(() => ({ save: jest.fn().mockRejectedValue(error) }));
+    } else if (stage === 'increment') {
+      Item.findOneAndUpdate.mockRejectedValueOnce(error);
+    } else {
+      Item.findByIdAndUpdate.mockRejectedValueOnce(error);
+    }
+    await controller[handler](req, res);
+    expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
+    if (stage !== 'costPer') expect(Item.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledTimes(1);
+    expect(res.send).toHaveBeenCalledWith(error);
+  });
+
+  test.each(purchaseCases)(
+    '%s preserves timestamp error responses for existing inventory=%s',
+    async (handler, existing) => {
+      const error = new Error('timestamp write failed');
+      Item.findOne.mockImplementation(() => query(existing ? record : null));
+      Project.findByIdAndUpdate.mockRejectedValueOnce(error);
+      await controller[handler](req, res);
+      expect(res.status).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.send).toHaveBeenCalledTimes(1);
+      expect(res.send).toHaveBeenCalledWith(existing ? error : error.message);
+    },
+  );
+
+  test.each([
+    ['postInvInProject', 'project'],
+    ['postInvInProject', 'quantity'],
+    ['postInvInProject', 'type'],
+    ['postInvInProjectWBS', 'project'],
+    ['postInvInProjectWBS', 'quantity'],
+    ['postInvInProjectWBS', 'type'],
+    ['postInvInProjectWBS', 'wbs'],
+  ])('%s rejects invalid %s before purchase writes', async (handler, field) => {
+    if (field === 'project') Project.findOne.mockImplementationOnce(() => query(null));
+    if (field === 'quantity') req.body.quantity = 0;
+    if (field === 'type') {
+      if (handler === 'postInvInProject')
+        ItemType.findOne.mockImplementationOnce(() => query(null));
+      else req.body.typeId = '';
+    }
+    if (field === 'wbs') wbs.findOne.mockImplementationOnce(() => query(null));
+    await controller[handler](req, res);
+    expect(Item).not.toHaveBeenCalled();
+    expect(Item.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(Item.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenLastCalledWith(400);
+    expect(res.send).toHaveBeenCalledTimes(1);
+  });
+
   test('an edit preserves ownership/history and updates the stored owning project', async () => {
     delete req.params.projectId;
     req.body = { quantity: 5, notes: 'corrected count', projectId: invId, wbsId: null };
@@ -583,6 +765,8 @@ describe('inventory sorting timestamps', () => {
     async (handler) => {
       helper.hasPermission.mockResolvedValueOnce(false);
       await controller[handler](req, res);
+      expect(Item).not.toHaveBeenCalled();
+      expect(Item.findOneAndUpdate).not.toHaveBeenCalled();
       expect(Item.findByIdAndUpdate).not.toHaveBeenCalled();
       expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenLastCalledWith(403);
