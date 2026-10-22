@@ -55,15 +55,30 @@ const inventoryController = function (Item, ItemType, projects) {
     return project;
   };
 
-  const getPurchaseMatch = (projectId, wbsId, purchase) => ({
+  const getPurchaseTypeId = (purchase) => {
+    const typeId = purchase.typeId || purchase.typeID;
+    // Query values must be scalar IDs, never client-supplied MongoDB operators.
+    if (typeof typeId !== 'string' || typeId.length !== 24 || !/^[a-fA-F0-9]{24}$/.test(typeId)) {
+      return null;
+    }
+    return mongoose.Types.ObjectId(typeId);
+  };
+
+  const getPurchaseMatch = (projectId, wbsId, inventoryItemType) => ({
     project: mongoose.Types.ObjectId(projectId),
     wbs: wbsId && wbsId !== 'Unassigned' ? mongoose.Types.ObjectId(wbsId) : null,
-    inventoryItemType: purchase.typeId || purchase.typeID,
+    inventoryItemType,
     wasted: false,
   });
 
-  const saveInventoryPurchase = async ({ projectId, wbsId, purchase, inventoryExists }) => {
-    const match = getPurchaseMatch(projectId, wbsId, purchase);
+  const saveInventoryPurchase = async ({
+    projectId,
+    wbsId,
+    inventoryItemType,
+    purchase,
+    inventoryExists,
+  }) => {
+    const match = getPurchaseMatch(projectId, wbsId, inventoryItemType);
     const note = {
       quantity: purchase.quantity,
       typeOfMovement: 'Purchased',
@@ -113,6 +128,14 @@ const inventoryController = function (Item, ItemType, projects) {
     if (!(await helper.hasPermission(req.body.requestor, 'postInvInProjectWBS'))) {
       return res.status(403).send('You are not authorized to view inventory data.');
     }
+    const inventoryItemType = getPurchaseTypeId(req.body);
+    if (!inventoryItemType) {
+      return res
+        .status(400)
+        .send(
+          'Valid Project, Quantity and Type Id are necessary as well as valid wbs if sent in and not Unassigned',
+        );
+    }
     const projectExists = await projects
       .findOne({ _id: req.params.projectId })
       .select('_id')
@@ -121,9 +144,9 @@ const inventoryController = function (Item, ItemType, projects) {
     if (req.params.wbsId && req.params.wbsId !== 'Unassigned') {
       wbsExists = await wbs.findOne({ _id: req.params.wbsId }).select('_id').lean();
     }
-    if (req.body.quantity && req.body.typeId && projectExists && wbsExists) {
+    if (req.body.quantity && projectExists && wbsExists) {
       const inventoryExists = await Item.findOne(
-        getPurchaseMatch(req.params.projectId, req.params.wbsId, req.body),
+        getPurchaseMatch(req.params.projectId, req.params.wbsId, inventoryItemType),
       )
         .select('_id')
         .lean();
@@ -131,6 +154,7 @@ const inventoryController = function (Item, ItemType, projects) {
         const record = await saveInventoryPurchase({
           projectId: req.params.projectId,
           wbsId: req.params.wbsId,
+          inventoryItemType,
           purchase: req.body,
           inventoryExists,
         });
@@ -186,18 +210,20 @@ const inventoryController = function (Item, ItemType, projects) {
     if (!(await hasPermission(req.body.requestor, 'postInvInProject'))) {
       return res.status(403).send('You are not authorized to post new inventory data.');
     }
+    const inventoryItemType = getPurchaseTypeId(req.body);
+    if (!inventoryItemType) {
+      return res.status(400).send('Valid Project, Quantity and Type Id are necessary');
+    }
     // Check that both the project and type exists otherwise send an error
     const projectExists = await projects
       .findOne({ _id: req.params.projectId })
       .select('_id')
       .lean();
-    const typeExists = await ItemType.findOne({ _id: req.body.typeId || req.body.typeID })
-      .select('_id')
-      .lean();
+    const typeExists = await ItemType.findOne({ _id: inventoryItemType }).select('_id').lean();
     if (req.body.quantity && typeExists && projectExists) {
       // See if there is an inventory item already in the project/wbs that is not wasted and of that type.
       const inventoryExists = await Item.findOne(
-        getPurchaseMatch(req.params.projectId, null, req.body),
+        getPurchaseMatch(req.params.projectId, null, inventoryItemType),
       )
         .select('_id')
         .lean();
@@ -205,6 +231,7 @@ const inventoryController = function (Item, ItemType, projects) {
         const record = await saveInventoryPurchase({
           projectId: req.params.projectId,
           wbsId: null,
+          inventoryItemType,
           purchase: req.body,
           inventoryExists,
         });

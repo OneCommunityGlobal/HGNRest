@@ -515,7 +515,7 @@ describe('inventory sorting timestamps', () => {
       const match = {
         project: mongoose.Types.ObjectId(projectId),
         wbs: handler === 'postInvInProjectWBS' ? mongoose.Types.ObjectId(wbsId) : null,
-        inventoryItemType: typeId,
+        inventoryItemType: mongoose.Types.ObjectId(typeId),
         wasted: false,
       };
       const note = {
@@ -569,10 +569,103 @@ describe('inventory sorting timestamps', () => {
     delete req.body.typeId;
     await controller.postInvInProject(req, res);
     expect(Item).toHaveBeenCalledWith(
-      expect.objectContaining({ inventoryItemType: req.body.typeID }),
+      expect.objectContaining({ inventoryItemType: mongoose.Types.ObjectId(req.body.typeID) }),
     );
     expect(res.status).toHaveBeenLastCalledWith(201);
   });
+
+  const invalidPurchaseTypeIds = [
+    undefined,
+    null,
+    '',
+    123,
+    true,
+    {},
+    { $ne: null },
+    { $gt: '' },
+    { $regex: '.*' },
+    { $oid: '6515fcc71dd1dbff0999e158' },
+    ['6515fcc71dd1dbff0999e158'],
+    'abcdefghijkl',
+    'zzzzzzzzzzzzzzzzzzzzzzzz',
+    '$where',
+    '6515fcc71dd1dbff0999e158\n',
+    ' 6515fcc71dd1dbff0999e158',
+  ];
+
+  describe.each([
+    ['postInvInProject', 'typeId'],
+    ['postInvInProject', 'typeID'],
+    ['postInvInProjectWBS', 'typeId'],
+    ['postInvInProjectWBS', 'typeID'],
+  ])('%s purchase type validation using %s', (handler, field) => {
+    test.each(invalidPurchaseTypeIds.map((value) => [value]))(
+      'rejects %p before database access',
+      async (value) => {
+        delete req.body.typeId;
+        delete req.body.typeID;
+        req.body[field] = value;
+        await controller[handler](req, res);
+        expect(res.status).toHaveBeenCalledTimes(1);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.send).toHaveBeenCalledTimes(1);
+        expect(Project.findOne).not.toHaveBeenCalled();
+        expect(ItemType.findOne).not.toHaveBeenCalled();
+        expect(wbs.findOne).not.toHaveBeenCalled();
+        expect(Item.findOne).not.toHaveBeenCalled();
+        expect(Item).not.toHaveBeenCalled();
+        expect(Item.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Item.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
+      },
+    );
+
+    test.each([false, true])(
+      'accepts a hexadecimal ID as an ObjectId for existing inventory=%s',
+      async (existing) => {
+        const typeId = '6515FCC71DD1DBFF0999E158';
+        const expectedId = mongoose.Types.ObjectId(typeId);
+        delete req.body.typeId;
+        delete req.body.typeID;
+        req.body[field] = typeId;
+        Item.findOne.mockImplementation(() => query(existing ? record : null));
+        await controller[handler](req, res);
+        if (handler === 'postInvInProject') {
+          expect(ItemType.findOne).toHaveBeenCalledWith({ _id: expectedId });
+        }
+        expect(Item.findOne).toHaveBeenCalledWith(
+          expect.objectContaining({ inventoryItemType: expectedId }),
+        );
+        if (existing) {
+          expect(Item.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({ inventoryItemType: expectedId }),
+            expect.any(Object),
+            { new: true },
+          );
+        } else {
+          expect(Item).toHaveBeenCalledWith(
+            expect.objectContaining({ inventoryItemType: expectedId }),
+          );
+        }
+        expect(res.status).toHaveBeenLastCalledWith(201);
+        expect(res.send).toHaveBeenCalledTimes(1);
+      },
+    );
+  });
+
+  test.each(['postInvInProject', 'postInvInProjectWBS'])(
+    '%s does not fall back from an operator object to a valid alternate ID',
+    async (handler) => {
+      req.body.typeID = req.body.typeId;
+      req.body.typeId = { $ne: null };
+      await controller[handler](req, res);
+      expect(res.status).toHaveBeenLastCalledWith(400);
+      expect(ItemType.findOne).not.toHaveBeenCalled();
+      expect(Item.findOne).not.toHaveBeenCalled();
+      expect(Item.findOneAndUpdate).not.toHaveBeenCalled();
+      expect(Project.findByIdAndUpdate).not.toHaveBeenCalled();
+    },
+  );
 
   test.each(['postInvInProject', 'postInvInProjectWBS'])(
     '%s calculates costPer from the merged record and handles zero quantity',
