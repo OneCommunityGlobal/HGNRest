@@ -153,18 +153,16 @@ const kitchenSupplierController = function () {
       if (phone !== undefined && !isNonEmptyString(phone)) {
         return res.status(400).json({ message: 'Supplier phone is required' });
       }
-      Object.entries({ contact, email, phone, website, specialities }).forEach(([field, value]) => {
-        if (value !== undefined) {
-          update[field] = value;
-        }
-      });
-      if (isActive !== undefined) {
-        if (typeof isActive !== 'boolean') {
-          return res.status(400).json({ message: 'Invalid isActive value' });
-        }
-
-        update.isActive = isActive;
+      if (isActive !== undefined && typeof isActive !== 'boolean') {
+        return res.status(400).json({ message: 'Invalid isActive value' });
       }
+      Object.entries({ contact, email, phone, website, specialities, isActive }).forEach(
+        ([field, value]) => {
+          if (value !== undefined) {
+            update[field] = value;
+          }
+        },
+      );
       const updated = await Supplier.findByIdAndUpdate(
         new mongoose.Types.ObjectId(String(supplierId)),
         update,

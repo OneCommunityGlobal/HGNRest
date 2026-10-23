@@ -37,7 +37,7 @@ const validateOrderItems = (items) => {
     return { error: 'Invalid items' };
   }
 
-  const itemError = items.map(getOrderItemError).find(Boolean);
+  const itemError = items.map((item, index) => getOrderItemError(item, index)).find(Boolean);
   if (itemError) {
     return { error: itemError };
   }
