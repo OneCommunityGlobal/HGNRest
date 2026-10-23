@@ -139,6 +139,11 @@ const setGoal = (client, msg) => {
   client.initialGoal = newGoal;
 };
 
+// The header +/- buttons are always visible, started or not (unlike the dropdown's
+// +/- row, which only shows while started). While idle, +/- is the equivalent of
+// the pencil/SET_GOAL edit - it should move the baseline (initialGoal) too, so
+// Reset doesn't discard it later. Once started, +/- only extends the current
+// session and Reset should still abandon back to the pre-session baseline.
 const addGoal = (client, msg) => {
   const duration = parseInt(msg.value);
   const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
@@ -146,25 +151,25 @@ const addGoal = (client, msg) => {
   if (goalAfterAddition >= MAX_HOURS) {
     const oldGoal = client.goal;
     client.goal = MAX_HOURS * 60 * 60 * 1000;
-    client.time = moment
-      .duration(client.time)
-      .add(client.goal - oldGoal, 'milliseconds')
-      .asMilliseconds()
-      .toFixed();
+    client.time = Math.round(
+      moment
+        .duration(client.time)
+        .add(client.goal - oldGoal, 'milliseconds')
+        .asMilliseconds(),
+    );
 
+    if (!client.started) client.initialGoal = client.goal;
     return;
   }
 
-  client.goal = moment
-    .duration(client.goal)
-    .add(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
-  client.time = moment
-    .duration(client.time)
-    .add(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
+  client.goal = Math.round(
+    moment.duration(client.goal).add(duration, 'milliseconds').asMilliseconds(),
+  );
+  client.time = Math.round(
+    moment.duration(client.time).add(duration, 'milliseconds').asMilliseconds(),
+  );
+
+  if (!client.started) client.initialGoal = client.goal;
 };
 
 const removeGoal = (client, msg) => {
@@ -180,16 +185,14 @@ const removeGoal = (client, msg) => {
 
   if (goalAfterRemoval < MIN_MINS || timeAfterRemoval < 0) return;
 
-  client.goal = moment
-    .duration(client.goal)
-    .subtract(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
-  client.time = moment
-    .duration(client.time)
-    .subtract(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
+  client.goal = Math.round(
+    moment.duration(client.goal).subtract(duration, 'milliseconds').asMilliseconds(),
+  );
+  client.time = Math.round(
+    moment.duration(client.time).subtract(duration, 'milliseconds').asMilliseconds(),
+  );
+
+  if (!client.started) client.initialGoal = client.goal;
 };
 
 const handleMessage = async (msg, clients, userId) => {
