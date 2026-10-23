@@ -14,6 +14,7 @@ const {
   canEditFormQuestions,
   canDeleteFormQuestions,
 } = require('../utilities/jobFormPermissions');
+const { isAuthenticatedRequest } = require('../utilities/optionalStaffAuth');
 const {
   sanitizeCategory,
   parseBooleanQuery,
@@ -21,6 +22,59 @@ const {
 } = require('../utilities/mongoQuerySanitizer');
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+const toPlainObject = (doc) => (doc && typeof doc.toObject === 'function' ? doc.toObject() : doc);
+
+const pickFields = (source, fields) => {
+  const out = {};
+  fields.forEach((field) => {
+    if (source && source[field] !== undefined) out[field] = source[field];
+  });
+  return out;
+};
+
+const PUBLIC_QUESTION_FIELDS = [
+  '_id',
+  'questionText',
+  'questionType',
+  'visible',
+  'isRequired',
+  'options',
+  'placeholder',
+  'validationRules',
+  'fromQuestionSet',
+];
+const PUBLIC_QUESTION_SET_FIELDS = ['_id', 'name', 'description', 'category', 'questions'];
+const PUBLIC_FORM_FIELDS = [
+  '_id',
+  'title',
+  'description',
+  'category',
+  'isActive',
+  'fixedFields',
+  'jobLinks',
+];
+
+// Reduce a form to what the anonymous apply page renders. No staff names, ids or metadata.
+const toPublicForm = (formDoc) => {
+  const form = toPlainObject(formDoc) || {};
+  const publicForm = pickFields(form, PUBLIC_FORM_FIELDS);
+  publicForm.questions = (form.questions || []).map((q) => pickFields(q, PUBLIC_QUESTION_FIELDS));
+  publicForm.questionSets = (form.questionSets || []).map((entry) => {
+    const set = entry.questionSetId;
+    const isPopulated = set && typeof set === 'object' && set.questions !== undefined;
+    return {
+      ...pickFields(entry, ['_id', 'includeAll', 'selectedQuestions']),
+      questionSetId: isPopulated
+        ? {
+            ...pickFields(set, PUBLIC_QUESTION_SET_FIELDS),
+            questions: (set.questions || []).map((q) => pickFields(q, PUBLIC_QUESTION_FIELDS)),
+          }
+        : set,
+    };
+  });
+  return publicForm;
+};
 
 function buildFormUpdateData(body, lastModifiedBy) {
   const updateData = { lastModifiedBy };
@@ -299,10 +353,18 @@ exports.getFormFormat = async (req, res) => {
       return res.status(404).json({ message: 'Form not found.' });
     }
 
+    if (!isAuthenticatedRequest(req)) {
+      // Anonymous visitors only see active forms, without staff metadata.
+      if (form.isActive === false) {
+        return res.status(404).json({ message: 'Form not found.' });
+      }
+      return res.status(200).json({ form: toPublicForm(form) });
+    }
+
     res.status(200).json({ form });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Error fetching form format.', error });
+    res.status(500).json({ message: 'Error fetching form format.' });
   }
 };
 
@@ -439,7 +501,7 @@ exports.submitJobApplicationMiddleware = upload.any();
  *   Size, count and type limits are enforced by jobApplicationUploadMiddleware (400/413).
  *
  * Responses:
- *   201 - { message, response }
+ *   201 - { message }
  *   400 - missing required fields
  *   409 - duplicate application
  *   404 - form not found
@@ -509,10 +571,10 @@ exports.submitFormResponse = async (req, res) => {
     await response.save();
     await sendApplicationConfirmationEmail(form, respondent, normalizedEmail);
 
-    return res.status(201).json({ message: 'Application submitted successfully.', response });
+    return res.status(201).json({ message: 'Application submitted successfully.' });
   } catch (error) {
     console.error('Error submitting form response:', error);
-    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+    return res.status(500).json({ message: 'Error submitting application.' });
   }
 };
 
@@ -545,6 +607,7 @@ exports.getFormResponses = async (req, res) => {
 // Get formats of all forms
 exports.getAllFormsFormat = async (req, res) => {
   try {
+    const isStaff = isAuthenticatedRequest(req);
     let listQuery = Form.find();
 
     const safeCategory = sanitizeCategory(req.query.category);
@@ -552,26 +615,33 @@ exports.getAllFormsFormat = async (req, res) => {
       listQuery = listQuery.where('category').equals(safeCategory);
     }
 
-    const safeIsActive = parseBooleanQuery(req.query.isActive);
-    if (safeIsActive === true || safeIsActive === false) {
-      listQuery = listQuery.where('isActive').equals(safeIsActive);
+    if (isStaff) {
+      const safeIsActive = parseBooleanQuery(req.query.isActive);
+      if (safeIsActive === true || safeIsActive === false) {
+        listQuery = listQuery.where('isActive').equals(safeIsActive);
+      }
+
+      const safeCreatedBy = sanitizeObjectIdQuery(req.query.createdBy);
+      if (safeCreatedBy) {
+        listQuery = listQuery.where('createdBy').equals(safeCreatedBy);
+      }
+    } else {
+      // Anonymous visitors only ever see active forms and cannot filter by staff member.
+      listQuery = listQuery.where('isActive').equals(true);
     }
 
-    const safeCreatedBy = sanitizeObjectIdQuery(req.query.createdBy);
-    if (safeCreatedBy) {
-      listQuery = listQuery.where('createdBy').equals(safeCreatedBy);
+    if (isStaff) {
+      listQuery = listQuery
+        .populate('createdBy', 'firstName lastName')
+        .populate('lastModifiedBy', 'firstName lastName');
     }
 
-    const forms = await listQuery
-      .populate('createdBy', 'firstName lastName')
-      .populate('lastModifiedBy', 'firstName lastName')
-      .populate('questionSets.questionSetId')
-      .sort({ createdAt: -1 });
+    const forms = await listQuery.populate('questionSets.questionSetId').sort({ createdAt: -1 });
 
-    res.status(200).json({ forms });
+    res.status(200).json({ forms: isStaff ? forms : forms.map(toPublicForm) });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Error fetching all forms format.', error });
+    res.status(500).json({ message: 'Error fetching all forms format.' });
   }
 };
 
