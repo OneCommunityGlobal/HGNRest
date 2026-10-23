@@ -1,6 +1,6 @@
-const crypto = require('crypto');
-const fs = require('fs');
-const { Readable } = require('stream');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const { Readable } = require('node:stream');
 const { google } = require('googleapis');
 const { z } = require('zod');
 
@@ -142,9 +142,13 @@ const youtubeMetadataSchema = z
 const metadataJsonSchema = z.string().transform((value, context) => {
   try {
     const metadata = JSON.parse(value);
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error();
+
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw new Error('Metadata must be a valid non-array object');
+    }
     return metadata;
   } catch (error) {
+    // Expected when JSON parsing or validation fails; handled via Zod issue context
     context.addIssue({ code: 'custom', message: 'metadata must be valid JSON' });
     return z.NEVER;
   }
@@ -158,6 +162,7 @@ const parseMetadata = (body = {}) => {
     typeof metadata === 'object' && !Array.isArray(metadata)
       ? metadata
       : z.object({ metadata: metadataJsonSchema }).parse({ metadata }).metadata;
+
   return { ...parsedMetadata, ...individualFields };
 };
 
@@ -423,10 +428,6 @@ const getYoutubeConnectionStatus = async (req, res) => {
   }
 };
 
-/**
- * Receives one multipart file named `video` and YouTube metadata supplied either
- * as a JSON `metadata` form field or as individual multipart text fields.
- */
 const uploadVideo = async (req, res) => {
   try {
     validateVideoFile(req.file);

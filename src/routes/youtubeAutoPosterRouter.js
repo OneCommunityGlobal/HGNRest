@@ -1,6 +1,6 @@
-const crypto = require('crypto');
-const fs = require('fs').promises;
-const os = require('os');
+const crypto = require('node:crypto');
+const fs = require('node:fs').promises;
+const os = require('node:os');
 const express = require('express');
 const multer = require('multer');
 const {
