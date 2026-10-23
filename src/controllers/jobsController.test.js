@@ -74,6 +74,17 @@ describe('jobsController', () => {
         { $and: [{ category: { $in: ['Software & IT'] } }] },
       ],
       [
+        'category containing a comma',
+        { category: 'Architecture, Landscape & Environment' },
+        { $and: [{ category: { $in: ['Architecture, Landscape & Environment'] } }] },
+      ],
+      [
+        'category with surrounding whitespace',
+        { category: '  Software & IT  ' },
+        { $and: [{ category: { $in: ['Software & IT'] } }] },
+      ],
+      ['whitespace-only category', { category: '   ' }, {}],
+      [
         'category as JSON array string',
         { category: '["Software & IT","Marketing"]' },
         { $and: [{ category: { $in: ['Software & IT', 'Marketing'] } }] },
