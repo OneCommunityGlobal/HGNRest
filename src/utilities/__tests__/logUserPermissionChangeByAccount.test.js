@@ -1,11 +1,13 @@
 const UserPermissionChangeLog = require('../../models/userPermissionChangeLog');
 const UserProfile = require('../../models/userProfile');
+const roleModel = require('../../models/role');
 const logUserPermissionChangeByAccount = require('../logUserPermissionChangeByAccount');
 const { mockReq } = require('../../test');
 
 jest.mock('moment-timezone');
 jest.mock('../../models/userPermissionChangeLog');
 jest.mock('../../models/userProfile');
+jest.mock('../../models/role');
 
 describe('logUserPermissionChangeByAccount', () => {
   const user = {
@@ -15,7 +17,22 @@ describe('logUserPermissionChangeByAccount', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
+
+  const presetRoles = [
+    {
+      permissions: ['AssignBlueSquare', 'DeleteBlueSquare', 'postTeam'],
+      roleName: 'AdminTester',
+    },
+    {
+      permissions: ['addDeleteEditOwners', 'postTeam'],
+      roleName: 'OwnerTester',
+    },
+  ];
+
+  const testPreviousRole = 'OwnerTester';
+  const testNewRole = 'AdminTester';
 
   test('returns when permissions are missing', async () => {
     const req = {
@@ -39,8 +56,14 @@ describe('logUserPermissionChangeByAccount', () => {
           frontPermissions: ['addDeleteEditOwners', 'postTeam'],
           backPermissions: ['postTeam'],
         },
+        newRole: testNewRole,
+        previousRole: testPreviousRole,
       },
     };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
 
     jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
       select: jest.fn().mockReturnThis(),
@@ -81,9 +104,14 @@ describe('logUserPermissionChangeByAccount', () => {
           frontPermissions: ['addDeleteEditOwners', 'postTeam'],
           backPermissions: ['postTeam'],
         },
-        reason: 'Permissions Changed',
+        newRole: testPreviousRole,
+        previousRole: testPreviousRole,
       },
     };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
 
     jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
       select: jest.fn().mockReturnThis(),
@@ -107,7 +135,7 @@ describe('logUserPermissionChangeByAccount', () => {
       permissionsAdded: ['addDeleteEditOwners', 'postTeam'],
       permissionsRemoved: [],
       requestorRole: req.body.requestor.role,
-      reason: req.body.reason,
+      reason: "User's permissions modified.",
       requestorEmail: 'requestor@example.com',
     });
 
@@ -124,7 +152,69 @@ describe('logUserPermissionChangeByAccount', () => {
       permissionsAdded: ['addDeleteEditOwners', 'postTeam'],
       permissionsRemoved: [],
       requestorRole: req.body.requestor.role,
-      reason: req.body.reason,
+      reason: "User's permissions modified.",
+      requestorEmail: 'requestor@example.com',
+    });
+  });
+
+  test('creates new document when no previous log for user is found and their role is changed', async () => {
+    const req = {
+      ...mockReq,
+      body: {
+        ...mockReq.body,
+        permissions: {
+          frontPermissions: ['addDeleteEditOwners', 'postTeam'],
+          backPermissions: ['postTeam'],
+        },
+        newRole: testNewRole,
+        previousRole: testPreviousRole,
+      },
+    };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
+
+    jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        email: 'requestor@example.com',
+      }),
+    }));
+
+    jest.spyOn(UserPermissionChangeLog, 'findOne').mockImplementationOnce(() => ({
+      sort: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockImplementationOnce((callback) => {
+        callback(null, null);
+      }),
+    }));
+
+    const saveSpy = jest.spyOn(UserPermissionChangeLog.prototype, 'save').mockResolvedValueOnce({
+      individualName: `INDIVIDUAL: Jane Smith`,
+      permissions: ['addDeleteEditOwners', 'postTeam'],
+      removedRolePermissions: [],
+      permissionsAdded: ['addDeleteEditOwners', 'postTeam'],
+      permissionsRemoved: [],
+      requestorRole: req.body.requestor.role,
+      reason: `Role Changed to **${testNewRole}** from **${testPreviousRole}**.`,
+      requestorEmail: 'requestor@example.com',
+    });
+
+    await logUserPermissionChangeByAccount(req, user);
+    expect(saveSpy).toHaveBeenCalled();
+
+    const savedLog = saveSpy.mock.instances[0].toObject();
+    expect(savedLog.userId.toString()).toBe(req.params.userId);
+    expect(savedLog.logDateTime).toEqual(expect.any(String));
+    expect(savedLog).toMatchObject({
+      individualName: 'INDIVIDUAL: Jane Smith',
+      permissions: ['addDeleteEditOwners', 'postTeam'],
+      removedRolePermissions: [],
+      permissionsAdded: ['addDeleteEditOwners', 'postTeam'],
+      permissionsRemoved: [],
+      requestorRole: req.body.requestor.role,
+      reason: `Role Changed to **${testNewRole}** from **${testPreviousRole}**.`,
       requestorEmail: 'requestor@example.com',
     });
   });
@@ -139,9 +229,14 @@ describe('logUserPermissionChangeByAccount', () => {
           removedDefaultPermissions: ['seeAllUsers'],
           backPermissions: ['postTeam'],
         },
-        reason: 'Permissions Changed',
+        newRole: testPreviousRole,
+        previousRole: testPreviousRole,
       },
     };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
 
     jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
       select: jest.fn().mockReturnThis(),
@@ -170,7 +265,7 @@ describe('logUserPermissionChangeByAccount', () => {
       permissionsAdded: ['postTeam'],
       permissionsRemoved: [],
       requestorRole: req.body.requestor.role,
-      reason: req.body.reason,
+      reason: "User's permissions modified.",
       requestorEmail: 'requestor@example.com',
     });
 
@@ -187,7 +282,75 @@ describe('logUserPermissionChangeByAccount', () => {
       permissionsAdded: ['postTeam'],
       permissionsRemoved: [],
       requestorRole: req.body.requestor.role,
-      reason: req.body.reason,
+      reason: "User's permissions modified.",
+      requestorEmail: 'requestor@example.com',
+    });
+  });
+
+  test('creates new document for user with role change', async () => {
+    const req = {
+      ...mockReq,
+      body: {
+        ...mockReq.body,
+        permissions: {
+          frontPermissions: ['addDeleteEditOwners', 'postTeam'],
+          removedDefaultPermissions: ['seeAllUsers'],
+          backPermissions: ['postTeam'],
+        },
+        newRole: testNewRole,
+        previousRole: testPreviousRole,
+      },
+    };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
+
+    jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        email: 'requestor@example.com',
+      }),
+    }));
+
+    const priorLog = {
+      permissions: ['addDeleteEditOwners'],
+      removedRolePermissions: ['seeAllUsers'],
+    };
+
+    jest.spyOn(UserPermissionChangeLog, 'findOne').mockImplementationOnce(() => ({
+      sort: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockImplementationOnce((callback) => {
+        callback(null, priorLog);
+      }),
+    }));
+
+    const saveSpy = jest.spyOn(UserPermissionChangeLog.prototype, 'save').mockResolvedValueOnce({
+      individualName: `INDIVIDUAL: Jane Smith`,
+      permissions: ['addDeleteEditOwners', 'postTeam'],
+      removedRolePermissions: [],
+      permissionsAdded: ['postTeam'],
+      permissionsRemoved: [],
+      requestorRole: req.body.requestor.role,
+      reason: `Role Changed to **${testNewRole}** from **${testPreviousRole}**.`,
+      requestorEmail: 'requestor@example.com',
+    });
+
+    await logUserPermissionChangeByAccount(req, user);
+    expect(saveSpy).toHaveBeenCalled();
+
+    const savedLog = saveSpy.mock.instances[0].toObject();
+    expect(savedLog.userId.toString()).toBe(req.params.userId);
+    expect(savedLog.logDateTime).toEqual(expect.any(String));
+    expect(savedLog).toMatchObject({
+      individualName: 'INDIVIDUAL: Jane Smith',
+      permissions: ['addDeleteEditOwners', 'postTeam'],
+      removedRolePermissions: ['seeAllUsers'],
+      permissionsAdded: ['postTeam'],
+      permissionsRemoved: [],
+      requestorRole: req.body.requestor.role,
+      reason: `Role Changed to **${testNewRole}** from **${testPreviousRole}**.`,
       requestorEmail: 'requestor@example.com',
     });
   });
@@ -202,9 +365,14 @@ describe('logUserPermissionChangeByAccount', () => {
           removedDefaultPermissions: ['seeAllUsers'],
           backPermissions: ['postTeam'],
         },
-        reason: 'Permissions Changed',
+        newRole: testPreviousRole,
+        previousRole: testPreviousRole,
       },
     };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
 
     jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
       select: jest.fn().mockReturnThis(),
@@ -243,9 +411,14 @@ describe('logUserPermissionChangeByAccount', () => {
           removedDefaultPermissions: [],
           backPermissions: [],
         },
-        reason: 'Permissions Changed',
+        newRole: testPreviousRole,
+        previousRole: testPreviousRole,
       },
     };
+
+    jest.spyOn(roleModel, 'find').mockImplementationOnce(() => ({
+      lean: jest.fn().mockResolvedValue(presetRoles),
+    }));
 
     jest.spyOn(UserProfile, 'findById').mockImplementationOnce(() => ({
       select: jest.fn().mockReturnThis(),
