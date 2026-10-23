@@ -27,10 +27,12 @@ describe('bulk lesson tags', () => {
     session = { withTransaction: jest.fn((fn) => fn()), endSession: jest.fn() };
     jest.spyOn(mongoose, 'startSession').mockResolvedValue(session);
     Lesson = {
-      find: jest.fn(() => query([{ _id: lessonId, title: 'Safety', tags: ['old'] }])),
+      find: jest.fn(() =>
+        query([{ _id: lessonId, title: 'Safety', author: actorId, tags: ['old'] }]),
+      ),
       distinct: jest.fn(() => ({ session: jest.fn().mockResolvedValue(['old', 'new']) })),
       updateOne: jest.fn().mockResolvedValue({ nModified: 1 }),
-      findById: jest.fn(() => query({ tags: ['old', 'new'] })),
+      findById: jest.fn(() => query({ author: actorId, tags: ['old', 'new'] })),
     };
     controller = factory(Lesson);
     req = {
@@ -49,7 +51,7 @@ describe('bulk lesson tags', () => {
   afterEach(() => jest.restoreAllMocks());
 
   test.each(['Owner', 'Administrator', 'Manager', 'Mentor', 'Volunteer', 'Core Team'])(
-    '%s follows the existing authenticated lesson access pattern',
+    '%s can edit their own lessons',
     async (role) => {
       req.user.role = role;
       await controller.preview(req, res);
@@ -59,6 +61,30 @@ describe('bulk lesson tags', () => {
       expect(Lesson.updateOne).not.toHaveBeenCalled();
     },
   );
+  test.each(['Owner', 'Administrator', 'Admin', 'Manager', 'Mentor', 'Volunteer', 'Core Team'])(
+    '%s enforces ownership for another author',
+    async (role) => {
+      req.user.role = role;
+      Lesson.find.mockReturnValue(
+        query([{ _id: lessonId, title: 'Other', author: batchId, tags: ['old'] }]),
+      );
+      await controller.apply(req, res);
+      expect(res.status).toHaveBeenCalledWith(
+        ['Owner', 'Administrator', 'Admin'].includes(role) ? 201 : 403,
+      );
+      if (!['Owner', 'Administrator', 'Admin'].includes(role)) {
+        expect(Lesson.updateOne).not.toHaveBeenCalled();
+        expect(Batch.create).not.toHaveBeenCalled();
+      }
+    },
+  );
+  test('preview rejects unauthorized lessons despite a forged client role', async () => {
+    req.body.requestor = { requestorId: batchId, role: 'Owner' };
+    Lesson.find.mockReturnValue(query([{ _id: lessonId, author: batchId, tags: ['old'] }]));
+    await controller.preview(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(Lesson.updateOne).not.toHaveBeenCalled();
+  });
   test('rejects unauthenticated requests before querying data', async () => {
     delete req.user;
     await controller.apply(req, res);
@@ -139,7 +165,8 @@ describe('bulk lesson tags', () => {
     expect(session.endSession).toHaveBeenCalled();
   });
 
-  test('updates selected Tag Storage records just like other displayed records', async () => {
+  test('allows administrators to update selected Tag Storage records', async () => {
+    req.user.role = 'Administrator';
     Lesson.find.mockReturnValue(
       query([
         { _id: lessonId, title: 'Tag Storage', author: '000000000000000000000000', tags: ['old'] },
@@ -206,7 +233,7 @@ describe('bulk lesson tags', () => {
       expect(batch.save).toHaveBeenCalled();
     });
     test('preserves newer tag edits', async () => {
-      Lesson.findById.mockReturnValue(query({ tags: ['old', 'new', 'later'] }));
+      Lesson.findById.mockReturnValue(query({ author: actorId, tags: ['old', 'new', 'later'] }));
       await controller.undo(req, res);
       expect(res.status).toHaveBeenCalledWith(409);
       expect(Lesson.updateOne).not.toHaveBeenCalled();
@@ -215,6 +242,13 @@ describe('bulk lesson tags', () => {
       batch.undoneAt = new Date();
       await controller.undo(req, res);
       expect(res.status).toHaveBeenCalledWith(409);
+    });
+    test('rejects undo after lesson ownership changes', async () => {
+      Lesson.findById.mockReturnValue(query({ author: batchId, tags: ['old', 'new'] }));
+      await controller.undo(req, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(Lesson.updateOne).not.toHaveBeenCalled();
+      expect(batch.save).not.toHaveBeenCalled();
     });
   });
 });

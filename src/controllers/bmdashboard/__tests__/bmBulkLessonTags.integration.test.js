@@ -96,6 +96,7 @@ describe('bulk lesson tag transactions', () => {
       operation: 'remove',
       expected: [{ lessonId: String(storage._id), tags: ['old'] }],
     });
+    req.user.role = 'Administrator';
     const res = response();
     await controller.apply(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
@@ -115,6 +116,54 @@ describe('bulk lesson tag transactions', () => {
     await controller.undo(req, res);
     expect(res.status).toHaveBeenCalledWith(409);
     expect((await Lesson.findById(lessons[0]._id).lean()).tags).toEqual(['old', 'new', 'later']);
+    expect((await Batch.findById(batch._id)).undoneAt).toBeUndefined();
+  });
+  test('rejects an entire mixed-ownership batch without writes or audit entries', async () => {
+    await Lesson.updateOne(
+      { _id: lessons[1]._id },
+      { $set: { author: new mongoose.Types.ObjectId() } },
+    );
+    const res = response();
+    await controller.apply(applyRequest(), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await Lesson.findById(lessons[0]._id).lean()).tags).toEqual(['old']);
+    expect(await Batch.countDocuments()).toBe(0);
+  });
+  test('rechecks ownership after preview and rejects save when ownership changed', async () => {
+    const req = applyRequest();
+    const previewRes = response();
+    await controller.preview(req, previewRes);
+    expect(previewRes.json.mock.calls[0][0].changes).toHaveLength(2);
+    await Lesson.updateOne(
+      { _id: lessons[0]._id },
+      { $set: { author: new mongoose.Types.ObjectId() } },
+    );
+    const res = response();
+    await controller.apply(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await Lesson.findById(lessons[0]._id).lean()).tags).toEqual(['old']);
+    expect(await Batch.countDocuments()).toBe(0);
+  });
+  test('undo rolls back all restores when a later lesson is no longer editable', async () => {
+    const req = applyRequest();
+    req.body.tags = ['old'];
+    req.body.operation = 'remove';
+    // Both records must change so the transaction can exercise a later denial.
+    await Lesson.updateOne({ _id: lessons[1]._id }, { $set: { tags: ['old', 'new'] } });
+    req.body.expected[1].tags = ['old', 'new'];
+    await controller.apply(req, response());
+    const batch = await Batch.findOne();
+    await Lesson.updateOne(
+      { _id: batch.changes[1].lessonId },
+      { $set: { author: new mongoose.Types.ObjectId() } },
+    );
+    const undoReq = request({});
+    undoReq.params.batchId = String(batch._id);
+    const res = response();
+    await controller.undo(undoReq, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await Lesson.findById(lessons[0]._id).lean()).tags).toEqual([]);
+    expect((await Lesson.findById(lessons[1]._id).lean()).tags).toEqual(['new']);
     expect((await Batch.findById(batch._id)).undoneAt).toBeUndefined();
   });
 });
