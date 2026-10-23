@@ -133,7 +133,7 @@ const kitchenSupplierController = function () {
       const { name, contact, email, phone, website, specialities, isActive } = req.body;
       const update = { updated: Date.now() };
       if (name !== undefined) {
-        if (typeof name !== 'string' || !name.trim()) {
+        if (!isNonEmptyString(name)) {
           return res.status(400).json({ message: 'Invalid supplier name' });
         }
         const normalizedName = name.trim();
