@@ -1,9 +1,9 @@
-const { requireYoutubePermission } = require('../youtubePermissionMiddleware');
-const permissions = require('../../utilities/permissions');
-
 jest.mock('../../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
+
+const { requireYoutubePermission } = require('../youtubePermissionMiddleware');
+const permissions = require('../../utilities/permissions');
 
 describe('YouTube Permission Middleware', () => {
   let req;
