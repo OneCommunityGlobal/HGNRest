@@ -525,9 +525,12 @@ const overviewReportHelper = function () {
   }
 
   /**
-   *  Get the users celebrating their 6 month or 1 year anniversary within the given dates
+   * Get the active users whose join anniversary (1, 2, 3... full years after
+   * their createdDate) falls within the given dates.
    * @param {Date} isoStartDate
    * @param {Date} isoEndDate
+   * @param {Date} [isoComparisonStartDate]
+   * @param {Date} [isoComparisonEndDate]
    */
   async function getAnniversaries(
     isoStartDate,
@@ -536,40 +539,58 @@ const overviewReportHelper = function () {
     isoComparisonEndDate,
   ) {
     /**
-     * Gets start and end dates exactly X months ago
-     * @param {Date} startDate
-     * @param {Date} endDate
-     * @param {Number} timeDifferenceInMonths
-     * @returns {{ startDate: Date, endDate: Date }}
+     * The same moment, a number of years earlier.
+     * Uses UTC, so the server's time zone never changes the result.
+     * (In years without a Feb 29, Feb 29 joiners are listed on Feb 28.)
+     * @param {Date} date
+     * @param {Number} years
+     * @returns {Date}
      */
-    const getPastDates = (startDate, endDate, timeDifferenceInMonths) => {
-      const startDateCopy = new Date(startDate);
-      startDateCopy.setMonth(startDateCopy.getMonth() - timeDifferenceInMonths);
-
-      const endDateCopy = new Date(endDate);
-      endDateCopy.setMonth(endDateCopy.getMonth() - timeDifferenceInMonths);
-
-      return {
-        startDate: startDateCopy,
-        endDate: endDateCopy,
-      };
+    const yearsBefore = (date, years) => {
+      const copy = new Date(date);
+      copy.setUTCFullYear(copy.getUTCFullYear() - years);
+      return copy;
     };
 
+    // Earliest join date of an active user, so we know how many years to look back for anniversaries
+    const firstUser = await UserProfile.findOne(
+      { isActive: true, createdDate: { $type: 'date' } },
+      { createdDate: 1 },
+    )
+      .sort({ createdDate: 1 })
+      .lean();
+
     /**
-     * Gets list of users created within a given date range
+     * Gets the active users who joined on the same days 1, 2, 3... years
+     * before the given dates, i.e. whose anniversary falls within them.
      * @param {Date} startDate
      * @param {Date} endDate
-     * @returns {Array<Object>} Array of user objects
+     * @returns {Promise<Array<Object>>} Array of user objects
      */
-    const getUsersCreated = async (startDate, endDate) => {
-      const users = await UserProfile.aggregate([
+    const getAnniversaryUsers = async (startDate, endDate) => {
+      if (!firstUser) return [];
+      // One date window per past year: the same days 1, 2, 3... years ago,
+      // back to the year the earliest active user joined
+      const yearsToCheck = endDate.getUTCFullYear() - firstUser.createdDate.getUTCFullYear();
+      const sameDaysInPastYears = [];
+      for (let years = 1; years <= yearsToCheck; years += 1) {
+        sameDaysInPastYears.push({
+          isActive: true,
+          createdDate: {
+            $gte: yearsBefore(startDate, years),
+            $lte: yearsBefore(endDate, years),
+          },
+        });
+      }
+
+      // Nobody can have a full year yet (MongoDB rejects an empty $or)
+      if (sameDaysInPastYears.length === 0) return [];
+
+      return UserProfile.aggregate([
+        // Each window is a small range on the { isActive, createdDate } index
         {
           $match: {
-            createdDate: {
-              $gte: startDate,
-              $lte: endDate,
-            },
-            isActive: true,
+            $or: sameDaysInPastYears,
           },
         },
         {
@@ -583,62 +604,30 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-      return users;
     };
 
-    const dates6MonthsAgo = getPastDates(isoStartDate, isoEndDate, 6);
-    const dates1YearAgo = getPastDates(isoStartDate, isoEndDate, 12);
-
-    const anniversaries6Months = await getUsersCreated(
-      dates6MonthsAgo.startDate,
-      dates6MonthsAgo.endDate,
-    );
-    const anniversaries1Year = await getUsersCreated(
-      dates1YearAgo.startDate,
-      dates1YearAgo.endDate,
-    );
+    const anniversaryUsers = await getAnniversaryUsers(isoStartDate, isoEndDate);
 
     const response = {
+      // 6 months is not a full year: always empty, kept so the frontend does not break
       '6Months': {
-        users: anniversaries6Months,
+        users: [],
       },
+      // Everyone with 1, 2, 3... full years (the page shows them under "1 year")
       '1Year': {
-        users: anniversaries1Year,
+        users: anniversaryUsers,
       },
     };
 
-    /**
-     * If comparison dates are included in request,
-     * modify response to include comparison percentages
-     */
+    // The comparison period uses the same rule
     if (isoComparisonStartDate && isoComparisonEndDate) {
-      const comparisonDates6MonthsAgo = getPastDates(
+      const comparisonUsers = await getAnniversaryUsers(
         isoComparisonStartDate,
         isoComparisonEndDate,
-        6,
-      );
-      const comparisonDates1YearAgo = getPastDates(
-        isoComparisonStartDate,
-        isoComparisonEndDate,
-        12,
-      );
-
-      const comparisonAnniversaries6Months = await getUsersCreated(
-        comparisonDates6MonthsAgo.startDate,
-        comparisonDates6MonthsAgo.endDate,
-      );
-      const comparisonAnniversaries1Year = await getUsersCreated(
-        comparisonDates1YearAgo.startDate,
-        comparisonDates1YearAgo.endDate,
-      );
-
-      response['6Months'].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries6Months.length,
-        comparisonAnniversaries6Months.length,
       );
       response['1Year'].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries1Year.length,
-        comparisonAnniversaries1Year.length,
+        anniversaryUsers.length,
+        comparisonUsers.length,
       );
     }
 
