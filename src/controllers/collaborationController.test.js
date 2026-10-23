@@ -165,6 +165,39 @@ describe('submitFormResponse', () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
+  it('names stored blobs with the allowlisted lower-cased extension, not the client one', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    const questionId = '6a4f01a854e483075a73a6a9';
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: { ...validBody, answers: [{ questionId, answer: 'x' }] },
+        files: [
+          {
+            fieldname: 'resume',
+            originalname: 'Resume.PDF',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('pdf'),
+          },
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'cover.html',
+            mimetype: 'text/html',
+            buffer: Buffer.from('<p>'),
+          },
+        ],
+      },
+      res,
+    );
+
+    const blobNames = uploadFileToAzureBlobStorage.mock.calls.map(([, name]) => name);
+    expect(blobNames).toHaveLength(2);
+    expect(blobNames[0]).toMatch(/^resumes\/software_developer_ada_example_com_\d+\.pdf$/);
+    expect(blobNames[1]).toMatch(/_q_6a4f01a854e483075a73a6a9_\d+\.bin$/);
+  });
+
   it('still returns 201 if resume upload or email sending fails', async () => {
     Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
     Response.findOne.mockResolvedValue(null);
