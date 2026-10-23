@@ -10,11 +10,16 @@ const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages')
 const config = require('../config');
 
 // Roles allowed to manage student task assignments
-const STUDENT_TASK_ALLOWED_ROLES = ['Administrator', 'Owner', 'Educator', 'Program Manager'];
-const STUDENT_TASK_STATUSES = ['incomplete', 'in_progress', 'completed', 'graded'];
+const STUDENT_TASK_ALLOWED_ROLES = new Set([
+  'Administrator',
+  'Owner',
+  'Educator',
+  'Program Manager',
+]);
+const STUDENT_TASK_STATUSES = new Set(['incomplete', 'in_progress', 'completed', 'graded']);
 
 const hasStudentTaskAccess = (requestor) =>
-  !!requestor?.role && STUDENT_TASK_ALLOWED_ROLES.includes(requestor.role);
+  !!requestor?.role && STUDENT_TASK_ALLOWED_ROLES.has(requestor.role);
 
 const studentTaskController = function () {
   // Utility function to calculate deadline
@@ -165,9 +170,9 @@ const studentTaskController = function () {
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ error: 'id is not a valid id' });
       }
-      if (!STUDENT_TASK_STATUSES.includes(status)) {
+      if (!STUDENT_TASK_STATUSES.has(status)) {
         return res.status(400).json({
-          error: `status must be one of: ${STUDENT_TASK_STATUSES.join(', ')}`,
+          error: `status must be one of: ${[...STUDENT_TASK_STATUSES].join(', ')}`,
         });
       }
 
