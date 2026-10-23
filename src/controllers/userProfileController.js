@@ -2210,64 +2210,107 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
-    const { isRehireable } = req.body;
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
+    const { isRehireable, notRehireableReason } = req.body;
+    const { requestor } = req.body;
+    const requestorId = requestor?.requestorId;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).send({ error: 'Bad Request' });
     }
+    if (typeof isRehireable !== 'boolean') {
+      return res.status(400).send({ error: 'isRehireable must be a boolean' });
+    }
+
+    const reason = typeof notRehireableReason === 'string' ? notRehireableReason.trim() : '';
+    if (!isRehireable && !reason) {
+      return res.status(400).send({ error: 'A reason is required when a user is not rehireable' });
+    }
+
     if (
-      !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus')) ||
-      !canEditProtectedAccount
+      !requestorId ||
+      !(await hasPermission(requestor, 'changeUserRehireableStatus')) ||
+      !(await canRequestorUpdateUser(requestorId, userId))
     ) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
 
-    // Invalidate the cache for this user
-    cache.removeCache(`user-${userId}`);
+    try {
+      const currentUser = await UserProfile.findById(userId);
+      if (!currentUser) return res.status(404).send({ error: 'User not found' });
 
-    UserProfile.findByIdAndUpdate(
-      userId,
-      { $set: { isRehireable } },
-      { new: true },
-      // eslint-disable-next-line no-unused-vars
-      (error, updatedUser) => {
-        if (error) {
-          return res.status(500).send(error);
-        }
-        // Check if there's a cache for all users and update it accordingly
-        const isUserInCache = cache.hasCache('allusers');
-        if (isUserInCache) {
-          const allUserData = JSON.parse(cache.getCache('allusers'));
-          const userIdx = allUserData.findIndex((users) => users._id === userId);
-          const userData = allUserData[userIdx];
-          userData.isRehireable = isRehireable;
-          allUserData.splice(userIdx, 1, userData);
+      const requestorProfile = await UserProfile.findById(requestorId).select(
+        'email firstName lastName',
+      );
+      if (!requestorProfile) return res.status(404).send({ error: 'Requestor not found' });
+
+      const currentReason = currentUser.notRehireableReason || '';
+      const shouldLogReason =
+        !isRehireable && (currentUser.isRehireable !== false || currentReason !== reason);
+      const update = {
+        $set: {
+          isRehireable,
+          // Keep older reasons in history while clearing the active reason on rehire.
+          notRehireableReason: isRehireable ? '' : reason,
+        },
+      };
+
+      if (shouldLogReason) {
+        update.$push = {
+          notRehireableReasonHistory: {
+            action: currentUser.isRehireable === false && currentReason ? 'edited' : 'submitted',
+            reason,
+            changedAt: new Date(),
+            changedBy: {
+              userId: requestorProfile._id,
+              username: requestorProfile.email,
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+            },
+          },
+        };
+      }
+
+      const updatedUser = await UserProfile.findByIdAndUpdate(userId, update, {
+        new: true,
+        runValidators: true,
+      });
+      if (!updatedUser) return res.status(404).send({ error: 'User not found' });
+
+      cache.removeCache(`user-${userId}`);
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers') || '[]');
+        const userIdx = Array.isArray(allUserData)
+          ? allUserData.findIndex((user) => String(user._id) === String(userId))
+          : -1;
+        if (userIdx >= 0) {
+          allUserData[userIdx] = {
+            ...allUserData[userIdx],
+            isRehireable: updatedUser.isRehireable,
+            notRehireableReason: updatedUser.notRehireableReason,
+            notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
+          };
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
+      }
 
-        // Optionally, re-fetch the user to verify the updated data
-        UserProfile.findById(userId, (err, verifiedUser) => {
-          if (err) {
-            return res.status(500).send('Error fetching updated user data.');
-          }
-          auditIfProtectedAccountUpdated({
-            requestorId: req.body.requestor.requestorId,
-            updatedRecordEmail: verifiedUser.email,
-            originalRecord: null,
-            updatedRecord: null,
-            updateDiffPaths: null,
-            actionPerformed: 'UserRehireableStatusUpdate',
-          });
-          res.status(200).send({
-            message: 'Rehireable status updated and verified successfully',
-            isRehireable: verifiedUser.isRehireable,
-          });
-        });
-      },
-    );
+      auditIfProtectedAccountUpdated({
+        requestorId,
+        updatedRecordEmail: updatedUser.email,
+        originalRecord: null,
+        updatedRecord: null,
+        updateDiffPaths: null,
+        actionPerformed: 'UserRehireableStatusUpdate',
+      });
+
+      return res.status(200).send({
+        message: 'Rehireable status updated successfully',
+        isRehireable: updatedUser.isRehireable,
+        notRehireableReason: updatedUser.notRehireableReason,
+        notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
+      });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
+    }
   };
 
   const resetPassword = async function (req, res) {
