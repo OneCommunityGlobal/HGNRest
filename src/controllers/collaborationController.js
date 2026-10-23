@@ -6,6 +6,8 @@ const QuestionSet = require('../models/questionSet');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
 const { getEmailDomainError } = require('../utilities/emailValidators');
+const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
+const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -87,13 +89,6 @@ function filesByField(req) {
   return map;
 }
 
-function fileExtension(file) {
-  if (file?.originalname?.includes('.')) {
-    return file.originalname.split('.').pop();
-  }
-  return 'bin';
-}
-
 async function uploadOptionalFile(file, blobName) {
   if (!file) {
     return '';
@@ -154,7 +149,7 @@ async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
   }
   return uploadOptionalFile(
     resumeFile,
-    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${fileExtension(resumeFile)}`,
+    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${safeFileExtension(resumeFile)}`,
   );
 }
 
@@ -169,7 +164,7 @@ async function buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail) {
 
   const fileUrl = await uploadOptionalFile(
     uploaded,
-    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${fileExtension(uploaded)}`,
+    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${safeFileExtension(uploaded)}`,
   );
 
   return {
@@ -228,18 +223,20 @@ function appendResumeAndProfileAnswers(
 
 async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
   try {
-    const displayName = String(respondent || normalizedEmail).trim();
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const safeTitle = escapeHtml(form.title);
+    const subjectTitle = stripControlChars(form.title).trim();
     const emailBody = `
         <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-          <h2>Application Received — ${form.title}</h2>
+          <h2>Application Received — ${safeTitle}</h2>
           <p>Hi ${displayName},</p>
-          <p>Thank you for applying for <strong>${form.title}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>Thank you for applying for <strong>${safeTitle}</strong>. We have received your application and will be in touch shortly.</p>
           <p>If you have any questions, feel free to reach out.</p>
           <br/>
           <p>Best regards,<br/>One Community</p>
         </div>
       `;
-    await emailSender([normalizedEmail], `Application Received — ${form.title}`, emailBody);
+    await emailSender([normalizedEmail], `Application Received — ${subjectTitle}`, emailBody);
   } catch (emailErr) {
     console.error('Confirmation email failed (non-fatal):', emailErr.message);
   }
@@ -441,6 +438,8 @@ exports.submitJobApplicationMiddleware = upload.any();
  *
  * Optional multipart field:
  *   resume     {file}   - resume file (stored in Azure; URL saved on the response)
+ *   questionFile_<questionId> {file} - per-question attachment
+ *   Size, count and type limits are enforced by jobApplicationUploadMiddleware (400/413).
  *
  * Responses:
  *   201 - { message, response }
