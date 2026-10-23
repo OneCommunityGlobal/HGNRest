@@ -547,18 +547,30 @@ const timeEntrycontroller = function (TimeEntry) {
           return returnErr(res);
     }
 
-    // Only new default entries are checked; notes must be a string so a body cannot inject query operators.
+    // Only new default entries are checked. The request body is untrusted, so the lookup values are
+    // rebuilt from validated primitives and matched with explicit $eq, which Mongo never treats as an operator.
     const isNewDefaultEntry = req.body.entryType === undefined || req.body.entryType === 'default';
+    // Mongoose casts number and boolean notes to strings on save, so compare their persisted form.
+    const notesType = typeof req.body.notes;
+    const duplicateNotes =
+      notesType === 'string' || notesType === 'number' || notesType === 'boolean'
+        ? String(req.body.notes)
+        : null;
+    const duplicatePersonId =
+      typeof req.body.personId === 'string' && mongoose.Types.ObjectId.isValid(req.body.personId)
+        ? new mongoose.Types.ObjectId(req.body.personId)
+        : null;
     if (
       isNewDefaultEntry &&
       req.body.allowDuplicate !== true &&
-      typeof req.body.notes === 'string'
+      duplicateNotes !== null &&
+      duplicatePersonId !== null
     ) {
       try {
         const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_DAYS * MS_PER_DAY);
         const isDuplicate = await TimeEntry.exists({
-          personId: req.body.personId,
-          notes: req.body.notes,
+          personId: { $eq: duplicatePersonId },
+          notes: { $eq: duplicateNotes },
           createdDateTime: { $gte: windowStart },
         });
         if (isDuplicate) {

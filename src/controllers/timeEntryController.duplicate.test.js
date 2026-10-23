@@ -43,6 +43,7 @@ const timeEntryController = require('./timeEntryController');
 const oid = () => new mongoose.Types.ObjectId().toString();
 
 const NOW = new Date('2026-03-10T12:00:00.000Z').getTime();
+const HTTP_CONFLICT_FOR_TEST = 409;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOTES =
   'Reviewed the onboarding flow and documented the findings <p>https://example.com/doc</p>';
@@ -76,8 +77,8 @@ const makeExists = (entries) =>
     }
     return entries.some(
       (entry) =>
-        String(entry.personId) === String(filter.personId) &&
-        entry.notes === filter.notes &&
+        String(entry.personId) === String(filter.personId.$eq) &&
+        entry.notes === filter.notes.$eq &&
         entry.createdDateTime.getTime() >= filter.createdDateTime.$gte.getTime(),
     );
   });
@@ -206,8 +207,8 @@ describe('timeEntryController.postTimeEntry duplicate detection', () => {
       await post(buildBody());
 
       expect(TimeEntry.exists).toHaveBeenCalledWith({
-        personId,
-        notes: NOTES,
+        personId: { $eq: new mongoose.Types.ObjectId(personId) },
+        notes: { $eq: NOTES },
         createdDateTime: { $gte: new Date(NOW - 7 * DAY_MS) },
       });
     });
@@ -299,7 +300,7 @@ describe('timeEntryController.postTimeEntry duplicate detection', () => {
       const { res } = await post(buildBody({ requestor: { requestorId, roles: [] } }));
 
       expect(res.statusCodes).toEqual([409]);
-      expect(TimeEntry.exists.mock.calls[0][0].personId).toBe(personId);
+      expect(TimeEntry.exists.mock.calls[0][0].personId.$eq.toString()).toBe(personId);
     });
 
     test('causes no persistence side effects and exposes no entry details', async () => {
@@ -396,7 +397,7 @@ describe('timeEntryController.postTimeEntry duplicate detection', () => {
       const { res } = await post(buildBody({ personId: targetId }));
 
       expect(res.statusCodes).toEqual([409]);
-      expect(TimeEntry.exists.mock.calls[0][0].personId).toBe(targetId);
+      expect(TimeEntry.exists.mock.calls[0][0].personId.$eq.toString()).toBe(targetId);
     });
 
     test.each([
@@ -434,6 +435,119 @@ describe('timeEntryController.postTimeEntry duplicate detection', () => {
 
       expect(TimeEntry.exists).not.toHaveBeenCalled();
       expect(res.statusCodes).toEqual([200]);
+    });
+  });
+
+  describe('query injection hardening', () => {
+    const lookupFilter = () => TimeEntry.exists.mock.calls[0][0];
+
+    test.each([
+      ['$ne', { $ne: null }],
+      ['$gt', { $gt: '' }],
+      ['$regex', { $regex: '.*' }],
+      ['array', [NOTES]],
+      ['null', null],
+    ])('never forwards a %s notes value to the query', async (_label, notes) => {
+      const { thrown } = await post(buildBody({ notes }));
+
+      expect(thrown).toBeUndefined();
+      expect(TimeEntry.exists).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      [42, '42'],
+      [true, 'true'],
+      [false, 'false'],
+    ])(
+      'checks %p notes as the persisted string %j and detects a duplicate',
+      async (notes, stored) => {
+        TimeEntry.exists = makeExists([storedEntry({ notes: stored })]);
+
+        const { res } = await post(buildBody({ notes }));
+
+        expect(lookupFilter().notes).toEqual({ $eq: stored });
+        expect(res.statusCodes).toEqual([HTTP_CONFLICT_FOR_TEST]);
+        expect(res.bodies[0]).toEqual(DUPLICATE_BODY);
+        expect(saveMock).not.toHaveBeenCalled();
+      },
+    );
+
+    test('saves numeric notes when no matching string entry exists', async () => {
+      TimeEntry.exists = makeExists([storedEntry({ notes: '43' })]);
+
+      const { res } = await post(buildBody({ notes: 42 }));
+
+      expect(res.statusCodes).toEqual([200]);
+    });
+
+    test('numeric notes can still be confirmed with allowDuplicate: true', async () => {
+      TimeEntry.exists = makeExists([storedEntry({ notes: '42' })]);
+
+      const { res } = await post(buildBody({ notes: 42, allowDuplicate: true }));
+
+      expect(TimeEntry.exists).not.toHaveBeenCalled();
+      expect(res.statusCodes).toEqual([200]);
+    });
+
+    test.each([
+      ['$ne object', { $ne: null }],
+      ['$gt object', { $gt: '' }],
+      ['array', [personId]],
+      ['number', 123],
+    ])('never forwards a %s personId to the query', async (_label, badPersonId) => {
+      const { res, thrown } = await post(
+        buildBody({ personId: badPersonId, requestor: { requestorId: badPersonId, roles: [] } }),
+      );
+
+      expect(thrown).toBeUndefined();
+      expect(TimeEntry.exists).not.toHaveBeenCalled();
+      expect(res.statusCodes).not.toContain(HTTP_CONFLICT_FOR_TEST);
+    });
+
+    test('operator-shaped objects cannot turn the lookup into a match-all', async () => {
+      TimeEntry.exists = makeExists([storedEntry()]);
+
+      const { res } = await post(buildBody({ notes: { $ne: 'nothing' } }));
+
+      expect(res.statusCodes).not.toContain(HTTP_CONFLICT_FOR_TEST);
+      expect(res.bodies[0]).not.toEqual(DUPLICATE_BODY);
+    });
+
+    test.each(['$ne', '$regex', '{ "$gt": "" }', '{{notes}} $where: 1', '.*'])(
+      'treats the valid string %j as literal text wrapped in $eq',
+      async (notes) => {
+        TimeEntry.exists = makeExists([storedEntry({ notes })]);
+
+        const { res } = await post(buildBody({ notes }));
+
+        expect(lookupFilter().notes).toEqual({ $eq: notes });
+        expect(res.statusCodes).toEqual([HTTP_CONFLICT_FOR_TEST]);
+        expect(res.bodies[0]).toEqual(DUPLICATE_BODY);
+      },
+    );
+
+    test('a regex-like string does not match different stored notes', async () => {
+      TimeEntry.exists = makeExists([storedEntry()]);
+
+      const { res } = await post(buildBody({ notes: '.*' }));
+
+      expect(res.statusCodes).toEqual([200]);
+    });
+
+    test('allowDuplicate must be the boolean true, not a truthy string or object', async () => {
+      TimeEntry.exists = makeExists([storedEntry()]);
+
+      const { res } = await post(buildBody({ allowDuplicate: { $ne: false } }));
+
+      expect(res.statusCodes).toEqual([HTTP_CONFLICT_FOR_TEST]);
+      expect(res.bodies[0]).toEqual(DUPLICATE_BODY);
+    });
+
+    test('keeps the lookup to exactly the three constrained fields', async () => {
+      await post(buildBody({ notes: NOTES, extra: { $where: '1' }, entryType: 'default' }));
+
+      expect(Object.keys(lookupFilter()).sort()).toEqual(['createdDateTime', 'notes', 'personId']);
+      expect(lookupFilter().personId.$eq).toBeInstanceOf(mongoose.Types.ObjectId);
     });
   });
 
