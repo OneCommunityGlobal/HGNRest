@@ -1243,6 +1243,49 @@ const userHelper = function () {
     }
   };
 
+  const hasAutoReplyWeeklySummary = (user) =>
+    user?.weeklySummaryOption === 'Not Required' ||
+    user?.weeklySummaryNotReq ||
+    (Array.isArray(user.weeklySummaries) &&
+      user.weeklySummaries.length > 1 &&
+      !!user.weeklySummaries[1].summary);
+
+  const sendWeeklyAutoReplyForUser = async (user, emailConfig, context) => {
+    const { pdtStartOfLastWeek, pdtEndOfLastWeek, assignmentDate, resolvedBCCs } = context;
+    const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+    const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+
+    // Skip users who already received a priority-1 email from
+    // completeHoursAndMissedSummary() — they met hours but missed summary.
+    const metHours = weeklycommittedHours > 0 && timeSpent >= weeklycommittedHours;
+    const hasSummary = hasAutoReplyWeeklySummary(user);
+    if (metHours && !hasSummary) return; // handled by completeHoursAndMissedSummary
+
+    const numMonths = getNumMonthsOnTeam(user);
+    const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+    const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
+
+    const templateKey = resolveAutoReplyTemplate(
+      timeSpent,
+      weeklycommittedHours,
+      numMonths,
+      user.infringements.length,
+      hasTodayBlueSquare,
+      hasTimeOff,
+    );
+
+    if (!templateKey) return;
+
+    console.log(`[autoReply] ${user.email} → ${templateKey}`);
+    await sendBlueSquareEmail(
+      emailConfig,
+      user,
+      pdtStartOfLastWeek,
+      WeeklyReminderEmailBody(templateKey, user.firstName),
+      resolvedBCCs,
+    );
+  };
+
   /**
    * Single unified auto-reply function implementing Jae's priority hierarchy.
    * Replaces inCompleteHoursEmailFunction + weeklyBlueSquareReminderFunction.
@@ -1274,44 +1317,9 @@ const userHelper = function () {
       const assignmentDate = moment().tz(COMPANY_TZ).startOf('week').format('YYYY-MM-DD');
       const resolvedBCCs = await resolveBCCs(emailConfig);
 
+      const context = { pdtStartOfLastWeek, pdtEndOfLastWeek, assignmentDate, resolvedBCCs };
       for (const user of users) {
-        const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-
-        // Skip users who already received a priority-1 email from
-        // completeHoursAndMissedSummary() — they met hours but missed summary.
-        const metHours = weeklycommittedHours > 0 && timeSpent >= weeklycommittedHours;
-        const hasSummary =
-          user?.weeklySummaryOption === 'Not Required' ||
-          user?.weeklySummaryNotReq ||
-          (Array.isArray(user.weeklySummaries) &&
-            user.weeklySummaries.length > 1 &&
-            !!user.weeklySummaries[1].summary);
-        if (metHours && !hasSummary) continue; // handled by completeHoursAndMissedSummary
-
-        const numMonths = getNumMonthsOnTeam(user);
-        const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
-
-        const templateKey = resolveAutoReplyTemplate(
-          timeSpent,
-          weeklycommittedHours,
-          numMonths,
-          user.infringements.length,
-          hasTodayBlueSquare,
-          hasTimeOff,
-        );
-
-        if (!templateKey) continue;
-
-        console.log(`[autoReply] ${user.email} → ${templateKey}`);
-        await sendBlueSquareEmail(
-          emailConfig,
-          user,
-          pdtStartOfLastWeek,
-          WeeklyReminderEmailBody(templateKey, user.firstName),
-          resolvedBCCs,
-        );
+        await sendWeeklyAutoReplyForUser(user, emailConfig, context);
       }
     } catch (error) {
       console.error('Error in weeklyAutoReplyEmailFunction:', error);
