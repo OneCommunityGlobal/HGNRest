@@ -27,7 +27,10 @@ const loadScript = async (updateManyImpl = null) => {
 describe('backfillJobDatePosted script', () => {
   beforeEach(() => {
     jest.resetModules();
-    process.env.MONGO_URI = 'mongodb://localhost/test';
+    process.env.user = 'u';
+    process.env.password = 'p@ss';
+    process.env.cluster = 'cluster.example.net';
+    process.env.dbName = 'db';
     jest.spyOn(process, 'exit').mockImplementation(() => undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -40,10 +43,13 @@ describe('backfillJobDatePosted script', () => {
   it('connects, backfills jobs missing datePosted, and disconnects', async () => {
     const { mongoose, Job } = await loadScript();
 
-    expect(mongoose.connect).toHaveBeenCalledWith(process.env.MONGO_URI);
+    expect(mongoose.connect).toHaveBeenCalledWith(
+      expect.stringContaining('mongodb+srv://u:p%40ss@cluster.example.net/db'),
+      { useNewUrlParser: true, useUnifiedTopology: true },
+    );
     expect(Job.updateMany).toHaveBeenCalledWith(
       { $or: [{ datePosted: { $exists: false } }, { datePosted: null }] },
-      { $set: { datePosted: expect.any(Date) } },
+      [{ $set: { datePosted: { $toDate: '$_id' } } }],
     );
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('4'));
     expect(mongoose.disconnect).toHaveBeenCalledTimes(1);
