@@ -137,7 +137,7 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
   it('should handle MulterError LIMIT_FILE_SIZE with 413 status', async () => {
     const testApp = express();
     testApp.use(express.json());
-    // 显式挂载错误触发中间件到具体的上传路由路径上
+    // Explicitly mount the error-triggering middleware to the specific upload route path
     testApp.post('/api/youtube/upload', (_req, _res, next) => {
       next(new multer.MulterError('LIMIT_FILE_SIZE'));
     });

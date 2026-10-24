@@ -76,8 +76,8 @@ router.get('/status', getYoutubeConnectionStatus);
 router.post('/connect', requireYoutubePermission, connectYoutubeAccount);
 router.post('/upload', requireYoutubePermission, upload.single('video'), handleUpload);
 
-router.use((error, _req, res, _next) => {
-  if (!error) return;
+router.use((error, _req, res, next) => {
+  if (!error) return next();
 
   const isMulterError =
     error instanceof multer.MulterError ||
