@@ -138,13 +138,12 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
     const testApp = express();
     testApp.use(express.json());
 
-    // Mount the router
-    testApp.use('/api/youtube', youtubeRouter);
-
-    // Add a custom error trigger route for testing 413 response
-    testApp.post('/api/youtube/test-error-413', (_req, _res, next) => {
+    // Register the test route directly on youtubeRouter so errors flow through its router-level error handler
+    youtubeRouter.post('/test-error-413', (_req, _res, next) => {
       next(new multer.MulterError('LIMIT_FILE_SIZE'));
     });
+
+    testApp.use('/api/youtube', youtubeRouter);
 
     const res = await request(testApp).post('/api/youtube/test-error-413');
     expect(res.status).toBe(413);
