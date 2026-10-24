@@ -54,31 +54,29 @@ const promotionEligibilityController = function (
   PromotionPrEntry,
 ) {
   /**
-   * How many PRs a reviewer reviewed in each week they logged review work.
-   *
-   * The spec counts weeks where the reviewer "met or exceeded PR requirement",
-   * so this has to be a count of reviews, not the hours the old version summed.
-   * Actual PR review records exist (`pullRequestReview`) but store GitHub's
-   * numeric account id, which cannot be joined to an HGN profile yet, so the
-   * count stays on the same review-task proxy the rest of this page uses: one
-   * review task worked on in a week counts as one PR reviewed that week.
-   * `$addToSet` rather than a plain count, so several time entries against the
-   * same task in one week are still one review.
+   * Batched across every scoped user in one aggregate: how many PRs each
+   * reviewer reviewed in each week they logged review work. Same semantics as
+   * a per-user call would have (one review task worked on in a week counts as
+   * one PR reviewed that week; `$addToSet` dedupes several time entries
+   * against the same task in one week), just grouped by `personId` as well so
+   * one query covers the whole table instead of one aggregate per reviewer.
    *
    * Grouped by year as well as week. `$week` alone repeats every year, which
    * would have folded the same week number from different years together.
    *
-   * @returns {Promise<Array<{year: number, week: number, reviewCount: number}>>} newest first
+   * @returns {Promise<Map<string, Array<{year: number, week: number, reviewCount: number}>>>}
+   *   keyed by personId, each list newest first.
    */
-  const weeklyReviewCounts = async (userId) =>
-    TimeEntry.aggregate([
-      { $match: { personId: mongoose.Types.ObjectId(userId), isTangible: true } },
+  const weeklyReviewCountsByUser = async (userIds) => {
+    const rows = await TimeEntry.aggregate([
+      { $match: { personId: { $in: userIds }, isTangible: true } },
       { $lookup: { from: 'tasks', localField: 'taskId', foreignField: '_id', as: 'taskInfo' } },
       { $unwind: '$taskInfo' },
       { $match: { 'taskInfo.taskName': { $regex: /review|pr/i } } },
       {
         $group: {
           _id: {
+            personId: '$personId',
             year: { $year: { $toDate: '$dateOfWork' } },
             week: { $week: { $toDate: '$dateOfWork' } },
           },
@@ -88,6 +86,7 @@ const promotionEligibilityController = function (
       {
         $project: {
           _id: 0,
+          personId: '$_id.personId',
           year: '$_id.year',
           week: '$_id.week',
           reviewCount: { $size: '$reviewedTaskIds' },
@@ -95,6 +94,47 @@ const promotionEligibilityController = function (
       },
       { $sort: { year: -1, week: -1 } },
     ]);
+
+    const byUser = new Map();
+    rows.forEach(({ personId, year, week, reviewCount }) => {
+      const key = personId.toString();
+      if (!byUser.has(key)) byUser.set(key, []);
+      byUser.get(key).push({ year, week, reviewCount });
+    });
+    return byUser;
+  };
+
+  /**
+   * Batched across every scoped user in one aggregate: counts, per user, the
+   * number of distinct review/PR-tagged tasks where that user appears in
+   * `resources` with `completedTask` true. Matches the semantics a per-user
+   * `Task.countDocuments` call would have exactly (dedupes to at most one
+   * count per task per user).
+   *
+   * @returns {Promise<Map<string, number>>} keyed by userID
+   */
+  const reviewCountsByUser = async (userIds) => {
+    const rows = await Task.aggregate([
+      {
+        $match: {
+          taskName: { $regex: /review|pr/i },
+          resources: { $elemMatch: { userID: { $in: userIds }, completedTask: true } },
+        },
+      },
+      { $unwind: '$resources' },
+      {
+        $match: {
+          'resources.userID': { $in: userIds },
+          'resources.completedTask': true,
+        },
+      },
+      // Dedupe so a task counts at most once per user, matching countDocuments semantics.
+      { $group: { _id: { userID: '$resources.userID', taskId: '$_id' } } },
+      { $group: { _id: '$_id.userID', totalReviews: { $sum: 1 } } },
+    ]);
+
+    return new Map(rows.map(({ _id, totalReviews }) => [_id.toString(), totalReviews]));
+  };
 
   /**
    * Same week/PR counts as `weeklyReviewCounts`, but for many reviewers in one
@@ -218,37 +258,42 @@ const promotionEligibilityController = function (
       ).lean();
 
       // Group membership is derived from the reviewer's name rather than stored,
-      // so the filter happens here in memory. Doing it before the per-reviewer
-      // queries below matters: those run one aggregation and one count each, so
-      // a narrow group does proportionally less database work.
+      // so the filter happens here in memory. Doing it before the batched
+      // per-reviewer queries below matters: those run one aggregate each for the
+      // whole set, so a narrow group does proportionally less database work.
       const scopedUsers = group ? users.filter((user) => isReviewerInGroup(user, group)) : users;
+      const scopedUserIds = scopedUsers.map((user) => user._id);
 
       // Existing records are read up front, in one query rather than one per
       // user, because PRs Needed has to know the previously calculated hours to
       // detect a change and whether an Owner has overridden the figure.
       const existingRecords = await PromotionEligibility.find(
-        { reviewerId: { $in: scopedUsers.map((user) => user._id) } },
+        { reviewerId: { $in: scopedUserIds } },
         'reviewerId pledgedHours prsNeededOverride',
       ).lean();
       const recordsByReviewerId = new Map(
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
-      // Refactor: Use map and Promise.all for concurrent processing
-      const eligibilityPromises = scopedUsers.map(async (user) => {
+      // The two remaining per-reviewer reads are each one aggregate across the
+      // whole scoped set rather than one per reviewer, so the endpoint no
+      // longer issues O(n) queries for n reviewers.
+      const [totalReviewsByUser, weeklyCountsByUser] = await Promise.all([
+        reviewCountsByUser(scopedUserIds),
+        weeklyReviewCountsByUser(scopedUserIds),
+      ]);
+
+      const currentWeek = mongoWeekOf(now);
+
+      const eligibilityData = scopedUsers.map((user) => {
         const pledgedHours = user.weeklycommittedHours || 0;
         const { prsNeeded, prsNeededSource, committedHoursChanged } = resolvePrsNeeded({
           committedHours: pledgedHours,
           existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
         });
 
-        const totalReviews = await Task.countDocuments({
-          resources: { $elemMatch: { userID: user._id, completedTask: true } },
-          taskName: { $regex: /review|pr/i },
-        });
-
-        const weeklyCounts = await weeklyReviewCounts(user._id);
-        const currentWeek = mongoWeekOf(now);
+        const totalReviews = totalReviewsByUser.get(user._id.toString()) || 0;
+        const weeklyCounts = weeklyCountsByUser.get(user._id.toString()) || [];
 
         const { successfulWeeks, remainingWeeks, weeklyRequirementsMet } = summariseWeeks({
           weeklyCounts,
@@ -276,7 +321,7 @@ const promotionEligibilityController = function (
         // and "Existing Members (older than a week)".
         const isNewMember = now - new Date(user.createdDate) <= ONE_WEEK_MS;
 
-        const dataEntry = {
+        return {
           reviewerId: user._id,
           reviewerName: `${user.firstName} ${user.lastName}`,
           pledgedHours,
@@ -305,18 +350,28 @@ const promotionEligibilityController = function (
           isPromoted: user.role === PROMOTED_ROLE,
           calculatedAt: now,
         };
-
-        // Save/update the calculated data in the new collection concurrently
-        // This will still have await, but it's within a map callback, not a sequential loop that blocks subsequent iterations.
-        await PromotionEligibility.findOneAndUpdate({ reviewerId: user._id }, dataEntry, {
-          upsert: true,
-          new: true,
-        });
-
-        return dataEntry; // Return the data entry to be collected by Promise.all
       });
 
-      const eligibilityData = await Promise.all(eligibilityPromises); // Await all promises to resolve
+      // Persist the computed snapshot in one bulkWrite rather than one upsert
+      // per reviewer, and await it before responding: promoteMembers's own
+      // update has no upsert, so if it ran before this snapshot existed, the
+      // promotion would silently fail to record isPromoted/promotionDate for
+      // that reviewer even though their role changed.
+      if (eligibilityData.length > 0) {
+        await PromotionEligibility.bulkWrite(
+          eligibilityData.map((dataEntry) => ({
+            updateOne: {
+              filter: { reviewerId: dataEntry.reviewerId },
+              update: { $set: dataEntry },
+              upsert: true,
+            },
+          })),
+          // Each op targets a distinct reviewerId, so there's no ordering
+          // dependency between them — unordered lets MongoDB execute them
+          // without serializing on write errors.
+          { ordered: false },
+        );
+      }
 
       res.status(200).json(eligibilityData);
     } catch (error) {

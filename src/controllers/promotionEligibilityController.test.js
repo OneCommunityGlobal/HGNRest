@@ -237,10 +237,11 @@ describe('getPromotionEligibilityData, filtering by reviewer group', () => {
 
     UserProfile = { find: jest.fn(() => ({ lean: () => Promise.resolve(REVIEWERS) })) };
     TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
-    Task = { countDocuments: jest.fn().mockResolvedValue(0) };
+    Task = { aggregate: jest.fn().mockResolvedValue([]) };
     PromotionEligibility = {
       find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
       findOneAndUpdate: jest.fn().mockResolvedValue({}),
+      bulkWrite: jest.fn().mockResolvedValue({}),
     };
     ReviewerGroup = { find: jest.fn(() => ({ lean: () => Promise.resolve(GROUPS) })) };
 
@@ -288,8 +289,20 @@ describe('getPromotionEligibilityData, filtering by reviewer group', () => {
   it('filters before the per-reviewer queries, so a narrow group does less work', async () => {
     await controller.getPromotionEligibilityData(requestFor({ groupKey: '95xx' }), mockRes);
 
-    expect(Task.countDocuments).toHaveBeenCalledTimes(2);
-    expect(PromotionEligibility.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    // One batched aggregate each, not one per reviewer, and each scoped to the
+    // 2 reviewers the 95xx group matched rather than all 4.
+    expect(Task.aggregate).toHaveBeenCalledTimes(1);
+    const [taskMatchStage] = Task.aggregate.mock.calls[0][0];
+    expect(taskMatchStage.$match.resources.$elemMatch.userID.$in).toHaveLength(2);
+
+    expect(TimeEntry.aggregate).toHaveBeenCalledTimes(1);
+    const [timeMatchStage] = TimeEntry.aggregate.mock.calls[0][0];
+    expect(timeMatchStage.$match.personId.$in).toHaveLength(2);
+
+    // One bulkWrite covering both reviewers, not one findOneAndUpdate each.
+    expect(PromotionEligibility.bulkWrite).toHaveBeenCalledTimes(1);
+    expect(PromotionEligibility.bulkWrite.mock.calls[0][0]).toHaveLength(2);
+    expect(PromotionEligibility.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it('400s on a group key that does not exist rather than silently returning everyone', async () => {
@@ -343,8 +356,13 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
 
   const entryReturned = () => mockRes.json.mock.calls[0][0][0];
 
+  // The batched aggregate groups by personId as well as year/week, so each
+  // row needs one to land under the right reviewer; REVIEWER is the only one
+  // in this suite.
   const givenWeeklyCounts = (counts) => {
-    TimeEntry.aggregate = jest.fn().mockResolvedValue(counts);
+    TimeEntry.aggregate = jest
+      .fn()
+      .mockResolvedValue(counts.map((entry) => ({ personId: REVIEWER._id, ...entry })));
   };
 
   beforeEach(() => {
@@ -354,10 +372,11 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
 
     UserProfile = { find: jest.fn(() => ({ lean: () => Promise.resolve([REVIEWER]) })) };
     TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
-    Task = { countDocuments: jest.fn().mockResolvedValue(0) };
+    Task = { aggregate: jest.fn().mockResolvedValue([]) };
     PromotionEligibility = {
       find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
       findOneAndUpdate: jest.fn().mockResolvedValue({}),
+      bulkWrite: jest.fn().mockResolvedValue({}),
     };
 
     controller = promotionEligibilityController(
@@ -564,7 +583,7 @@ describe('previewPromotions', () => {
     promotionEligibilityController(
       UserProfile,
       { aggregate: jest.fn().mockResolvedValue([]) },
-      { countDocuments: jest.fn().mockResolvedValue(0) },
+      { aggregate: jest.fn().mockResolvedValue([]) },
       { find: jest.fn(() => ({ lean: () => Promise.resolve([]) })), findOneAndUpdate: jest.fn() },
       null,
       Team,
@@ -1316,10 +1335,11 @@ describe('History column', () => {
     controller = promotionEligibilityController(
       { find: jest.fn(() => ({ lean: () => Promise.resolve([REVIEWER]) })) },
       TimeEntry,
-      { countDocuments: jest.fn().mockResolvedValue(0) },
+      { aggregate: jest.fn().mockResolvedValue([]) },
       {
         find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
         findOneAndUpdate: jest.fn().mockResolvedValue({}),
+        bulkWrite: jest.fn().mockResolvedValue({}),
       },
       null,
     );
@@ -1338,9 +1358,9 @@ describe('History column', () => {
 
   it('returns one row per prior week, oldest first so it reads left to right', async () => {
     TimeEntry.aggregate.mockResolvedValue([
-      { year: 2026, week: 32, reviewCount: 10 },
-      { year: 2026, week: 31, reviewCount: 6 },
-      { year: 2026, week: 30, reviewCount: 7 },
+      { personId: REVIEWER._id, year: 2026, week: 32, reviewCount: 10 },
+      { personId: REVIEWER._id, year: 2026, week: 31, reviewCount: 6 },
+      { personId: REVIEWER._id, year: 2026, week: 30, reviewCount: 7 },
     ]);
 
     await controller.getPromotionEligibilityData(req(), mockRes);
@@ -1351,8 +1371,8 @@ describe('History column', () => {
 
   it('flags a week below PRs Needed, which is what the spec colours red', async () => {
     TimeEntry.aggregate.mockResolvedValue([
-      { year: 2026, week: 32, reviewCount: 10 },
-      { year: 2026, week: 31, reviewCount: 6 },
+      { personId: REVIEWER._id, year: 2026, week: 32, reviewCount: 10 },
+      { personId: REVIEWER._id, year: 2026, week: 31, reviewCount: 6 },
     ]);
 
     await controller.getPromotionEligibilityData(req(), mockRes);
@@ -1364,8 +1384,8 @@ describe('History column', () => {
 
   it('leaves the current week out, since History is prior weeks', async () => {
     TimeEntry.aggregate.mockResolvedValue([
-      { year: 2026, week: 33, reviewCount: 2 },
-      { year: 2026, week: 32, reviewCount: 10 },
+      { personId: REVIEWER._id, year: 2026, week: 33, reviewCount: 2 },
+      { personId: REVIEWER._id, year: 2026, week: 32, reviewCount: 10 },
     ]);
 
     await controller.getPromotionEligibilityData(req(), mockRes);
@@ -1374,7 +1394,9 @@ describe('History column', () => {
   });
 
   it('never flags a week red when the requirement is zero', async () => {
-    TimeEntry.aggregate.mockResolvedValue([{ year: 2026, week: 32, reviewCount: 0 }]);
+    TimeEntry.aggregate.mockResolvedValue([
+      { personId: REVIEWER._id, year: 2026, week: 32, reviewCount: 0 },
+    ]);
     controller = promotionEligibilityController(
       {
         find: jest.fn(() => ({
@@ -1382,10 +1404,11 @@ describe('History column', () => {
         })),
       },
       TimeEntry,
-      { countDocuments: jest.fn().mockResolvedValue(0) },
+      { aggregate: jest.fn().mockResolvedValue([]) },
       {
         find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
         findOneAndUpdate: jest.fn().mockResolvedValue({}),
+        bulkWrite: jest.fn().mockResolvedValue({}),
       },
       null,
     );
