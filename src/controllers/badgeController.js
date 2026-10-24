@@ -18,10 +18,50 @@ const badgeController = function (Badge) {
     res.status(200).send('Badges awarded');
   };
 
+  const syncBadgeUsers = async function () {
+    // badge id -> unique user ids, built from every profile's badgeCollection
+    const assignments = await UserProfile.aggregate([
+      { $unwind: '$badgeCollection' },
+      { $group: { _id: '$badgeCollection.badge', userIds: { $addToSet: '$_id' } } },
+    ]);
+
+    // Badges that nobody holds
+    await Badge.updateMany(
+      { _id: { $nin: assignments.map((a) => a._id) } },
+      { $set: { users: [] } },
+    );
+
+    if (assignments.length > 0) {
+      await Badge.bulkWrite(
+        assignments.map(({ _id, userIds }) => ({
+          updateOne: {
+            filter: { _id },
+            update: { $set: { users: userIds.map((userId) => ({ userId })) } },
+          },
+        })),
+      );
+    }
+
+    if (cache.hasCache('allBadges')) {
+      cache.removeCache('allBadges');
+    }
+
+    return { badgesWithUsers: assignments.length };
+  };
+
+  const updateBadgeUsers = async function (req, res) {
+    try {
+      const { badgesWithUsers } = await syncBadgeUsers();
+      return res.status(200).send({ message: `Synced users for ${badgesWithUsers} badges` });
+    } catch (error) {
+      return res.status(500).send({ error: 'Error syncing badge users', details: error.message });
+    }
+  };
+
   const getAllBadges = async function (req, res) {
     // console.log(req.body.requestor);  // Retain logging from development branch for debugging
 
-    // Check if the user has any of the following permissions
+    // Check permissions
     if (
       !(await helper.hasPermission(req.body.requestor, 'seeBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'assignBadges')) &&
@@ -29,6 +69,7 @@ const badgeController = function (Badge) {
       !(await helper.hasPermission(req.body.requestor, 'updateBadges')) &&
       !(await helper.hasPermission(req.body.requestor, 'deleteBadges'))
     ) {
+      console.log('User not authorized');
       // console.log('in if statement');  // Retain logging from development branch for debugging
       res.status(403).send('You are not authorized to view all badge data.');
       return;
@@ -42,11 +83,15 @@ const badgeController = function (Badge) {
 
     Badge.find(
       {},
-      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport',
+      'badgeName type multiple weeks months totalHrs people imageUrl category project ranking description showReport users',
     )
       .populate({
         path: 'project',
         select: '_id projectName',
+      })
+      .populate({
+        path: 'users.userId',
+        select: '_id username firstName lastName', // Populate firstName and profileName
       })
       .sort({
         ranking: 1,
@@ -162,6 +207,25 @@ const badgeController = function (Badge) {
       }
 
       const results = await record.save();
+
+      const heldBadgeIds = badgeGroupsArray.map((b) => mongoose.Types.ObjectId(b.badge));
+
+      await Promise.all([
+        Badge.updateMany(
+          { _id: { $in: heldBadgeIds }, 'users.userId': { $ne: userToBeAssigned } },
+          { $push: { users: { userId: userToBeAssigned } } },
+        ),
+        Badge.updateMany(
+          { _id: { $nin: heldBadgeIds }, 'users.userId': userToBeAssigned },
+          { $pull: { users: { userId: userToBeAssigned } } },
+        ),
+      ]);
+
+      if (cache.hasCache('allBadges')) {
+        cache.removeCache('allBadges');
+      }
+
+      res.status(201).send(results._id);
       res.status(201).send(results._id);
     } catch (err) {
       res.status(500).send(`Internal Error: Badge Collection. ${err.message}`);
@@ -201,9 +265,10 @@ const badgeController = function (Badge) {
       badge.ranking = req.body.ranking;
       badge.description = req.body.description;
       badge.showReport = req.body.showReport;
+      badge.users = []; // Initialize empty users array
 
       const newBadge = await badge.save();
-      // remove cache after new badge is saved
+
       if (cache.getCache('allBadges')) {
         cache.removeCache('allBadges');
       }
@@ -257,6 +322,12 @@ const badgeController = function (Badge) {
     const { badgeId } = req.params;
     const imageUrl = null;
 
+    const hasUpdateData = Object.keys(req.body).some((key) => key !== 'requestor');
+    if (!hasUpdateData) {
+      res.status(400).send({ error: 'No update data provided' });
+      return;
+    }
+
     // If has req.body.file than upload image and insert that url
     // into imageUrl
     if (req.body.file) {
@@ -292,6 +363,7 @@ const badgeController = function (Badge) {
       res.status(200).send({ message: 'Badge successfully updated' });
     });
   };
+
   const getBadgeCount = async function (req, res) {
     const userId = mongoose.Types.ObjectId(req.params.userId);
 
@@ -350,6 +422,8 @@ const badgeController = function (Badge) {
     getBadgeCount,
     putBadgecount,
     resetBadgecount,
+    syncBadgeUsers,
+    updateBadgeUsers,
   };
 };
 
