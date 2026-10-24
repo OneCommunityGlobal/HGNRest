@@ -31,7 +31,7 @@ const projectController = function (Project) {
     try {
       const archivedProjects = await Project.find(
         { isArchived: true },
-        'projectName isActive category modifiedDatetime membersModifiedDatetime isArchived',
+        'projectName isActive category modifiedDatetime membersModifiedDatetime inventoryModifiedDatetime isArchived',
       ).sort({ modifiedDatetime: -1 });
       res.status(200).send(archivedProjects);
     } catch (error) {
@@ -134,14 +134,7 @@ const projectController = function (Project) {
         return;
       }
     }
-    const {
-      projectName,
-      category,
-      isActive,
-      _id: projectId,
-      isArchived,
-      inventoryModifiedDatetime,
-    } = req.body;
+    const { projectName, category, isActive, _id: projectId, isArchived } = req.body;
     const sameNameProejct = await Project.find({
       projectName,
       _id: { $ne: projectId },
@@ -171,8 +164,6 @@ const projectController = function (Project) {
       targetProject.isActive = isActive !== undefined ? isActive : targetProject.isActive;
       targetProject.modifiedDatetime = Date.now();
       targetProject.isArchived = isArchived !== undefined ? isArchived : targetProject.isArchived;
-      targetProject.inventoryModifiedDatetime =
-        inventoryModifiedDatetime ?? targetProject.inventoryModifiedDatetime;
 
       // IF CATEGORY CHANGED, CASCADE TO NON-OVERRIDDEN TASKS
       if (category && originalCategory !== category) {
