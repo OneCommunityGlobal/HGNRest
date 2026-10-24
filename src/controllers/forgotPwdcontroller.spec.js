@@ -141,85 +141,175 @@ describe('Dashboard Controller tests', () => {
   });
 
   describe('updateAIPrompt Tests', () => {
-    test('Returns error 500 if the error occurs in the AI Prompt function', async () => {
-      const newRequest = {
-        ...mockReq,
-        body: {
-          requestor: {
-            role: 'Owner',
-          },
-        },
-      };
-
-      const { updateAIPrompt } = makeSut();
-      // eslint-disable-next-line prefer-promise-reject-errors
-      jest.spyOn(AIPrompt, 'findOneAndUpdate').mockImplementationOnce(() => Promise.reject(error));
-
-      const response = updateAIPrompt(newRequest, mockRes);
-
-      await flushPromises();
-
-      assertResMock(500, error, response, mockRes);
+    const request = (text, extra = {}) => ({
+      body: { requestor: { role: 'Owner' }, aIPromptText: text, ...extra },
+    });
+    const persisted = (text = 'A', edited = null) => ({
+      _id: 'ai-prompt',
+      aIPromptText: text,
+      modifiedDatetime: new Date('2020-01-01'),
+      lastEditedDatetime: edited,
     });
 
-    test('Returns 200 if there is no error and AI Prompt is saved', async () => {
-      const newRequest = {
-        ...mockReq,
-        body: {
-          requestor: {
-            role: 'Owner',
-          },
+    beforeEach(() => {
+      jest.spyOn(AIPrompt, 'findById').mockResolvedValue(persisted());
+      jest.spyOn(AIPrompt, 'findOneAndUpdate').mockResolvedValue(persisted());
+      jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    test.each([null, new Date('2021-01-01')])(
+      'unchanged save preserves edit timestamp %s and advances modifiedDatetime',
+      async (edited) => {
+        AIPrompt.findById.mockResolvedValueOnce(persisted('A', edited));
+        await makeSut().updateAIPrompt(request('A'), mockRes);
+        expect(AIPrompt.findOneAndUpdate).toHaveBeenCalledWith(
+          { ...persisted('A', edited) },
+          { $set: { aIPromptText: 'A', modifiedDatetime: Date.now() } },
+          { new: true },
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(mockRes.send).toHaveBeenCalledWith('Successfully saved AI prompt.');
+      },
+    );
+
+    test.each([
+      ['A', 'B'],
+      ['B', 'A'],
+      ['A', ' A '],
+      ['A', ''],
+      ['A\r\n', 'A\n'],
+    ])('changed text %j -> %j updates text and edit timestamp together', async (before, after) => {
+      AIPrompt.findById.mockResolvedValueOnce(persisted(before));
+      await makeSut().updateAIPrompt(request(after), mockRes);
+      expect(AIPrompt.findOneAndUpdate.mock.calls[0][1]).toEqual({
+        $set: {
+          aIPromptText: after,
+          modifiedDatetime: Date.now(),
+          lastEditedDatetime: new Date(Date.now()),
         },
-      };
-
-      const { updateAIPrompt } = makeSut();
-
-      jest
-        .spyOn(AIPrompt, 'findOneAndUpdate')
-        .mockImplementationOnce(() => Promise.resolve('Successfully saved AI prompt.'));
-
-      const response = updateAIPrompt(newRequest, mockRes);
-
-      await flushPromises();
-
-      assertResMock(200, 'Successfully saved AI prompt.', response, mockRes);
+      });
     });
 
-    test('Returns undefined if requestor role is not an owner', () => {
-      const newRequest = {
-        ...mockReq,
-        body: {
-          requestor: {
-            role: 'Administrator',
-          },
-        },
-      };
-      const { updateAIPrompt } = makeSut();
+    test('A -> B -> A records two successive edits', async () => {
+      let stored = persisted();
+      AIPrompt.findById.mockImplementation(async () => ({ ...stored }));
+      AIPrompt.findOneAndUpdate.mockImplementation(async (filter, update) => {
+        stored = { ...stored, ...update.$set };
+        return stored;
+      });
+      await makeSut().updateAIPrompt(request('B'), mockRes);
+      const firstEdit = stored.lastEditedDatetime;
+      Date.now.mockReturnValue(1700000001000);
+      await makeSut().updateAIPrompt(request('A'), mockRes);
+      expect(stored.aIPromptText).toBe('A');
+      expect(stored.lastEditedDatetime.getTime()).toBeGreaterThan(firstEdit.getTime());
+      expect(AIPrompt.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    });
 
-      const mockFindOneAndUpdate = jest
-        .spyOn(AIPrompt, 'findOneAndUpdate')
-        .mockImplementationOnce(() => Promise.resolve({ undefined }));
+    test.each(['A', 'B'])('ignores client metadata when saving %s', async (text) => {
+      await makeSut().updateAIPrompt(
+        request(text, {
+          lastEditedDatetime: '2099-01-01',
+          modifiedDatetime: 1,
+          _id: 'other',
+          __v: 99,
+        }),
+        mockRes,
+      );
+      const update = AIPrompt.findOneAndUpdate.mock.calls[0][1].$set;
+      expect(update.modifiedDatetime).toBe(Date.now());
+      expect(update.lastEditedDatetime).toEqual(text === 'A' ? undefined : new Date(Date.now()));
+      expect(update).not.toHaveProperty('_id');
+      expect(update).not.toHaveProperty('__v');
+    });
 
-      const response = updateAIPrompt(newRequest, mockRes);
+    test('missing prompt returns 404 without writing', async () => {
+      AIPrompt.findById.mockResolvedValueOnce(null);
+      await makeSut().updateAIPrompt(request('B'), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(AIPrompt.findOneAndUpdate).not.toHaveBeenCalled();
+    });
 
-      expect(response).toBeUndefined();
-      expect(mockRes.status).not.toHaveBeenCalled();
+    test.each(['findById', 'findOneAndUpdate'])('%s failure returns 500', async (method) => {
+      AIPrompt[method].mockRejectedValueOnce(error);
+      await makeSut().updateAIPrompt(request('B'), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.send).toHaveBeenCalledWith(error);
+    });
+
+    test('concurrent saves from the same snapshot cannot both overwrite it', async () => {
+      const firstRes = { status: jest.fn().mockReturnThis(), send: jest.fn() };
+      const secondRes = { status: jest.fn().mockReturnThis(), send: jest.fn() };
+      let stored = persisted();
+      AIPrompt.findOneAndUpdate.mockImplementation(async (filter, update) => {
+        if (
+          filter.aIPromptText !== stored.aIPromptText ||
+          Number(filter.modifiedDatetime) !== Number(stored.modifiedDatetime) ||
+          Number(filter.lastEditedDatetime) !== Number(stored.lastEditedDatetime)
+        )
+          return null;
+        stored = { ...stored, ...update.$set };
+        return stored;
+      });
+      await Promise.all([
+        makeSut().updateAIPrompt(request('B'), firstRes),
+        makeSut().updateAIPrompt(request('C'), secondRes),
+      ]);
+      expect(firstRes.status).toHaveBeenCalledWith(200);
+      expect(secondRes.status).toHaveBeenCalledWith(409);
+      expect(stored.aIPromptText).toBe('B');
+      expect(secondRes.send).not.toHaveBeenCalledWith('Successfully saved AI prompt.');
+    });
+
+    test('non-Owner retains existing behavior and cannot write', async () => {
+      await makeSut().updateAIPrompt(
+        request('B', { requestor: { role: 'Administrator' } }),
+        mockRes,
+      );
+      expect(AIPrompt.findById).not.toHaveBeenCalled();
+      expect(AIPrompt.findOneAndUpdate).not.toHaveBeenCalled();
       expect(mockRes.send).not.toHaveBeenCalled();
-      expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test.each([undefined, null, 42, {}])('rejects non-string input %j', async (text) => {
+      await makeSut().updateAIPrompt(request(text), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(AIPrompt.findOneAndUpdate).not.toHaveBeenCalled();
     });
   });
 
   describe('getAIPrompt Tests', () => {
+    test('schema defaults initial and hydrated legacy documents to null', () => {
+      expect(new AIPrompt({ _id: 'ai-prompt', aIPromptText: 'A' }).lastEditedDatetime).toBeNull();
+      expect(
+        AIPrompt.hydrate({ _id: 'ai-prompt', aIPromptText: 'A' }).lastEditedDatetime,
+      ).toBeNull();
+    });
+
+    test('GET preserves existing text, timestamps, and response fields', async () => {
+      const prompt = {
+        _id: 'ai-prompt',
+        aIPromptText: 'B',
+        modifiedDatetime: new Date('2022-01-01'),
+        lastEditedDatetime: new Date('2021-01-01'),
+      };
+      jest.spyOn(AIPrompt, 'findById').mockResolvedValueOnce(prompt);
+      await makeSut().getAIPrompt(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith(prompt);
+    });
+
     test('Returns 200 if the GPT exists and send the results back', async () => {
       const { getAIPrompt } = makeSut();
 
       jest.spyOn(AIPrompt, 'findById').mockImplementationOnce(() => Promise.resolve({}));
 
-      const response = getAIPrompt(mockReq, mockRes);
+      const response = await getAIPrompt(mockReq, mockRes);
 
       await flushPromises();
 
-      assertResMock(200, {}, response, mockRes);
+      assertResMock(200, { lastEditedDatetime: null }, response, mockRes);
     });
 
     test('Returns 200 if there is no error and new GPT Prompt is created', async () => {
@@ -227,13 +317,18 @@ describe('Dashboard Controller tests', () => {
 
       jest.spyOn(AIPrompt, 'findById').mockResolvedValueOnce(null);
 
-      jest.spyOn(AIPrompt, 'create').mockImplementationOnce(() => Promise.resolve({}));
+      jest
+        .spyOn(AIPrompt, 'create')
+        .mockImplementationOnce((prompt) => Promise.resolve(new AIPrompt(prompt)));
 
-      const response = getAIPrompt(mockReq, mockRes);
+      const response = await getAIPrompt(mockReq, mockRes);
 
       await flushPromises();
 
-      assertResMock(200, {}, response, mockRes);
+      assertResMock(200, expect.objectContaining({ lastEditedDatetime: null }), response, mockRes);
+      expect(AIPrompt.create).toHaveBeenCalledWith(
+        expect.objectContaining({ lastEditedDatetime: null }),
+      );
     });
 
     test('Returns 500 if GPT Prompt does not exist', async () => {
@@ -242,7 +337,7 @@ describe('Dashboard Controller tests', () => {
 
       jest.spyOn(AIPrompt, 'findById').mockRejectedValueOnce(new Error(errorMessage));
 
-      const response = getAIPrompt(mockReq, mockRes);
+      const response = await getAIPrompt(mockReq, mockRes);
 
       await flushPromises();
 
@@ -257,7 +352,7 @@ describe('Dashboard Controller tests', () => {
 
       jest.spyOn(AIPrompt, 'create').mockRejectedValueOnce(new Error(errorMessage));
 
-      const response = getAIPrompt(mockReq, mockRes);
+      const response = await getAIPrompt(mockReq, mockRes);
 
       await flushPromises();
 
