@@ -295,6 +295,26 @@ const getYoutubeErrorMessage = (error) =>
   error.message ||
   'Failed to upload video to YouTube';
 
+// Shared error handler helper to eliminate code duplication
+const handleControllerError = (res, error) => {
+  if (error instanceof z.ZodError) {
+    const errors = formatZodErrors(error);
+    return res.status(400).json({
+      success: false,
+      message: errors[0].message,
+      errors,
+    });
+  }
+
+  const statusCode = error.response?.status || error.statusCode;
+  const safeStatusCode =
+    statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
+  return res.status(safeStatusCode).json({
+    success: false,
+    message: getYoutubeErrorMessage(error),
+  });
+};
+
 const getYoutubeAuthorizationUrl = (req, res) => {
   try {
     if (!req.session) {
@@ -321,10 +341,7 @@ const getYoutubeAuthorizationUrl = (req, res) => {
 
     return res.status(200).json({ success: true, authUrl });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || 'Failed to start YouTube authorization',
-    });
+    return handleControllerError(res, error);
   }
 };
 
@@ -367,22 +384,7 @@ const connectYoutubeAccount = async (req, res) => {
       expiresAt: tokens.expiry_date || null,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors = formatZodErrors(error);
-      return res.status(400).json({
-        success: false,
-        message: errors[0].message,
-        errors,
-      });
-    }
-
-    const statusCode = error.response?.status || error.statusCode;
-    const safeStatusCode =
-      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
-    return res.status(safeStatusCode).json({
-      success: false,
-      message: getYoutubeErrorMessage(error),
-    });
+    return handleControllerError(res, error);
   }
 };
 
@@ -418,13 +420,7 @@ const getYoutubeConnectionStatus = async (req, res) => {
         : null,
     });
   } catch (error) {
-    const statusCode = error.response?.status || error.statusCode;
-    const safeStatusCode =
-      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
-    return res.status(safeStatusCode).json({
-      success: false,
-      message: getYoutubeErrorMessage(error),
-    });
+    return handleControllerError(res, error);
   }
 };
 
@@ -462,22 +458,7 @@ const uploadVideo = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors = formatZodErrors(error);
-      return res.status(400).json({
-        success: false,
-        message: errors[0].message,
-        errors,
-      });
-    }
-
-    const statusCode = error.response?.status || error.statusCode;
-    const safeStatusCode =
-      statusCode >= 400 && statusCode < HTTP_STATUS_UPPER_BOUND ? statusCode : 500;
-    return res.status(safeStatusCode).json({
-      success: false,
-      message: getYoutubeErrorMessage(error),
-    });
+    return handleControllerError(res, error);
   }
 };
 
