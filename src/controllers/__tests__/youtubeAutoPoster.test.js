@@ -65,7 +65,8 @@ const {
 } = require('../youtubeAutoPoster');
 
 describe('youtubeAutoPoster Controller Comprehensive Tests', () => {
-    let req, res;
+    let req;
+    let res;
 
     beforeEach(() => {
         jest.clearAllMocks();
