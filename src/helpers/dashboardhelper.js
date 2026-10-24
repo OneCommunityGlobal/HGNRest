@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const timeentry = require('../models/timeentry');
 const team = require('../models/team');
+const HelpRequest = require('../models/helpRequest');
 const { hasPermission } = require('../utilities/permissions');
 
 const dashboardhelper = function () {
@@ -661,6 +662,15 @@ const dashboardhelper = function () {
         return { message: 'User not found' };
       }
 
+      await HelpRequest.updateMany(
+        {
+          userId,
+          requestedAt: { $lte: moment().subtract(7, 'days').toDate() },
+          feedbackSubmitted: false,
+        },
+        { feedbackSubmitted: true },
+      );
+
       return { message: 'Feedback submitted successfully', data: updatedUser };
     } catch (error) {
       console.error('Error saving feedback:', error);
@@ -679,6 +689,50 @@ const dashboardhelper = function () {
     } catch (error) {
       console.error('Error getting names from profiles:', error);
       return { message: 'Internal server error' };
+    }
+  };
+
+  const checkQuestionaireModal = async (req) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return { status: 400, body: { message: 'userId is required' } };
+    }
+
+    let user;
+    try {
+      user = await userProfile.findOne(
+        { _id: mongoose.Types.ObjectId(userId) },
+        { questionaireFeedback: 1 },
+      );
+    } catch (error) {
+      console.error('Error checking questionaire modal:', error);
+      return { status: 500, body: { message: 'Internal server error' } };
+    }
+
+    if (!user) {
+      return { status: 404, body: { message: 'User not found' } };
+    }
+
+    const { questionaireFeedback } = user;
+
+    if (questionaireFeedback && questionaireFeedback.foundHelpSomeWhereClosePermanently) {
+      return { status: 200, body: { showModal: false } };
+    }
+
+    const oneWeekAgo = moment().subtract(7, 'days').toDate();
+
+    try {
+      const pendingHelpRequest = await HelpRequest.exists({
+        userId,
+        requestedAt: { $lte: oneWeekAgo },
+        feedbackSubmitted: false,
+      });
+
+      return { status: 200, body: { showModal: Boolean(pendingHelpRequest) } };
+    } catch (error) {
+      console.error('Error checking pending help requests:', error);
+      return { status: 500, body: { message: 'Internal server error' } };
     }
   };
 
@@ -722,6 +776,7 @@ const dashboardhelper = function () {
     laborThisWeekByCategory,
     requestFeedback,
     getNamesFromProfiles,
+    checkQuestionaireModal,
     checkQuestionaireFeedback,
   };
 };
