@@ -1,7 +1,7 @@
-const request = require('supertest');
-const express = require('express');
 const fs = require('node:fs').promises;
+const express = require('express');
 const multer = require('multer');
+const request = require('supertest');
 
 // Mock controllers
 jest.mock('../../controllers/youtubeAutoPoster', () => ({
@@ -135,13 +135,15 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
   });
 
   it('should handle MulterError LIMIT_FILE_SIZE with 413 status', async () => {
-    const errorApp = express();
-    errorApp.use((_req, _res, next) => {
+    const testApp = express();
+    testApp.use(express.json());
+    // 显式挂载错误触发中间件到具体的上传路由路径上
+    testApp.post('/api/youtube/upload', (_req, _res, next) => {
       next(new multer.MulterError('LIMIT_FILE_SIZE'));
     });
-    errorApp.use(youtubeRouter);
+    testApp.use('/api/youtube', youtubeRouter);
 
-    const res = await request(errorApp).post('/api/youtube/upload');
+    const res = await request(testApp).post('/api/youtube/upload');
     expect(res.status).toBe(413);
     expect(res.body.success).toBe(false);
   });
