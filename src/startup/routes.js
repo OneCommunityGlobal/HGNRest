@@ -109,6 +109,7 @@ const buildingMaterialModel = require('../models/bmdashboard/buildingMaterial');
 const timeOffRequest = require('../models/timeOffRequest');
 const followUp = require('../models/followUp');
 const linkedinPostRouter = require('../routes/linkedinPostRoutes')();
+const imgurPostRouter = require('../routes/imgurPostRouter')();
 
 const supplierPerformance = require('../models/summaryDashboard/supplierPerformance');
 const costs = require('../models/costs');
@@ -533,6 +534,7 @@ module.exports = function (app) {
   app.use('/api', timeOffRequestRouter);
   app.use('/api', followUpRouter);
   app.use('/api', linkedinPostRouter);
+  app.use('/api', imgurPostRouter);
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', materialUtilizationRouter);
