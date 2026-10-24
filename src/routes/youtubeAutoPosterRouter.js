@@ -38,7 +38,7 @@ const upload = multer({
     if (!file.mimetype?.startsWith('video/')) {
       const error = new Error('video must be a supported video file');
       error.statusCode = 400;
-      callback(error);
+      callback(error, false);
       return;
     }
     callback(null, true);
@@ -50,7 +50,7 @@ const removeTemporaryFile = async (file) => {
   try {
     await fs.unlink(file.path);
   } catch (error) {
-    // Upload responses should not fail only because temporary-file cleanup failed.
+    // Upload responses should not fail solely because temporary-file cleanup failed.
     // eslint-disable-next-line no-console
     console.error(`Failed to remove temporary YouTube upload ${file.path}:`, error.message);
   }
@@ -68,19 +68,23 @@ const handleUpload = async (req, res, next) => {
 
 const router = express.Router();
 
-// Public endpoints - no permission required, but should handle auth gracefully
+// Public endpoints - no permission required
 router.get('/auth-url', getYoutubeAuthorizationUrl);
 router.get('/status', getYoutubeConnectionStatus);
 
 // Protected endpoints - permission check BEFORE file upload middleware
-// This prevents unauthorized users from writing large files to temp disk
 router.post('/connect', requireYoutubePermission, connectYoutubeAccount);
 router.post('/upload', requireYoutubePermission, upload.single('video'), handleUpload);
 
 router.use((error, _req, res, next) => {
   if (!error) return next();
 
-  if (error instanceof multer.MulterError) {
+  const isMulterError =
+    error instanceof multer.MulterError ||
+    error.name === 'MulterError' ||
+    (error.code && error.code.startsWith('LIMIT_'));
+
+  if (isMulterError) {
     const statusCode = error.code === 'LIMIT_FILE_SIZE' ? HTTP_PAYLOAD_TOO_LARGE : 400;
     return res.status(statusCode).json({
       success: false,

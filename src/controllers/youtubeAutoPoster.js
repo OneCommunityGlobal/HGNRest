@@ -412,11 +412,11 @@ const getYoutubeConnectionStatus = async (req, res) => {
       connected: true,
       account: channel
         ? {
-            channelId: channel.id,
-            channelName: channel.snippet?.title || null,
-            thumbnail: channel.snippet?.thumbnails?.default?.url || null,
-            customUrl: channel.snippet?.customUrl || null,
-          }
+          channelId: channel.id,
+          channelName: channel.snippet?.title || null,
+          thumbnail: channel.snippet?.thumbnails?.default?.url || null,
+          customUrl: channel.snippet?.customUrl || null,
+        }
         : null,
     });
   } catch (error) {
