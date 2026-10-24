@@ -1,17 +1,20 @@
 const express = require('express');
 
-const routes = function () {
+const routes = function (ToolAvailability) {
   const toolAvailabilityRouter = express.Router();
+  const controller = require('../../controllers/bmdashboard/toolAvailabilityController')(
+    ToolAvailability,
+  );
 
   // GET /api/bm/projects/:id/tools-availability
   toolAvailabilityRouter
     .route('/bm/projects/:id/tools-availability')
-    .get((req, res) => res.json({ message: 'Get tools availability' }));
+    .get(controller.getToolsAvailability);
 
   // GET /api/bm/tools-availability/projects
   toolAvailabilityRouter
     .route('/bm/tools-availability/projects')
-    .get((req, res) => res.json({ message: 'Get unique project IDs' }));
+    .get(controller.getUniqueProjectIds);
 
   return toolAvailabilityRouter;
 };
