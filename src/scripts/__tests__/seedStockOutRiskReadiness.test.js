@@ -1,5 +1,12 @@
-// File version: 1.0.0
+// File version: 1.0.1
+jest.mock('../../controllers/bmdashboard/bmMaterialsController', () => jest.fn());
+
 const mongoose = require('mongoose');
+const Project = require('../../models/bmdashboard/buildingProject');
+const { buildingMaterial: Material } = require('../../models/bmdashboard/buildingInventoryItem');
+const LegacyMaterial = require('../../models/bmdashboard/buildingMaterial');
+const { materialType: MaterialType } = require('../../models/bmdashboard/buildingInventoryType');
+const materialsController = require('../../controllers/bmdashboard/bmMaterialsController');
 const { buildFixtures, run } = require('../seedStockOutRiskReadiness');
 
 describe('stock-out readiness QA fixtures', () => {
@@ -25,6 +32,47 @@ describe('stock-out readiness QA fixtures', () => {
     });
     expect(materials.filter((doc) => doc.project.equals(projects[2]._id))).toHaveLength(0);
     expect(materials.filter((doc) => !doc.itemType)).toHaveLength(1);
+  });
+
+  it('writes materials to the same discriminator and collection as the live router', async () => {
+    const previousEnv = process.env;
+    process.env = {
+      ...previousEnv,
+      dbName: 'test',
+      user: 'test',
+      password: 'test',
+      cluster: 'test.example',
+    };
+    const manager = new mongoose.Types.ObjectId();
+    jest.spyOn(mongoose, 'connect').mockResolvedValue(mongoose);
+    jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined);
+    jest.spyOn(Project, 'aggregate').mockResolvedValue([{ buildingManager: manager }]);
+    [Project, MaterialType, Material, LegacyMaterial].forEach((Model) => {
+      jest.spyOn(Model.collection, 'find').mockReturnValue({ toArray: async () => [] });
+      jest.spyOn(Model, 'updateOne').mockResolvedValue({});
+    });
+    materialsController.mockReturnValue({
+      bmGetMaterialStockOutRisk: async (req, res) =>
+        res.status(200).json({
+          readiness: ['Ready', 'Partial', 'Not Configured', 'Partial', 'Partial', 'Partial'].map(
+            (status, index) => ({ status, readyMaterialCount: [2, 1, 0, 0, 0, 0][index] }),
+          ),
+          chartData: [3, 3, 30].map((daysUntilStockOut) => ({ daysUntilStockOut })),
+        }),
+    });
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await run();
+      expect(Material.modelName).toBe('material_item');
+      expect(Material.collection.collectionName).toBe('buildingInventoryItems');
+      expect(Material.updateOne).toHaveBeenCalledTimes(7);
+      expect(LegacyMaterial.updateOne).not.toHaveBeenCalled();
+      expect(materialsController).toHaveBeenCalledWith(Material);
+    } finally {
+      process.env = previousEnv;
+      log.mockRestore();
+      jest.restoreAllMocks();
+    }
   });
 
   it('refuses a production database before connecting', async () => {

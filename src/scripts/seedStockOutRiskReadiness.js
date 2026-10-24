@@ -1,9 +1,9 @@
-// File version: 1.0.0
+// File version: 1.0.1
 // Run from HGNRest: node --no-deprecation src/scripts/seedStockOutRiskReadiness.js
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Project = require('../models/bmdashboard/buildingProject');
-const Material = require('../models/bmdashboard/buildingMaterial');
+const { buildingMaterial: Material } = require('../models/bmdashboard/buildingInventoryItem');
 const { materialType: MaterialType } = require('../models/bmdashboard/buildingInventoryType');
 const materialsController = require('../controllers/bmdashboard/bmMaterialsController');
 
