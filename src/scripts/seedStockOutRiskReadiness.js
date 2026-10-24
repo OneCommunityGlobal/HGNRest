@@ -1,4 +1,4 @@
-// File version: 1.0.1
+// File version: 1.0.2
 // Run from HGNRest: node --no-deprecation src/scripts/seedStockOutRiskReadiness.js
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
@@ -8,8 +8,11 @@ const { materialType: MaterialType } = require('../models/bmdashboard/buildingIn
 const materialsController = require('../controllers/bmdashboard/bmMaterialsController');
 
 const PREFIX = '[Stock Risk QA 5709]';
+const HEX_RADIX = 16;
+const ID_SUFFIX_LENGTH = 16;
+const MATERIAL_TYPE_ID_START = 101;
 const seedId = (index) =>
-  mongoose.Types.ObjectId(`a57a5709${index.toString(16).padStart(16, '0')}`);
+  mongoose.Types.ObjectId(`a57a5709${index.toString(HEX_RADIX).padStart(ID_SUFFIX_LENGTH, '0')}`);
 
 function buildFixtures(managerId) {
   const projects = [
@@ -27,7 +30,7 @@ function buildFixtures(managerId) {
     template: 'Synthetic stock-out readiness QA',
   }));
   const types = ['Cement', 'Lumber'].map((name, index) => ({
-    _id: seedId(index + 101),
+    _id: seedId(index + MATERIAL_TYPE_ID_START),
     name: `${PREFIX} ${name}`,
     description: 'Synthetic stock-out readiness QA material',
     category: 'Material',
@@ -35,7 +38,7 @@ function buildFixtures(managerId) {
   }));
   const date = new Date();
   date.setDate(date.getDate() - 1);
-  const material = (index, project, type, stockAvailable, stockUsed) => ({
+  const material = ({ project, type, stockAvailable, stockUsed }, index) => ({
     _id: seedId(index + 201),
     project: projects[project]._id,
     itemType: type === null ? undefined : types[type]._id,
@@ -46,14 +49,14 @@ function buildFixtures(managerId) {
     updateRecord: stockUsed > 0 ? [{ date, quantityUsed: stockUsed, quantityWasted: 0 }] : [],
   });
   const materials = [
-    material(0, 0, 0, 15, 150),
-    material(1, 0, 1, 120, 120),
-    material(2, 1, 0, 15, 150),
-    material(3, 1, 1, 40, 0),
-    material(4, 3, 0, 0, 150),
-    material(5, 4, null, 15, 150),
-    material(6, 5, 0, 1500, 30),
-  ];
+    { project: 0, type: 0, stockAvailable: 15, stockUsed: 150 },
+    { project: 0, type: 1, stockAvailable: 120, stockUsed: 120 },
+    { project: 1, type: 0, stockAvailable: 15, stockUsed: 150 },
+    { project: 1, type: 1, stockAvailable: 40, stockUsed: 0 },
+    { project: 3, type: 0, stockAvailable: 0, stockUsed: 150 },
+    { project: 4, type: null, stockAvailable: 15, stockUsed: 150 },
+    { project: 5, type: 0, stockAvailable: 1500, stockUsed: 30 },
+  ].map(material);
   return { projects, types, materials };
 }
 
