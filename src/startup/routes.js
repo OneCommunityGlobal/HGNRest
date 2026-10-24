@@ -470,6 +470,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   resourceRequestController,
 );
 
+const tumblrRouter = require('../routes/tumblrRouter');
+
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
 
@@ -746,4 +748,6 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
+
+  app.use('/api', tumblrRouter);
 };
