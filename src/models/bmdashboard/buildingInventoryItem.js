@@ -98,10 +98,29 @@ const largeItemBaseSchema = mongoose.Schema({
   ],
   updateRecord: [
     {
-      // track tool condition updates
+      // track tool/equipment condition updates (Update Tool or Equipment Status form)
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
-      condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
+      condition: {
+        type: String,
+        enum: [
+          // values sent by the Update Tool/Equipment Status form
+          'Working well',
+          'Broken/Needs repair',
+          'Stolen/Lost',
+          'End of life',
+          'Returned',
+          // legacy values kept so existing records stay valid
+          'Good',
+          'Needs Repair',
+          'Out of Order',
+        ],
+      },
+      lastUsedBy: { type: String, default: '' },
+      lastUsedFor: { type: String, default: '' },
+      replacementRequired: { type: String, default: '' },
+      description: { type: String, default: '' },
+      notes: { type: String, default: '' },
     },
   ],
   logRecord: [
