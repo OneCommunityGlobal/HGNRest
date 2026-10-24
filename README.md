@@ -31,6 +31,12 @@ TOKEN_LIFETIME_UNITS=<unit like days, second, hours etc>
 NODE_ENV= `local` | `development` | `production` <br/>
 JWT_SECRET=<secret value>
 
+LinkedIn posting is disabled by default. To enable real LinkedIn posts in an environment, configure all three variables below. `LINKEDIN_POSTING_ENABLED` must be exactly `true`; when it is missing, `false`, or any other value, the backend will not call LinkedIn.
+
+LINKEDIN_POSTING_ENABLED=true|false <br/>
+ORGANIZATION_URN=urn:li:organization:&lt;organization-id&gt; <br/>
+LINKEDIN_ACCESS_TOKEN=&lt;access-token&gt;
+
 
 To make the process easy create a .env file and put the above text in the file and replace values with the correct values, which you can get from your teammates. Then do an npm run-script build followed by an npm start. By default, the services will start on port 4500 and you can http://localhost:4500/api/<routename> to access the methods. A tools like Postman will be your best friend here, you will need to have an auth token placed in the 'Authorization' header which you can get through the networking tab of the local frontend when you login.
 
