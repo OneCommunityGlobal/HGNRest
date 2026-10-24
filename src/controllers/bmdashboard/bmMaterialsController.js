@@ -1,3 +1,4 @@
+// File version: 1.0.0
 const mongoose = require('mongoose');
 
 const bmMaterialsController = function (BuildingMaterial) {
@@ -451,7 +452,7 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmGetMaterialStockOutRisk = async function (req, res) {
     try {
-      const { projectIds } = req.query || {};
+      const { projectIds, includeReadiness } = req.query || {};
       const query = {};
 
       if (projectIds && projectIds !== 'all' && typeof projectIds === 'string') {
@@ -489,19 +490,34 @@ const bmMaterialsController = function (BuildingMaterial) {
       const SENTINEL_NO_USAGE_DATA = 999;
 
       const stockOutRiskData = [];
+      const readiness = new Map(
+        (query.project?.$in || []).map((id) => [
+          id.toString(),
+          {
+            projectId: id.toString(),
+            materialCount: 0,
+            readyMaterialCount: 0,
+            missingInputs: new Set(),
+          },
+        ]),
+      );
 
       for (const material of materials) {
-        if (
-          !material ||
-          typeof material.stockAvailable !== 'number' ||
-          material.stockAvailable <= 0 ||
-          !material.project ||
-          !material.itemType ||
-          !material.project._id ||
-          !material.itemType._id
-        ) {
-          continue;
+        if (!material?.project?._id) continue;
+
+        const projectId = material.project._id.toString();
+        if (!readiness.has(projectId)) {
+          readiness.set(projectId, {
+            projectId,
+            materialCount: 0,
+            readyMaterialCount: 0,
+            missingInputs: new Set(),
+          });
         }
+        const projectReadiness = readiness.get(projectId);
+        projectReadiness.materialCount += 1;
+        const hasStock = typeof material.stockAvailable === 'number' && material.stockAvailable > 0;
+        const hasMapping = Boolean(material.itemType?._id);
 
         const updateRecords = Array.isArray(material.updateRecord) ? material.updateRecord : [];
         let totalUsage = 0;
@@ -534,14 +550,20 @@ const bmMaterialsController = function (BuildingMaterial) {
           averageDailyUsage = parseFloat(material.stockUsed) / daysInPeriod;
         }
 
-        let daysUntilStockOut = 0;
-        if (averageDailyUsage > 0) {
-          daysUntilStockOut = Math.floor(material.stockAvailable / averageDailyUsage);
-        } else {
-          daysUntilStockOut = SENTINEL_NO_USAGE_DATA;
+        // Readiness uses the same inputs and usage calculation as the chart.
+        if (!hasMapping) projectReadiness.missingInputs.add('Material type mapping is missing.');
+        if (!hasStock) projectReadiness.missingInputs.add('Positive available stock is missing.');
+        if (!(averageDailyUsage > 0)) {
+          projectReadiness.missingInputs.add(
+            'Usage data is missing: record consumption within the last 30 days or total stock used.',
+          );
         }
+        if (!hasMapping || !hasStock || !(averageDailyUsage > 0)) continue;
+
+        const daysUntilStockOut = Math.floor(material.stockAvailable / averageDailyUsage);
 
         if (daysUntilStockOut >= 0 && daysUntilStockOut < SENTINEL_NO_USAGE_DATA) {
+          projectReadiness.readyMaterialCount += 1;
           stockOutRiskData.push({
             materialName: material.itemType.name || 'Unknown Material',
             materialId: material.itemType._id.toString(),
@@ -552,6 +574,10 @@ const bmMaterialsController = function (BuildingMaterial) {
             daysUntilStockOut: Math.max(0, daysUntilStockOut),
             unit: material.itemType.unit || '',
           });
+        } else {
+          projectReadiness.missingInputs.add(
+            'An estimate is outside the chart range of 0–998 days.',
+          );
         }
       }
 
@@ -561,7 +587,20 @@ const bmMaterialsController = function (BuildingMaterial) {
         return daysA - daysB;
       });
 
-      res.status(200).json(stockOutRiskData);
+      if (includeReadiness === 'true') {
+        const projectReadiness = Array.from(readiness.values()).map((project) => {
+          let status = 'Partial';
+          if (project.materialCount === 0) {
+            status = 'Not Configured';
+            project.missingInputs.add('No materials are mapped to this project.');
+          } else if (project.readyMaterialCount === project.materialCount) {
+            status = 'Ready';
+          }
+          return { ...project, status, missingInputs: Array.from(project.missingInputs) };
+        });
+        return res.status(200).json({ chartData: stockOutRiskData, readiness: projectReadiness });
+      }
+      return res.status(200).json(stockOutRiskData);
     } catch (err) {
       let statusCode = 500;
       let errorMessage = 'Internal Server Error';
