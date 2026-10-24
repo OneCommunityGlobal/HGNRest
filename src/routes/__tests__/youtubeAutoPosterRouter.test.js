@@ -5,11 +5,11 @@ const multer = require('multer');
 
 // Mock controllers
 jest.mock('../../controllers/youtubeAutoPoster', () => ({
-  getYoutubeAuthorizationUrl: (req, res) =>
+  getYoutubeAuthorizationUrl: (_req, res) =>
     res.status(200).json({ success: true, authUrl: 'http://test-url' }),
-  getYoutubeConnectionStatus: (req, res) =>
+  getYoutubeConnectionStatus: (_req, res) =>
     res.status(200).json({ success: true, connected: false }),
-  connectYoutubeAccount: (req, res) => res.status(200).json({ success: true, connected: true }),
+  connectYoutubeAccount: (_req, res) => res.status(200).json({ success: true, connected: true }),
   uploadVideo: async (req, res) => {
     if (req.headers['x-mock-error'] === 'generic') {
       throw new Error('Upload service failed');
@@ -25,9 +25,9 @@ jest.mock('../../controllers/youtubeAutoPoster', () => ({
 
 // Mock permission middleware
 jest.mock('../../middleware/youtubePermissionMiddleware', () => ({
-  requireYoutubePermission: (req, res, next) => {
+  requireYoutubePermission: (req, _res, next) => {
     if (req.headers['x-mock-unauthorized'] === 'true') {
-      return res.status(403).json({ success: false, message: 'Permission denied' });
+      return _res.status(403).json({ success: false, message: 'Permission denied' });
     }
     next();
   },
@@ -135,15 +135,13 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
   });
 
   it('should handle MulterError LIMIT_FILE_SIZE with 413 status', async () => {
-    // Directly mock the upload middleware to invoke next with a MulterError
-    const testApp = express();
-    testApp.post('/api/youtube/upload', (req, res, next) => {
-      const multerErr = new multer.MulterError('LIMIT_FILE_SIZE');
-      next(multerErr);
+    const errorApp = express();
+    errorApp.use((_req, _res, next) => {
+      next(new multer.MulterError('LIMIT_FILE_SIZE'));
     });
-    testApp.use('/api/youtube', youtubeRouter);
+    errorApp.use(youtubeRouter);
 
-    const res = await request(testApp).post('/api/youtube/upload');
+    const res = await request(errorApp).post('/api/youtube/upload');
     expect(res.status).toBe(413);
     expect(res.body.success).toBe(false);
   });
