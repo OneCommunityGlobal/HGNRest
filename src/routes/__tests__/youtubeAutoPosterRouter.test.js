@@ -137,13 +137,16 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
   it('should handle MulterError LIMIT_FILE_SIZE with 413 status', async () => {
     const testApp = express();
     testApp.use(express.json());
-    // Explicitly mount the error-triggering middleware to the specific upload route path
-    testApp.post('/api/youtube/upload', (_req, _res, next) => {
-      next(new multer.MulterError('LIMIT_FILE_SIZE'));
-    });
+
+    // Mount the router
     testApp.use('/api/youtube', youtubeRouter);
 
-    const res = await request(testApp).post('/api/youtube/upload');
+    // Add a custom error trigger route for testing 413 response
+    testApp.post('/api/youtube/test-error-413', (_req, _res, next) => {
+      next(new multer.MulterError('LIMIT_FILE_SIZE'));
+    });
+
+    const res = await request(testApp).post('/api/youtube/test-error-413');
     expect(res.status).toBe(413);
     expect(res.body.success).toBe(false);
   });
