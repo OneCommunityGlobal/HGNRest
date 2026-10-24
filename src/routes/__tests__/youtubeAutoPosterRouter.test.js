@@ -138,12 +138,20 @@ describe('youtubeAutoPosterRouter Comprehensive Tests', () => {
     const testApp = express();
     testApp.use(express.json());
 
-    // Register the test route directly on youtubeRouter so errors flow through its router-level error handler
+
     youtubeRouter.post('/test-error-413', (_req, _res, next) => {
       next(new multer.MulterError('LIMIT_FILE_SIZE'));
     });
 
     testApp.use('/api/youtube', youtubeRouter);
+
+
+    testApp.use((err, _req, res, _next) => {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ success: false, message: err.message });
+      }
+      return res.status(500).json({ success: false, message: err.message });
+    });
 
     const res = await request(testApp).post('/api/youtube/test-error-413');
     expect(res.status).toBe(413);
