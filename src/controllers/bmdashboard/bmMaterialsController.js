@@ -1,4 +1,4 @@
-// File version: 1.0.0
+// File version: 1.0.1
 const mongoose = require('mongoose');
 
 const bmMaterialsController = function (BuildingMaterial) {
@@ -551,14 +551,15 @@ const bmMaterialsController = function (BuildingMaterial) {
         }
 
         // Readiness uses the same inputs and usage calculation as the chart.
+        const hasUsage = averageDailyUsage > 0;
         if (!hasMapping) projectReadiness.missingInputs.add('Material type mapping is missing.');
         if (!hasStock) projectReadiness.missingInputs.add('Positive available stock is missing.');
-        if (!(averageDailyUsage > 0)) {
+        if (!hasUsage) {
           projectReadiness.missingInputs.add(
             'Usage data is missing: record consumption within the last 30 days or total stock used.',
           );
         }
-        if (!hasMapping || !hasStock || !(averageDailyUsage > 0)) continue;
+        if (!hasMapping || !hasStock || !hasUsage) continue;
 
         const daysUntilStockOut = Math.floor(material.stockAvailable / averageDailyUsage);
 

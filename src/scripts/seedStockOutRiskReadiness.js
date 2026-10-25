@@ -1,4 +1,4 @@
-// File version: 1.0.2
+// File version: 1.0.3
 // Run from HGNRest: node --no-deprecation src/scripts/seedStockOutRiskReadiness.js
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
@@ -56,7 +56,7 @@ function buildFixtures(managerId) {
     { project: 3, type: 0, stockAvailable: 0, stockUsed: 150 },
     { project: 4, type: null, stockAvailable: 15, stockUsed: 150 },
     { project: 5, type: 0, stockAvailable: 1500, stockUsed: 30 },
-  ].map(material);
+  ].map((inputs, index) => material(inputs, index));
   return { projects, types, materials };
 }
 
@@ -102,33 +102,37 @@ async function run() {
     const projectIds = projects.map((p) => p._id);
 
     // Check the complete fixed namespace before writing any fixture.
-    for (const [Model, docs] of groups) {
-      const existing = await Model.collection
-        .find({ _id: { $in: docs.map((doc) => doc._id) } })
-        .toArray();
-      existing.forEach((doc) =>
-        assert(
-          Model === Material
-            ? projectIds.some((id) => id.equals(doc.project))
-            : doc.name?.startsWith(PREFIX),
-          'A fixture ID belongs to another record; no changes were made.',
-        ),
-      );
-    }
-    for (const [Model, docs] of groups) {
-      for (const doc of docs) {
-        // Rerunning the seed leaves all existing records, including edited QA data, untouched.
-        await Model.updateOne(
-          { _id: doc._id },
-          { $setOnInsert: doc },
-          {
-            upsert: true,
-            runValidators: true,
-            setDefaultsOnInsert: true,
-          },
+    await Promise.all(
+      groups.map(async ([Model, docs]) => {
+        const existing = await Model.collection
+          .find({ _id: { $in: docs.map((doc) => doc._id) } })
+          .toArray();
+        existing.forEach((doc) =>
+          assert(
+            Model === Material
+              ? projectIds.some((id) => id.equals(doc.project))
+              : doc.name?.startsWith(PREFIX),
+            'A fixture ID belongs to another record; no changes were made.',
+          ),
         );
-      }
-    }
+      }),
+    );
+    await Promise.all(
+      groups.flatMap(([Model, docs]) =>
+        docs.map((doc) =>
+          // Rerunning the seed leaves all existing records, including edited QA data, untouched.
+          Model.updateOne(
+            { _id: doc._id },
+            { $setOnInsert: doc },
+            {
+              upsert: true,
+              runValidators: true,
+              setDefaultsOnInsert: true,
+            },
+          ),
+        ),
+      ),
+    );
     let result;
     const res = {
       status(code) {
@@ -141,7 +145,10 @@ async function run() {
     };
     await materialsController(Material).bmGetMaterialStockOutRisk(
       {
-        query: { projectIds: projectIds.join(','), includeReadiness: 'true' },
+        query: {
+          projectIds: projectIds.map((id) => id.toHexString()).join(','),
+          includeReadiness: 'true',
+        },
       },
       res,
     );
