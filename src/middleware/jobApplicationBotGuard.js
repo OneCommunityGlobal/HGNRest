@@ -38,7 +38,7 @@ async function jobApplicationBotGuard(req, res, next) {
   const body = req.body || {};
 
   const honeypotFilled = hasValue(body[HONEYPOT_FIELD]);
-  const fillMs = hasValue(body[FILL_MS_FIELD]) ? Number(body[FILL_MS_FIELD]) : NaN;
+  const fillMs = hasValue(body[FILL_MS_FIELD]) ? Number(body[FILL_MS_FIELD]) : Number.NaN;
   const tooFast = Number.isFinite(fillMs) && fillMs < MIN_FILL_MS;
 
   if (honeypotFilled || tooFast) {
