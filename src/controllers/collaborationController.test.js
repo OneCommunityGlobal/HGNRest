@@ -141,6 +141,57 @@ describe('submitFormResponse', () => {
     );
   });
 
+  it('escapes applicant name and form title in the confirmation email HTML', async () => {
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Dev <script>alert(1)</script>',
+    });
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: { ...validBody, respondent: '<a href="https://evil.example">click</a>' },
+      },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const html = emailSender.mock.calls[0][2];
+    expect(html).not.toContain('<a href');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('Hi &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,');
+    expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('keeps ordinary applicant names readable in the confirmation email', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse(
+      { params: { formId }, body: { ...validBody, respondent: 'José Núñez-Ochoa' } },
+      res,
+    );
+
+    const html = emailSender.mock.calls[0][2];
+    expect(html).toContain('Hi José Núñez-Ochoa,');
+    expect(html).toContain('<strong>Software Developer</strong>');
+  });
+
+  it('strips CR/LF and control characters from the confirmation email subject', async () => {
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Dev\r\nBcc: victim@example.com\u0000',
+    });
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse({ params: { formId }, body: validBody }, res);
+
+    const subject = emailSender.mock.calls[0][1];
+    expect(subject).toBe('Application Received — DevBcc: victim@example.com');
+    expect(subject).not.toMatch(/[\r\n]/);
+  });
+
   it('parses answers JSON strings and stores resumeUrl when a file is uploaded', async () => {
     Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
     Response.findOne.mockResolvedValue(null);
@@ -164,6 +215,39 @@ describe('submitFormResponse', () => {
     expect(uploadFileToAzureBlobStorage).toHaveBeenCalled();
     expect(saveMock).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('names stored blobs with the allowlisted lower-cased extension, not the client one', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    const questionId = '6a4f01a854e483075a73a6a9';
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: { ...validBody, answers: [{ questionId, answer: 'x' }] },
+        files: [
+          {
+            fieldname: 'resume',
+            originalname: 'Resume.PDF',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('pdf'),
+          },
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'cover.html',
+            mimetype: 'text/html',
+            buffer: Buffer.from('<p>'),
+          },
+        ],
+      },
+      res,
+    );
+
+    const blobNames = uploadFileToAzureBlobStorage.mock.calls.map(([, name]) => name);
+    expect(blobNames).toHaveLength(2);
+    expect(blobNames[0]).toMatch(/^resumes\/software_developer_ada_example_com_\d+\.pdf$/);
+    expect(blobNames[1]).toMatch(/_q_6a4f01a854e483075a73a6a9_\d+\.bin$/);
   });
 
   it('still returns 201 if resume upload or email sending fails', async () => {
