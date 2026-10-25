@@ -108,16 +108,81 @@ describe('submitFormResponse', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Form not found.' });
   });
 
-  it('returns 409 when the email already applied to this form', async () => {
-    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
-    Response.findOne.mockResolvedValue({ _id: 'existing' });
-    await submitFormResponse({ params: { formId }, body: validBody }, res);
-    expect(Response.findOne).toHaveBeenCalledWith({
-      formId,
-      $or: [{ email: 'ada@example.com' }, { respondent: 'ada@example.com' }],
+  describe('duplicate application', () => {
+    const successBody = { message: 'Application submitted successfully.' };
+    const resumeFile = {
+      originalname: 'resume.pdf',
+      buffer: Buffer.from('pdf'),
+      mimetype: 'application/pdf',
+    };
+
+    it('returns the same 201 body as a new submission', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue(null);
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      const newRes = res;
+
+      const dupRes = createMockRes();
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+      await submitFormResponse({ params: { formId }, body: validBody }, dupRes);
+
+      expect(Response.findOne).toHaveBeenLastCalledWith({
+        formId,
+        $or: [{ email: 'ada@example.com' }, { respondent: 'ada@example.com' }],
+      });
+      expect(newRes.status).toHaveBeenCalledWith(201);
+      expect(newRes.json).toHaveBeenCalledWith(successBody);
+      expect(dupRes.status).toHaveBeenCalledWith(201);
+      expect(dupRes.json).toHaveBeenCalledWith(successBody);
+      expect(dupRes.json.mock.calls[0]).toEqual(newRes.json.mock.calls[0]);
     });
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Application already submitted.' });
+
+    it('does not save a second Response or upload files', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+
+      await submitFormResponse({ params: { formId }, body: validBody, file: resumeFile }, res);
+
+      expect(Response).not.toHaveBeenCalled();
+      expect(saveMock).not.toHaveBeenCalled();
+      expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
+    });
+
+    it('emails the normalized address with escaped values', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Dev <b>Role</b>' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+
+      await submitFormResponse(
+        {
+          params: { formId },
+          body: { ...validBody, respondent: '<script>alert("x")</script> & Co' },
+        },
+        res,
+      );
+
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      const [to, subject, html] = emailSender.mock.calls[0];
+      expect(to).toEqual(['ada@example.com']);
+      expect(subject).toContain('Already Received');
+      expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co');
+      expect(html).toContain('Dev &lt;b&gt;Role&lt;/b&gt;');
+      expect(html).not.toContain('<script>');
+      expect(html).not.toContain('<b>Role</b>');
+    });
+
+    it('still returns the identical 201 when the email fails', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+      emailSender.mockRejectedValue(new Error('smtp down'));
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+
+      expect(errorSpy).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(successBody);
+      errorSpy.mockRestore();
+    });
   });
 
   it('returns 201, saves email, and sends a confirmation email', async () => {
@@ -133,11 +198,7 @@ describe('submitFormResponse', () => {
       expect.stringContaining('Ada Lovelace'),
     );
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Application submitted successfully.',
-      }),
-    );
+    expect(res.json).toHaveBeenCalledWith({ message: 'Application submitted successfully.' });
   });
 
   it('escapes applicant name and form title in the confirmation email HTML', async () => {
