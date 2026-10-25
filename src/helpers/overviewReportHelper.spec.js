@@ -1,6 +1,12 @@
-/* eslint-disable no-unused-vars */
+const UserProfile = require('../models/userProfile');
+const Task = require('../models/task');
+const TimeEntries = require('../models/timeentry');
+
+// getHoursStats / getTotalHoursWorked look up who logged time in the period
+beforeEach(() => {
+  jest.spyOn(TimeEntries, 'distinct').mockResolvedValue([]);
+});
 const overviewReportHelper = require('./overviewReportHelper');
-// const UserProfile = require('../models/userProfile');
 
 // const makeSut = () => {
 //   const { getVolunteerNumberStats } = overviewReportHelper();
@@ -9,7 +15,132 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
-  it('Fix this test suite', () => {});
+  describe('getTasksStats date boundaries', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('filters the non-comparison totals by the selected date range', async () => {
+      const startDate = new Date('2026-07-19T00:00:00-07:00');
+      const endDate = new Date('2026-07-25T23:59:00-07:00');
+      const aggregateSpy = jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      await getTasksStats(startDate, endDate);
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]);
+    });
+  });
+
+  describe('getHoursStats date boundaries', () => {
+    const originalTimezone = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTimezone;
+      jest.restoreAllMocks();
+    });
+
+    test.each(['UTC', 'America/New_York', 'Asia/Tokyo'])(
+      'uses the same current, previous, and custom date boundaries in %s',
+      async (timezone) => {
+        process.env.TZ = timezone;
+
+        const entries = [
+          { dateOfWork: '2026-07-04', totalSeconds: 50 * 3600 },
+          { dateOfWork: '2026-07-05', totalSeconds: 5 * 3600 },
+          { dateOfWork: '2026-07-11', totalSeconds: 6 * 3600 },
+          { dateOfWork: '2026-07-12', totalSeconds: 50 * 3600 },
+          { dateOfWork: '2026-07-18', totalSeconds: 50 * 3600 },
+          { dateOfWork: '2026-07-19', totalSeconds: 5 * 3600 },
+          { dateOfWork: '2026-07-25', totalSeconds: 6 * 3600 },
+          { dateOfWork: '2026-07-26', totalSeconds: 5 * 3600 },
+          { dateOfWork: '2026-07-31', totalSeconds: 6 * 3600 },
+          { dateOfWork: '2026-08-01', totalSeconds: 50 * 3600 },
+        ];
+
+        jest.spyOn(UserProfile, 'aggregate').mockImplementation(async (pipeline) => {
+          const conditions = pipeline[3].$project.timeEntries.$filter.cond.$and;
+          const startDate = conditions[0].$gte[1];
+          const endDate = conditions[1].$lte[1];
+          return [
+            {
+              _id: 'volunteer-id',
+              timeEntries: entries.filter(
+                (entry) => entry.dateOfWork >= startDate && entry.dateOfWork <= endDate,
+              ),
+            },
+          ];
+        });
+
+        const { getHoursStats } = overviewReportHelper();
+        const ranges = [
+          ['2026-07-26', '2026-07-31'], // Current week
+          ['2026-07-19', '2026-07-25'], // Previous week
+          ['2026-07-05', '2026-07-11'], // Custom range
+        ];
+
+        const results = await Promise.all(
+          ranges.map(([startDate, endDate]) => getHoursStats(startDate, endDate)),
+        );
+
+        results.forEach((result) => {
+          expect(result).toEqual([
+            { _id: '10', count: 0 },
+            { _id: '20', count: 1 },
+            { _id: '30', count: 0 },
+            { _id: '40', count: 0 },
+            { _id: '50', count: 0 },
+            { _id: '50+', count: 0 },
+          ]);
+        });
+      },
+    );
+  });
+
+  describe('getTotalHoursWorked date boundaries', () => {
+    const originalTimezone = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTimezone;
+      jest.restoreAllMocks();
+    });
+
+    test.each(['UTC', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo'])(
+      'uses the exact inclusive date strings in %s',
+      async (timezone) => {
+        process.env.TZ = timezone;
+        let appliedStartDate;
+        let appliedEndDate;
+        const entries = [
+          { dateOfWork: '2026-07-18', totalSeconds: 50 * 3600 },
+          { dateOfWork: '2026-07-19', totalSeconds: 5 * 3600 },
+          { dateOfWork: '2026-07-25', totalSeconds: 6 * 3600 },
+          { dateOfWork: '2026-07-26', totalSeconds: 50 * 3600 },
+        ];
+
+        jest.spyOn(UserProfile, 'aggregate').mockImplementation(async (pipeline) => {
+          const conditions = pipeline[2].$project.timeEntryData.$filter.cond.$and;
+          const [startCondition, endCondition] = conditions;
+          [, appliedStartDate] = startCondition.$gte;
+          [, appliedEndDate] = endCondition.$lte;
+          const totalSeconds = entries
+            .filter(
+              (entry) => entry.dateOfWork >= appliedStartDate && entry.dateOfWork <= appliedEndDate,
+            )
+            .reduce((total, entry) => total + entry.totalSeconds, 0);
+          return [{ totaltime_hrs: totalSeconds / 3600 }];
+        });
+
+        const { getTotalHoursWorked } = overviewReportHelper();
+        const result = await getTotalHoursWorked('2026-07-19', '2026-07-25');
+
+        expect(appliedStartDate).toBe('2026-07-19');
+        expect(appliedEndDate).toBe('2026-07-25');
+        expect(result).toEqual({ current: 11 });
+      },
+    );
+  });
 });
 
 // describe('overviewReportHelper method tests', () => {
@@ -67,3 +198,97 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getTotalActiveTeamCount', () => {
+  // eslint-disable-next-line global-require
+  const Team = require('../models/team');
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('uses the Team Stats definition: active teams with 2+ active members', async () => {
+    const aggregateSpy = jest.spyOn(Team, 'aggregate').mockResolvedValue([{ totalTeams: 211 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 211 });
+    expect(aggregateSpy.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([{ $match: { activeMembersCount: { $gte: 2 } } }]),
+    );
+  });
+
+  it('returns current and comparison counts when comparison dates are given', async () => {
+    jest
+      .spyOn(Team, 'aggregate')
+      .mockResolvedValueOnce([{ totalTeams: 10 }])
+      .mockResolvedValueOnce([{ totalTeams: 8 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount(
+      '2026-10-04',
+      '2026-10-10',
+      '2026-09-27',
+      '2026-10-03',
+    );
+
+    expect(result.current).toBe(10);
+    expect(result.comparison).toBe(8);
+    expect(result).toHaveProperty('percentage');
+  });
+
+  it('returns 0 when no team qualifies', async () => {
+    jest.spyOn(Team, 'aggregate').mockResolvedValue([]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 0 });
+  });
+});
+
+describe('getCommittedHoursStats', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const mockUsers = (users) =>
+    jest.spyOn(UserProfile, 'find').mockReturnValue({ lean: jest.fn().mockResolvedValue(users) });
+
+  it('groups active volunteers into upper-limit committed-hours buckets', async () => {
+    const findSpy = mockUsers(
+      [1, 5, 10, 11, 20, 21, 30, 31, 35, 40, 41, 60].map((h) => ({ weeklycommittedHours: h })),
+    );
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 3 },
+      { _id: '20', count: 2 },
+      { _id: '30', count: 2 },
+      { _id: '40', count: 3 },
+      { _id: '40+', count: 2 },
+    ]);
+    expect(findSpy).toHaveBeenCalledWith(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    );
+  });
+
+  it('returns every bucket with a zero count when there are no volunteers', async () => {
+    mockUsers([]);
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 0 },
+      { _id: '20', count: 0 },
+      { _id: '30', count: 0 },
+      { _id: '40', count: 0 },
+      { _id: '40+', count: 0 },
+    ]);
+  });
+});

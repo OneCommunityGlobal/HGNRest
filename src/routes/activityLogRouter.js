@@ -6,7 +6,7 @@ const routes = function () {
 
   activityLogRouter.get(
     ['/educator/daily-log/:studentId', '/support/daily-log/:studentId'],
-    controller.fetchStudentDailyLogsByStaff
+    controller.fetchStudentDailyLogsByStaff,
   );
 
   activityLogRouter
@@ -14,9 +14,7 @@ const routes = function () {
     .get(controller.fetchStudentDailyLog)
     .post(controller.createStudentDailyLog);
 
-  activityLogRouter
-    .route('/student/daily-log/:logId')
-    .put(controller.updateStudentDailyLog);
+  activityLogRouter.route('/student/daily-log/:logId').put(controller.updateStudentDailyLog);
 
   return activityLogRouter;
 };

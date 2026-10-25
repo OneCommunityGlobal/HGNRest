@@ -1,4 +1,7 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+
+const ActualUserProfile = jest.requireActual('../../models/userProfile');
 
 /* =======================
    MOCKS (MUST COME FIRST)
@@ -8,6 +11,51 @@ jest.mock('../../models/userProfile', () => ({
   findById: jest.fn(),
   find: jest.fn(),
   aggregate: jest.fn(),
+  updateOne: jest.fn().mockResolvedValue({}),
+  findOneAndUpdate: jest.fn(),
+  findByIdAndUpdate: jest.fn((id, update, cb) => {
+    if (typeof cb === 'function') cb(null);
+    return Promise.resolve({});
+  }),
+}));
+
+jest.mock('../../models/badge', () => ({
+  find: jest.fn(),
+  findOne: jest.fn(),
+}));
+
+jest.mock('../../models/team', () => ({
+  aggregate: jest.fn(),
+}));
+
+jest.mock('../dashboardhelper', () =>
+  jest.fn(() => ({
+    laborthisweek: jest.fn().mockResolvedValue([{ timeSpent_hrs: 5 }]),
+  })),
+);
+
+jest.mock('../../utilities/timeUtils');
+jest.mock('../../utilities/emailSender');
+jest.mock('../dashboardhelper', () =>
+  jest.fn(() => ({
+    laborthisweek: jest.fn().mockResolvedValue([{ timeSpent_hrs: 36 }]),
+  })),
+);
+jest.mock('../../models/BlueSquareEmailAssignment', () => ({
+  find: jest.fn().mockImplementation(() => ({
+    populate: jest.fn().mockImplementation(() => ({
+      exec: jest.fn().mockResolvedValue([
+        {
+          email: 'bcc-test@example.com',
+          assignedTo: { isActive: true },
+        },
+      ]),
+    })),
+  })),
+}));
+jest.mock('../../models/timeOffRequest', () => ({
+  deleteMany: jest.fn(),
+  find: jest.fn(),
 }));
 
 /* =======================
@@ -15,10 +63,51 @@ jest.mock('../../models/userProfile', () => ({
    ======================= */
 
 const userProfile = require('../../models/userProfile');
+const badge = require('../../models/badge');
+const Team = require('../../models/team');
+const currentWarnings = require('../../models/currentWarnings');
+const warningsHelper = require('../warningsHelper');
 const userHelperFactory = require('../userHelper');
+const timeUtils = require('../../utilities/timeUtils');
+const emailSender = require('../../utilities/emailSender');
+const { COMPANY_TZ } = require('../../constants/company');
+const timeOffRequest = require('../../models/timeOffRequest');
+const logger = require('../../startup/logger');
 
-const { getUserName, validateProfilePic, checkTeamCodeMismatch, getTeamManagementEmail } =
-  userHelperFactory();
+const {
+  getUserName,
+  validateProfilePic,
+  checkTeamCodeMismatch,
+  getTeamManagementEmail,
+  mergeHours,
+  checkMinHoursMultiple,
+  checkTotalHrsInCat,
+  checkNoInfringementStreak,
+  checkLeadTeamOfXplus,
+  checkMostHrsWeek,
+  checkXHrsInOneWeek,
+  checkPersonalMax,
+  checkXHrsForXWeeks,
+  getAllTeamMembers,
+  getAllWeeksData,
+  updatePersonalMax,
+  checkIsNewUser,
+  weeklyAutoReplyEmailFunction,
+  assignBlueSquareForTimeNotMet,
+} = userHelperFactory();
+
+/* =======================
+   TEST HELPERS
+   ======================= */
+
+// Builds a mock mongoose query chain: resolves like a promise, and also
+// supports chained .sort()/.limit() calls that return the same chain.
+const makeQuery = (result) => {
+  const promise = Promise.resolve(result);
+  promise.sort = jest.fn(() => makeQuery(result));
+  promise.limit = jest.fn(() => makeQuery(result));
+  return promise;
+};
 
 /* =======================
    TESTS
@@ -141,5 +230,1340 @@ describe('getTeamManagementEmail', () => {
       }),
       'email role',
     );
+  });
+});
+
+describe('mergeHours', () => {
+  test('concatenates two arrays', () => {
+    expect(mergeHours([1, 2], [3, 4])).toEqual([1, 2, 3, 4]);
+  });
+
+  test('handles empty arrays', () => {
+    expect(mergeHours([], [])).toEqual([]);
+  });
+});
+
+describe('checkMinHoursMultiple', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.updateOne.mockClear();
+    userProfile.findByIdAndUpdate.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('returns early when no badges of that type exist', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+    await checkMinHoursMultiple(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalledWith({ type: 'Minimum Hours Multiple' });
+  });
+
+  test('increases count when user already has the qualifying badge', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 2 }]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+    const badgeCollection = [{ badge: { _id: candidateId, type: 'Minimum Hours Multiple' } }];
+
+    await checkMinHoursMultiple(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('adds a new badge when ratio qualifies and none is owned yet', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 2 }]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+
+    await checkMinHoursMultiple(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('skips candidates the ratio does not meet', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 5 }]));
+
+    const user = { lastWeekTangibleHrs: 5, weeklycommittedHours: 10 };
+
+    await checkMinHoursMultiple(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('downgrades a lower badge before adding the qualifying one', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    const lowerId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 2 }]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+    const badgeCollection = [
+      { count: 2, badge: { _id: lowerId, multiple: 1, type: 'Minimum Hours Multiple' } },
+    ];
+
+    await checkMinHoursMultiple(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('removes a lower badge in place (count 1) before adding the qualifying one', async () => {
+    const candidateId = new mongoose.Types.ObjectId();
+    const lowerId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: candidateId, multiple: 2 }]));
+
+    const user = { lastWeekTangibleHrs: 20, weeklycommittedHours: 10 };
+    const badgeCollection = [
+      { count: 1, badge: { _id: lowerId, multiple: 1, type: 'Minimum Hours Multiple' } },
+    ];
+
+    await checkMinHoursMultiple(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('checkTotalHrsInCat', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.updateOne.mockClear();
+    userProfile.findByIdAndUpdate.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('skips categories with no logged hours', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { hoursByCategory: {} };
+    await checkTotalHrsInCat(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('adds a badge when category hours qualify and none is owned', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, totalHrs: 100, category: 'Food' }]));
+
+    const user = { hoursByCategory: { food: 150 } };
+    await checkTotalHrsInCat(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('increases count when badge already owned for that category', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, totalHrs: 100, category: 'Food' }]));
+
+    const user = { hoursByCategory: { food: 150 } };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: {
+          _id: badgeId,
+          type: 'Total Hrs in Category',
+          category: 'Food',
+          totalHrs: 100,
+        },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('deduplicates a repeated badge and replaces it with a higher qualifying one', async () => {
+    const lowerBadgeId = new mongoose.Types.ObjectId();
+    const higherBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(
+      makeQuery([{ _id: higherBadgeId, totalHrs: 100, category: 'Food' }]),
+    );
+
+    const user = { hoursByCategory: { food: 150 } };
+    const badgeCollection = [
+      {
+        count: 2,
+        badge: {
+          _id: lowerBadgeId,
+          type: 'Total Hrs in Category',
+          category: 'Food',
+          totalHrs: 50,
+        },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('defaults hoursByCategory to empty when missing on the user', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    await checkTotalHrsInCat(personId, {}, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does nothing when category hours are below the qualifying threshold', async () => {
+    badge.find.mockReturnValue(
+      makeQuery([{ _id: new mongoose.Types.ObjectId(), totalHrs: 100, category: 'Food' }]),
+    );
+
+    const user = { hoursByCategory: { food: 50 } };
+    await checkTotalHrsInCat(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('removes a lower-ranked owned badge for the same category', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { hoursByCategory: { food: 0 } };
+    const higherId = new mongoose.Types.ObjectId();
+    const lowerId = new mongoose.Types.ObjectId();
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: higherId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 100 },
+      },
+      {
+        count: 1,
+        badge: { _id: lowerId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 50 },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('takes no action when the owned badge already outranks the qualifying one', async () => {
+    const ownedId = new mongoose.Types.ObjectId();
+    const lowerBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: lowerBadgeId, totalHrs: 100, category: 'Food' }]));
+
+    const user = { hoursByCategory: { food: 150 } };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: ownedId, type: 'Total Hrs in Category', category: 'Food', totalHrs: 200 },
+      },
+    ];
+
+    await checkTotalHrsInCat(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkNoInfringementStreak', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('does nothing when there are no streak badges configured', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { createdDate: new Date(), infringements: [] };
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalledWith({ type: 'No Infringement Streak' });
+  });
+
+  test('awards badge when user has been infringement-free long enough', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, months: 1 }]));
+
+    const user = {
+      createdDate: moment().subtract(2, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('awards a longer streak badge when there have been no old infringements either', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, months: 13 }]));
+
+    const user = {
+      createdDate: moment().subtract(14, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('deduplicates multiple owned streak badges down to the best one', async () => {
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { createdDate: new Date(), infringements: [] };
+    const badgeCollection = [
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 6 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 12 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'No Infringement Streak', months: 3 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalledWith({ type: 'No Infringement Streak' });
+  });
+
+  test('replaces the owned badge with a different qualifying streak badge', async () => {
+    const ownedId = new mongoose.Types.ObjectId();
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: newBadgeId, months: 1 }]));
+
+    const user = {
+      createdDate: moment().subtract(2, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+    const badgeCollection = [
+      { badge: { _id: ownedId, type: 'No Infringement Streak', months: 1 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('does not award a badge when not enough time has elapsed yet', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 6 }]));
+
+    const user = {
+      createdDate: moment().subtract(1, 'months').toDate(),
+      infringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not award a badge after a recent infringement', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 6 }]));
+
+    const user = {
+      createdDate: moment().subtract(8, 'months').toDate(),
+      infringements: [{ date: moment().subtract(1, 'months').toDate() }],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('ends the streak check without replacing when the badge already matches', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, months: 1 }]));
+
+    const user = {
+      createdDate: moment().subtract(2, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+    const badgeCollection = [
+      { badge: { _id: badgeId, type: 'No Infringement Streak', months: 1 } },
+    ];
+
+    await checkNoInfringementStreak(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('does not award a longer streak badge when the user was recently created', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 13 }]));
+
+    const user = {
+      createdDate: moment().subtract(1, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not award a longer streak badge after a recent old infringement', async () => {
+    badge.find.mockReturnValue(makeQuery([{ _id: new mongoose.Types.ObjectId(), months: 13 }]));
+
+    const user = {
+      createdDate: moment().subtract(14, 'months').toDate(),
+      infringements: [],
+      oldInfringements: [{ date: moment().subtract(1, 'days').toDate() }],
+    };
+
+    await checkNoInfringementStreak(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('getAllTeamMembers', () => {
+  const userId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    Team.aggregate.mockReset();
+  });
+
+  test('returns aggregated team results', async () => {
+    const teams = [{ _id: new mongoose.Types.ObjectId(), teamName: 'Team A', members: [] }];
+    Team.aggregate.mockResolvedValue(teams);
+
+    const result = await getAllTeamMembers(userId);
+
+    expect(result).toEqual(teams);
+    expect(Team.aggregate).toHaveBeenCalled();
+  });
+
+  test('throws when aggregation fails', async () => {
+    Team.aggregate.mockRejectedValue(new Error('db down'));
+
+    await expect(getAllTeamMembers(userId)).rejects.toThrow('db down');
+  });
+});
+
+describe('checkLeadTeamOfXplus', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
+    Team.aggregate.mockReset();
+    badge.find.mockReset();
+  });
+
+  test('returns early for roles that cannot lead teams', async () => {
+    const user = { role: 'Volunteer' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(Team.aggregate).not.toHaveBeenCalled();
+  });
+
+  test('adds a qualifying team-size badge for an eligible leader', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('replaces an existing team-size badge with a higher qualifying one', async () => {
+    const memberOne = new mongoose.Types.ObjectId();
+    const memberTwo = new mongoose.Types.ObjectId();
+    const oldBadgeId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [
+          { userId: memberOne, role: 'Volunteer' },
+          { userId: memberTwo, role: 'Volunteer' },
+        ],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 2 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [{ badge: { _id: oldBadgeId, type: 'Lead a team of X+', people: 1 } }];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('filters out leader-role and duplicate members when sizing the team', async () => {
+    const leaderId = new mongoose.Types.ObjectId();
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [
+          { userId: leaderId, role: 'Manager' },
+          { userId: memberId, role: 'Volunteer' },
+          { userId: memberId, role: 'Volunteer' },
+        ],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalledWith(expect.objectContaining({ people: { $lte: 1 } }));
+  });
+
+  test('skips badgeCollection entries that are not team-size badges', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [{ badge: { type: 'Personal Max' } }];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('deduplicates multiple owned team-size badges', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 1 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 5 } },
+      { badge: { _id: new mongoose.Types.ObjectId(), type: 'Lead a team of X+', people: 2 } },
+    ];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('does nothing when no team-size badge qualifies', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([]));
+
+    const user = { role: 'Manager' };
+    await checkLeadTeamOfXplus(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('leaves the badge alone when the owned one already qualifies', async () => {
+    const memberId = new mongoose.Types.ObjectId();
+    const ownedBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: memberId, role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: ownedBadgeId, people: 1 }]));
+
+    const user = { role: 'Manager' };
+    const badgeCollection = [
+      { badge: { _id: ownedBadgeId, type: 'Lead a team of X+', people: 1 } },
+    ];
+
+    await checkLeadTeamOfXplus(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('getAllWeeksData', () => {
+  test('returns hours for each elapsed week', async () => {
+    const personId = new mongoose.Types.ObjectId().toString();
+    const user = { createdDate: moment().subtract(3, 'days').toDate() };
+
+    const result = await getAllWeeksData(personId, user);
+
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe('updatePersonalMax', () => {
+  test('updates personalBestMaxHrs from merged hours history', async () => {
+    const personId = new mongoose.Types.ObjectId().toString();
+    const user = {
+      createdDate: moment().subtract(3, 'days').toDate(),
+      savedTangibleHrs: [10, 20],
+      save: jest.fn().mockResolvedValue({}),
+    };
+
+    await updatePersonalMax(personId, user);
+
+    expect(user.save).toHaveBeenCalled();
+    expect(user.personalBestMaxHrs).toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe('checkPersonalMax', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.updateOne.mockClear();
+    userProfile.findByIdAndUpdate.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('returns early when no Personal Max badge type exists', async () => {
+    badge.find.mockResolvedValue([]);
+
+    const user = { lastWeekTangibleHrs: 10, savedTangibleHrs: [10] };
+    await checkPersonalMax(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('adds badge when user has none yet', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 5, savedTangibleHrs: [5] };
+    await checkPersonalMax(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('updates earnedDate when last week breaks the personal record', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 30, savedTangibleHrs: [10, 20, 30] };
+    const badgeCollection = [{ _id: masterId, badge: { _id: masterId, type: 'Personal Max' } }];
+
+    await checkPersonalMax(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('does not update when last week did not break the record', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 10, savedTangibleHrs: [30, 20, 10] };
+    const badgeCollection = [{ _id: masterId, badge: { _id: masterId, type: 'Personal Max' } }];
+
+    await checkPersonalMax(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('defaults savedTangibleHrs to empty when missing on the user', async () => {
+    const masterId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: masterId }]);
+
+    const user = { lastWeekTangibleHrs: 0 };
+    await checkPersonalMax(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('checkMostHrsWeek', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
+    badge.findOne.mockReset();
+    userProfile.aggregate.mockReset();
+  });
+
+  test('does nothing when user is under their committed hours', async () => {
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 5 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(badge.findOne).not.toHaveBeenCalled();
+  });
+
+  test('adds badge when user has the most hours of the week', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.findOne.mockResolvedValue({ _id: badgeId });
+    userProfile.aggregate.mockResolvedValue([{ maxHours: 15 }]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('returns early when no badge type is configured', async () => {
+    badge.findOne.mockResolvedValue(null);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.aggregate).not.toHaveBeenCalled();
+  });
+
+  test('returns early when no active-user results are found', async () => {
+    badge.findOne.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
+    userProfile.aggregate.mockResolvedValue([]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does nothing when the user is not the top performer', async () => {
+    badge.findOne.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
+    userProfile.aggregate.mockResolvedValue([{ maxHours: 40 }]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    await checkMostHrsWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('increases count when the badge is already owned', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.findOne.mockResolvedValue({ _id: badgeId });
+    userProfile.aggregate.mockResolvedValue([{ maxHours: 15 }]);
+
+    const user = { weeklycommittedHours: 10, lastWeekTangibleHrs: 15 };
+    const badgeCollection = [{ badge: { _id: badgeId, type: 'Most Hrs in Week' } }];
+
+    await checkMostHrsWeek(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+});
+
+describe('checkXHrsInOneWeek', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.findByIdAndUpdate.mockClear();
+    userProfile.updateOne.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('adds badge matching the exact hours logged last week', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, totalHrs: 10 }]));
+
+    const user = { savedTangibleHrs: [5, 10] };
+    await checkXHrsInOneWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('skips non-matching candidates before finding the right one', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(
+      makeQuery([
+        { _id: new mongoose.Types.ObjectId(), totalHrs: 20 },
+        { _id: badgeId, totalHrs: 10 },
+      ]),
+    );
+
+    const user = { savedTangibleHrs: [5, 10] };
+    await checkXHrsInOneWeek(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('increases count when the matching badge is already owned', async () => {
+    const badgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: badgeId, totalHrs: 10 }]));
+
+    const user = { savedTangibleHrs: [5, 10] };
+    const badgeCollection = [{ badge: { _id: badgeId, type: 'X Hours for X Week Streak' } }];
+
+    await checkXHrsInOneWeek(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+});
+
+describe('checkXHrsForXWeeks', () => {
+  const personId = new mongoose.Types.ObjectId().toString();
+
+  beforeEach(() => {
+    userProfile.updateOne.mockClear();
+    userProfile.findByIdAndUpdate.mockClear();
+    badge.find.mockReset();
+  });
+
+  test('returns early with no saved hours', async () => {
+    const user = { savedTangibleHrs: [] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(badge.find).not.toHaveBeenCalled();
+  });
+
+  test('awards a streak badge for a multi-week streak', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('increases count when the streak badge is already owned', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [{ badge: { badgeName: '5 HOURS 2-WEEK STREAK' } }];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('downgrades and replaces a lower streak badge with count > 1', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    const oldBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      {
+        count: 2,
+        badge: { _id: oldBadgeId, badgeName: 'Other Badge', totalHrs: 5, weeks: 1 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('replaces a lower streak badge in place when count is 1', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    const oldBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: oldBadgeId, badgeName: 'Other Badge', totalHrs: 5, weeks: 1 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.updateOne).toHaveBeenCalled();
+  });
+
+  test('delegates to checkXHrsInOneWeek for a single-week streak', async () => {
+    const oneWeekBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockReturnValue(makeQuery([{ _id: oneWeekBadgeId, totalHrs: 5 }]));
+
+    const user = { savedTangibleHrs: [3, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('stops counting the streak once hours differ', async () => {
+    badge.find.mockResolvedValue([]);
+
+    const user = { savedTangibleHrs: [3, 5, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('returns when no matching streak badges exist', async () => {
+    badge.find.mockResolvedValue([]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    await checkXHrsForXWeeks(personId, user, []);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('returns early when badgeCollection is not an array', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    await checkXHrsForXWeeks(personId, user, null);
+
+    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('skips malformed entries and falls through when totalHrs does not match', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      null,
+      { badge: null },
+      {
+        count: 1,
+        badge: { _id: new mongoose.Types.ObjectId(), badgeName: 'Other', totalHrs: 99, weeks: 1 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+
+  test('leaves a badge alone when its week requirement already meets the streak', async () => {
+    const newBadgeId = new mongoose.Types.ObjectId();
+    const ownedBadgeId = new mongoose.Types.ObjectId();
+    badge.find.mockResolvedValue([{ _id: newBadgeId, badgeName: '5 HOURS 2-WEEK STREAK' }]);
+
+    const user = { savedTangibleHrs: [5, 5] };
+    const badgeCollection = [
+      {
+        count: 1,
+        badge: { _id: ownedBadgeId, badgeName: 'Other Badge', totalHrs: 5, weeks: 5 },
+      },
+    ];
+
+    await checkXHrsForXWeeks(personId, user, badgeCollection);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('checkIsNewUser', () => {
+  let pdtStartOfLastWeek;
+  let pdtEndOfLastWeek;
+
+  beforeEach(() => {
+    pdtStartOfLastWeek = moment('2026-03-01');
+    pdtEndOfLastWeek = moment('2026-03-07');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('should NOT treat a user starting on Tuesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(2); // Tuesday
+
+    const person = {
+      startDate: '2026-03-03',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const userStartDate = moment(person.startDate);
+    jest.spyOn(userStartDate, 'isAfter').mockReturnValue(true);
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(false);
+  });
+
+  it('should treat a user starting on Wednesday as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 0,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
+
+  it('should treat a user starting after Tuesday during last week with logged hours as a new user', () => {
+    timeUtils.getDayOfWeekStringFromUTC.mockReturnValue(3); // Wednesday
+
+    const person = {
+      startDate: '2026-03-04',
+      totalTangibleHrs: 5,
+      totalIntangibleHrs: 0,
+    };
+
+    const isNew = checkIsNewUser(person, 0, pdtStartOfLastWeek, pdtEndOfLastWeek);
+
+    expect(isNew).toBe(true);
+  });
+});
+
+describe('weeklyAutoReplyEmailFunction', () => {
+  const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+  const assignmentDate = moment()
+    .tz(COMPANY_TZ || 'America/Los_Angeles')
+    .startOf('week')
+    .format('YYYY-MM-DD');
+
+  const createMockUser = (warnings = []) => ({
+    _id: '60c72b2f9b1d8b2bad701234',
+    email: 'test@example.com',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    weeklycommittedHours: 40,
+    missedHours: 0,
+    startDate: '2022-01-01',
+    weeklySummaryOption: 'Required',
+    weeklySummaryNotReq: false,
+    weeklySummaries: [{}, { summary: 'Done' }],
+    infringements: [{ date: assignmentDate, manuallyAssigned: false }],
+    teams: [],
+    warnings,
+  });
+
+  const asDoc = (data) => ActualUserProfile.hydrate(data);
+
+  const getClaimCall = (spy) => {
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [filter, pipeline, options] = spy.mock.calls[0];
+    return { filter, pipeline, options };
+  };
+  const getAppliedWarning = (pipeline) => pipeline[0].$set.warnings.$concatArrays[1][0];
+  const getReplacementSquares = (pipeline) => pipeline[0].$set.infringements.$concatArrays[1];
+
+  // Result of the claim (what Mongo would return with { new: true }), as a hydrated document
+  const claimedUser = (base, { warning, squares = [] }) =>
+    asDoc({
+      ...base,
+      warnings: [...base.warnings, warning],
+      infringements: squares,
+      infringementCount: squares.length,
+    });
+
+  // notifyInfringements sends the "New Infringement Assigned" email through emailSender
+  const infringementEmailCalls = () =>
+    emailSender.mock.calls.filter((args) => args.includes('New Infringement Assigned'));
+
+  let findOneAndUpdateSpy;
+  let findByIdAndUpdateSpy;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(timeOffRequest, 'find').mockResolvedValue([]);
+    jest.spyOn(currentWarnings, 'find').mockReturnValue({
+      sort: jest.fn().mockResolvedValue([{ warningTitle: WARNING_DESC, _id: 'warning123' }]),
+    });
+    jest.spyOn(warningsHelper, 'filterWarnings').mockReturnValue({ sendEmail: null, size: 0 });
+    jest.spyOn(warningsHelper, 'sendEmailToUser').mockImplementation(() => {});
+
+    findOneAndUpdateSpy = jest.spyOn(userProfile, 'findOneAndUpdate');
+    findByIdAndUpdateSpy = jest.spyOn(userProfile, 'findByIdAndUpdate');
+  });
+
+  const run = (user) =>
+    weeklyAutoReplyEmailFunction({
+      targetUserId: user._id,
+      bccOverride: ['test@example.com'],
+    });
+
+  it('should issue a BLUE warning for the 1st occurrence using one atomic claim', async () => {
+    const mockUser = createMockUser([]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
+    emailSender.mockResolvedValueOnce(true);
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, { warning: getAppliedWarning(pipeline), squares: [] }),
+    );
+
+    await run(mockUser);
+
+    const { filter, pipeline, options } = getClaimCall(findOneAndUpdateSpy);
+
+    // Guard: system square must still exist AND this week's warning must be absent
+    expect(String(filter._id)).toBe(mockUser._id);
+    expect(filter.infringements).toEqual({
+      $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
+    });
+    expect(filter.warnings).toEqual({
+      $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+    });
+    expect(options).toEqual({ new: true });
+
+    // State change: blue warning, no replacement square
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'blue' }),
+    );
+    expect(getReplacementSquares(pipeline)).toEqual([]);
+
+    expect(warning._id).toBeInstanceOf(mongoose.Types.ObjectId);
+    expect(warning.warningId).toBe('warning123');
+    expect(typeof warning.warningId).toBe('string');
+    expect(pipeline[1]).toEqual({ $set: { infringementCount: { $size: '$infringements' } } });
+
+    // The old multi-step writes must be gone
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+  });
+
+  it('should issue a YELLOW warning for the 3rd occurrence', async () => {
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
+    ]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
+    emailSender.mockResolvedValueOnce(true);
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, { warning: getAppliedWarning(pipeline), squares: [] }),
+    );
+
+    await run(mockUser);
+
+    const { pipeline } = getClaimCall(findOneAndUpdateSpy);
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'yellow' }),
+    );
+    expect(getReplacementSquares(pipeline)).toEqual([]);
+  });
+
+  it('should issue a RED warning and a replacement blue square in the SAME atomic write for the 4th+ occurrence, and send the infringement email', async () => {
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
+      { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
+    ]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
+    warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
+    emailSender.mockResolvedValue(true);
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, {
+        warning: getAppliedWarning(pipeline),
+        squares: getReplacementSquares(pipeline),
+      }),
+    );
+
+    await run(mockUser);
+
+    // Exactly ONE write: removal + warning + replacement + count together
+    const { pipeline } = getClaimCall(findOneAndUpdateSpy);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+
+    const warning = getAppliedWarning(pipeline);
+    expect(warning).toEqual(
+      expect.objectContaining({ date: assignmentDate, description: WARNING_DESC, color: 'red' }),
+    );
+    expect(warning._id).toBeInstanceOf(mongoose.Types.ObjectId);
+
+    const squares = getReplacementSquares(pipeline);
+    expect(squares).toHaveLength(1);
+    expect(squares[0]).toEqual(
+      expect.objectContaining({
+        date: assignmentDate,
+        reason: 'missingHours',
+        reasons: ['time not met'],
+        manuallyAssigned: false,
+        description: expect.stringContaining('remove past blue squares 4 times'),
+      }),
+    );
+    // Without an _id the square can't be viewed, edited or deleted from the UI
+    expect(squares[0]._id).toBeInstanceOf(mongoose.Types.ObjectId);
+
+    // notifyInfringements must succeed (no swallowed TypeError) and send the email
+    expect(console.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('infringement email failed'),
+      expect.anything(),
+    );
+    expect(infringementEmailCalls()).toHaveLength(1);
+
+    // The "close enough" template email is skipped on a 4th+ offense
+    // (the only emailSender call is the infringement email)
+    expect(emailSender).toHaveBeenCalledTimes(1);
+  });
+
+  it('should do nothing when another run already claimed this user/week (claim returns null)', async () => {
+    const mockUser = createMockUser([]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
+    findOneAndUpdateSpy.mockResolvedValue(null);
+
+    await run(mockUser);
+
+    expect(findOneAndUpdateSpy).toHaveBeenCalledTimes(1);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+    expect(warningsHelper.sendEmailToUser).not.toHaveBeenCalled();
+    expect(emailSender).not.toHaveBeenCalled();
+  });
+
+  it('should not roll back or re-run state changes when the warning email fails', async () => {
+    const mockUser = createMockUser([
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-01' },
+      { description: WARNING_DESC, color: 'blue', date: '2020-01-08' },
+      { description: WARNING_DESC, color: 'yellow', date: '2020-01-15' },
+    ]);
+    jest.spyOn(userProfile, 'find').mockResolvedValueOnce([asDoc(mockUser)]);
+    warningsHelper.filterWarnings.mockReturnValue({ sendEmail: 'issue blue square', size: 4 });
+    warningsHelper.sendEmailToUser.mockRejectedValueOnce(new Error('SMTP rejected'));
+    emailSender.mockResolvedValue(true);
+
+    findOneAndUpdateSpy.mockImplementation(async (_f, pipeline) =>
+      claimedUser(mockUser, {
+        warning: getAppliedWarning(pipeline),
+        squares: getReplacementSquares(pipeline),
+      }),
+    );
+
+    await expect(run(mockUser)).resolves.not.toThrow();
+
+    // State was committed once, and nothing else touched the profile afterwards
+    expect(findOneAndUpdateSpy).toHaveBeenCalledTimes(1);
+    expect(findByIdAndUpdateSpy).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('warning email failed'),
+      expect.any(Error),
+    );
+
+    // A failed warning email must not stop the infringement email
+    expect(infringementEmailCalls()).toHaveLength(1);
+  });
+});
+
+describe('assignBlueSquareForTimeNotMet', () => {
+  let mockDateNow;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Mock Date.now for predictable console output / timing tests
+    mockDateNow = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+
+    // Default mock behavior for emailSender
+    emailSender.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    mockDateNow.mockRestore();
+  });
+
+  it('should query active users, run blue square logic, and send emails sorted by startDate', async () => {
+    const mockUsers = [
+      { _id: 'user2', startDate: '2026-02-01' },
+      { _id: 'user1', startDate: '2026-01-01' },
+    ];
+
+    // First call for active users, second call for inactive users
+    userProfile.find.mockResolvedValueOnce(mockUsers).mockResolvedValueOnce([]);
+
+    await assignBlueSquareForTimeNotMet();
+
+    // Verify correct query for active users
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { isActive: true },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+
+    // Verify emailSender was called (if any emails were generated or processed)
+    expect(userProfile.find).toHaveBeenCalledTimes(2);
+  });
+
+  it('should query for targetUserId when emailConfig.targetUserId is provided', async () => {
+    const targetUserId = 'targetUser123';
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Target user
+      .mockResolvedValueOnce([]); // Inactive users
+
+    await assignBlueSquareForTimeNotMet({
+      targetUserId,
+      ccOverride: ['cc-override@example.com'],
+      bccOverride: ['bcc-override@example.com'],
+    });
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(
+      1,
+      { _id: targetUserId },
+      '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
+    );
+  });
+
+  it('should process inactive users and update their weekly summaries', async () => {
+    const inactiveUsers = [{ _id: 'inactive1' }, { _id: 'inactive2' }];
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users
+      .mockResolvedValueOnce(inactiveUsers); // Inactive users
+
+    await assignBlueSquareForTimeNotMet();
+
+    expect(userProfile.find).toHaveBeenNthCalledWith(2, { isActive: false }, '_id');
+  });
+
+  it('should catch and log errors in the main processing block without throwing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const dbError = new Error('Database connection failed');
+
+    userProfile.find.mockRejectedValueOnce(dbError);
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(dbError);
+
+    loggerSpy.mockRestore();
+  });
+
+  it('should catch and log errors during inactive user processing', async () => {
+    const loggerSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const inactiveError = new Error('Inactive users query failed');
+
+    userProfile.find
+      .mockResolvedValueOnce([]) // Active users succeed
+      .mockRejectedValueOnce(inactiveError); // Inactive users throw
+
+    await expect(assignBlueSquareForTimeNotMet()).resolves.not.toThrow();
+    expect(loggerSpy).toHaveBeenCalledWith(inactiveError);
+
+    loggerSpy.mockRestore();
   });
 });
