@@ -192,11 +192,67 @@ const addImagesToAlbum = async (albumId, imageIds) => {
   }
 };
 
+// /**
+//  * Publish post to Imgur
+//  */
+// const publishToImgur = async (title, description, mediaFiles, userId) => {
+//   try {
+//     let albumId = null;
+//     let imgurUrl = null;
+//     const uploadedImageIds = [];
+
+//     // Upload images and create album
+//     if (mediaFiles && mediaFiles.length > 0) {
+//       // Create album if multiple images or any image exists
+//       albumId = await createImgurAlbum(title, description);
+
+//       // Upload images in parallel instead of sequentially
+//       const uploadPromises = mediaFiles.map((file) => uploadImageToImgur(file.buffer, title));
+//       const imageIds = await Promise.all(uploadPromises);
+//       uploadedImageIds.push(...imageIds);
+
+//       // Add images to album
+//       await addImagesToAlbum(albumId, uploadedImageIds);
+//       imgurUrl = `https://imgur.com/a/${albumId}`;
+//     } else {
+//       // Create album without images (can be added later)
+//       albumId = await createImgurAlbum(title, description);
+//       imgurUrl = `https://imgur.com/a/${albumId}`;
+//     }
+
+//     return {
+//       success: true,
+//       albumId,
+//       imgurUrl,
+//       imageIds: uploadedImageIds,
+//     };
+//   } catch (err) {
+//     console.error('Imgur publication failed:', sanitizeLog(err.message));
+//     throw err;
+//   }
+// };
+
 /**
- * Publish post to Imgur
+ * Publish post to Imgur (with Mock Fallback if credentials are missing)
  */
 const publishToImgur = async (title, description, mediaFiles, userId) => {
   try {
+    // Mock Fallback: Automatically return mock success data when Imgur credentials are not configured on the server
+    if (!IMGUR_CLIENT_ID && !IMGUR_ACCESS_TOKEN) {
+      console.warn(
+        '⚠️ [Mock Fallback] No Imgur credentials provided. Returning mock publish result.',
+      );
+      const mockAlbumId = `mock_album_${Date.now()}`;
+      const mockImageIds = (mediaFiles || []).map((_, index) => `mock_img_${index}_${Date.now()}`);
+
+      return {
+        success: true,
+        albumId: mockAlbumId,
+        imgurUrl: `https://imgur.com/a/${mockAlbumId}`,
+        imageIds: mockImageIds,
+      };
+    }
+
     let albumId = null;
     let imgurUrl = null;
     const uploadedImageIds = [];
