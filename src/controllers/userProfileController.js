@@ -2844,7 +2844,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       });
 
       distinctTeamCodes = distinctTeamCodes
-        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .map((code) => (code ? code.trim() : ''))
         .filter((code) => code !== '');
 
       if (includePRTeams) {
