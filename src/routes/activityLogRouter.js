@@ -4,6 +4,8 @@ const routes = function () {
   const activityLogRouter = express.Router();
   const controller = require('../controllers/activityLogController')();
 
+  activityLogRouter.get('/support/students', controller.fetchAssignedSupportStudents);
+
   activityLogRouter.get(
     ['/educator/daily-log/:studentId', '/support/daily-log/:studentId'],
     controller.fetchStudentDailyLogsByStaff,
