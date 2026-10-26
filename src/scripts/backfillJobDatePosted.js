@@ -17,7 +17,7 @@ async function backfill() {
     [{ $set: { datePosted: { $toDate: '$_id' } } }],
   );
 
-  console.log(`✓ Backfilled datePosted on ${result.modifiedCount} job(s)`);
+  console.log(`✓ Backfilled datePosted on ${result.modifiedCount ?? result.nModified} job(s)`);
   await mongoose.disconnect();
 }
 

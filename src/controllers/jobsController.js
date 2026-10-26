@@ -268,13 +268,17 @@ const updateJob = async (req, res) => {
   const { id } = req.params;
   const update = { ...req.body };
 
+  if (Object.keys(update).some((key) => key.startsWith('$'))) {
+    return res.status(400).json({ error: 'Update operators are not allowed' });
+  }
+
   // Never let an update request clear the posted date - fall back to now if missing.
   if (!update.datePosted) {
     delete update.datePosted;
   }
 
   try {
-    const existingJob = await Job.findById(id);
+    const existingJob = await Job.findById(id).lean();
     if (!existingJob) return res.status(404).json({ error: 'Job not found' });
 
     if (!existingJob.datePosted && !update.datePosted) {
