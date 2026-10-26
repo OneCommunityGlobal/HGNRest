@@ -26,21 +26,21 @@ async function ensureBrowserInstalled() {
   }
 }
 
-const playwrightLogic = async () => {
+const openLoggedInBrowser = async () => {
+  const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
+
+  if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
+    console.log('Playwright email or password not found in environment variables');
+  }
+
+  await ensureBrowserInstalled();
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
+
   try {
-    const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
-
-    if (!PUPPETEER_EMAIL || !PUPPETEER_PASSWORD) {
-      console.log('Playwright email or password not found in environment variables');
-    }
-
-    await ensureBrowserInstalled();
-
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
-
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
     });
@@ -58,6 +58,21 @@ const playwrightLogic = async () => {
     // Wait for navigation after login
     await page.waitForNavigation({ waitUntil: 'networkidle' });
 
+    return { browser, context, page };
+  } catch (err) {
+    await browser.close();
+    throw err;
+  }
+};
+
+const playwrightLogic = async () => {
+  const { REACT_FRONTEND_URL } = process.env;
+  let browser;
+  try {
+    const session = await openLoggedInBrowser();
+    ({ browser } = session);
+    const { page } = session;
+
     // Navigate to report page
     await page.goto(`${REACT_FRONTEND_URL}/totalorgsummary`, { waitUntil: 'networkidle' });
 
@@ -73,8 +88,10 @@ const playwrightLogic = async () => {
     await browser.close();
   } catch (err) {
     console.error('Playwright error:', err);
+    if (browser) await browser.close();
     throw err;
   }
 };
 
 module.exports = playwrightLogic;
+module.exports.openLoggedInBrowser = openLoggedInBrowser;
