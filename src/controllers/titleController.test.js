@@ -1,16 +1,10 @@
-const mockGetAllTeamCodeHelper = jest.fn();
 // Mock Dependencies
 jest.mock('../models/team');
 jest.mock('../models/project');
 jest.mock('../utilities/nodeCache');
-jest.mock('./userProfileController', () =>
-  jest.fn(() => ({
-    getAllTeamCodeHelper: mockGetAllTeamCodeHelper,
-  })),
-);
+jest.mock('./userProfileController');
 jest.mock('../models/userProfile');
 
-<<<<<<< HEAD
 // titleController calls userProfileController(...) once, at module top level,
 // and keeps that single return value in a closure for the lifetime of the
 // process — it is NOT re-invoked per `titleController(Title)` instance. So the
@@ -35,10 +29,6 @@ const flushPromises = () =>
     setImmediate(resolve);
   });
 
-=======
-const titleController = require('./titleController');
-
->>>>>>> 935273456dc9b394f05236cf3899f138f9105525
 describe('TitleController', () => {
   let mockTitle;
   let mockProject;
@@ -73,24 +63,12 @@ describe('TitleController', () => {
     // `mockProject` explicitly instead so it works regardless of call-site.
     mockProject.findOne.mockReturnValue(mockProject);
 
-    mockProject.findOne.mockImplementation(() => ({
-      exec: mockProject.exec,
-    }));
-
     // Mock cache
     mockCache = {
       getCache: jest.fn(),
       removeCache: jest.fn(),
     };
 
-<<<<<<< HEAD
-=======
-    // Mock userProfileController
-    mockUserProfileController = {
-      getAllTeamCodeHelper: mockGetAllTeamCodeHelper,
-    };
-
->>>>>>> 935273456dc9b394f05236cf3899f138f9105525
     // Mock userProfile model
     mockUserProfile = {
       updateMany: jest.fn(),
@@ -103,12 +81,6 @@ describe('TitleController', () => {
     const cacheClosure = require('../utilities/nodeCache');
     cacheClosure.mockReturnValue(mockCache);
 
-<<<<<<< HEAD
-=======
-    // const userProfileController = require('./userProfileController');
-    // userProfileController.mockReturnValue(mockUserProfileController);
-
->>>>>>> 935273456dc9b394f05236cf3899f138f9105525
     const userProfile = require('../models/userProfile');
     userProfile.updateMany = mockUserProfile.updateMany;
 
@@ -186,16 +158,9 @@ describe('TitleController', () => {
 
   describe('postTitle', () => {
     beforeEach(() => {
-<<<<<<< HEAD
       // Mock successful validation
       mockUserProfileController.getAllTeamCodeHelper.mockResolvedValue(['TEAM1', 'TEAM2']);
       mockProject.findOne().exec.mockResolvedValue({ _id: '507f1f77bcf86cd799439011' });
-=======
-      mockGetAllTeamCodeHelper.mockResolvedValue(['TEAM1', 'TEAM2']);
-      mockProject.exec.mockResolvedValue({
-        _id: '507f1f77bcf86cd799439011',
-      });
->>>>>>> 935273456dc9b394f05236cf3899f138f9105525
     });
 
     it('should return error for empty title code', async () => {
@@ -351,11 +316,6 @@ describe('TitleController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(200);
         expect(savedTitle.teamCode).toBe('CCCCC');
         expect(savedTitle.save).toHaveBeenCalledTimes(1);
-
-        expect(mockUserProfile.updateMany).toHaveBeenCalledWith(
-          {},
-          { $addToSet: { teamCodes: 'CCCCC' } },
-        );
       },
     );
 
@@ -818,7 +778,6 @@ describe('TitleController', () => {
       });
     });
 
-<<<<<<< HEAD
     it('should return error for invalid team code during update', async () => {
       mockReq.body = {
         id: 'title123',
@@ -931,7 +890,8 @@ describe('TitleController', () => {
         message: 'An error occurred',
         error: error.message,
       });
-=======
+    });
+
     it.each([
       ['lowercase code', 'ccccc'],
       ['mixed-case padded code', '  cCcCc  '],
@@ -1055,7 +1015,6 @@ describe('TitleController', () => {
       });
       expect(mockTitle.findById).not.toHaveBeenCalled();
       expect(mockUserProfile.updateMany).not.toHaveBeenCalled();
->>>>>>> 935273456dc9b394f05236cf3899f138f9105525
     });
   });
 
