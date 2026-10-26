@@ -315,7 +315,7 @@ const userHelper = function () {
       }
     }
     // add administrative content
-    const text = `Good Morning <b>${firstName}</b>,
+    const text = `Dear <b>${firstName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
