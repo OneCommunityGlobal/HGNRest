@@ -239,15 +239,6 @@ async function sendApplicationConfirmationEmail(form, respondent, normalizedEmai
   }
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
 async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {
   try {
@@ -263,11 +254,7 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
           <p>Best regards,<br/>One Community</p>
         </div>
       `;
-    await emailSender(
-      [normalizedEmail],
-      `Application Already Received: ${form.title}`,
-      emailBody,
-    );
+    await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
   } catch (emailErr) {
     console.error('Duplicate application email failed (non-fatal):', emailErr.message);
   }

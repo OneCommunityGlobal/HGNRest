@@ -6,6 +6,19 @@ const getValidationErrorMessage = require('./validationErrorMessage');
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 
+const validateSupplierUpdate = ({ email, phone, isActive }) => {
+  if (email !== undefined && !isNonEmptyString(email)) {
+    return 'Supplier email is required';
+  }
+  if (phone !== undefined && !isNonEmptyString(phone)) {
+    return 'Supplier phone is required';
+  }
+  if (isActive !== undefined && typeof isActive !== 'boolean') {
+    return 'Invalid isActive value';
+  }
+  return null;
+};
+
 const kitchenSupplierController = function () {
   const createSupplier = async (req, res) => {
     try {
@@ -147,14 +160,9 @@ const kitchenSupplierController = function () {
         }
         update.name = normalizedName;
       }
-      if (email !== undefined && !isNonEmptyString(email)) {
-        return res.status(400).json({ message: 'Supplier email is required' });
-      }
-      if (phone !== undefined && !isNonEmptyString(phone)) {
-        return res.status(400).json({ message: 'Supplier phone is required' });
-      }
-      if (isActive !== undefined && typeof isActive !== 'boolean') {
-        return res.status(400).json({ message: 'Invalid isActive value' });
+      const validationMessage = validateSupplierUpdate({ email, phone, isActive });
+      if (validationMessage) {
+        return res.status(400).json({ message: validationMessage });
       }
       Object.entries({ contact, email, phone, website, specialities, isActive }).forEach(
         ([field, value]) => {
