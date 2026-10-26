@@ -4,7 +4,20 @@ const { Schema } = mongoose;
 
 const Badge = new Schema({
   badgeName: { type: String, required: true },
-  type: { type: String, enum: ['No Infringement Streak', 'Minimum Hours Multiple', 'Personal Max', 'Most Hrs in Week', 'X Hours for X Week Streak', 'Lead a team of X+', 'Total Hrs in Category', 'Custom'], default: 'Total Hrs in Category' },
+  type: {
+    type: String,
+    enum: [
+      'No Infringement Streak',
+      'Minimum Hours Multiple',
+      'Personal Max',
+      'Most Hrs in Week',
+      'X Hours for X Week Streak',
+      'Lead a team of X+',
+      'Total Hrs in Category',
+      'Custom',
+    ],
+    default: 'Total Hrs in Category',
+  },
   multiple: { type: Number },
   weeks: { type: Number },
   months: { type: Number },
@@ -12,7 +25,18 @@ const Badge = new Schema({
   people: { type: Number },
   category: {
     type: String,
-    enum: ['Food', 'Energy', 'Housing', 'Education', 'Society', 'Economics', 'Stewardship', 'Unassigned', 'Other', 'Unspecified'],
+    enum: [
+      'Food',
+      'Energy',
+      'Housing',
+      'Education',
+      'Society',
+      'Economics',
+      'Stewardship',
+      'Unassigned',
+      'Other',
+      'Unspecified',
+    ],
     default: 'Unassigned',
   }, // "Other" kept for legacy reasons
   project: { type: Schema.Types.ObjectId, ref: 'project' },
@@ -20,6 +44,11 @@ const Badge = new Schema({
   ranking: { type: Number },
   description: { type: String },
   showReport: { type: Boolean },
+  users: [
+    {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
+    },
+  ],
 });
 
 module.exports = mongoose.model('badge', Badge, 'badges');
