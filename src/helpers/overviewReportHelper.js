@@ -103,6 +103,69 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+/** Count distinct volunteer countries, including profiles without map coordinates. */
+async function getCountryCounts() {
+  const profiles = await UserProfile.find(
+    {},
+    {
+      isActive: 1,
+      'location.country': 1,
+      'location.coords.lat': 1,
+      'location.coords.lng': 1,
+      'homeCountry.country': 1,
+    },
+  ).lean();
+  const allTime = new Set();
+  const active = new Set();
+  const aliases = new Map([
+    ['united states of america', 'united states'],
+    ['usa', 'united states'],
+    ['u.s.a.', 'united states'],
+    ['uk', 'united kingdom'],
+    ['reino unido', 'united kingdom'],
+  ]);
+
+  profiles.forEach((profile) => {
+    const country = profile.location?.country?.trim() || profile.homeCountry?.country?.trim();
+    if (!country) return;
+
+    const normalized = country.replace(/\s+/g, ' ').toLowerCase();
+    const countryKey = aliases.get(normalized) || normalized;
+    allTime.add(countryKey);
+    const { lat, lng } = profile.location?.coords || {};
+    if (
+      profile.isActive === true &&
+      lat !== null &&
+      lat !== undefined &&
+      lng !== null &&
+      lng !== undefined
+    ) {
+      active.add(countryKey);
+    }
+  });
+
+  return { allTime: allTime.size, active: active.size };
+}
+
+/** aggregates role distribution statistics
+ * counts total number of volunteers that fall within each of the different roles
+ * NOTE: This shows ALL active users regardless of createdDate to provide
+ * a complete picture of current role distribution in the organization
+ */
+async function getRoleDistributionStats() {
+  // Always match only active users, ignore date filters for role distribution
+  // This ensures all current roles are displayed, not just recently created users.
+  // Role distribution is a live snapshot, not a time-series metric, so comparison
+  // periods do not apply here — always return a flat array of {_id: role, count}.
+  const matchStage = { isActive: true };
+  const result = await UserProfile.aggregate([
+    { $match: matchStage },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+
+  return result;
+}
+
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -484,50 +547,6 @@ const overviewReportHelper = function () {
         },
       },
     ]);
-  }
-
-  /** Count distinct volunteer countries, including profiles without map coordinates. */
-  async function getCountryCounts() {
-    const profiles = await UserProfile.find(
-      {},
-      {
-        isActive: 1,
-        'location.country': 1,
-        'location.coords.lat': 1,
-        'location.coords.lng': 1,
-        'homeCountry.country': 1,
-      },
-    ).lean();
-    const allTime = new Set();
-    const active = new Set();
-    const aliases = new Map([
-      ['united states of america', 'united states'],
-      ['usa', 'united states'],
-      ['u.s.a.', 'united states'],
-      ['uk', 'united kingdom'],
-      ['reino unido', 'united kingdom'],
-    ]);
-
-    profiles.forEach((profile) => {
-      const country = profile.location?.country?.trim() || profile.homeCountry?.country?.trim();
-      if (!country) return;
-
-      const normalized = country.replace(/\s+/g, ' ').toLowerCase();
-      const countryKey = aliases.get(normalized) || normalized;
-      allTime.add(countryKey);
-      const { lat, lng } = profile.location?.coords || {};
-      if (
-        profile.isActive === true &&
-        lat !== null &&
-        lat !== undefined &&
-        lng !== null &&
-        lng !== undefined
-      ) {
-        active.add(countryKey);
-      }
-    });
-
-    return { allTime: allTime.size, active: active.size };
   }
 
   /**
@@ -1048,25 +1067,6 @@ const overviewReportHelper = function () {
         comparisonPercentage: comparisonPercentageNotInTeam,
       },
     };
-  }
-
-  /** aggregates role distribution statistics
-   * counts total number of volunteers that fall within each of the different roles
-   * NOTE: This shows ALL active users regardless of createdDate to provide
-   * a complete picture of current role distribution in the organization
-   */
-  async function getRoleDistributionStats() {
-    // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users.
-    // Role distribution is a live snapshot, not a time-series metric, so comparison
-    // periods do not apply here — always return a flat array of {_id: role, count}.
-    const matchStage = { isActive: true };
-    const result = await UserProfile.aggregate([
-      { $match: matchStage },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-    ]);
-
-    return result;
   }
 
   /**

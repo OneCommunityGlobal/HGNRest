@@ -9,6 +9,23 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
+  describe('getRoleDistributionStats', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('returns the active-volunteer role distribution', async () => {
+      const roles = [{ _id: 'Volunteer', count: 2 }];
+      const aggregateSpy = jest.spyOn(UserProfile, 'aggregate').mockResolvedValue(roles);
+
+      const result = await overviewReportHelper().getRoleDistributionStats();
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { isActive: true } },
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]);
+      expect(result).toBe(roles);
+    });
+  });
+
   describe('getTasksStats date boundaries', () => {
     afterEach(() => jest.restoreAllMocks());
 
