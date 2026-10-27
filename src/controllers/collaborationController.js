@@ -19,6 +19,7 @@ const {
   parseBooleanQuery,
   sanitizeObjectIdQuery,
 } = require('../utilities/mongoQuerySanitizer');
+const { shouldSendConfirmation } = require('../utilities/confirmationEmailCap');
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -219,6 +220,7 @@ function appendResumeAndProfileAnswers(
 }
 
 async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+  if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
     const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
     const safeTitle = escapeHtml(form.title);
