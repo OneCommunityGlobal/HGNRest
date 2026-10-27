@@ -6,33 +6,92 @@ const UserProfile = require('../models/userProfile');
 const { AttendanceStatuses } = AttendanceLog;
 
 const attendanceController = () => {
+  const sanitizeObjectId = (value) => {
+    if (typeof value !== 'string' || !mongoose.Types.ObjectId.isValid(value)) {
+      return null;
+    }
+
+    return new mongoose.Types.ObjectId(value);
+  };
+
+  const sanitizeString = (value) => (typeof value === 'string' ? value.trim() : '');
+
+  const sanitizeStatus = (value) => {
+    if (typeof value !== 'string') return null;
+    return AttendanceStatuses.find((status) => status === value) || null;
+  };
+  const validateStatus = (status) => sanitizeStatus(status) !== null;
   const buildParticipantQuery = ({ participantId, participantExternalId }) => {
     const clauses = [];
-    if (participantId && mongoose.Types.ObjectId.isValid(participantId)) {
-      clauses.push({ participantId });
+
+    const safeParticipantId = sanitizeObjectId(participantId);
+    const safeExternalId = sanitizeString(participantExternalId);
+
+    if (safeParticipantId) {
+      clauses.push({ participantId: safeParticipantId });
     }
-    if (participantExternalId) {
-      clauses.push({ participantExternalId });
+
+    if (safeExternalId) {
+      clauses.push({ participantExternalId: safeExternalId });
     }
+
     return clauses.length ? { $or: clauses } : {};
   };
 
-  const validateStatus = (status) => AttendanceStatuses.includes(status);
-
   const ensureEventExists = async (eventId) => {
-    if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return null;
-    }
-    return Event.findById(eventId);
-  };
+    const safeEventId = sanitizeObjectId(eventId);
+    if (!safeEventId) return null;
 
-  const ensureParticipantExists = async (participantId) => {
-    if (!participantId || !mongoose.Types.ObjectId.isValid(participantId)) {
-      return null;
-    }
-    return UserProfile.findById(participantId);
+    return Event.findById(safeEventId);
   };
+  const findDuplicateAttendance = async ({ eventId, participantId, participantExternalId }) => {
+    const participantQuery = buildParticipantQuery({
+      participantId,
+      participantExternalId,
+    });
 
+    return AttendanceLog.findOne({
+      eventId,
+      ...participantQuery,
+    });
+  };
+  const participantExists = async (participantId) => {
+    if (!participantId) return true;
+
+    const profile = await UserProfile.findById(participantId);
+    return Boolean(profile);
+  };
+  const validateAttendancePayload = ({
+    eventId,
+    participantId,
+    participantExternalId,
+    participantName,
+    status,
+  }) => {
+    if (!eventId) {
+      return { status: 400, error: 'eventId is required' };
+    }
+
+    if (!sanitizeString(participantName)) {
+      return { status: 400, error: 'participantName is required' };
+    }
+
+    if (!sanitizeObjectId(participantId) && !sanitizeString(participantExternalId)) {
+      return {
+        status: 400,
+        error: 'participantId or participantExternalId must be provided',
+      };
+    }
+
+    if (!sanitizeStatus(status)) {
+      return {
+        status: 400,
+        error: `status must be one of: ${AttendanceStatuses.join(', ')}`,
+      };
+    }
+
+    return null;
+  };
   const createAttendanceLog = async (req, res) => {
     try {
       const {
@@ -46,97 +105,111 @@ const attendanceController = () => {
         notes,
       } = req.body;
 
-      if (!eventId) {
-        return res.status(400).json({ error: 'eventId is required' });
-      }
-      if (!participantName) {
-        return res.status(400).json({ error: 'participantName is required' });
-      }
-      if (!participantId && !participantExternalId) {
-        return res
-          .status(400)
-          .json({ error: 'participantId or participantExternalId must be provided' });
-      }
-      if (!validateStatus(status)) {
-        return res
-          .status(400)
-          .json({ error: `status must be one of: ${AttendanceStatuses.join(', ')}` });
+      const safeEventId = sanitizeObjectId(eventId);
+      const safeParticipantId = participantId ? sanitizeObjectId(participantId) : null;
+      const safeExternalId = sanitizeString(participantExternalId);
+      const safeParticipantName = sanitizeString(participantName);
+      const safeParticipantEmail = sanitizeString(participantEmail);
+      const safeStatus = sanitizeStatus(status);
+
+      const validationError = validateAttendancePayload({
+        eventId,
+        participantId,
+        participantExternalId,
+        participantName,
+        status,
+      });
+
+      if (validationError) {
+        return res.status(validationError.status).json({
+          error: validationError.error,
+        });
       }
 
-      const event = await ensureEventExists(eventId);
+      if (!safeEventId) {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+
+      const event = await Event.findById(safeEventId);
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
 
-      if (participantId) {
-        const profile = await ensureParticipantExists(participantId);
-        if (!profile) {
-          return res.status(404).json({ error: 'Participant profile not found' });
-        }
+      const hasParticipant = await participantExists(safeParticipantId);
+
+      if (!hasParticipant) {
+        return res.status(404).json({ error: 'Participant profile not found' });
       }
 
-      const clashQuery = {
-        eventId,
-        ...buildParticipantQuery({ participantId, participantExternalId }),
-      };
+      const duplicate = await findDuplicateAttendance({
+        eventId: safeEventId,
+        participantId,
+        participantExternalId,
+      });
 
-      if (clashQuery.$or) {
-        const duplicate = await AttendanceLog.findOne(clashQuery);
-        if (duplicate) {
-          return res.status(409).json({
-            error: 'Attendance record already exists for this participant and event',
-          });
-        }
+      if (duplicate) {
+        return res.status(409).json({
+          error: 'Attendance record already exists for this participant and event',
+        });
       }
 
       const payload = {
-        eventId,
-        participantId: participantId || undefined,
-        participantExternalId,
-        participantName,
-        participantEmail,
-        status,
+        eventId: safeEventId,
+        participantId: safeParticipantId || undefined,
+        participantExternalId: safeExternalId || undefined,
+        participantName: safeParticipantName,
+        participantEmail: safeParticipantEmail || undefined,
+        status: safeStatus,
         notes,
       };
 
-      if (status === 'checked_in') {
+      if (safeStatus === 'checked_in') {
         payload.checkInTime = checkInTime ? new Date(checkInTime) : new Date();
       } else if (checkInTime) {
         payload.checkInTime = new Date(checkInTime);
       }
 
       const record = await AttendanceLog.create(payload);
+
       return res.status(201).json(record);
     } catch (error) {
       if (error.code === 11000) {
         return res.status(409).json({ error: 'Duplicate attendance record detected' });
       }
+
       return res.status(500).json({ error: error.message });
     }
   };
 
   const getAttendanceByEvent = async (req, res) => {
     try {
-      const { eventId } = req.params;
-      const { status } = req.query;
+      const safeEventId = sanitizeObjectId(req.params.eventId);
+      const requestedStatus = req.query.status;
 
-      if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      if (!safeEventId) {
         return res.status(400).json({ error: 'Invalid eventId' });
       }
 
-      const query = { eventId };
-      if (status) {
-        if (!validateStatus(status)) {
+      const query = {
+        eventId: safeEventId,
+      };
+
+      if (requestedStatus) {
+        const safeStatus = sanitizeStatus(requestedStatus);
+
+        if (!safeStatus) {
           return res
             .status(400)
             .json({ error: `status must be one of: ${AttendanceStatuses.join(', ')}` });
         }
-        query.status = status;
+
+        query.status = safeStatus;
       }
 
       const records = await AttendanceLog.find(query)
         .populate('participantId', 'firstName lastName email profilePic')
         .sort({ createdAt: -1 });
+
       return res.status(200).json(records);
     } catch (error) {
       return res.status(500).json({ error: error.message });
