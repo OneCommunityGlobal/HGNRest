@@ -2210,7 +2210,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
-    const { isRehireable } = req.body;
+    const { isRehireable, notRehireableReason } = req.body;
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userId,
@@ -2228,9 +2228,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     // Invalidate the cache for this user
     cache.removeCache(`user-${userId}`);
 
+    const trimmedReason = typeof notRehireableReason === 'string' ? notRehireableReason.trim() : '';
+    const update = {
+      $set: { isRehireable },
+      $unset: { notRehireableReason: 1 },
+    };
+    if (!isRehireable && trimmedReason) {
+      update.$set.notRehireableReason = trimmedReason;
+      delete update.$unset;
+    }
+
     UserProfile.findByIdAndUpdate(
       userId,
-      { $set: { isRehireable } },
+      update,
       { new: true },
       // eslint-disable-next-line no-unused-vars
       (error, updatedUser) => {
@@ -2244,6 +2254,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           const userIdx = allUserData.findIndex((users) => users._id === userId);
           const userData = allUserData[userIdx];
           userData.isRehireable = isRehireable;
+          if (!isRehireable && trimmedReason) {
+            userData.notRehireableReason = trimmedReason;
+          } else {
+            delete userData.notRehireableReason;
+          }
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }

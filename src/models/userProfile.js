@@ -42,6 +42,7 @@ const userProfileSchema = new Schema({
   },
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
+  notRehireableReason: { type: String, default: undefined },
   isSet: { type: Boolean, required: true, default: false },
   finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
