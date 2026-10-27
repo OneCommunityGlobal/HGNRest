@@ -162,8 +162,8 @@ const attendanceController = () => {
         record.status = status;
         if (status === 'checked_in') {
           record.checkInTime = checkInTime ? new Date(checkInTime) : new Date();
-        } else if (checkInTime) {
-          record.checkInTime = new Date(checkInTime);
+        } else {
+          record.checkInTime = null;
         }
       } else if (checkInTime) {
         record.checkInTime = new Date(checkInTime);
