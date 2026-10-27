@@ -313,6 +313,12 @@ const studentTaskController = function () {
       if (!task) {
         return res.status(404).json({ message: 'Task not found' });
       }
+      if (task.type !== 'write' || !['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Only active write tasks support uploads' });
+      }
+      if (!Number.isFinite(task.suggestedTotalHours) || task.suggestedTotalHours < 0) {
+        return res.status(400).json({ error: 'Task suggested hours are missing or invalid' });
+      }
       let uploadedUrl = null;
       if (req.file) {
         const { file } = req;
@@ -351,7 +357,12 @@ const studentTaskController = function () {
         return res.status(400).json({ error: 'A File or a link is required.' });
       }
 
+      if (!uploadedUrl) {
+        throw new Error('Upload did not return a file URL');
+      }
+
       task.status = 'completed';
+      task.loggedHours = task.suggestedTotalHours;
       task.completedAt = Date.now();
       task.uploadUrls.push(uploadedUrl);
       await task.save();
@@ -359,6 +370,11 @@ const studentTaskController = function () {
       return res.json({
         message: 'File uploaded successfully!',
         url: uploadedUrl,
+        status: task.status,
+        loggedHours: task.loggedHours,
+        suggestedTotalHours: task.suggestedTotalHours,
+        completedAt: task.completedAt,
+        uploadUrls: task.uploadUrls,
       });
     } catch (error) {
       console.error(error);
@@ -401,8 +417,8 @@ const studentTaskController = function () {
         return res.status(404).json({ error: 'Task not found or does not belong to you' });
       }
 
-      if (task.type !== 'read') {
-        return res.status(400).json({ error: 'Only read tasks support hours logging' });
+      if (!['read', 'write'].includes(task.type)) {
+        return res.status(400).json({ error: 'Only read and write tasks support hours logging' });
       }
       if (!['assigned', 'in_progress'].includes(task.status)) {
         return res.status(400).json({ error: 'Cannot log hours for a task with this status' });
@@ -415,7 +431,7 @@ const studentTaskController = function () {
         {
           _id: mongoose.Types.ObjectId(taskId),
           studentId: mongoose.Types.ObjectId(studentId),
-          type: 'read',
+          type: task.type,
           status: { $in: ['assigned', 'in_progress'] },
         },
         [
@@ -442,7 +458,9 @@ const studentTaskController = function () {
       }
 
       const canMarkDone =
-        updated.suggestedTotalHours > 0 && updated.loggedHours >= updated.suggestedTotalHours;
+        updated.type === 'read' &&
+        updated.suggestedTotalHours > 0 &&
+        updated.loggedHours >= updated.suggestedTotalHours;
 
       return res.status(200).json({
         message: 'Hours logged successfully',
