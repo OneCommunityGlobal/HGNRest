@@ -26,6 +26,20 @@ async function ensureBrowserInstalled() {
   }
 }
 
+// Pages a successful login never ends on: the account was rejected or must change its
+// password first, so the report page would never load.
+const LOGIN_BLOCKED_PATHS = ['/login', '/forcePasswordUpdate'];
+
+const assertLoggedIn = (page) => {
+  const { pathname } = new URL(page.url());
+  if (LOGIN_BLOCKED_PATHS.some((blocked) => pathname.startsWith(blocked))) {
+    throw new Error(
+      `Playwright login did not reach the app (landed on ${pathname}). ` +
+        'Check PUPPETEER_EMAIL and PUPPETEER_PASSWORD, and that the account has no pending password update.',
+    );
+  }
+};
+
 const openLoggedInBrowser = async () => {
   const { PUPPETEER_EMAIL, PUPPETEER_PASSWORD, REACT_FRONTEND_URL } = process.env;
 
@@ -57,6 +71,7 @@ const openLoggedInBrowser = async () => {
 
     // Wait for navigation after login
     await page.waitForNavigation({ waitUntil: 'networkidle' });
+    assertLoggedIn(page);
 
     return { browser, context, page };
   } catch (err) {

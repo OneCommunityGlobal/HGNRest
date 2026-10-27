@@ -12,6 +12,7 @@ const MAX_ATTEMPTS = 3;
 const DUPLICATE_KEY_ERROR = 11000;
 const RECENT_RUNS_LIMIT = 10;
 const LEASE_MINUTES = 30;
+const SEND_CHUNK_SIZE = 50;
 const REPLY_TO = 'onecommunity@gmail.com';
 const MESSAGE =
   'Please find attached the weekly, monthly and annual comparison reports for One Community as an organization.';
@@ -102,30 +103,52 @@ const runWeeklyOrgSummary = async ({ trigger = 'schedule', now = new Date() } = 
   });
   if (!run) return { status: 'skipped', runKey };
 
+  let totalRecipients = 0;
+  let sentCount = 0;
   try {
     const recipients = await getRecipients();
     if (!recipients.length) throw new Error('No Weekly Summary Report recipients are configured');
 
-    const periods = buildReportPeriods(now, settings.timezone);
-    const dateLabel = formatReportDate(now, settings.timezone);
-    const pdfs = await renderOrgSummaryPdfs(periods);
-    const attachments = pdfs.map(({ period, buffer }) => ({
-      filename: `${dateLabel} ${period.label} report.pdf`,
-      content: buffer,
-      contentType: 'application/pdf',
-    }));
-    const subject = `Total Org Summary Reports for ${dateLabel}`;
+    // A retry after a partial failure only sends to the people who have not received it yet.
+    const alreadySent = new Set(run.sentTo || []);
+    const pending = recipients.filter((email) => !alreadySent.has(email));
+    totalRecipients = recipients.length;
+    sentCount = recipients.length - pending.length;
 
-    const result = await emailSender(
-      recipients,
-      subject,
-      `<p>${MESSAGE}</p>`,
-      attachments,
-      null,
-      REPLY_TO,
-    );
-    // emailSender short-circuits outside production or when sendEmail is off
-    const delivered = !(typeof result === 'string' && result.startsWith('EMAIL_SENDING_DISABLED'));
+    const dateLabel = formatReportDate(now, settings.timezone);
+    const subject = `Total Org Summary Reports for ${dateLabel}`;
+    let attachments = [];
+    let delivered = true;
+
+    if (pending.length) {
+      const periods = buildReportPeriods(now, settings.timezone);
+      const pdfs = await renderOrgSummaryPdfs(periods);
+      attachments = pdfs.map(({ period, buffer }) => ({
+        filename: `${dateLabel} ${period.label} report.pdf`,
+        content: buffer,
+        contentType: 'application/pdf',
+      }));
+
+      for (let i = 0; i < pending.length && delivered; i += SEND_CHUNK_SIZE) {
+        const chunk = pending.slice(i, i + SEND_CHUNK_SIZE);
+        // eslint-disable-next-line no-await-in-loop
+        const result = await emailSender(
+          chunk,
+          subject,
+          `<p>${MESSAGE}</p>`,
+          attachments,
+          null,
+          REPLY_TO,
+        );
+        // emailSender short-circuits outside production or when sendEmail is off
+        delivered = !(typeof result === 'string' && result.startsWith('EMAIL_SENDING_DISABLED'));
+        if (delivered) {
+          // eslint-disable-next-line no-await-in-loop
+          await Run.updateOne({ _id: run._id }, { $addToSet: { sentTo: { $each: chunk } } });
+          sentCount += chunk.length;
+        }
+      }
+    }
 
     await Run.updateOne(
       { _id: run._id },
@@ -143,12 +166,14 @@ const runWeeklyOrgSummary = async ({ trigger = 'schedule', now = new Date() } = 
     return { status: delivered ? 'sent' : 'disabled', runKey, recipients: recipients.length };
   } catch (err) {
     console.error('Total Org Summary email failed:', err);
+    const progress = sentCount ? ` (sent to ${sentCount} of ${totalRecipients} recipients)` : '';
+    const message = `${String(err.message || err)}${progress}`;
     await Run.updateOne(
       { _id: run._id },
-      { $set: { status: 'failed', finishedAt: new Date(), error: String(err.message || err) } },
+      { $set: { status: 'failed', finishedAt: new Date(), error: message } },
     );
-    await sendFailureAlert(run, settings, err);
-    return { status: 'failed', runKey, error: String(err.message || err) };
+    await sendFailureAlert(run, settings, new Error(message));
+    return { status: 'failed', runKey, error: message };
   }
 };
 

@@ -43,7 +43,11 @@ const installRunStore = () => {
     return { ...doc };
   });
   Run.updateOne.mockImplementation(async ({ _id }, update) => {
-    Object.assign(runs.get(_id), update.$set);
+    const doc = runs.get(_id);
+    Object.assign(doc, update.$set);
+    Object.entries(update.$addToSet || {}).forEach(([field, { $each }]) => {
+      doc[field] = [...new Set([...(doc[field] || []), ...$each])];
+    });
   });
 };
 
@@ -188,6 +192,59 @@ describe('runWeeklyOrgSummary', () => {
     const result = await runWeeklyOrgSummary({ now: SEND_TIME });
     expect(result.status).toBe('failed');
     expect(runs.get(RUN_KEY).status).toBe('failed');
+  });
+});
+
+describe('sending in chunks', () => {
+  const MANY = Array.from({ length: 120 }, (_, i) => ({ email: `u${i}@x.org` }));
+  const useRecipients = (list) =>
+    UserProfile.find.mockImplementation((query) => ({
+      lean: async () => (query.getWeeklyReport ? list : [{ email: 'admin@x.org' }]),
+    }));
+  const reportCalls = () => emailSender.mock.calls.filter(([, subject]) => /^Total Org Summary Reports/.test(subject));
+
+  it('sends to at most 50 recipients per message', async () => {
+    useRecipients(MANY);
+    await runWeeklyOrgSummary({ now: SEND_TIME });
+    expect(reportCalls().map(([to]) => to.length)).toEqual([50, 50, 20]);
+  });
+
+  it('does not email anyone twice when a retry follows a partial failure', async () => {
+    useRecipients(MANY);
+    emailSender.mockImplementation(async (to, subject) => {
+      if (/^Total Org Summary Reports/.test(subject) && to.includes('u50@x.org')) {
+        throw new Error('smtp dropped');
+      }
+      return 'ok';
+    });
+
+    const failed = await runWeeklyOrgSummary({ now: SEND_TIME });
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toMatch(/50 of 120/);
+    expect(runs.get(RUN_KEY).sentTo).toHaveLength(50);
+
+    emailSender.mockImplementation(async () => 'ok');
+    const retry = await runWeeklyOrgSummary({ now: new Date('2026-10-25T15:15:00Z') });
+    expect(retry).toMatchObject({ status: 'sent', recipients: 120 });
+
+    const everyone = reportCalls().flatMap(([to]) => to);
+    expect(new Set(everyone).size).toBe(120);
+    expect(everyone.filter((e) => e === 'u0@x.org')).toHaveLength(1);
+    expect(runs.get(RUN_KEY).recipients).toHaveLength(120);
+  });
+
+  it('marks the run sent without rendering again when everyone already received it', async () => {
+    runs.set(RUN_KEY, {
+      _id: RUN_KEY,
+      runKey: RUN_KEY,
+      status: 'failed',
+      attempts: 1,
+      sentTo: ['a@x.org', 'b@x.org'],
+    });
+    const result = await runWeeklyOrgSummary({ now: SEND_TIME });
+    expect(result.status).toBe('sent');
+    expect(renderOrgSummaryPdfs).not.toHaveBeenCalled();
+    expect(reportCalls()).toHaveLength(0);
   });
 });
 

@@ -16,6 +16,8 @@ const weeklyOrgSummaryRun = new Schema({
   finishedAt: { type: Date },
   leaseUntil: { type: Date },
   recipients: { type: [String], default: [] },
+  // Recipients already emailed, so a retry after a partial failure only sends to the rest.
+  sentTo: { type: [String], default: [] },
   attachments: { type: [String], default: [] },
   subject: { type: String },
   error: { type: String },
