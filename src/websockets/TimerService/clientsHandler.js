@@ -149,6 +149,23 @@ const setGoal = (client, msg) => {
 // or Reset ends up on "time left +/- 15" instead of the real pre-session goal.
 // Once started, +/- only extends the current session either way. Must be read
 // before goal is mutated below, since it compares against the pre-update value.
+//
+// Reaching 0 auto-pauses the timer and sets chiming (see pauseTimer below, triggered
+// by the client's own checkRemainingTime()) - but none of the three ways to add more
+// time at that point (header +/-, the dropdown's +15/+30/+1h, and the "Time
+// Complete" modal's "Add More Time" button) used to clear that paused/chiming state,
+// so the countdown stayed frozen at the new goal instead of resuming - this looked
+// exactly like a reset rather than an extension (reported by Jae). Only auto-resume
+// the "ran out of time" case (chiming) - a deliberate mid-session pause the user
+// chose themselves should NOT be silently resumed just because they adjusted goal.
+const resumeIfChiming = (client) => {
+  if (client.chiming) {
+    client.chiming = false;
+    client.paused = false;
+    client.startAt = moment.utc();
+  }
+};
+
 const addGoal = (client, msg) => {
   const duration = parseInt(msg.value);
   const isFreshGoal = !client.started && client.goal === client.initialGoal;
@@ -165,6 +182,7 @@ const addGoal = (client, msg) => {
     );
 
     if (isFreshGoal) client.initialGoal = client.goal;
+    resumeIfChiming(client);
     return;
   }
 
@@ -176,6 +194,7 @@ const addGoal = (client, msg) => {
   );
 
   if (isFreshGoal) client.initialGoal = client.goal;
+  resumeIfChiming(client);
 };
 
 const removeGoal = (client, msg) => {
@@ -200,6 +219,7 @@ const removeGoal = (client, msg) => {
   );
 
   if (isFreshGoal) client.initialGoal = client.goal;
+  resumeIfChiming(client);
 };
 
 const handleMessage = async (msg, clients, userId) => {
