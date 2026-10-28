@@ -7,9 +7,12 @@ const {
   resetJobsFilters,
   getCategories,
   getPositions,
+  getActiveJobPositions,
   getJobById,
+  createJob,
   updateJob,
   deleteJob,
+  reorderJobs,
 } = require('./jobsController');
 
 // 1. Mock the modules
@@ -18,10 +21,13 @@ jest.mock('../models/jobPositionCategory');
 
 // 2. Explicitly define Mongoose methods as Jest mocks to avoid "not a function" errors
 Job.find = jest.fn();
+Job.findOne = jest.fn();
 Job.findById = jest.fn();
 Job.findByIdAndUpdate = jest.fn();
 Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
+Job.bulkWrite = jest.fn();
+Job.distinct = jest.fn();
 JobPositionCategory.distinct = jest.fn();
 
 // --- HELPER FACTORIES ---
@@ -66,6 +72,11 @@ describe('jobsController', () => {
         'category only',
         { category: 'Software & IT' },
         { $and: [{ category: { $in: ['Software & IT'] } }] },
+      ],
+      [
+        'category as JSON array string',
+        { category: '["Software & IT","Marketing"]' },
+        { $and: [{ category: { $in: ['Software & IT', 'Marketing'] } }] },
       ],
       [
         'position only',
@@ -124,6 +135,16 @@ describe('jobsController', () => {
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
     });
+
+    it('should return distinct job titles for the application form dropdown', async () => {
+      Job.distinct.mockResolvedValue(['Writer', 'Software Developer', '', 'Analyst']);
+      await getActiveJobPositions({}, res);
+      expect(Job.distinct).toHaveBeenCalledWith('title', {});
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        positions: ['Analyst', 'Software Developer', 'Writer'],
+      });
+    });
   });
 
   describe('CRUD Operations', () => {
@@ -148,6 +169,42 @@ describe('jobsController', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining(updateData));
     });
 
+    it('updateJob: should store the description as plain text', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '<p>Build <strong>useful</strong> tools</p>' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: 'Build useful tools' },
+        { new: true },
+      );
+    });
+
+    it('updateJob: keeps encoded tags from becoming stored markup', async () => {
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: '&lt;img src=x onerror=alert(1)>' },
+        { new: true },
+      );
+    });
+
     it('deleteJob: should delete successfully', async () => {
       Job.findByIdAndDelete.mockResolvedValue({ _id: jobId });
       await deleteJob({ params: { id: jobId } }, res);
@@ -161,6 +218,174 @@ describe('jobsController', () => {
       Job.find.mockReturnValue(mockQueryChain(DEFAULT_MOCK_JOBS));
       await resetJobsFilters({ query: { page: '1', limit: '10' } }, res);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ jobs: DEFAULT_MOCK_JOBS }));
+    });
+
+    it('should return a 500 when the database call fails', async () => {
+      Job.countDocuments.mockRejectedValue(new Error('db down'));
+      await resetJobsFilters({ query: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to reset filters' }),
+      );
+    });
+  });
+
+  describe('Error handling', () => {
+    it('getJobs: returns a 500 when the database call fails', async () => {
+      Job.countDocuments.mockRejectedValue(new Error('db down'));
+      await getJobs({ query: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'Failed to fetch jobs' }),
+      );
+    });
+
+    it('getJobSummaries: returns a 500 when the database call fails', async () => {
+      Job.find.mockImplementation(() => {
+        throw new Error('db down');
+      });
+      await getJobSummaries({ query: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'Failed to fetch job summaries' }),
+      );
+    });
+
+    it('getJobById: returns a 500 when the database call fails', async () => {
+      Job.findById.mockRejectedValue(new Error('db down'));
+      await getJobById({ params: { id: '507f1f77bcf86cd799439011' } }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to fetch job' }),
+      );
+    });
+
+    it('updateJob: returns a 500 when the database call fails', async () => {
+      Job.findByIdAndUpdate.mockRejectedValue(new Error('db down'));
+      await updateJob({ params: { id: '507f1f77bcf86cd799439011' }, body: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to update job' }),
+      );
+    });
+
+    it('deleteJob: returns a 500 when the database call fails', async () => {
+      Job.findByIdAndDelete.mockRejectedValue(new Error('db down'));
+      await deleteJob({ params: { id: '507f1f77bcf86cd799439011' } }, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to delete job' }),
+      );
+    });
+  });
+
+  describe('createJob', () => {
+    const newJobBody = {
+      title: 'Developer',
+      category: 'Software & IT',
+      description: 'Build things',
+      imageUrl: 'http://example.com/img.png',
+      location: 'Remote',
+      applyLink: 'http://example.com/apply',
+      jobDetailsLink: 'http://example.com/details',
+    };
+
+    it('assigns the next displayOrder and saves the job', async () => {
+      Job.findOne.mockReturnValue({
+        sort: jest.fn().mockResolvedValue({ displayOrder: 3 }),
+      });
+      const savedJob = { _id: 'job1', ...newJobBody, displayOrder: 4 };
+      jest.spyOn(Job.prototype, 'save').mockResolvedValue(savedJob);
+
+      await createJob({ body: newJobBody }, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(savedJob);
+    });
+
+    it('stores a new job description as plain text', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: '<p>Build <strong>useful</strong> tools</p><script>bad()</script>',
+          },
+        },
+        res,
+      );
+
+      const savedInstance = saveSpy.mock.instances.at(-1);
+      expect(savedInstance.description).toBe('Build useful tools');
+    });
+
+    it('keeps encoded tags from becoming markup in a new job description', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: { ...newJobBody, description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)>');
+    });
+
+    it('defaults displayOrder to 0 when no jobs exist yet', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const savedJob = { _id: 'job1', ...newJobBody, displayOrder: 0 };
+      jest.spyOn(Job.prototype, 'save').mockResolvedValue(savedJob);
+
+      await createJob({ body: newJobBody }, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('returns a 500 when saving fails', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      jest.spyOn(Job.prototype, 'save').mockRejectedValue(new Error('db down'));
+
+      await createJob({ body: newJobBody }, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to create job' }),
+      );
+    });
+  });
+
+  describe('reorderJobs', () => {
+    it('rejects invalid job order data', async () => {
+      await reorderJobs({ body: { jobIds: [] } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid job order data' });
+    });
+
+    it('reorders jobs and returns the updated list', async () => {
+      Job.bulkWrite.mockResolvedValue({});
+      Job.find.mockReturnValue({ sort: jest.fn().mockResolvedValue(DEFAULT_MOCK_JOBS) });
+
+      await reorderJobs({ body: { jobIds: ['1', '2'] } }, res);
+
+      expect(Job.bulkWrite).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, jobs: DEFAULT_MOCK_JOBS }),
+      );
+    });
+
+    it('returns a 500 when the bulk write fails', async () => {
+      Job.bulkWrite.mockRejectedValue(new Error('db down'));
+
+      await reorderJobs({ body: { jobIds: ['1', '2'] } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Failed to reorder jobs' }),
+      );
     });
   });
 });

@@ -31,18 +31,17 @@ const mockBuildingIssue = {
   findByIdAndDelete: jest.fn(),
 };
 
+// Mocking the injuryIssue Model (used by getMostExpensiveIssues)
+const mockInjuryIssue = {
+  find: jest.fn(),
+};
+
 // Helper: call bmGetOpenIssue and return the find query that was used (for filter tests)
 async function getOpenIssueFindQuery(controller, req, res, findResult = []) {
   mockBuildingIssue.find.mockResolvedValue(findResult);
   await controller.bmGetOpenIssue(req, res);
   return mockBuildingIssue.find.mock.calls[0][0];
 }
-
-// Helper: BuildingProject find chain used in getLongestOpenIssues tests
-const mockBuildingProjectChain = (projects) => ({
-  select: jest.fn().mockReturnThis(),
-  lean: jest.fn().mockResolvedValue(projects),
-});
 
 // Helper: builds the chained find mock used by getLongestOpenIssues
 const mockFindChain = (result) => ({
@@ -57,7 +56,7 @@ describe('Building Issue Controller', () => {
   let res;
 
   beforeEach(() => {
-    controller = bmIssueController(mockBuildingIssue);
+    controller = bmIssueController(mockBuildingIssue, mockInjuryIssue);
 
     req = {
       body: {},
@@ -778,9 +777,9 @@ describe('Building Issue Controller', () => {
     it('should fetch longest open issues without filters', async () => {
       const mockIssues = [
         {
+          _id: TEST_ISSUE_ID,
           issueTitle: ['Old Issue'],
           issueDate: mockIssueDate,
-          projectId: { _id: TEST_ISSUE_ID },
         },
       ];
 
@@ -791,13 +790,14 @@ describe('Building Issue Controller', () => {
       expect(mockBuildingIssue.find).toHaveBeenCalledWith({ status: 'open' });
       expect(res.json).toHaveBeenCalled();
       const result = res.json.mock.calls[0][0];
-      expect(result).toHaveLength(1);
-      expect(result[0].issueName).toBe('Old Issue');
-      expect(result[0].durationOpen).toBeGreaterThan(0);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].issueId).toBe(TEST_ISSUE_ID);
+      expect(result.data[0].title).toBe('Old Issue');
+      expect(result.data[0].daysOpen).toBeGreaterThan(0);
     });
 
-    it('should filter by projects when provided', async () => {
-      req.query.projects = TEST_ISSUE_ID;
+    it('should filter by projectIds when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
 
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
 
@@ -807,83 +807,45 @@ describe('Building Issue Controller', () => {
       expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
     });
 
-    it('should filter by dates and return matching projects', async () => {
-      req.query.dates = '2022-01-01,2024-12-31';
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
-      mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
-      await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
-      expect(res.json).toHaveBeenCalled();
-    });
+    it('should filter by startDate and endDate when provided', async () => {
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
 
-    it('should return empty array when dates provided but no matching projects', async () => {
-      req.query.dates = '2022-01-01,2024-12-31';
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([]));
-      await controller.getLongestOpenIssues(req, res);
-      expect(res.json).toHaveBeenCalledWith([]);
-    });
-
-    it('should intersect project filters when both dates and projects provided', async () => {
-      const anotherProjectId = '507f1f77bcf86cd799439012';
-      req.query.dates = '2022-01-01,2024-12-31';
-      req.query.projects = `${TEST_ISSUE_ID},${anotherProjectId}`;
-      mockBuildingProjectFind.mockReturnValue(mockBuildingProjectChain([{ _id: TEST_ISSUE_ID }]));
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
+
       await controller.getLongestOpenIssues(req, res);
-      expect(mockBuildingProjectFind).toHaveBeenCalled();
+
       const callArgs = mockBuildingIssue.find.mock.calls[0][0];
-      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.issueDate.$gte).toEqual(new Date('2022-01-01'));
+      expect(callArgs.issueDate.$lte).toEqual(new Date('2024-12-31'));
     });
 
-    it('should return top 7 issues sorted by duration', async () => {
+    it('should return top 5 issues sorted by daysOpen', async () => {
       const mockIssues = Array.from({ length: 10 }, (_, i) => ({
+        _id: `50000000000000000000000${i}`,
         issueTitle: [`Issue ${i + 1}`],
         issueDate: new Date(Date.now() - (i + 1) * 30 * 24 * 60 * 60 * 1000),
-        projectId: { _id: TEST_ISSUE_ID },
       }));
 
       mockBuildingIssue.find.mockReturnValue(mockFindChain(mockIssues));
 
       await controller.getLongestOpenIssues(req, res);
 
-      const result = res.json.mock.calls[0][0];
-      expect(result).toHaveLength(7);
-      // Response is capped at 7 items; each item is a flat object with issueName and durationOpen
+      const { data: result } = res.json.mock.calls[0][0];
+      expect(result).toHaveLength(5);
       result.forEach((item) => {
-        expect(item.issueName).toBeDefined();
-        expect(typeof item.durationOpen).toBe('number');
+        expect(item.title).toBeDefined();
+        expect(typeof item.daysOpen).toBe('number');
       });
-      // Confirm results are actually sorted longest-to-shortest
       for (let i = 1; i < result.length; i += 1) {
-        expect(result[i - 1].durationOpen).toBeGreaterThanOrEqual(result[i].durationOpen);
+        expect(result[i - 1].daysOpen).toBeGreaterThanOrEqual(result[i].daysOpen);
       }
-    });
-
-    it('should format duration correctly for months', async () => {
-      const twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-      const mockIssues = [
-        {
-          issueTitle: ['Recent Issue'],
-          issueDate: twoMonthsAgo,
-          projectId: { _id: TEST_ISSUE_ID },
-        },
-      ];
-
-      mockBuildingIssue.find.mockReturnValue(mockFindChain(mockIssues));
-
-      await controller.getLongestOpenIssues(req, res);
-
-      const result = res.json.mock.calls[0][0];
-      expect(result[0].durationOpen).toBeGreaterThanOrEqual(2);
     });
 
     it('should return 500 error when database error occurs', async () => {
       const error = new Error('Database error');
       mockBuildingIssue.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockReturnThis(),
         lean: jest.fn().mockRejectedValue(error),
       });
 
@@ -891,6 +853,109 @@ describe('Building Issue Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching longest open issues' });
+    });
+  });
+
+  describe('getMostExpensiveIssues', () => {
+    const mockOpenDate = new Date('2022-01-15');
+
+    beforeEach(() => {
+      mockInjuryIssue.find.mockReturnValue(mockFindChain([]));
+    });
+
+    it('should fetch most expensive issues without filters', async () => {
+      const mockIssues = [
+        {
+          _id: TEST_ISSUE_ID,
+          name: 'Expensive Issue',
+          openDate: mockOpenDate,
+          totalCost: 5000,
+        },
+      ];
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalledWith({});
+      expect(res.json).toHaveBeenCalled();
+      const result = res.json.mock.calls[0][0];
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].issueId).toBe(TEST_ISSUE_ID);
+      expect(result.data[0].title).toBe('Expensive Issue');
+      expect(result.data[0].totalCost).toBe(5000);
+      expect(result.data[0].daysOpen).toBeGreaterThan(0);
+    });
+
+    it('should filter by projectIds when provided', async () => {
+      req.query.projectIds = TEST_ISSUE_ID;
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+    });
+
+    it('should filter by startDate and endDate when provided', async () => {
+      req.query.startDate = '2022-01-01';
+      req.query.endDate = '2024-12-31';
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toEqual(new Date('2022-01-01'));
+      expect(callArgs.openDate.$lte).toEqual(new Date('2024-12-31'));
+    });
+
+    it('should exclude issues with null or undefined totalCost', async () => {
+      const mockIssues = [
+        { _id: '1', name: 'No Cost', openDate: mockOpenDate, totalCost: null },
+        { _id: '2', name: 'Has Cost', openDate: mockOpenDate, totalCost: 100 },
+      ];
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data: result } = res.json.mock.calls[0][0];
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Has Cost');
+    });
+
+    it('should return top 5 issues sorted by totalCost', async () => {
+      const mockIssues = Array.from({ length: 10 }, (_, i) => ({
+        _id: `50000000000000000000000${i}`,
+        name: `Issue ${i + 1}`,
+        openDate: mockOpenDate,
+        totalCost: (i + 1) * 100,
+      }));
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain(mockIssues));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const { data: result } = res.json.mock.calls[0][0];
+      expect(result).toHaveLength(5);
+      for (let i = 1; i < result.length; i += 1) {
+        expect(result[i - 1].totalCost).toBeGreaterThanOrEqual(result[i].totalCost);
+      }
+    });
+
+    it('should return 500 error when database error occurs', async () => {
+      const error = new Error('Database error');
+      mockInjuryIssue.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(error),
+      });
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching most expensive issues' });
     });
   });
 });

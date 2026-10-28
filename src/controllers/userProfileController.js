@@ -29,6 +29,10 @@ const escapeRegex = require('../utilities/escapeRegex');
 const emailSender = require('../utilities/emailSender');
 const objectUtils = require('../utilities/objectUtils');
 const config = require('../config');
+const { isProductionIdentityEnforcementActive } = require('../config/productionIdentityConfig');
+const { verifyVerificationToken } = require('../services/productionIdentityService');
+const { logVerificationAttempt } = require('./productionIdentityController');
+const { emitProductionUserStatusChange } = require('../services/productionWebhookEmitter');
 // eslint-disable-next-line import/order
 const { PROTECTED_EMAIL_ACCOUNT } = require('../utilities/constants');
 
@@ -293,6 +297,26 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     return helper.hasPermission(req.body.requestor, permission);
   };
 
+  const enforceLockedIdentityFields = (req, record) => {
+    if (!record.identityLocked) return null;
+
+    const lockedFields = ['firstName', 'lastName', 'email'];
+    const mismatch = lockedFields.find(
+      (field) =>
+        req.body[field] !== undefined &&
+        String(req.body[field]).trim() !== String(record[field]).trim(),
+    );
+
+    if (mismatch) {
+      return {
+        error: `The ${mismatch} field is locked and cannot be changed for Production-linked accounts.`,
+        status: 400,
+      };
+    }
+
+    return null;
+  };
+
   // Helper functions for postUserProfile
   const validateUserEmail = async (email) => {
     const userByEmail = await UserProfile.findOne({
@@ -305,15 +329,20 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const validateBetaCredentials = async (email, password) => {
-    const url = 'https://hgn-rest-beta.azurewebsites.net/api/';
-    const response = await fetch(`${url}login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-    return response.ok;
+    const { verifyProductionCredentials } = require('../services/productionIdentityService');
+    const result = await verifyProductionCredentials(email, password, UserProfile);
+    return result.ok;
+  };
+
+  const applyProductionIdentityToUser = (up, identity) => {
+    up.firstName = identity.firstName;
+    up.lastName = identity.lastName;
+    up.email = identity.email;
+    up.linkedProdEmail = String(identity.email).toLowerCase().trim();
+    up.productionUserId = String(identity.productionUserId);
+    up.actualEmail = identity.email;
+    up.identityLocked = true;
+    up.identityVerifiedAt = new Date();
   };
 
   const createUserFromRequest = (req) => {
@@ -905,6 +934,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return { error: 'You are not authorized to edit team code.', status: 403 };
     }
 
+    const lockedFieldError = enforceLockedIdentityFields(req, record);
+    if (lockedFieldError) {
+      return lockedFieldError;
+    }
+
     const originalinfringements = record.infringements ? record.infringements : [];
     updateCommonFields(req, record);
 
@@ -976,9 +1010,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             endDate: 1,
             lastActivityAt: 1,
             deactivatedAt: 1,
+            productionUserId: 1,
+            linkedProdEmail: 1,
+            identityLocked: 1,
+            deactivatedByProductionSync: 1,
+            productionDeactivatedAt: 1,
             timeZone: 1,
             filterColor: 1,
             bioPosted: 1,
+            infringementCCList: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -1157,8 +1197,64 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
 
-    // In dev environment, if newly created user is Owner or Administrator, make fetch request to Beta login route
-    if (process.env.dbName === 'hgnData_dev') {
+    // Production identity enforcement for new Dev accounts (Option B)
+    if (isProductionIdentityEnforcementActive()) {
+      const tokenResult = verifyVerificationToken(req.body.productionVerificationToken);
+
+      if (!tokenResult.ok) {
+        await logVerificationAttempt({
+          ip: req.ip,
+          reason: 'token_invalid',
+          attemptedEmail: req.body.email,
+          requestorId: req.body.requestor?.requestorId,
+          action: 'create_user',
+          metadata: { detail: 'invalid_or_missing_verification_token' },
+        });
+
+        res.status(400).send({
+          error:
+            'Production identity verification is required. Please verify Production credentials before creating this account.',
+          type: 'production_verification',
+          retryable: true,
+        });
+        return;
+      }
+
+      const { identity } = tokenResult;
+
+      const existingLinkedUser = await UserProfile.findOne({
+        identityLocked: true,
+        $or: [
+          { productionUserId: String(identity.productionUserId) },
+          { linkedProdEmail: identity.email.toLowerCase() },
+        ],
+      });
+
+      if (existingLinkedUser) {
+        res.status(400).send({
+          error:
+            'A Dev account already exists for this Production identity. Each Production user can only have one linked Dev account.',
+          type: 'production_linkage',
+        });
+        return;
+      }
+
+      if (req.body.email && req.body.email.toLowerCase() !== identity.email.toLowerCase()) {
+        res.status(400).send({
+          error: 'Dev account email must match the verified Production email.',
+          type: 'email',
+        });
+        return;
+      }
+
+      req.body.firstName = identity.firstName;
+      req.body.lastName = identity.lastName;
+      req.body.email = identity.email;
+      req.body.productionUserId = identity.productionUserId;
+      req.body.linkedProdEmail = String(identity.email).toLowerCase().trim();
+      req.body.identityLocked = true;
+    } else if (process.env.dbName === 'hgnData_dev') {
+      // Legacy dev-only validation for Owner/Administrator when feature flag is off
       if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
         try {
           const isValid = await validateBetaCredentials(
@@ -1206,6 +1302,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     const up = createUserFromRequest(req);
+
+    if (isProductionIdentityEnforcementActive() && req.body.productionUserId) {
+      applyProductionIdentityToUser(up, {
+        productionUserId: req.body.productionUserId,
+        email: req.body.linkedProdEmail || req.body.email,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+      });
+    }
 
     try {
       const requestor = await UserProfile.findById(req.body.requestor.requestorId)
@@ -1906,7 +2011,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason',
+        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason deactivatedByProductionSync',
       );
 
       if (!user) {
@@ -1919,13 +2024,19 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
         previousEndDate:
           user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
-          user.inactiveReason === InactiveReason.SEPARATED
+            user.inactiveReason === InactiveReason.SEPARATED
             ? user.endDate
             : null,
       };
 
       switch (action) {
         case UserStatusOperations.ACTIVATE: {
+          if (isProductionIdentityEnforcementActive() && user.deactivatedByProductionSync) {
+            return res.status(400).send({
+              error:
+                'This Dev account was deactivated because the linked Production account is inactive. It can only be reactivated when Production reactivates the account.',
+            });
+          }
           user.isActive = true;
           user.inactiveReason = undefined;
           user.deactivatedAt = null;
@@ -1996,6 +2107,20 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         }
       }
       await user.save();
+
+      if (
+        action === UserStatusOperations.DEACTIVATE ||
+        action === UserStatusOperations.PAUSE ||
+        action === UserStatusOperations.ACTIVATE
+      ) {
+        emitProductionUserStatusChange({
+          productionUserId: String(user._id),
+          email: user.email,
+          status: user.isActive ? 'active' : 'inactive',
+        }).catch((error) => {
+          logger.logException(error, 'Failed to emit production identity webhook');
+        });
+      }
 
       await handleUserStatusSave({
         user,
@@ -2453,10 +2578,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         manuallyAssigned: true,
         manuallyAssignedBy: requestorProfile
           ? {
-              firstName: requestorProfile.firstName,
-              lastName: requestorProfile.lastName,
-              userId: requestorId,
-            }
+            firstName: requestorProfile.firstName,
+            lastName: requestorProfile.lastName,
+            userId: requestorId,
+          }
           : undefined,
         // Initialize empty edit history
         editedBy: [],
@@ -2671,28 +2796,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const query = match[1]
         ? {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                $and: [
-                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-                ],
-              },
-            ],
-          }
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              $and: [
+                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+              ],
+            },
+          ],
+        }
         : {
-            $or: [
-              {
-                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-              {
-                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-              },
-            ],
-          };
+          $or: [
+            {
+              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+            {
+              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+            },
+          ],
+        };
 
       const userProfile = await UserProfile.find(query);
 
@@ -2720,7 +2845,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       });
 
       distinctTeamCodes = distinctTeamCodes
-        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .map((code) => (code ? code.trim() : ''))
         .filter((code) => code !== '');
 
       if (includePRTeams) {

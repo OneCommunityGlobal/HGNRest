@@ -426,6 +426,7 @@ const addEditHistory = async (
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
+        <p><b>Name:</b> ${userprofile.firstName} ${userprofile.lastName}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
         <p><b>Title:</b> ${userprofile.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -563,25 +564,28 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.lastModifiedDateTime = now;
       timeEntry.entryType = req.body.entryType;
 
-      const userprofile = await UserProfile.findById(timeEntry.personId);
+      // Project and team lost-time entries have no associated personId, so there is
+      // no user profile to look up or update for them.
+      const entryHasPerson = timeEntry.entryType !== 'project' && timeEntry.entryType !== 'team';
+      const userprofile = entryHasPerson ? await UserProfile.findById(timeEntry.personId) : null;
 
-      if (!userprofile) {
+      if (entryHasPerson && !userprofile) {
         await session.abortTransaction();
         return res.status(404).send({ error: 'User not found' });
       }
 
-      if (!userprofile.isActive && userprofile.deactivatedAt) {
-        const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
-
-        if (moment().isAfter(cutoff)) {
-          await session.abortTransaction();
-          return res.status(403).send({
-            error: 'User is deactivated and can no longer log time',
-          });
-        }
-      }
-
       if (userprofile) {
+        if (!userprofile.isActive && userprofile.deactivatedAt) {
+          const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
+
+          if (moment().isAfter(cutoff)) {
+            await session.abortTransaction();
+            return res.status(403).send({
+              error: 'User is deactivated and can no longer log time',
+            });
+          }
+        }
+
         // if the time entry is tangible, update the tangible hours in the user profile
         if (timeEntry.isTangible) {
           // update the total tangible hours in the user profile and the hours by category
@@ -609,16 +613,16 @@ const timeEntrycontroller = function (TimeEntry) {
           // if the time entry is intangible, just update the intangible hours in the userprofile
           updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
         }
-      }
 
-      // Replace the isFirstTimelog checking logic from the frontend to the backend
-      // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
-      const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
-      if (isFirstTimeEntry) {
-        userprofile.isFirstTimelog = false;
-        userprofile.startDate = now;
+        // Replace the isFirstTimelog checking logic from the frontend to the backend
+        // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
+        const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
+        if (isFirstTimeEntry) {
+          userprofile.isFirstTimelog = false;
+          userprofile.startDate = now;
+        }
+        userprofile.lastActivityAt = new Date();
       }
-      userprofile.lastActivityAt = new Date();
 
       await timeEntry.save({ session });
       if (userprofile) {
@@ -640,6 +644,11 @@ const timeEntrycontroller = function (TimeEntry) {
           // Call the invalidation function
           invalidateWeeklySummariesCache(weekIndex);
         }
+      }
+
+      if (timeEntry.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
       }
 
       await session.commitTransaction();
