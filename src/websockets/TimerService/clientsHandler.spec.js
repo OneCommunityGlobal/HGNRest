@@ -90,4 +90,20 @@ describe('clientsHandler ADD_TO_GOAL / REMOVE_FROM_GOAL baseline sync (bug #4)',
     expect(clients.get(USER_ID).goal).toBe(oneMinute);
     expect(clients.get(USER_ID).initialGoal).toBe(oneMinute);
   });
+
+  it('idle: removing goal reduces goal/time and keeps the baseline in sync', async () => {
+    const THIRTY_MIN_MS = 30 * 60 * 1000;
+    const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+    const clients = makeClients({
+      time: THIRTY_MIN_MS,
+      goal: THIRTY_MIN_MS,
+      initialGoal: THIRTY_MIN_MS,
+    });
+
+    await handleMessage({ action: action.REMOVE_GOAL, value: FIFTEEN_MIN_MS }, clients, USER_ID);
+
+    expect(clients.get(USER_ID).goal).toBe(FIFTEEN_MIN_MS);
+    expect(clients.get(USER_ID).time).toBe(FIFTEEN_MIN_MS);
+    expect(clients.get(USER_ID).initialGoal).toBe(FIFTEEN_MIN_MS);
+  });
 });
