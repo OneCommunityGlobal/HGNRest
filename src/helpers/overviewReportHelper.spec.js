@@ -33,6 +33,111 @@ describe('overviewReportHelper tests', () => {
     });
   });
 
+  describe('getTasksStats status counts', () => {
+    const startDate = new Date('2026-07-19T00:00:00-07:00');
+    const endDate = new Date('2026-07-25T23:59:00-07:00');
+    const comparisonStartDate = new Date('2026-07-12T00:00:00-07:00');
+    const comparisonEndDate = new Date('2026-07-18T23:59:00-07:00');
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test('counts Active and Started tasks as assigned when comparison is off', async () => {
+      const stats = [
+        { _id: 'Active', count: 3 },
+        { _id: 'Started', count: 2 },
+        { _id: 'Complete', count: 4 },
+        { _id: 'Not Started', count: 7 },
+      ];
+      jest.spyOn(Task, 'aggregate').mockResolvedValue(stats);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(startDate, endDate);
+
+      expect(result).toEqual({
+        active: { current: 5 },
+        complete: { current: 4 },
+        raw: { current: stats },
+      });
+    });
+
+    test('counts Active and Started tasks as assigned in both comparison ranges', async () => {
+      const current = [
+        { _id: 'Active', count: 3 },
+        { _id: 'Started', count: 2 },
+        { _id: 'Complete', count: 4 },
+        { _id: 'Not Started', count: 7 },
+      ];
+      const comparison = [
+        { _id: 'Started', count: 4 },
+        { _id: 'Complete', count: 2 },
+      ];
+      const aggregateSpy = jest
+        .spyOn(Task, 'aggregate')
+        .mockResolvedValue([{ current, comparison }]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 5, percentage: 0.25 },
+        complete: { current: 4, percentage: 1 },
+        raw: { current, comparison },
+      });
+      const { $facet } = aggregateSpy.mock.calls[0][0][0];
+      expect($facet.current[0]).toEqual({
+        $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } },
+      });
+      expect($facet.comparison[0]).toEqual({
+        $match: { modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate } },
+      });
+    });
+
+    test('returns zero counts when the comparison aggregation is empty', async () => {
+      jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 0, percentage: 0 },
+        complete: { current: 0, percentage: 0 },
+        raw: { current: [], comparison: [] },
+      });
+    });
+
+    test('treats a missing comparison range as zero counts', async () => {
+      const current = [
+        { _id: 'Active', count: 1 },
+        { _id: 'Complete', count: 2 },
+      ];
+      jest.spyOn(Task, 'aggregate').mockResolvedValue([{ current }]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 1, percentage: 'No Comparison Data' },
+        complete: { current: 2, percentage: 'No Comparison Data' },
+        raw: { current, comparison: [] },
+      });
+    });
+  });
+
   describe('getHoursStats date boundaries', () => {
     const originalTimezone = process.env.TZ;
 
