@@ -107,3 +107,56 @@ describe('clientsHandler ADD_TO_GOAL / REMOVE_FROM_GOAL baseline sync (bug #4)',
     expect(clients.get(USER_ID).initialGoal).toBe(FIFTEEN_MIN_MS);
   });
 });
+
+describe('clientsHandler ADD_TO_GOAL / REMOVE_FROM_GOAL only move the baseline when fresh', () => {
+  it("idle after a partial log (goal diverged from the baseline): +15 only adjusts the leftover, Reset still returns to the original 31 min goal (Sripriya's case)", async () => {
+    const THIRTY_ONE_MIN_MS = 31 * 60 * 1000;
+    const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+    const clients = makeClients({
+      started: true,
+      startAt: new Date(Date.now() - 5 * 60 * 1000), // 5 min into the session
+      time: THIRTY_ONE_MIN_MS,
+      goal: THIRTY_ONE_MIN_MS,
+      initialGoal: THIRTY_ONE_MIN_MS,
+    });
+
+    // Logging partway through leaves goal = time left, diverged from initialGoal,
+    // while still idle (started: false) - this is the "leftover" state that used
+    // to be mistaken for "fresh".
+    await handleMessage({ action: action.STOP_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).started).toBe(false);
+    expect(clients.get(USER_ID).goal).toBeLessThan(THIRTY_ONE_MIN_MS);
+    expect(clients.get(USER_ID).goal).toBe(clients.get(USER_ID).time);
+    expect(clients.get(USER_ID).initialGoal).toBe(THIRTY_ONE_MIN_MS);
+
+    // Idle +/- after a partial log must only adjust the leftover, not drag the
+    // baseline along with it.
+    await handleMessage({ action: action.ADD_GOAL, value: FIFTEEN_MIN_MS }, clients, USER_ID);
+    expect(clients.get(USER_ID).initialGoal).toBe(THIRTY_ONE_MIN_MS);
+
+    await handleMessage({ action: action.CLEAR_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).goal).toBe(THIRTY_ONE_MIN_MS);
+  });
+
+  it("idle after logging 1h out of a 5h baseline: +15 only adjusts the leftover, Reset still returns to 5h (vidiyala99's case)", async () => {
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+    const clients = makeClients({
+      started: true,
+      startAt: new Date(Date.now() - ONE_HOUR_MS),
+      time: FIVE_HOURS_MS,
+      goal: FIVE_HOURS_MS,
+      initialGoal: FIVE_HOURS_MS,
+    });
+
+    await handleMessage({ action: action.STOP_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).goal).toBeLessThan(FIVE_HOURS_MS);
+    expect(clients.get(USER_ID).initialGoal).toBe(FIVE_HOURS_MS);
+
+    await handleMessage({ action: action.ADD_GOAL, value: FIFTEEN_MIN_MS }, clients, USER_ID);
+    expect(clients.get(USER_ID).initialGoal).toBe(FIVE_HOURS_MS);
+
+    await handleMessage({ action: action.CLEAR_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).goal).toBe(FIVE_HOURS_MS);
+  });
+});
