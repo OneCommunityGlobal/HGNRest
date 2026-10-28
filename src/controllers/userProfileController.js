@@ -2208,28 +2208,90 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getRehireableStatusValidationError = (userId, isRehireable, reason) => {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return 'Bad Request';
+    if (typeof isRehireable !== 'boolean') {
+      return 'isRehireable must be a boolean';
+    }
+    if (!isRehireable && !reason) {
+      return 'A reason is required when a user is not rehireable';
+    }
+    return null;
+  };
+
+  const canChangeRehireableStatus = async (requestor, requestorId, userId) => {
+    if (!requestorId) return false;
+
+    const hasStatusPermission = await hasPermission(requestor, 'changeUserRehireableStatus');
+    if (!hasStatusPermission) return false;
+
+    return canRequestorUpdateUser(requestorId, userId);
+  };
+
+  const createRehireableStatusUpdate = (currentUser, isRehireable, reason, requestorProfile) => {
+    const currentReason = currentUser.notRehireableReason || '';
+    const shouldLogReason =
+      !isRehireable && (currentUser.isRehireable !== false || currentReason !== reason);
+
+    const update = {
+      $set: {
+        isRehireable,
+        notRehireableReason: isRehireable ? '' : reason,
+      },
+    };
+
+    if (shouldLogReason) {
+      update.$push = {
+        notRehireableReasonHistory: {
+          action: currentUser.isRehireable === false && currentReason ? 'edited' : 'submitted',
+          reason,
+          changedAt: new Date(),
+          changedBy: {
+            userId: requestorProfile._id,
+            username: requestorProfile.email,
+            firstName: requestorProfile.firstName,
+            lastName: requestorProfile.lastName,
+          },
+        },
+      };
+    }
+
+    return update;
+  };
+
+  const syncRehireableStatusCache = (userId, updatedUser) => {
+    cache.removeCache(`user-${userId}`);
+
+    if (!cache.hasCache('allusers')) return;
+
+    const allUserData = JSON.parse(cache.getCache('allusers') || '[]');
+    if (!Array.isArray(allUserData)) return;
+
+    const userIdx = allUserData.findIndex((user) => String(user._id) === String(userId));
+    if (userIdx < 0) return;
+
+    allUserData[userIdx] = {
+      ...allUserData[userIdx],
+      isRehireable: updatedUser.isRehireable,
+      notRehireableReason: updatedUser.notRehireableReason,
+      notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
+    };
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
-    const { isRehireable, notRehireableReason } = req.body;
-    const { requestor } = req.body;
+    const { isRehireable, notRehireableReason, requestor } = req.body;
     const requestorId = requestor?.requestorId;
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).send({ error: 'Bad Request' });
-    }
-    if (typeof isRehireable !== 'boolean') {
-      return res.status(400).send({ error: 'isRehireable must be a boolean' });
-    }
-
     const reason = typeof notRehireableReason === 'string' ? notRehireableReason.trim() : '';
-    if (!isRehireable && !reason) {
-      return res.status(400).send({ error: 'A reason is required when a user is not rehireable' });
+
+    const validationError = getRehireableStatusValidationError(userId, isRehireable, reason);
+    if (validationError) {
+      return res.status(400).send({ error: validationError });
     }
 
-    if (
-      !requestorId ||
-      !(await hasPermission(requestor, 'changeUserRehireableStatus')) ||
-      !(await canRequestorUpdateUser(requestorId, userId))
-    ) {
+    const isAuthorized = await canChangeRehireableStatus(requestor, requestorId, userId);
+    if (!isAuthorized) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
 
@@ -2240,34 +2302,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       const requestorProfile = await UserProfile.findById(requestorId).select(
         'email firstName lastName',
       );
-      if (!requestorProfile) return res.status(404).send({ error: 'Requestor not found' });
-
-      const currentReason = currentUser.notRehireableReason || '';
-      const shouldLogReason =
-        !isRehireable && (currentUser.isRehireable !== false || currentReason !== reason);
-      const update = {
-        $set: {
-          isRehireable,
-          // Keep older reasons in history while clearing the active reason on rehire.
-          notRehireableReason: isRehireable ? '' : reason,
-        },
-      };
-
-      if (shouldLogReason) {
-        update.$push = {
-          notRehireableReasonHistory: {
-            action: currentUser.isRehireable === false && currentReason ? 'edited' : 'submitted',
-            reason,
-            changedAt: new Date(),
-            changedBy: {
-              userId: requestorProfile._id,
-              username: requestorProfile.email,
-              firstName: requestorProfile.firstName,
-              lastName: requestorProfile.lastName,
-            },
-          },
-        };
+      if (!requestorProfile) {
+        return res.status(404).send({ error: 'Requestor not found' });
       }
+
+      const update = createRehireableStatusUpdate(
+        currentUser,
+        isRehireable,
+        reason,
+        requestorProfile,
+      );
 
       const updatedUser = await UserProfile.findByIdAndUpdate(userId, update, {
         new: true,
@@ -2275,22 +2319,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       });
       if (!updatedUser) return res.status(404).send({ error: 'User not found' });
 
-      cache.removeCache(`user-${userId}`);
-      if (cache.hasCache('allusers')) {
-        const allUserData = JSON.parse(cache.getCache('allusers') || '[]');
-        const userIdx = Array.isArray(allUserData)
-          ? allUserData.findIndex((user) => String(user._id) === String(userId))
-          : -1;
-        if (userIdx >= 0) {
-          allUserData[userIdx] = {
-            ...allUserData[userIdx],
-            isRehireable: updatedUser.isRehireable,
-            notRehireableReason: updatedUser.notRehireableReason,
-            notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
-          };
-          cache.setCache('allusers', JSON.stringify(allUserData));
-        }
-      }
+      syncRehireableStatusCache(userId, updatedUser);
 
       auditIfProtectedAccountUpdated({
         requestorId,
