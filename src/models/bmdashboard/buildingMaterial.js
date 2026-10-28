@@ -9,6 +9,9 @@ const buildingMaterial = new Schema({
   stockUsed: { type: Number, default: 0 }, // total amount of item used successfully in the project
   stockWasted: { type: Number, default: 0 }, // total amount of item wasted/ruined/lost in the project
   stockAvailable: { type: Number, default: 0 }, // bought - (used + wasted)
+  stockHold: { type: Boolean, default: false },
+  isReviewed: { type: Boolean, default: false },
+  notes: { type: String, default: '' },
   purchaseRecord: [
     {
       date: { type: Date, default: Date.now() },
