@@ -32,6 +32,12 @@ const buildingEquipment = new Schema({
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
+      lastUsedBy: String,
+      lastUsedFor: String,
+      replacementRequired: { type: String, enum: ['yes', 'no', ''] },
+      replacementReason: String,
+      description: String,
+      notes: String,
     },
   ],
   logRecord: [

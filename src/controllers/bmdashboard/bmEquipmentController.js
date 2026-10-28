@@ -284,6 +284,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       lastUsedBy,
       lastUsedFor,
       replacementRequired,
+      replacementReason,
       description,
       notes,
       createdBy,
@@ -305,6 +306,21 @@ const bmEquipmentController = (BuildingEquipment) => {
         });
       }
 
+      if (replacementRequired && !['yes', 'no'].includes(replacementRequired)) {
+        return res.status(400).send({
+          error: 'replacementRequired must be either "yes" or "no".',
+        });
+      }
+
+      if (
+        replacementRequired === 'yes' &&
+        (typeof replacementReason !== 'string' || !replacementReason.trim())
+      ) {
+        return res.status(400).send({
+          error: 'A replacement reason is required when replacement is requested.',
+        });
+      }
+
       const updateRecord = {
         date: new Date(),
         createdBy: new mongoose.Types.ObjectId(createdBy),
@@ -312,11 +328,10 @@ const bmEquipmentController = (BuildingEquipment) => {
         lastUsedBy: lastUsedBy || '',
         lastUsedFor: lastUsedFor || '',
         replacementRequired: replacementRequired || '',
+        replacementReason: replacementRequired === 'yes' ? replacementReason.trim() : '',
         description: description || '',
         notes: notes || '',
       };
-
-      console.log('Adding update record:', updateRecord);
 
       // Update the equipment with new status
       const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
