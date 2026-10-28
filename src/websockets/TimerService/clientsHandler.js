@@ -285,7 +285,12 @@ const handleMessage = async (msg, clients, userId) => {
   if (resp === null) resp = client;
 
   const timerResponse = JSON.parse(JSON.stringify(resp));
-  if (msg.action === action.STOP_TIMER && msg.requestId) {
+  // Echoing requestId back for any action (not just STOP_TIMER) lets the client build a
+  // general request/response confirmation - e.g. GET_TIMER needs this too, to resync with
+  // the server's current state right before logging time, so a stale tab can tell whether
+  // its own session was already stopped/logged elsewhere instead of trusting a local flag
+  // that may not have caught up yet.
+  if (msg.requestId) {
     timerResponse.requestId = msg.requestId;
   }
 
