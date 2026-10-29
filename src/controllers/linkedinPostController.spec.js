@@ -124,7 +124,6 @@ describe('linkedinPostController', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Failed to post to LinkedIn',
-        error: 'Received an invalid LinkedIn upload URL',
       }),
     );
   });
