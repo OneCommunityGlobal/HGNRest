@@ -4,6 +4,7 @@ const moment = require('moment');
 const Timer = require('../../models/timer');
 const TimelogTracking = require('../../models/timelogTracking');
 const logger = require('../../startup/logger');
+const { startRun, closeOpenRun, clearRuns, resolveRuns } = require('./sessionRuns');
 
 const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
@@ -70,7 +71,9 @@ const logTimelogEvent = (userId, eventType) => {
 };
 
 const startTimer = async (client) => {
-  client.startAt = moment.utc();
+  const now = new Date();
+  startRun(client, now);
+  client.startAt = moment.utc(now);
   client.paused = false;
   if (!client.started) {
     client.started = true;
@@ -85,6 +88,7 @@ const startTimer = async (client) => {
 const pauseTimer = async (client, forced = false) => {
   if (client.paused) return;
 
+  closeOpenRun(client);
   client.time = updatedTimeSinceStart(client);
   if (client.time === 0) client.chiming = true;
   client.startAt = moment.invalid(); // invalid can not be saved in database
@@ -109,6 +113,7 @@ const ackForcedPause = (client) => {
 
 const stopTimer = async (client) => {
   if (client.started) await pauseTimer(client);
+  clearRuns(client);
   client.startAt = moment.invalid();
   client.started = false;
   client.pause = false;
@@ -192,6 +197,12 @@ const removeGoal = (client, msg) => {
     .toFixed();
 };
 
+// The runs let the client split a session that crosses midnight into one entry per day.
+const withSessionRuns = (client) => ({
+  ...(typeof client.toObject === 'function' ? client.toObject() : client),
+  sessionRuns: resolveRuns(client),
+});
+
 const handleMessage = async (msg, clients, userId) => {
   // if (!clients.has(userId)) {
   //   throw new Error('It should have this user in memory');
@@ -254,7 +265,9 @@ const handleMessage = async (msg, clients, userId) => {
   clients.set(userId, client);
   if (resp === null) resp = client;
 
-  const timerResponse = JSON.parse(JSON.stringify(resp));
+  const timerResponse = JSON.parse(
+    JSON.stringify(resp === client ? withSessionRuns(client) : resp),
+  );
   if (msg.action === action.STOP_TIMER && msg.requestId) {
     timerResponse.requestId = msg.requestId;
   }
