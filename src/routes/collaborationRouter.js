@@ -1,6 +1,11 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
-const upload = require('../middleware/multerMiddleware');
+const { jobApplicationUploadMiddleware } = require('../middleware/jobApplicationUploadMiddleware');
+const {
+  jobApplicationIpLimiter,
+  jobApplicationEmailLimiter,
+} = require('../middleware/jobApplicationRateLimit');
+const { jobApplicationBotGuard } = require('../middleware/jobApplicationBotGuard');
 
 const router = express.Router();
 
@@ -18,8 +23,17 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 // Get all responses of a form
 router.get('/jobforms/:formId/responses', formController.getFormResponses);
 
-// Submit a job application (public — resume + per-question file uploads)
-router.post('/jobforms/:formId/responses', upload.any(), formController.submitFormResponse);
+// Submit a job application (public — resume + per-question file uploads, size/type limited)
+// Order matters: IP limit before the upload is parsed, then bot checks and the per-email limit
+// once the body (honeypot, fillMs, email) is available.
+router.post(
+  '/jobforms/:formId/responses',
+  jobApplicationIpLimiter,
+  jobApplicationUploadMiddleware,
+  jobApplicationBotGuard,
+  jobApplicationEmailLimiter,
+  formController.submitFormResponse,
+);
 
 // Question management routes
 router.post('/jobforms/:formId/questions', formController.addQuestion);
