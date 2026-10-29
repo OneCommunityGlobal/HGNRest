@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const TaskCommentSchema = new mongoose.Schema({
   taskId: {
     type: String,
-    ref: 'StudentTask',
+    ref: 'StudentTasks',
     required: true,
   },
   userId: {
