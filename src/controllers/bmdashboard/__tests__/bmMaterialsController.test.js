@@ -799,41 +799,40 @@ describe('bmMaterialsController', () => {
   });
 
   describe('bmupdatePurchaseStatus', () => {
-    // Skipping this test because the update logic in bmupdatePurchaseStatus is commented out in main
-    // it('should update purchase status to Approved and increase stock', async () => {
-    //   const mockMaterial = {
-    //     purchaseRecord: [{ _id: 'purchase123', status: 'Pending' }],
-    //   };
+    it('should update purchase status to Approved and increase stock', async () => {
+      const mockMaterial = {
+        purchaseRecord: [{ _id: 'purchase123', status: 'Pending' }],
+      };
 
-    //   mockFindOne.mockResolvedValue(mockMaterial);
-    //   mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
+      mockFindOne.mockResolvedValue(mockMaterial);
+      mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
 
-    //   const req = {
-    //     body: {
-    //       purchaseId: 'purchase123',
-    //       status: 'Approved',
-    //       quantity: 30,
-    //     },
-    //   };
-    //   const res = {
-    //     status: jest.fn().mockReturnThis(),
-    //     send: jest.fn(),
-    //   };
+      const req = {
+        body: {
+          purchaseId: 'purchase123',
+          status: 'Approved',
+          quantity: 30,
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
 
-    //   await controller.bmupdatePurchaseStatus(req, res);
+      await controller.bmupdatePurchaseStatus(req, res);
 
-    //   expect(mockFindOne).toHaveBeenCalledWith({ 'purchaseRecord._id': 'purchase123' });
-    //   expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-    //     { 'purchaseRecord._id': 'purchase123' },
-    //     {
-    //       $set: { 'purchaseRecord.$.status': 'Approved' },
-    //       $inc: { stockBought: 30 },
-    //     },
-    //     { new: true },
-    //   );
-    //   expect(res.status).toHaveBeenCalledWith(200);
-    //   expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
-    // });
+      expect(mockFindOne).toHaveBeenCalledWith({ 'purchaseRecord._id': 'purchase123' });
+      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': 'purchase123' },
+        {
+          $set: { 'purchaseRecord.$.status': 'Approved' },
+          $inc: { stockBought: 30 },
+        },
+        { new: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith('Purchase approved successfully');
+    });
 
     it('should return 400 if purchaseId is invalid', async () => {
       const req = {
