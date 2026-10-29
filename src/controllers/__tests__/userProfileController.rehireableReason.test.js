@@ -132,14 +132,40 @@ describe('userProfileController rehireable reason persistence', () => {
     ['empty', ''],
     ['whitespace only', '   '],
     ['non-string', 42],
-  ])('stores an empty reason when Not Rehireable with %s reason', async (_label, reason) => {
-    const body = { isRehireable: false };
-    if (reason !== undefined) body.notRehireableReason = reason;
+  ])(
+    'returns 400 and does not update when Not Rehireable with %s reason',
+    async (_label, reason) => {
+      const body = { isRehireable: false };
+      if (reason !== undefined) body.notRehireableReason = reason;
 
-    const { res, set } = await patchAndGetSet(body);
+      const { res } = await patchAndGetSet(body);
 
-    expect(set).toEqual({ isRehireable: false, notRehireableReason: '' });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(MockUserProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  test('accepts a single non-whitespace character', async () => {
+    const { res, set } = await patchAndGetSet({ isRehireable: false, notRehireableReason: ' x ' });
+
+    expect(set).toEqual({ isRehireable: false, notRehireableReason: 'x' });
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('does not require a reason when marking Rehireable', async () => {
+    const { res, set } = await patchAndGetSet({ isRehireable: true });
+
+    expect(set).toEqual({ isRehireable: true, notRehireableReason: '' });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('returns 403 rather than 400 for an unauthorized invalid-reason request', async () => {
+    mockHasPermission.mockResolvedValue(false);
+
+    const { res } = await patchAndGetSet({ isRehireable: false, notRehireableReason: '  ' });
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(MockUserProfile.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   test('returns 403 and does not update when permission is missing', async () => {

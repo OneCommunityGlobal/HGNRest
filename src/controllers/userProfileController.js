@@ -2230,6 +2230,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
 
+    if (isRehireable === false && !notRehireableReason) {
+      return res
+        .status(400)
+        .send({ error: 'A reason is required to mark a user as not rehireable' });
+    }
+
     // Invalidate the cache for this user
     cache.removeCache(`user-${userId}`);
 
