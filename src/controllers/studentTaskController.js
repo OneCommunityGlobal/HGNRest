@@ -4,6 +4,25 @@ const EducationTask = require('../models/educationTask');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const config = require('../config');
 
+const validateUploadFile = (file) => {
+  const MAX_SIZE = 10 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    return 'File size exceeds 10 MB limit';
+  }
+  const allowedMimeTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'text/plain',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+  ];
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.';
+  }
+  return null;
+};
+
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
     const grouped = {};
@@ -322,29 +341,8 @@ const studentTaskController = function () {
       let uploadedUrl = null;
       if (req.file) {
         const { file } = req;
-        // if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
-        // Validate file size (max 10MB)
-        const MAX_SIZE = 10 * 1024 * 1024;
-        if (file.size > MAX_SIZE) {
-          return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
-        }
-
-        // Validate file type
-        const allowedMimeTypes = [
-          'application/pdf',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-          'text/plain',
-          'image/jpeg',
-          'image/png',
-          'image/gif',
-        ];
-
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-          return res
-            .status(400)
-            .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
-        }
+        const fileError = validateUploadFile(file);
+        if (fileError) return res.status(400).json({ message: fileError });
 
         const blobName = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
         uploadedUrl = await uploadFileToAzureBlobStorage(file, blobName);

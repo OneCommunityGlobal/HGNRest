@@ -14,6 +14,35 @@ const toObjectId = (value) => {
   return new mongoose.Types.ObjectId(trimmed);
 };
 
+const validateTaskUpdateDetails = (name, suggestedTotalHours) => {
+  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+    return 'Name must be a nonempty string';
+  }
+  if (
+    suggestedTotalHours !== undefined &&
+    (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0)
+  ) {
+    return 'Suggested total hours must be a finite, nonnegative number';
+  }
+  return null;
+};
+
+const validateTaskUpdateState = (type, status) => {
+  if (type) {
+    const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
+    if (!validTaskTypes.includes(type)) {
+      return `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`;
+    }
+  }
+  if (status) {
+    const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
+    if (!validStatuses.includes(status)) {
+      return `Invalid status. Must be one of: ${validStatuses.join(', ')}`;
+    }
+  }
+  return null;
+};
+
 const educationTaskController = () => {
   /**
    * Get all education tasks (admin/educator)
@@ -275,18 +304,8 @@ const educationTaskController = () => {
       const task = await EducationTask.findById(id);
       if (!task) return res.status(404).json({ error: 'Task not found' });
 
-      if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
-        return res.status(400).json({ error: 'Name must be a nonempty string' });
-      }
-
-      if (
-        suggestedTotalHours !== undefined &&
-        (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0)
-      ) {
-        return res
-          .status(400)
-          .json({ error: 'Suggested total hours must be a finite, nonnegative number' });
-      }
+      const detailsError = validateTaskUpdateDetails(name, suggestedTotalHours);
+      if (detailsError) return res.status(400).json({ error: detailsError });
 
       // Validate atoms
       if (atomIds && atomIds.length > 0) {
@@ -296,25 +315,8 @@ const educationTaskController = () => {
         }
       }
 
-      // Validate type
-      if (type) {
-        const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
-        if (!validTaskTypes.includes(type)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` });
-        }
-      }
-
-      // Validate status
-      if (status) {
-        const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
-        if (!validStatuses.includes(status)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
-        }
-      }
+      const stateError = validateTaskUpdateState(type, status);
+      if (stateError) return res.status(400).json({ error: stateError });
 
       // Update completedAt if status is being changed to completed
       let { completedAt } = task;
