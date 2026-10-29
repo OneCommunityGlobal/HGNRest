@@ -1,5 +1,10 @@
 const axios = require('axios');
 const schedule = require('node-schedule');
+const {
+  getLinkedInCredentials,
+  publishingErrorStatus,
+  logPublishingError,
+} = require('../utilities/socialMediaCredentials');
 
 const summarizeMediaFiles = (mediaFiles = []) =>
   mediaFiles.map(({ originalname, mimetype, size }) => ({
@@ -33,7 +38,8 @@ const validateScheduleTime = (scheduleTime) => {
   return { scheduledDateTime };
 };
 
-const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessToken) => {
+const publishToLinkedIn = async (content, mediaFiles, expectedOrganizationUrn) => {
+  const { organizationUrn, accessToken } = getLinkedInCredentials(expectedOrganizationUrn);
   const uploadedAssets = await Promise.all(
     (mediaFiles || []).map(async (file) => {
       const isVideo = file.mimetype.includes('video');
@@ -56,6 +62,7 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
           },
         },
         {
+          maxRedirects: 0,
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
@@ -72,6 +79,9 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
       const uploadHostname = parsedUploadUrl.hostname.toLowerCase();
       const isTrustedLinkedInUploadHost =
         parsedUploadUrl.protocol === 'https:' &&
+        !parsedUploadUrl.username &&
+        !parsedUploadUrl.password &&
+        !parsedUploadUrl.port &&
         (uploadHostname.endsWith('.linkedin.com') || uploadHostname.endsWith('.licdn.com'));
 
       if (!isTrustedLinkedInUploadHost) {
@@ -79,6 +89,7 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
       }
 
       await axios.put(parsedUploadUrl.toString(), file.buffer, {
+        maxRedirects: 0,
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': file.mimetype,
@@ -116,6 +127,7 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
   };
 
   const response = await axios.post('https://api.linkedin.com/v2/ugcPosts', postData, {
+    maxRedirects: 0,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -127,20 +139,15 @@ const publishToLinkedIn = async (content, mediaFiles, organizationUrn, accessTok
 };
 
 const createScheduledJob = (
-  jobId,
-  content,
-  scheduledDateTime,
-  mediaFiles,
-  organizationUrn,
-  accessToken,
+  { jobId, content, scheduledDateTime, mediaFiles, organizationUrn },
   scheduledJobs,
 ) =>
   schedule.scheduleJob(scheduledDateTime, async () => {
     try {
-      await publishToLinkedIn(content, mediaFiles, organizationUrn, accessToken);
+      await publishToLinkedIn(content, mediaFiles, organizationUrn);
       scheduledJobs.delete(jobId);
     } catch (error) {
-      console.error('Scheduled LinkedIn post failed:', error.response?.data || error.message);
+      logPublishingError('Scheduled LinkedIn post failed:', error);
     }
   });
 
@@ -161,11 +168,10 @@ const linkedinPostController = () => {
         scheduledPosts,
       });
     } catch (error) {
-      console.error('Error getting scheduled posts:', error);
+      logPublishingError('Error getting scheduled LinkedIn posts:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to get scheduled posts',
-        error: error.message,
       });
     }
   };
@@ -174,7 +180,6 @@ const linkedinPostController = () => {
     try {
       const { content, scheduleTime } = req.body;
       const mediaFiles = normalizeMediaFiles(req.files || []);
-      const { ORGANIZATION_URN: organizationUrn, LINKEDIN_ACCESS_TOKEN: accessToken } = process.env;
 
       if (!content) {
         return res.status(400).json({
@@ -183,12 +188,8 @@ const linkedinPostController = () => {
         });
       }
 
-      if (!organizationUrn || !accessToken) {
-        return res.status(400).json({
-          success: false,
-          message: 'Missing required environment variables.',
-        });
-      }
+      // Validate configuration now; scheduled callbacks resolve the current token at delivery time.
+      const { organizationUrn } = getLinkedInCredentials();
 
       const { scheduledDateTime, error } = validateScheduleTime(scheduleTime);
       if (error) {
@@ -201,12 +202,7 @@ const linkedinPostController = () => {
       if (scheduledDateTime) {
         const jobId = `linkedin-post-${Date.now()}`;
         const job = createScheduledJob(
-          jobId,
-          content,
-          scheduledDateTime,
-          mediaFiles,
-          organizationUrn,
-          accessToken,
+          { jobId, content, scheduledDateTime, mediaFiles, organizationUrn },
           scheduledJobs,
         );
 
@@ -215,6 +211,7 @@ const linkedinPostController = () => {
           content,
           scheduleTime: scheduledDateTime,
           mediaFiles,
+          organizationUrn,
         });
 
         return res.status(200).json({
@@ -225,18 +222,17 @@ const linkedinPostController = () => {
         });
       }
 
-      await publishToLinkedIn(content, mediaFiles, organizationUrn, accessToken);
+      await publishToLinkedIn(content, mediaFiles);
 
       return res.status(200).json({
         success: true,
         message: 'Posted successfully to LinkedIn',
       });
     } catch (error) {
-      console.error('LinkedIn post error:', error.response?.data || error.message);
-      return res.status(error.response?.status || 500).json({
+      logPublishingError('LinkedIn post failed:', error);
+      return res.status(publishingErrorStatus(error)).json({
         success: false,
-        message: error.response?.data?.message || 'Failed to post to LinkedIn',
-        error: error.response?.data || error.message,
+        message: 'Failed to post to LinkedIn',
       });
     }
   };
@@ -267,7 +263,6 @@ const linkedinPostController = () => {
   const updateScheduledPost = (req, res) => {
     const { jobId } = req.params;
     const { content, scheduleTime } = req.body;
-    const { ORGANIZATION_URN: organizationUrn, LINKEDIN_ACCESS_TOKEN: accessToken } = process.env;
 
     if (!scheduledJobs.has(jobId)) {
       return res.status(404).json({
@@ -287,6 +282,15 @@ const linkedinPostController = () => {
       });
     }
 
+    try {
+      getLinkedInCredentials(previousJob.organizationUrn);
+    } catch (configurationError) {
+      logPublishingError('LinkedIn schedule configuration failed:', configurationError);
+      return res
+        .status(publishingErrorStatus(configurationError))
+        .json({ success: false, message: 'LinkedIn publishing is not configured.' });
+    }
+
     if (previousJob.job) {
       previousJob.job.cancel();
     }
@@ -297,12 +301,13 @@ const linkedinPostController = () => {
         : previousJob.mediaFiles || [];
     const nextContent = content || previousJob.content;
     const job = createScheduledJob(
-      jobId,
-      nextContent,
-      scheduledDateTime,
-      mediaFiles,
-      organizationUrn,
-      accessToken,
+      {
+        jobId,
+        content: nextContent,
+        scheduledDateTime,
+        mediaFiles,
+        organizationUrn: previousJob.organizationUrn,
+      },
       scheduledJobs,
     );
 
@@ -311,6 +316,7 @@ const linkedinPostController = () => {
       content: nextContent,
       scheduleTime: scheduledDateTime,
       mediaFiles,
+      organizationUrn: previousJob.organizationUrn,
     });
 
     return res.status(200).json({

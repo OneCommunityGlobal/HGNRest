@@ -148,6 +148,38 @@ describe('mastodonScheduleJob', () => {
     expect(store.docs[0].status).toBe('posted');
   });
 
+  it('uses a rotated server token at delivery time', async () => {
+    useStore([duePost()]);
+    process.env.MASTODON_ACCESS_TOKEN = 'rotated-worker-token';
+    axios.post.mockResolvedValue({ data: { id: '1' } });
+    await job.processScheduledPosts();
+    expect(axios.post.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer rotated-worker-token' }),
+        maxRedirects: 0,
+      }),
+    );
+  });
+
+  it.each([401, 429])(
+    'does not persist or log provider credential echoes on %i',
+    async (status) => {
+      useStore([duePost()]);
+      axios.post.mockRejectedValue(
+        Object.assign(new Error('Bearer PRIVATE_WORKER_SENTINEL'), {
+          response: { status, data: { error: 'PRIVATE_WORKER_SENTINEL' } },
+          config: { headers: { Authorization: 'PRIVATE_WORKER_SENTINEL' } },
+        }),
+      );
+      await job.processScheduledPosts();
+      expect(store.docs[0].status).toBe(status === 429 ? 'pending' : 'failed');
+      expect(JSON.stringify([store.docs, console.error.mock.calls])).not.toContain(
+        'PRIVATE_WORKER_SENTINEL',
+      );
+      expect(store.docs[0].lastError).toBeTruthy();
+    },
+  );
+
   it('publishes once when the minute callback runs again while a post is in flight', async () => {
     useStore([duePost()]);
     let finishFirstPost;
@@ -299,7 +331,9 @@ describe('mastodonScheduleJob', () => {
 
       expect(axios.post).toHaveBeenCalledTimes(1);
       expect(store.docs[0].status).toBe('failed');
-      expect(store.docs[0].lastError).toBe('Server error');
+      expect(store.docs[0].lastError).toBe(
+        'Mastodon delivery failed; check publishing configuration and provider status',
+      );
     },
   );
 
