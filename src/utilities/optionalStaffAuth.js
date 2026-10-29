@@ -19,7 +19,7 @@ const isAuthenticatedRequest = (req) => {
   try {
     const payload = jwtVerificationLogic(authHeader, sink);
     return Boolean(payload && payload !== sink && payload.userid && payload.role);
-  } catch (error) {
+  } catch {
     // Any failure while verifying means the caller is treated as anonymous.
     return false;
   }
