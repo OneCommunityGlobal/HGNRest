@@ -2024,7 +2024,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
         previousEndDate:
           user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
-            user.inactiveReason === InactiveReason.SEPARATED
+          user.inactiveReason === InactiveReason.SEPARATED
             ? user.endDate
             : null,
       };
@@ -2212,6 +2212,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
     const { isRehireable } = req.body;
+    const notRehireableReason =
+      isRehireable === false && typeof req.body.notRehireableReason === 'string'
+        ? req.body.notRehireableReason.trim()
+        : '';
     const canEditProtectedAccount = await canRequestorUpdateUser(
       req.body.requestor.requestorId,
       userId,
@@ -2226,12 +2230,18 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
 
+    if (isRehireable === false && !notRehireableReason) {
+      return res
+        .status(400)
+        .send({ error: 'A reason is required to mark a user as not rehireable' });
+    }
+
     // Invalidate the cache for this user
     cache.removeCache(`user-${userId}`);
 
     UserProfile.findByIdAndUpdate(
       userId,
-      { $set: { isRehireable } },
+      { $set: { isRehireable, notRehireableReason } },
       { new: true },
       // eslint-disable-next-line no-unused-vars
       (error, updatedUser) => {
@@ -2245,6 +2255,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           const userIdx = allUserData.findIndex((users) => users._id === userId);
           const userData = allUserData[userIdx];
           userData.isRehireable = isRehireable;
+          userData.notRehireableReason = notRehireableReason;
           allUserData.splice(userIdx, 1, userData);
           cache.setCache('allusers', JSON.stringify(allUserData));
         }
@@ -2265,6 +2276,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           res.status(200).send({
             message: 'Rehireable status updated and verified successfully',
             isRehireable: verifiedUser.isRehireable,
+            notRehireableReason: verifiedUser.notRehireableReason || '',
           });
         });
       },
@@ -2578,10 +2590,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         manuallyAssigned: true,
         manuallyAssignedBy: requestorProfile
           ? {
-            firstName: requestorProfile.firstName,
-            lastName: requestorProfile.lastName,
-            userId: requestorId,
-          }
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
           : undefined,
         // Initialize empty edit history
         editedBy: [],
@@ -2796,28 +2808,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const query = match[1]
         ? {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              $and: [
-                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-              ],
-            },
-          ],
-        }
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
         : {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-          ],
-        };
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 
