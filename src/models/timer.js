@@ -13,6 +13,15 @@ const timerSchema = new Schema({
   paused: { type: Boolean, default: false },
   forcedPause: { type: Boolean, default: false },
   started: { type: Boolean, default: false },
+  // Stretches the timer actually counted down in the current session, used to split a
+  // session that crosses midnight into one time entry per day.
+  runs: [
+    {
+      _id: false,
+      startedAt: { type: Date, required: true },
+      endedAt: { type: Date, default: null },
+    },
+  ],
 });
 
 module.exports = mongoose.model("newTimer", timerSchema, "newTimers");
