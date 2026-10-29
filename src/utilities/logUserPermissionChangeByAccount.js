@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define */
 const moment = require('moment-timezone');
 const UserPermissionChangeLog = require('../models/userPermissionChangeLog');
+const roleModel = require('../models/role');
 const UserProfile = require('../models/userProfile');
 
 const findLatestRelatedLog = (userId) =>
@@ -18,49 +19,75 @@ const findLatestRelatedLog = (userId) =>
 
 //
 
+const checkPermissionArray = (permArray) => (Array.isArray(permArray) ? permArray : []);
+
 const logUserPermissionChangeByAccount = async (req, user) => {
-  const { permissions, requestor } = req.body;
+  const { permissions, requestor, previousRole, newRole } = req.body;
   const dateTime = moment().tz('America/Los_Angeles').format();
+  let reason = "User's permissions modified.";
 
   try {
     if (!permissions || !requestor?.requestorId) {
       return;
     }
 
-    const Permissions = Array.isArray(permissions.frontPermissions)
-      ? permissions.frontPermissions
-      : [];
-    const { userId } = req.params;
-
+    const roles = await roleModel.find({}).lean();
     // Fetch requestor email (may be null if requestor deleted)
     const requestorDoc = await UserProfile.findById(requestor.requestorId)
       .select('email')
       .lean()
       .exec();
     const requestorEmail = requestorDoc?.email ?? 'unknown';
-
-    const { firstName, lastName } = user;
     let permissionsAdded = [];
     let permissionsRemoved = [];
+    const roleChanged = newRole !== previousRole;
+    if (roleChanged) reason = `Role Changed to **${newRole}** from **${previousRole}**.`;
+    const { userId } = req.params;
+    const Permissions = checkPermissionArray(permissions.frontPermissions);
+    const removedPermissions = checkPermissionArray(permissions.removedDefaultPermissions); // removed default permissions
+    const newRolePermissions = roles?.find(({ roleName }) => roleName === newRole).permissions;
+    const rolePermissions = checkPermissionArray(newRolePermissions); // default permissions for user provided by their role
+    const changedPermissions = [...Permissions, ...removedPermissions];
+
+    // Use the user object passed from controller (already fetched)
+    const { firstName, lastName } = user;
 
     const document = await findLatestRelatedLog(userId);
 
     if (document) {
-      const docPermissions = Array.isArray(document.permissions) ? document.permissions : [];
-      // const sortedDoc = [...docPermissions].sort();
-      const sortedDoc = [...docPermissions].sort((a, b) => a.localeCompare(b));
-      // const sortedCurrent = [...Permissions].sort();
-      const sortedCurrent = [...Permissions].sort((a, b) => a.localeCompare(b));
-      if (JSON.stringify(sortedDoc) === JSON.stringify(sortedCurrent)) {
+      const docPermissions = checkPermissionArray(document.permissions);
+      const docRemovedRolePermissions = checkPermissionArray(document.removedRolePermissions);
+      const docSavedChanges = [...docPermissions, ...docRemovedRolePermissions];
+      const sortedSaved = [...docSavedChanges].sort((a, b) => a.localeCompare(b));
+      const sortedChanged = [...changedPermissions].sort((a, b) => a.localeCompare(b));
+      // no new changes in permissions list from last update and no role change
+      if (
+        sortedSaved.length === sortedChanged.length &&
+        sortedSaved.every((value, index) => value === sortedChanged[index]) &&
+        !roleChanged
+      ) {
         return;
       }
-      permissionsRemoved = docPermissions.filter((item) => !Permissions.includes(item));
-      permissionsAdded = Permissions.filter((item) => !docPermissions.includes(item));
+
+      const updatedRemovedPermissions = removedPermissions.filter(
+        (item) => !docRemovedRolePermissions.includes(item),
+      );
+      const removedUserAddedPermissions = docPermissions.filter(
+        (item) => !Permissions.includes(item) && !rolePermissions.includes(item),
+      ); // removed user added permissions
+      const updatedAddedPermissions = Permissions.filter((item) => !docPermissions.includes(item));
+      const readdedUserRemovedPermissions = docRemovedRolePermissions.filter(
+        (item) => !removedPermissions.includes(item) && rolePermissions.includes(item),
+      );
+      permissionsRemoved = [...updatedRemovedPermissions, ...removedUserAddedPermissions];
+      permissionsAdded = [...updatedAddedPermissions, ...readdedUserRemovedPermissions];
     } else {
       permissionsAdded = Permissions;
+      permissionsRemoved = removedPermissions; // adds removed default permissions to permissionsRemoved for inital log
     }
 
-    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0) {
+    // no permission added nor removed nor role change
+    if (permissionsRemoved.length === 0 && permissionsAdded.length === 0 && !roleChanged) {
       return;
     }
 
@@ -69,9 +96,11 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       userId,
       individualName: `INDIVIDUAL: ${firstName} ${lastName}`,
       permissions: Permissions,
+      removedRolePermissions: removedPermissions,
       permissionsAdded,
       permissionsRemoved,
       requestorRole: requestor.role,
+      reason,
       requestorEmail,
     });
 
