@@ -211,19 +211,19 @@ const promotionEligibilityController = function (
           : ['Owner', 'Administrator', PROMOTED_ROLE];
 
       // Only include users who have completed the questionnaire.
-const questionnaireResponses = await FormResponse.find({}, 'user_id').lean();
-const questionnaireUserIds = questionnaireResponses
-  .map((response) => response.user_id)
-  .filter(Boolean);
+      const questionnaireResponses = await FormResponse.find({}, 'user_id').lean();
+      const questionnaireUserIds = questionnaireResponses
+        .map((response) => response.user_id)
+        .filter(Boolean);
 
-const users = await UserProfile.find(
-  {
-    _id: { $in: questionnaireUserIds },
-    isActive: true,
-    role: { $nin: excludedRoles },
-  },
-  '_id firstName lastName weeklycommittedHours createdDate role',
-).lean();
+      const users = await UserProfile.find(
+        {
+          _id: { $in: questionnaireUserIds },
+          isActive: true,
+          role: { $nin: excludedRoles },
+        },
+        '_id firstName lastName weeklycommittedHours createdDate role',
+      ).lean();
 
       // Group membership is derived from the reviewer's name rather than stored,
       // so the filter happens here in memory. Doing it before the per-reviewer
