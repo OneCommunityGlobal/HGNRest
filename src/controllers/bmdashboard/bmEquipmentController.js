@@ -288,14 +288,17 @@ const bmEquipmentController = (BuildingEquipment) => {
       description,
       notes,
     } = req.body;
-    // Prefer the authenticated requestor over a client-supplied createdBy
-    const createdBy = req.body.requestor?.requestorId || req.body.createdBy;
+    const createdBy = req.user?.requestorId;
 
     try {
+      if (!createdBy) {
+        return res.status(401).send({ error: 'Authentication required.' });
+      }
+
       // Validate required fields
-      if (!condition || !createdBy) {
+      if (!condition) {
         return res.status(400).send({
-          error: 'Condition and createdBy are required fields.',
+          error: 'Condition is a required field.',
         });
       }
 

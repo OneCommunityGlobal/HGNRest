@@ -280,6 +280,10 @@ describe('bmEquipmentController', () => {
       const createdBy = '507f191e810c19729de860ea';
       const updatedEquipment = { _id: equipmentId, updateRecord: [] };
 
+      beforeEach(() => {
+        mockReq.user = { requestorId: createdBy, role: 'User' };
+      });
+
       const mockStatusUpdate = () => {
         const mockPopulate = jest.fn().mockResolvedValue(updatedEquipment);
         mockBuildingEquipment.findByIdAndUpdate.mockReturnValue({ populate: mockPopulate });
@@ -337,23 +341,54 @@ describe('bmEquipmentController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(200);
       });
 
-      it('records the authenticated requestor instead of a client-supplied createdBy', async () => {
-        const requestorId = '507f191e810c19729de860eb';
+      it('uses the authenticated requestor for an authorized status update', async () => {
         mockReq.params.equipmentId = equipmentId;
         mockReq.body = {
           condition: 'Good',
           createdBy,
-          requestor: { requestorId },
+          replacementRequired: 'no',
+        };
+        mockStatusUpdate();
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        const update = mockBuildingEquipment.findByIdAndUpdate.mock.calls[0][1];
+        expect(update.$push.updateRecord.createdBy.toString()).toBe(createdBy);
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('ignores a spoofed createdBy and requestor in the request body', async () => {
+        const spoofedId = '507f191e810c19729de860eb';
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = {
+          condition: 'Good',
+          createdBy: spoofedId,
+          requestor: { requestorId: spoofedId },
           replacementRequired: 'no',
         };
         mockBuildingEquipment.findByIdAndUpdate.mockImplementation((id, update) => {
-          expect(update.$push.updateRecord.createdBy.toString()).toBe(requestorId);
+          expect(update.$push.updateRecord.createdBy.toString()).toBe(createdBy);
           return { populate: jest.fn().mockResolvedValue(updatedEquipment) };
         });
 
         await controller.updateEquipmentStatus(mockReq, mockRes);
 
         expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('rejects a missing authenticated identity even when the body supplies createdBy', async () => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = {
+          condition: 'Good',
+          createdBy,
+          replacementRequired: 'no',
+        };
+        delete mockReq.user;
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(401);
+        expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
       });
 
       it('populates usage history so the response can drive the last-user summary', async () => {
