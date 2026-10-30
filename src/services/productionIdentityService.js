@@ -18,7 +18,11 @@ const buildVerifyUrl = () => {
   const { apiBaseUrl, verifyPath } = productionIdentityConfig;
   if (!apiBaseUrl) return null;
   const path = verifyPath.startsWith('/') ? verifyPath : `/${verifyPath}`;
-  return `${apiBaseUrl}${path}`;
+  if (!URL.canParse(path, apiBaseUrl)) return null;
+
+  const url = new URL(path, apiBaseUrl);
+  // Production credentials must never be sent to an unencrypted endpoint.
+  return url.protocol === 'https:' ? url.toString() : null;
 };
 
 const mapLoginFailureToReason = (status, body = {}) => {
@@ -99,10 +103,15 @@ const verifyViaRemoteProductionApi = async (email, password, fetchFn = defaultFe
     const body = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401 || response.status >= 500) {
+        return { ok: false, reason: REASON.PRODUCTION_UNAVAILABLE, retryable: true };
+      }
       return {
         ok: false,
-        reason: body.reason || mapLoginFailureToReason(response.status, body),
-        retryable: response.status >= 500,
+        reason: Object.values(REASON).includes(body.reason)
+          ? body.reason
+          : mapLoginFailureToReason(response.status, body),
+        retryable: false,
       };
     }
 
@@ -140,7 +149,7 @@ const verifyProductionCredentials = async (
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  if (!isProductionIdentityEnforcementActive() || !productionIdentityConfig.apiBaseUrl) {
+  if (!isProductionIdentityEnforcementActive()) {
     return validateCredentialsLocally(normalizedEmail, password, userProfileModel);
   }
 
