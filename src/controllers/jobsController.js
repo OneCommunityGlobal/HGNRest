@@ -8,6 +8,14 @@ const { stripHtml } = require('../utilities/htmlContentSanitizer');
 
 const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
+/** Posted date from a Mongo ObjectId (creation time encoded in the id). */
+const datePostedFromId = (id) => {
+  if (id && typeof id.getTimestamp === 'function') {
+    return id.getTimestamp();
+  }
+  return new Date(parseInt(String(id).substring(0, 8), 16) * 1000);
+};
+
 const parseCategory = (category) => {
   if (!category) return [];
 
@@ -272,17 +280,24 @@ const updateJob = async (req, res) => {
     return res.status(400).json({ error: 'Update operators are not allowed' });
   }
 
-  // Never let an update request clear the posted date - fall back to now if missing.
+  // Never let an update request clear the posted date.
   if (!update.datePosted) {
     delete update.datePosted;
+  } else {
+    const parsed = new Date(update.datePosted);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ error: 'Invalid datePosted' });
+    }
+    update.datePosted = parsed;
   }
 
   try {
     const existingJob = await Job.findById(id).lean();
     if (!existingJob) return res.status(404).json({ error: 'Job not found' });
 
+    // Align with backfillJobDatePosted: use creation time from _id, not "now".
     if (!existingJob.datePosted && !update.datePosted) {
-      update.datePosted = new Date();
+      update.datePosted = datePostedFromId(existingJob._id);
     }
 
     if (typeof update.description === 'string') {
