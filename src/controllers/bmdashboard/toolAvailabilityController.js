@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 
 const { ObjectId } = mongoose.Types;
+
+// Date-only strings (YYYY-MM-DD) parse to midnight UTC, which excludes every record
+// timestamped later that same day. Extend date-only endDate values to the last instant
+// of the day; explicit timestamps (e.g. with a T component) are left as-is.
+function resolveEndDate(dateString) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const endOfDay = new Date(dateString);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    return endOfDay;
+  }
+  return new Date(dateString);
+}
+
 const toolAvailabilityController = function (ToolAvailability) {
   const getToolsAvailability = async (req, res) => {
     try {
@@ -20,7 +33,7 @@ const toolAvailabilityController = function (ToolAvailability) {
         dateFilter = {
           date: {
             $gte: new Date(startDate),
-            $lte: new Date(endDate),
+            $lte: resolveEndDate(endDate),
           },
         };
       } else if (startDate) {
@@ -31,7 +44,7 @@ const toolAvailabilityController = function (ToolAvailability) {
       } else if (endDate) {
         // If only end date is provided, use it as upper bound
         dateFilter = {
-          date: { $lte: new Date(endDate) },
+          date: { $lte: resolveEndDate(endDate) },
         };
       }
       // If no dates are provided, don't filter by date at all
