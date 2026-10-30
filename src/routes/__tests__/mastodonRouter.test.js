@@ -1,6 +1,5 @@
 const express = require('express');
 const request = require('supertest');
-
 jest.mock('../../utilities/permissions', () => ({ hasPermission: jest.fn() }));
 jest.mock('../../models/mastodonSchedule', () => ({
   create: jest.fn(),
@@ -18,7 +17,8 @@ const buildApp = () => {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    req.body = { ...(req.body || {}), requestor: { requestorId: 'user-1', role: 'Administrator' } };
+    req.user = { requestorId: 'user-1', role: 'Administrator' };
+    req.body = { ...(req.body || {}), requestor: req.user };
     next();
   });
   app.use('/api', mastodonRouter);
@@ -58,8 +58,8 @@ describe('mastodonRouter', () => {
 
       expect(res.status).toBe(500);
       expect(consoleError).toHaveBeenCalledWith(
-        'Mastodon permission check failed:',
-        'database unavailable',
+        'Social-media publishing permission check failed:',
+        { status: 500 },
       );
       expect(MastodonSchedule.find).not.toHaveBeenCalled();
       consoleError.mockRestore();
