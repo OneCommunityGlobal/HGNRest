@@ -337,6 +337,77 @@ describe('bmEquipmentController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(200);
       });
 
+      it('records the authenticated requestor instead of a client-supplied createdBy', async () => {
+        const requestorId = '507f191e810c19729de860eb';
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = {
+          condition: 'Good',
+          createdBy,
+          requestor: { requestorId },
+          replacementRequired: 'no',
+        };
+        mockBuildingEquipment.findByIdAndUpdate.mockImplementation((id, update) => {
+          expect(update.$push.updateRecord.createdBy.toString()).toBe(requestorId);
+          return { populate: jest.fn().mockResolvedValue(updatedEquipment) };
+        });
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it('populates usage history so the response can drive the last-user summary', async () => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = { condition: 'Good', createdBy, replacementRequired: 'no' };
+        const mockPopulate = mockStatusUpdate();
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        const config = mockPopulate.mock.calls[0][0];
+        const logRecord = config.find((item) => item.path === 'logRecord');
+        expect(logRecord.populate).toEqual(
+          expect.arrayContaining([expect.objectContaining({ path: 'responsibleUser' })]),
+        );
+        expect(config.find((item) => item.path === 'updateRecord').populate.path).toBe('createdBy');
+      });
+
+      it('rejects an invalid replacementRequired value', async () => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = { condition: 'Good', createdBy, replacementRequired: 'maybe' };
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+      });
+
+      it('rejects a whitespace-only replacement reason', async () => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = {
+          condition: 'Good',
+          createdBy,
+          replacementRequired: 'yes',
+          replacementReason: '   ',
+        };
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+      });
+
+      it('returns 404 when the equipment does not exist', async () => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = { condition: 'Good', createdBy, replacementRequired: 'no' };
+        mockBuildingEquipment.findByIdAndUpdate.mockReturnValue({
+          populate: jest.fn().mockResolvedValue(null),
+        });
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(404);
+      });
+
       it('rejects a missing replacement reason', async () => {
         mockReq.params.equipmentId = equipmentId;
         mockReq.body = { condition: 'Working well', createdBy, replacementRequired: 'yes' };

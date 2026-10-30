@@ -287,8 +287,9 @@ const bmEquipmentController = (BuildingEquipment) => {
       replacementReason,
       description,
       notes,
-      createdBy,
     } = req.body;
+    // Prefer the authenticated requestor over a client-supplied createdBy
+    const createdBy = req.body.requestor?.requestorId || req.body.createdBy;
 
     try {
       // Validate required fields
@@ -342,20 +343,7 @@ const bmEquipmentController = (BuildingEquipment) => {
           },
         },
         { new: true },
-      ).populate([
-        {
-          path: 'itemType',
-          select: '_id name description unit imageUrl category',
-        },
-        {
-          path: 'project',
-          select: 'name',
-        },
-        {
-          path: 'updateRecord.createdBy',
-          select: '_id firstName lastName',
-        },
-      ]);
+      ).populate(equipmentPopulateConfig);
 
       if (!updatedEquipment) {
         return res.status(404).send({ error: 'Equipment not found.' });
