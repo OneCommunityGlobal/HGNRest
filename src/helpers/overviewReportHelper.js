@@ -1623,8 +1623,7 @@ const overviewReportHelper = function () {
       const newVolunteers = data[0].newVolunteers[0]?.count || 0;
       const deactivatedVolunteers = data[0].deactivatedVolunteers[0]?.count || 0;
 
-      // Note: totalVolunteers includes overlapping counts (e.g., new volunteers are also in activeVolunteers)
-      const totalVolunteers = activeVolunteers + mentors + newVolunteers + deactivatedVolunteers;
+      const totalVolunteers = activeVolunteers + deactivatedVolunteers;
 
       return {
         activeVolunteers,
@@ -1810,7 +1809,7 @@ const overviewReportHelper = function () {
       const activeMentors = data[0].activeMentors[0]?.count || 0;
       const newMentors = data[0].newMentors[0]?.count || 0;
       const deactivatedMentors = data[0].deactivatedMentors[0]?.count || 0;
-      const totalMentors = activeMentors + newMentors + deactivatedMentors;
+      const totalMentors = activeMentors + deactivatedMentors;
 
       return {
         activeMentors,
