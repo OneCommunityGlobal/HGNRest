@@ -11,89 +11,6 @@ const currentWarningsController = function (currentWarnings) {
     return !/^[a-zA-Z][a-zA-Z0-9,+-]*(?: [a-zA-Z0-9,+-]+)*$/.test(warning);
   };
 
-  const addMissingOrderValues = async (warnings) => {
-    const updates = [];
-    warnings.forEach((warning, index) => {
-      if (warning.order === null || warning.order === undefined || warning.order === -1) {
-        updates.push({
-          updateOne: {
-            filter: { _id: warning._id },
-            update: { $set: { order: index } },
-          },
-        });
-      }
-    });
-
-    if (updates.length > 0) {
-      await currentWarnings.bulkWrite(updates);
-    }
-    // only updates warnings missing an order value
-    return warnings.map((warning, index) => ({
-      ...warning,
-      order:
-        warning.order === null || warning.order === undefined || warning.order === -1
-          ? index
-          : warning.order,
-    }));
-  };
-
-  const addMissingOrderSequence = async (warnings) => {
-    // only updates warnings missing a orderSequence
-    const updates = [];
-    warnings.forEach((warning, index) => {
-      if (
-        warning.orderSequence === null ||
-        warning.orderSequence === undefined ||
-        warning.orderSequence === -1
-      ) {
-        updates.push({
-          updateOne: {
-            filter: { _id: warning._id },
-            update: { $set: { orderSequence: index } },
-          },
-        });
-      }
-    });
-
-    if (updates.length > 0) {
-      await currentWarnings.bulkWrite(updates);
-    }
-    // removes orderSequence from warnings to avoid being sent to frontend
-    return warnings.map(({ orderSequence, ...warning }) => warning);
-  };
-
-  const addMissingDescriptions = async (warnings) => {
-    const updates = [];
-    warnings.forEach((warning) => {
-      if (
-        warning.description === null ||
-        warning.description === undefined ||
-        warning.description === -1
-      ) {
-        updates.push({
-          updateOne: {
-            filter: { _id: warning._id },
-            update: { $set: { description: 'No description provided yet' } },
-          },
-        });
-      }
-    });
-
-    if (updates.length > 0) {
-      await currentWarnings.bulkWrite(updates);
-    }
-    // only updates warnings missing a description
-    return warnings.map((warning) => ({
-      ...warning,
-      description:
-        warning.description === null ||
-        warning.description === undefined ||
-        warning.description === -1
-          ? 'No description provided yet'
-          : warning.description,
-    }));
-  };
-
   const getCurrentWarnings = async (req, res) => {
     try {
       const response = await currentWarnings.find({}).sort({ order: 1 }).lean();
@@ -102,29 +19,8 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ message: 'No records', response: response });
       }
 
-      const missingOrder = response.some(
-        (warning) => warning.order === null || warning.order === undefined || warning.order === -1,
-      );
-      const warningsWithOrder = missingOrder ? await addMissingOrderValues(response) : response;
-      const missingOrderSequence = warningsWithOrder.some(
-        (warning) =>
-          warning.orderSequence === null ||
-          warning.orderSequence === undefined ||
-          warning.orderSequence === -1,
-      );
-      const warningsWithOrderSequence = missingOrderSequence
-        ? await addMissingOrderSequence(warningsWithOrder)
-        : warningsWithOrder.map(({ orderSequence, ...warning }) => warning);
-      const missingDescription = warningsWithOrderSequence.some(
-        (warning) =>
-          warning.description === null ||
-          warning.description === undefined ||
-          warning.description === -1,
-      );
-      const updatedWarnings = missingDescription
-        ? await addMissingDescriptions(warningsWithOrderSequence)
-        : warningsWithOrderSequence;
-      return res.status(200).send({ currentWarningDescriptions: updatedWarnings });
+      const warnings = response.map(({ orderSequence, ...warning }) => warning);
+      return res.status(200).send({ currentWarningDescriptions: warnings });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -156,7 +52,7 @@ const currentWarningsController = function (currentWarnings) {
 
       // DB check
       const warning = await currentWarnings.exists({
-        warningTitle: normalizedWarningTitle,
+        normalizedWarningTitle,
       });
 
       if (warning) {
@@ -172,15 +68,25 @@ const currentWarningsController = function (currentWarnings) {
 
           await new currentWarnings({
             warningTitle: trimmedWarning,
+            normalizedWarningTitle,
             activeWarning,
             isPermanent,
             order: newOrderSequence,
             orderSequence: newOrderSequence,
             ...(cleanedDescription && { description: cleanedDescription }),
           }).save();
+          setOutdatedWarningsFlag();
           break;
         } catch (error) {
           console.log('got concurrent request');
+          // Returns a fail if concurrent requests involve same general title when lowercased
+          if (error.keyPattern?.normalizedWarningTitle) {
+            return res.status(409).send({
+              message:
+                'Another warning was just made with this title. Please try another name. (Provided title will be made lowercase for queries)',
+            });
+          }
+
           // reattempt for concurrent warning tracker creation requests up to 3 times
           if (error.code === 11000 && attempt < 2) {
             console.log('attempt count: ', attempt);
@@ -225,7 +131,7 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       // Check if the new warning title already exists
-      if (await currentWarnings.exists({ warningTitle: normalizedWarningTitle })) {
+      if (await currentWarnings.exists({ normalizedWarningTitle })) {
         return res
           .status(400)
           .send({ error: 'Warning already exists, please try a different name' });
@@ -239,6 +145,7 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       warning.warningTitle = trimmedWarning;
+      warning.normalizedWarningTitle = normalizedWarningTitle;
 
       await warning.save();
       setOutdatedWarningsFlag();
