@@ -1,6 +1,6 @@
 const ApplicationAccess = require('../../models/applicationAccess');
 
-async function upsertAppAccess(userId, appName, status, credentials) {
+async function upsertAppAccess(userId, appName, status, credentials, teamFolderKey = null) {
   let appAccess = await ApplicationAccess.findOne({ userId });
 
   if (!appAccess) {
@@ -13,6 +13,7 @@ async function upsertAppAccess(userId, appName, status, credentials) {
     app.status = status;
     app.invitedOn = new Date();
     app.credentials = credentials;
+    app.teamFolderKey = teamFolderKey;
     app.revokedOn = null;
     app.failedReason = null;
   } else {
@@ -21,6 +22,7 @@ async function upsertAppAccess(userId, appName, status, credentials) {
       status,
       invitedOn: new Date(),
       credentials,
+      teamFolderKey,
     });
   }
 
@@ -69,6 +71,7 @@ async function getAppAccess(userId, appName) {
   return {
     status: app.status,
     credentials: app.credentials,
+    teamFolderKey: app.teamFolderKey,
     invitedOn: app.invitedOn,
     revokedOn: app.revokedOn,
     failedReason: app.failedReason,
