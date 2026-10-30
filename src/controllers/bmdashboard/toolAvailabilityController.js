@@ -1,5 +1,6 @@
-const { ObjectId } = require('mongoose').Types;
+const mongoose = require('mongoose');
 
+const { ObjectId } = mongoose.Types;
 const toolAvailabilityController = function (ToolAvailability) {
   const getToolsAvailability = async (req, res) => {
     try {

@@ -1,4 +1,5 @@
-const { cleanHtml } = require('../htmlContentSanitizer');
+const cheerio = require('cheerio');
+const { cleanHtml, stripHtml } = require('../htmlContentSanitizer');
 
 describe('htmlContentSanitizer', () => {
   it('should sanitize HTML content', () => {
@@ -54,5 +55,105 @@ describe('htmlContentSanitizer', () => {
     const dirtyHtml = '<p style="color:red;" onclick="alert(\'xss\')">Test</p>';
     const clean = cleanHtml(dirtyHtml);
     expect(clean).toBe('<p>Test</p>');
+  });
+});
+
+describe('stripHtml', () => {
+  it('removes markup while preserving readable block boundaries', () => {
+    const dirty = '<p>Hello <strong>world</strong></p><ul><li>One</li><li>Two</li></ul>';
+
+    expect(stripHtml(dirty)).toBe('Hello world\nOne\nTwo');
+  });
+
+  it('removes script content while preserving readable entities', () => {
+    const dirty = '<script>alert("xss")</script><p>Safe &amp; sound; 2 &lt; 3</p>';
+
+    expect(stripHtml(dirty)).toBe('Safe & sound; 2 < 3');
+  });
+
+  it('keeps encoded tags from becoming HTML markup', () => {
+    const outputs = [
+      stripHtml('&lt;img src=x onerror=alert(1)&gt;'),
+      stripHtml('&#60;img src=x onerror=alert(1)&#62;'),
+      stripHtml('&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;'),
+      stripHtml('&amp;lt;img&amp;gt;'),
+      stripHtml('&lt;img src=x&amp;gt;'),
+    ];
+
+    expect(outputs).toEqual([
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;/p>&lt;img src=x onerror=alert(1)>',
+      '&lt;img&gt;',
+      '&lt;img src=x&gt;',
+    ]);
+    outputs.forEach((output) => {
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
+  });
+
+  it('keeps double- and triple-encoded onerror tags from becoming markup', () => {
+    const outputs = [
+      stripHtml('&amp;lt;img src=x onerror=alert(1)&amp;gt;'),
+      stripHtml('&amp;amp;lt;img src=x onerror=alert(1)&amp;amp;gt;'),
+      stripHtml('&amp;#x3c;img src=x onerror=alert(1)&amp;#x3e;'),
+    ];
+
+    expect(outputs).toEqual([
+      '&lt;img src=x onerror=alert(1)&gt;',
+      '&amp;lt;img src=x onerror=alert(1)&amp;gt;',
+      '&#x3c;img src=x onerror=alert(1)&#x3e;',
+    ]);
+    outputs.forEach((output) => {
+      expect(output).not.toMatch(/<(?=\/|[a-z!?])/i);
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
+  });
+
+  it('escapes numeric and hex encoded tags after one decode', () => {
+    const outputs = [
+      stripHtml('&#x3c;img src=x onerror=alert(1)&#x3e;'),
+      stripHtml('&#X3C;img src=x onerror=alert(1)&#X3E;'),
+      stripHtml('&#x00003c;img src=x onerror=alert(1)&#x00003e;'),
+      stripHtml('&#00060;img src=x onerror=alert(1)&#00062;'),
+      stripHtml('&LT;IMG SRC=x ONERROR=alert(1)&GT;'),
+    ];
+
+    expect(outputs.slice(0, 4)).toEqual([
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+      '&lt;img src=x onerror=alert(1)>',
+    ]);
+    expect(outputs[4]).toBe('&lt;IMG SRC=x ONERROR=alert(1)>');
+    outputs.forEach((output) => {
+      expect(cheerio.load(`<body>${output}</body>`)('body').children()).toHaveLength(0);
+    });
+  });
+
+  it('strips javascript and onerror handlers with their tags', () => {
+    expect(stripHtml('<a href="javascript:alert(1)">click</a>')).toBe('click');
+    expect(stripHtml('<a href="&#106;avascript:alert(1)">click</a>')).toBe('click');
+    expect(stripHtml('<img src=x onerror=alert(1)>')).toBe('');
+    expect(stripHtml('<svg/onload=alert(1)>')).toBe('');
+    const plainScriptText = ['java', 'script:alert(1)'].join('');
+    expect(stripHtml(plainScriptText)).toBe(plainScriptText);
+  });
+
+  it('keeps comparison signs that are not tag names', () => {
+    expect(stripHtml('Must lift <50 lbs')).toBe('Must lift <50 lbs');
+    expect(stripHtml('C++ <3 Python')).toBe('C++ <3 Python');
+    expect(stripHtml('Ages 18<25 or a < b')).toBe('Ages 18<25 or a < b');
+  });
+
+  it('collapses the gap left when a non-html bracket word is removed', () => {
+    expect(stripHtml('Use the <Enter> key')).toBe('Use the key');
+  });
+
+  it('handles plain, empty, and missing values', () => {
+    expect(stripHtml('Just plain text')).toBe('Just plain text');
+    expect(stripHtml('')).toBe('');
+    expect(stripHtml(null)).toBe('');
+    expect(stripHtml(undefined)).toBe('');
   });
 });

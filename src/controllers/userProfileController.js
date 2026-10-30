@@ -1018,6 +1018,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             timeZone: 1,
             filterColor: 1,
             bioPosted: 1,
+            infringementCCList: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -2844,7 +2845,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       });
 
       distinctTeamCodes = distinctTeamCodes
-        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .map((code) => (code ? code.trim() : ''))
         .filter((code) => code !== '');
 
       if (includePRTeams) {
