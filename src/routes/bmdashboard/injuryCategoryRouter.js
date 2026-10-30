@@ -1,7 +1,9 @@
 const express = require('express');
 
 const router = express.Router();
-
+const {
+  getCategoryAnalysis,
+} = require('../../controllers/bmdashboard/injuryCategoryAnalysisController');
 const {
   getCategoryBreakdown,
   getUniqueSeverities,
@@ -13,6 +15,7 @@ const {
 const { getInjuryOverTime } = require('../../controllers/bmdashboard/injuryOverTimeController');
 
 router.get('/category-breakdown', getCategoryBreakdown);
+router.get('/category-analysis', getCategoryAnalysis);
 router.get('/injury-severities', getUniqueSeverities);
 router.get('/injury-types', getUniqueInjuryTypes);
 router.get('/project-injury', getProjectsWithInjuries);
