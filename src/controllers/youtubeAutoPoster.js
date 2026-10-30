@@ -148,6 +148,8 @@ const metadataJsonSchema = z.string().transform((value, context) => {
     }
     return metadata;
   } catch (error) {
+    // NOSONAR: The caught error is intentionally ignored because JSON.parse failure
+    // is handled by adding a custom Zod validation issue for the user.
     context.addIssue({ code: 'custom', message: 'metadata must be valid JSON' });
     return z.NEVER;
   }
