@@ -81,6 +81,7 @@ describe('userProfileController targeted coverage tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    MockUserProfile.findOne.mockReset();
 
     mockCache.getCache.mockReturnValue(null);
     mockCache.hasCache.mockReturnValue(false);
@@ -191,6 +192,31 @@ describe('userProfileController targeted coverage tests', () => {
     );
   });
 
+  test('postUserProfile requires Production verification for Administrators too', async () => {
+    mockIsProdIdentityEnforced.mockReturnValue(true);
+    const req = {
+      ip: '127.0.0.1',
+      body: {
+        requestor: { requestorId: validUserId },
+        role: 'Administrator',
+        firstName: 'Dev',
+        lastName: 'Admin',
+        email: 'admin@example.com',
+        actualEmail: 'admin@example.com',
+        actualPassword: 'some-password',
+      },
+    };
+    const res = makeRes();
+
+    await controller.postUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'production_verification' }),
+    );
+    expect(mockVerifyProdCredentials).not.toHaveBeenCalled();
+  });
+
   test('postUserProfile blocks duplicate production identity linkage', async () => {
     mockIsProdIdentityEnforced.mockReturnValue(true);
     mockVerifyToken.mockReturnValue({
@@ -215,9 +241,7 @@ describe('userProfileController targeted coverage tests', () => {
     };
     const res = makeRes();
 
-    MockUserProfile.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ _id: 'already-linked' });
+    MockUserProfile.findOne.mockResolvedValueOnce({ _id: 'already-linked' });
 
     await controller.postUserProfile(req, res);
 

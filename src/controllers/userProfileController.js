@@ -328,12 +328,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     return userByEmail;
   };
 
-  const validateBetaCredentials = async (email, password) => {
-    const { verifyProductionCredentials } = require('../services/productionIdentityService');
-    const result = await verifyProductionCredentials(email, password, UserProfile);
-    return result.ok;
-  };
-
   const applyProductionIdentityToUser = (up, identity) => {
     up.firstName = identity.firstName;
     up.lastName = identity.lastName;
@@ -1187,15 +1181,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
 
-    const userByEmail = await validateUserEmail(req.body.email);
-    if (userByEmail) {
-      res.status(400).send({
-        error: 'That email address is already in use. Please choose another email address.',
-        type: 'email',
-      });
-      return;
-    }
-
     // Production identity enforcement for new Dev accounts (Option B)
     if (isProductionIdentityEnforcementActive()) {
       const tokenResult = verifyVerificationToken(req.body.productionVerificationToken);
@@ -1252,26 +1237,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       req.body.productionUserId = identity.productionUserId;
       req.body.linkedProdEmail = String(identity.email).toLowerCase().trim();
       req.body.identityLocked = true;
-    } else if (process.env.dbName === 'hgnData_dev') {
-      // Legacy dev-only validation for Owner/Administrator when feature flag is off
-      if (req.body.role === 'Owner' || req.body.role === 'Administrator') {
-        try {
-          const isValid = await validateBetaCredentials(
-            req.body.actualEmail,
-            req.body.actualPassword,
-          );
-          if (!isValid) {
-            throw new Error('Invalid credentials');
-          }
-        } catch (error) {
-          res.status(400).send({
-            error:
-              'The actual email or password you provided is incorrect. Please enter the actual email and password associated with your account in the Main HGN app.',
-            type: 'credentials',
-          });
-          return;
-        }
-      }
+    }
+
+    // Check the verified Production email, not an untrusted email supplied before verification.
+    const userByEmail = await validateUserEmail(req.body.email);
+    if (userByEmail) {
+      res.status(400).send({
+        error: 'That email address is already in use. Please choose another email address.',
+        type: 'email',
+      });
+      return;
     }
 
     const duplicatePhoneNumberCheck = false;
