@@ -108,7 +108,9 @@ const reporthelper = function () {
           },
           bioPosted: 1,
           toggleTrophyIcon: 1,
-          startDate: 1,
+          // Aggregations bypass Mongoose defaults, so legacy profiles may not
+          // have startDate even though the model defaults it to createdDate.
+          startDate: { $ifNull: ['$startDate', '$createdDate'] },
           trophyFollowedUp: 1,
           badgeCollection: {
             $filter: {
