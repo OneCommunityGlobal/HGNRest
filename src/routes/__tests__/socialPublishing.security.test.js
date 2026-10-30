@@ -15,6 +15,7 @@ const { hasPermission } = require('../../utilities/permissions');
 const mastodonRouter = require('../mastodonRouter');
 const linkedinRoutes = require('../linkedinPostRoutes');
 const MastodonSchedule = require('../../models/mastodonSchedule');
+const { postImmediately } = require('../../controllers/mastodonPostController');
 
 function buildApp(user) {
   const app = express();
@@ -47,6 +48,27 @@ describe('publishing credentials stay behind the API boundary', () => {
   afterEach(() => {
     process.env = { ...original };
     jest.restoreAllMocks();
+  });
+
+  it('strips local Mastodon media fields without changing the stored post data', async () => {
+    const postData = Object.freeze({
+      status: 'image post',
+      visibility: 'public',
+      media_ids: ['123'],
+      local_media_base64: 'data:image/png;base64,AA',
+      local_media_url: 'https://example.com/image.png',
+      mediaAltText: 'image description',
+    });
+    axios.post.mockResolvedValue({ data: { id: 'post-1' } });
+    await postImmediately(postData);
+    expect(axios.post.mock.calls[0][1]).toEqual({
+      status: 'image post',
+      visibility: 'public',
+      media_ids: ['123'],
+    });
+    expect(postData).toHaveProperty('local_media_base64', 'data:image/png;base64,AA');
+    expect(postData).toHaveProperty('local_media_url', 'https://example.com/image.png');
+    expect(postData).toHaveProperty('mediaAltText', 'image description');
   });
 
   it.each([
@@ -214,6 +236,28 @@ describe('publishing credentials stay behind the API boundary', () => {
     'https://user:password@upload.linkedin.com/file',
     'https://upload.linkedin.com:8443/file',
     'https://attacker.example/file',
+    'https://unrelated.linkedin.com/dms-uploads/asset/0',
+    'https://media.licdn.com/dms-uploads/asset/0',
+    'https://www.linkedin.com.attacker.example/dms-uploads/asset/0',
+    'https://www.linkedin.com@attacker.example/dms-uploads/asset/0',
+    'https://attacker@www.linkedin.com/dms-uploads/asset/0',
+    'https://:password@www.linkedin.com/dms-uploads/asset/0',
+    'https://www.linkedin.com:8443/dms-uploads/asset/0',
+    'http://www.linkedin.com/dms-uploads/asset/0',
+    'https://127.0.0.1/dms-uploads/asset/0',
+    'https://[::1]/dms-uploads/asset/0',
+    'https://169.254.169.254/latest/meta-data',
+    '//www.linkedin.com/dms-uploads/asset/0',
+    'https://www.linkedin.com/redirect?url=https://attacker.example',
+    'https://api.linkedin.com/v2/ugcPosts',
+    'https://www.linkedin.com/dms-uploads/../../redirect',
+    'https://www.linkedin.com/dms-uploads/%2e%2e/redirect',
+    'https://www.linkedin.com/dms-uploads/%2f%2fattacker.example',
+    'https://www.linkedin.com/dms-uploads/asset/0#fragment',
+    'https://www.linkedin.com/dms-uploads/asset/0\n',
+    'https://www.linkedin.com\\@attacker.example/dms-uploads/asset/0',
+    null,
+    {},
     'not-a-url',
   ])('never forwards a server credential to an unsafe upload destination %s', async (uploadUrl) => {
     axios.post.mockResolvedValueOnce({
@@ -235,35 +279,53 @@ describe('publishing credentials stay behind the API boundary', () => {
     expect(JSON.stringify([res.body, errorLog.mock.calls])).not.toContain('PRIVATE_SENTINEL');
   });
 
-  it('uploads media only to a trusted HTTPS LinkedIn host, with redirects disabled', async () => {
-    axios.post
-      .mockResolvedValueOnce({
-        data: {
-          value: {
-            uploadMechanism: {
-              'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest': {
-                uploadUrl: 'https://upload.linkedin.com/file',
+  it.each([
+    [
+      'https://www.linkedin.com/dms-uploads/C5622AQHdBDflPp0pEg/feedshare-uploadedImage/0?ut=signed%2Bvalue%3D&sync=1',
+      'image/png',
+    ],
+    [
+      'https://www.linkedin.com/dms-uploads/C5605AQHAq1EzmbDx4A/uploadedVideo/0?ut=signed&sync=0',
+      'video/mp4',
+    ],
+    [
+      'https://api.linkedin.com/mediaUpload/C5F22AQEUvl4IOBjE2g/feedshare-uploadedImage/0?ut=signed',
+      'image/png',
+    ],
+  ])(
+    'uploads to the documented endpoint %s without changing the signed URL',
+    async (uploadUrl, contentType) => {
+      axios.post
+        .mockResolvedValueOnce({
+          data: {
+            value: {
+              uploadMechanism: {
+                'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest': {
+                  uploadUrl,
+                },
               },
+              asset: 'urn:li:digitalmediaAsset:123',
             },
-            asset: 'urn:li:digitalmediaAsset:123',
           },
-        },
-      })
-      .mockResolvedValueOnce({ data: { id: '123' } });
-    axios.put.mockResolvedValue({ data: {} });
-    const res = await request(app)
-      .post('/api/postToLinkedIn')
-      .field('content', 'image post')
-      .attach('media', Buffer.from('bytes'), { filename: 'test.png', contentType: 'image/png' });
-    expect(res.status).toBe(200);
-    expect(axios.post).toHaveBeenCalledTimes(2);
-    expect(axios.put).toHaveBeenCalledTimes(1);
-    for (const call of [...axios.post.mock.calls, ...axios.put.mock.calls]) {
-      expect(call[2].maxRedirects).toBe(0);
-      expect(call[2].headers.Authorization).toBe('Bearer LINKEDIN_PRIVATE_SENTINEL');
-    }
-    expect(JSON.stringify(res.body)).not.toContain('PRIVATE_SENTINEL');
-  });
+        })
+        .mockResolvedValueOnce({ data: { id: '123' } });
+      axios.put.mockResolvedValue({ data: {} });
+      const res = await request(app)
+        .post('/api/postToLinkedIn')
+        .field('content', 'image post')
+        .attach('media', Buffer.from('bytes'), { filename: 'test-media', contentType });
+      expect(res.status).toBe(200);
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(axios.put).toHaveBeenCalledTimes(1);
+      expect(axios.put.mock.calls[0][0]).toBe(uploadUrl);
+      expect(axios.put.mock.calls[0][1]).toEqual(Buffer.from('bytes'));
+      for (const call of [...axios.post.mock.calls, ...axios.put.mock.calls]) {
+        expect(call[2].maxRedirects).toBe(0);
+        expect(call[2].headers.Authorization).toBe('Bearer LINKEDIN_PRIVATE_SENTINEL');
+      }
+      expect(JSON.stringify(res.body)).not.toContain('PRIVATE_SENTINEL');
+    },
+  );
 
   it('does not reveal scheduled LinkedIn delivery failures', async () => {
     await request(app)

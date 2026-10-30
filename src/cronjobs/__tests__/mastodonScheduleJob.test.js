@@ -222,11 +222,16 @@ describe('mastodonScheduleJob', () => {
   it('does not republish when Mastodon accepts the post but recording it fails', async () => {
     useStore([duePost()]);
     axios.post.mockResolvedValue({ data: { id: '1' } });
-    MastodonSchedule.updateOne.mockRejectedValueOnce(new Error('database unavailable'));
+    MastodonSchedule.updateOne.mockRejectedValueOnce(new Error('DATABASE_PRIVATE_SENTINEL'));
 
     await job.processScheduledPosts();
     expect(axios.post).toHaveBeenCalledTimes(1);
     expect(store.docs[0].status).toBe('publishing');
+    expect(console.error).toHaveBeenCalledWith(
+      'Mastodon post was delivered but could not be recorded:',
+      { status: 500 },
+    );
+    expect(JSON.stringify(console.error.mock.calls)).not.toContain('DATABASE_PRIVATE_SENTINEL');
 
     // Later run while the claim is still held
     await job.processScheduledPosts();
