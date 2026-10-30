@@ -5,10 +5,13 @@ const express = require('express');
 const multer = require('multer');
 const {
   connectYoutubeAccount,
+  disconnectYoutubeAccount,
   getYoutubeAuthorizationUrl,
+  getYoutubeCategories,
   getYoutubeConnectionStatus,
   uploadVideo,
 } = require('../controllers/youtubeAutoPoster');
+const { attachYoutubeRequestor } = require('../middleware/attachYoutubeRequestor');
 const { requireYoutubePermission } = require('../middleware/youtubePermissionMiddleware');
 
 const BYTES_PER_KIBIBYTE = 1024;
@@ -68,13 +71,23 @@ const handleUpload = async (req, res, next) => {
 
 const router = express.Router();
 
-// Public endpoints - no permission required
-router.get('/auth-url', getYoutubeAuthorizationUrl);
-router.get('/status', getYoutubeConnectionStatus);
+// Public: Google redirects the browser here; protected by the OAuth state stored in the session
+router.get('/callback', connectYoutubeAccount);
 
-// Protected endpoints - permission check BEFORE file upload middleware
-router.post('/connect', requireYoutubePermission, connectYoutubeAccount);
-router.post('/upload', requireYoutubePermission, upload.single('video'), handleUpload);
+// Authenticated endpoints: the JWT sets req.requestor (these routes sit before global auth)
+router.get('/auth-url', attachYoutubeRequestor, getYoutubeAuthorizationUrl);
+router.get('/status', attachYoutubeRequestor, getYoutubeConnectionStatus);
+router.get('/categories', attachYoutubeRequestor, getYoutubeCategories);
+router.post('/disconnect', attachYoutubeRequestor, disconnectYoutubeAccount);
+
+// Permission check BEFORE file upload middleware
+router.post(
+  '/upload',
+  attachYoutubeRequestor,
+  requireYoutubePermission,
+  upload.single('video'),
+  handleUpload,
+);
 
 router.use((error, _req, res, next) => {
   if (!error) return next();

@@ -129,7 +129,7 @@ const youtubeMetadataSchema = z
     if (metadata.publishAt && metadata.privacyStatus !== 'private') {
       context.addIssue({
         code: 'custom',
-        path: ['privacyStatus'],
+        path: ['publishAt'],
         message: 'privacyStatus must be private when publishAt is provided',
       });
     }
@@ -148,7 +148,6 @@ const metadataJsonSchema = z.string().transform((value, context) => {
     }
     return metadata;
   } catch (error) {
-    // Expected when JSON parsing or validation fails; handled via Zod issue context
     context.addIssue({ code: 'custom', message: 'metadata must be valid JSON' });
     return z.NEVER;
   }
@@ -233,14 +232,11 @@ const getRequestorId = (req) => req.requestor?.requestorId || req.body?.requesto
 
 const createYoutubeClient = (req) => {
   const oauthClient = createOAuthClient();
-  const requestorId = getRequestorId(req);
-  const sessionCredentials =
-    requestorId && req.session?.youtubeConnectedUserId === requestorId
-      ? req.session.youtubeCredentials
-      : undefined;
+  const sessionCredentials = req.session?.youtubeCredentials?.refresh_token
+    ? req.session.youtubeCredentials
+    : undefined;
 
   if (!sessionCredentials) {
-    // Only allow authenticated user-connected accounts, not the server's fallback token
     throw new Error(
       'No connected YouTube account found. Please connect your YouTube account first.',
     );
@@ -295,7 +291,6 @@ const getYoutubeErrorMessage = (error) =>
   error.message ||
   'Failed to upload video to YouTube';
 
-// Shared error handler helper to eliminate code duplication
 const handleControllerError = (res, error) => {
   if (error instanceof z.ZodError) {
     const errors = formatZodErrors(error);
@@ -345,44 +340,74 @@ const getYoutubeAuthorizationUrl = (req, res) => {
   }
 };
 
-const connectYoutubeAccount = async (req, res) => {
-  try {
-    const { code, state } = oauthConnectionSchema.parse(req.body || {});
-    const pendingOAuth = req.session?.youtubeOAuth;
-    const requestorId = getRequestorId(req);
+const getFrontendYoutubeUrl = (status) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  return `${frontendUrl}/announcements/youtube${status ? `?youtube=${status}` : ''}`;
+};
 
+// Google redirects the browser here, so every outcome must be a redirect to the frontend, never JSON.
+const connectYoutubeAccount = async (req, res) => {
+  const redirectWithError = () => res.redirect(getFrontendYoutubeUrl('error'));
+
+  try {
+    if (req.query?.error) return redirectWithError();
+
+    const parsed = oauthConnectionSchema.safeParse({
+      code: req.query?.code,
+      state: req.query?.state,
+    });
+    if (!parsed.success) return redirectWithError();
+    const { code, state } = parsed.data;
+
+    const pendingOAuth = req.session?.youtubeOAuth;
     if (
       !pendingOAuth ||
       pendingOAuth.expiresAt <= Date.now() ||
-      pendingOAuth.userId !== requestorId ||
       !statesMatch(pendingOAuth.state, state)
     ) {
-      return res.status(400).json({
-        success: false,
-        message: 'YouTube authorization state is invalid or expired',
-      });
+      return redirectWithError();
     }
+
+    // The requestor was stored in the session by /auth-url; this request carries no JWT.
+    const requestorId = pendingOAuth.userId;
 
     delete req.session.youtubeOAuth;
     const oauthClient = createOAuthClient();
     const { tokens } = await oauthClient.getToken(code);
 
-    if (!tokens?.refresh_token) {
-      return res.status(400).json({
-        success: false,
-        message: 'YouTube did not return a refresh token; please reconnect the account',
-      });
-    }
+    if (!tokens?.refresh_token) return redirectWithError();
 
     req.session.youtubeCredentials = tokens;
     req.session.youtubeConnectedUserId = requestorId;
 
-    return res.status(200).json({
-      success: true,
-      message: 'YouTube account connected successfully',
-      connected: true,
-      expiresAt: tokens.expiry_date || null,
+    return res.redirect(getFrontendYoutubeUrl('connected'));
+  } catch (error) {
+    return redirectWithError();
+  }
+};
+
+const disconnectYoutubeAccount = (req, res) => {
+  if (req.session) {
+    delete req.session.youtubeCredentials;
+    delete req.session.youtubeConnectedUserId;
+    delete req.session.youtubeOAuth;
+  }
+  return res.status(200).json({ success: true, connected: false });
+};
+
+const getYoutubeCategories = async (req, res) => {
+  try {
+    const youtube = createYoutubeClient(req);
+    const response = await youtube.videoCategories.list({
+      part: ['snippet'],
+      regionCode: req.query?.regionCode || 'US',
     });
+
+    const categories = (response.data.items || [])
+      .filter((category) => category.snippet?.assignable !== false)
+      .map((category) => ({ id: category.id, title: category.snippet?.title }));
+
+    return res.status(200).json({ success: true, categories });
   } catch (error) {
     return handleControllerError(res, error);
   }
@@ -390,11 +415,7 @@ const connectYoutubeAccount = async (req, res) => {
 
 const getYoutubeConnectionStatus = async (req, res) => {
   try {
-    const requestorId = getRequestorId(req);
-    const credentialsBelongToRequestor =
-      Boolean(requestorId) && req.session?.youtubeConnectedUserId === requestorId;
-    const connected =
-      credentialsBelongToRequestor && Boolean(req.session?.youtubeCredentials?.refresh_token);
+    const connected = Boolean(req.session?.youtubeCredentials?.refresh_token);
 
     if (!connected) {
       return res.status(200).json({ success: true, connected: false });
@@ -412,11 +433,11 @@ const getYoutubeConnectionStatus = async (req, res) => {
       connected: true,
       account: channel
         ? {
-          channelId: channel.id,
-          channelName: channel.snippet?.title || null,
-          thumbnail: channel.snippet?.thumbnails?.default?.url || null,
-          customUrl: channel.snippet?.customUrl || null,
-        }
+            channelId: channel.id,
+            channelName: channel.snippet?.title || null,
+            thumbnail: channel.snippet?.thumbnails?.default?.url || null,
+            customUrl: channel.snippet?.customUrl || null,
+          }
         : null,
     });
   } catch (error) {
@@ -465,6 +486,8 @@ const uploadVideo = async (req, res) => {
 module.exports = {
   getYoutubeAuthorizationUrl,
   connectYoutubeAccount,
+  disconnectYoutubeAccount,
+  getYoutubeCategories,
   getYoutubeConnectionStatus,
   uploadVideo,
   normalizeUploadMetadata,
