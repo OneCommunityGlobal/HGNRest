@@ -1,8 +1,12 @@
 jest.mock('../models/applicationAccess');
 jest.mock('../models/userProfile');
+jest.mock('../services/automation/dropboxService', () => ({
+  getTeamFolderKeyForFolder: jest.fn(),
+}));
 
 const ApplicationAccess = require('../models/applicationAccess');
 const UserProfile = require('../models/userProfile');
+const dropboxService = require('../services/automation/dropboxService');
 const { getQuestionnaireAccess, REASONS } = require('./questionnaireAccessHelper');
 
 const mockLean = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
@@ -15,18 +19,76 @@ describe('getQuestionnaireAccess', () => {
     ApplicationAccess.findOne = jest.fn().mockReturnValue(
       mockLean({
         userId: 'user1',
-        apps: [{ app: 'dropbox', status: 'invited', invitedOn: 'd' }],
+        apps: [{ app: 'dropbox', status: 'invited', invitedOn: 'd', teamFolderKey: 'HGN' }],
       }),
     );
+    ApplicationAccess.updateOne = jest.fn().mockResolvedValue({});
   });
 
-  it('is eligible when the user was invited to Dropbox', async () => {
+  it('is eligible when the user was invited to the HGN Dropbox', async () => {
     await expect(getQuestionnaireAccess(requestor)).resolves.toEqual({
       eligible: true,
       reason: null,
       invitedOn: 'd',
     });
     expect(ApplicationAccess.findOne).toHaveBeenCalledWith({ userId: 'user1' });
+    expect(dropboxService.getTeamFolderKeyForFolder).not.toHaveBeenCalled();
+  });
+
+  it('is not eligible when the user was invited to the Administration Dropbox', async () => {
+    ApplicationAccess.findOne.mockReturnValue(
+      mockLean({
+        userId: 'user1',
+        apps: [{ app: 'dropbox', status: 'invited', teamFolderKey: 'ADMIN' }],
+      }),
+    );
+    const result = await getQuestionnaireAccess(requestor);
+    expect(result).toEqual({ eligible: false, reason: REASONS.NOT_HGN_TEAM_FOLDER });
+  });
+
+  it('looks up and stores the team folder for older invites', async () => {
+    ApplicationAccess.findOne.mockReturnValue(
+      mockLean({
+        userId: 'user1',
+        apps: [{ app: 'dropbox', status: 'invited', credentials: 'id:folder1', invitedOn: 'd' }],
+      }),
+    );
+    dropboxService.getTeamFolderKeyForFolder.mockResolvedValue('HGN');
+
+    const result = await getQuestionnaireAccess(requestor);
+
+    expect(result).toEqual({ eligible: true, reason: null, invitedOn: 'd' });
+    expect(dropboxService.getTeamFolderKeyForFolder).toHaveBeenCalledWith('id:folder1');
+    expect(ApplicationAccess.updateOne).toHaveBeenCalledWith(
+      { userId: 'user1', 'apps.app': 'dropbox' },
+      { $set: { 'apps.$.teamFolderKey': 'HGN' } },
+    );
+  });
+
+  it('is not eligible when an older invite is in the Administration Dropbox', async () => {
+    ApplicationAccess.findOne.mockReturnValue(
+      mockLean({
+        userId: 'user1',
+        apps: [{ app: 'dropbox', status: 'invited', credentials: 'id:folder1' }],
+      }),
+    );
+    dropboxService.getTeamFolderKeyForFolder.mockResolvedValue('ADMIN');
+
+    const result = await getQuestionnaireAccess(requestor);
+
+    expect(result).toEqual({ eligible: false, reason: REASONS.NOT_HGN_TEAM_FOLDER });
+  });
+
+  it('is not eligible when an older invite has no folder to look up', async () => {
+    ApplicationAccess.findOne.mockReturnValue(
+      mockLean({ userId: 'user1', apps: [{ app: 'dropbox', status: 'invited' }] }),
+    );
+
+    const result = await getQuestionnaireAccess(requestor);
+
+    expect(result).toEqual({ eligible: false, reason: REASONS.NOT_HGN_TEAM_FOLDER });
+    expect(dropboxService.getTeamFolderKeyForFolder).not.toHaveBeenCalled();
+    expect(ApplicationAccess.updateOne).not.toHaveBeenCalled();
   });
 
   it('is not eligible without a logged-in requestor', async () => {
