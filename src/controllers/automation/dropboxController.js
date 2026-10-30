@@ -55,6 +55,7 @@ async function createFolderAndInvite(req, res) {
         'dropbox',
         'invited',
         result.folderId,
+        teamFolderKey || dropboxService.DEFAULT_TEAM_FOLDER,
       );
 
       return res.status(201).json({
