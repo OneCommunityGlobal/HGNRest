@@ -172,9 +172,7 @@ async function recordDelivery(post, workerId, response) {
   } catch (err) {
     // The claim stays in place and expires to failed, so the post is not
     // published a second time
-    console.error(`Posted scheduled Mastodon post ${post._id} but could not record it:`, {
-      status: 'delivery-recording-failed',
-    });
+    logPublishingError('Mastodon post was delivered but could not be recorded:', err);
   }
 }
 

@@ -105,13 +105,10 @@ async function postImmediately(postData) {
   const url = `${endpoint}/api/v1/statuses`;
 
   // Remove local_media fields and mediaAltText before sending to Mastodon
-  // eslint-disable-next-line camelcase
-  const {
-    local_media_base64: _localMediaBase64,
-    local_media_url: _localMediaUrl,
-    mediaAltText: _mediaAltText,
-    ...mastodonPostData
-  } = postData;
+  const mastodonPostData = { ...postData };
+  delete mastodonPostData.local_media_base64;
+  delete mastodonPostData.local_media_url;
+  delete mastodonPostData.mediaAltText;
 
   return axios.post(url, mastodonPostData, { headers, responseType: 'json', maxRedirects: 0 });
 }

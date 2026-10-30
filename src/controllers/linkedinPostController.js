@@ -1,5 +1,6 @@
 const axios = require('axios');
 const schedule = require('node-schedule');
+const linkedinUploadUrl = require('../utilities/linkedinUploadUrl');
 const {
   getLinkedInCredentials,
   publishingErrorStatus,
@@ -75,20 +76,7 @@ const publishToLinkedIn = async (content, mediaFiles, expectedOrganizationUrn) =
           'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'
         ];
       const { asset } = registerResponse.data.value;
-      const parsedUploadUrl = new URL(uploadUrl);
-      const uploadHostname = parsedUploadUrl.hostname.toLowerCase();
-      const isTrustedLinkedInUploadHost =
-        parsedUploadUrl.protocol === 'https:' &&
-        !parsedUploadUrl.username &&
-        !parsedUploadUrl.password &&
-        !parsedUploadUrl.port &&
-        (uploadHostname.endsWith('.linkedin.com') || uploadHostname.endsWith('.licdn.com'));
-
-      if (!isTrustedLinkedInUploadHost) {
-        throw new Error('Received an invalid LinkedIn upload URL');
-      }
-
-      await axios.put(parsedUploadUrl.toString(), file.buffer, {
+      await axios.put(linkedinUploadUrl(uploadUrl), file.buffer, {
         maxRedirects: 0,
         headers: {
           Authorization: `Bearer ${accessToken}`,
