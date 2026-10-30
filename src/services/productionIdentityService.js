@@ -17,14 +17,12 @@ const REASON = {
 const buildVerifyUrl = () => {
   const { apiBaseUrl, verifyPath } = productionIdentityConfig;
   if (!apiBaseUrl) return null;
-  try {
-    const path = verifyPath.startsWith('/') ? verifyPath : `/${verifyPath}`;
-    const url = new URL(path, apiBaseUrl);
-    // Production credentials must never be sent to an unencrypted endpoint.
-    return url.protocol === 'https:' ? url.toString() : null;
-  } catch (error) {
-    return null;
-  }
+  const path = verifyPath.startsWith('/') ? verifyPath : `/${verifyPath}`;
+  if (!URL.canParse(path, apiBaseUrl)) return null;
+
+  const url = new URL(path, apiBaseUrl);
+  // Production credentials must never be sent to an unencrypted endpoint.
+  return url.protocol === 'https:' ? url.toString() : null;
 };
 
 const mapLoginFailureToReason = (status, body = {}) => {
