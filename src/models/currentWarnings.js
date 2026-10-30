@@ -9,6 +9,8 @@ const currentWarnings = new Schema({
   isSpecial: { type: Boolean },
   abbreviation: { type: String },
   order: { type: Number },
+  orderSequence: { type: Number, unique: true },
+  description: { type: String, default: 'No description provided yet' },
 });
 
 module.exports = mongoose.model('currentWarning', currentWarnings, 'currentWarnings');
