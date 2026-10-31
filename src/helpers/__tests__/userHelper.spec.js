@@ -94,6 +94,7 @@ const {
   checkIsNewUser,
   weeklyAutoReplyEmailFunction,
   assignBlueSquareForTimeNotMet,
+  resolveAutoReplyTemplate,
 } = userHelperFactory();
 
 /* =======================
@@ -1565,5 +1566,53 @@ describe('assignBlueSquareForTimeNotMet', () => {
     expect(loggerSpy).toHaveBeenCalledWith(inactiveError);
 
     loggerSpy.mockRestore();
+  });
+});
+
+describe('resolveAutoReplyTemplate', () => {
+  test('returns null when hours are met', () => {
+    expect(resolveAutoReplyTemplate(40, 40, 6, 1, true, false)).toBeNull();
+  });
+
+  test('returns MISSED_HOURS_BY_<15%', () => {
+    expect(resolveAutoReplyTemplate(36, 40, 6, 1, true, false)).toBe('MISSED_HOURS_BY_<15%');
+  });
+
+  test('returns 4TH_BLUE_SQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 4, true, false)).toBe('4TH_BLUE_SQUARE');
+  });
+
+  test('returns SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 4, true, true)).toBe(
+      'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE',
+    );
+  });
+
+  test('returns SCHEDULED_TIME_OFF', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 1, true, true)).toBe('SCHEDULED_TIME_OFF');
+  });
+
+  test('returns <2MON_THREE_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 1, 3, true, false)).toBe('<2MON_THREE_BLUESQUARE');
+  });
+
+  test('returns <1MON_TWO_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 0.5, 2, true, false)).toBe('<1MON_TWO_BLUESQUARE');
+  });
+
+  test('returns <2MON_TWO_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 1.5, 2, true, false)).toBe('<2MON_TWO_BLUESQUARE');
+  });
+
+  test('returns <1MON_ONE_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 0.5, 1, true, false)).toBe('<1MON_ONE_BLUESQUARE');
+  });
+
+  test('returns COMPLETED_HOURS_65%_84.9%', () => {
+    expect(resolveAutoReplyTemplate(30, 40, 6, 1, true, false)).toBe('COMPLETED_HOURS_65%_84.9%');
+  });
+
+  test('returns COMPLETED_HOURS_25%_64.9%', () => {
+    expect(resolveAutoReplyTemplate(20, 40, 6, 1, true, false)).toBe('COMPLETED_HOURS_25%_64.9%');
   });
 });

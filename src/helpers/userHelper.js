@@ -935,10 +935,6 @@ const userHelper = function () {
         );
       }
 
-      if (!emailConfig.targetUserId) {
-        await deleteOldTimeOffRequests();
-      }
-
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -1519,7 +1515,12 @@ const userHelper = function () {
       return hasTimeOff ? 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE' : '4TH_BLUE_SQUARE';
     }
 
-    // Priorities 4–7: early-team-member patterns.
+    // Priority 4: Scheduled Time Off
+    if (hasTimeOff && hasTodayBlueSquare) {
+      return 'SCHEDULED_TIME_OFF';
+    }
+
+    // Priorities 5–8: early-team-member patterns.
     // Only applies when a blue square was received today, no time off,
     // and not a near/medium miss (those have their own emails below).
     if (hasTodayBlueSquare && !hasTimeOff && !nearMiss && !mediumMiss) {
@@ -3687,6 +3688,7 @@ const userHelper = function () {
     getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
+    resolveAutoReplyTemplate,
   };
 };
 
