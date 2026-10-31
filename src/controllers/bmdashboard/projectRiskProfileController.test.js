@@ -1,8 +1,11 @@
+// v1.1.0
 jest.mock('../../models/bmdashboard/projectRiskProfile');
 jest.mock('../../models/bmdashboard/Issues');
+jest.mock('../../models/bmdashboard/projectRiskObservation');
 
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const Issue = require('../../models/bmdashboard/Issues');
+const Observation = require('../../models/bmdashboard/projectRiskObservation');
 const controller = require('./projectRiskProfileController');
 
 const mockRes = () => {
@@ -27,6 +30,7 @@ const baseProfile = (overrides = {}) => ({
 describe('projectRiskProfileController.getRiskProfileSummary - issue counts', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Observation.find.mockReturnValue({ sort: () => leanResult([]) });
     Issue.findById.mockReturnValue(leanResult({ projectName: 'Project X' }));
   });
 
@@ -108,5 +112,39 @@ describe('projectRiskProfileController.getRiskProfileSummary - issue counts', ()
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'db down' });
+  });
+
+  test('forecasts on-budget spending at half of planned duration', async () => {
+    const now = Date.now();
+    ProjectRiskProfile.find.mockReturnValue(
+      leanResult([
+        baseProfile({
+          status: 'active',
+          startDate: new Date(now - 50 * 86400000),
+          endDate: new Date(now + 50 * 86400000),
+        }),
+      ]),
+    );
+    Issue.find.mockReturnValue(leanResult([]));
+    const res = mockRes();
+    await controller.getRiskProfileSummary({ query: {} }, res);
+    expect(res.json.mock.calls[0][0][0].predictedCostOverrun).toBeCloseTo(0, 2);
+  });
+
+  test('active overdue projects continue to accrue delay', async () => {
+    const now = Date.now();
+    ProjectRiskProfile.find.mockReturnValue(
+      leanResult([
+        baseProfile({
+          status: 'active',
+          startDate: new Date(now - 120 * 86400000),
+          endDate: new Date(now - 20 * 86400000),
+        }),
+      ]),
+    );
+    Issue.find.mockReturnValue(leanResult([]));
+    const res = mockRes();
+    await controller.getRiskProfileSummary({ query: {} }, res);
+    expect(res.json.mock.calls[0][0][0].predictedTimeDelay).toBeCloseTo(120, 2);
   });
 });
