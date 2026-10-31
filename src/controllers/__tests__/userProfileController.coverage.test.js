@@ -383,4 +383,89 @@ describe('userProfileController targeted coverage tests', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ message: 'status updated' });
   });
+
+  test('putUserProfile returns 403 when requestor cannot edit a protected account', async () => {
+    mockCanRequestorUpdateUser.mockResolvedValue(false);
+    const req = {
+      params: { userId: validUserId },
+      body: { requestor: { requestorId: 'other-id' } },
+    };
+    const res = makeRes();
+
+    await controller.putUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).toHaveBeenCalledWith('You are not authorized to update this user');
+    expect(MockUserProfile.findById).not.toHaveBeenCalled();
+  });
+
+  test('toggleUserBioPosted returns 403 when target account is protected', async () => {
+    mockCanRequestorUpdateUser.mockResolvedValue(false);
+    const req = {
+      params: { userId: validUserId },
+      body: { bioPosted: 'posted', requestor: { requestorId: 'other-id' } },
+    };
+    const res = makeRes();
+
+    await controller.toggleUserBioPosted(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Permission denied to toggle bio.' });
+  });
+
+  test('toggleUserBioPosted returns 403 when requestor lacks requestBio permission', async () => {
+    mockHasPermission.mockResolvedValue(false);
+    const req = {
+      params: { userId: validUserId },
+      body: { bioPosted: 'posted', requestor: { requestorId: 'other-id' } },
+    };
+    const res = makeRes();
+
+    await controller.toggleUserBioPosted(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Permission denied to toggle bio.' });
+  });
+
+  test('deleteUserProfile blocks deleting your own account', async () => {
+    const req = {
+      body: { userId: validUserId, option: 'delete', requestor: { requestorId: validUserId } },
+    };
+    const res = makeRes();
+
+    await controller.deleteUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).toHaveBeenCalledWith({ error: 'You cannot delete your own account' });
+  });
+
+  test('deleteUserProfile returns 400 when user does not exist', async () => {
+    MockUserProfile.findById.mockResolvedValue(null);
+    const req = {
+      body: { userId: validUserId, option: 'delete', requestor: { requestorId: 'other-id' } },
+    };
+    const res = makeRes();
+
+    await controller.deleteUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith({ error: 'Invalid user' });
+  });
+
+  test('deleteUserProfile returns 403 when target account is protected', async () => {
+    mockCanRequestorUpdateUser.mockResolvedValue(false);
+    MockUserProfile.findById.mockResolvedValue({ _id: validUserId, email: 'jae@example.com' });
+    const req = {
+      body: { userId: validUserId, option: 'delete', requestor: { requestorId: 'other-id' } },
+    };
+    const res = makeRes();
+
+    await controller.deleteUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).toHaveBeenCalledWith({
+      error: 'Only authorized users can delete protected accounts',
+    });
+    expect(mockLogger.logInfo).toHaveBeenCalled();
+  });
 });
