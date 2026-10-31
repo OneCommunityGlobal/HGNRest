@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const buildingIssue = new Schema({
-  createdDate: { type: Date, required: true, default: Date.now() },
+  createdDate: { type: Date, required: true, default: Date.now },
   issueDate: { type: Date, required: true },
   closedDate: { type: Date, default: null },
   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
@@ -11,6 +11,7 @@ const buildingIssue = new Schema({
   issueTitle: [{ type: String, required: true, maxLength: 50 }],
   issueText: [{ type: String, required: true, maxLength: 500 }],
   issueType: { type: String, required: true },
+  issueConsequences: [{ type: String }],
   imageUrl: [{ type: String }],
   projectId: { type: Schema.Types.ObjectId, ref: 'buildingProject', required: true },
   status: {

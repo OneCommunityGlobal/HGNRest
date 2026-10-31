@@ -71,9 +71,11 @@ const buildBuildingIssuePayload = (body = {}) => ({
   issueTitle: body.issueTitle,
   issueText: body.issueText,
   issueType: body.issueType,
+  issueConsequences: body.issueConsequences,
   imageUrl: body.imageUrl,
   projectId: body.projectId,
-  status: body.status,
+  status: body.status ?? (body.issueResolved === true ? 'closed' : undefined),
+  closedDate: body.status === 'closed' || body.issueResolved === true ? new Date() : undefined,
   tag: body.tag,
 });
 
@@ -382,7 +384,21 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
 
   const bmGetInjuryIssue = async (req, res) => {
     try {
-      const issues = await injuryIssue.find().populate('assignedTo', 'firstName lastName _id');
+      const [injuries, buildingIssues] = await Promise.all([
+        injuryIssue.find().populate('assignedTo', 'firstName lastName _id').lean(),
+        BuildingIssue.find().lean(),
+      ]);
+      const issues = [
+        ...injuries,
+        ...buildingIssues.map((issue) => ({
+          ...issue,
+          name: issue.issueTitle?.[0] || issue.issueText?.[0] || issue.issueType,
+          openDate: issue.issueDate,
+          category: issue.issueType,
+        })),
+      ].sort(
+        (a, b) => new Date(b.createdDate || b.openDate) - new Date(a.createdDate || a.openDate),
+      );
       return res.status(200).json(issues);
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -392,7 +408,8 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   const bmDeleteInjuryIssue = async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await injuryIssue.findByIdAndDelete(id);
+      const deleted =
+        (await injuryIssue.findByIdAndDelete(id)) || (await BuildingIssue.findByIdAndDelete(id));
       if (!deleted) {
         return res.status(404).json({ message: 'Issue not found' });
       }
@@ -409,11 +426,18 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       if (!newName) {
         return res.status(400).json({ message: 'newName is required' });
       }
-      const updated = await injuryIssue.findByIdAndUpdate(
+      const updatedInjury = await injuryIssue.findByIdAndUpdate(
         id,
         { name: newName },
         { new: true, runValidators: true },
       );
+      const updated =
+        updatedInjury ||
+        (await BuildingIssue.findByIdAndUpdate(
+          id,
+          { issueTitle: [newName] },
+          { new: true, runValidators: true },
+        ));
       if (!updated) {
         return res.status(404).json({ message: 'Issue not found' });
       }
@@ -428,7 +452,18 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       const { id } = req.params;
       const original = await injuryIssue.findById(id).lean();
       if (!original) {
-        return res.status(404).json({ message: 'Issue not found' });
+        const building = await BuildingIssue.findById(id).lean();
+        if (!building) {
+          return res.status(404).json({ message: 'Issue not found' });
+        }
+        const { _id, __v, ...fields } = building;
+        const title = building.issueTitle?.[0] || building.issueType;
+        const copy = await BuildingIssue.create({
+          ...fields,
+          issueTitle: [`${title.slice(0, 43)} (Copy)`],
+          createdDate: new Date(),
+        });
+        return res.status(201).json({ message: 'Copied successfully', copy });
       }
 
       const copyData = {
