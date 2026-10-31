@@ -19,6 +19,11 @@ const routes = function (BuildingEquipment) {
 
   equipmentRouter.route('/equipments/logRecords').put(controller.updateLogRecords);
 
+  equipmentRouter.put(
+    '/equipment/:equipmentId/count',
+    require('../../controllers/bmdashboard/updateInventoryCount')(BuildingEquipment, 'equipmentId'),
+  );
+
   return equipmentRouter;
 };
 

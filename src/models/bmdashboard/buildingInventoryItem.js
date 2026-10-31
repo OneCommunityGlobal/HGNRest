@@ -49,6 +49,17 @@ const smallItemBase = mongoose.model(
 const largeItemBaseSchema = mongoose.Schema({
   itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
+  count: { type: Number, min: 0 },
+  countHistory: [
+    {
+      date: { type: Date, required: true },
+      recordedAt: { type: Date, default: Date.now },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
+      condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'], required: true },
+      previousCount: Number,
+      count: { type: Number, min: 0, required: true },
+    },
+  ],
   // actual purchases (once there is a system) may need their own subdoc
   // subdoc may contain below purchaseStatus and rental fields
   // for now they have default dummy values
