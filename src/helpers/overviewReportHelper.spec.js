@@ -1,3 +1,6 @@
+const mongoose = require('mongoose');
+// eslint-disable-next-line import/no-extraneous-dependencies
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const UserProfile = require('../models/userProfile');
 const Task = require('../models/task');
 const TimeEntries = require('../models/timeentry');
@@ -245,6 +248,89 @@ describe('overviewReportHelper tests', () => {
         expect(result).toEqual({ current: 11 });
       },
     );
+  });
+
+  // Runs the real aggregation against seeded data, so the inclusion/exclusion rules are
+  // exercised by MongoDB rather than asserted on the pipeline shape. Hours are distinct
+  // powers of two so a wrong total points straight at the rule that broke.
+  describe('getTotalHoursWorked inclusion rules against real data', () => {
+    let mongoServer;
+
+    beforeAll(async () => {
+      // The library's default MongoDB 4.0 has no build for current Ubuntu CI runners, and
+      // MongoDB 7+ dropped the library's default ephemeralForTest engine, so pin both.
+      mongoServer = await MongoMemoryServer.create({
+        binary: { version: '8.0.4' },
+        instance: { storageEngine: 'wiredTiger' },
+      });
+      await mongoose.connect(mongoServer.getUri(), {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+    });
+
+    // The file-level stub makes TimeEntries.distinct return [], which would hide the
+    // "deactivated later but logged time in the period" rule. Query the seeded data instead.
+    beforeEach(() => TimeEntries.distinct.mockRestore());
+
+    afterAll(async () => {
+      await mongoose.disconnect();
+      await mongoServer?.stop();
+    });
+
+    it('matches the leaderboard rules and keeps hours of users deactivated later', async () => {
+      const volunteerId = new mongoose.Types.ObjectId();
+      const zeroCommitmentMentorId = new mongoose.Types.ObjectId();
+      const deactivatedLaterId = new mongoose.Types.ObjectId();
+      const deactivatedOnlyDeletedEntryId = new mongoose.Types.ObjectId();
+      const deactivatedOutsideRangeId = new mongoose.Types.ObjectId();
+
+      const inactiveVolunteer = (_id) => ({
+        _id,
+        isActive: false,
+        role: 'Volunteer',
+        weeklycommittedHours: 10,
+      });
+      await mongoose.connection
+        .collection('userProfiles')
+        .insertMany([
+          { _id: volunteerId, isActive: true, role: 'Volunteer', weeklycommittedHours: 10 },
+          { _id: zeroCommitmentMentorId, isActive: true, role: 'Mentor', weeklycommittedHours: 0 },
+          inactiveVolunteer(deactivatedLaterId),
+          inactiveVolunteer(deactivatedOnlyDeletedEntryId),
+          inactiveVolunteer(deactivatedOutsideRangeId),
+        ]);
+
+      const entry = (personId, hours, overrides = {}) => ({
+        personId,
+        dateOfWork: '2026-09-01',
+        totalSeconds: hours * 3600,
+        entryType: 'default',
+        isActive: true,
+        ...overrides,
+      });
+      const legacyEntryWithoutIsActive = entry(volunteerId, 32);
+      delete legacyEntryWithoutIsActive.isActive;
+
+      await mongoose.connection.collection('timeEntries').insertMany([
+        entry(volunteerId, 1), // included: default entry
+        entry(volunteerId, 2, { entryType: 'person' }), // included
+        entry(volunteerId, 4, { entryType: 'team' }), // included
+        entry(volunteerId, 8, { entryType: 'project' }), // included
+        entry(volunteerId, 16, { isActive: false }), // excluded: inactive entry
+        legacyEntryWithoutIsActive, // included: missing isActive is not "false"
+        entry(volunteerId, 64, { dateOfWork: '2026-08-29' }), // excluded: before range
+        entry(volunteerId, 128, { dateOfWork: '2026-09-06' }), // excluded: after range
+        entry(zeroCommitmentMentorId, 256), // included: 0-hr mentors count like the leaderboard
+        entry(deactivatedLaterId, 512), // included: deactivated later, logged time in range
+        entry(deactivatedOnlyDeletedEntryId, 1024, { isActive: false }), // excluded: deleted entry
+        entry(deactivatedOutsideRangeId, 2048, { dateOfWork: '2026-08-29' }), // excluded: out of range
+      ]);
+
+      const result = await overviewReportHelper().getTotalHoursWorked('2026-08-30', '2026-09-05');
+
+      expect(result).toEqual({ current: 1 + 2 + 4 + 8 + 32 + 256 + 512 });
+    });
   });
 });
 
