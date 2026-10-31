@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 const moment = require('moment');
+const { Types } = require('mongoose');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const Expenditures = require('../../models/bmdashboard/buildingExpenditure');
 
 const COST_BREAKDOWN_CATEGORIES = new Set(['plumbing', 'electrical', 'structural', 'mechanical']);
@@ -41,6 +43,19 @@ const bmExpenditureController = {
   getProjectIdsWithExpenditure: async (req, res) => {
     try {
       const projectIds = await Expenditures.distinct('projectId');
+      // Resolve names from all referenced projects, including inactive projects.
+      // Keep the default IDs response compatible with existing clients.
+      if (req.query?.includeNames === 'true') {
+        const validIds = projectIds.filter((id) => Types.ObjectId.isValid(id));
+        const projects = await BuildingProject.find({ _id: { $in: validIds } })
+          .select('_id name')
+          .lean()
+          .exec();
+        const projectNames = Object.fromEntries(
+          projects.map((project) => [String(project._id), project.name]),
+        );
+        return res.status(200).json({ success: true, data: projectIds, projectNames });
+      }
       return res.status(200).json({ success: true, data: projectIds });
     } catch (err) {
       console.error('Error in getProjectIdsWithExpenditure:', err);

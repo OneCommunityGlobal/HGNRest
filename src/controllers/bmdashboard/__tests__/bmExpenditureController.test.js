@@ -1,9 +1,12 @@
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({ find: jest.fn() }));
+
 jest.mock('../../../models/bmdashboard/buildingExpenditure', () => ({
   find: jest.fn(),
   aggregate: jest.fn(),
   distinct: jest.fn(),
 }));
 
+const BuildingProject = require('../../../models/bmdashboard/buildingProject');
 const Expenditures = require('../../../models/bmdashboard/buildingExpenditure');
 const bmExpenditureController = require('../bmExpenditureController');
 
@@ -128,6 +131,29 @@ describe('bmExpenditureController', () => {
   });
 
   describe('getProjectIdsWithExpenditure', () => {
+    it('resolves names for active and inactive projects and preserves unmatched expenditure IDs', async () => {
+      const activeId = '507f1f77bcf86cd799439011';
+      const inactiveId = '507f1f77bcf86cd799439012';
+      Expenditures.distinct.mockResolvedValue([activeId, inactiveId, 'legacy-project']);
+      BuildingProject.find.mockReturnValue(
+        makeQuery([
+          { _id: activeId, name: 'Active Project' },
+          { _id: inactiveId, name: 'Completed Project' },
+        ]),
+      );
+      const res = makeRes();
+      await bmExpenditureController.getProjectIdsWithExpenditure(
+        { query: { includeNames: 'true' } },
+        res,
+      );
+      expect(BuildingProject.find).toHaveBeenCalledWith({ _id: { $in: [activeId, inactiveId] } });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [activeId, inactiveId, 'legacy-project'],
+        projectNames: { [activeId]: 'Active Project', [inactiveId]: 'Completed Project' },
+      });
+    });
+
     it('returns 200 with the distinct project ids', async () => {
       Expenditures.distinct.mockResolvedValue(['proj1', 'proj2']);
       const res = makeRes();
