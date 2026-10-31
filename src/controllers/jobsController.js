@@ -13,7 +13,7 @@ const datePostedFromId = (id) => {
   if (id && typeof id.getTimestamp === 'function') {
     return id.getTimestamp();
   }
-  return new Date(parseInt(String(id).substring(0, 8), 16) * 1000);
+  return new Date(Number.parseInt(String(id).substring(0, 8), 16) * 1000);
 };
 
 const parseCategory = (category) => {
@@ -71,8 +71,8 @@ const paginationForJobs = async (req, res) => {
   const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
     const query = buildConditions({ search, category, position });
 
@@ -163,8 +163,8 @@ const resetJobsFilters = async (req, res) => {
   const { page = 1, limit = 18 } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
     const totalJobs = await Job.countDocuments({});
     const totalPages = Math.ceil(totalJobs / limitNumber);
