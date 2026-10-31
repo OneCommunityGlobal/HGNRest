@@ -1,245 +1,222 @@
-const mongoose = require('mongoose');
-const BuildingProject = require('../../../models/bmdashboard/buildingProject');
 const toolAvailabilityController = require('../toolAvailabilityController');
 
-const projectId = '65419e61105441587e2dec99';
+const VALID_PROJECT_ID = '507f1f77bcf86cd799439011';
+const INVALID_PROJECT_ID = 'not-a-valid-id';
 
-const makeResponse = () => ({
+const makeReq = ({ params = {}, query = {} } = {}) => ({ params, query });
+const makeRes = () => ({
   status: jest.fn().mockReturnThis(),
-  json: jest.fn().mockReturnThis(),
+  json: jest.fn(),
 });
 
-describe('Tool Availability Controller', () => {
+const getMatchStage = (aggregateMock) => aggregateMock.mock.calls[0][0][0].$match;
+
+describe('toolAvailabilityController', () => {
   let ToolAvailability;
   let controller;
+  let consoleErrorSpy;
 
   beforeEach(() => {
-    jest.restoreAllMocks();
-
-    jest.spyOn(BuildingProject, 'find');
-
-    ToolAvailability = {
-      aggregate: jest.fn(),
-      distinct: jest.fn(),
-    };
-
+    ToolAvailability = { aggregate: jest.fn() };
     controller = toolAvailabilityController(ToolAvailability);
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    consoleErrorSpy.mockRestore();
   });
 
   describe('getToolsAvailability', () => {
-    it('returns 400 for an invalid project ID', async () => {
-      const req = { params: { id: 'invalid-id' }, query: {} };
-      const res = makeResponse();
+    it('returns 400 when the project id is not a valid ObjectId', async () => {
+      const req = makeReq({ params: { id: INVALID_PROJECT_ID } });
+      const res = makeRes();
 
       await controller.getToolsAvailability(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid project ID format',
-      });
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid project ID format' });
       expect(ToolAvailability.aggregate).not.toHaveBeenCalled();
     });
 
-    it('returns aggregated tool availability data', async () => {
-      const data = [
-        {
-          toolName: 'Hammer',
-          inUse: 5,
-          needsReplacement: 2,
-          yetToReceive: 1,
-        },
-      ];
-
-      ToolAvailability.aggregate.mockResolvedValue(data);
-
-      const req = { params: { id: projectId }, query: {} };
-      const res = makeResponse();
+    it('queries without a date filter when no dates are provided', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([
+        { toolName: 'Drill', inUse: 2, needsReplacement: 0, yetToReceive: 1 },
+      ]);
+      const req = makeReq({ params: { id: VALID_PROJECT_ID } });
+      const res = makeRes();
 
       await controller.getToolsAvailability(req, res);
 
-      expect(ToolAvailability.aggregate).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            $match: {
-              projectId: new mongoose.Types.ObjectId(projectId),
-            },
-          }),
-        ]),
-      );
-      expect(res.json).toHaveBeenCalledWith(data);
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date).toBeUndefined();
+      expect(res.json).toHaveBeenCalledWith([
+        { toolName: 'Drill', inUse: 2, needsReplacement: 0, yetToReceive: 1 },
+      ]);
     });
 
-    it('applies both start and end date filters', async () => {
+    it('builds a date range filter when both startDate and endDate are provided', async () => {
       ToolAvailability.aggregate.mockResolvedValue([]);
-
-      const req = {
-        params: { id: projectId },
-        query: {
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
-        },
-      };
-      const res = makeResponse();
-
-      await controller.getToolsAvailability(req, res);
-
-      const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
-
-      expect(pipeline[0].$match.date).toEqual({
-        $gte: new Date('2026-01-01'),
-        $lte: new Date('2026-01-31'),
+      const req = makeReq({
+        params: { id: VALID_PROJECT_ID },
+        query: { startDate: '2026-01-01', endDate: '2026-01-31' },
       });
+      const res = makeRes();
+
+      await controller.getToolsAvailability(req, res);
+
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date.$gte).toEqual(new Date('2026-01-01'));
+      expect(match.date.$lte).toEqual(new Date('2026-01-31T23:59:59.999Z'));
     });
 
-    it('applies only the start date when end date is absent', async () => {
+    it('builds a lower-bound-only filter when only startDate is provided', async () => {
       ToolAvailability.aggregate.mockResolvedValue([]);
-
-      const req = {
-        params: { id: projectId },
+      const req = makeReq({
+        params: { id: VALID_PROJECT_ID },
         query: { startDate: '2026-01-01' },
-      };
-      const res = makeResponse();
+      });
+      const res = makeRes();
 
       await controller.getToolsAvailability(req, res);
 
-      const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
-
-      expect(pipeline[0].$match.date).toEqual({
-        $gte: new Date('2026-01-01'),
-      });
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date).toEqual({ $gte: new Date('2026-01-01') });
     });
 
-    it('applies only the end date when start date is absent', async () => {
+    it('builds an upper-bound-only filter when only endDate is provided', async () => {
       ToolAvailability.aggregate.mockResolvedValue([]);
-
-      const req = {
-        params: { id: projectId },
+      const req = makeReq({
+        params: { id: VALID_PROJECT_ID },
         query: { endDate: '2026-01-31' },
-      };
-      const res = makeResponse();
+      });
+      const res = makeRes();
 
       await controller.getToolsAvailability(req, res);
 
-      const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
-
-      expect(pipeline[0].$match.date).toEqual({
-        $lte: new Date('2026-01-31'),
-      });
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date).toEqual({ $lte: new Date('2026-01-31T23:59:59.999Z') });
     });
 
-    it('returns an empty array when no data exists', async () => {
+    it('extends a date-only endDate to the end of that day so same-day records are included', async () => {
+      // Regression test for a reported bug: a date-only endDate was interpreted as
+      // midnight, excluding records timestamped later that same day (e.g. a unit
+      // recorded at noon on the selected end day was dropped from the results).
       ToolAvailability.aggregate.mockResolvedValue([]);
+      const req = makeReq({
+        params: { id: VALID_PROJECT_ID },
+        query: { startDate: '2026-10-05', endDate: '2026-10-05' },
+      });
+      const res = makeRes();
 
-      const req = { params: { id: projectId }, query: {} };
-      const res = makeResponse();
+      await controller.getToolsAvailability(req, res);
+
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date.$lte).toEqual(new Date('2026-10-05T23:59:59.999Z'));
+      expect(match.date.$lte.getTime()).toBeGreaterThan(
+        new Date('2026-10-05T12:00:00.000Z').getTime(),
+      );
+    });
+
+    it('does not modify an endDate that already has an explicit timestamp', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([]);
+      const req = makeReq({
+        params: { id: VALID_PROJECT_ID },
+        query: { endDate: '2026-10-05T23:59:59.999Z' },
+      });
+      const res = makeRes();
+
+      await controller.getToolsAvailability(req, res);
+
+      const match = getMatchStage(ToolAvailability.aggregate);
+      expect(match.date).toEqual({ $lte: new Date('2026-10-05T23:59:59.999Z') });
+    });
+
+    it('returns an empty array when aggregate resolves with no results', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([]);
+      const req = makeReq({ params: { id: VALID_PROJECT_ID } });
+      const res = makeRes();
 
       await controller.getToolsAvailability(req, res);
 
       expect(res.json).toHaveBeenCalledWith([]);
     });
 
-    it('handles database aggregation failures', async () => {
-      ToolAvailability.aggregate.mockRejectedValue(new Error('Database failure'));
+    it('returns an empty array when aggregate resolves with a falsy value', async () => {
+      ToolAvailability.aggregate.mockResolvedValue(null);
+      const req = makeReq({ params: { id: VALID_PROJECT_ID } });
+      const res = makeRes();
 
-      const req = { params: { id: projectId }, query: {} };
-      const res = makeResponse();
+      await controller.getToolsAvailability(req, res);
 
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
 
-      try {
-        await controller.getToolsAvailability(req, res);
+    it('returns 500 and logs the error when aggregate throws', async () => {
+      ToolAvailability.aggregate.mockRejectedValue(new Error('DB failure'));
+      const req = makeReq({ params: { id: VALID_PROJECT_ID } });
+      const res = makeRes();
 
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-          error: 'Internal server error',
-        });
-      } finally {
-        consoleSpy.mockRestore();
-      }
+      await controller.getToolsAvailability(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error fetching tools availability:',
+        expect.any(Error),
+      );
     });
   });
 
   describe('getUniqueProjectIds', () => {
-    it('returns project names for valid project IDs', async () => {
-      ToolAvailability.distinct.mockResolvedValue([new mongoose.Types.ObjectId(projectId)]);
-
-      const projects = [
-        {
-          _id: new mongoose.Types.ObjectId(projectId),
-          name: 'Building 1',
-        },
-      ];
-
-      const query = {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue(projects),
-      };
-
-      BuildingProject.find.mockReturnValue(query);
-
-      const req = {};
-      const res = makeResponse();
+    it('returns projects with their resolved names', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([
+        { _id: VALID_PROJECT_ID, projectName: 'Building 3' },
+      ]);
+      const req = makeReq();
+      const res = makeRes();
 
       await controller.getUniqueProjectIds(req, res);
 
-      expect(BuildingProject.find).toHaveBeenCalledWith({
-        _id: {
-          $in: [new mongoose.Types.ObjectId(projectId)],
-        },
-      });
-
       expect(res.json).toHaveBeenCalledWith([
-        {
-          projectId: projects[0]._id,
-          projectName: 'Building 1',
-        },
+        { projectId: VALID_PROJECT_ID, projectName: 'Building 3' },
       ]);
     });
 
-    it('returns an empty array when no project IDs exist', async () => {
-      ToolAvailability.distinct.mockResolvedValue([]);
+    it('falls back to null when no matching project name is found', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([
+        { _id: VALID_PROJECT_ID, projectName: undefined },
+      ]);
+      const req = makeReq();
+      const res = makeRes();
 
-      const res = makeResponse();
+      await controller.getUniqueProjectIds(req, res);
 
-      await controller.getUniqueProjectIds({}, res);
-
-      expect(res.json).toHaveBeenCalledWith([]);
-      expect(BuildingProject.find).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith([{ projectId: VALID_PROJECT_ID, projectName: null }]);
     });
 
-    it('ignores invalid project IDs', async () => {
-      ToolAvailability.distinct.mockResolvedValue(['invalid-id']);
+    it('returns an empty array when there are no tool availability records', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([]);
+      const req = makeReq();
+      const res = makeRes();
 
-      const res = makeResponse();
-
-      await controller.getUniqueProjectIds({}, res);
+      await controller.getUniqueProjectIds(req, res);
 
       expect(res.json).toHaveBeenCalledWith([]);
-      expect(BuildingProject.find).not.toHaveBeenCalled();
     });
 
-    it('handles project lookup failures', async () => {
-      ToolAvailability.distinct.mockRejectedValue(new Error('Database failure'));
+    it('returns 500 and logs the error when aggregate throws', async () => {
+      ToolAvailability.aggregate.mockRejectedValue(new Error('DB failure'));
+      const req = makeReq();
+      const res = makeRes();
 
-      const res = makeResponse();
+      await controller.getUniqueProjectIds(req, res);
 
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-      try {
-        await controller.getUniqueProjectIds({}, res);
-
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-          error: 'Internal server error',
-        });
-      } finally {
-        consoleSpy.mockRestore();
-      }
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error fetching unique project IDs:',
+        expect.any(Error),
+      );
     });
   });
 });

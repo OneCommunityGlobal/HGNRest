@@ -1,8 +1,7 @@
 const express = require('express');
-const ToolAvailability = require('../../models/bmdashboard/toolAvailability');
 const toolAvailabilityController = require('../../controllers/bmdashboard/toolAvailabilityController');
 
-const routes = function () {
+const routes = function (ToolAvailability) {
   const toolAvailabilityRouter = express.Router();
   const controller = toolAvailabilityController(ToolAvailability);
 
