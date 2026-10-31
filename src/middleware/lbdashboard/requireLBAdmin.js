@@ -3,49 +3,32 @@ const moment = require('moment');
 const config = require('../../config');
 
 const ADMIN_ROLES = ['Administrator', 'Owner', 'Admin', 'admin'];
+const BEARER_PREFIX = 'Bearer ';
 
 const getToken = (authHeader) => {
   if (!authHeader || typeof authHeader !== 'string') return null;
   const trimmed = authHeader.trim();
   if (!trimmed) return null;
-  if (trimmed.toLowerCase().startsWith('bearer ')) {
-    const token = trimmed.slice(7).trim();
-    return token || null;
-  }
-  return trimmed;
+  return trimmed.startsWith(BEARER_PREFIX) ? trimmed.slice(BEARER_PREFIX.length).trim() : trimmed;
 };
 
 const verifyPayload = (token) => {
   try {
     const payload = jwt.verify(token, config.JWT_SECRET);
-    if (!payload || typeof payload !== 'object') return null;
+    const userId = payload.userid || payload.userId || payload.id;
+    if (!userId || !payload.role) return null;
 
     if (payload.expiryTimestamp !== undefined) {
-      const hasValidTimestamp =
-        payload.expiryTimestamp && moment(payload.expiryTimestamp).isValid();
-      const isExpired = !hasValidTimestamp || moment().isAfter(payload.expiryTimestamp);
+      const isExpired =
+        !moment(payload.expiryTimestamp).isValid() || moment().isAfter(payload.expiryTimestamp);
       if (isExpired) return null;
     }
 
-    const userId = payload.userid || payload.userId || payload.id || payload._id || payload.sub;
-    const hasRoleOrAdminFlag = Boolean(payload.role) || typeof payload.isAdmin === 'boolean';
-    if (!userId && !hasRoleOrAdminFlag) return null;
-    if (payload.expiryTimestamp !== undefined && (!userId || !payload.role)) return null;
-
-    return payload;
+    return { userId, role: payload.role, permissions: payload.permissions };
   } catch (error) {
+    // Invalid or malformed JWT; treat caller as unauthenticated (401).
     return null;
   }
-};
-
-const isAdminUser = (userObj) => {
-  if (!userObj || typeof userObj !== 'object') return false;
-  if (userObj.isAdmin === true) return true;
-  if (typeof userObj.role === 'string') {
-    const normalized = userObj.role.trim().toLowerCase();
-    return ['administrator', 'owner', 'admin', 'superadmin'].includes(normalized);
-  }
-  return false;
 };
 
 /**
@@ -56,27 +39,24 @@ const isAdminUser = (userObj) => {
  */
 const requireLBAdmin = (req, res, next) => {
   const authHeader =
-    typeof req.header === 'function'
-      ? req.header('Authorization')
-      : req.headers && (req.headers.authorization || req.headers.Authorization);
+    typeof req.header === 'function' ? req.header('Authorization') : req.headers?.authorization;
 
   let resolvedUser = null;
 
-  if (authHeader !== undefined && authHeader !== null) {
+  if (authHeader !== undefined) {
     const token = getToken(authHeader);
-    const payload = token ? verifyPayload(token) : null;
-    if (!payload) {
+    const verified = token ? verifyPayload(token) : null;
+    if (!verified) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     resolvedUser = {
-      requestorId: payload.userid || payload.userId || payload.id || payload._id || payload.sub,
-      role: payload.role,
-      isAdmin: payload.isAdmin,
-      permissions: payload.permissions,
+      requestorId: verified.userId,
+      role: verified.role,
+      permissions: verified.permissions,
     };
-  } else if (req.user && typeof req.user === 'object') {
+  } else if (req.user) {
     resolvedUser = req.user;
-  } else if (req.session && req.session.user && typeof req.session.user === 'object') {
+  } else if (req.session?.user) {
     resolvedUser = req.session.user;
   }
 
@@ -84,7 +64,7 @@ const requireLBAdmin = (req, res, next) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  if (!isAdminUser(resolvedUser)) {
+  if (!ADMIN_ROLES.includes(resolvedUser.role) && !resolvedUser.isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 

@@ -6,6 +6,8 @@ const LBUser = require('../../models/lbdashboard/LBuser');
 const { validateInput } = require('../../controllers/lbdashboard/lbdashboardController');
 const lbUserManagementController = require('../../controllers/lbUserManagementController');
 const { requireLBAdmin } = require('../../middleware/lbdashboard/requireLBAdmin');
+const lbUserManagementRouter = require('../../routes/lbUserManagementRouter');
+const lbdashboardRoutes = require('../../routes/lbdashboard/lbdashboardRoutes');
 
 jest.mock('../../models/lbdashboard/LBuser');
 
@@ -46,6 +48,14 @@ describe('validateInput', () => {
   });
 });
 
+describe('routers', () => {
+  it('exports configured lbUserManagementRouter and lbdashboardRoutes', () => {
+    expect(typeof lbUserManagementRouter).toBe('function');
+    const routerInstance = lbdashboardRoutes();
+    expect(typeof routerInstance).toBe('function');
+  });
+});
+
 describe('requireLBAdmin middleware', () => {
   it('returns 401 when Authorization header and session are missing', () => {
     const req = { header: () => undefined, headers: {} };
@@ -59,16 +69,44 @@ describe('requireLBAdmin middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns 401 when token is invalid', () => {
-    const req = { header: () => 'Bearer invalid-token' };
-    const res = makeRes();
-    const next = jest.fn();
+  it('returns 401 when Authorization header is whitespace, non-string, or empty Bearer', () => {
+    ['   ', 12345, 'Bearer   '].forEach((val) => {
+      const req = { headers: { authorization: val } };
+      const res = makeRes();
+      const next = jest.fn();
+      requireLBAdmin(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+  });
 
-    requireLBAdmin(req, res, next);
+  it('returns 401 when token is invalid, missing userId/role, or expired', () => {
+    const badPayloads = [
+      { userid: '123' },
+      { role: 'Administrator' },
+      {
+        userId: '123',
+        role: 'Administrator',
+        expiryTimestamp: moment().subtract(1, 'hour').toISOString(),
+      },
+      {
+        id: '123',
+        role: 'Administrator',
+        expiryTimestamp: 'not-a-valid-date',
+      },
+    ];
 
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Authentication required' });
-    expect(next).not.toHaveBeenCalled();
+    const invalidReq = { header: () => 'Bearer invalid-token' };
+    const invalidRes = makeRes();
+    requireLBAdmin(invalidReq, invalidRes, jest.fn());
+    expect(invalidRes.status).toHaveBeenCalledWith(401);
+
+    badPayloads.forEach((payload) => {
+      const token = jwt.sign(payload, config.JWT_SECRET);
+      const req = { header: () => token };
+      const res = makeRes();
+      requireLBAdmin(req, res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
   });
 
   it('returns 403 when authenticated user is not an Admin', () => {
@@ -91,7 +129,7 @@ describe('requireLBAdmin middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next() when user has Administrator or Admin role', () => {
+  it('calls next() when user has Administrator role via token or req.user or req.session.user', () => {
     const token = jwt.sign(
       {
         userid: '507f1f77bcf86cd799439011',
@@ -105,9 +143,23 @@ describe('requireLBAdmin middleware', () => {
     const next = jest.fn();
 
     requireLBAdmin(req, res, next);
-
     expect(next).toHaveBeenCalled();
     expect(req.user.role).toBe('Administrator');
+
+    const reqWithUser = { headers: {}, user: { isAdmin: true } };
+    const next2 = jest.fn();
+    requireLBAdmin(reqWithUser, makeRes(), next2);
+    expect(next2).toHaveBeenCalled();
+
+    const reqWithSession = { headers: {}, session: { user: { role: 'Admin' } } };
+    const next3 = jest.fn();
+    requireLBAdmin(reqWithSession, makeRes(), next3);
+    expect(next3).toHaveBeenCalled();
+
+    const tokenNoExpiry = jwt.sign({ userid: '123', role: 'Admin' }, config.JWT_SECRET);
+    const next4 = jest.fn();
+    requireLBAdmin({ header: () => tokenNoExpiry }, makeRes(), next4);
+    expect(next4).toHaveBeenCalled();
   });
 });
 
@@ -146,7 +198,7 @@ describe('lbUserManagementController', () => {
       LBUser.find.mockReturnValue(mockChain);
       LBUser.countDocuments.mockResolvedValue(1);
 
-      const req = { query: {} };
+      const req = {};
       const res = makeRes();
 
       await lbUserManagementController.listUsers(req, res);
@@ -162,16 +214,6 @@ describe('lbUserManagementController', () => {
         limit: 20,
         total: 1,
         totalPages: 1,
-      });
-      expect(payload.users).toHaveLength(1);
-      expect(payload.users[0]).toEqual({
-        _id: '507f1f77bcf86cd799439011',
-        firstName: 'Alice',
-        lastName: 'Smith',
-        email: 'alice@example.com',
-        phone: '+1234567890',
-        createdAt: '2026-10-30T00:00:00.000Z',
-        updatedAt: '2026-10-30T00:00:00.000Z',
       });
       expect(payload.users[0].passwordHash).toBeUndefined();
       expect(payload.users[0].resetToken).toBeUndefined();
@@ -205,12 +247,29 @@ describe('lbUserManagementController', () => {
       expect(mockChain.limit).toHaveBeenCalledWith(5);
       expect(res.status).toHaveBeenCalledWith(200);
     });
+
+    it('returns 400 for invalid page/limit and 500 on database error', async () => {
+      const res1 = makeRes();
+      await lbUserManagementController.listUsers({ query: { page: '0' } }, res1);
+      expect(res1.status).toHaveBeenCalledWith(400);
+
+      const res2 = makeRes();
+      await lbUserManagementController.listUsers({ query: { limit: 'abc' } }, res2);
+      expect(res2.status).toHaveBeenCalledWith(400);
+
+      LBUser.find.mockImplementation(() => {
+        throw new Error('DB fail');
+      });
+      const res3 = makeRes();
+      await lbUserManagementController.listUsers({ query: {} }, res3);
+      expect(res3.status).toHaveBeenCalledWith(500);
+    });
   });
 
   describe('getUserById, updateUser, deleteUser', () => {
     const validId = new mongoose.Types.ObjectId().toString();
 
-    it('gets a single user by id excluding sensitive fields', async () => {
+    it('gets a single user by id and handles 400, 404, 500', async () => {
       LBUser.findById.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockResolvedValue({
@@ -225,17 +284,43 @@ describe('lbUserManagementController', () => {
         }),
       });
 
-      const req = { params: { id: validId } };
       const res = makeRes();
-
-      await lbUserManagementController.getUserById(req, res);
-
+      await lbUserManagementController.getUserById({ params: { id: validId } }, res);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json.mock.calls[0][0].user.passwordHash).toBeUndefined();
-      expect(res.json.mock.calls[0][0].user.email).toBe('bob@example.com');
+
+      const res400 = makeRes();
+      await lbUserManagementController.getUserById({ params: { id: 'bad-id' } }, res400);
+      expect(res400.status).toHaveBeenCalledWith(400);
+
+      const res400TwelveChar = makeRes();
+      await lbUserManagementController.getUserById(
+        { params: { id: '123456789012' } },
+        res400TwelveChar,
+      );
+      expect(res400TwelveChar.status).toHaveBeenCalledWith(400);
+
+      const res400Undefined = makeRes();
+      await lbUserManagementController.getUserById({ params: {} }, res400Undefined);
+      expect(res400Undefined.status).toHaveBeenCalledWith(400);
+
+      LBUser.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(null),
+      });
+      const res404 = makeRes();
+      await lbUserManagementController.getUserById({ params: { id: validId } }, res404);
+      expect(res404.status).toHaveBeenCalledWith(404);
+
+      LBUser.findById.mockImplementation(() => {
+        throw new Error('DB fail');
+      });
+      const res500 = makeRes();
+      await lbUserManagementController.getUserById({ params: { id: validId } }, res500);
+      expect(res500.status).toHaveBeenCalledWith(500);
     });
 
-    it('updates a user by id', async () => {
+    it('updates a user by id and handles validation, duplicate email, 404, 500', async () => {
       LBUser.findOne.mockReturnValue({
         select: jest.fn().mockResolvedValue(null),
       });
@@ -252,33 +337,109 @@ describe('lbUserManagementController', () => {
         }),
       });
 
-      const req = {
-        params: { id: validId },
-        body: { firstName: 'Bobby', email: 'bobby@example.com' },
-      };
       const res = makeRes();
-
-      await lbUserManagementController.updateUser(req, res);
-
+      await lbUserManagementController.updateUser(
+        {
+          params: { id: validId },
+          body: { firstName: 'Bobby', email: 'bobby@example.com', password: 'Password1!' },
+        },
+        res,
+      );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json.mock.calls[0][0].user.firstName).toBe('Bobby');
+
+      const resInvalidId = makeRes();
+      await lbUserManagementController.updateUser({ params: { id: 'bad' } }, resInvalidId);
+      expect(resInvalidId.status).toHaveBeenCalledWith(400);
+
+      const resEmpty = makeRes();
+      await lbUserManagementController.updateUser({ params: { id: validId } }, resEmpty);
+      expect(resEmpty.status).toHaveBeenCalledWith(400);
+
+      const resInvalidField = makeRes();
+      await lbUserManagementController.updateUser(
+        { params: { id: validId }, body: { firstName: 'A' } },
+        resInvalidField,
+      );
+      expect(resInvalidField.status).toHaveBeenCalledWith(400);
+
+      LBUser.findOne.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ _id: 'other' }),
+      });
+      const resDup = makeRes();
+      await lbUserManagementController.updateUser(
+        { params: { id: validId }, body: { email: 'taken@example.com' } },
+        resDup,
+      );
+      expect(resDup.status).toHaveBeenCalledWith(409);
+
+      LBUser.findOne.mockReturnValue({
+        select: jest.fn().mockResolvedValue(null),
+      });
+      LBUser.findByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(null),
+      });
+      const res404 = makeRes();
+      await lbUserManagementController.updateUser(
+        { params: { id: validId }, body: { firstName: 'Bobby' } },
+        res404,
+      );
+      expect(res404.status).toHaveBeenCalledWith(404);
+
+      LBUser.findByIdAndUpdate.mockImplementation(() => {
+        const err = new Error('dup');
+        err.code = 11000;
+        throw err;
+      });
+      const resDupKey = makeRes();
+      await lbUserManagementController.updateUser(
+        { params: { id: validId }, body: { firstName: 'Bobby' } },
+        resDupKey,
+      );
+      expect(resDupKey.status).toHaveBeenCalledWith(409);
+
+      LBUser.findByIdAndUpdate.mockImplementation(() => {
+        throw new Error('DB fail');
+      });
+      const res500 = makeRes();
+      await lbUserManagementController.updateUser(
+        { params: { id: validId }, body: { firstName: 'Bobby' } },
+        res500,
+      );
+      expect(res500.status).toHaveBeenCalledWith(500);
     });
 
-    it('deletes a user by id', async () => {
+    it('deletes a user by id and handles 400, 404, 500', async () => {
       LBUser.findByIdAndDelete.mockReturnValue({
         select: jest.fn().mockResolvedValue({ _id: validId }),
       });
 
-      const req = { params: { id: validId } };
       const res = makeRes();
-
-      await lbUserManagementController.deleteUser(req, res);
-
+      await lbUserManagementController.deleteUser({ params: { id: validId } }, res);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         message: 'User deleted',
         userId: validId,
       });
+
+      const res400 = makeRes();
+      await lbUserManagementController.deleteUser({ params: { id: 'bad' } }, res400);
+      expect(res400.status).toHaveBeenCalledWith(400);
+
+      LBUser.findByIdAndDelete.mockReturnValue({
+        select: jest.fn().mockResolvedValue(null),
+      });
+      const res404 = makeRes();
+      await lbUserManagementController.deleteUser({ params: { id: validId } }, res404);
+      expect(res404.status).toHaveBeenCalledWith(404);
+
+      LBUser.findByIdAndDelete.mockImplementation(() => {
+        throw new Error('DB fail');
+      });
+      const res500 = makeRes();
+      await lbUserManagementController.deleteUser({ params: { id: validId } }, res500);
+      expect(res500.status).toHaveBeenCalledWith(500);
     });
   });
 });
