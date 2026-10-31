@@ -6,6 +6,7 @@ const { getUniqueProjectsWithNames } = require('../../utilities/bmProjectAggrega
 
 const VALID_TAGS = ['In-person', 'Virtual'];
 const VALID_STATUSES = ['open', 'closed'];
+const VALID_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality / functionality'];
 
 const MIN_YEAR = 1000;
@@ -75,6 +76,7 @@ const buildBuildingIssuePayload = (body = {}) => ({
   projectId: body.projectId,
   status: body.status,
   tag: body.tag,
+  severity: body.severity,
 });
 
 function parseDateRangeForOpenIssues(startDate, endDate) {
@@ -191,6 +193,9 @@ function validatePostBody(body) {
       return { error: `Invalid status. Allowed values: ${VALID_STATUSES.join(', ')}.` };
     }
   }
+  if (body.severity !== undefined && !VALID_SEVERITIES.includes(body.severity)) {
+    return { error: `Invalid severity. Allowed values: ${VALID_SEVERITIES.join(', ')}.` };
+  }
   if (body.issueDate !== undefined) {
     const d = new Date(body.issueDate);
     if (Number.isNaN(d.getTime())) {
@@ -272,6 +277,13 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
 
       if (!updateData || typeof updateData !== 'object' || Array.isArray(updateData)) {
         return res.status(400).json({ message: 'Invalid update data.' });
+      }
+
+      // Only allow the defined severity levels when a severity is sent
+      if (updateData.severity !== undefined && !VALID_SEVERITIES.includes(updateData.severity)) {
+        return res
+          .status(400)
+          .json({ message: `Invalid severity. Allowed values: ${VALID_SEVERITIES.join(', ')}.` });
       }
 
       const setFields = { ...updateData };
