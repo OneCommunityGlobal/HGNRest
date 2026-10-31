@@ -901,10 +901,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       userid,
     );
 
+    if (!canEditProtectedAccount) {
+      return { authorized: false, message: 'You are not authorized to update this user' };
+    }
+
     const isRequestorAuthorized = !!(
-      canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+      (await hasPermission(req.body.requestor, 'putUserProfile')) ||
+      req.body.requestor.requestorId === userid
     );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
@@ -1347,7 +1350,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
       const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
 
-      if (!canEditProtectedAccount && !canToggleRequestBio) {
+      if (!canEditProtectedAccount) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      if (!canToggleRequestBio) {
         return res.status(403).json({ error: 'Permission denied to toggle bio.' });
       }
 
@@ -1571,7 +1578,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
 
-    if (userId === req.body.requestor) {
+    if (userId === req.body.requestor.requestorId) {
       res.status(403).send({
         error: 'You cannot delete your own account',
       });
@@ -1579,9 +1586,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     const user = await UserProfile.findById(userId);
+    if (!user) {
+      res.status(400).send({
+        error: 'Invalid user',
+      });
+      return;
+    }
 
     // Check if the user is protected and if the requestor has permission to delete protected accounts
-    if (PROTECTED_EMAIL_ACCOUNT.includes(user.email) && !canEditProtectedAccount) {
+    if (!canEditProtectedAccount) {
       res.status(403).send({
         error: 'Only authorized users can delete protected accounts',
       });
@@ -1589,13 +1602,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       logger.logInfo(
         `Unauthorized attempt to delete a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${user.email}`,
       );
-      return;
-    }
-
-    if (!user) {
-      res.status(400).send({
-        error: 'Invalid user',
-      });
       return;
     }
 
@@ -2024,7 +2030,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
         previousEndDate:
           user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
-            user.inactiveReason === InactiveReason.SEPARATED
+          user.inactiveReason === InactiveReason.SEPARATED
             ? user.endDate
             : null,
       };
@@ -2578,10 +2584,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         manuallyAssigned: true,
         manuallyAssignedBy: requestorProfile
           ? {
-            firstName: requestorProfile.firstName,
-            lastName: requestorProfile.lastName,
-            userId: requestorId,
-          }
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
           : undefined,
         // Initialize empty edit history
         editedBy: [],
@@ -2796,28 +2802,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const query = match[1]
         ? {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              $and: [
-                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-              ],
-            },
-          ],
-        }
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
         : {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-          ],
-        };
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 
