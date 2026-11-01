@@ -1,5 +1,7 @@
-const { ObjectId } = require('mongoose').Types;
+const mongoose = require('mongoose');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
+const { ObjectId } = mongoose.Types;
 const toolAvailabilityController = function (ToolAvailability) {
   const getToolsAvailability = async (req, res) => {
     try {
@@ -124,36 +126,26 @@ const toolAvailabilityController = function (ToolAvailability) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      // Use aggregation to get distinct project IDs and lookup their names
-      const results = await ToolAvailability.aggregate([
-        {
-          $group: {
-            _id: '$projectId',
-          },
-        },
-        {
-          $lookup: {
-            from: 'buildingProject',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.projectName', 0] },
-          },
-        },
-        {
-          $sort: { projectName: 1 },
-        },
-      ]);
+      const projectIds = await ToolAvailability.distinct('projectId');
 
-      // Format the response
-      const formattedResults = results.map((item) => ({
-        projectId: item._id,
-        projectName: item.projectName || 'Unknown Project',
+      const validProjectIds = projectIds
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => new ObjectId(String(id)));
+
+      if (validProjectIds.length === 0) {
+        return res.json([]);
+      }
+
+      const projects = await BuildingProject.find({
+        _id: { $in: validProjectIds },
+      })
+        .select('_id name')
+        .sort({ name: 1 })
+        .lean();
+
+      const formattedResults = projects.map((project) => ({
+        projectId: project._id,
+        projectName: project.name,
       }));
 
       return res.json(formattedResults);
