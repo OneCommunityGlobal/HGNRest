@@ -137,8 +137,8 @@ const teamcontroller = function (Team) {
       );
       const result = await Promise.all(
         teams.map(async (teamData) => {
-          const memberIds = teamData.members
-            ?.map((member) => member.userId || member._id)
+          const memberIds = (teamData.members || [])
+            .map((member) => member.userId || member._id)
             .filter(Boolean);
 
           const hoursSummary = await TimeEntry.aggregate([
