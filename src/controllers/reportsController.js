@@ -157,6 +157,7 @@ const reportsController = function () {
         volunteerNumberStats,
         mentorNumberStats,
         volunteerHoursStats,
+        volunteerCommittedHoursStats,
         totalHoursWorked,
         tasksStats,
         workDistributionStats,
@@ -192,6 +193,7 @@ const reportsController = function () {
           comparisonStartDate,
           comparisonEndDate,
         ),
+        overviewReportHelper.getCommittedHoursStats(),
         overviewReportHelper.getTotalHoursWorked(startDate, endDate),
         overviewReportHelper.getTasksStats(
           isoStartDate,
@@ -293,6 +295,7 @@ const reportsController = function () {
         volunteerNumberStats,
         mentorNumberStats,
         volunteerHoursStats,
+        volunteerCommittedHoursStats,
         totalHoursWorked,
         tasksStats,
         workDistributionStats,

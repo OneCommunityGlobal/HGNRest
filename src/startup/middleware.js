@@ -33,10 +33,6 @@ module.exports = function (app) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.all('*', (req, res, next) => {
-    // Allow unauthenticated access for Mastodon test APIs
-    if (req.originalUrl.startsWith('/api/mastodon')) {
-      return next();
-    }
     const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
@@ -87,6 +83,25 @@ module.exports = function (app) {
       return;
     }
     if (req.originalUrl.startsWith('/api/jobs') && req.method === 'GET') {
+      next();
+      return;
+    }
+
+    const pathOnly = req.originalUrl.split('?')[0];
+
+    // Public job-application apply flow (no login):
+    // - GET form schemas so anonymous applicants can render the form
+    // - POST responses so anyone can submit an application
+    // NOT public: GET /api/jobforms/:formId/responses (applicant PII — JWT + manageJobForms)
+    if (
+      req.method === 'GET' &&
+      (pathOnly === '/api/jobforms/all' || /^\/api\/jobforms\/[^/]+$/.test(pathOnly))
+    ) {
+      next();
+      return;
+    }
+
+    if (pathOnly.match(/^\/api\/jobforms\/[^/]+\/responses$/) && req.method === 'POST') {
       next();
       return;
     }
@@ -161,9 +176,11 @@ module.exports = function (app) {
 
     req.user = requestor;
 
-    if (req.body) {
-      req.body.requestor = requestor;
+    // Always attach requestor so GET handlers (e.g. viewing applications) can authorize
+    if (!req.body) {
+      req.body = {};
     }
+    req.body.requestor = requestor;
 
     return next();
   });

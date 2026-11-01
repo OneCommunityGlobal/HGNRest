@@ -1,5 +1,11 @@
 const UserProfile = require('../models/userProfile');
 const Task = require('../models/task');
+const TimeEntries = require('../models/timeentry');
+
+// getHoursStats / getTotalHoursWorked look up who logged time in the period
+beforeEach(() => {
+  jest.spyOn(TimeEntries, 'distinct').mockResolvedValue([]);
+});
 const overviewReportHelper = require('./overviewReportHelper');
 
 // const makeSut = () => {
@@ -41,6 +47,111 @@ describe('overviewReportHelper tests', () => {
         { $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]);
+    });
+  });
+
+  describe('getTasksStats status counts', () => {
+    const startDate = new Date('2026-07-19T00:00:00-07:00');
+    const endDate = new Date('2026-07-25T23:59:00-07:00');
+    const comparisonStartDate = new Date('2026-07-12T00:00:00-07:00');
+    const comparisonEndDate = new Date('2026-07-18T23:59:00-07:00');
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test('counts Active and Started tasks as assigned when comparison is off', async () => {
+      const stats = [
+        { _id: 'Active', count: 3 },
+        { _id: 'Started', count: 2 },
+        { _id: 'Complete', count: 4 },
+        { _id: 'Not Started', count: 7 },
+      ];
+      jest.spyOn(Task, 'aggregate').mockResolvedValue(stats);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(startDate, endDate);
+
+      expect(result).toEqual({
+        active: { current: 5 },
+        complete: { current: 4 },
+        raw: { current: stats },
+      });
+    });
+
+    test('counts Active and Started tasks as assigned in both comparison ranges', async () => {
+      const current = [
+        { _id: 'Active', count: 3 },
+        { _id: 'Started', count: 2 },
+        { _id: 'Complete', count: 4 },
+        { _id: 'Not Started', count: 7 },
+      ];
+      const comparison = [
+        { _id: 'Started', count: 4 },
+        { _id: 'Complete', count: 2 },
+      ];
+      const aggregateSpy = jest
+        .spyOn(Task, 'aggregate')
+        .mockResolvedValue([{ current, comparison }]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 5, percentage: 0.25 },
+        complete: { current: 4, percentage: 1 },
+        raw: { current, comparison },
+      });
+      const { $facet } = aggregateSpy.mock.calls[0][0][0];
+      expect($facet.current[0]).toEqual({
+        $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } },
+      });
+      expect($facet.comparison[0]).toEqual({
+        $match: { modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate } },
+      });
+    });
+
+    test('returns zero counts when the comparison aggregation is empty', async () => {
+      jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 0, percentage: 0 },
+        complete: { current: 0, percentage: 0 },
+        raw: { current: [], comparison: [] },
+      });
+    });
+
+    test('treats a missing comparison range as zero counts', async () => {
+      const current = [
+        { _id: 'Active', count: 1 },
+        { _id: 'Complete', count: 2 },
+      ];
+      jest.spyOn(Task, 'aggregate').mockResolvedValue([{ current }]);
+
+      const { getTasksStats } = overviewReportHelper();
+      const result = await getTasksStats(
+        startDate,
+        endDate,
+        comparisonStartDate,
+        comparisonEndDate,
+      );
+
+      expect(result).toEqual({
+        active: { current: 1, percentage: 'No Comparison Data' },
+        complete: { current: 2, percentage: 'No Comparison Data' },
+        raw: { current, comparison: [] },
+      });
     });
   });
 
@@ -209,3 +320,97 @@ describe('overviewReportHelper tests', () => {
 //     });
 //   });
 // });
+
+describe('getTotalActiveTeamCount', () => {
+  // eslint-disable-next-line global-require
+  const Team = require('../models/team');
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('uses the Team Stats definition: active teams with 2+ active members', async () => {
+    const aggregateSpy = jest.spyOn(Team, 'aggregate').mockResolvedValue([{ totalTeams: 211 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 211 });
+    expect(aggregateSpy.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([{ $match: { activeMembersCount: { $gte: 2 } } }]),
+    );
+  });
+
+  it('returns current and comparison counts when comparison dates are given', async () => {
+    jest
+      .spyOn(Team, 'aggregate')
+      .mockResolvedValueOnce([{ totalTeams: 10 }])
+      .mockResolvedValueOnce([{ totalTeams: 8 }]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount(
+      '2026-10-04',
+      '2026-10-10',
+      '2026-09-27',
+      '2026-10-03',
+    );
+
+    expect(result.current).toBe(10);
+    expect(result.comparison).toBe(8);
+    expect(result).toHaveProperty('percentage');
+  });
+
+  it('returns 0 when no team qualifies', async () => {
+    jest.spyOn(Team, 'aggregate').mockResolvedValue([]);
+    const { getTotalActiveTeamCount } = overviewReportHelper();
+
+    const result = await getTotalActiveTeamCount('2026-10-04', '2026-10-10');
+
+    expect(result).toEqual({ current: 0 });
+  });
+});
+
+describe('getCommittedHoursStats', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const mockUsers = (users) =>
+    jest.spyOn(UserProfile, 'find').mockReturnValue({ lean: jest.fn().mockResolvedValue(users) });
+
+  it('groups active volunteers into upper-limit committed-hours buckets', async () => {
+    const findSpy = mockUsers(
+      [1, 5, 10, 11, 20, 21, 30, 31, 35, 40, 41, 60].map((h) => ({ weeklycommittedHours: h })),
+    );
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 3 },
+      { _id: '20', count: 2 },
+      { _id: '30', count: 2 },
+      { _id: '40', count: 3 },
+      { _id: '40+', count: 2 },
+    ]);
+    expect(findSpy).toHaveBeenCalledWith(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    );
+  });
+
+  it('returns every bucket with a zero count when there are no volunteers', async () => {
+    mockUsers([]);
+    const { getCommittedHoursStats } = overviewReportHelper();
+
+    const result = await getCommittedHoursStats();
+
+    expect(result).toEqual([
+      { _id: '10', count: 0 },
+      { _id: '20', count: 0 },
+      { _id: '30', count: 0 },
+      { _id: '40', count: 0 },
+      { _id: '40+', count: 0 },
+    ]);
+  });
+});
