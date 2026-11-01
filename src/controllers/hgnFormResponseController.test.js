@@ -310,6 +310,66 @@ describe('HgnFormResponseController', () => {
       );
     });
 
+    describe('weeklySummaryStatus', () => {
+      const response = (id, userId) => ({
+        _id: id,
+        user_id: userId,
+        userInfo: { name: `User ${userId}` },
+        frontend: { React: '5' },
+        backend: {},
+        general: {},
+      });
+
+      beforeEach(() => {
+        const dueThisWeek = new Date();
+        UserProfile.find = jest.fn().mockResolvedValue([
+          {
+            _id: 'done',
+            isActive: true,
+            weeklySummaries: [{ dueDate: dueThisWeek, summary: 'Finished' }],
+          },
+          { _id: 'missing', isActive: true, weeklySummaries: [] },
+          { _id: 'exempt', isActive: true, weeklySummaryNotReq: true },
+        ]);
+        FormResponse.find = jest
+          .fn()
+          .mockResolvedValue([
+            response('1', 'done'),
+            response('2', 'missing'),
+            response('3', 'exempt'),
+            response('4', 'noProfile'),
+          ]);
+      });
+
+      it('reports each user their own current-week summary status', async () => {
+        await controller.getRankedResponses(mockReq, mockRes);
+
+        const byUser = Object.fromEntries(
+          mockRes.json.mock.calls[0][0].map((u) => [u.userId, u.weeklySummaryStatus]),
+        );
+        expect(byUser).toEqual({
+          done: 'completed',
+          missing: 'incomplete',
+          exempt: 'notRequired',
+          noProfile: null,
+        });
+      });
+
+      it('omits summary status for requestors without HGN dashboard access', async () => {
+        hasPermission.mockResolvedValue(false);
+
+        await controller.getRankedResponses(mockReq, mockRes);
+
+        mockRes.json.mock.calls[0][0].forEach((u) => {
+          expect(u).not.toHaveProperty('weeklySummaryStatus');
+        });
+        expect(hasPermission).toHaveBeenCalledWith(
+          mockReq.body.requestor,
+          'accessHgnSkillsDashboard',
+        );
+      });
+    });
+
     it('should handle database errors when ranking users', async () => {
       FormResponse.find = jest.fn().mockRejectedValue(new Error('DB fail'));
 
