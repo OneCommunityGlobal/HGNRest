@@ -8,6 +8,7 @@ const lbUserManagementController = require('../../controllers/lbUserManagementCo
 const { requireLBAdmin } = require('../../middleware/lbdashboard/requireLBAdmin');
 const lbUserManagementRouter = require('../../routes/lbUserManagementRouter');
 const lbdashboardRoutes = require('../../routes/lbdashboard/lbdashboardRoutes');
+const registerMiddleware = require('../../startup/middleware');
 
 jest.mock('../../models/lbdashboard/LBuser');
 
@@ -53,6 +54,43 @@ describe('routers', () => {
     expect(typeof lbUserManagementRouter).toBe('function');
     const routerInstance = lbdashboardRoutes();
     expect(typeof routerInstance).toBe('function');
+  });
+
+  it('allows public register and delegates admin routes in startup/middleware', () => {
+    const mockApp = { use: jest.fn(), all: jest.fn(), post: jest.fn() };
+    registerMiddleware(mockApp);
+    const allHandler = mockApp.all.mock.calls[0][1];
+
+    [
+      {
+        originalUrl: '/api/lbdashboard/register',
+        path: '/api/lbdashboard/register',
+        method: 'POST',
+      },
+      { originalUrl: '/lbdashboard/register', path: '/lbdashboard/register', method: 'POST' },
+      {
+        originalUrl: '/api/lbdashboard/admin/users',
+        path: '/api/lbdashboard/admin/users',
+        method: 'GET',
+      },
+      { originalUrl: '/lbdashboard/admin/users', path: '/lbdashboard/admin/users', method: 'GET' },
+    ].forEach((req) => {
+      const next = jest.fn();
+      allHandler(req, makeRes(), next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    const getRegisterReq = {
+      originalUrl: '/lbdashboard/register',
+      path: '/lbdashboard/register',
+      method: 'GET',
+      header: () => undefined,
+    };
+    const res401 = makeRes();
+    Object.defineProperty(res401, 'headersSent', { get: () => true });
+    const nextNotCalled = jest.fn();
+    allHandler(getRegisterReq, res401, nextNotCalled);
+    expect(nextNotCalled).not.toHaveBeenCalled();
   });
 });
 
