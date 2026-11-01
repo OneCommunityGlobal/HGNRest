@@ -168,6 +168,7 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        countryCounts,
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
@@ -238,6 +239,7 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getMapLocations(),
+        overviewReportHelper.getCountryCounts(),
         overviewReportHelper.getVolunteersCompletedHours(
           isoStartDate,
           isoEndDate,
@@ -304,6 +306,7 @@ const reportsController = function () {
         totalBadgesAwarded,
         totalActiveTeams,
         userLocations,
+        countryCounts,
         completedHours,
         taskAndProjectStats,
         volunteersOverAssignedTime,
