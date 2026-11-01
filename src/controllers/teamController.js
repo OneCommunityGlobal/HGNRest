@@ -10,6 +10,34 @@ const placement = require('../helpers/teamPlacementHelper');
 
 const INTERNAL_SERVER_ERROR = 'Internal server error';
 
+const getMostFrequentActiveTeamCode = (members = []) => {
+  const codeCounts = new Map();
+
+  members.forEach((member) => {
+    if (
+      member.isActive !== true ||
+      member.visible === false ||
+      typeof member.teamCode !== 'string'
+    ) {
+      return;
+    }
+
+    const teamCode = member.teamCode.trim();
+    if (!teamCode) return;
+
+    codeCounts.set(teamCode, (codeCounts.get(teamCode) || 0) + 1);
+  });
+
+  const sortedCodes = [...codeCounts.entries()].sort(([codeA, countA], [codeB, countB]) => {
+    if (countA !== countB) return countB - countA;
+    if (codeA < codeB) return -1;
+    if (codeA > codeB) return 1;
+    return 0;
+  });
+
+  return sortedCodes.length > 0 ? sortedCodes[0][0] : '';
+};
+
 /**
  * Validate the optional placement fields used by the Promotion Eligibility
  * dashboard (doc item #23), and return only the ones the caller actually sent.
@@ -94,7 +122,6 @@ const teamcontroller = function (Team) {
         // because $first in the second group only kept one bucket's members.
         $group: {
           _id: '$_id',
-          teamCode: { $first: '$teamCode' },
           teamName: { $first: '$teamName' },
           isActive: { $first: '$isActive' },
           createdDatetime: { $first: '$createdDatetime' },
@@ -104,6 +131,7 @@ const teamcontroller = function (Team) {
               _id: '$userProfile._id',
               email: '$userProfile.email',
               teamCode: '$userProfile.teamCode',
+              isActive: '$userProfile.isActive',
               addDateTime: '$members.addDateTime',
               visible: '$members.visible',
             },
@@ -115,8 +143,15 @@ const teamcontroller = function (Team) {
       },
     ])
       .then((results) => {
+        const teams = results.map((result) => {
+          const teamCode = getMostFrequentActiveTeamCode(result.members);
+          const members = result.members.map(({ isActive, ...member }) => member);
+
+          return { ...result, teamCode, members };
+        });
+
         // The API now sends an ARRAY, which is what the frontend expects.
-        res.status(200).send(results);
+        res.status(200).send(teams);
       })
       .catch((error) => {
         console.error('Aggregation failed unexpectedly:', error);
