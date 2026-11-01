@@ -26,6 +26,10 @@ const routes = function (
 
   router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
+  // Confirmation modal pending list. POST for the same requestor-in-body reason
+  // as /promotion-eligibility (see BE PR 2201).
+  router.route('/promotion-pending').post(controller.getPromotionPending);
+
   router.route('/promotion-eligibility/:reviewerId/prs-needed').patch(controller.updatePrsNeeded);
 
   // "+ Add New" column. Reads are POST for the same requestor-in-body reason
