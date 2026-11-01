@@ -8,6 +8,7 @@ jest.mock('../../models/educationTask', () => ({
   find: jest.fn(),
   findById: jest.fn(),
   findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
   findByIdAndUpdate: jest.fn(),
   findByIdAndDelete: jest.fn(),
   insertMany: jest.fn(),
@@ -59,6 +60,7 @@ const makeChain = (result) => {
   const promise = Promise.resolve(result);
   promise.populate = jest.fn(() => promise);
   promise.sort = jest.fn(() => promise);
+  promise.allowDiskUse = jest.fn(() => promise);
   promise.select = jest.fn(() => promise);
   return promise;
 };
@@ -78,11 +80,18 @@ beforeEach(() => {
 
 describe('getEducationTasks', () => {
   test('returns 200 with the task list', async () => {
-    EducationTask.find.mockReturnValue(makeChain([{ _id: '1' }]));
+    const query = makeChain([{ _id: '1' }]);
+    EducationTask.find.mockReturnValue(query);
     const res = mockRes();
 
     await controller.getEducationTasks({}, res);
 
+    expect(EducationTask.find).toHaveBeenCalledWith({});
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(query.allowDiskUse).toHaveBeenCalledWith(true);
+    expect(query.populate).toHaveBeenCalledWith('lessonPlanId', 'title theme');
+    expect(query.populate).toHaveBeenCalledWith('studentId', 'firstName lastName email');
+    expect(query.populate).toHaveBeenCalledWith('atomIds', 'name description difficulty');
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith([{ _id: '1' }]);
   });
@@ -146,6 +155,8 @@ describe('getTaskById', () => {
 
 describe('createTask', () => {
   const baseBody = {
+    name: 'TEST - Student Tasks PR 4210',
+    suggestedTotalHours: 5,
     lessonPlanId: 'lp1',
     type: 'read',
     dueAt: new Date().toISOString(),
@@ -216,11 +227,61 @@ describe('createTask', () => {
     EducationTask.find.mockReturnValue(makeChain([{ _id: 't1' }]));
     const res = mockRes();
 
-    await controller.createTask({ body: { ...baseBody, studentId: 's1' } }, res);
+    await controller.createTask(
+      {
+        body: {
+          ...baseBody,
+          name: `  ${baseBody.name}  `,
+          loggedHours: 99,
+          studentId: 's1',
+        },
+      },
+      res,
+    );
 
-    expect(EducationTask.insertMany).toHaveBeenCalled();
+    expect(EducationTask.insertMany).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: baseBody.name,
+        suggestedTotalHours: 5,
+        loggedHours: 0,
+        status: 'assigned',
+        type: 'read',
+        studentId: 's1',
+        lessonPlanId: baseBody.lessonPlanId,
+        dueAt: baseBody.dueAt,
+      }),
+    ]);
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Tasks created successfully',
+      tasks: [{ _id: 't1' }],
+      group_name: null,
+    });
   });
+
+  test.each([undefined, null, '', '   ', 123])(
+    'rejects invalid name %s before inserting',
+    async (name) => {
+      const res = mockRes();
+      await controller.createTask({ body: { ...baseBody, name, studentId: 's1' } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'name must be a nonempty string' });
+      expect(EducationTask.insertMany).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([-1, Infinity, NaN, '5', null])(
+    'rejects invalid suggested hours %s',
+    async (suggestedTotalHours) => {
+      const res = mockRes();
+      await controller.createTask(
+        { body: { ...baseBody, suggestedTotalHours, studentId: 's1' } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(EducationTask.insertMany).not.toHaveBeenCalled();
+    },
+  );
 
   test('creates tasks for an entire group', async () => {
     const groupId = new mongoose.Types.ObjectId().toString();
@@ -239,6 +300,16 @@ describe('createTask', () => {
 
     await controller.createTask({ body: { ...baseBody, groupId }, user: 'educator1' }, res);
 
+    expect(EducationTask.insertMany).toHaveBeenCalledWith(
+      ['s1', 's2'].map((studentId) =>
+        expect.objectContaining({
+          name: baseBody.name,
+          suggestedTotalHours: 5,
+          loggedHours: 0,
+          studentId,
+        }),
+      ),
+    );
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
@@ -310,7 +381,10 @@ describe('updateTask', () => {
     EducationTask.findById.mockResolvedValue(null);
     const res = mockRes();
 
-    await controller.updateTask({ params: { id: 'x' }, body: {} }, res);
+    await controller.updateTask(
+      { params: { id: 'x' }, body: {}, user: { requestorId: 'test-admin-id', role: 'admin' } },
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(404);
   });
@@ -319,7 +393,14 @@ describe('updateTask', () => {
     EducationTask.findById.mockResolvedValue({ _id: 'x', status: 'assigned' });
     const res = mockRes();
 
-    await controller.updateTask({ params: { id: 'x' }, body: { status: 'bogus' } }, res);
+    await controller.updateTask(
+      {
+        params: { id: 'x' },
+        body: { status: 'bogus' },
+        user: { requestorId: 'test-admin-id', role: 'admin' },
+      },
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(400);
   });
@@ -329,7 +410,14 @@ describe('updateTask', () => {
     EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ _id: 'x', status: 'completed' }));
     const res = mockRes();
 
-    await controller.updateTask({ params: { id: 'x' }, body: { status: 'completed' } }, res);
+    await controller.updateTask(
+      {
+        params: { id: 'x' },
+        body: { status: 'completed' },
+        user: { requestorId: 'test-admin-id', role: 'admin' },
+      },
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(200);
   });
@@ -416,56 +504,143 @@ describe('gradeTask', () => {
 });
 
 describe('markTaskAsComplete', () => {
-  test('returns 400 when taskId or studentId is missing', async () => {
-    const res = mockRes();
-    await controller.markTaskAsComplete({ body: {} }, res);
+  const taskId = '507f1f77bcf86cd799439011';
+  const studentId = '65cf6c3706d8ac105827bb2e';
+  const ownerFilter = {
+    _id: new mongoose.Types.ObjectId(taskId),
+    studentId: new mongoose.Types.ObjectId(studentId),
+  };
+  let req;
+  let res;
+  let task;
 
-    expect(res.status).toHaveBeenCalledWith(400);
+  beforeEach(() => {
+    req = { user: { requestorId: studentId }, body: { taskId } };
+    res = mockRes();
+    task = { type: 'read', status: 'assigned', loggedHours: 5, suggestedTotalHours: 5 };
+    EducationTask.findOne.mockReset().mockResolvedValue(task);
+    EducationTask.findOneAndUpdate.mockReset().mockReturnValue(makeChain(null));
   });
 
-  test('returns 400 for malformed ids', async () => {
-    const res = mockRes();
-    await controller.markTaskAsComplete(
-      { body: { taskId: 'not-an-id', studentId: 'also-not-an-id' } },
-      res,
-    );
-
-    expect(res.status).toHaveBeenCalledWith(400);
+  test('rejects missing authentication even with a client-provided identity', async () => {
+    delete req.user;
+    req.body.studentId = studentId;
+    req.body.requestor = { requestorId: studentId };
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(EducationTask.findOne).not.toHaveBeenCalled();
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
-  test('returns 404 when no matching task is found', async () => {
-    const taskId = new mongoose.Types.ObjectId().toString();
-    const studentId = new mongoose.Types.ObjectId().toString();
+  test.each(['missing task', 'invalid task', 'invalid user'])('rejects %s', async (scenario) => {
+    if (scenario === 'missing task') delete req.body.taskId;
+    if (scenario === 'invalid task') req.body.taskId = 'bad';
+    if (scenario === 'invalid user') req.user.requestorId = 'bad';
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(EducationTask.findOne).not.toHaveBeenCalled();
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('ignores supplied studentId and refuses tasks not owned by the authenticated user', async () => {
+    req.body.studentId = taskId;
     EducationTask.findOne.mockResolvedValue(null);
-    const res = mockRes();
-
-    await controller.markTaskAsComplete({ body: { taskId, studentId } }, res);
-
+    await controller.markTaskAsComplete(req, res);
+    expect(EducationTask.findOne).toHaveBeenCalledWith(ownerFilter);
     expect(res.status).toHaveBeenCalledWith(404);
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
-  test('returns the task unchanged if already completed', async () => {
-    const taskId = new mongoose.Types.ObjectId().toString();
-    const studentId = new mongoose.Types.ObjectId().toString();
-    EducationTask.findOne.mockResolvedValue({ status: 'completed' });
-    const res = mockRes();
-
-    await controller.markTaskAsComplete({ body: { taskId, studentId } }, res);
-
+  test.each(['completed', 'graded'])('returns an owned %s task unchanged', async (status) => {
+    task.status = status;
+    task.type = 'write';
+    await controller.markTaskAsComplete(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(task);
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
     expect(EducationTask.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
-  test('marks an assigned task complete', async () => {
-    const taskId = new mongoose.Types.ObjectId().toString();
-    const studentId = new mongoose.Types.ObjectId().toString();
-    EducationTask.findOne.mockResolvedValue({ status: 'assigned' });
-    EducationTask.findByIdAndUpdate.mockReturnValue(makeChain({ status: 'completed' }));
-    const res = mockRes();
+  test.each(['write', 'practice', 'quiz', 'project', undefined])(
+    'does not bypass the completion workflow for type %s',
+    async (type) => {
+      task.type = type;
+      task.uploadUrls = ['https://example.com/submission'];
+      await controller.markTaskAsComplete(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
+    },
+  );
 
-    await controller.markTaskAsComplete({ body: { taskId, studentId } }, res);
+  test.each([
+    [4, 5],
+    [undefined, 5],
+    [5, undefined],
+    [null, 5],
+    [5, null],
+    [-1, 0],
+    [5, -1],
+    [NaN, 5],
+    [5, NaN],
+    [Infinity, 5],
+    [5, Infinity],
+    ['5', 5],
+    [5, '5'],
+  ])('rejects ineligible hours %s / %s', async (logged, suggested) => {
+    task.loggedHours = logged;
+    task.suggestedTotalHours = suggested;
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
+  });
 
-    expect(res.status).toHaveBeenCalledWith(200);
+  test.each(['Assigned', 'pending', undefined])('rejects invalid status %s', async (status) => {
+    task.status = status;
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['assigned', 5, 5],
+    ['in_progress', 6, 5],
+    ['assigned', 0, 0],
+  ])(
+    'atomically completes eligible %s task with %s / %s hours',
+    async (status, logged, suggested) => {
+      Object.assign(task, { status, loggedHours: logged, suggestedTotalHours: suggested });
+      const updated = { ...task, status: 'completed', completedAt: new Date() };
+      EducationTask.findOneAndUpdate.mockReturnValue(makeChain(updated));
+      await controller.markTaskAsComplete(req, res);
+      expect(EducationTask.findOne).toHaveBeenCalledWith(ownerFilter);
+      expect(EducationTask.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          ...ownerFilter,
+          type: 'read',
+          status,
+          loggedHours: logged,
+          suggestedTotalHours: suggested,
+        },
+        { status: 'completed', completedAt: expect.any(Date) },
+        { new: true, runValidators: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(updated);
+      expect(EducationTask.findByIdAndUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  test('returns conflict when ownership, status, type or hours changed before update', async () => {
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Task changed; reload and retry completion' });
+  });
+
+  test('returns 500 on database failure', async () => {
+    EducationTask.findOne.mockRejectedValue(new Error('db down'));
+    await controller.markTaskAsComplete(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });
 
