@@ -13,22 +13,19 @@ const getToken = (authHeader) => {
 };
 
 const verifyPayload = (token) => {
-  try {
-    const payload = jwt.verify(token, config.JWT_SECRET);
-    const userId = payload.userid || payload.userId || payload.id;
-    if (!userId || !payload.role) return null;
+  const payload = jwt.verify(token, config.JWT_SECRET, (err, decoded) => (err ? null : decoded));
+  if (!payload) return null;
 
-    if (payload.expiryTimestamp !== undefined) {
-      const isExpired =
-        !moment(payload.expiryTimestamp).isValid() || moment().isAfter(payload.expiryTimestamp);
-      if (isExpired) return null;
-    }
+  const userId = payload.userid || payload.userId || payload.id;
+  if (!userId || !payload.role) return null;
 
-    return { userId, role: payload.role, permissions: payload.permissions };
-  } catch (error) {
-    // Invalid or malformed JWT; treat caller as unauthenticated (401).
-    return null;
+  if (payload.expiryTimestamp !== undefined) {
+    const isExpired =
+      !moment(payload.expiryTimestamp).isValid() || moment().isAfter(payload.expiryTimestamp);
+    if (isExpired) return null;
   }
+
+  return { userId, role: payload.role, permissions: payload.permissions };
 };
 
 /**
