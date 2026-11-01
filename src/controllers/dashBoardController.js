@@ -364,6 +364,7 @@ const dashboardcontroller = function () {
       }
       return res.status(200).json({ savingRequestFeedbackData: body });
     } catch (err) {
+      console.error('Error saving questionaire feedback:', err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -373,6 +374,7 @@ const dashboardcontroller = function () {
       const { status, body } = await dashboardhelper.checkQuestionaireModal(req);
       return res.status(status).json(body);
     } catch (err) {
+      console.error('Error checking questionaire modal:', err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
