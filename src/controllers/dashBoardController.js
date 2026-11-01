@@ -358,8 +358,11 @@ const dashboardcontroller = function () {
       "userId": "5baac381e16814009017678c"
   } */
     try {
-      const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
-      return res.status(200).json({ savingRequestFeedbackData });
+      const { status, body } = await dashboardhelper.requestFeedback(req);
+      if (status !== 200) {
+        return res.status(status).json(body);
+      }
+      return res.status(200).json({ savingRequestFeedbackData: body });
     } catch (err) {
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
