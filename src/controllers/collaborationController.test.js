@@ -57,6 +57,19 @@ describe('submitFormResponse', () => {
     });
   });
 
+  it('returns 400 when the email domain ending is not a real TLD', async () => {
+    await submitFormResponse(
+      { params: { formId }, body: { ...validBody, email: 'rabstu@gmail.con' } },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: '".con" isn\'t a valid email domain ending. Check for a typo.',
+    });
+    expect(Form.findById).not.toHaveBeenCalled();
+    expect(Response.findOne).not.toHaveBeenCalled();
+  });
+
   it('returns 400 for invalid payload JSON', async () => {
     await submitFormResponse({ params: { formId }, body: { payload: '{bad json' } }, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -150,6 +163,39 @@ describe('submitFormResponse', () => {
     expect(uploadFileToAzureBlobStorage).toHaveBeenCalled();
     expect(saveMock).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('names stored blobs with the allowlisted lower-cased extension, not the client one', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    const questionId = '6a4f01a854e483075a73a6a9';
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: { ...validBody, answers: [{ questionId, answer: 'x' }] },
+        files: [
+          {
+            fieldname: 'resume',
+            originalname: 'Resume.PDF',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('pdf'),
+          },
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'cover.html',
+            mimetype: 'text/html',
+            buffer: Buffer.from('<p>'),
+          },
+        ],
+      },
+      res,
+    );
+
+    const blobNames = uploadFileToAzureBlobStorage.mock.calls.map(([, name]) => name);
+    expect(blobNames).toHaveLength(2);
+    expect(blobNames[0]).toMatch(/^resumes\/software_developer_ada_example_com_\d+\.pdf$/);
+    expect(blobNames[1]).toMatch(/_q_6a4f01a854e483075a73a6a9_\d+\.bin$/);
   });
 
   it('still returns 201 if resume upload or email sending fails', async () => {
