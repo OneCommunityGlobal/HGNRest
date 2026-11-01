@@ -3,6 +3,8 @@
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
 
+const ISO_DATE_LENGTH = 10;
+
 /**
  *
  * @param {*} dateOfWork
@@ -47,9 +49,10 @@ const reporthelper = function () {
     const badgeDateEnd = moment(pstEnd).tz('America/Los_Angeles').startOf('day');
 
     while (badgeDateCursor.isSameOrBefore(badgeDateEnd, 'day')) {
-      // Support both the existing production format and ISO-style legacy values.
+      // Both padded and unpadded days exist in saved badge histories.
       badgeEarnedDatesInRange.push(
         badgeDateCursor.format('MMM-DD-YY'),
+        badgeDateCursor.format('MMM-D-YY'),
         badgeDateCursor.format('YYYY-MM-DD'),
       );
       badgeDateCursor.add(1, 'day');
@@ -128,7 +131,43 @@ const reporthelper = function () {
                         },
                         as: 'earnedDate',
                         in: {
-                          $in: ['$$earnedDate', badgeEarnedDatesInRange],
+                          $or: [
+                            { $in: ['$$earnedDate', badgeEarnedDatesInRange] },
+                            {
+                              $let: {
+                                vars: {
+                                  earnedTimestamp: {
+                                    $convert: {
+                                      input: '$$earnedDate',
+                                      to: 'date',
+                                      onError: null,
+                                      onNull: null,
+                                    },
+                                  },
+                                },
+                                in: {
+                                  $and: [
+                                    // Only timestamps use instant comparisons. Date-only values
+                                    // above must retain their day instead of being parsed as UTC midnight.
+                                    {
+                                      $cond: [
+                                        { $eq: [{ $type: '$$earnedDate' }, 'string'] },
+                                        {
+                                          $eq: [
+                                            { $substrCP: ['$$earnedDate', ISO_DATE_LENGTH, 1] },
+                                            'T',
+                                          ],
+                                        },
+                                        false,
+                                      ],
+                                    },
+                                    { $gte: ['$$earnedTimestamp', pstStart] },
+                                    { $lte: ['$$earnedTimestamp', pstEnd] },
+                                  ],
+                                },
+                              },
+                            },
+                          ],
                         },
                       },
                     },
