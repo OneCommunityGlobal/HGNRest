@@ -8,6 +8,14 @@ const { stripHtml } = require('../utilities/htmlContentSanitizer');
 
 const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
+/** Posted date from a Mongo ObjectId (creation time encoded in the id). */
+const datePostedFromId = (id) => {
+  if (id && typeof id.getTimestamp === 'function') {
+    return id.getTimestamp();
+  }
+  return new Date(Number.parseInt(String(id).substring(0, 8), 16) * 1000);
+};
+
 const parseCategory = (category) => {
   if (!category) return [];
 
@@ -63,8 +71,8 @@ const paginationForJobs = async (req, res) => {
   const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
     const query = buildConditions({ search, category, position });
 
@@ -155,8 +163,8 @@ const resetJobsFilters = async (req, res) => {
   const { page = 1, limit = 18 } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
     const totalJobs = await Job.countDocuments({});
     const totalPages = Math.ceil(totalJobs / limitNumber);
@@ -266,15 +274,37 @@ const createJob = async (req, res) => {
 
 const updateJob = async (req, res) => {
   const { id } = req.params;
+  const update = { ...req.body };
+
+  if (Object.keys(update).some((key) => key.startsWith('$'))) {
+    return res.status(400).json({ error: 'Update operators are not allowed' });
+  }
+
+  // Never let an update request clear the posted date.
+  if (!update.datePosted) {
+    delete update.datePosted;
+  } else {
+    const parsed = new Date(update.datePosted);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ error: 'Invalid datePosted' });
+    }
+    update.datePosted = parsed;
+  }
 
   try {
-    const updates = { ...req.body };
-    if (typeof updates.description === 'string') {
-      updates.description = stripHtml(updates.description);
+    const existingJob = await Job.findById(id).lean();
+    if (!existingJob) return res.status(404).json({ error: 'Job not found' });
+
+    // Align with backfillJobDatePosted: use creation time from _id, not "now".
+    if (!existingJob.datePosted && !update.datePosted) {
+      update.datePosted = datePostedFromId(existingJob._id);
     }
 
-    const updatedJob = await Job.findByIdAndUpdate(id, updates, { new: true });
-    if (!updatedJob) return res.status(404).json({ error: 'Job not found' });
+    if (typeof update.description === 'string') {
+      update.description = stripHtml(update.description);
+    }
+
+    const updatedJob = await Job.findByIdAndUpdate(id, update, { new: true });
 
     res.json(updatedJob);
   } catch (error) {
