@@ -1275,6 +1275,200 @@ const userHelper = function () {
     }
   };
 
+  const hasAutoReplyWeeklySummary = (user) =>
+    user?.weeklySummaryOption === 'Not Required' ||
+    user?.weeklySummaryNotReq ||
+    (Array.isArray(user.weeklySummaries) &&
+      user.weeklySummaries.length > 1 &&
+      !!user.weeklySummaries[1].summary);
+
+  const sendAutoReplyWarningEmail = async (
+    user,
+    updatedUser,
+    newWarning,
+    currentWarningDescriptions,
+  ) => {
+    try {
+      const { sendEmail, size } = warningsHelper.filterWarnings(
+        currentWarningDescriptions,
+        updatedUser.warnings,
+        newWarning.iconId,
+        newWarning.color,
+      );
+      if (sendEmail !== null) {
+        const adminEmails = await getUserRoleByEmail(user);
+        await warningsHelper.sendEmailToUser(
+          sendEmail,
+          'Removed Blue Square for Hours Close Enough',
+          { firstName: user.firstName, lastName: user.lastName, email: user.email },
+          {
+            firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
+            lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
+            email: MONITOR_CONTACT_CONFIG.EMAIL,
+          },
+          size,
+          adminEmails,
+        );
+      }
+    } catch (err) {
+      console.error(`[autoReply] warning email failed for ${user.email}:`, err);
+    }
+  };
+
+  const sendAutoReplyInfringementEmail = async (user, updatedUser) => {
+    try {
+      await notifyInfringements(
+        user.infringements || [],
+        updatedUser.infringements,
+        updatedUser.firstName,
+        updatedUser.lastName,
+        updatedUser.email,
+        updatedUser.role,
+        updatedUser.startDate,
+        updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
+        updatedUser.weeklycommittedHours,
+      );
+    } catch (err) {
+      console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
+    }
+  };
+
+  const claimAutoReplyWarning = async (user, assignmentDate, currentWarningDescriptions) => {
+    const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+
+    const occurrence =
+      (user.warnings?.filter((w) => w.description === WARNING_DESC).length ?? 0) + 1;
+
+    let color = 'blue';
+    if (occurrence === 3) color = 'yellow';
+    else if (occurrence >= 4) color = 'red';
+    const issueBlueSquare = occurrence >= 4;
+
+    const newWarning = {
+      _id: new mongoose.Types.ObjectId(),
+      iconId: uuidv4(),
+      color,
+      date: assignmentDate,
+      description: WARNING_DESC,
+      warningId: currentWarningDescriptions.find((w) => w.warningTitle === WARNING_DESC)?._id,
+    };
+
+    const replacementSquares = issueBlueSquare
+      ? [
+          {
+            _id: new mongoose.Types.ObjectId(),
+            date: assignmentDate,
+            description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
+            createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
+            manuallyAssigned: false,
+            reason: 'missingHours',
+            reasons: ['time not met'],
+            editedBy: [],
+          },
+        ]
+      : [];
+
+    const updatedUser = await userProfile.findOneAndUpdate(
+      {
+        _id: user._id,
+        // system square for this week must still exist
+        infringements: {
+          $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
+        },
+        // and this week's warning must not have been recorded yet
+        warnings: {
+          $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+        },
+      },
+      [
+        {
+          $set: {
+            infringements: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: { $ifNull: ['$infringements', []] },
+                    cond: {
+                      $not: {
+                        $and: [
+                          { $eq: ['$$this.date', assignmentDate] },
+                          { $ne: ['$$this.manuallyAssigned', true] },
+                        ],
+                      },
+                    },
+                  },
+                },
+                replacementSquares, // empty unless 4th+ offense
+              ],
+            },
+            warnings: { $concatArrays: [{ $ifNull: ['$warnings', []] }, [newWarning]] },
+          },
+        },
+        { $set: { infringementCount: { $size: '$infringements' } } },
+      ],
+      { new: true },
+    );
+
+    // Another run (cron/manual) already claimed this user/week, or nothing to remove
+    if (!updatedUser) return false;
+
+    await sendAutoReplyWarningEmail(user, updatedUser, newWarning, currentWarningDescriptions);
+    if (issueBlueSquare) {
+      await sendAutoReplyInfringementEmail(user, updatedUser);
+      return false;
+    }
+    return true;
+  };
+
+  const sendWeeklyAutoReplyForUser = async (user, emailConfig, context) => {
+    const {
+      pdtStartOfLastWeek,
+      pdtEndOfLastWeek,
+      assignmentDate,
+      resolvedBCCs,
+      currentWarningDescriptions,
+    } = context;
+    const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+    const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
+
+    // Skip users who already received a priority-1 email from
+    // completeHoursAndMissedSummary() — they met hours but missed summary.
+    const metHours = weeklycommittedHours > 0 && timeSpent >= weeklycommittedHours;
+    const hasSummary = hasAutoReplyWeeklySummary(user);
+    if (metHours && !hasSummary) return; // handled by completeHoursAndMissedSummary
+
+    const numMonths = getNumMonthsOnTeam(user);
+    const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
+    const hasTodayBlueSquare = user.infringements.some(
+      (inf) => inf.date === assignmentDate && inf.manuallyAssigned === false,
+    );
+
+    const templateKey = resolveAutoReplyTemplate(
+      timeSpent,
+      weeklycommittedHours,
+      numMonths,
+      user.infringements.length,
+      hasTodayBlueSquare,
+      hasTimeOff,
+    );
+
+    if (!templateKey) return;
+
+    console.log(`[autoReply] ${user.email} → ${templateKey}`);
+    if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
+      const claimed = await claimAutoReplyWarning(user, assignmentDate, currentWarningDescriptions);
+      if (!claimed) return;
+    }
+
+    await sendBlueSquareEmail(
+      emailConfig,
+      user,
+      pdtStartOfLastWeek,
+      WeeklyReminderEmailBody(templateKey, user.firstName),
+      resolvedBCCs,
+    );
+  };
+
   /**
    * Single unified auto-reply function implementing Jae's priority hierarchy.
    * Replaces inCompleteHoursEmailFunction + weeklyBlueSquareReminderFunction.
@@ -1310,174 +1504,15 @@ const userHelper = function () {
       const assignmentDate = moment().tz(COMPANY_TZ).startOf('week').format('YYYY-MM-DD');
       const resolvedBCCs = await resolveBCCs(emailConfig);
 
+      const context = {
+        pdtStartOfLastWeek,
+        pdtEndOfLastWeek,
+        assignmentDate,
+        resolvedBCCs,
+        currentWarningDescriptions,
+      };
       for (const user of users) {
-        const timeSpent = await getUserTimeSpent(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const weeklycommittedHours = user.weeklycommittedHours + (user.missedHours ?? 0);
-
-        // Skip users who already received a priority-1 email from
-        // completeHoursAndMissedSummary() — they met hours but missed summary.
-        const metHours = weeklycommittedHours > 0 && timeSpent >= weeklycommittedHours;
-        const hasSummary =
-          user?.weeklySummaryOption === 'Not Required' ||
-          user?.weeklySummaryNotReq ||
-          (Array.isArray(user.weeklySummaries) &&
-            user.weeklySummaries.length > 1 &&
-            !!user.weeklySummaries[1].summary);
-        if (metHours && !hasSummary) continue; // handled by completeHoursAndMissedSummary
-
-        const numMonths = getNumMonthsOnTeam(user);
-        const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some(
-          (inf) => inf.date === assignmentDate && inf.manuallyAssigned === false,
-        );
-
-        const templateKey = resolveAutoReplyTemplate(
-          timeSpent,
-          weeklycommittedHours,
-          numMonths,
-          user.infringements.length,
-          hasTodayBlueSquare,
-          hasTimeOff,
-        );
-
-        if (!templateKey) continue;
-
-        console.log(`[autoReply] ${user.email} → ${templateKey}`);
-
-        // Remove the blue square from the database if hours were close enough
-        if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
-          const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
-
-          const occurrence =
-            (user.warnings?.filter((w) => w.description === WARNING_DESC).length ?? 0) + 1;
-
-          let color = 'blue';
-          if (occurrence === 3) color = 'yellow';
-          else if (occurrence >= 4) color = 'red';
-          const issueBlueSquare = occurrence >= 4;
-
-          const newWarning = {
-            _id: new mongoose.Types.ObjectId(),
-            iconId: uuidv4(),
-            color,
-            date: assignmentDate,
-            description: WARNING_DESC,
-            warningId: currentWarningDescriptions.find((w) => w.warningTitle === WARNING_DESC)?._id,
-          };
-
-          const replacementSquares = issueBlueSquare
-            ? [
-                {
-                  _id: new mongoose.Types.ObjectId(),
-                  date: assignmentDate,
-                  description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
-                  createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
-                  manuallyAssigned: false,
-                  reason: 'missingHours',
-                  reasons: ['time not met'],
-                  editedBy: [],
-                },
-              ]
-            : [];
-
-          const updatedUser = await userProfile.findOneAndUpdate(
-            {
-              _id: user._id,
-              // system square for this week must still exist
-              infringements: {
-                $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
-              },
-              // and this week's warning must not have been recorded yet
-              warnings: {
-                $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
-              },
-            },
-            [
-              {
-                $set: {
-                  infringements: {
-                    $concatArrays: [
-                      {
-                        $filter: {
-                          input: { $ifNull: ['$infringements', []] },
-                          cond: {
-                            $not: {
-                              $and: [
-                                { $eq: ['$$this.date', assignmentDate] },
-                                { $ne: ['$$this.manuallyAssigned', true] },
-                              ],
-                            },
-                          },
-                        },
-                      },
-                      replacementSquares, // empty unless 4th+ offense
-                    ],
-                  },
-                  warnings: { $concatArrays: [{ $ifNull: ['$warnings', []] }, [newWarning]] },
-                },
-              },
-              { $set: { infringementCount: { $size: '$infringements' } } },
-            ],
-            { new: true },
-          );
-
-          // Another run (cron/manual) already claimed this user/week, or nothing to remove
-          if (!updatedUser) continue;
-
-          // ---- State is fully committed. Emails below can fail without corrupting data ----
-          try {
-            const { sendEmail, size } = warningsHelper.filterWarnings(
-              currentWarningDescriptions,
-              updatedUser.warnings,
-              newWarning.iconId,
-              color,
-            );
-            if (sendEmail !== null) {
-              const adminEmails = await getUserRoleByEmail(user);
-              await warningsHelper.sendEmailToUser(
-                sendEmail,
-                'Removed Blue Square for Hours Close Enough',
-                { firstName: user.firstName, lastName: user.lastName, email: user.email },
-                {
-                  firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
-                  lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
-                  email: MONITOR_CONTACT_CONFIG.EMAIL,
-                },
-                size,
-                adminEmails,
-              );
-            }
-          } catch (err) {
-            console.error(`[autoReply] warning email failed for ${user.email}:`, err);
-          }
-
-          if (issueBlueSquare) {
-            try {
-              await notifyInfringements(
-                user.infringements || [],
-                updatedUser.infringements,
-                updatedUser.firstName,
-                updatedUser.lastName,
-                updatedUser.email,
-                updatedUser.role,
-                updatedUser.startDate,
-                updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
-                updatedUser.weeklycommittedHours,
-              );
-            } catch (err) {
-              console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
-            }
-            continue; // skip the "close enough" template on a 4th+ offense
-          }
-        }
-
-        await sendBlueSquareEmail(
-          emailConfig,
-          user,
-          pdtStartOfLastWeek,
-          WeeklyReminderEmailBody(templateKey, user.firstName),
-          resolvedBCCs,
-        );
+        await sendWeeklyAutoReplyForUser(user, emailConfig, context);
       }
     } catch (error) {
       console.error('Error in weeklyAutoReplyEmailFunction:', error);
