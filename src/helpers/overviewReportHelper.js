@@ -103,6 +103,69 @@ function validateDateParameters(
   return { isValid: true, error: null };
 }
 
+/** Count distinct volunteer countries, including profiles without map coordinates. */
+async function getCountryCounts() {
+  const profiles = await UserProfile.find(
+    {},
+    {
+      isActive: 1,
+      'location.country': 1,
+      'location.coords.lat': 1,
+      'location.coords.lng': 1,
+      'homeCountry.country': 1,
+    },
+  ).lean();
+  const allTime = new Set();
+  const active = new Set();
+  const aliases = new Map([
+    ['united states of america', 'united states'],
+    ['usa', 'united states'],
+    ['u.s.a.', 'united states'],
+    ['uk', 'united kingdom'],
+    ['reino unido', 'united kingdom'],
+  ]);
+
+  profiles.forEach((profile) => {
+    const country = profile.location?.country?.trim() || profile.homeCountry?.country?.trim();
+    if (!country) return;
+
+    const normalized = country.replace(/\s+/g, ' ').toLowerCase();
+    const countryKey = aliases.get(normalized) || normalized;
+    allTime.add(countryKey);
+    const { lat, lng } = profile.location?.coords || {};
+    if (
+      profile.isActive === true &&
+      lat !== null &&
+      lat !== undefined &&
+      lng !== null &&
+      lng !== undefined
+    ) {
+      active.add(countryKey);
+    }
+  });
+
+  return { allTime: allTime.size, active: active.size };
+}
+
+/** aggregates role distribution statistics
+ * counts total number of volunteers that fall within each of the different roles
+ * NOTE: This shows ALL active users regardless of createdDate to provide
+ * a complete picture of current role distribution in the organization
+ */
+async function getRoleDistributionStats() {
+  // Always match only active users, ignore date filters for role distribution
+  // This ensures all current roles are displayed, not just recently created users.
+  // Role distribution is a live snapshot, not a time-series metric, so comparison
+  // periods do not apply here — always return a flat array of {_id: role, count}.
+  const matchStage = { isActive: true };
+  const result = await UserProfile.aggregate([
+    { $match: matchStage },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+
+  return result;
+}
+
 const overviewReportHelper = function () {
   /*
    * Get volunteers completed assigned hours.
@@ -498,77 +561,16 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
+    // One definition of "active team", shared with Team Stats: an active team
+    // (created by the end date) with at least 2 currently active members.
+    // This keeps the Total Active Teams card equal to "N teams with 2+ active members".
+    const ACTIVE_TEAM_MIN_MEMBERS = 2;
     const getActiveTeamCount = async (start, end) => {
-      // Convert dates to YYYY-MM-DD string format for comparison with dateOfWork
-      const startStr = moment(start).format('YYYY-MM-DD');
-      const endStr = moment(end).format('YYYY-MM-DD');
-
-      console.log(`\n[getTotalActiveTeamCount] ========== START ==========`);
-      console.log(`[getTotalActiveTeamCount] Processing date range: ${startStr} to ${endStr}`);
-      console.log(`[getTotalActiveTeamCount] Input dates - start: ${start}, end: ${end}`);
-
-      // Step 1: Get all active teams
-      const activeTeamsCount = await Team.countDocuments({ isActive: true });
-      console.log(`[getTotalActiveTeamCount] Total active teams (no filter): ${activeTeamsCount}`);
-
-      const result = await Team.aggregate([
-        // Step 1: Match active teams created before/on the end date
-        {
-          $match: {
-            isActive: true,
-            $or: [{ createdDatetime: { $exists: false } }, { createdDatetime: { $lte: end } }],
-          },
-        },
-        // Step 2: Lookup time entries for all team members
-        {
-          $lookup: {
-            from: 'timeEntries',
-            localField: 'members.userId',
-            foreignField: 'personId',
-            as: 'allTeamTimeEntries',
-          },
-        },
-        // Step 3: Filter the time entries to only those in the date range
-        {
-          $project: {
-            _id: 1,
-            teamName: 1,
-            isActive: 1,
-            memberCount: { $size: '$members' },
-            totalTimeEntriesCount: { $size: '$allTeamTimeEntries' },
-            // Filter time entries to only those within the date range
-            timeEntriesInRange: {
-              $filter: {
-                input: '$allTeamTimeEntries',
-                as: 'entry',
-                cond: {
-                  $and: [
-                    { $gte: ['$$entry.dateOfWork', startStr] },
-                    { $lte: ['$$entry.dateOfWork', endStr] },
-                  ],
-                },
-              },
-            },
-          },
-        },
-        // Step 4: Keep only teams that have at least one time entry in the date range
-        {
-          $match: {
-            'timeEntriesInRange.0': { $exists: true },
-          },
-        },
-        // Step 5: Count the matching teams
-        {
-          $count: 'activeTeams',
-        },
-      ]);
-
-      const activeTeamsWithHours = result[0]?.activeTeams || 0;
-      console.log(
-        `[getTotalActiveTeamCount] Teams with logged hours in range ${startStr} to ${endStr}: ${activeTeamsWithHours}`,
+      const { count } = await getTeamsWithActiveMembers(
+        moment(end).endOf('day').toDate(),
+        ACTIVE_TEAM_MIN_MEMBERS,
       );
-      console.log(`[getTotalActiveTeamCount] ========== END ==========\n`);
-      return activeTeamsWithHours;
+      return count;
     };
 
     const current = await getActiveTeamCount(startDate, endDate);
@@ -586,9 +588,12 @@ const overviewReportHelper = function () {
   }
 
   /**
-   *  Get the users celebrating their 6 month or 1 year anniversary within the given dates
+   * Get the active users whose join anniversary (1, 2, 3... full years after
+   * their createdDate) falls within the given dates.
    * @param {Date} isoStartDate
    * @param {Date} isoEndDate
+   * @param {Date} [isoComparisonStartDate]
+   * @param {Date} [isoComparisonEndDate]
    */
   async function getAnniversaries(
     isoStartDate,
@@ -597,40 +602,58 @@ const overviewReportHelper = function () {
     isoComparisonEndDate,
   ) {
     /**
-     * Gets start and end dates exactly X months ago
-     * @param {Date} startDate
-     * @param {Date} endDate
-     * @param {Number} timeDifferenceInMonths
-     * @returns {{ startDate: Date, endDate: Date }}
+     * The same moment, a number of years earlier.
+     * Uses UTC, so the server's time zone never changes the result.
+     * (In years without a Feb 29, Feb 29 joiners are listed on Feb 28.)
+     * @param {Date} date
+     * @param {Number} years
+     * @returns {Date}
      */
-    const getPastDates = (startDate, endDate, timeDifferenceInMonths) => {
-      const startDateCopy = new Date(startDate);
-      startDateCopy.setMonth(startDateCopy.getMonth() - timeDifferenceInMonths);
-
-      const endDateCopy = new Date(endDate);
-      endDateCopy.setMonth(endDateCopy.getMonth() - timeDifferenceInMonths);
-
-      return {
-        startDate: startDateCopy,
-        endDate: endDateCopy,
-      };
+    const yearsBefore = (date, years) => {
+      const copy = new Date(date);
+      copy.setUTCFullYear(copy.getUTCFullYear() - years);
+      return copy;
     };
 
+    // Earliest join date of an active user, so we know how many years to look back for anniversaries
+    const firstUser = await UserProfile.findOne(
+      { isActive: true, createdDate: { $type: 'date' } },
+      { createdDate: 1 },
+    )
+      .sort({ createdDate: 1 })
+      .lean();
+
     /**
-     * Gets list of users created within a given date range
+     * Gets the active users who joined on the same days 1, 2, 3... years
+     * before the given dates, i.e. whose anniversary falls within them.
      * @param {Date} startDate
      * @param {Date} endDate
-     * @returns {Array<Object>} Array of user objects
+     * @returns {Promise<Array<Object>>} Array of user objects
      */
-    const getUsersCreated = async (startDate, endDate) => {
-      const users = await UserProfile.aggregate([
+    const getAnniversaryUsers = async (startDate, endDate) => {
+      if (!firstUser) return [];
+      // One date window per past year: the same days 1, 2, 3... years ago,
+      // back to the year the earliest active user joined
+      const yearsToCheck = endDate.getUTCFullYear() - firstUser.createdDate.getUTCFullYear();
+      const sameDaysInPastYears = [];
+      for (let years = 1; years <= yearsToCheck; years += 1) {
+        sameDaysInPastYears.push({
+          isActive: true,
+          createdDate: {
+            $gte: yearsBefore(startDate, years),
+            $lte: yearsBefore(endDate, years),
+          },
+        });
+      }
+
+      // Nobody can have a full year yet (MongoDB rejects an empty $or)
+      if (sameDaysInPastYears.length === 0) return [];
+
+      return UserProfile.aggregate([
+        // Each window is a small range on the { isActive, createdDate } index
         {
           $match: {
-            createdDate: {
-              $gte: startDate,
-              $lte: endDate,
-            },
-            isActive: true,
+            $or: sameDaysInPastYears,
           },
         },
         {
@@ -644,62 +667,30 @@ const overviewReportHelper = function () {
           },
         },
       ]);
-      return users;
     };
 
-    const dates6MonthsAgo = getPastDates(isoStartDate, isoEndDate, 6);
-    const dates1YearAgo = getPastDates(isoStartDate, isoEndDate, 12);
-
-    const anniversaries6Months = await getUsersCreated(
-      dates6MonthsAgo.startDate,
-      dates6MonthsAgo.endDate,
-    );
-    const anniversaries1Year = await getUsersCreated(
-      dates1YearAgo.startDate,
-      dates1YearAgo.endDate,
-    );
+    const anniversaryUsers = await getAnniversaryUsers(isoStartDate, isoEndDate);
 
     const response = {
+      // 6 months is not a full year: always empty, kept so the frontend does not break
       '6Months': {
-        users: anniversaries6Months,
+        users: [],
       },
+      // Everyone with 1, 2, 3... full years (the page shows them under "1 year")
       '1Year': {
-        users: anniversaries1Year,
+        users: anniversaryUsers,
       },
     };
 
-    /**
-     * If comparison dates are included in request,
-     * modify response to include comparison percentages
-     */
+    // The comparison period uses the same rule
     if (isoComparisonStartDate && isoComparisonEndDate) {
-      const comparisonDates6MonthsAgo = getPastDates(
+      const comparisonUsers = await getAnniversaryUsers(
         isoComparisonStartDate,
         isoComparisonEndDate,
-        6,
-      );
-      const comparisonDates1YearAgo = getPastDates(
-        isoComparisonStartDate,
-        isoComparisonEndDate,
-        12,
-      );
-
-      const comparisonAnniversaries6Months = await getUsersCreated(
-        comparisonDates6MonthsAgo.startDate,
-        comparisonDates6MonthsAgo.endDate,
-      );
-      const comparisonAnniversaries1Year = await getUsersCreated(
-        comparisonDates1YearAgo.startDate,
-        comparisonDates1YearAgo.endDate,
-      );
-
-      response['6Months'].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries6Months.length,
-        comparisonAnniversaries6Months.length,
       );
       response['1Year'].comparisonPercentage = calculateGrowthPercentage(
-        anniversaries1Year.length,
-        comparisonAnniversaries1Year.length,
+        anniversaryUsers.length,
+        comparisonUsers.length,
       );
     }
 
@@ -1006,25 +997,6 @@ const overviewReportHelper = function () {
     };
   }
 
-  /** aggregates role distribution statistics
-   * counts total number of volunteers that fall within each of the different roles
-   * NOTE: This shows ALL active users regardless of createdDate to provide
-   * a complete picture of current role distribution in the organization
-   */
-  async function getRoleDistributionStats() {
-    // Always match only active users, ignore date filters for role distribution
-    // This ensures all current roles are displayed, not just recently created users.
-    // Role distribution is a live snapshot, not a time-series metric, so comparison
-    // periods do not apply here — always return a flat array of {_id: role, count}.
-    const matchStage = { isActive: true };
-    const result = await UserProfile.aggregate([
-      { $match: matchStage },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-    ]);
-
-    return result;
-  }
-
   /**
    * aggregates the total number of hours worked between the 5 categories
    * Food, Energy, Housing, Stewardship, Society, Economics and Other
@@ -1120,10 +1092,20 @@ const overviewReportHelper = function () {
       const currentStats = taskStats[0].current || [];
       const comparisonStats = taskStats[0].comparison || [];
 
-      const currentActive = currentStats.find((x) => x._id === 'Active')?.count || 0;
-      const currentComplete = currentStats.find((x) => x._id === 'Complete')?.count || 0;
-      const comparisonActive = comparisonStats.find((x) => x._id === 'Active')?.count || 0;
-      const comparisonComplete = comparisonStats.find((x) => x._id === 'Complete')?.count || 0;
+      // In-progress tasks use either 'Active' or 'Started' status.
+      // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
+      const currentActive = currentStats
+        .filter((x) => x._id === 'Active' || x._id === 'Started')
+        .reduce((sum, x) => sum + x.count, 0);
+      const currentComplete = currentStats
+        .filter((x) => x._id === 'Complete')
+        .reduce((sum, x) => sum + x.count, 0);
+      const comparisonActive = comparisonStats
+        .filter((x) => x._id === 'Active' || x._id === 'Started')
+        .reduce((sum, x) => sum + x.count, 0);
+      const comparisonComplete = comparisonStats
+        .filter((x) => x._id === 'Complete')
+        .reduce((sum, x) => sum + x.count, 0);
 
       return {
         active: {
@@ -1141,8 +1123,13 @@ const overviewReportHelper = function () {
       };
     }
 
-    // non-comparison branch
+    // Apply the selected range even when comparison mode is off.
     const taskStats = await Task.aggregate([
+      {
+        $match: {
+          modifiedDatetime: { $gte: startDate, $lte: endDate },
+        },
+      },
       {
         $group: {
           _id: '$status',
@@ -1151,8 +1138,14 @@ const overviewReportHelper = function () {
       },
     ]);
 
-    const active = taskStats.find((x) => x._id === 'Active')?.count || 0;
-    const complete = taskStats.find((x) => x._id === 'Complete')?.count || 0;
+    // In-progress tasks use either 'Active' or 'Started' status.
+    // Terminal tasks use 'Complete'. Count both in-progress variants for the Assigned bar.
+    const active = taskStats
+      .filter((x) => x._id === 'Active' || x._id === 'Started')
+      .reduce((sum, x) => sum + x.count, 0);
+    const complete = taskStats
+      .filter((x) => x._id === 'Complete')
+      .reduce((sum, x) => sum + x.count, 0);
 
     return {
       active: { current: active },
@@ -1336,6 +1329,21 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Match users who are active now OR logged time in the period. Hours logged in the
+   * selected period still count after the volunteer is deactivated or paused, even
+   * though pausing does not record an end date.
+   */
+  const workedDuringPeriodMatch = async (periodStart, periodEnd) => {
+    // Coerce request dates to plain YYYY-MM-DD strings so they can't inject query operators
+    const safeStart = moment(String(periodStart)).format('YYYY-MM-DD');
+    const safeEnd = moment(String(periodEnd)).format('YYYY-MM-DD');
+    const personIds = await TimeEntries.distinct('personId', {
+      dateOfWork: { $gte: safeStart, $lte: safeEnd },
+    });
+    return { $or: [{ isActive: true }, { _id: { $in: personIds } }] };
+  };
+
+  /**
    * Get volunteer hours distribution stats based on weekly averages
    * Requirements:
    * - Calculate weekly average only for weeks where user logged time
@@ -1356,11 +1364,11 @@ const overviewReportHelper = function () {
       return { error: validation.error };
     }
 
-    // Get all active users with their time entries
+    // Users active at any point in the period (incl. deactivated later), with time entries
     const usersWithTimeEntries = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(startDate, endDate)),
         },
       },
       {
@@ -1470,6 +1478,30 @@ const overviewReportHelper = function () {
   }
 
   /**
+   * Distribution of active volunteers by their weekly committed hours.
+   * Bucket ids are UPPER limits, matching the frontend labels:
+   * '10' = 1-10 hrs, '20' = 11-20, '30' = 21-30, '40' = 31-40, '40+' = over 40.
+   * Same population as the other volunteer stats: active, committed >= 1, not a Mentor.
+   */
+  async function getCommittedHoursStats() {
+    const users = await UserProfile.find(
+      { isActive: true, weeklycommittedHours: { $gte: 1 }, role: { $ne: 'Mentor' } },
+      'weeklycommittedHours',
+    ).lean();
+
+    const buckets = { 10: 0, 20: 0, 30: 0, 40: 0, '40+': 0 };
+    users.forEach(({ weeklycommittedHours: hours }) => {
+      if (hours <= 10) buckets[10] += 1;
+      else if (hours <= 20) buckets[20] += 1;
+      else if (hours <= 30) buckets[30] += 1;
+      else if (hours <= 40) buckets[40] += 1;
+      else buckets['40+'] += 1;
+    });
+
+    return ['10', '20', '30', '40', '40+'].map((id) => ({ _id: id, count: buckets[id] }));
+  }
+
+  /**
    * Aggregates total hours worked in the selected date range across all active volunteers,
    * matching the dashboard's getOrgData logic exactly:
    * - Uses inclusive YYYY-MM-DD boundaries matching timeEntries.dateOfWork
@@ -1484,7 +1516,7 @@ const overviewReportHelper = function () {
     const data = await UserProfile.aggregate([
       {
         $match: {
-          isActive: true,
+          ...(await workedDuringPeriodMatch(pdtstart, pdtend)),
           weeklycommittedHours: { $gte: 1 },
           role: { $ne: 'Mentor' },
         },
@@ -2562,7 +2594,10 @@ const overviewReportHelper = function () {
       const hoursStats = await UserProfile.aggregate([
         {
           $match: {
-            isActive: true,
+            ...(await workedDuringPeriodMatch(
+              moment(start).format('YYYY-MM-DD'),
+              moment(end).format('YYYY-MM-DD'),
+            )),
           },
         },
         {
@@ -2719,6 +2754,7 @@ const overviewReportHelper = function () {
   return {
     getVolunteerTrends,
     getMapLocations,
+    getCountryCounts,
     getTotalActiveTeamCount,
     getAnniversaries,
     getRoleDistributionStats,
@@ -2728,6 +2764,7 @@ const overviewReportHelper = function () {
     getWorkDistributionStats,
     getTotalHoursWorked,
     getHoursStats,
+    getCommittedHoursStats,
     getFourPlusMembersTeamCount,
     getTotalBadgesAwardedCount,
     getAnniversaryCount,
