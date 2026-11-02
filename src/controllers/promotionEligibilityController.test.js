@@ -7,9 +7,22 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
+jest.mock('../models/promotionDetail', () => ({
+  findOneAndUpdate: jest.fn().mockResolvedValue({}),
+  bulkWrite: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('../models/hgnFormResponse', () => ({
+  find: jest.fn(() => ({
+    lean: jest.fn().mockResolvedValue([]),
+  })),
+}));
+
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
+const PromotionDetail = require('../models/promotionDetail');
 const promotionEligibilityController = require('./promotionEligibilityController');
+const FormResponse = require('../models/hgnFormResponse');
 
 const OWNER_ID = '665234c757ca141fe891e1ca';
 const REVIEWER_ID = '637af0c0fb9bbc1e308cff62';
@@ -20,25 +33,25 @@ describe('updatePrsNeeded', () => {
   let mockReq;
   let mockRes;
 
-  beforeEach(() => {
-    PromotionEligibility = { findOneAndUpdate: jest.fn() };
-    controller = promotionEligibilityController({}, {}, {}, PromotionEligibility);
+beforeEach(() => {
+  PromotionEligibility = { findOneAndUpdate: jest.fn() };
+  controller = promotionEligibilityController({}, {}, {}, PromotionEligibility);
 
-    mockReq = {
-      params: { reviewerId: REVIEWER_ID },
-      body: {
-        requestor: { requestorId: OWNER_ID, role: 'Owner' },
-        prsNeeded: 12,
-      },
-    };
-    mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-      send: jest.fn().mockReturnThis(),
-    };
+  mockReq = {
+    params: { reviewerId: REVIEWER_ID },
+    body: {
+      requestor: { requestorId: OWNER_ID, role: 'Owner' },
+      prsNeeded: 12,
+    },
+  };
+  mockRes = {
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+    send: jest.fn().mockReturnThis(),
+  };
 
-    jest.clearAllMocks();
-  });
+  jest.clearAllMocks();
+});
 
   describe('authorisation', () => {
     it.each(['Administrator', 'Manager', 'Core Team', 'Volunteer'])(
@@ -1392,6 +1405,233 @@ describe('History column', () => {
   it('is an empty array for somebody with no logged review work', async () => {
     await controller.getPromotionEligibilityData(req(), mockRes);
     expect(entry().history).toEqual([]);
+  });
+});
+
+describe('getPromotionPending', () => {
+  const ID_READY = '637af0c0fb9bbc1e308cff01';
+  const ID_NOT_READY = '637af0c0fb9bbc1e308cff02';
+
+  const READY = {
+    _id: ID_READY,
+    firstName: 'Akshay',
+    lastName: 'Jayaram',
+    weeklycommittedHours: 10,
+    teamCode: 'ABC12',
+    role: 'Volunteer',
+  };
+  const NOT_READY = {
+    _id: ID_NOT_READY,
+    firstName: 'Still',
+    lastName: 'Training',
+    weeklycommittedHours: 10,
+    teamCode: 'DEF34',
+    role: 'Volunteer',
+  };
+
+  let UserProfile;
+  let TimeEntry;
+  let PromotionEligibility;
+  let controller;
+  let mockRes;
+
+  const NOW = new Date('2026-08-19T12:00:00Z');
+
+  const request = () => ({
+    body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' } },
+  });
+
+  const rows = () => mockRes.json.mock.calls[0][0];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }).setSystemTime(NOW);
+    hasPermission.mockResolvedValue(true);
+    PromotionDetail.findOneAndUpdate.mockResolvedValue({});
+    PromotionDetail.bulkWrite.mockResolvedValue({});
+
+    UserProfile = {
+      find: jest.fn(() => ({
+        lean: () => Promise.resolve([READY, NOT_READY]),
+      })),
+    };
+    TimeEntry = {
+      // One batched aggregation for all candidate reviewers (not N per-user calls).
+      aggregate: jest.fn().mockResolvedValue([
+        { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+        { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
+        { personId: ID_NOT_READY, year: 2026, week: 32, reviewCount: 7 },
+      ]),
+    };
+    PromotionEligibility = {
+      find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+      findOneAndUpdate: jest.fn().mockResolvedValue({}),
+    };
+
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      {},
+      PromotionEligibility,
+      null,
+    );
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('refuses callers without getReports', async () => {
+    hasPermission.mockResolvedValue(false);
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(UserProfile.find).not.toHaveBeenCalled();
+  });
+
+  it('queries only active non-admin non-promoted reviewers', async () => {
+    UserProfile.find
+      .mockReturnValueOnce({ lean: () => Promise.resolve([]) })
+      .mockReturnValueOnce({ lean: () => Promise.resolve([]) });
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    const [filter] = UserProfile.find.mock.calls[0];
+    expect(filter.isActive).toBe(true);
+    expect(filter.role.$nin).toEqual(
+      expect.arrayContaining(['Owner', 'Administrator', 'Promoted Reviewer']),
+    );
+  });
+
+  it('returns only reviewers with remainingWeeks === 0 in the modal row shape', async () => {
+    UserProfile.find
+      .mockReturnValueOnce({ lean: () => Promise.resolve([READY, NOT_READY]) })
+      .mockReturnValueOnce({
+        lean: () =>
+          Promise.resolve([
+            {
+              teamCode: 'ABC12',
+              firstName: 'Chris',
+              lastName: 'Martinez',
+              role: 'Manager',
+            },
+          ]),
+      });
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(rows()).toEqual([
+      {
+        reviewerId: ID_READY,
+        prReviewer: 'Akshay Jayaram',
+        teamCode: 'ABC12',
+        teamLeaderName: 'Chris Martinez',
+        weeklyPRs: [
+          { week: '2026-W31', count: 7 },
+          { week: '2026-W32', count: 7 },
+        ],
+      },
+    ]);
+  });
+
+  it('upserts PromotionDetail for each pending reviewer so details GET can find them', async () => {
+    UserProfile.find
+      .mockReturnValueOnce({ lean: () => Promise.resolve([READY]) })
+      .mockReturnValueOnce({
+        lean: () =>
+          Promise.resolve([
+            {
+              teamCode: 'ABC12',
+              firstName: 'Chris',
+              lastName: 'Martinez',
+              role: 'Manager',
+            },
+          ]),
+      });
+    TimeEntry.aggregate = jest.fn().mockResolvedValue([
+      { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
+    ]);
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(PromotionDetail.bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: { _id: ID_READY },
+            update: {
+              $set: {
+                reviewerName: 'Akshay Jayaram',
+                teamCode: 'ABC12',
+                teamReviewerName: 'Chris Martinez',
+                weeklyPRs: [
+                  { week: '2026-W31', count: 7 },
+                  { week: '2026-W32', count: 7 },
+                ],
+              },
+            },
+            upsert: true,
+          },
+        },
+      ],
+      { ordered: false },
+    );
+  });
+
+  it('returns an empty array when nobody is pending', async () => {
+    UserProfile.find.mockReturnValueOnce({ lean: () => Promise.resolve([]) });
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(rows()).toEqual([]);
+    expect(PromotionDetail.bulkWrite).not.toHaveBeenCalled();
+  });
+
+  it('drops a reviewer from the pending list once their role is Promoted Reviewer', async () => {
+    // First read: eligible volunteer is pending.
+    UserProfile.find
+      .mockReturnValueOnce({ lean: () => Promise.resolve([READY]) })
+      .mockReturnValueOnce({
+        lean: () =>
+          Promise.resolve([
+            {
+              teamCode: 'ABC12',
+              firstName: 'Chris',
+              lastName: 'Martinez',
+              role: 'Manager',
+            },
+          ]),
+      });
+    TimeEntry.aggregate = jest.fn().mockResolvedValue([
+      { personId: ID_READY, year: 2026, week: 32, reviewCount: 7 },
+      { personId: ID_READY, year: 2026, week: 31, reviewCount: 7 },
+    ]);
+
+    await controller.getPromotionPending(request(), mockRes);
+    expect(rows()).toHaveLength(1);
+
+    // After promoteMembers, the profile query excludes Promoted Reviewer, so
+    // a refetch sees an empty candidate set (same as production).
+    UserProfile.find.mockReset();
+    UserProfile.find.mockReturnValue({ lean: () => Promise.resolve([]) });
+    mockRes.json.mockClear();
+    mockRes.status.mockClear();
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(rows()).toEqual([]);
+    const [filter] = UserProfile.find.mock.calls[0];
+    expect(filter.role.$nin).toContain('Promoted Reviewer');
   });
 });
 
