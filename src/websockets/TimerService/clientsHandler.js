@@ -4,7 +4,7 @@ const moment = require('moment');
 const Timer = require('../../models/timer');
 const TimelogTracking = require('../../models/timelogTracking');
 const logger = require('../../startup/logger');
-const { startRun, closeOpenRun, clearRuns, resolveRuns } = require('./sessionRuns');
+const { startRun, closeOpenRun, clearRuns, resolveRuns } = require('../../utilities/timerSessionRuns');
 
 const getClient = async (clients, userId) => {
   // In case of there is already a connection that is open for this user
