@@ -6,16 +6,21 @@ const {
   maskEmail,
   MAX_CONFIRMATIONS_PER_ADDRESS,
   MAX_CONFIRMATIONS_PER_DAY,
+  MAX_CONFIRMATIONS_PER_HOUR,
   WINDOW_MS,
+  HOUR_MS,
 } = require('../confirmationEmailCap');
 
 const NOW = new Date('2026-10-19T12:00:00.000Z');
 
-// Route the mocked count by query shape: per-address queries carry `email`, the global one does not.
-const mockCounts = ({ address = 1, global = 1 } = {}) => {
-  Response.countDocuments = jest.fn((query) =>
-    Promise.resolve(Object.prototype.hasOwnProperty.call(query, 'email') ? address : global),
-  );
+// Route the mocked count by query shape: per-address queries carry `email`; the global ones
+// differ by window (the hourly one starts less than 24 h before NOW).
+const mockCounts = ({ address = 1, global = 1, hour = 1 } = {}) => {
+  Response.countDocuments = jest.fn((query) => {
+    if (Object.prototype.hasOwnProperty.call(query, 'email')) return Promise.resolve(address);
+    const isHourly = query.createdAt.$gte.getTime() === NOW.getTime() - HOUR_MS;
+    return Promise.resolve(isHourly ? hour : global);
+  });
 };
 
 describe('confirmationEmailCap', () => {
@@ -33,10 +38,12 @@ describe('confirmationEmailCap', () => {
     errorSpy.mockRestore();
   });
 
-  it('exports the approved limits and a 24 hour window', () => {
+  it('exports the approved limits, a 24 hour window and an hourly global cap', () => {
     expect(MAX_CONFIRMATIONS_PER_ADDRESS).toBe(3);
     expect(MAX_CONFIRMATIONS_PER_DAY).toBe(300);
+    expect(MAX_CONFIRMATIONS_PER_HOUR).toBe(100);
     expect(WINDOW_MS).toBe(24 * 60 * 60 * 1000);
+    expect(HOUR_MS).toBe(60 * 60 * 1000);
   });
 
   it('sends when the address and global counts are under the caps', async () => {
@@ -69,6 +76,18 @@ describe('confirmationEmailCap', () => {
     expect(warnSpy.mock.calls[0].join(' ')).toContain('global');
   });
 
+  it('still sends at exactly 100 applications in the last hour', async () => {
+    mockCounts({ address: 1, global: 100, hour: 100 });
+    await expect(shouldSendConfirmation('ada@example.com', NOW)).resolves.toBe(true);
+  });
+
+  it('skips once more than 100 applications arrive within an hour, even under the daily cap', async () => {
+    mockCounts({ address: 1, global: 150, hour: 101 });
+    await expect(shouldSendConfirmation('ada@example.com', NOW)).resolves.toBe(false);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0].join(' ')).toContain('global-hourly');
+  });
+
   it('only counts applications created in the last 24 h, for the normalized address', async () => {
     mockCounts();
     await shouldSendConfirmation('  Ada@Example.COM ', NOW);
@@ -79,7 +98,10 @@ describe('confirmationEmailCap', () => {
       createdAt: { $gte: since },
     });
     expect(Response.countDocuments).toHaveBeenCalledWith({ createdAt: { $gte: since } });
-    expect(Response.countDocuments).toHaveBeenCalledTimes(2);
+    expect(Response.countDocuments).toHaveBeenCalledWith({
+      createdAt: { $gte: new Date(NOW.getTime() - HOUR_MS) },
+    });
+    expect(Response.countDocuments).toHaveBeenCalledTimes(3);
   });
 
   it('fails open and logs when the count query throws', async () => {

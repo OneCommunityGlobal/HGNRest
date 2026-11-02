@@ -1,11 +1,14 @@
 const Response = require('../models/jobApplicationsModel');
 
-// Caps on application confirmation emails, over a rolling 24 h window.
+// Caps on application confirmation emails: per address and overall over a rolling 24 h
+// window, plus an overall hourly cap so a burst cannot use the whole day's allowance at once.
 // Without them, one public caller can make us email a victim once per open form,
 // or burn the shared Gmail quota that password resets also depend on.
 const MAX_CONFIRMATIONS_PER_ADDRESS = 3;
 const MAX_CONFIRMATIONS_PER_DAY = 300;
+const MAX_CONFIRMATIONS_PER_HOUR = 100;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
 const maskEmail = (email) => {
   const value = String(email || '');
@@ -20,7 +23,8 @@ const maskEmail = (email) => {
  * Off-by-one: this runs after the application is saved, so the counts already include it.
  * We skip only when a count is strictly greater than its cap: the 3rd application from one
  * address in 24 h (count 3) still gets an email, the 4th (count 4) does not; globally the
- * 300th still gets one, the 301st does not.
+ * 300th still gets one, the 301st does not. The hourly cap works the same way (100th sends,
+ * 101st does not).
  *
  * Fails open: if counting throws, we log and send, so a DB hiccup never blocks a
  * legitimate confirmation.
@@ -34,13 +38,16 @@ async function shouldSendConfirmation(email, now = new Date()) {
     .trim()
     .toLowerCase();
   const since = new Date(now.getTime() - WINDOW_MS);
+  const sinceHour = new Date(now.getTime() - HOUR_MS);
 
   let addressCount;
   let globalCount;
+  let hourCount;
   try {
-    [addressCount, globalCount] = await Promise.all([
+    [addressCount, globalCount, hourCount] = await Promise.all([
       Response.countDocuments({ email: normalizedEmail, createdAt: { $gte: since } }),
       Response.countDocuments({ createdAt: { $gte: since } }),
+      Response.countDocuments({ createdAt: { $gte: sinceHour } }),
     ]);
   } catch (err) {
     console.error('Confirmation email cap check failed, sending anyway:', err.message);
@@ -49,12 +56,13 @@ async function shouldSendConfirmation(email, now = new Date()) {
 
   let capFired = null;
   if (addressCount > MAX_CONFIRMATIONS_PER_ADDRESS) capFired = 'per-address';
+  else if (hourCount > MAX_CONFIRMATIONS_PER_HOUR) capFired = 'global-hourly';
   else if (globalCount > MAX_CONFIRMATIONS_PER_DAY) capFired = 'global';
 
   if (capFired) {
     console.warn(
       `Confirmation email skipped (${capFired} cap) for ${maskEmail(normalizedEmail)}: ` +
-        `${addressCount} from this address, ${globalCount} total in the last 24h`,
+        `${addressCount} from this address, ${globalCount} total in the last 24h, ${hourCount} in the last hour`,
     );
     return false;
   }
@@ -66,5 +74,7 @@ module.exports = {
   maskEmail,
   MAX_CONFIRMATIONS_PER_ADDRESS,
   MAX_CONFIRMATIONS_PER_DAY,
+  MAX_CONFIRMATIONS_PER_HOUR,
   WINDOW_MS,
+  HOUR_MS,
 };
