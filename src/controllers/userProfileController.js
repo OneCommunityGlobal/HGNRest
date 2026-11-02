@@ -2058,7 +2058,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
         previousEndDate:
           user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
-            user.inactiveReason === InactiveReason.SEPARATED
+          user.inactiveReason === InactiveReason.SEPARATED
             ? user.endDate
             : null,
       };
@@ -2681,10 +2681,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         manuallyAssigned: true,
         manuallyAssignedBy: requestorProfile
           ? {
-            firstName: requestorProfile.firstName,
-            lastName: requestorProfile.lastName,
-            userId: requestorId,
-          }
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
           : undefined,
         // Initialize empty edit history
         editedBy: [],
@@ -2899,28 +2899,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const query = match[1]
         ? {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              $and: [
-                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-              ],
-            },
-          ],
-        }
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
         : {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-          ],
-        };
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 
