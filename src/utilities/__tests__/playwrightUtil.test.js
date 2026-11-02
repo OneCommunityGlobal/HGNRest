@@ -1,4 +1,4 @@
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }), { virtual: true });
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 
 const { chromium } = require('playwright');
 const { openLoggedInBrowser } = require('../playwrightUtil');
