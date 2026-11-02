@@ -62,6 +62,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -233,9 +234,12 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
 const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
-  buildingMaterial,
+  buildingMaterialModel,
 );
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
@@ -270,6 +274,7 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
+const weeklyProjectSummaryRouter = require('../routes/bmdashboard/weeklyProjectSummaryRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
@@ -482,6 +487,7 @@ module.exports = function (app) {
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
@@ -636,6 +642,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
+  app.use('/api/bm/weekly-project-summary', weeklyProjectSummaryRouter);
   app.use('/api/bm', bmInjuryRouter);
   app.use('/api', bmProjectRiskProfileRouter);
 

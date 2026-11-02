@@ -3,6 +3,11 @@ const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const upload = require('../middleware/multerMiddleware');
 const QuestionSet = require('../models/questionSet');
+const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
+const emailSender = require('../utilities/emailSender');
+const { getEmailDomainError } = require('../utilities/emailValidators');
+const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
+const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -64,6 +69,202 @@ function ensureFormMetadata(form, requestor) {
     form.createdBy = requestorId;
   }
   form.lastModifiedBy = requestorId;
+}
+
+function sanitizeBlobPart(value, fallback = 'file') {
+  const cleaned = String(value || '')
+    .replace(/[^a-zA-Z0-9]/g, '_')
+    .toLowerCase();
+  return cleaned || fallback;
+}
+
+function filesByField(req) {
+  const map = {};
+  if (req.file) {
+    map[req.file.fieldname || 'resume'] = req.file;
+  }
+  (req.files || []).forEach((file) => {
+    map[file.fieldname] = file;
+  });
+  return map;
+}
+
+async function uploadOptionalFile(file, blobName) {
+  if (!file) {
+    return '';
+  }
+  try {
+    return await uploadFileToAzureBlobStorage(file, blobName);
+  } catch (uploadErr) {
+    console.error('Application file upload failed (non-fatal):', uploadErr.message);
+    return '';
+  }
+}
+
+function parseJsonField(value, errorMessage) {
+  if (typeof value !== 'string') {
+    return { value, error: null };
+  }
+  try {
+    return { value: JSON.parse(value), error: null };
+  } catch {
+    return { value: null, error: errorMessage };
+  }
+}
+
+function resolveApplicationInput(body) {
+  if (body.payload) {
+    const parsed = parseJsonField(body.payload, 'Invalid application payload.');
+    if (parsed.error) {
+      return { error: parsed.error };
+    }
+    const payload = parsed.value || {};
+    return {
+      respondent: payload.applicantName || body.respondent,
+      email: payload.applicantEmail || body.email,
+      answers: payload.answers || [],
+      profile: payload.profile || {},
+    };
+  }
+
+  const parsedAnswers = parseJsonField(body.answers, 'answers must be a valid JSON array.');
+  if (parsedAnswers.error) {
+    return { error: parsedAnswers.error };
+  }
+
+  return {
+    respondent: body.respondent,
+    email: body.email,
+    answers: parsedAnswers.value,
+    profile: {},
+  };
+}
+
+// Exported so the rate limiter and bot guard read the applicant email exactly as this controller does.
+exports.resolveApplicationInput = resolveApplicationInput;
+
+async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
+  if (!resumeFile) {
+    return '';
+  }
+  return uploadOptionalFile(
+    resumeFile,
+    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${safeFileExtension(resumeFile)}`,
+  );
+}
+
+async function buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail) {
+  const qIdStr = item.questionId ? String(item.questionId) : '';
+  const uploaded = qIdStr ? fileMap[`questionFile_${qIdStr}`] : null;
+  const questionId = item.questionId || new mongoose.Types.ObjectId();
+
+  if (!uploaded) {
+    return { questionId, answer: item.answer };
+  }
+
+  const fileUrl = await uploadOptionalFile(
+    uploaded,
+    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${safeFileExtension(uploaded)}`,
+  );
+
+  return {
+    questionId,
+    answer: {
+      fileName: uploaded.originalname,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      ...(fileUrl ? { url: fileUrl } : {}),
+    },
+  };
+}
+
+async function buildAnswersFromSubmission(answers, fileMap, safeFormTitle, safeEmail) {
+  const answersList = Array.isArray(answers) ? answers : [];
+  const builtAnswers = [];
+  for (const item of answersList) {
+    builtAnswers.push(await buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail));
+  }
+  return builtAnswers;
+}
+
+function appendResumeAndProfileAnswers(
+  builtAnswers,
+  resumeFile,
+  resumeUrl,
+  respondent,
+  normalizedEmail,
+  profile,
+) {
+  if (resumeFile) {
+    builtAnswers.push({
+      questionId: new mongoose.Types.ObjectId(),
+      answer: {
+        type: 'resume',
+        fileName: resumeFile.originalname,
+        mimeType: resumeFile.mimetype,
+        size: resumeFile.size,
+        ...(resumeUrl ? { url: resumeUrl } : {}),
+      },
+    });
+  }
+
+  if (respondent || Object.keys(profile || {}).length > 0) {
+    builtAnswers.push({
+      questionId: new mongoose.Types.ObjectId(),
+      answer: {
+        type: 'applicantProfile',
+        applicantName: respondent,
+        applicantEmail: normalizedEmail,
+        ...profile,
+      },
+    });
+  }
+}
+
+async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+  try {
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const safeTitle = escapeHtml(form.title);
+    const subjectTitle = stripControlChars(form.title).trim();
+    const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Received — ${safeTitle}</h2>
+          <p>Hi ${displayName},</p>
+          <p>Thank you for applying for <strong>${safeTitle}</strong>. We have received your application and will be in touch shortly.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+    await emailSender([normalizedEmail], `Application Received — ${subjectTitle}`, emailBody);
+  } catch (emailErr) {
+    console.error('Confirmation email failed (non-fatal):', emailErr.message);
+  }
+}
+
+// Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
+async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {
+  try {
+    const title = escapeHtml(form.title);
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Already Received: ${title}</h2>
+          <p>Hi ${displayName},</p>
+          <p>We already have an application from this email address for <strong>${title}</strong>, so we did not create a new one. There is nothing more you need to do.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+    await emailSender(
+      [normalizedEmail],
+      `Application Already Received: ${form.title}`,
+      emailBody,
+    );
+  } catch (emailErr) {
+    console.error('Duplicate application email failed (non-fatal):', emailErr.message);
+  }
 }
 
 // Create a new form
@@ -251,10 +452,104 @@ exports.submitJobApplication = async (req, res) => {
 
 exports.submitJobApplicationMiddleware = upload.any();
 
-// Get all responses of a form
+/**
+ * POST /api/jobforms/:formId/responses
+ * Submit an application response to a job form (public — paired with frontend PR 5469).
+ *
+ * Body (JSON or multipart/form-data):
+ *   respondent {string} - applicant full name (required)
+ *   email      {string} - applicant email (required)
+ *   answers    {Array}  - [{ questionId, answer }] (array or JSON string)
+ *
+ * Optional multipart field:
+ *   resume     {file}   - resume file (stored in Azure; URL saved on the response)
+ *   questionFile_<questionId> {file} - per-question attachment
+ *   Size, count and type limits are enforced by jobApplicationUploadMiddleware (400/413).
+ *
+ * Responses:
+ *   201 - { message } (identical for new and duplicate applications; duplicates get an email)
+ *   400 - missing required fields
+ *   404 - form not found
+ *   500 - server error
+ */
+exports.submitFormResponse = async (req, res) => {
+  try {
+    const { formId } = req.params;
+    const resolved = resolveApplicationInput(req.body || {});
+    if (resolved.error) {
+      return res.status(400).json({ error: resolved.error });
+    }
+
+    const { respondent, email, answers, profile } = resolved;
+    if (!email || answers == null) {
+      return res.status(400).json({ error: 'respondent, email, and answers are required.' });
+    }
+
+    const emailError = getEmailDomainError(String(email));
+    if (emailError) {
+      return res.status(400).json({ error: emailError });
+    }
+
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Form not found.' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await Response.findOne({
+      formId,
+      $or: [{ email: normalizedEmail }, { respondent: normalizedEmail }],
+    });
+    if (existing) {
+      // Same response as a new submission so the endpoint does not reveal who has applied.
+      await sendDuplicateApplicationEmail(form, respondent, normalizedEmail);
+      return res.status(201).json({ message: 'Application submitted successfully.' });
+    }
+
+    const fileMap = filesByField(req);
+    const safeFormTitle = sanitizeBlobPart(form.title, 'form');
+    const safeEmail = sanitizeBlobPart(normalizedEmail, 'applicant');
+    const resumeFile = fileMap.resume;
+    const resumeUrl = await uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail);
+    const builtAnswers = await buildAnswersFromSubmission(
+      answers,
+      fileMap,
+      safeFormTitle,
+      safeEmail,
+    );
+
+    appendResumeAndProfileAnswers(
+      builtAnswers,
+      resumeFile,
+      resumeUrl,
+      respondent,
+      normalizedEmail,
+      profile,
+    );
+
+    const response = new Response({
+      formId,
+      respondent: String(respondent || normalizedEmail).trim(),
+      email: normalizedEmail,
+      answers: builtAnswers,
+      resumeUrl,
+    });
+
+    await response.save();
+    await sendApplicationConfirmationEmail(form, respondent, normalizedEmail);
+
+    return res.status(201).json({ message: 'Application submitted successfully.' });
+  } catch (error) {
+    console.error('Error submitting form response:', error);
+    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+  }
+};
+
+// Get all responses of a form (auth required — Owner/Admin via manageJobForms; not public)
 exports.getFormResponses = async (req, res) => {
   try {
-    if (!(await canManageJobForms(req.body.requestor))) {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
       return res.status(403).json({ message: 'You are not authorized to view form responses.' });
     }
 
