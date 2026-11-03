@@ -1,29 +1,15 @@
-jest.mock('../../../models/summaryDashboard/laborHours', () => ({
-  aggregate: jest.fn(),
-}));
-jest.mock('../../../startup/logger', () => ({
-  logException: jest.fn(),
-}));
-const mockCacheInstance = {
-  hasCache: jest.fn(),
-  getCache: jest.fn(),
-  setCache: jest.fn(),
-};
-jest.mock('../../../utilities/nodeCache', () => () => mockCacheInstance);
-jest.mock('../../../utilities/permissions', () => ({
-  hasPermission: jest.fn(),
-}));
+jest.mock('../../../models/bmdashboard/buildingTimeLogger', () => ({ aggregate: jest.fn() }));
+jest.mock('../../../startup/logger', () => ({ logException: jest.fn() }));
+jest.mock('../../../utilities/permissions', () => ({ hasPermission: jest.fn() }));
 
-const LaborHours = require('../../../models/summaryDashboard/laborHours');
+const BuildingTimeLog = require('../../../models/bmdashboard/buildingTimeLogger');
 const logger = require('../../../startup/logger');
 const { hasPermission } = require('../../../utilities/permissions');
 const laborHoursDistributionController = require('../laborHoursDistributionController');
 
-const getController = () => laborHoursDistributionController();
-
-const makeReq = (query = {}, body = {}) => ({
-  query: { start_date: '2024-01-01', end_date: '2024-01-31', ...query },
-  body: { requestor: { requestorId: 'user-1' }, ...body },
+const makeReq = (query = {}) => ({
+  query,
+  body: { requestor: { requestorId: 'user-1' } },
 });
 
 const makeRes = () => {
@@ -36,164 +22,92 @@ const makeRes = () => {
 describe('laborHoursDistributionController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCacheInstance.hasCache.mockReturnValue(false);
-    mockCacheInstance.getCache.mockReturnValue({});
     hasPermission.mockResolvedValue(true);
   });
 
-  describe('getLaborHoursDistribution', () => {
-    it('returns 403 when user lacks getWeeklySummaries permission', async () => {
-      hasPermission.mockResolvedValue(false);
-      const controller = getController();
-      const req = makeReq();
-      const res = makeRes();
+  it('returns 403 when the requestor lacks permission', async () => {
+    hasPermission.mockResolvedValue(false);
+    const res = makeRes();
+    await laborHoursDistributionController().getLaborHoursDistribution(makeReq(), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(BuildingTimeLog.aggregate).not.toHaveBeenCalled();
+  });
 
-      await controller.getLaborHoursDistribution(req, res);
+  it.each([
+    [{ start_date: '2024-01-01' }, 'start_date and end_date must be provided together'],
+    [
+      { start_date: '2024-02-30', end_date: '2024-03-01' },
+      'Invalid start_date. Please use a valid YYYY-MM-DD date',
+    ],
+    [
+      { start_date: '2024-03-02', end_date: '2024-03-01' },
+      'Invalid date range: start_date must be before or equal to end_date',
+    ],
+    [{ project: 'invalid' }, 'Invalid project id'],
+    [{ member: 'invalid' }, 'Invalid member id'],
+  ])('validates filters %#', async (query, error) => {
+    const res = makeRes();
+    await laborHoursDistributionController().getLaborHoursDistribution(makeReq(query), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error });
+  });
 
-      expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'getWeeklySummaries');
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'You are not authorized to access labor hours distribution data',
-      });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-    });
+  it('returns real task totals and backend filter options', async () => {
+    BuildingTimeLog.aggregate
+      .mockResolvedValueOnce([
+        { task: 'Framing', hours: 3.5 },
+        { task: 'Electrical', hours: 1.5 },
+      ])
+      .mockResolvedValueOnce([{ id: 'project-1', name: 'Earthbag Village' }])
+      .mockResolvedValueOnce([{ id: 'member-1', name: 'Alex Doe' }]);
+    const res = makeRes();
 
-    it.each([
-      [
-        'start_date and end_date are missing',
-        { start_date: undefined, end_date: undefined },
-        'Missing required query parameters: start_date and end_date are required',
+    await laborHoursDistributionController().getLaborHoursDistribution(makeReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      total_hours: 5,
+      distribution: [
+        { task: 'Framing', hours: 3.5, percentage: 70 },
+        { task: 'Electrical', hours: 1.5, percentage: 30 },
       ],
-      [
-        'start_date format is invalid',
-        { start_date: '01-01-2024', end_date: '2024-01-31' },
-        'Invalid start_date format. Please use YYYY-MM-DD format',
-      ],
-      [
-        'start_date is not a valid calendar date',
-        { start_date: '2024-02-30', end_date: '2024-01-31' },
-        'Invalid start_date: date does not exist (e.g., invalid month or day)',
-      ],
-      [
-        'end_date format is invalid',
-        { start_date: '2024-01-01', end_date: '31/01/2024' },
-        'Invalid end_date format. Please use YYYY-MM-DD format',
-      ],
-      [
-        'end_date is not a valid calendar date',
-        { start_date: '2024-01-01', end_date: '2024-04-31' },
-        'Invalid end_date: date does not exist (e.g., invalid month or day)',
-      ],
-      [
-        'start_date is after end_date',
-        { start_date: '2024-02-01', end_date: '2024-01-15' },
-        'Invalid date range: start_date must be before or equal to end_date',
-      ],
-    ])('returns 400 when %s', async (_, queryOverrides, expectedError) => {
-      const controller = getController();
-      const req = makeReq(queryOverrides);
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: expectedError });
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
+      filters: {
+        projects: [{ id: 'project-1', name: 'Earthbag Village' }],
+        members: [{ id: 'member-1', name: 'Alex Doe' }],
+      },
     });
+  });
 
-    it('returns 200 with cached response when cache has key', async () => {
-      const cached = {
-        total_hours: 100,
-        distribution: [{ category: 'A', hours: 100, percentage: 100 }],
-      };
-      mockCacheInstance.hasCache.mockReturnValue(true);
-      mockCacheInstance.getCache.mockReturnValue(cached);
-      const controller = getController();
-      const req = makeReq();
-      const res = makeRes();
+  it('applies date, project, and member filters to completed time logs', async () => {
+    const project = '507f1f77bcf86cd799439011';
+    const member = '507f191e810c19729de860ea';
+    BuildingTimeLog.aggregate.mockResolvedValue([]);
+    const res = makeRes();
 
-      await controller.getLaborHoursDistribution(req, res);
+    await laborHoursDistributionController().getLaborHoursDistribution(
+      makeReq({
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        project,
+        member,
+      }),
+      res,
+    );
 
-      expect(mockCacheInstance.hasCache).toHaveBeenCalled();
-      expect(mockCacheInstance.getCache).toHaveBeenCalled();
-      expect(LaborHours.aggregate).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(cached);
-    });
+    const match = BuildingTimeLog.aggregate.mock.calls[0][0][0].$match;
+    expect(match.status).toBe('completed');
+    expect(String(match.project)).toBe(project);
+    expect(String(match.member)).toBe(member);
+    expect(match.createdAt.$gte.toISOString()).toBe('2024-01-01T00:00:00.000Z');
+    expect(match.createdAt.$lte.toISOString()).toBe('2024-01-31T23:59:59.999Z');
+  });
 
-    it('returns 200 with total_hours and distribution on success', async () => {
-      LaborHours.aggregate.mockResolvedValue([
-        { category: 'Team A', hours: 200 },
-        { category: 'Team B', hours: 300 },
-      ]);
-      const controller = getController();
-      const req = makeReq({ start_date: '2024-01-01', end_date: '2024-01-31' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(LaborHours.aggregate).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-      const payload = res.json.mock.calls[0][0];
-      expect(payload.total_hours).toBe(500);
-      expect(payload.distribution).toHaveLength(2);
-      expect(payload.distribution[0]).toEqual(
-        expect.objectContaining({ category: 'Team A', hours: 200, percentage: 40 }),
-      );
-      expect(payload.distribution[1]).toEqual(
-        expect.objectContaining({ category: 'Team B', hours: 300, percentage: 60 }),
-      );
-      expect(mockCacheInstance.setCache).toHaveBeenCalledWith(
-        'labor_hours_distribution:2024-01-01:2024-01-31:all',
-        payload,
-      );
-    });
-
-    it('returns 200 with total_hours 0 and empty distribution when no data', async () => {
-      LaborHours.aggregate.mockResolvedValue([]);
-      const controller = getController();
-      const req = makeReq();
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        total_hours: 0,
-        distribution: [],
-      });
-    });
-
-    it('includes optional category in cache key and pipeline when provided', async () => {
-      LaborHours.aggregate.mockResolvedValue([{ category: 'Team A', hours: 100 }]);
-      const controller = getController();
-      const req = makeReq({ category: 'Construction' });
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      const pipeline = LaborHours.aggregate.mock.calls[0][0];
-      expect(pipeline[0].$match.category).toBe('Construction');
-      expect(mockCacheInstance.setCache).toHaveBeenCalledWith(
-        'labor_hours_distribution:2024-01-01:2024-01-31:Construction',
-        expect.any(Object),
-      );
-    });
-
-    it('returns 500 and calls logger on aggregate error', async () => {
-      const error = new Error('DB connection failed');
-      LaborHours.aggregate.mockRejectedValue(error);
-      const controller = getController();
-      const req = makeReq();
-      const res = makeRes();
-
-      await controller.getLaborHoursDistribution(req, res);
-
-      expect(logger.logException).toHaveBeenCalledWith(error);
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Error fetching labor hours distribution data. Please try again.',
-      });
-    });
+  it('returns 500 and logs aggregation errors', async () => {
+    const error = new Error('database unavailable');
+    BuildingTimeLog.aggregate.mockRejectedValue(error);
+    const res = makeRes();
+    await laborHoursDistributionController().getLaborHoursDistribution(makeReq(), res);
+    expect(logger.logException).toHaveBeenCalledWith(error);
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });
