@@ -10,10 +10,6 @@ jest.mock('../../models/productionVerificationLog', () => ({
   create: jest.fn(),
 }));
 
-const userProfile = require('../../models/userProfile');
-const ProductionVerificationLog = require('../../models/productionVerificationLog');
-const productionIdentityController = require('../productionIdentityController');
-
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);
@@ -109,7 +105,7 @@ describe('productionIdentityController', () => {
     );
   });
 
-  test('verifyProductionIdentity logs failed attempt', async () => {
+  test('verifyProductionIdentity fails closed and logs when Production is unavailable', async () => {
     process.env.PRODUCTION_IDENTITY_VERIFICATION_ENABLED = 'true';
     process.env.PRODUCTION_IDENTITY_DEV_DB_NAME = 'hgnData_dev';
     process.env.dbName = 'hgnData_dev';
@@ -134,12 +130,14 @@ describe('productionIdentityController', () => {
 
     await controller.verifyProductionIdentity(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(up.findOne).not.toHaveBeenCalled();
     expect(logModel.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        reason: 'user_not_found',
+        reason: 'production_unavailable',
         attemptedEmail: 'missing@example.com',
         ip: '10.0.0.1',
+        metadata: { retryable: true },
       }),
     );
   });
