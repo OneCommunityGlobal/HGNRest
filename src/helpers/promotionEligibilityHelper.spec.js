@@ -2,10 +2,54 @@ const {
   getPrsNeeded,
   resolvePrsNeeded,
   mongoWeekOf,
+  resolveEntryWeek,
   weekMeetsRequirement,
   summariseWeeks,
   SUCCESSFUL_WEEKS_REQUIRED,
 } = require('./promotionEligibilityHelper');
+
+describe('resolveEntryWeek', () => {
+  // A Wednesday in week 33 of 2026, in $week terms.
+  const NOW = new Date('2026-08-19T12:00:00Z');
+
+  test('defaults to the current week when neither part is given', () => {
+    expect(resolveEntryWeek(undefined, undefined, NOW)).toEqual({
+      target: { year: 2026, week: 33 },
+    });
+  });
+
+  test('accepts the current week and earlier ones', () => {
+    expect(resolveEntryWeek(2026, 33, NOW)).toEqual({ target: { year: 2026, week: 33 } });
+    expect(resolveEntryWeek(2026, 0, NOW)).toEqual({ target: { year: 2026, week: 0 } });
+    expect(resolveEntryWeek(2019, 53, NOW)).toEqual({ target: { year: 2019, week: 53 } });
+  });
+
+  test.each([
+    ['next week', 2026, 34],
+    ['a later year', 2027, 0],
+    ['a far-off year', 2030, 8],
+  ])('refuses %s', (_label, year, week) => {
+    expect(resolveEntryWeek(year, week, NOW)).toEqual({
+      error: 'That week has not happened yet.',
+    });
+  });
+
+  test.each([
+    ['only a year', 2026, undefined],
+    ['only a week', undefined, 30],
+  ])('refuses %s', (_label, year, week) => {
+    expect(resolveEntryWeek(year, week, NOW).error).toMatch(/both year and week/);
+  });
+
+  test.each([
+    ['a week past 53', 2026, 54],
+    ['a negative week', 2026, -1],
+    ['a fractional week', 2026, 1.5],
+    ['a string year', '2026', 30],
+  ])('refuses %s', (_label, year, week) => {
+    expect(resolveEntryWeek(year, week, NOW).error).toMatch(/whole number/);
+  });
+});
 
 describe('getPrsNeeded', () => {
   test('returns 7 across the 10 to 14.99 band', () => {

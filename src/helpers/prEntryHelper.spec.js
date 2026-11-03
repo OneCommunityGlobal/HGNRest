@@ -54,6 +54,27 @@ describe('normalisePrNumber', () => {
       expect(normalisePrNumber(value)).toBeNull();
     });
   });
+
+  test('rejects PR 0 in every format, since no PR has that number', () => {
+    [
+      '0',
+      '000',
+      '#0',
+      'PR 0',
+      'PR#00',
+      'FE-0',
+      'be 000',
+      'https://github.com/OneCommunityGlobal/HGNRest/pull/0',
+    ].forEach((value) => {
+      expect(normalisePrNumber(value)).toBeNull();
+    });
+  });
+
+  test('still accepts numbers that contain or start with zeros', () => {
+    expect(normalisePrNumber('10')).toBe('10');
+    expect(normalisePrNumber('FE-1000')).toBe('FE-1000');
+    expect(normalisePrNumber('https://github.com/org/repo/pull/100')).toBe('100');
+  });
 });
 
 describe('extractPrNumbersFromSummary', () => {

@@ -53,6 +53,10 @@ const routes = function (
     .route('/promotion-eligibility/pr-entries/:entryId/rating')
     .patch(controller.updatePrEntryRating);
 
+  // The auth middleware puts `requestor` on req.body for every method, so the
+  // permission check works on a DELETE the same way it does on the POSTs.
+  router.route('/promotion-eligibility/pr-entries/:entryId').delete(controller.deletePrEntry);
+
   // Preview is its own route rather than a flag on /promote-members, so there
   // is no way for a caller to promote people by accident while asking what
   // would happen.
