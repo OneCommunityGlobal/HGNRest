@@ -57,14 +57,18 @@ function normalisePrNumber(value) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  // No PR is numbered 0, however it is written ("0", "#000", "FE-0", .../pull/0),
+  // so an all-zero number is a typo and is refused like any other unreadable input.
+  const isZero = (digits) => /^0+$/.test(digits);
+
   const fromUrl = trimmed.match(/\/pull\/(\d+)/i);
-  if (fromUrl) return fromUrl[1];
+  if (fromUrl) return isZero(fromUrl[1]) ? null : fromUrl[1];
 
   const prefixed = trimmed.match(/^(FE|BE)\s*[-#]?\s*(\d{1,6})$/i);
-  if (prefixed) return `${prefixed[1].toUpperCase()}-${prefixed[2]}`;
+  if (prefixed) return isZero(prefixed[2]) ? null : `${prefixed[1].toUpperCase()}-${prefixed[2]}`;
 
   const plain = trimmed.match(/^(?:PRs?\s*)?#?\s*(\d{1,6})$/i);
-  if (plain) return plain[1];
+  if (plain) return isZero(plain[1]) ? null : plain[1];
 
   return null;
 }

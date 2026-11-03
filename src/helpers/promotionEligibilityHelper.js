@@ -119,6 +119,39 @@ function mongoWeekOf(date) {
   return { year, week: Math.floor((dayOfYear - firstSunday + 7) / 7) };
 }
 
+const MAX_MONGO_WEEK = 53;
+
+/**
+ * Work out which week a PR entry belongs to from an optional `year` and `week`
+ * pair, in the same $week terms as `mongoWeekOf`.
+ *
+ * Both or neither, so a half-supplied week cannot silently land somewhere
+ * unexpected; neither means the current week. Past weeks are allowed, since
+ * backfilling is intended. A week that has not started yet (e.g. 2030) is
+ * refused, because nobody can have reviewed a PR in it.
+ *
+ * @param {*} year
+ * @param {*} week
+ * @param {Date} now
+ * @returns {{target: {year: number, week: number}} | {error: string}}
+ */
+function resolveEntryWeek(year, week, now) {
+  const hasYear = year !== undefined;
+  const hasWeek = week !== undefined;
+  const currentWeek = mongoWeekOf(now);
+
+  if (hasYear !== hasWeek) return { error: 'Send both year and week, or neither.' };
+  if (!hasYear) return { target: currentWeek };
+
+  if (!Number.isInteger(year) || !Number.isInteger(week) || week < 0 || week > MAX_MONGO_WEEK) {
+    return { error: 'year must be a whole number and week must be 0 to 53.' };
+  }
+  if (year > currentWeek.year || (year === currentWeek.year && week > currentWeek.week)) {
+    return { error: 'That week has not happened yet.' };
+  }
+  return { target: { year, week } };
+}
+
 /**
  * Successful weeks a reviewer must accumulate before they can be promoted.
  * The spec: "They need 2 weeks of successful weeks to get promoted. So
@@ -197,6 +230,7 @@ module.exports = {
   getPrsNeeded,
   resolvePrsNeeded,
   mongoWeekOf,
+  resolveEntryWeek,
   weekMeetsRequirement,
   summariseWeeks,
 };

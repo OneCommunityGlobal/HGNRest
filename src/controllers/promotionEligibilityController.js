@@ -8,6 +8,7 @@ const {
   resolvePrsNeeded,
   summariseWeeks,
   mongoWeekOf,
+  resolveEntryWeek,
 } = require('../helpers/promotionEligibilityHelper');
 const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
 const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
@@ -661,18 +662,10 @@ const users = await UserProfile.find(
       return res.status(400).send('rating must be one of the five options, or null.');
     }
 
-    // Both or neither, so a half-supplied week cannot silently land somewhere
-    // unexpected.
-    const hasYear = year !== undefined;
-    const hasWeek = week !== undefined;
-    if (hasYear !== hasWeek) {
-      return res.status(400).send('Send both year and week, or neither.');
+    const { target, error: weekError } = resolveEntryWeek(year, week, new Date());
+    if (weekError) {
+      return res.status(400).send(weekError);
     }
-    if (hasYear && (!Number.isInteger(year) || !Number.isInteger(week) || week < 0 || week > 53)) {
-      return res.status(400).send('year must be a whole number and week must be 0 to 53.');
-    }
-
-    const target = hasYear ? { year, week } : mongoWeekOf(new Date());
 
     try {
       const entry = await PromotionPrEntry.create({
@@ -740,6 +733,37 @@ const users = await UserProfile.find(
     } catch (error) {
       logger.logException(error, { endpoint: 'updatePrEntryRating', payload: req.body });
       return res.status(500).send('Error updating PR rating.');
+    }
+  };
+
+  /**
+   * Remove a PR entry, e.g. one typed with the wrong number. Without this the
+   * only way out of a typo was the database, since the unique index turns a
+   * corrected re-add of the same PR into a 409.
+   *
+   * A hard delete: entries are hand-typed rows that nothing else references.
+   * The deleted entry is returned so a caller can offer undo by re-adding it.
+   */
+  const deletePrEntry = async (req, res) => {
+    if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+      return res.status(403).send('You are not authorized to edit promotion eligibility data.');
+    }
+    if (!PromotionPrEntry) {
+      return res.status(500).send('PR entries are unavailable on this deployment.');
+    }
+
+    const { entryId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(entryId)) {
+      return res.status(400).send(`Invalid entry ID: ${entryId}`);
+    }
+
+    try {
+      const deleted = await PromotionPrEntry.findByIdAndDelete(entryId);
+      if (!deleted) return res.status(404).send('No PR entry with that id.');
+      return res.status(200).json(deleted);
+    } catch (error) {
+      logger.logException(error, { endpoint: 'deletePrEntry', entryId });
+      return res.status(500).send('Error deleting PR entry.');
     }
   };
 
@@ -1114,6 +1138,7 @@ const users = await UserProfile.find(
     getPrEntries,
     getPrEntriesForReviewers,
     addPrEntry,
+    deletePrEntry,
     updatePrEntryRating,
     importPrEntriesFromSummary,
     previewPromotions,
