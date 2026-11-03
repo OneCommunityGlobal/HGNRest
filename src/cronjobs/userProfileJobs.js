@@ -3,6 +3,7 @@ const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 const Badge = require('../models/badge');
 const badgeController = require('../controllers/badgeController')(Badge);
+const logger = require('../startup/logger');
 
 const userProfileJobs = () => {
   /* eslint-disable no-unused-vars */
@@ -26,7 +27,7 @@ const userProfileJobs = () => {
         try {
           await job();
         } catch (error) {
-          console.error(`Error during ${name}:`, error);
+          logger.logException(error, `Sunday cron: ${name}`);
         }
       };
 

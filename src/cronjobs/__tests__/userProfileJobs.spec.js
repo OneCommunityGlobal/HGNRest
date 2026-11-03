@@ -36,11 +36,17 @@ const mockBadgeController = { syncBadgeUsers: jest.fn().mockResolvedValue(undefi
 jest.mock('../../controllers/badgeController', () => jest.fn(() => mockBadgeController));
 jest.mock('../../models/badge', () => ({}));
 
+jest.mock('../../startup/logger', () => ({
+  logInfo: jest.fn(),
+  logException: jest.fn(),
+}));
+
 /* =======================
    IMPORTS AFTER MOCKS
    ======================= */
 
 const userHelperFactory = require('../../helpers/userHelper');
+const logger = require('../../startup/logger');
 const userProfileJobs = require('../userProfileJobs');
 
 // 2026-09-13 is a Sunday. 18:00 UTC is 11:00 in Los Angeles, so the callback's
@@ -62,14 +68,13 @@ describe('userProfileJobs, Sunday callback', () => {
     // place and leak it into the next test.
     Object.values(helper).forEach((fn) => fn.mockReset().mockResolvedValue(undefined));
     mockBadgeController.syncBadgeUsers.mockReset().mockResolvedValue(undefined);
+    logger.logException.mockClear();
     jest.useFakeTimers().setSystemTime(A_SUNDAY);
-    jest.spyOn(console, 'error').mockImplementation(() => {});
     userProfileJobs();
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    console.error.mockRestore();
   });
 
   test('awards badges when every earlier job succeeds', async () => {
@@ -119,9 +124,10 @@ describe('userProfileJobs, Sunday callback', () => {
 
     await sundayCallback()();
 
-    expect(console.error).toHaveBeenCalledWith(
-      'Error during deleteExpiredTokens:',
+    // Through the app logger, so it reaches the same monitoring as other errors.
+    expect(logger.logException).toHaveBeenCalledWith(
       expect.any(Error),
+      'Sunday cron: deleteExpiredTokens',
     );
   });
 });
