@@ -1875,14 +1875,25 @@ const userHelper = function () {
         // is removed rather than set.
         const { inactiveReason, ...activate } = activeFields();
 
-        await userProfile.findByIdAndUpdate(
-          user._id,
+        // Only if the user is still in the state this job read. The list was
+        // loaded before the awaits above, and an admin may have resumed,
+        // re-paused or separated the user in between; matching on `_id` alone
+        // would overwrite that newer change with this stale one.
+        const reactivated = await userProfile.findOneAndUpdate(
+          { _id: user._id, isActive: false, reactivationDate: user.reactivationDate },
           {
             $set: activate,
             $unset: { inactiveReason: '' },
           },
           { new: true },
         );
+
+        if (!reactivated) {
+          logger.logInfo(
+            `reactivateUser: skipping user ${user._id}, status changed since the job started.`,
+          );
+          continue;
+        }
 
         logger.logInfo(
           `User with id: ${user._id} was reactivated at ${moment().tz(COMPANY_TZ).format()}.`,

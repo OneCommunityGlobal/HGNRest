@@ -25,6 +25,19 @@ const { InactiveReason } = require('../constants/userProfile');
  */
 const startOfCompanyDay = (date) => moment.tz(date, COMPANY_TZ).startOf('day').toISOString();
 
+/**
+ * Whether `date` is a real calendar day in the 'YYYY-MM-DD' form the date
+ * picker sends.
+ *
+ * A truthy but unparseable value is not enough to refuse on its own:
+ * `startOfCompanyDay` turns it into `null`, the user is saved paused with no
+ * reactivation date, and `reactivateUser` never picks them up again because
+ * it skips null dates. Checked strictly, so '2026-02-30' is refused rather
+ * than rolled over to March.
+ */
+const isValidCalendarDate = (date) =>
+  typeof date === 'string' && moment(date, 'YYYY-MM-DD', true).isValid();
+
 /** Fields written when a user is paused until `reactivationDate`. */
 const pauseFields = (reactivationDate) => ({
   isActive: false,
@@ -55,6 +68,7 @@ const LIFECYCLE_PROJECTION =
 
 module.exports = {
   startOfCompanyDay,
+  isValidCalendarDate,
   pauseFields,
   activeFields,
   LIFECYCLE_PROJECTION,

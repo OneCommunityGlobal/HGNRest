@@ -294,6 +294,31 @@ describe('pausing and resuming a user', () => {
     expect(model.saved).toHaveLength(0);
   });
 
+  test.each([
+    ['not a date at all', 'not-a-date'],
+    ['a day that does not exist', '2026-02-30'],
+    ['a full timestamp instead of a calendar day', '2026-09-20T07:00:00.000Z'],
+  ])(
+    'a pause with %s is refused rather than pausing the user forever',
+    async (_label, reactivationDate) => {
+      // startOfCompanyDay turns an unparseable date into null, and the nightly
+      // job skips users whose reactivationDate is null, so saving this would
+      // leave the user paused with nothing to bring them back.
+      const model = makeUserProfileModel(storedPausedUser());
+      const controller = userProfileController(model, {});
+      const res = makeRes();
+
+      await controller.pauseResumeUser(
+        { params: { userId: USER_ID }, body: { requestor, status: 'Inactive', reactivationDate } },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(model.saved).toHaveLength(0);
+      expect(mockUserHelper.sendUserPausedEmail).not.toHaveBeenCalled();
+    },
+  );
+
   test('the cached user list keeps the reactivation date after a pause', async () => {
     mockCache.hasCache.mockReturnValue(true);
     mockCache.getCache.mockReturnValue(JSON.stringify([{ _id: USER_ID, isActive: true }]));
@@ -346,6 +371,27 @@ describe('the two pause implementations agree', () => {
     });
 
     expect(lifecycleFields(legacy.doc)).toEqual(lifecycleFields(lifecycle.doc));
+  });
+
+  test.each([
+    ['not a date at all', 'not-a-date'],
+    ['a day that does not exist', '2026-02-30'],
+    ['a full timestamp instead of a calendar day', '2026-09-20T07:00:00.000Z'],
+  ])('both endpoints refuse a pause with %s', async (_label, reactivationDate) => {
+    const stored = storedPausedUser();
+
+    const legacy = await callPauseEndpoint(stored, { status: 'Inactive', reactivationDate });
+    const lifecycle = await callLifecycleEndpoint(stored, {
+      action: UserStatusOperations.PAUSE,
+      reactivationDate,
+    });
+
+    expect(legacy.res.status).toHaveBeenCalledWith(400);
+    expect(lifecycle.res.status).toHaveBeenCalledWith(400);
+    // Neither saved a paused user with a null reactivation date. The pause
+    // endpoint refuses before it even loads the user.
+    expect(legacy.doc).toBeUndefined();
+    expect(lifecycle.doc.save).not.toHaveBeenCalled();
   });
 
   test('a resume writes the same lifecycle fields whichever endpoint runs it', async () => {

@@ -110,7 +110,12 @@ const {
   UserStatusOperations,
   LifecycleStatus,
 } = require('../constants/userProfile');
-const { pauseFields, activeFields, LIFECYCLE_PROJECTION } = require('../helpers/userStatusFields');
+const {
+  isValidCalendarDate,
+  pauseFields,
+  activeFields,
+  LIFECYCLE_PROJECTION,
+} = require('../helpers/userStatusFields');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -2111,6 +2116,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (!reactivationDate) {
             return res.status(400).send({ error: 'Reactivation date is required for pause' });
           }
+          if (!isValidCalendarDate(reactivationDate)) {
+            return res
+              .status(400)
+              .send({ error: 'Reactivation date must be a valid date in YYYY-MM-DD format' });
+          }
           user.set(pauseFields(reactivationDate));
           break;
         }
@@ -2190,6 +2200,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     if (!status && !activationDate) {
       return res.status(400).send({ error: 'Reactivation date is required for pause' });
+    }
+    if (!status && !isValidCalendarDate(activationDate)) {
+      return res
+        .status(400)
+        .send({ error: 'Reactivation date must be a valid date in YYYY-MM-DD format' });
     }
 
     cache.removeCache(`user-${userId}`);

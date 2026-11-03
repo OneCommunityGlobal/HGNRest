@@ -10,7 +10,7 @@
 jest.mock('../../models/userProfile', () => ({
   find: jest.fn(),
   findById: jest.fn(),
-  findByIdAndUpdate: jest.fn().mockResolvedValue({}),
+  findOneAndUpdate: jest.fn().mockResolvedValue({}),
   aggregate: jest.fn(),
   updateOne: jest.fn().mockResolvedValue({}),
 }));
@@ -47,14 +47,14 @@ const pausedUser = (reactivationDate, overrides = {}) => ({
   ...overrides,
 });
 
-const setUpdate = () => userProfile.findByIdAndUpdate.mock.calls[0][1].$set;
-const unsetUpdate = () => userProfile.findByIdAndUpdate.mock.calls[0][1].$unset;
+const setUpdate = () => userProfile.findOneAndUpdate.mock.calls[0][1].$set;
+const unsetUpdate = () => userProfile.findOneAndUpdate.mock.calls[0][1].$unset;
 
 describe('reactivateUser', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     userProfile.find.mockResolvedValue([]);
-    userProfile.findByIdAndUpdate.mockResolvedValue({});
+    userProfile.findOneAndUpdate.mockResolvedValue({});
     // getEmailRecipientsForStatusChange reads teams off the profile.
     userProfile.findById.mockResolvedValue(null);
   });
@@ -92,7 +92,7 @@ describe('reactivateUser', () => {
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+    expect(userProfile.findOneAndUpdate).toHaveBeenCalledTimes(1);
     expect(setUpdate().isActive).toBe(true);
   });
 
@@ -104,7 +104,7 @@ describe('reactivateUser', () => {
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+    expect(userProfile.findOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 
   it('leaves somebody whose date is still in the future alone', async () => {
@@ -115,7 +115,7 @@ describe('reactivateUser', () => {
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.findOneAndUpdate).not.toHaveBeenCalled();
     expect(emailSender).not.toHaveBeenCalled();
   });
 
@@ -166,7 +166,7 @@ describe('reactivateUser', () => {
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.findOneAndUpdate).not.toHaveBeenCalled();
     expect(logger.logInfo).toHaveBeenCalledWith(expect.stringContaining('unreadable'));
   });
 
@@ -177,14 +177,46 @@ describe('reactivateUser', () => {
       pausedUser(due, { _id: 'first' }),
       pausedUser(due, { _id: 'second' }),
     ]);
-    userProfile.findByIdAndUpdate
+    userProfile.findOneAndUpdate
       .mockRejectedValueOnce(new Error('write failed'))
       .mockResolvedValueOnce({});
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).toHaveBeenCalledTimes(2);
+    expect(userProfile.findOneAndUpdate).toHaveBeenCalledTimes(2);
     expect(logger.logException).toHaveBeenCalled();
+  });
+
+  it('only updates a user who is still in the state the job read', async () => {
+    freezeAt('2026-08-20T07:01:00Z');
+    const due = moment.tz('2026-08-20', COMPANY_TZ).startOf('day').toDate();
+    userProfile.find.mockResolvedValue([pausedUser(due)]);
+
+    await reactivateUser();
+
+    const [filter] = userProfile.findOneAndUpdate.mock.calls[0];
+    expect(filter).toEqual({ _id: USER_ID, isActive: false, reactivationDate: due });
+  });
+
+  it('does not overwrite or email a user whose status changed after the job read it', async () => {
+    // An admin resumed, re-paused or separated the user between the scan and
+    // the write, so the conditional update matches nothing.
+    freezeAt('2026-08-20T07:01:00Z');
+    const due = moment.tz('2026-08-20', COMPANY_TZ).startOf('day').toDate();
+    userProfile.find.mockResolvedValue([
+      pausedUser(due, { _id: 'changed' }),
+      pausedUser(due, { _id: 'unchanged' }),
+    ]);
+    userProfile.findOneAndUpdate.mockResolvedValueOnce(null).mockResolvedValueOnce({});
+
+    await reactivateUser();
+
+    expect(userProfile.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    expect(logger.logInfo).toHaveBeenCalledWith(
+      expect.stringContaining('skipping user changed, status changed'),
+    );
+    // Only the user who was actually reactivated gets the resumed email.
+    expect(emailSender).toHaveBeenCalledTimes(1);
   });
 
   it('reports a failure to load users rather than throwing at the cron', async () => {
@@ -193,7 +225,7 @@ describe('reactivateUser', () => {
 
     await expect(reactivateUser()).resolves.toBeUndefined();
     expect(logger.logException).toHaveBeenCalled();
-    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it('does nothing quietly when nobody is due', async () => {
@@ -201,7 +233,7 @@ describe('reactivateUser', () => {
 
     await reactivateUser();
 
-    expect(userProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(userProfile.findOneAndUpdate).not.toHaveBeenCalled();
     expect(emailSender).not.toHaveBeenCalled();
     expect(logger.logException).not.toHaveBeenCalled();
   });
