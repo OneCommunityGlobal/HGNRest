@@ -1,5 +1,5 @@
 const NodeCache = require('node-cache');
-const Project = require('../models/bmdashboard/project');
+const Project = require('../models/project');
 
 const cache = new NodeCache({ stdTTL: 300 });
 
@@ -15,38 +15,53 @@ exports.getProjectStatusSummary = async (req, res) => {
 
     const filter = {};
     if (startDate || endDate) {
-      filter.start_date = {};
-      if (startDate) filter.start_date.$gte = new Date(startDate);
-      if (endDate) filter.start_date.$lte = new Date(endDate);
+      filter.createdDatetime = {};
+      if (startDate) filter.createdDatetime.$gte = new Date(startDate);
+      if (endDate) filter.createdDatetime.$lte = new Date(endDate);
     }
 
     const data = await Project.aggregate([
       { $match: filter },
       {
         $group: {
-          _id: '$status',
-          count: { $sum: 1 },
+          _id: null,
+          total: { $sum: 1 },
+          active: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$isActive', true] }, { $ne: ['$isArchived', true] }] },
+                1,
+                0,
+              ],
+            },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$isArchived', true] }, 1, 0] },
+          },
+          inactive: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$isActive', false] }, { $ne: ['$isArchived', true] }] },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
     ]);
 
-    let total = 0;
-    const summary = { active: 0, completed: 0, delayed: 0 };
-
-    data.forEach((item) => {
-      summary[item._id] = item.count;
-      total += item.count;
-    });
+    const result = data[0] || { total: 0, active: 0, completed: 0, inactive: 0 };
 
     const response = {
-      totalProjects: total,
-      activeProjects: summary.active,
-      completedProjects: summary.completed,
-      delayedProjects: summary.delayed,
+      totalProjects: result.total,
+      activeProjects: result.active,
+      completedProjects: result.completed,
+      delayedProjects: result.inactive,
       percentages: {
-        active: total ? ((summary.active / total) * 100).toFixed(1) : 0,
-        completed: total ? ((summary.completed / total) * 100).toFixed(1) : 0,
-        delayed: total ? ((summary.delayed / total) * 100).toFixed(1) : 0,
+        active: result.total ? ((result.active / result.total) * 100).toFixed(1) : 0,
+        completed: result.total ? ((result.completed / result.total) * 100).toFixed(1) : 0,
+        delayed: result.total ? ((result.inactive / result.total) * 100).toFixed(1) : 0,
       },
     };
 

@@ -27,7 +27,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
-
+const activityRouter = require('../routes/activityRouter');
 const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
   availability,
 );
@@ -62,6 +62,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -233,9 +234,12 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
 const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
-  buildingMaterial,
+  buildingMaterialModel,
 );
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
@@ -270,6 +274,7 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
+const weeklyProjectSummaryRouter = require('../routes/bmdashboard/weeklyProjectSummaryRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
@@ -401,7 +406,7 @@ const listOverviewRouter = require('../routes/lbdashboard/listOverviewRouter')()
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
-const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const educatorGroupRouter = require('../routes/educatorGroupRoutes');
@@ -413,6 +418,8 @@ const permissionRouter = require('../routes/permissionRouter');
 // Analytics
 const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
+const ReviewerGroup = require('../models/reviewerGroup');
+const PromotionPrEntry = require('../models/promotionPrEntry');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
@@ -452,6 +459,7 @@ const educatorRoutes = require('../routes/educatorRoutes');
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
+const eventRouter = require('../routes/eventRouter');
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
@@ -467,6 +475,8 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
 );
 
 module.exports = function (app) {
+  app.use('/api/project-status', projectStatusRouter);
+
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
@@ -477,6 +487,7 @@ module.exports = function (app) {
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
@@ -529,6 +540,8 @@ module.exports = function (app) {
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', materialUtilizationRouter);
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
 
   app.use('/api', formRouter);
   app.use('/api', meetingRouter);
@@ -601,6 +614,11 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', costBreakdownRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
   app.use('/api', knowledgeEvolutionRouter);
 
   //app.use('api', bmIssueRouter);
@@ -624,6 +642,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
+  app.use('/api/bm/weekly-project-summary', weeklyProjectSummaryRouter);
   app.use('/api/bm', bmInjuryRouter);
   app.use('/api', bmProjectRiskProfileRouter);
 
@@ -634,6 +653,7 @@ module.exports = function (app) {
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
+  app.use('/api', eventRouter);
 
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
@@ -664,7 +684,19 @@ module.exports = function (app) {
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
-  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
+  app.use(
+    '/api/',
+    promotionEligibilityRouter(
+      userProfile,
+      timeEntry,
+      task,
+      PromotionEligibility,
+      ReviewerGroup,
+      team,
+      hgnFormResponses,
+      PromotionPrEntry,
+    ),
+  );
 
   // PR Analytics
   app.use('/api', prInsightsRouter);

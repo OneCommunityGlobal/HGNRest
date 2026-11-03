@@ -13,6 +13,7 @@ const routes = function (buildingIssue, injuryIssue) {
   IssueRouter.route('/issues/add').post(controller.bmPostInjuryIssue);
   IssueRouter.route('/issues/list').get(controller.bmGetInjuryIssue);
   IssueRouter.route('/issues/longest-open').get(controller.getLongestOpenIssues);
+  IssueRouter.route('/issues/most-expensive').get(controller.getMostExpensiveIssues);
   IssueRouter.route('/issues/:id/rename').put(controller.bmRenameInjuryIssue);
   IssueRouter.route('/issues/:id/copy').post(controller.bmCopyInjuryIssue);
   IssueRouter.route('/issues/:id').delete(controller.bmDeleteInjuryIssue);

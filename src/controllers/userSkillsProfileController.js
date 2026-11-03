@@ -57,6 +57,8 @@ const userSkillsProfileController = function (UserProfile) {
         .lean();
 
       // Use default values if not found
+      // Track whether the user has a real profile before applying placeholder data
+      const hasRealUserProfile = Boolean(userProfile);
       if (!userProfile) {
         userProfile = {
           _id: userId,
@@ -136,8 +138,11 @@ const userSkillsProfileController = function (UserProfile) {
         name: {
           firstName: userProfile.firstName,
           lastName: userProfile.lastName,
-          displayName:
-            formResponses?.userInfo?.name || `${userProfile.firstName} ${userProfile.lastName}`,
+          displayName: hasRealUserProfile
+            ? `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() ||
+              formResponses?.userInfo?.name?.trim() ||
+              'Not provided'
+            : formResponses?.userInfo?.name?.trim() || 'Unknown User',
         },
         contactInfo,
         jobTitle: userProfile.jobTitle || [],

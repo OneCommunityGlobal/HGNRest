@@ -225,6 +225,20 @@ describe('activityLogController', () => {
         },
       ]);
     });
+
+    it('should handle exceptions and return 500', async () => {
+      req.params.studentId = validObjectId;
+      hasPermission.mockResolvedValue(true);
+      ActivityLog.find.mockImplementation(() => {
+        throw new Error('Database Failure');
+      });
+
+      await controller.fetchStudentDailyLogsByStaff(req, res);
+
+      expect(logger.logException).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
+    });
   });
 
   describe('createStudentDailyLog', () => {
@@ -422,6 +436,20 @@ describe('activityLogController', () => {
           is_assisted: true,
         }),
       });
+    });
+
+    it('should handle exceptions and return 500', async () => {
+      req.params.logId = validObjectId;
+      hasPermission.mockResolvedValue(true);
+      ActivityLog.findById.mockImplementation(() => {
+        throw new Error('Database Failure');
+      });
+
+      await controller.updateStudentDailyLog(req, res);
+
+      expect(logger.logException).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
   });
 });
