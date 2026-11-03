@@ -5,6 +5,7 @@ const Applicant = require('../models/jobApplicants');
 const AnonymousInteraction = require('../models/anonymousInteraction');
 const AnonymousApplication = require('../models/anonymousApplication');
 const AnalyticsSummary = require('../models/analyticsSummary');
+const JobApplication = require('../models/jobApplicationsModel');
 const analyticsController = require('../controllers/applicantAnalyticsController');
 
 const {
@@ -16,7 +17,13 @@ const {
   getInteractionSummary,
   getConversionMetrics,
   triggerAggregation,
-} = analyticsController(Applicant, AnonymousInteraction, AnonymousApplication, AnalyticsSummary);
+} = analyticsController(
+  Applicant,
+  AnonymousInteraction,
+  AnonymousApplication,
+  AnalyticsSummary,
+  JobApplication,
+);
 
 router.get('/experience-breakdown', getExperienceBreakdown);
 router.get('/applicant-sources', getApplicantSources);
