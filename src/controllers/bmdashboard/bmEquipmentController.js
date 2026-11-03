@@ -1,5 +1,24 @@
 const mongoose = require('mongoose');
 
+// Canonical status values match the buildingEquipment updateRecord.condition enum.
+const CANONICAL_STATUSES = ['Good', 'Needs Repair', 'Out of Order'];
+// Display labels sent by older clients map onto the canonical values.
+const LEGACY_STATUS_LABELS = {
+  'Working well': 'Good',
+  'Broken/Needs repair': 'Needs Repair',
+  'Stolen/Lost': 'Out of Order',
+  'End of life': 'Out of Order',
+  Returned: 'Good',
+};
+
+const normalizeStatus = (value) => {
+  if (typeof value !== 'string') return null;
+  if (CANONICAL_STATUSES.includes(value)) return value;
+  return Object.prototype.hasOwnProperty.call(LEGACY_STATUS_LABELS, value)
+    ? LEGACY_STATUS_LABELS[value]
+    : null;
+};
+
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
     { path: 'itemType', select: '_id name description unit imageUrl category' },
@@ -302,6 +321,13 @@ const bmEquipmentController = (BuildingEquipment) => {
         });
       }
 
+      const normalizedCondition = normalizeStatus(condition);
+      if (!normalizedCondition) {
+        return res.status(400).send({
+          error: `Condition must be one of: ${CANONICAL_STATUSES.join(', ')}.`,
+        });
+      }
+
       if (!mongoose.Types.ObjectId.isValid(createdBy)) {
         console.error('Invalid createdBy ID');
         return res.status(400).send({
@@ -328,7 +354,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       const updateRecord = {
         date: new Date(),
         createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition,
+        condition: normalizedCondition,
         lastUsedBy: lastUsedBy || '',
         lastUsedFor: lastUsedFor || '',
         replacementRequired: replacementRequired || '',

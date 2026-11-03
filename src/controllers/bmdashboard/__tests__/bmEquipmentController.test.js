@@ -309,7 +309,7 @@ describe('bmEquipmentController', () => {
           {
             $push: {
               updateRecord: expect.objectContaining({
-                condition: 'Working well',
+                condition: 'Good',
                 lastUsedBy: 'Pat Volunteer',
                 lastUsedFor: 'Garden - landscaping',
                 replacementRequired: 'yes',
@@ -322,6 +322,40 @@ describe('bmEquipmentController', () => {
         expect(mockRes.status).toHaveBeenCalledWith(200);
         expect(mockRes.send).toHaveBeenCalledWith(updatedEquipment);
       });
+
+      it.each([
+        ['Good', 'Good'],
+        ['Needs Repair', 'Needs Repair'],
+        ['Out of Order', 'Out of Order'],
+        ['Working well', 'Good'],
+        ['Broken/Needs repair', 'Needs Repair'],
+        ['Stolen/Lost', 'Out of Order'],
+        ['End of life', 'Out of Order'],
+        ['Returned', 'Good'],
+      ])('stores %s as the canonical value %s', async (sent, stored) => {
+        mockReq.params.equipmentId = equipmentId;
+        mockReq.body = { condition: sent, replacementRequired: 'no' };
+        mockStatusUpdate();
+
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+
+        const update = mockBuildingEquipment.findByIdAndUpdate.mock.calls[0][1];
+        expect(update.$push.updateRecord.condition).toBe(stored);
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+      });
+
+      it.each(['Bogus', 'good', '', 42, { $ne: '' }, ['Good']])(
+        'rejects unsupported condition %p without writing',
+        async (bad) => {
+          mockReq.params.equipmentId = equipmentId;
+          mockReq.body = { condition: bad, replacementRequired: 'no' };
+
+          await controller.updateEquipmentStatus(mockReq, mockRes);
+
+          expect(mockRes.status).toHaveBeenCalledWith(400);
+          expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+        },
+      );
 
       it('clears replacement reason when replacement is not required', async () => {
         mockReq.params.equipmentId = equipmentId;
