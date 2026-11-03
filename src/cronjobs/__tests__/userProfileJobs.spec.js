@@ -30,6 +30,12 @@ jest.mock('../../helpers/userHelper', () =>
   })),
 );
 
+// A real badgeController would query the Badge model with no database behind
+// it.
+const mockBadgeController = { syncBadgeUsers: jest.fn().mockResolvedValue(undefined) };
+jest.mock('../../controllers/badgeController', () => jest.fn(() => mockBadgeController));
+jest.mock('../../models/badge', () => ({}));
+
 /* =======================
    IMPORTS AFTER MOCKS
    ======================= */
@@ -55,6 +61,7 @@ describe('userProfileJobs, Sunday callback', () => {
     // resolved default back. clearAllMocks would leave a mockRejectedValue in
     // place and leak it into the next test.
     Object.values(helper).forEach((fn) => fn.mockReset().mockResolvedValue(undefined));
+    mockBadgeController.syncBadgeUsers.mockReset().mockResolvedValue(undefined);
     jest.useFakeTimers().setSystemTime(A_SUNDAY);
     jest.spyOn(console, 'error').mockImplementation(() => {});
     userProfileJobs();
@@ -89,6 +96,15 @@ describe('userProfileJobs, Sunday callback', () => {
     expect(helper.emailWeeklySummariesForAllUsers).toHaveBeenCalledTimes(1);
     expect(helper.deleteBlueSquareAfterYear).toHaveBeenCalledTimes(1);
     expect(helper.deleteExpiredTokens).toHaveBeenCalledTimes(1);
+    expect(mockBadgeController.syncBadgeUsers).toHaveBeenCalledTimes(1);
+    expect(helper.awardNewBadges).toHaveBeenCalledTimes(1);
+  });
+
+  test('still awards badges when the badge-user sync just before it throws', async () => {
+    mockBadgeController.syncBadgeUsers.mockRejectedValue(new Error('sync boom'));
+
+    await sundayCallback()();
+
     expect(helper.awardNewBadges).toHaveBeenCalledTimes(1);
   });
 

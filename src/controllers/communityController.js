@@ -41,10 +41,12 @@ const communityMemberController = function () {
         const { userInfo, frontend, backend, general } = member;
         return {
           _id: member._id,
+          userId: member.user_id,
           name: userInfo?.name || 'N/A',
           email: userInfo?.email || 'N/A',
           slack: userInfo?.slack || '',
           team: general?.location || 'N/A',
+          preferences: Array.isArray(general?.preferences) ? general.preferences : [],
           skills: {
             frontend: extractSkills(frontend),
             backend: extractSkills(backend),
