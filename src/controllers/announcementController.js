@@ -16,6 +16,11 @@ function badRequest(message, status = 400) {
   return error;
 }
 
+function authenticatedId(requestor) {
+  if (!validId(requestor?.requestorId)) throw badRequest('Authentication required', 401);
+  return new mongoose.Types.ObjectId(requestor.requestorId);
+}
+
 function validateContent(title, body, audience, input) {
   if (typeof title !== 'string' || !title.trim() || typeof body !== 'string' || !body.trim()) {
     throw badRequest('Title and body are required');
@@ -31,11 +36,15 @@ function validateContent(title, body, audience, input) {
 async function resolveGroup(groupId, educatorId, audience) {
   if (!validId(groupId)) throw badRequest('Invalid group ID');
   if (audience !== 'students') throw badRequest('Group announcements must target students');
-  const group = await StudentGroup.findOne({ _id: groupId, educator_id: educatorId });
+  const groupObjectId = new mongoose.Types.ObjectId(groupId);
+  const group = await StudentGroup.findOne({ _id: groupObjectId, educator_id: educatorId });
   if (!group) throw badRequest('Group not found', 404);
-  const members = await StudentGroupMember.find({ group_id: groupId }).select('student_id');
+  const members = await StudentGroupMember.find({ group_id: groupObjectId }).select('student_id');
   const ids = [...new Set(members.map((member) => String(member.student_id)).filter(validId))];
-  const students = await UserProfile.find({ _id: { $in: ids }, role: 'student' }).select('_id');
+  const students = await UserProfile.find({
+    _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) },
+    role: 'student',
+  }).select('_id');
   const recipientStudentIds = [...new Set(students.map((student) => String(student._id)))];
   if (!recipientStudentIds.length) throw badRequest('Group has no valid student members');
   return { groupId, recipientStudentIds };
@@ -46,6 +55,45 @@ function sendError(res, error) {
   LOGGER.logException(error);
   return res.status(500).send({ error: 'Internal server error' });
 }
+
+// Omitted groupId preserves the recipient snapshot. Explicit null restores broad targeting.
+const updateAnnouncement = async function (req, res) {
+  const { requestor } = req.body;
+  if (!canManage(requestor)) {
+    return res.status(403).send({ error: 'Unauthorized: Only educators can update announcements' });
+  }
+  try {
+    const authorId = authenticatedId(requestor);
+    if (!validId(req.params.announcementId)) throw badRequest('Invalid announcement ID');
+    const announcement = await Announcement.findOne({
+      _id: new mongoose.Types.ObjectId(req.params.announcementId),
+      user_id: authorId,
+    });
+    if (!announcement) throw badRequest('Announcement not found', 404);
+    const title = req.body.title === undefined ? announcement.title : req.body.title;
+    const body = req.body.body === undefined ? announcement.body : req.body.body;
+    const audience = req.body.audience === undefined ? announcement.audience : req.body.audience;
+    validateContent(title, body, audience, req.body);
+    if (hasOwn(req.body, 'groupId')) {
+      const targeting =
+        req.body.groupId === null
+          ? { groupId: undefined, recipientStudentIds: undefined }
+          : await resolveGroup(req.body.groupId, authorId, audience);
+      announcement.set(targeting);
+    }
+    if (announcement.recipientStudentIds !== undefined && audience !== 'students') {
+      throw badRequest('Group announcements must target students');
+    }
+    announcement.set({ title: title.trim(), body: body.trim(), audience });
+    await announcement.save();
+    await announcement.populate('creatorInfo').execPopulate();
+    return res
+      .status(200)
+      .send({ success: true, message: 'Announcement updated successfully', data: announcement });
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
 
 /**
  * API controller for announcements service.
@@ -79,18 +127,17 @@ const announcementController = function () {
     // Validate audience if provided
     const validAudiences = ['students', 'educators', 'support', 'all'];
     if (audience && !validAudiences.includes(audience)) {
-      res
-        .status(400)
-        .send({
-          error: 'Invalid audience type. Must be one of: students, educators, support, all',
-        });
+      res.status(400).send({
+        error: 'Invalid audience type. Must be one of: students, educators, support, all',
+      });
       return;
     }
 
     try {
+      const authorId = authenticatedId(requestor);
       validateContent(title, body, audience || 'students', req.body);
       const targeting = hasOwn(req.body, 'groupId')
-        ? await resolveGroup(req.body.groupId, requestor.requestorId, audience || 'students')
+        ? await resolveGroup(req.body.groupId, authorId, audience || 'students')
         : {};
       // Get the next announcement_id
       const lastAnnouncement = await Announcement.findOne().sort({ announcement_id: -1 });
@@ -98,7 +145,7 @@ const announcementController = function () {
 
       const announcement = new Announcement({
         announcement_id: nextAnnouncementId,
-        user_id: requestor.requestorId,
+        user_id: authorId,
         title: title.trim(),
         body: body.trim(),
         audience: audience || 'students',
@@ -117,46 +164,6 @@ const announcementController = function () {
       });
     } catch (err) {
       sendError(res, err);
-    }
-  };
-
-  // Omitted groupId preserves the recipient snapshot. Explicit null restores broad targeting.
-  const updateAnnouncement = async function (req, res) {
-    const { requestor } = req.body;
-    if (!canManage(requestor)) {
-      return res
-        .status(403)
-        .send({ error: 'Unauthorized: Only educators can update announcements' });
-    }
-    try {
-      if (!validId(req.params.announcementId)) throw badRequest('Invalid announcement ID');
-      const announcement = await Announcement.findOne({
-        _id: req.params.announcementId,
-        user_id: requestor.requestorId,
-      });
-      if (!announcement) throw badRequest('Announcement not found', 404);
-      const title = req.body.title === undefined ? announcement.title : req.body.title;
-      const body = req.body.body === undefined ? announcement.body : req.body.body;
-      const audience = req.body.audience === undefined ? announcement.audience : req.body.audience;
-      validateContent(title, body, audience, req.body);
-      if (hasOwn(req.body, 'groupId')) {
-        const targeting =
-          req.body.groupId === null
-            ? { groupId: undefined, recipientStudentIds: undefined }
-            : await resolveGroup(req.body.groupId, requestor.requestorId, audience);
-        announcement.set(targeting);
-      }
-      if (announcement.recipientStudentIds !== undefined && audience !== 'students') {
-        throw badRequest('Group announcements must target students');
-      }
-      announcement.set({ title: title.trim(), body: body.trim(), audience });
-      await announcement.save();
-      await announcement.populate('creatorInfo').execPopulate();
-      return res
-        .status(200)
-        .send({ success: true, message: 'Announcement updated successfully', data: announcement });
-    } catch (err) {
-      return sendError(res, err);
     }
   };
 
@@ -230,11 +237,12 @@ const announcementController = function () {
     const { page = 1, limit = 10 } = req.query;
 
     try {
+      const authorId = authenticatedId(requestor);
       const skip = (page - 1) * limit;
 
       // Get announcements created by the current user
       const announcements = await Announcement.find({
-        user_id: requestor.requestorId,
+        user_id: authorId,
       })
         .populate('creatorInfo', 'firstName lastName email')
         .sort({ created_at: -1 })
@@ -242,7 +250,7 @@ const announcementController = function () {
         .limit(parseInt(limit, 10));
 
       const total = await Announcement.countDocuments({
-        user_id: requestor.requestorId,
+        user_id: authorId,
       });
 
       res.status(200).send({
@@ -256,8 +264,7 @@ const announcementController = function () {
         },
       });
     } catch (err) {
-      LOGGER.logException(err);
-      res.status(500).send({ error: 'Internal server error' });
+      sendError(res, err);
     }
   };
 

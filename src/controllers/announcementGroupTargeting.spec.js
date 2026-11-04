@@ -39,18 +39,16 @@ beforeEach(() => {
   });
   jest.spyOn(Announcement, 'findOne').mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
   jest.spyOn(StudentGroup, 'findOne').mockResolvedValue({ _id: GROUP });
-  jest
-    .spyOn(StudentGroupMember, 'find')
-    .mockReturnValue({
-      select: jest
-        .fn()
-        .mockResolvedValue([
-          { student_id: STUDENT },
-          { student_id: STUDENT },
-          { student_id: OTHER },
-          { student_id: null },
-        ]),
-    });
+  jest.spyOn(StudentGroupMember, 'find').mockReturnValue({
+    select: jest
+      .fn()
+      .mockResolvedValue([
+        { student_id: STUDENT },
+        { student_id: STUDENT },
+        { student_id: OTHER },
+        { student_id: null },
+      ]),
+  });
   jest
     .spyOn(UserProfile, 'find')
     .mockReturnValue({ select: jest.fn().mockResolvedValue([{ _id: STUDENT }]) });
@@ -99,10 +97,15 @@ test.each(['student', 'Educator', 'Mentor'])(
 test('resolves owned group and stores distinct existing student IDs only', async () => {
   req.body.groupId = GROUP;
   await controller.createAnnouncement(req, res);
-  expect(StudentGroup.findOne).toHaveBeenCalledWith({ _id: GROUP, educator_id: AUTHOR });
-  expect(StudentGroupMember.find).toHaveBeenCalledWith({ group_id: GROUP });
+  expect(StudentGroup.findOne).toHaveBeenCalledWith({
+    _id: mongoose.Types.ObjectId(GROUP),
+    educator_id: mongoose.Types.ObjectId(AUTHOR),
+  });
+  expect(StudentGroupMember.find).toHaveBeenCalledWith({
+    group_id: mongoose.Types.ObjectId(GROUP),
+  });
   expect(UserProfile.find).toHaveBeenCalledWith({
-    _id: { $in: [STUDENT, OTHER] },
+    _id: { $in: [STUDENT, OTHER].map((id) => mongoose.Types.ObjectId(id)) },
     role: 'student',
   });
   expect(saved().recipientStudentIds.map(String)).toEqual([STUDENT]);
@@ -143,7 +146,10 @@ test('caller-supplied recipients and incompatible audiences are rejected', async
 test('author edit preserves snapshot when group is omitted', async () => {
   const doc = existing();
   await controller.updateAnnouncement(req, res);
-  expect(Announcement.findOne).toHaveBeenCalledWith({ _id: ID, user_id: AUTHOR });
+  expect(Announcement.findOne).toHaveBeenCalledWith({
+    _id: mongoose.Types.ObjectId(ID),
+    user_id: mongoose.Types.ObjectId(AUTHOR),
+  });
   expect(res.status).toHaveBeenCalledWith(200);
   expect(doc.title).toBe('Title');
   expect(doc.recipientStudentIds.map(String)).toEqual([STUDENT]);
@@ -159,7 +165,10 @@ test('explicit group change refreshes snapshot only from owned group', async () 
   const doc = existing();
   req.body.groupId = GROUP;
   await controller.updateAnnouncement(req, res);
-  expect(StudentGroup.findOne).toHaveBeenCalledWith({ _id: GROUP, educator_id: AUTHOR });
+  expect(StudentGroup.findOne).toHaveBeenCalledWith({
+    _id: mongoose.Types.ObjectId(GROUP),
+    educator_id: mongoose.Types.ObjectId(AUTHOR),
+  });
   expect(doc.recipientStudentIds.map(String)).toEqual([STUDENT]);
 });
 test.each([null, 'empty'])(
@@ -333,3 +342,80 @@ test('create and update execute document population before returning the author'
   expect(doc.creatorInfo.lastName).toBe('Lovelace');
   expect(Announcement.prototype.execPopulate).toHaveBeenCalledTimes(2);
 });
+
+const invalidIds = [
+  { $ne: null },
+  { $gt: '' },
+  [GROUP],
+  123,
+  '',
+  'invalid',
+  '123456789012',
+  '{"$ne":null}',
+  null,
+];
+test.each(invalidIds)('rejects group injection/invalid ID %j before group queries', async (id) => {
+  req.body.groupId = id;
+  await controller.createAnnouncement(req, res);
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(StudentGroup.findOne).not.toHaveBeenCalled();
+  expect(StudentGroupMember.find).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+});
+test.each(invalidIds)(
+  'rejects announcement injection/invalid ID %j before querying',
+  async (id) => {
+    req.params.announcementId = id;
+    await controller.updateAnnouncement(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(Announcement.findOne).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  },
+);
+test.each(invalidIds)('rejects invalid authenticated identity %j consistently', async (id) => {
+  req.body.requestor.requestorId = id;
+  const find = jest.spyOn(Announcement, 'find');
+  const count = jest.spyOn(Announcement, 'countDocuments');
+  await controller.createAnnouncement(req, res);
+  await controller.updateAnnouncement(req, res);
+  await controller.getEducatorAnnouncements(req, res);
+  await controller.getStudentAnnouncements(req, res);
+  expect(res.status.mock.calls).toEqual([[401], [401], [401], [401]]);
+  expect(Announcement.findOne).not.toHaveBeenCalled();
+  expect(find).not.toHaveBeenCalled();
+  expect(count).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+});
+test('educator read/count use the same typed ownership identity', async () => {
+  const query = {
+    populate: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockResolvedValue([]),
+  };
+  jest.spyOn(Announcement, 'find').mockReturnValue(query);
+  jest.spyOn(Announcement, 'countDocuments').mockResolvedValue(0);
+  await controller.getEducatorAnnouncements(req, res);
+  const filter = { user_id: mongoose.Types.ObjectId(AUTHOR) };
+  expect(Announcement.find).toHaveBeenCalledWith(filter);
+  expect(Announcement.countDocuments).toHaveBeenCalledWith(filter);
+  expect(res.status).toHaveBeenCalledWith(200);
+});
+test('factory retains the same module-scoped update handler', () => {
+  expect(require('./announcementController')().updateAnnouncement).toBe(
+    controller.updateAnnouncement,
+  );
+});
+
+test.each(invalidIds.filter((id) => id !== null))(
+  'update rejects injected group ID %j without saving',
+  async (id) => {
+    existing();
+    req.body.groupId = id;
+    await controller.updateAnnouncement(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(StudentGroup.findOne).not.toHaveBeenCalled();
+    expect(StudentGroupMember.find).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  },
+);
