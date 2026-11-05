@@ -1,3 +1,5 @@
+/* eslint-disable no-magic-numbers -- mock data uses literal counts, ranges and prices on purpose */
+
 /**
  * Mock data for the Total Construction Summary (BM Dashboard → Reports).
  *
