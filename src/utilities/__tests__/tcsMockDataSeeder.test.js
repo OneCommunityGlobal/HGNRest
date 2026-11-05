@@ -144,7 +144,7 @@ describe('tcsMockDataSeeder', () => {
 
     it('deletes only the IDs listed in the manifest', async () => {
       const deps = makeDeps({
-        manifest: { entries: [{ collection: 'buildingIssue', ids: ['a', 'b'] }] },
+        manifest: { entries: [{ collectionKey: 'buildingIssue', ids: ['a', 'b'] }] },
       });
       const result = await resetTcsMockData(deps);
       expect(deps.models.buildingIssue.deleteMany).toHaveBeenCalledWith({

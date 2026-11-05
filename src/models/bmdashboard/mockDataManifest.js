@@ -11,7 +11,7 @@ const mockDataManifest = new Schema({
   entries: [
     {
       _id: false,
-      collection: { type: String, required: true },
+      collectionKey: { type: String, required: true },
       ids: [{ type: Schema.Types.ObjectId }],
     },
   ],

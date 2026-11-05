@@ -363,8 +363,8 @@ const resetTcsMockData = async ({ models, Manifest }) => {
 
   let removed = 0;
   await Promise.all(
-    (manifest.entries || []).map(async ({ collection, ids }) => {
-      const model = models[collection];
+    (manifest.entries || []).map(async ({ collectionKey, ids }) => {
+      const model = models[collectionKey];
       if (!model || !ids?.length) return;
       const result = await model.deleteMany({ _id: { $in: ids } });
       removed += result?.deletedCount || 0;
@@ -426,7 +426,7 @@ const seedTcsMockData = async ({
       // eslint-disable-next-line no-await-in-loop
       const created = await model.insertMany(docs);
       inserted[key] = created.length;
-      entries.push({ collection: key, ids: created.map((doc) => doc._id) });
+      entries.push({ collectionKey: key, ids: created.map((doc) => doc._id) });
     }
   }
 
