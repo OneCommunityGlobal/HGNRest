@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
 const {
   getWeeklyProjectSummaryProjectStatus,
+  getWeeklyProjectSummaryFinancialOverview,
 } = require('../../services/bmdashboard/weeklyProjectSummaryService');
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,35 +55,54 @@ function validateQuery(query = {}) {
   return null;
 }
 
-async function getProjectStatus(req, res) {
-  try {
-    const validationError = validateQuery(req.query);
-    if (validationError) {
-      return res.status(400).json({ error: 'Validation Error', message: validationError });
-    }
+// Both summary endpoints take the same query and only differ in which metrics they load.
+function createSummaryHandler(getSummary, handlerName, endpoint) {
+  return async function handleSummaryRequest(req, res) {
+    try {
+      const validationError = validateQuery(req.query);
+      if (validationError) {
+        return res.status(400).json({ error: 'Validation Error', message: validationError });
+      }
 
-    const data = await getWeeklyProjectSummaryProjectStatus(req.query);
-    return res.status(200).json(data);
-  } catch (error) {
-    if (error.status === 404) {
-      return res.status(404).json({ error: 'Not Found', message: error.message });
-    }
+      const data = await getSummary(req.query);
+      return res.status(200).json(data);
+    } catch (error) {
+      if (error.status === 404) {
+        return res.status(404).json({ error: 'Not Found', message: error.message });
+      }
 
-    const trackingId = logger.logException(
-      error,
-      'weeklyProjectSummaryController.getProjectStatus',
-      { endpoint: '/weekly-project-summary/project-status', query: req.query },
-    );
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'An unexpected error occurred while fetching weekly project summary metrics',
-      trackingId,
-    });
-  }
+      const trackingId = logger.logException(
+        error,
+        `weeklyProjectSummaryController.${handlerName}`,
+        {
+          endpoint,
+          query: req.query,
+        },
+      );
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred while fetching weekly project summary metrics',
+        trackingId,
+      });
+    }
+  };
 }
+
+const getProjectStatus = createSummaryHandler(
+  getWeeklyProjectSummaryProjectStatus,
+  'getProjectStatus',
+  '/weekly-project-summary/project-status',
+);
+
+const getFinancialOverview = createSummaryHandler(
+  getWeeklyProjectSummaryFinancialOverview,
+  'getFinancialOverview',
+  '/weekly-project-summary/financial-overview',
+);
 
 module.exports = {
   getProjectStatus,
+  getFinancialOverview,
   testExports: {
     isValidDateString,
     validateDateRange,
