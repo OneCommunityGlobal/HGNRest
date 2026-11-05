@@ -2170,6 +2170,24 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getPauseReactivationDateError = (isResuming, activationDate) => {
+    if (isResuming) return null;
+    if (!activationDate) return 'Reactivation date is required for pause';
+    if (!isValidCalendarDate(activationDate)) {
+      return 'Reactivation date must be a valid date in YYYY-MM-DD format';
+    }
+    return null;
+  };
+
+  const updateUserInAllUsersCache = (userId, fields) => {
+    if (!cache.hasCache('allusers')) return;
+    const allUserData = JSON.parse(cache.getCache('allusers'));
+    const userIdx = allUserData.findIndex((u) => u._id === userId);
+    if (userIdx === -1) return;
+    allUserData.splice(userIdx, 1, { ...allUserData[userIdx], ...fields });
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
   const pauseResumeUser = async function (req, res) {
     const { userId } = req.params;
     const activationDate = req.body.reactivationDate;
@@ -2198,13 +2216,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change user status');
     }
 
-    if (!status && !activationDate) {
-      return res.status(400).send({ error: 'Reactivation date is required for pause' });
-    }
-    if (!status && !isValidCalendarDate(activationDate)) {
-      return res
-        .status(400)
-        .send({ error: 'Reactivation date must be a valid date in YYYY-MM-DD format' });
+    const reactivationDateError = getPauseReactivationDateError(status, activationDate);
+    if (reactivationDateError) {
+      return res.status(400).send({ error: reactivationDateError });
     }
 
     cache.removeCache(`user-${userId}`);
@@ -2231,16 +2245,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       await user.save();
 
-      const isUserInCache = cache.hasCache('allusers');
-      if (isUserInCache) {
-        const allUserData = JSON.parse(cache.getCache('allusers'));
-        const userIdx = allUserData.findIndex((u) => u._id === userId);
-        if (userIdx !== -1) {
-          const userData = { ...allUserData[userIdx], ...appliedFields };
-          allUserData.splice(userIdx, 1, userData);
-          cache.setCache('allusers', JSON.stringify(allUserData));
-        }
-      }
+      updateUserInAllUsersCache(userId, appliedFields);
 
       if (status) {
         userHelper.sendUserResumedEmail({
