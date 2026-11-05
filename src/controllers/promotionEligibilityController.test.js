@@ -12,17 +12,14 @@ jest.mock('../models/promotionDetail', () => ({
   bulkWrite: jest.fn().mockResolvedValue({}),
 }));
 
-jest.mock('../models/hgnFormResponse', () => ({
-  find: jest.fn(() => ({
-    lean: jest.fn().mockResolvedValue([]),
-  })),
-}));
-
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const PromotionDetail = require('../models/promotionDetail');
 const promotionEligibilityController = require('./promotionEligibilityController');
-const FormResponse = require('../models/hgnFormResponse');
+
+const QuestionnaireResponses = {
+  find: jest.fn(() => ({ lean: jest.fn().mockResolvedValue([]) })),
+};
 
 const OWNER_ID = '665234c757ca141fe891e1ca';
 const REVIEWER_ID = '637af0c0fb9bbc1e308cff62';
@@ -33,25 +30,25 @@ describe('updatePrsNeeded', () => {
   let mockReq;
   let mockRes;
 
-beforeEach(() => {
-  PromotionEligibility = { findOneAndUpdate: jest.fn() };
-  controller = promotionEligibilityController({}, {}, {}, PromotionEligibility);
+  beforeEach(() => {
+    PromotionEligibility = { findOneAndUpdate: jest.fn() };
+    controller = promotionEligibilityController({}, {}, {}, PromotionEligibility);
 
-  mockReq = {
-    params: { reviewerId: REVIEWER_ID },
-    body: {
-      requestor: { requestorId: OWNER_ID, role: 'Owner' },
-      prsNeeded: 12,
-    },
-  };
-  mockRes = {
-    status: jest.fn().mockReturnThis(),
-    json: jest.fn().mockReturnThis(),
-    send: jest.fn().mockReturnThis(),
-  };
+    mockReq = {
+      params: { reviewerId: REVIEWER_ID },
+      body: {
+        requestor: { requestorId: OWNER_ID, role: 'Owner' },
+        prsNeeded: 12,
+      },
+    };
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
 
-  jest.clearAllMocks();
-});
+    jest.clearAllMocks();
+  });
 
   describe('authorisation', () => {
     it.each(['Administrator', 'Manager', 'Core Team', 'Volunteer'])(
@@ -257,6 +254,8 @@ describe('getPromotionEligibilityData, filtering by reviewer group', () => {
       Task,
       PromotionEligibility,
       ReviewerGroup,
+      null,
+      QuestionnaireResponses,
     );
 
     mockRes = {
@@ -373,6 +372,8 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
       Task,
       PromotionEligibility,
       null,
+      null,
+      QuestionnaireResponses,
     );
 
     mockRes = {
@@ -1329,6 +1330,8 @@ describe('History column', () => {
         findOneAndUpdate: jest.fn().mockResolvedValue({}),
       },
       null,
+      null,
+      QuestionnaireResponses,
     );
 
     mockRes = {
@@ -1395,6 +1398,8 @@ describe('History column', () => {
         findOneAndUpdate: jest.fn().mockResolvedValue({}),
       },
       null,
+      null,
+      QuestionnaireResponses,
     );
 
     await controller.getPromotionEligibilityData(req(), mockRes);
