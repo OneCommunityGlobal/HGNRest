@@ -141,6 +141,11 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
  * @param {*} pendingEmailCollection The collection of email functions to be executed after the transaction
  * @returns {Void}
  */
+// Split entries keep minute precision through later edits and deletions.
+// Existing entries retain their original two-decimal accounting behavior.
+const counterHours = (seconds, exact = false) =>
+  exact ? seconds / 3600 : Number((seconds / 3600).toFixed(2));
+
 const updateTaskLoggedHours = async (
   fromTaskId,
   secondsToBeRemoved,
@@ -149,12 +154,13 @@ const updateTaskLoggedHours = async (
   userprofile,
   session,
   pendingEmailCollection = null,
+  exact = false,
 ) => {
   // if both fromTaskId and toTaskId are null, then there is no need to update task hoursLogged
   if (!fromTaskId && !toTaskId) return;
 
-  const hoursToBeRemoved = secondsToBeRemoved ? Number((secondsToBeRemoved / 3600).toFixed(2)) : 0;
-  const hoursToBeAdded = secondsToBeAdded ? Number((secondsToBeAdded / 3600).toFixed(2)) : 0;
+  const hoursToBeRemoved = secondsToBeRemoved ? counterHours(secondsToBeRemoved, exact) : 0;
+  const hoursToBeAdded = secondsToBeAdded ? counterHours(secondsToBeAdded, exact) : 0;
   if (fromTaskId && toTaskId && fromTaskId !== toTaskId) {
     // update from one task to another
     try {
@@ -234,10 +240,11 @@ const updateUserprofileCategoryHrs = async (
   toProjectId,
   secondsToBeAdded,
   userprofile,
+  exact = false,
 ) => {
   if (fromProjectId) {
     const fromProject = await Project.findById(fromProjectId);
-    const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
+    const hoursToBeRemoved = counterHours(secondsToBeRemoved, exact);
     if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
     } else {
@@ -246,7 +253,7 @@ const updateUserprofileCategoryHrs = async (
   }
   if (toProjectId) {
     const toProject = await Project.findById(toProjectId);
-    const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
+    const hoursToBeAdded = counterHours(secondsToBeAdded, exact);
     if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
     } else {
@@ -266,9 +273,10 @@ const updateUserprofileTangibleIntangibleHrs = (
   tangibleSecondsChanged,
   intangibleSecondsChanged,
   userprofile,
+  exact = false,
 ) => {
-  const tangibleHoursChanged = Number((tangibleSecondsChanged / 3600).toFixed(2));
-  const intangibleHoursChanged = Number((intangibleSecondsChanged / 3600).toFixed(2));
+  const tangibleHoursChanged = counterHours(tangibleSecondsChanged, exact);
+  const intangibleHoursChanged = counterHours(intangibleSecondsChanged, exact);
   userprofile.totalIntangibleHrs += intangibleHoursChanged;
   userprofile.totalTangibleHrs += tangibleHoursChanged;
 };
@@ -819,12 +827,14 @@ const timeEntrycontroller = function (TimeEntry) {
               userprofile,
               session,
               pendingEmailCollection,
+              Boolean(timeEntry.splitBatchId),
             );
             // subtract initial logged hours from userprofile totalTangibleHrs and add new logged hours to userprofile totalIntangibleHrs
             updateUserprofileTangibleIntangibleHrs(
               -initialTotalSeconds,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
 
             // when changing from tangible to intangible, the original time needs to be removed from hoursByCategory
@@ -834,6 +844,7 @@ const timeEntrycontroller = function (TimeEntry) {
               null,
               null,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
           } else {
             // from intangible to tangible
@@ -845,11 +856,13 @@ const timeEntrycontroller = function (TimeEntry) {
               userprofile,
               session,
               pendingEmailCollection,
+              Boolean(timeEntry.splitBatchId),
             );
             updateUserprofileTangibleIntangibleHrs(
               newTotalSeconds,
               -initialTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
             await updateUserprofileCategoryHrs(
               null,
@@ -857,6 +870,7 @@ const timeEntrycontroller = function (TimeEntry) {
               newProjectId,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
           }
           // make sure all hours are positive
@@ -874,6 +888,7 @@ const timeEntrycontroller = function (TimeEntry) {
             userprofile,
             session,
             pendingEmailCollection,
+            Boolean(timeEntry.splitBatchId),
           );
           // when project is also changed
           if (projectChanged || timeChanged) {
@@ -883,13 +898,19 @@ const timeEntrycontroller = function (TimeEntry) {
               newProjectId,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
             validateUserprofileHours(userprofile);
           }
           // if time or dateOfWork is changed
           if (timeChanged || dateOfWorkChanged) {
             const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-            updateUserprofileTangibleIntangibleHrs(timeDiffInSeconds, 0, userprofile);
+            updateUserprofileTangibleIntangibleHrs(
+              timeDiffInSeconds,
+              0,
+              userprofile,
+              Boolean(timeEntry.splitBatchId),
+            );
             notifyEditByEmail(
               userprofile,
               req.body.requestor.requestorId,
@@ -915,7 +936,12 @@ const timeEntrycontroller = function (TimeEntry) {
           // just update timeEntry and the intangible hours in userprofile,
           // no need to update task/userprofile
           const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-          updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            0,
+            timeDiffInSeconds,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
         }
       }
       await timeEntry.save({ session });
@@ -984,14 +1010,40 @@ const timeEntrycontroller = function (TimeEntry) {
       if (userprofile) {
         // Revert this tangible timeEntry of related task's hoursLogged
         if (isTangible) {
-          updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-          await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            -totalSeconds,
+            0,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
+          await updateUserprofileCategoryHrs(
+            projectId,
+            totalSeconds,
+            null,
+            null,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(
+              taskId,
+              totalSeconds,
+              null,
+              null,
+              userprofile,
+              session,
+              null,
+              Boolean(timeEntry.splitBatchId),
+            );
           }
         } else {
-          updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            0,
+            -totalSeconds,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
         }
       }
 
@@ -1689,7 +1741,16 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  const { postSplitTimeEntries, getSplitTimeEntryReceipt } = require('./splitTimeEntryController')({
+    TimeEntry,
+    notifyTaskOvertimeEmailBody,
+    removeOutdatedUserprofileCache,
+    invalidateWeeklySummariesCache,
+  });
+
   return {
+    postSplitTimeEntries,
+    getSplitTimeEntryReceipt,
     postTimeEntry,
     editTimeEntry,
     deleteTimeEntry,

@@ -5,6 +5,7 @@ jest.mock('../../startup/logger', () => ({
 
 jest.mock('../../models/timer', () => ({
   findOne: jest.fn(),
+  findById: jest.fn(),
   create: jest.fn(),
   findOneAndUpdate: jest.fn().mockResolvedValue(undefined),
 }));
@@ -13,7 +14,7 @@ jest.mock('../../models/timelogTracking', () => ({
   create: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { handleMessage, action, MAX_HOURS, MIN_MINS } = require('./clientsHandler');
+const { getClient, handleMessage, action, MAX_HOURS, MIN_MINS } = require('./clientsHandler');
 
 const USER_ID = 'user-1';
 const FIVE_HOURS_MS = MAX_HOURS * 60 * 60 * 1000;
@@ -158,5 +159,70 @@ describe('clientsHandler ADD_TO_GOAL / REMOVE_FROM_GOAL only move the baseline w
 
     await handleMessage({ action: action.CLEAR_TIMER }, clients, USER_ID);
     expect(clients.get(USER_ID).goal).toBe(FIVE_HOURS_MS);
+  });
+});
+
+describe('server-issued logging session keys', () => {
+  it('keeps the key when paused and resumed, and rotates it for a new session or reset', async () => {
+    const clients = makeClients();
+    await handleMessage({ action: action.START_TIMER }, clients, USER_ID);
+    const key = clients.get(USER_ID).loggingSessionId;
+    expect(key).toMatch(/^[a-f\d-]{36}$/i);
+    await handleMessage({ action: action.PAUSE_TIMER }, clients, USER_ID);
+    await handleMessage({ action: action.START_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).loggingSessionId).toBe(key);
+    await handleMessage({ action: action.STOP_TIMER, loggingSessionId: key }, clients, USER_ID);
+    await handleMessage({ action: action.START_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).loggingSessionId).not.toBe(key);
+    const nextKey = clients.get(USER_ID).loggingSessionId;
+    await handleMessage({ action: action.CLEAR_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).loggingSessionId).not.toBe(nextKey);
+  });
+
+  it('rejects a delayed stop belonging to an earlier session without stopping the new one', async () => {
+    const clients = makeClients({ started: true, loggingSessionId: 'new-session' });
+    const result = await handleMessage(
+      { action: action.STOP_TIMER, loggingSessionId: 'old-session', requestId: 'request' },
+      clients,
+      USER_ID,
+    );
+    expect(clients.get(USER_ID).started).toBe(true);
+    expect(JSON.parse(result.timerResponse)).toMatchObject({
+      started: true,
+      stopRejected: true,
+      requestId: 'request',
+      loggingSessionId: 'new-session',
+    });
+    expect(result.timelogEvent).toBeNull();
+  });
+
+  it('preserves legacy stop behavior when no session key was supplied', async () => {
+    const clients = makeClients({ started: true, loggingSessionId: 'session' });
+    await handleMessage({ action: action.STOP_TIMER }, clients, USER_ID);
+    expect(clients.get(USER_ID).started).toBe(false);
+  });
+});
+
+describe('initializing server logging keys for existing timers', () => {
+  const Timer = require('../../models/timer');
+  it('initializes a legacy timer and shares the stored key on subsequent connections', async () => {
+    const legacy = makeClient({ _id: 'timer-id' });
+    const updated = { ...legacy, loggingSessionId: 'winner-key' };
+    Timer.findOne.mockResolvedValueOnce(legacy);
+    Timer.findOneAndUpdate.mockResolvedValueOnce(updated);
+    const clients = new Map();
+    expect((await getClient(clients, USER_ID)).loggingSessionId).toBe('winner-key');
+    expect((await getClient(clients, USER_ID)).loggingSessionId).toBe('winner-key');
+    expect(Timer.findOneAndUpdate).toHaveBeenLastCalledWith(
+      { _id: 'timer-id', loggingSessionId: { $exists: false } },
+      { $set: { loggingSessionId: expect.any(String) } },
+      { new: true },
+    );
+  });
+  it('reads the winner when another connection initializes the same legacy timer', async () => {
+    Timer.findOne.mockResolvedValueOnce(makeClient({ _id: 'timer-id' }));
+    Timer.findOneAndUpdate.mockResolvedValueOnce(null);
+    Timer.findById.mockResolvedValueOnce(makeClient({ loggingSessionId: 'concurrent-winner' }));
+    expect((await getClient(new Map(), USER_ID)).loggingSessionId).toBe('concurrent-winner');
   });
 });

@@ -1,5 +1,6 @@
 /* eslint-disable no-multi-assign */
 /* eslint-disable radix */
+const { randomUUID } = require('crypto');
 const moment = require('moment');
 const Timer = require('../../models/timer');
 const TimelogTracking = require('../../models/timelogTracking');
@@ -11,7 +12,16 @@ const getClient = async (clients, userId) => {
   if (!clients.has(userId)) {
     try {
       let timer = await Timer.findOne({ userId });
-      if (!timer) timer = await Timer.create({ userId });
+      if (!timer) timer = await Timer.create({ userId, loggingSessionId: randomUUID() });
+      if (!timer.loggingSessionId) {
+        // Initialize existing timers once; concurrent connections read the winner's key.
+        const initialized = await Timer.findOneAndUpdate(
+          { _id: timer._id, loggingSessionId: { $exists: false } },
+          { $set: { loggingSessionId: randomUUID() } },
+          { new: true },
+        );
+        timer = initialized || (await Timer.findById(timer._id));
+      }
       clients.set(userId, timer);
     } catch (e) {
       logger.logException(e);
@@ -73,6 +83,8 @@ const startTimer = async (client) => {
   client.startAt = moment.utc();
   client.paused = false;
   if (!client.started) {
+    client.loggingSessionId = randomUUID();
+    client.splitBatchId = null;
     client.started = true;
     client.time = client.goal;
   }
@@ -127,6 +139,8 @@ const stopTimer = async (client) => {
 
 const clearTimer = async (client) => {
   await stopTimer(client);
+  client.loggingSessionId = randomUUID();
+  client.splitBatchId = null;
   client.goal = client.initialGoal;
   client.chiming = false;
   client.time = client.goal;
@@ -249,6 +263,10 @@ const handleMessage = async (msg, clients, userId) => {
       await clearTimer(client);
       break;
     case action.STOP_TIMER:
+      if (msg.loggingSessionId && msg.loggingSessionId !== client.loggingSessionId) {
+        resp = { ...(client.toObject ? client.toObject() : client), stopRejected: true };
+        break;
+      }
       await stopTimer(client);
       timelogEvent = { eventType: 'Time Logged', timestamp: new Date() };
       break;
