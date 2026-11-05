@@ -1,5 +1,77 @@
 const mongoose = require('mongoose');
 
+// Canonical status values match the buildingEquipment updateRecord.condition enum.
+const CANONICAL_STATUSES = ['Good', 'Needs Repair', 'Out of Order'];
+// Display labels sent by older clients map onto the canonical values.
+const LEGACY_STATUS_LABELS = {
+  'Working well': 'Good',
+  'Broken/Needs repair': 'Needs Repair',
+  'Stolen/Lost': 'Out of Order',
+  'End of life': 'Out of Order',
+  Returned: 'Good',
+};
+
+const normalizeStatus = (value) => {
+  if (typeof value !== 'string') return null;
+  if (CANONICAL_STATUSES.includes(value)) return value;
+  return Object.prototype.hasOwnProperty.call(LEGACY_STATUS_LABELS, value)
+    ? LEGACY_STATUS_LABELS[value]
+    : null;
+};
+
+const validateEquipmentStatusUpdate = ({
+  condition,
+  createdBy,
+  replacementRequired,
+  replacementReason,
+}) => {
+  if (!createdBy) {
+    return { status: 401, body: { error: 'Authentication required.' } };
+  }
+
+  if (!condition) {
+    return { status: 400, body: { error: 'Condition is a required field.' } };
+  }
+
+  const normalizedCondition = normalizeStatus(condition);
+  if (!normalizedCondition) {
+    return {
+      status: 400,
+      body: { error: `Condition must be one of: ${CANONICAL_STATUSES.join(', ')}.` },
+    };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(createdBy)) {
+    console.error('Invalid createdBy ID');
+    return {
+      status: 400,
+      body: {
+        error: 'Invalid user ID format. Please log in again.',
+        details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
+      },
+    };
+  }
+
+  if (replacementRequired && !['yes', 'no'].includes(replacementRequired)) {
+    return {
+      status: 400,
+      body: { error: 'replacementRequired must be either "yes" or "no".' },
+    };
+  }
+
+  if (
+    replacementRequired === 'yes' &&
+    (typeof replacementReason !== 'string' || !replacementReason.trim())
+  ) {
+    return {
+      status: 400,
+      body: { error: 'A replacement reason is required when replacement is requested.' },
+    };
+  }
+
+  return { normalizedCondition };
+};
+
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
     { path: 'itemType', select: '_id name description unit imageUrl category' },
@@ -284,39 +356,32 @@ const bmEquipmentController = (BuildingEquipment) => {
       lastUsedBy,
       lastUsedFor,
       replacementRequired,
+      replacementReason,
       description,
       notes,
-      createdBy,
     } = req.body;
+    const createdBy = req.user?.requestorId;
 
     try {
-      // Validate required fields
-      if (!condition || !createdBy) {
-        return res.status(400).send({
-          error: 'Condition and createdBy are required fields.',
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        console.error('Invalid createdBy ID');
-        return res.status(400).send({
-          error: 'Invalid user ID format. Please log in again.',
-          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
-        });
-      }
+      const validation = validateEquipmentStatusUpdate({
+        condition,
+        createdBy,
+        replacementRequired,
+        replacementReason,
+      });
+      if (validation.status) return res.status(validation.status).send(validation.body);
 
       const updateRecord = {
         date: new Date(),
         createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition,
+        condition: validation.normalizedCondition,
         lastUsedBy: lastUsedBy || '',
         lastUsedFor: lastUsedFor || '',
         replacementRequired: replacementRequired || '',
+        replacementReason: replacementRequired === 'yes' ? replacementReason.trim() : '',
         description: description || '',
         notes: notes || '',
       };
-
-      console.log('Adding update record:', updateRecord);
 
       // Update the equipment with new status
       const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
@@ -327,20 +392,7 @@ const bmEquipmentController = (BuildingEquipment) => {
           },
         },
         { new: true },
-      ).populate([
-        {
-          path: 'itemType',
-          select: '_id name description unit imageUrl category',
-        },
-        {
-          path: 'project',
-          select: 'name',
-        },
-        {
-          path: 'updateRecord.createdBy',
-          select: '_id firstName lastName',
-        },
-      ]);
+      ).populate(equipmentPopulateConfig);
 
       if (!updatedEquipment) {
         return res.status(404).send({ error: 'Equipment not found.' });
