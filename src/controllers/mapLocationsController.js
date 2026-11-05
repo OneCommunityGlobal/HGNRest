@@ -1,5 +1,6 @@
 const UserProfile = require('../models/userProfile');
 const cacheClosure = require('../utilities/nodeCache');
+const overviewReportHelper = require('../helpers/overviewReportHelper');
 
 const mapLocationsController = function (MapLocation) {
   const cache = cacheClosure();
@@ -31,8 +32,11 @@ const mapLocationsController = function (MapLocation) {
         lastName: item.lastName,
       }));
 
-      const mUsers = await MapLocation.find({});
-      res.status(200).send({ users: modifiedUsers, mUsers });
+      const [mUsers, countryCounts] = await Promise.all([
+        MapLocation.find({}),
+        overviewReportHelper().getCountryCounts(),
+      ]);
+      res.status(200).send({ users: modifiedUsers, mUsers, countryCounts });
     } catch (err) {
       res.status(404).send(err);
     }

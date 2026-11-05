@@ -140,6 +140,9 @@ function resolveApplicationInput(body) {
   };
 }
 
+// Exported so the rate limiter and bot guard read the applicant email exactly as this controller does.
+exports.resolveApplicationInput = resolveApplicationInput;
+
 async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
   if (!resumeFile) {
     return '';
