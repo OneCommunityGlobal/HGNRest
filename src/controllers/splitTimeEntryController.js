@@ -126,11 +126,12 @@ async function saveBatch(input, session, dependencies) {
   if (!profile || !profile.isActive)
     throw new SplitTimeEntryError('An active user account is required.', 403);
   const firstEntry = !(await TimeEntry.findOne({ personId: input.personId }).session(session));
-  const entryIds = [];
-  // Session operations must run sequentially inside a MongoDB transaction.
-  for (const row of input.allocations) {
-    entryIds.push(await saveAllocation(input, row, { profile, session, emails }, dependencies));
-  }
+  // Chain each write after the previous one: transaction operations cannot run in parallel.
+  const entryIds = await input.allocations.reduce(async (previous, row) => {
+    const ids = await previous;
+    const id = await saveAllocation(input, row, { profile, session, emails }, dependencies);
+    return [...ids, id];
+  }, Promise.resolve([]));
   profile.totalTangibleHrs += input.totalMinutes / 60;
   if (firstEntry) {
     profile.isFirstTimelog = false;
@@ -211,7 +212,8 @@ module.exports = function createSplitTimeEntryController(dependencies) {
     } finally {
       if (session) {
         try {
-          await session.endSession();
+          // Normalize the driver return value while still awaiting asynchronous cleanup.
+          await Promise.resolve(session.endSession());
         } catch {
           logger.logException(new Error('Could not close split time-entry session'));
         }

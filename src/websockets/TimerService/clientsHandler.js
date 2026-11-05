@@ -1,6 +1,6 @@
 /* eslint-disable no-multi-assign */
 /* eslint-disable radix */
-const { randomUUID } = require('crypto');
+const { randomUUID } = require('node:crypto');
 const moment = require('moment');
 const Timer = require('../../models/timer');
 const TimelogTracking = require('../../models/timelogTracking');

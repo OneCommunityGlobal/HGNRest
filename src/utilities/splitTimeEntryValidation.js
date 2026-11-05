@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const moment = require('moment-timezone');
 const sanitizeHtml = require('sanitize-html');
 

@@ -153,8 +153,7 @@ const updateTaskLoggedHours = async (
   secondsToBeAdded,
   userprofile,
   session,
-  pendingEmailCollection = null,
-  exact = false,
+  { pendingEmailCollection = null, exact = false } = {},
 ) => {
   // if both fromTaskId and toTaskId are null, then there is no need to update task hoursLogged
   if (!fromTaskId && !toTaskId) return;
@@ -614,7 +613,7 @@ const timeEntrycontroller = function (TimeEntry) {
               timeEntry.totalSeconds,
               userprofile,
               session,
-              pendingEmailCollection,
+              { pendingEmailCollection },
             );
           }
         } else {
@@ -826,8 +825,7 @@ const timeEntrycontroller = function (TimeEntry) {
               null,
               userprofile,
               session,
-              pendingEmailCollection,
-              Boolean(timeEntry.splitBatchId),
+              { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
             );
             // subtract initial logged hours from userprofile totalTangibleHrs and add new logged hours to userprofile totalIntangibleHrs
             updateUserprofileTangibleIntangibleHrs(
@@ -855,8 +853,7 @@ const timeEntrycontroller = function (TimeEntry) {
               newTotalSeconds,
               userprofile,
               session,
-              pendingEmailCollection,
-              Boolean(timeEntry.splitBatchId),
+              { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
             );
             updateUserprofileTangibleIntangibleHrs(
               newTotalSeconds,
@@ -887,8 +884,7 @@ const timeEntrycontroller = function (TimeEntry) {
             newTotalSeconds,
             userprofile,
             session,
-            pendingEmailCollection,
-            Boolean(timeEntry.splitBatchId),
+            { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
           );
           // when project is also changed
           if (projectChanged || timeChanged) {
@@ -1033,8 +1029,7 @@ const timeEntrycontroller = function (TimeEntry) {
               null,
               userprofile,
               session,
-              null,
-              Boolean(timeEntry.splitBatchId),
+              { exact: Boolean(timeEntry.splitBatchId) },
             );
           }
         } else {
