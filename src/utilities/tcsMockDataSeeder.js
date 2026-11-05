@@ -215,16 +215,31 @@ const buildCostTracking = ({ projects, now, rand }) =>
     ).flat(),
   );
 
-const buildRiskProfiles = ({ projects, now, rand }) =>
-  projects.map((project) => {
+/**
+ * The risk profile summary reads the project name from an `Issues` document whose _id is the
+ * risk profile's projectId, so each mock project gets one Issues document with a known _id.
+ */
+const buildRiskIssues = ({ projects, rand, riskIssueIds = [] }) =>
+  projects.map((project, i) => ({
+    ...(riskIssueIds[i] ? { _id: riskIssueIds[i] } : {}),
+    projectId: project._id,
+    projectName: project.name,
+    equipmentIssues: rand.int(0, 5),
+    laborIssues: rand.int(0, 5),
+    materialIssues: rand.int(0, 5),
+  }));
+
+const buildRiskProfiles = ({ projects, now, rand, riskIssueIds = [] }) =>
+  projects.map((project, i) => {
     const initialCostEstimate = rand.int(150000, 400000);
+    const issueId = riskIssueIds[i];
     return {
-      projectId: project._id,
+      projectId: issueId || project._id,
       startDate: daysBefore(now, rand.int(90, 180)),
       endDate: daysBefore(now, -rand.int(60, 180)),
       initialCostEstimate,
       currentCostIncurred: Math.round(initialCostEstimate * (0.4 + rand.next() * 0.5)),
-      issues: [],
+      issues: issueId ? [issueId] : [],
       plannedTime: rand.int(180, 365),
       actualTimeElapsed: rand.int(90, 200),
     };
@@ -262,15 +277,25 @@ const buildLessons = ({ projects, userId, now, rand }) =>
 const buildMaterials = ({ projects, userId, now, rand, materialTypes }) =>
   projects.flatMap((project) =>
     materialTypes.slice(0, 5).map((type) => {
-      const stockBought = rand.int(200, 600);
+      const unitPrice = rand.int(5, 80);
       const updateRecord = Array.from({ length: WEEKS_OF_DATA * 2 }, (_, i) => ({
         date: daysBefore(now, Math.floor((i * 7) / 2) + rand.int(0, 2)),
         createdBy: userId,
         quantityUsed: rand.int(5, 25),
         quantityWasted: rand.int(0, 4),
       }));
+      // One approved purchase per week so every weekly period has a material cost
+      const purchaseRecord = Array.from({ length: WEEKS_OF_DATA }, (_, week) => ({
+        date: daysBefore(now, week * 7 + rand.int(0, 6)),
+        requestedBy: userId,
+        quantity: rand.int(30, 80),
+        priority: rand.pick(['Low', 'Medium', 'High']),
+        status: 'Approved',
+        unitPrice,
+      }));
       const stockUsed = updateRecord.reduce((sum, r) => sum + r.quantityUsed, 0);
       const stockWasted = updateRecord.reduce((sum, r) => sum + r.quantityWasted, 0);
+      const stockBought = purchaseRecord.reduce((sum, r) => sum + r.quantity, 0);
       return {
         itemType: type._id,
         project: project._id,
@@ -278,19 +303,37 @@ const buildMaterials = ({ projects, userId, now, rand, materialTypes }) =>
         stockUsed,
         stockWasted,
         stockAvailable: Math.max(stockBought - stockUsed - stockWasted, 0),
-        purchaseRecord: [
-          {
-            date: daysBefore(now, WEEKS_OF_DATA * 7),
-            requestedBy: userId,
-            quantity: stockBought,
-            priority: rand.pick(['Low', 'Medium', 'High']),
-            status: 'Approved',
-            unitPrice: rand.int(5, 80),
-          },
-        ],
+        purchaseRecord,
         updateRecord,
       };
     }),
+  );
+
+/** Project status cards match ProjectStatus to BM projects by exact name */
+const PROJECT_STATUSES = ['Active', 'Active', 'Completed', 'Delayed', 'Active'];
+
+const buildProjectStatuses = ({ projects, now, rand }) =>
+  projects.map((project, i) => {
+    const status = PROJECT_STATUSES[i % PROJECT_STATUSES.length];
+    return {
+      name: project.name,
+      status,
+      startDate: daysBefore(now, rand.int(90, 200)),
+      // Completed within the last week so the default weekly view counts it
+      // Mid-week of the previous Sunday–Saturday week, so the default "last week" view counts it
+      completionDate: status === 'Completed' ? daysBefore(now, now.getUTCDay() + 4) : undefined,
+    };
+  });
+
+/** LaborCost links to BM projects by project_name */
+const buildLaborCosts = ({ projects, now, rand }) =>
+  projects.flatMap((project) =>
+    Array.from({ length: WEEKS_OF_DATA * 2 }, (_, i) => ({
+      project_name: project.name,
+      task: rand.pick(LABOR_TASKS),
+      cost: rand.int(400, 2500),
+      date: daysBefore(now, Math.floor((i * 7) / 2) + rand.int(0, 2)),
+    })),
   );
 
 const buildTools = ({ projects, userId, now, rand, toolTypes }) =>
@@ -332,11 +375,14 @@ const MOCK_COLLECTIONS = [
   ['toolAvailability', buildToolAvailability],
   ['expenditure', buildExpenditures],
   ['projectCostTracking', buildCostTracking],
+  ['riskIssue', buildRiskIssues],
   ['projectRiskProfile', buildRiskProfiles],
   ['timeLog', buildTimeLogs],
   ['newLesson', buildLessons],
   ['buildingMaterial', buildMaterials],
   ['buildingTool', buildTools],
+  ['projectStatus', buildProjectStatuses],
+  ['laborCost', buildLaborCosts],
 ];
 
 /** Splits inventory types into material and tool types (works with category or discriminator) */
@@ -349,8 +395,12 @@ const splitInventoryTypes = (types = []) => {
 };
 
 /** Builds every mock document, grouped by collection key */
-const buildMockData = (context) =>
-  Object.fromEntries(MOCK_COLLECTIONS.map(([key, build]) => [key, build(context)]));
+const buildMockData = (context) => {
+  // IDs created up front so risk profiles can point at their Issues documents
+  const riskIssueIds = context.createId ? context.projects.map(() => context.createId()) : [];
+  const fullContext = { ...context, riskIssueIds };
+  return Object.fromEntries(MOCK_COLLECTIONS.map(([key, build]) => [key, build(fullContext)]));
+};
 
 /**
  * Removes only the records listed in the manifest, then deletes the manifest.
@@ -388,6 +438,7 @@ const seedTcsMockData = async ({
   Manifest,
   now = new Date(),
   seed = 42,
+  createId,
 }) => {
   const { removed } = await resetTcsMockData({ models, Manifest });
 
@@ -414,6 +465,7 @@ const seedTcsMockData = async ({
     rand: createRandom(seed),
     materialTypes,
     toolTypes,
+    createId,
   });
 
   const inserted = {};

@@ -126,6 +126,35 @@ describe('tcsMockDataSeeder', () => {
       expect(recent.length).toBeGreaterThan(0);
     });
 
+    it('links each risk profile to an Issues document carrying the project name', () => {
+      let next = 0;
+      const linked = buildMockData({
+        projects: PROJECTS,
+        userId: 'u1',
+        now: NOW,
+        rand: createRandom(1),
+        materialTypes: [],
+        toolTypes: [],
+        createId: () => {
+          next += 1;
+          return `issue-${next}`;
+        },
+      });
+      linked.projectRiskProfile.forEach((profile, i) => {
+        const issueDoc = linked.riskIssue[i];
+        expect(profile.projectId).toBe(issueDoc._id);
+        expect(profile.issues).toEqual([issueDoc._id]);
+        expect(issueDoc.projectName).toBe(PROJECTS[i].name);
+      });
+    });
+
+    it('creates project status and labor cost rows by project name', () => {
+      expect(data.projectStatus.map((row) => row.name)).toEqual(['Building 1', 'Building 2']);
+      data.laborCost.forEach((row) => {
+        expect(['Building 1', 'Building 2']).toContain(row.project_name);
+      });
+    });
+
     it('respects lesson field limits', () => {
       data.newLesson.forEach((lesson) => {
         expect(lesson.title.length).toBeLessThanOrEqual(20);

@@ -33,10 +33,13 @@ const ToolAvailability = require('../models/bmdashboard/toolAvailability');
 const Expenditure = require('../models/bmdashboard/expenditure');
 const ProjectCostTracking = require('../models/bmdashboard/projectCostTracking');
 const ProjectRiskProfile = require('../models/bmdashboard/projectRiskProfile');
+const RiskIssue = require('../models/bmdashboard/Issues');
 const TimeLog = require('../models/bmdashboard/buildingTimeLogger');
 const NewLesson = require('../models/bmdashboard/buildingNewLesson');
 const BuildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const BuildingTool = require('../models/bmdashboard/buildingTool');
+const ProjectStatus = require('../models/projectStatus');
+const LaborCost = require('../models/laborCost');
 const Manifest = require('../models/bmdashboard/mockDataManifest');
 const { seedTcsMockData, resetTcsMockData } = require('../utilities/tcsMockDataSeeder');
 
@@ -52,11 +55,14 @@ const models = {
   toolAvailability: ToolAvailability,
   expenditure: Expenditure,
   projectCostTracking: ProjectCostTracking,
+  riskIssue: RiskIssue,
   projectRiskProfile: ProjectRiskProfile,
   timeLog: TimeLog,
   newLesson: NewLesson,
   buildingMaterial: BuildingMaterial,
   buildingTool: BuildingTool,
+  projectStatus: ProjectStatus,
+  laborCost: LaborCost,
 };
 
 const { user, password, cluster, dbName, appName = 'HGNRest' } = process.env;
@@ -79,6 +85,7 @@ async function run() {
       UserProfile,
       InventoryType: invTypeBase,
       Manifest,
+      createId: () => new mongoose.Types.ObjectId(),
     });
     console.log(`Removed ${summary.removed} previous mock record(s)`);
     if (summary.missingUser) console.warn('No active Administrator found; nothing inserted.');
