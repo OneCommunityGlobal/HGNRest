@@ -6,6 +6,25 @@ jest.mock('../utilities/nodeCache', () =>
 );
 
 const mongoose = require('mongoose');
+// NODE-7832: newer memory-server drivers need an explicit OS adapter under Jest.
+// Keep the real driver and real database; only supply its documented runtime adapter.
+// https://jira.mongodb.org/browse/NODE-7832
+const memoryServerPath = require.resolve('mongodb-memory-server-core');
+const driverPath = require.resolve('mongodb', { paths: [memoryServerPath] });
+const driverPackagePath = require.resolve('mongodb/package.json', { paths: [memoryServerPath] });
+if (Number.parseFloat(require(driverPackagePath).version) >= 7.6) {
+  const driver = jest.requireActual(driverPath);
+  class TestMongoClient extends driver.MongoClient {
+    constructor(uri, options) {
+      super(uri, { ...options, runtimeAdapters: { os: require('os') } });
+    }
+
+    static async connect(uri, options) {
+      return new TestMongoClient(uri, options).connect();
+    }
+  }
+  jest.doMock(driverPath, () => ({ ...driver, MongoClient: TestMongoClient }));
+}
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const moment = require('moment-timezone');
 const TimeEntry = require('../models/timeentry');
