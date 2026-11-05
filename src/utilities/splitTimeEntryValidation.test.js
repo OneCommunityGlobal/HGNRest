@@ -143,3 +143,9 @@ test('receipt IDs cannot be used to read another account’s split', () => {
   expect(() => splitReceiptId(undefined, makeInput().batchId)).toThrow('Authentication required');
   expect(() => splitReceiptId(user, '../invalid')).toThrow();
 });
+
+test('rejects a date-shaped object instead of accepting it as an ISO work date', () => {
+  const input = makeInput();
+  input.dateOfWork = { year: 2026, month: 0, date: 1 };
+  expect(() => normalizeSplitTimeEntry(input, user)).toThrow('A valid work date is required.');
+});

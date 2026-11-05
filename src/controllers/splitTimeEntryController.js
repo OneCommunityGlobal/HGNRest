@@ -169,9 +169,9 @@ async function transactionFailure(error, input) {
       const receipt = await Batch.findById(input.receiptId);
       if (receipt)
         return { status: 200, body: { ...existingReceipt(receipt, input), replayed: true } };
-    } catch (conflict) {
-      if (conflict instanceof SplitTimeEntryError)
-        return { status: conflict.status, body: { error: conflict.message } };
+    } catch (error_) {
+      if (error_ instanceof SplitTimeEntryError)
+        return { status: error_.status, body: { error: error_.message } };
     }
   }
   if (error instanceof SplitTimeEntryError)

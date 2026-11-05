@@ -26,7 +26,10 @@ function normalizeSplitTimeEntry(body, requestorId) {
   if (typeof body.batchId !== 'string' || !/^[a-z\d_-]{16,100}$/i.test(body.batchId)) {
     throw new SplitTimeEntryError('A valid split-session key is required.');
   }
-  if (!moment(body.dateOfWork, 'YYYY-MM-DD', true).isValid()) {
+  if (
+    typeof body.dateOfWork !== 'string' ||
+    !moment(body.dateOfWork, 'YYYY-MM-DD', true).isValid()
+  ) {
     throw new SplitTimeEntryError('A valid work date is required.');
   }
   if (body.dateOfWork > moment().tz('America/Los_Angeles').format('YYYY-MM-DD')) {
