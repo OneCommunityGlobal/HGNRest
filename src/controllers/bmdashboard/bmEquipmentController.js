@@ -19,6 +19,59 @@ const normalizeStatus = (value) => {
     : null;
 };
 
+const validateEquipmentStatusUpdate = ({
+  condition,
+  createdBy,
+  replacementRequired,
+  replacementReason,
+}) => {
+  if (!createdBy) {
+    return { status: 401, body: { error: 'Authentication required.' } };
+  }
+
+  if (!condition) {
+    return { status: 400, body: { error: 'Condition is a required field.' } };
+  }
+
+  const normalizedCondition = normalizeStatus(condition);
+  if (!normalizedCondition) {
+    return {
+      status: 400,
+      body: { error: `Condition must be one of: ${CANONICAL_STATUSES.join(', ')}.` },
+    };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(createdBy)) {
+    console.error('Invalid createdBy ID');
+    return {
+      status: 400,
+      body: {
+        error: 'Invalid user ID format. Please log in again.',
+        details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
+      },
+    };
+  }
+
+  if (replacementRequired && !['yes', 'no'].includes(replacementRequired)) {
+    return {
+      status: 400,
+      body: { error: 'replacementRequired must be either "yes" or "no".' },
+    };
+  }
+
+  if (
+    replacementRequired === 'yes' &&
+    (typeof replacementReason !== 'string' || !replacementReason.trim())
+  ) {
+    return {
+      status: 400,
+      body: { error: 'A replacement reason is required when replacement is requested.' },
+    };
+  }
+
+  return { normalizedCondition };
+};
+
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
     { path: 'itemType', select: '_id name description unit imageUrl category' },
@@ -310,51 +363,18 @@ const bmEquipmentController = (BuildingEquipment) => {
     const createdBy = req.user?.requestorId;
 
     try {
-      if (!createdBy) {
-        return res.status(401).send({ error: 'Authentication required.' });
-      }
-
-      // Validate required fields
-      if (!condition) {
-        return res.status(400).send({
-          error: 'Condition is a required field.',
-        });
-      }
-
-      const normalizedCondition = normalizeStatus(condition);
-      if (!normalizedCondition) {
-        return res.status(400).send({
-          error: `Condition must be one of: ${CANONICAL_STATUSES.join(', ')}.`,
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        console.error('Invalid createdBy ID');
-        return res.status(400).send({
-          error: 'Invalid user ID format. Please log in again.',
-          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
-        });
-      }
-
-      if (replacementRequired && !['yes', 'no'].includes(replacementRequired)) {
-        return res.status(400).send({
-          error: 'replacementRequired must be either "yes" or "no".',
-        });
-      }
-
-      if (
-        replacementRequired === 'yes' &&
-        (typeof replacementReason !== 'string' || !replacementReason.trim())
-      ) {
-        return res.status(400).send({
-          error: 'A replacement reason is required when replacement is requested.',
-        });
-      }
+      const validation = validateEquipmentStatusUpdate({
+        condition,
+        createdBy,
+        replacementRequired,
+        replacementReason,
+      });
+      if (validation.status) return res.status(validation.status).send(validation.body);
 
       const updateRecord = {
         date: new Date(),
         createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition: normalizedCondition,
+        condition: validation.normalizedCondition,
         lastUsedBy: lastUsedBy || '',
         lastUsedFor: lastUsedFor || '',
         replacementRequired: replacementRequired || '',
