@@ -162,6 +162,29 @@ async function afterCommit(input, outcome, dependencies) {
   await Promise.allSettled(outcome.emails.map((send) => Promise.resolve().then(send)));
 }
 
+async function transactionFailure(error, input) {
+  // A concurrent request may have committed this receipt while ours failed.
+  if (error.code === 11000 && input) {
+    try {
+      const receipt = await Batch.findById(input.receiptId);
+      if (receipt)
+        return { status: 200, body: { ...existingReceipt(receipt, input), replayed: true } };
+    } catch (conflict) {
+      if (conflict instanceof SplitTimeEntryError)
+        return { status: conflict.status, body: { error: conflict.message } };
+    }
+  }
+  if (error instanceof SplitTimeEntryError)
+    return { status: error.status, body: { error: error.message } };
+  logger.logException(new Error('Split time-entry transaction failed'));
+  return {
+    status: 503,
+    body: {
+      error: 'Could not confirm the split save. Your allocations are kept; retry the same split.',
+    },
+  };
+}
+
 module.exports = function createSplitTimeEntryController(dependencies) {
   const postSplitTimeEntries = async function (req, res) {
     let session;
@@ -183,23 +206,8 @@ module.exports = function createSplitTimeEntryController(dependencies) {
       await afterCommit(input, outcome, dependencies);
       return res.status(200).send({ ...outcome.result, replayed: outcome.replayed });
     } catch (error) {
-      // A concurrent request may have committed this receipt while ours failed.
-      if (error.code === 11000 && input) {
-        try {
-          const receipt = await Batch.findById(input.receiptId);
-          if (receipt)
-            return res.status(200).send({ ...existingReceipt(receipt, input), replayed: true });
-        } catch (conflict) {
-          if (conflict instanceof SplitTimeEntryError)
-            return res.status(conflict.status).send({ error: conflict.message });
-        }
-      }
-      if (error instanceof SplitTimeEntryError)
-        return res.status(error.status).send({ error: error.message });
-      logger.logException(new Error('Split time-entry transaction failed'));
-      return res.status(503).send({
-        error: 'Could not confirm the split save. Your allocations are kept; retry the same split.',
-      });
+      const response = await transactionFailure(error, input);
+      return res.status(response.status).send(response.body);
     } finally {
       if (session) {
         try {

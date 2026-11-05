@@ -12,7 +12,7 @@ const mongoose = require('mongoose');
 const memoryServerPath = require.resolve('mongodb-memory-server-core');
 const driverPath = require.resolve('mongodb', { paths: [memoryServerPath] });
 const driverPackagePath = require.resolve('mongodb/package.json', { paths: [memoryServerPath] });
-if (Number.parseFloat(require(driverPackagePath).version) >= 7.6) {
+if (Number.parseFloat(jest.requireActual(driverPackagePath).version) >= 7.6) {
   const driver = jest.requireActual(driverPath);
   class TestMongoClient extends driver.MongoClient {
     constructor(uri, options) {
