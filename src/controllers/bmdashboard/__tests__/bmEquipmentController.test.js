@@ -45,10 +45,10 @@ describe('bmEquipmentController', () => {
         exec: mockExec,
       });
 
-      mockReq.params.equipmentId = '123';
+      mockReq.params.equipmentId = '507f1f77bcf86cd799439011';
       await controller.fetchSingleEquipment(mockReq, mockRes);
 
-      expect(mockBuildingEquipment.findById).toHaveBeenCalledWith('123');
+      expect(mockBuildingEquipment.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith(mockEquipment);
     });
@@ -63,12 +63,12 @@ describe('bmEquipmentController', () => {
         exec: mockExec,
       });
 
-      mockReq.params.equipmentId = '123';
+      mockReq.params.equipmentId = '507f1f77bcf86cd799439011';
       await controller.fetchSingleEquipment(mockReq, mockRes);
       await Promise.resolve();
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith(error);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Failed to fetch equipment.' });
     });
   });
 
@@ -273,6 +273,155 @@ describe('bmEquipmentController', () => {
       expect(mockRes.send).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.any(String) }),
       );
+    });
+  });
+  describe('status contract', () => {
+    const equipmentId = '507f1f77bcf86cd799439011';
+    const authorId = '507f1f77bcf86cd799439012';
+    let populate;
+
+    beforeEach(() => {
+      mockReq.params.equipmentId = equipmentId;
+      mockReq.user = { requestorId: authorId };
+      mockReq.body = { condition: 'Good' };
+      populate = jest.fn().mockResolvedValue({ _id: equipmentId, condition: 'Like New' });
+      mockBuildingEquipment.findByIdAndUpdate.mockReturnValue({ populate });
+    });
+
+    test.each(['Good', 'Needs Repair', 'Out of Order'])(
+      'accepts %s without changing root condition',
+      async (condition) => {
+        const before = Date.now();
+        mockReq.body = {
+          condition,
+          createdBy: equipmentId,
+          date: '2000-01-01',
+          lastUsedBy: 'Volunteer',
+          lastUsedFor: 'Tiling',
+          replacementRequired: 'yes',
+          description: '',
+          notes: 'Inspection note',
+        };
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+        const [, update, options] = mockBuildingEquipment.findByIdAndUpdate.mock.calls[0];
+        expect(Object.keys(update)).toEqual(['$push']);
+        expect(update.$push.updateRecord).toMatchObject({
+          condition,
+          lastUsedBy: 'Volunteer',
+          lastUsedFor: 'Tiling',
+          replacementRequired: 'yes',
+          description: '',
+          notes: 'Inspection note',
+        });
+        expect(update.$push.updateRecord.createdBy.toString()).toBe(authorId);
+        expect(update.$push.updateRecord.date.getTime()).toBeGreaterThanOrEqual(before);
+        expect(update.$push.updateRecord.date.getTime()).toBeLessThanOrEqual(Date.now());
+        expect(options).toEqual({ new: true, runValidators: true });
+        expect(mockRes.status).toHaveBeenCalledWith(200);
+        expect(mockRes.send).toHaveBeenCalledWith({ _id: equipmentId, condition: 'Like New' });
+      },
+    );
+
+    test.each([false, true, 'yes', 'no', ''])(
+      'preserves replacement selection %p',
+      async (value) => {
+        mockReq.body.replacementRequired = value;
+        await controller.updateEquipmentStatus(mockReq, mockRes);
+        expect(
+          mockBuildingEquipment.findByIdAndUpdate.mock.calls[0][1].$push.updateRecord
+            .replacementRequired,
+        ).toBe(value);
+      },
+    );
+
+    test('allows omitted optional fields and explicit null text', async () => {
+      mockReq.body.notes = null;
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      const entry = mockBuildingEquipment.findByIdAndUpdate.mock.calls[0][1].$push.updateRecord;
+      expect(entry.notes).toBeNull();
+      expect(entry).not.toHaveProperty('replacementRequired');
+      expect(entry).not.toHaveProperty('lastUsedBy');
+    });
+
+    test.each([
+      {},
+      { condition: null },
+      { condition: '' },
+      { condition: ' ' },
+      { condition: 'Working well' },
+      { condition: 1 },
+      { condition: ['Good'] },
+      { condition: { value: 'Good' } },
+      { condition: 'Good', replacementRequired: 'maybe' },
+      { condition: 'Good', replacementRequired: null },
+      { condition: 'Good', replacementRequired: {} },
+      { condition: 'Good', notes: false },
+      { condition: 'Good', notes: 'x'.repeat(2001) },
+      { condition: 'Good', description: [] },
+      { condition: 'Good', lastUsedBy: 123 },
+      { condition: 'Good', lastUsedFor: 'x'.repeat(501) },
+      { condition: 'Good', sendNote: 'yes', notes: ' ' },
+      { condition: 'Good', sendNote: true },
+      { condition: 'Good', sendNote: 'invalid' },
+      null,
+      [],
+    ])('rejects malformed payload %p', async (body) => {
+      mockReq.body = body;
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('accepts a requested nonblank note', async () => {
+      Object.assign(mockReq.body, { sendNote: 'yes', notes: 'Useful note' });
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    test('does not use body identity when authentication is missing', async () => {
+      delete mockReq.user;
+      mockReq.body.createdBy = authorId;
+      mockReq.body.requestor = { requestorId: authorId };
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+      expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test.each(['fetchSingleEquipment', 'updateEquipmentStatus'])(
+      '%s rejects malformed IDs',
+      async (method) => {
+        mockReq.params.equipmentId = 'bad-id';
+        await controller[method](mockReq, mockRes);
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(mockBuildingEquipment.findById).not.toHaveBeenCalled();
+        expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
+      },
+    );
+
+    test.each(['fetchSingleEquipment', 'updateEquipmentStatus'])(
+      '%s returns 404 for missing equipment',
+      async (method) => {
+        populate.mockResolvedValue(null);
+        mockBuildingEquipment.findById.mockReturnValue({
+          populate: () => ({ exec: async () => null }),
+        });
+        await controller[method](mockReq, mockRes);
+        expect(mockRes.status).toHaveBeenCalledWith(404);
+        expect(mockRes.send).toHaveBeenCalledWith({ error: 'Equipment not found.' });
+      },
+    );
+
+    test.each([
+      ['ValidationError', 400],
+      ['CastError', 400],
+      ['Error', 500],
+    ])('handles %s without leaking internals', async (name, status) => {
+      const error = new Error('secret database details');
+      error.name = name;
+      populate.mockRejectedValue(error);
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(status);
+      expect(JSON.stringify(mockRes.send.mock.calls)).not.toContain('secret');
     });
   });
 });

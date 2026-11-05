@@ -24,14 +24,17 @@ const bmEquipmentController = (BuildingEquipment) => {
 
   const fetchSingleEquipment = async (req, res) => {
     const { equipmentId } = req.params;
+    if (!/^[a-f\d]{24}$/i.test(equipmentId || '')) {
+      return res.status(400).send({ error: 'Invalid equipment ID.' });
+    }
     try {
-      BuildingEquipment.findById(equipmentId)
+      const equipment = await BuildingEquipment.findById(equipmentId)
         .populate(equipmentPopulateConfig)
-        .exec()
-        .then((equipment) => res.status(200).send(equipment))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+        .exec();
+      if (!equipment) return res.status(404).send({ error: 'Equipment not found.' });
+      return res.status(200).send(equipment);
+    } catch (error) {
+      return res.status(500).send({ error: 'Failed to fetch equipment.' });
     }
   };
 
@@ -279,44 +282,62 @@ const bmEquipmentController = (BuildingEquipment) => {
 
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const {
-      condition,
-      lastUsedBy,
-      lastUsedFor,
-      replacementRequired,
-      description,
-      notes,
-      createdBy,
-    } = req.body;
+    if (!/^[a-f\d]{24}$/i.test(equipmentId || '')) {
+      return res.status(400).send({ error: 'Invalid equipment ID.' });
+    }
+    // req.user is set by JWT middleware; never trust the client's createdBy.
+    const createdBy = req.user?.requestorId;
+    if (typeof createdBy !== 'string' || !/^[a-f\d]{24}$/i.test(createdBy)) {
+      return res.status(401).send({ error: 'User not authenticated.' });
+    }
+    const { body } = req;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).send({ error: 'Invalid status payload.' });
+    }
+    const { condition, replacementRequired, sendNote } = body;
+    if (
+      typeof condition !== 'string' ||
+      !['Good', 'Needs Repair', 'Out of Order'].includes(condition)
+    ) {
+      return res
+        .status(400)
+        .send({ error: 'Condition must be Good, Needs Repair, or Out of Order.' });
+    }
+    const validSelection = (value) =>
+      value === undefined || ['', 'yes', 'no', true, false].includes(value);
+    if (!validSelection(replacementRequired) || !validSelection(sendNote)) {
+      return res
+        .status(400)
+        .send({ error: 'Replacement and note selections must be yes/no or boolean values.' });
+    }
+    const textLimits = { lastUsedBy: 200, lastUsedFor: 500, description: 2000, notes: 2000 };
+    const invalidText = Object.entries(textLimits).find(
+      ([field, limit]) =>
+        body[field] !== undefined &&
+        body[field] !== null &&
+        (typeof body[field] !== 'string' || body[field].length > limit),
+    );
+    if (invalidText) {
+      return res.status(400).send({
+        error: `${invalidText[0]} must be a string of at most ${invalidText[1]} characters.`,
+      });
+    }
+    if ((sendNote === 'yes' || sendNote === true) && !body.notes?.trim()) {
+      return res.status(400).send({ error: 'Notes are required when sendNote is yes.' });
+    }
 
     try {
-      // Validate required fields
-      if (!condition || !createdBy) {
-        return res.status(400).send({
-          error: 'Condition and createdBy are required fields.',
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        console.error('Invalid createdBy ID');
-        return res.status(400).send({
-          error: 'Invalid user ID format. Please log in again.',
-          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
-        });
-      }
-
       const updateRecord = {
         date: new Date(),
         createdBy: new mongoose.Types.ObjectId(createdBy),
         condition,
-        lastUsedBy: lastUsedBy || '',
-        lastUsedFor: lastUsedFor || '',
-        replacementRequired: replacementRequired || '',
-        description: description || '',
-        notes: notes || '',
       };
-
-      console.log('Adding update record:', updateRecord);
+      // Preserve explicit false, empty strings and null text; omit absent optional values.
+      ['lastUsedBy', 'lastUsedFor', 'replacementRequired', 'description', 'notes'].forEach(
+        (field) => {
+          if (body[field] !== undefined) updateRecord[field] = body[field];
+        },
+      );
 
       // Update the equipment with new status
       const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
@@ -326,7 +347,7 @@ const bmEquipmentController = (BuildingEquipment) => {
             updateRecord,
           },
         },
-        { new: true },
+        { new: true, runValidators: true },
       ).populate([
         {
           path: 'itemType',
@@ -348,11 +369,10 @@ const bmEquipmentController = (BuildingEquipment) => {
 
       res.status(200).send(updatedEquipment);
     } catch (error) {
-      console.error('[updateEquipmentStatus] ', error);
-      res.status(500).send({
-        error: 'Failed to update equipment status',
-        details: error.message,
-      });
+      if (error.name === 'ValidationError' || error.name === 'CastError') {
+        return res.status(400).send({ error: 'Invalid status payload.' });
+      }
+      return res.status(500).send({ error: 'Failed to update equipment status.' });
     }
   };
 
