@@ -24,7 +24,6 @@ const {
   resolveTeamLeaderNames,
 } = require('../helpers/promotionPendingHelper');
 const PromotionDetail = require('../models/promotionDetail');
-const FormResponse = require('../models/hgnFormResponse');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -40,9 +39,8 @@ const PENDING_EXCLUDED_ROLES = ['Owner', 'Administrator', PROMOTED_ROLE];
 const MAX_REVIEWERS_PER_READ = 2000;
 
 /**
- * `Team` and `HgnFormResponses` are optional and only used by the promotion
- * placement handlers. Leaving them off keeps every existing caller, and the
- * existing tests, working exactly as before.
+ * `HgnFormResponses` is shared by the eligibility and placement handlers.
+ * `Team` is only used when previewing or applying a promotion placement.
  */
 const promotionEligibilityController = function (
   UserProfile,
@@ -210,20 +208,20 @@ const promotionEligibilityController = function (
           ? ['Owner', 'Administrator']
           : ['Owner', 'Administrator', PROMOTED_ROLE];
 
-      // Only include users who have completed the questionnaire.
-const questionnaireResponses = await FormResponse.find({}, 'user_id').lean();
-const questionnaireUserIds = questionnaireResponses
-  .map((response) => response.user_id)
-  .filter(Boolean);
+      // Reuse the questionnaire model supplied by the application router.
+      const questionnaireResponses = await HgnFormResponses.find({}, 'user_id').lean();
+      const questionnaireUserIds = questionnaireResponses
+        .map((response) => response.user_id)
+        .filter(Boolean);
 
-const users = await UserProfile.find(
-  {
-    _id: { $in: questionnaireUserIds },
-    isActive: true,
-    role: { $nin: excludedRoles },
-  },
-  '_id firstName lastName weeklycommittedHours createdDate role',
-).lean();
+      const users = await UserProfile.find(
+        {
+          _id: { $in: questionnaireUserIds },
+          isActive: true,
+          role: { $nin: excludedRoles },
+        },
+        '_id firstName lastName weeklycommittedHours createdDate role',
+      ).lean();
 
       // Group membership is derived from the reviewer's name rather than stored,
       // so the filter happens here in memory. Doing it before the per-reviewer
