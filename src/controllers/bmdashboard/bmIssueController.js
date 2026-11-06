@@ -468,12 +468,18 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       }
 
       const today = new Date();
-      const issues = await BuildingIssue.find(query).select('issueTitle issueDate').lean();
+      const issues = await BuildingIssue.find(query)
+        .select('issueTitle issueText issueDate projectId')
+        .lean();
 
       const result = issues
         .map((issue) => ({
           issueId: issue._id,
-          title: Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle,
+          projectId: issue.projectId,
+          title:
+            (Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle)?.trim() ||
+            (Array.isArray(issue.issueText) ? issue.issueText[0] : issue.issueText)?.trim() ||
+            'Untitled',
           daysOpen: Math.floor((today - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24)),
         }))
         .sort((a, b) => b.daysOpen - a.daysOpen)
