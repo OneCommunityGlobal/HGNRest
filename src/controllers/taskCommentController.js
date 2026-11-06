@@ -1,5 +1,5 @@
 const TaskComment = require('../models/taskComment');
-const StudentTask = require('../models/studentTask');
+const StudentTask = require('../models/bmdashboard/studentTask');
 const User = require('../models/userTask');
 
 const findAndValidateUser = async (userId, allowedRole) => {
