@@ -6,6 +6,9 @@ const routes = function () {
 
   // POST /educator/announcements - Create a new announcement (Educator/Admin/Owner only)
   announcementRouter.route('/educator/announcements').post(controller.createAnnouncement);
+  announcementRouter
+    .route('/educator/announcements/:announcementId')
+    .put(controller.updateAnnouncement);
 
   // GET /student/announcements - Get announcements for students
   announcementRouter.route('/student/announcements').get(controller.getStudentAnnouncements);

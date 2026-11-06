@@ -5,6 +5,8 @@ const StudentGroupMember = require('../models/studentGroupMember');
 const UserProfile = require('../models/userProfile');
 const ctrl = require('./educatorGroupController');
 
+const MANAGEMENT_ROLES = ['Educator', 'Manager', 'Administrator', 'Owner'];
+
 const EDUCATOR_ID = '65cf6c3706d8ac105827bb2e';
 const GROUP_ID = '507f1f77bcf86cd799439011';
 const STUDENT_ID_1 = '507f1f77bcf86cd799439012';
@@ -75,11 +77,14 @@ describe('createGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 403 if role is not elevated', async () => {
-    mockReq.body.requestor.role = 'Volunteer';
-    await ctrl.createGroup(mockReq, mockRes);
-    expect(mockRes.status).toHaveBeenCalledWith(403);
-  });
+  test.each(['Volunteer', 'student', 'owner'])(
+    'Rejects create for unauthorized role %s',
+    async (role) => {
+      mockReq.body.requestor.role = role;
+      await ctrl.createGroup(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    },
+  );
 
   test('Returns 201 if role is Educator', async () => {
     mockReq.body.requestor.role = 'Educator';
@@ -108,7 +113,8 @@ describe('createGroup', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Group name is required' });
   });
 
-  test('Returns 201 and creates group with members', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 201 and creates group with members (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     const group = makeGroup();
     jest.spyOn(StudentGroup, 'create').mockResolvedValue(group);
     jest.spyOn(StudentGroupMember, 'insertMany').mockResolvedValue([]);
@@ -144,7 +150,8 @@ describe('getGroups', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 200 with groups', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 200 with groups (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     const groups = [makeGroup(), makeGroup({ _id: '507f1f77bcf86cd799439014', name: 'Group 2' })];
     jest.spyOn(StudentGroup, 'find').mockReturnValue({
       sort: jest.fn().mockResolvedValue(groups),
@@ -177,14 +184,19 @@ describe('getGroupMembers', () => {
     expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
-  test('Returns 403 if group not found or not owned by educator', async () => {
-    jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
-    await ctrl.getGroupMembers(mockReq, mockRes);
-    expect(mockRes.status).toHaveBeenCalledWith(403);
-    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
-  });
+  test.each(MANAGEMENT_ROLES)(
+    'Returns 403 if group not found or not owned by educator (%s)',
+    async (role) => {
+      mockReq.body.requestor.role = role;
+      jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
+      await ctrl.getGroupMembers(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
+    },
+  );
 
-  test('Returns 200 with members', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 200 with members (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     const members = [makeMember(STUDENT_ID_1), makeMember(STUDENT_ID_2)];
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'find').mockReturnValue({
@@ -222,7 +234,8 @@ describe('addMembers', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'No students provided' });
   });
 
-  test('Returns 403 if group not found', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 403 if group not found (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
     await ctrl.addMembers(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
@@ -247,7 +260,8 @@ describe('addMembers', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'All students are already in the group' });
   });
 
-  test('Returns 201 and adds new members', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 201 and adds new members (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'find').mockReturnValue({
       select: jest.fn().mockResolvedValue([]),
@@ -285,13 +299,15 @@ describe('removeMembers', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'No students provided for removal' });
   });
 
-  test('Returns 403 if group not found', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 403 if group not found (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(null);
     await ctrl.removeMembers(mockReq, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(403);
   });
 
-  test('Returns 200 with removed count', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 200 with removed count (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'deleteMany').mockResolvedValue({ deletedCount: 1 });
 
@@ -326,7 +342,8 @@ describe('updateGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(404);
   });
 
-  test('Returns 403 if educator_id does not match', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 403 if educator_id does not match (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest
       .spyOn(StudentGroup, 'findOne')
       .mockResolvedValue(makeGroup({ educator_id: '507f1f77bcf86cd799439099' }));
@@ -335,7 +352,8 @@ describe('updateGroup', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
   });
 
-  test('Returns 200 with updated group', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 200 with updated group (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     const updated = makeGroup({ name: 'Updated Group', description: 'Updated description' });
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroup, 'findOneAndUpdate').mockResolvedValue(updated);
@@ -369,7 +387,8 @@ describe('deleteGroup', () => {
     expect(mockRes.status).toHaveBeenCalledWith(404);
   });
 
-  test('Returns 403 if educator_id does not match', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 403 if educator_id does not match (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest
       .spyOn(StudentGroup, 'findOne')
       .mockResolvedValue(makeGroup({ educator_id: '507f1f77bcf86cd799439099' }));
@@ -378,7 +397,8 @@ describe('deleteGroup', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Unauthorized access to group' });
   });
 
-  test('Returns 204 and deletes group with members', async () => {
+  test.each(MANAGEMENT_ROLES)('Returns 204 and deletes group with members (%s)', async (role) => {
+    mockReq.body.requestor.role = role;
     jest.spyOn(StudentGroup, 'findOne').mockResolvedValue(makeGroup());
     jest.spyOn(StudentGroupMember, 'deleteMany').mockResolvedValue({ deletedCount: 2 });
     jest.spyOn(StudentGroup, 'deleteOne').mockResolvedValue({ deletedCount: 1 });
