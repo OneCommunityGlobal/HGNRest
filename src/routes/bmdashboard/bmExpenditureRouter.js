@@ -1,12 +1,18 @@
 const express = require('express');
-
-const router = express.Router();
+const controller = require('../../controllers/bmdashboard/bmExpenditureController');
 const {
   getProjectExpensesPie,
   getProjectIdsWithExpenditure,
 } = require('../../controllers/bmdashboard/expenditureController');
 
-router.get('/expenditure/projects', getProjectIdsWithExpenditure);
-router.get('/expenditure/:projectId/pie', getProjectExpensesPie);
+const routes = function () {
+  const newExpenditureRouter = express.Router();
 
-module.exports = router;
+  newExpenditureRouter.route('/expenditure').get(controller.getAllExpenditure);
+  newExpenditureRouter.get('/expenditure/projects', getProjectIdsWithExpenditure);
+  newExpenditureRouter.get('/expenditure/:projectId/pie', getProjectExpensesPie);
+
+  return newExpenditureRouter;
+};
+
+module.exports = routes;
