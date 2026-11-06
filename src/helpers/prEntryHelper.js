@@ -48,6 +48,9 @@ const PR_ENTRY_SOURCES = ['manual', 'weeklySummary'];
  *   "FE-1234", "fe 1234", "FE#1234"            -> "FE-1234"
  *   "https://github.com/org/repo/pull/1234"    -> "1234"
  *
+ * PR numbers start at 1, so zero in any of these shapes ("0", "000", "FE-0")
+ * is refused. Leading zeros are dropped so "0123" and "123" are the same PR.
+ *
  * @returns {string|null} the normalised number, or null if unreadable
  */
 function normalisePrNumber(value) {
@@ -57,14 +60,20 @@ function normalisePrNumber(value) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  // null for zero, otherwise the number without leading zeros.
+  const positive = (digits) => (Number(digits) > 0 ? String(Number(digits)) : null);
+
   const fromUrl = trimmed.match(/\/pull\/(\d+)/i);
-  if (fromUrl) return fromUrl[1];
+  if (fromUrl) return positive(fromUrl[1]);
 
   const prefixed = trimmed.match(/^(FE|BE)\s*[-#]?\s*(\d{1,6})$/i);
-  if (prefixed) return `${prefixed[1].toUpperCase()}-${prefixed[2]}`;
+  if (prefixed) {
+    const number = positive(prefixed[2]);
+    return number && `${prefixed[1].toUpperCase()}-${number}`;
+  }
 
   const plain = trimmed.match(/^(?:PRs?\s*)?#?\s*(\d{1,6})$/i);
-  if (plain) return plain[1];
+  if (plain) return positive(plain[1]);
 
   return null;
 }
@@ -134,6 +143,39 @@ function isValidRating(rating) {
 }
 
 /**
+ * Work out which week a manually added PR goes into, or why it cannot.
+ *
+ * Year and week come both or neither, so a half-supplied week cannot silently
+ * land somewhere unexpected. Neither means the current week. A future week is
+ * refused, since nobody can have reviewed a PR in a week that has not happened.
+ *
+ * @param {{year?: number, week?: number, currentWeek: {year: number, week: number}}} args
+ * @returns {{target: {year: number, week: number}} | {error: string}}
+ */
+function resolvePrEntryWeek({ year, week, currentWeek }) {
+  const hasYear = year !== undefined;
+  const hasWeek = week !== undefined;
+
+  if (hasYear !== hasWeek) {
+    return { error: 'Send both year and week, or neither.' };
+  }
+  if (!hasYear) {
+    return { target: currentWeek };
+  }
+  if (!Number.isInteger(year) || !Number.isInteger(week) || week < 0 || week > 53) {
+    return { error: 'year must be a whole number and week must be 0 to 53.' };
+  }
+
+  const isFuture =
+    year > currentWeek.year || (year === currentWeek.year && week > currentWeek.week);
+  if (isFuture) {
+    return { error: 'PR entries cannot be added for a future week.' };
+  }
+
+  return { target: { year, week } };
+}
+
+/**
  * Group flat entries into the per-week shape the "+ Add New" column renders.
  *
  * Newest week first, and within a week the entries stay in the order they were
@@ -162,4 +204,5 @@ module.exports = {
   extractPrNumbersFromSummary,
   isValidRating,
   groupEntriesByWeek,
+  resolvePrEntryWeek,
 };
