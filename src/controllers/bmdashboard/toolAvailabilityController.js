@@ -1,7 +1,19 @@
 const mongoose = require('mongoose');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const { ObjectId } = mongoose.Types;
+
+// Date-only strings (YYYY-MM-DD) parse to midnight UTC, which excludes every record
+// timestamped later that same day. Extend date-only endDate values to the last instant
+// of the day; explicit timestamps (e.g. with a T component) are left as-is.
+function resolveEndDate(dateString) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const endOfDay = new Date(dateString);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    return endOfDay;
+  }
+  return new Date(dateString);
+}
+
 const toolAvailabilityController = function (ToolAvailability) {
   const getToolsAvailability = async (req, res) => {
     try {
@@ -21,7 +33,7 @@ const toolAvailabilityController = function (ToolAvailability) {
         dateFilter = {
           date: {
             $gte: new Date(startDate),
-            $lte: new Date(endDate),
+            $lte: resolveEndDate(endDate),
           },
         };
       } else if (startDate) {
@@ -32,7 +44,7 @@ const toolAvailabilityController = function (ToolAvailability) {
       } else if (endDate) {
         // If only end date is provided, use it as upper bound
         dateFilter = {
-          date: { $lte: new Date(endDate) },
+          date: { $lte: resolveEndDate(endDate) },
         };
       }
       // If no dates are provided, don't filter by date at all
@@ -126,26 +138,38 @@ const toolAvailabilityController = function (ToolAvailability) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      const projectIds = await ToolAvailability.distinct('projectId');
+      // Use aggregation to get distinct project IDs and lookup their names
+      const results = await ToolAvailability.aggregate([
+        {
+          $group: {
+            _id: '$projectId',
+          },
+        },
+        {
+          $lookup: {
+            from: 'buildingProjects',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'projectDetails',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
+          },
+        },
+        {
+          $sort: { projectName: 1 },
+        },
+      ]);
 
-      const validProjectIds = projectIds
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => new ObjectId(String(id)));
-
-      if (validProjectIds.length === 0) {
-        return res.json([]);
-      }
-
-      const projects = await BuildingProject.find({
-        _id: { $in: validProjectIds },
-      })
-        .select('_id name')
-        .sort({ name: 1 })
-        .lean();
-
-      const formattedResults = projects.map((project) => ({
-        projectId: project._id,
-        projectName: project.name,
+      // Format the response. Leave projectName unset (rather than a generic "Unknown
+      // Project" placeholder) when no matching project exists, so the frontend can fall
+      // back to the still-unique projectId instead of showing indistinguishable labels.
+      const formattedResults = results.map((item) => ({
+        projectId: item._id,
+        projectName: item.projectName || null,
       }));
 
       return res.json(formattedResults);
