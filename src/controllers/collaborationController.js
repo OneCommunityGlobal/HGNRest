@@ -257,11 +257,7 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
           <p>Best regards,<br/>One Community</p>
         </div>
       `;
-    await emailSender(
-      [normalizedEmail],
-      `Application Already Received: ${form.title}`,
-      emailBody,
-    );
+    await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
   } catch (emailErr) {
     console.error('Duplicate application email failed (non-fatal):', emailErr.message);
   }

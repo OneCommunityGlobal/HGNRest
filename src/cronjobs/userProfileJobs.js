@@ -3,6 +3,7 @@ const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 const Badge = require('../models/badge');
 const badgeController = require('../controllers/badgeController')(Badge);
+const logger = require('../startup/logger');
 
 const userProfileJobs = () => {
   /* eslint-disable no-unused-vars */
@@ -15,19 +16,34 @@ const userProfileJobs = () => {
     // '* * * * *', // Comment out for testing. Run Every minute.
     '0 0 * * 0', // Every Sunday, 12 AM.
     async () => {
+      // Each step is isolated. These jobs are unrelated to each other, and
+      // previously a throw in any of them silently took every later one with
+      // it, awardNewBadges included, which is why the Lead Team Badge was
+      // never assigned. Nothing surfaced because the rejection was unhandled
+      // inside a cron callback. summaryNotSubmittedJobs below already guards
+      // itself this way, it just does so for the whole callback at once; per
+      // job is what keeps one failure from hiding the others.
+      const run = async (name, job) => {
+        try {
+          await job();
+        } catch (error) {
+          logger.logException(error, `Sunday cron: ${name}`);
+        }
+      };
+
       const SUNDAY = 0;
       if (moment().tz('America/Los_Angeles').day() === SUNDAY) {
-        await userhelper.getProfileImagesFromWebsite();
-        await userhelper.assignBlueSquareForTimeNotMet();
-        await userhelper.applyMissedHourForCoreTeam();
-        await userhelper.emailWeeklySummariesForAllUsers();
-        await userhelper.deleteBlueSquareAfterYear();
-        await userhelper.deleteExpiredTokens();
+        await run('getProfileImagesFromWebsite', userhelper.getProfileImagesFromWebsite);
+        await run('assignBlueSquareForTimeNotMet', userhelper.assignBlueSquareForTimeNotMet);
+        await run('applyMissedHourForCoreTeam', userhelper.applyMissedHourForCoreTeam);
+        await run('emailWeeklySummariesForAllUsers', userhelper.emailWeeklySummariesForAllUsers);
+        await run('deleteBlueSquareAfterYear', userhelper.deleteBlueSquareAfterYear);
+        await run('deleteExpiredTokens', userhelper.deleteExpiredTokens);
 
         // New badge-related jobs
-        await badgeController.syncBadgeUsers();
+        await run('syncBadgeUsers', badgeController.syncBadgeUsers);
       }
-      await userhelper.awardNewBadges();
+      await run('awardNewBadges', userhelper.awardNewBadges);
       // await userhelper.weeklyCompanySummaryEmail(); - function does not exist, restore when added
     },
     null,
