@@ -226,3 +226,83 @@ describe('initializing server logging keys for existing timers', () => {
     expect((await getClient(new Map(), USER_ID)).loggingSessionId).toBe('concurrent-winner');
   });
 });
+
+describe('clientsHandler requestId echo (needed for stale-tab resync before logging time)', () => {
+  it('confirms resync and stop requests without losing split-session protection', async () => {
+    const clients = makeClients({ started: true, loggingSessionId: 'current-session' });
+    const resync = await handleMessage(
+      { action: action.GET_TIMER, requestId: 'split-resync' },
+      clients,
+      USER_ID,
+    );
+    expect(JSON.parse(resync.timerResponse)).toMatchObject({
+      requestId: 'split-resync',
+      loggingSessionId: 'current-session',
+      started: true,
+    });
+
+    const staleStop = await handleMessage(
+      { action: action.STOP_TIMER, requestId: 'stale-stop', loggingSessionId: 'old-session' },
+      clients,
+      USER_ID,
+    );
+    expect(JSON.parse(staleStop.timerResponse)).toMatchObject({
+      requestId: 'stale-stop',
+      loggingSessionId: 'current-session',
+      stopRejected: true,
+      started: true,
+    });
+
+    const stop = await handleMessage(
+      { action: action.STOP_TIMER, requestId: 'current-stop', loggingSessionId: 'current-session' },
+      clients,
+      USER_ID,
+    );
+    expect(JSON.parse(stop.timerResponse)).toMatchObject({
+      requestId: 'current-stop',
+      loggingSessionId: 'current-session',
+      started: false,
+    });
+  });
+
+  it('echoes requestId back for GET_TIMER, not just STOP_TIMER', async () => {
+    const clients = makeClients({ started: true });
+
+    const { timerResponse } = await handleMessage(
+      { action: action.GET_TIMER, requestId: 'resync-123' },
+      clients,
+      USER_ID,
+    );
+
+    expect(JSON.parse(timerResponse).requestId).toBe('resync-123');
+  });
+
+  it('still echoes requestId for STOP_TIMER (existing behavior preserved)', async () => {
+    const clients = makeClients({ started: true });
+
+    const { timerResponse } = await handleMessage(
+      { action: action.STOP_TIMER, requestId: 'stop-456' },
+      clients,
+      USER_ID,
+    );
+
+    expect(JSON.parse(timerResponse).requestId).toBe('stop-456');
+  });
+
+  it('a GET_TIMER resync after another tab already stopped the session reports started:false', async () => {
+    const clients = makeClients({ started: true, paused: false });
+
+    // Simulate "another tab" stopping the session first.
+    await handleMessage({ action: action.STOP_TIMER }, clients, USER_ID);
+
+    // The stale tab's own resync should see the real, already-stopped state.
+    const { timerResponse } = await handleMessage(
+      { action: action.GET_TIMER, requestId: 'resync-789' },
+      clients,
+      USER_ID,
+    );
+    const resynced = JSON.parse(timerResponse);
+    expect(resynced.started).toBe(false);
+    expect(resynced.requestId).toBe('resync-789');
+  });
+});

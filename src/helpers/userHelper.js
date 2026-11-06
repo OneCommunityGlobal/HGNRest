@@ -932,10 +932,6 @@ const userHelper = function () {
         );
       }
 
-      if (!emailConfig.targetUserId) {
-        await deleteOldTimeOffRequests();
-      }
-
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -1516,7 +1512,12 @@ const userHelper = function () {
       return hasTimeOff ? 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE' : '4TH_BLUE_SQUARE';
     }
 
-    // Priorities 4–7: early-team-member patterns.
+    // Priority 4: Scheduled Time Off
+    if (hasTimeOff && hasTodayBlueSquare) {
+      return 'SCHEDULED_TIME_OFF';
+    }
+
+    // Priorities 5–8: early-team-member patterns.
     // Only applies when a blue square was received today, no time off,
     // and not a near/medium miss (those have their own emails below).
     if (hasTodayBlueSquare && !hasTimeOff && !nearMiss && !mediumMiss) {
@@ -2762,7 +2763,13 @@ const userHelper = function () {
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     const leaderRoles = new Set(['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team']);
-    const approvedRoles = ['Mentor', 'Manager'];
+    // The Badges Detail doc specifies this badge for "a Manager, Core Team, or
+    // Admin class", and Jae's comment there puts it as "the Users Class being
+    // one of the Management classes". Core Team and Administrator were missing,
+    // so no Administrator could ever earn it. Mentor is not named in the doc but
+    // has always been allowed and is kept on purpose, confirmed with Sita Ram.
+    // Owner is not named either and stays out, matching the previous behaviour.
+    const approvedRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
     if (!approvedRoles.includes(user.role)) return;
     const teams = await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams
@@ -2797,7 +2804,14 @@ const userHelper = function () {
     await badge
       .find({
         type: 'Lead a team of X+',
-        people: { $lte: totalNonLeaderMembers }, // Only get badges where requirement is <= team size
+        // At or below the team size, and never a zero-threshold record. Dev
+        // holds a badge called "0 Hours for 7 Week Streak" saved with this
+        // type and people: 0. Because this query takes the highest qualifying
+        // badge, that record would be handed to anyone leading 1 to 4 people,
+        // which is the wrong badge entirely. Guarded here rather than by
+        // correcting the record, because one mistyped row should not be able
+        // to award something unrelated.
+        people: { $lte: totalNonLeaderMembers, $gt: 0 },
       })
       .sort({ people: -1 }) // Sort descending
       .limit(1) // Get only the highest qualifying badge
@@ -3684,6 +3698,7 @@ const userHelper = function () {
     getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
+    resolveAutoReplyTemplate,
   };
 };
 
