@@ -252,7 +252,10 @@ const bmNewLessonController = function (BuildingNewLesson) {
         return res.status(400).json({ error: 'Invalid endDate' });
       }
 
-      const filter = { ...buildProjectIdFilter(projectId) };
+      const filter = {
+        ...buildProjectIdFilter(projectId),
+        title: { $ne: 'Tag Storage' },
+        };
       if (startDate || endDate) {
         filter.date = {};
         if (startDate) filter.date.$gte = new Date(startDate);
@@ -289,6 +292,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
         {
           $match: {
             ...projectFilter,
+            title: { $ne: 'Tag Storage' },
             date: {
               $gte: new Date(year, month, 1),
               $lte: new Date(year, month + 1, 0, END_HOUR, END_MINUTE, END_SECOND),
@@ -302,6 +306,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
         {
           $match: {
             ...projectFilter,
+            title: { $ne: 'Tag Storage' },
             date: {
               $gte: new Date(year, month - 1, 1),
               $lte: new Date(year, month, 0, END_HOUR, END_MINUTE, END_SECOND),
@@ -321,7 +326,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
       const result = lessonsInRange.map((entry) => {
         const id = entry.projectId.toString();
         return {
-          project: entry.project,
+          project: entry.project || `Missing Project (${id})`,
           projectId: entry.projectId,
           lessonsCount: entry.lessonsCount,
           changePercentage: calculateChangePercentage(thisMonthMap[id] || 0, lastMonthMap[id] || 0),
