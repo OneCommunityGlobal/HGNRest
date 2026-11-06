@@ -321,7 +321,8 @@ async function getCostProjection(project, startDate, endDate, now = new Date()) 
       const elapsedShare = Math.min(1, (now - new Date(profile.startDate)) / duration);
       const hasCosts =
         typeof profile.currentCostIncurred === 'number' && profile.initialCostEstimate > 0;
-      if (!hasCosts || !(duration > 0) || !(elapsedShare > 0)) return sum;
+      const canProject = hasCosts && duration > 0 && elapsedShare > 0;
+      if (!canProject) return sum;
 
       const projected = profile.currentCostIncurred / elapsedShare;
       return {
