@@ -101,8 +101,18 @@ async function run() {
   await mongoose.disconnect();
 }
 
-run().catch(async (err) => {
-  console.error(err);
-  await mongoose.disconnect().catch(() => {});
-  process.exitCode = 1;
-});
+async function main() {
+  try {
+    await run();
+  } catch (err) {
+    console.error(err);
+    try {
+      await mongoose.disconnect();
+    } catch (disconnectErr) {
+      console.error(disconnectErr);
+    }
+    process.exitCode = 1;
+  }
+}
+
+main();
