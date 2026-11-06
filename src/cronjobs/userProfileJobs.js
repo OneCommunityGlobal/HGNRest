@@ -53,6 +53,7 @@ const userProfileJobs = () => {
         // Below calls will be removed once the combined function WeeklyAutoReplyEmailFunction is fully working in production
         // await userhelper.inCompleteHoursEmailFunction();
         // await userhelper.weeklyBlueSquareReminderFunction();
+        await userhelper.deleteOldTimeOffRequests();
       } catch (error) {
         console.error('Error during summaryNotSubmittedJobs:', error);
       }
