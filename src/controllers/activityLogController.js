@@ -69,6 +69,53 @@ const handleControllerError = (err, res, methodName, requestor) => {
   return res.status(status).json({ error });
 };
 
+async function fetchAssignedSupportStudents(req, res) {
+  const requestor = req.body?.requestor;
+  try {
+    if (
+      !mongoose.Types.ObjectId.isValid(requestor?.requestorId) ||
+      !(await hasPermission(requestor, 'readActivityLogs'))
+    ) {
+      return res.status(403).json({ error: 'You are not authorized to view assigned students' });
+    }
+
+    const supportMember = await usersProfiles
+      .findById(requestor.requestorId)
+      .select('educationProfiles.learningSupport.assignedTeachers');
+    if (!supportMember) {
+      return res.status(403).json({ error: 'You are not authorized to view assigned students' });
+    }
+
+    const teacherIds = supportMember.educationProfiles?.learningSupport?.assignedTeachers || [];
+    if (!teacherIds.length) return res.json([]);
+
+    // Follow only the caller's assignments; never fall back to an unscoped query.
+    const teachers = await usersProfiles
+      .find({ _id: { $in: teacherIds } })
+      .select('educationProfiles.teacher.assignedStudents');
+    const studentIds = [
+      ...new Set(
+        teachers.flatMap((teacher) =>
+          (teacher.educationProfiles?.teacher?.assignedStudents || []).map(String),
+        ),
+      ),
+    ];
+    if (!studentIds.length) return res.json([]);
+
+    const students = await usersProfiles
+      .find({ _id: { $in: studentIds } })
+      .select('firstName lastName');
+    return res.json(
+      students.map((student) => ({
+        id: String(student._id),
+        name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+      })),
+    );
+  } catch (err) {
+    return handleControllerError(err, res, 'fetchAssignedSupportStudents', requestor);
+  }
+}
+
 async function fetchStudentDailyLogsByStaff(req, res) {
   try {
     const { studentId } = req.params;
@@ -251,6 +298,7 @@ const activityLogController = () => {
   }
 
   return {
+    fetchAssignedSupportStudents,
     fetchStudentDailyLog,
     fetchStudentDailyLogsByStaff,
     createStudentDailyLog,
