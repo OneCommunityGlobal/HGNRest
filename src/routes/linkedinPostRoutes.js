@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const requireSocialPublishingPermission = require('../middleware/requireSocialPublishingPermission');
 
 const routes = () => {
   // Configure multer
@@ -14,6 +15,8 @@ const routes = () => {
 
   const controller = require('../controllers/linkedinPostController')();
   const linkedinRouter = express.Router();
+  // Authorize before multer parses files or any publishing/scheduling operation.
+  linkedinRouter.use(['/postToLinkedIn', '/scheduledPosts'], requireSocialPublishingPermission);
 
   // Add multer middleware to handle multipart/form-data
   linkedinRouter.route('/postToLinkedIn').post(
@@ -24,16 +27,6 @@ const routes = () => {
         req.body.scheduleTime = new Date(req.body.scheduleTime);
       }
 
-      // Log received data for debugging
-      console.log('Received request:', {
-        body: req.body,
-        scheduleTime: req.body.scheduleTime,
-        files: req.files?.map((f) => ({
-          name: f.originalname,
-          type: f.mimetype,
-          size: f.size,
-        })),
-      });
       next();
     },
     controller.postToLinkedin,
