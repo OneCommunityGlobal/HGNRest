@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const TimeEntry = new Schema({
+  splitBatchId: { type: String },
   entryType: { type: String, required: true, default: 'default' },
   personId: { type: Schema.Types.ObjectId, ref: 'userProfile' },
   projectId: { type: Schema.Types.ObjectId, ref: 'project' },
