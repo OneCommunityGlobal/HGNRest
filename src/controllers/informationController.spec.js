@@ -140,7 +140,7 @@ describe('informationController module', () => {
       expect(hasCacheMock).toHaveBeenCalledWith('informations');
       assertResMock(201, data, response, mockRes);
     });
-    test('Ensure addInformation returns 201 if creating information successfully', async () => {
+    test('Ensure addInformation returns 201 if creating information successfully when has cache', async () => {
       const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', '[{_id: 1}]');
       const removeCacheMock = jest
         .spyOn(cacheObject, 'removeCache')
@@ -166,13 +166,14 @@ describe('informationController module', () => {
           visibility: '1',
         },
       };
-      addInformation(newMockReq, mockRes);
+      const response = addInformation(newMockReq, mockRes);
       await flushPromises();
       expect(findSpy).toHaveBeenCalledWith({
         infoName: { $regex: escapeRegex(newMockReq.body.infoName), $options: 'i' },
       });
       expect(hasCacheMock).toHaveBeenCalledWith('informations');
       expect(removeCacheMock).toHaveBeenCalledWith('informations');
+      assertResMock(201, data, response, mockRes);
     });
   });
   describe('getInformations function', () => {
@@ -277,7 +278,7 @@ describe('informationController module', () => {
       expect(hasCacheMock).toHaveBeenCalledWith('informations');
       assertResMock(200, deletedData, response, mockRes);
     });
-    test('Ensure deleteInformation returns if delete information successfully and has cache', async () => {
+    test('Ensure deleteInformation returns 200 if delete information successfully and has cache', async () => {
       const { mockCache: hasCacheMock, cacheObject } = makeMockCache('hasCache', '[{_id:123}]');
       const removeCacheMock = jest
         .spyOn(cacheObject, 'removeCache')
@@ -302,11 +303,12 @@ describe('informationController module', () => {
       const findOneDeleteSpy = jest
         .spyOn(Information, 'findOneAndDelete')
         .mockImplementationOnce(() => Promise.resolve(deletedData));
-      deleteInformation(newMockReq, mockRes);
+      const response = deleteInformation(newMockReq, mockRes);
       await flushPromises();
       expect(findOneDeleteSpy).toHaveBeenCalledWith({ _id: deletedData.id });
       expect(hasCacheMock).toHaveBeenCalledWith('informations');
       expect(removeCacheMock).toHaveBeenCalledWith('informations');
+      assertResMock(200, deletedData, response, mockRes);
     });
   });
   describe('updateInformation function', () => {

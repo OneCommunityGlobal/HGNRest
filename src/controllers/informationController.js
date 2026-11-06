@@ -40,7 +40,6 @@ const informationController = function (Information) {
             // remove cache if cache is available
             if (cache.hasCache('informations')) {
               cache.removeCache('informations');
-              return;
             }
             res.status(201).send(newInformation);
           })
@@ -55,7 +54,6 @@ const informationController = function (Information) {
         // remove cache if cache is available
         if (cache.hasCache('informations')) {
           cache.removeCache('informations');
-          return;
         }
         res.status(200).send(deletedInformation);
       })
