@@ -90,7 +90,7 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
 
   const buildProjectDateMatchStage = (projectId, startDate, endDate) => {
     const matchStage = {
-      projectId: new ObjectId(projectId),
+      ...(projectId === 'all' ? {} : { projectId: new ObjectId(projectId) }),
     };
 
     if (startDate || endDate) {
@@ -108,17 +108,20 @@ const toolStoppageReasonController = function (ToolStoppageReason) {
     return matchStage;
   };
 
+  const isKnownProject = async (projectId) =>
+    projectId === 'all' || BuildingProject.exists({ _id: projectId });
+
   const getToolsStoppageReason = async (req, res) => {
     const startTime = Date.now();
     try {
       const { id: projectId } = req.params;
       const { startDate, endDate } = req.query;
 
-      if (!ObjectId.isValid(projectId)) {
+      if (projectId !== 'all' && !ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
-      const projectExists = await BuildingProject.exists({ _id: projectId });
+      const projectExists = await isKnownProject(projectId);
       if (!projectExists) {
         return res.status(404).json({
           success: false,

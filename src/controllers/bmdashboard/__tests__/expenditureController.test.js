@@ -23,6 +23,19 @@ const makeRes = () => {
 };
 
 describe('expenditureController', () => {
+  it('aggregates expenditure across all projects without an ObjectId restriction', async () => {
+    Expenditure.aggregate.mockResolvedValue([
+      { _id: { type: 'actual', category: 'Labor' }, amount: 42 },
+    ]);
+    const res = makeRes();
+    await getProjectExpensesPie({ params: { projectId: 'all' } }, res);
+    expect(Expenditure.aggregate.mock.calls[0][0][0]).toEqual({ $match: {} });
+    expect(res.json).toHaveBeenCalledWith({
+      actual: [{ category: 'Labor', amount: 42 }],
+      planned: [],
+    });
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
