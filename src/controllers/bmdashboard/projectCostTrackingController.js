@@ -1,5 +1,11 @@
 /* eslint-disable no-plusplus */
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const {
+  sanitizeQueryString,
+  sanitizeObjectIdQuery,
+} = require('../../utilities/mongoQuerySanitizer');
+
+const COST_ENTRY_CATEGORIES = new Set(['Labor', 'Materials', 'Equipment']);
 
 const projectCostTrackingController = function (ProjectCostTracking) {
   // Simple linear regression class compatible with older Node.js versions
@@ -197,13 +203,29 @@ const projectCostTrackingController = function (ProjectCostTracking) {
     try {
       const { projectId, category, startDate, endDate } = req.query;
 
+      // Query params are plain strings or MongoDB operator objects (e.g.
+      // ?projectId[$ne]=null) depending on how they're sent — each value is
+      // validated/rejected before it's allowed into the Mongoose query below.
       const query = {};
-      if (projectId) query.projectId = projectId;
-      if (category) query.category = category;
-      if (startDate || endDate) {
+
+      const safeProjectId = sanitizeObjectIdQuery(projectId);
+      if (safeProjectId) query.projectId = safeProjectId;
+
+      const safeCategory = sanitizeQueryString(category);
+      if (safeCategory && COST_ENTRY_CATEGORIES.has(safeCategory)) query.category = safeCategory;
+
+      const safeStartDate = sanitizeQueryString(startDate);
+      const safeEndDate = sanitizeQueryString(endDate);
+      if (safeStartDate || safeEndDate) {
         query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+        if (safeStartDate) {
+          const parsedStart = new Date(safeStartDate);
+          if (!Number.isNaN(parsedStart.getTime())) query.date.$gte = parsedStart;
+        }
+        if (safeEndDate) {
+          const parsedEnd = new Date(safeEndDate);
+          if (!Number.isNaN(parsedEnd.getTime())) query.date.$lte = parsedEnd;
+        }
       }
 
       const entries = await ProjectCostTracking.find(query).sort({ date: 1 }).lean();
