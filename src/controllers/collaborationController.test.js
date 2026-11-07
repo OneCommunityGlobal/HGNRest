@@ -620,8 +620,8 @@ describe('public job form reads', () => {
       res,
     );
 
-    expect(query.where).toHaveBeenCalledWith('isActive');
-    expect(query.equals).toHaveBeenCalledWith(true);
+    // $ne: false keeps explicit true and legacy docs that never stored isActive.
+    expect(query.where).toHaveBeenCalledWith({ isActive: { $ne: false } });
     expect(query.where).not.toHaveBeenCalledWith('createdBy');
     expect(query.populate).not.toHaveBeenCalledWith('createdBy', expect.anything());
 
@@ -635,6 +635,18 @@ describe('public job form reads', () => {
     expect(forms[0]).toMatchObject({ _id: 'f1', title: 'Engineer', isActive: true });
     expect(forms[0].questions[0].questionText).toBe('Why?');
     expect(forms[0].questionSets[0].questionSetId.questions[0].questionText).toBe('Skills?');
+  });
+
+  it('anonymous getFormFormat of a legacy form without isActive returns the public form', async () => {
+    isAuthenticatedRequest.mockReturnValue(false);
+    const legacy = makeForm();
+    delete legacy.isActive;
+    Form.findById = jest.fn().mockResolvedValue(legacy);
+
+    await getFormFormat({ params: { formId: 'f1' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].form.title).toBe('Engineer');
   });
 
   it('staff list keeps filters and staff names', async () => {

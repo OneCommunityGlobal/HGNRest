@@ -654,7 +654,8 @@ exports.getAllFormsFormat = async (req, res) => {
       }
     } else {
       // Anonymous visitors only ever see active forms and cannot filter by staff member.
-      listQuery = listQuery.where('isActive').equals(true);
+      // Legacy forms may omit isActive (schema default true); treat missing/null like active.
+      listQuery = listQuery.where({ isActive: { $ne: false } });
     }
 
     if (isStaff) {
