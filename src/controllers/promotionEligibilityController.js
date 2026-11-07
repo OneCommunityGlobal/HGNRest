@@ -24,6 +24,7 @@ const {
   resolveTeamLeaderNames,
 } = require('../helpers/promotionPendingHelper');
 const PromotionDetail = require('../models/promotionDetail');
+const FormResponse = require('../models/hgnFormResponse');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -209,8 +210,15 @@ const promotionEligibilityController = function (
           ? ['Owner', 'Administrator']
           : ['Owner', 'Administrator', PROMOTED_ROLE];
 
+      // Only include users who have completed the questionnaire.
+      const questionnaireResponses = await FormResponse.find({}, 'user_id').lean();
+      const questionnaireUserIds = questionnaireResponses
+        .map((response) => response.user_id)
+        .filter(Boolean);
+
       const users = await UserProfile.find(
         {
+          _id: { $in: questionnaireUserIds },
           isActive: true,
           role: { $nin: excludedRoles },
         },

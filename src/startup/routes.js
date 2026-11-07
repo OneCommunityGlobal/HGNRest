@@ -234,9 +234,12 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
 const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
-  buildingMaterial,
+  buildingMaterialModel,
 );
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
@@ -650,11 +653,16 @@ module.exports = function (app) {
   app.use('/api/communityportal/reports/participation', cpNoShowRouter);
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
+
+  const eventPopularityRouter = require('../routes/eventPopularityRouter');
+  app.use('/api', eventPopularityRouter);
+
   app.use('/api', eventRouter);
 
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
   app.use('/api/lb', lbListingsRouter);
+
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);

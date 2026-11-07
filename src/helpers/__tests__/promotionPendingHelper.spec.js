@@ -1,7 +1,4 @@
-const {
-  formatWeeklyPRs,
-  resolveTeamLeaderNames,
-} = require('../promotionPendingHelper');
+const { formatWeeklyPRs, resolveTeamLeaderNames } = require('../promotionPendingHelper');
 
 describe('formatWeeklyPRs', () => {
   it('maps counts to week/count and sorts oldest first', () => {

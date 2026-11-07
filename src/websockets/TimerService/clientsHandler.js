@@ -139,36 +139,48 @@ const setGoal = (client, msg) => {
   client.initialGoal = newGoal;
 };
 
+// The header +/- buttons are always visible, started or not (unlike the dropdown's
+// +/- row, which only shows while started). While idle *and fresh* (goal still
+// equals initialGoal - nothing logged yet), +/- is the equivalent of the
+// pencil/SET_GOAL edit - it should move the baseline (initialGoal) too, so Reset
+// doesn't discard it later. But stopTimer() leaves goal = time-left after a
+// partial log, diverging it from initialGoal while still idle - pressing +/- then
+// must only adjust that leftover goal/time, not drag the baseline along with it,
+// or Reset ends up on "time left +/- 15" instead of the real pre-session goal.
+// Once started, +/- only extends the current session either way. Must be read
+// before goal is mutated below, since it compares against the pre-update value.
 const addGoal = (client, msg) => {
   const duration = parseInt(msg.value);
+  const isFreshGoal = !client.started && client.goal === client.initialGoal;
   const goalAfterAddition = moment.duration(client.goal).add(duration, 'milliseconds').asHours();
 
   if (goalAfterAddition >= MAX_HOURS) {
     const oldGoal = client.goal;
     client.goal = MAX_HOURS * 60 * 60 * 1000;
-    client.time = moment
-      .duration(client.time)
-      .add(client.goal - oldGoal, 'milliseconds')
-      .asMilliseconds()
-      .toFixed();
+    client.time = Math.round(
+      moment
+        .duration(client.time)
+        .add(client.goal - oldGoal, 'milliseconds')
+        .asMilliseconds(),
+    );
 
+    if (isFreshGoal) client.initialGoal = client.goal;
     return;
   }
 
-  client.goal = moment
-    .duration(client.goal)
-    .add(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
-  client.time = moment
-    .duration(client.time)
-    .add(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
+  client.goal = Math.round(
+    moment.duration(client.goal).add(duration, 'milliseconds').asMilliseconds(),
+  );
+  client.time = Math.round(
+    moment.duration(client.time).add(duration, 'milliseconds').asMilliseconds(),
+  );
+
+  if (isFreshGoal) client.initialGoal = client.goal;
 };
 
 const removeGoal = (client, msg) => {
   const duration = parseInt(msg.value);
+  const isFreshGoal = !client.started && client.goal === client.initialGoal;
   const goalAfterRemoval = moment
     .duration(client.goal)
     .subtract(duration, 'milliseconds')
@@ -180,16 +192,14 @@ const removeGoal = (client, msg) => {
 
   if (goalAfterRemoval < MIN_MINS || timeAfterRemoval < 0) return;
 
-  client.goal = moment
-    .duration(client.goal)
-    .subtract(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
-  client.time = moment
-    .duration(client.time)
-    .subtract(duration, 'milliseconds')
-    .asMilliseconds()
-    .toFixed();
+  client.goal = Math.round(
+    moment.duration(client.goal).subtract(duration, 'milliseconds').asMilliseconds(),
+  );
+  client.time = Math.round(
+    moment.duration(client.time).subtract(duration, 'milliseconds').asMilliseconds(),
+  );
+
+  if (isFreshGoal) client.initialGoal = client.goal;
 };
 
 const handleMessage = async (msg, clients, userId) => {
@@ -255,7 +265,12 @@ const handleMessage = async (msg, clients, userId) => {
   if (resp === null) resp = client;
 
   const timerResponse = JSON.parse(JSON.stringify(resp));
-  if (msg.action === action.STOP_TIMER && msg.requestId) {
+  // Echoing requestId back for any action (not just STOP_TIMER) lets the client build a
+  // general request/response confirmation - e.g. GET_TIMER needs this too, to resync with
+  // the server's current state right before logging time, so a stale tab can tell whether
+  // its own session was already stopped/logged elsewhere instead of trusting a local flag
+  // that may not have caught up yet.
+  if (msg.requestId) {
     timerResponse.requestId = msg.requestId;
   }
 

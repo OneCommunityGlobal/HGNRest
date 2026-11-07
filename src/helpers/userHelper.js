@@ -70,44 +70,41 @@ const userHelper = function () {
     });
   };
 
-  async function getCurrentTeamCode(teamId) {
-    // Ensure teamId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  async function getActiveTeamCodes(excludeUserId) {
+    if (!mongoose.Types.ObjectId.isValid(excludeUserId)) {
+      return [];
+    }
 
-    // Fetch the current team code of the given teamId from active users
+    // Quick Setup team codes can be out of sync with recorded team memberships.
     const result = await userProfile.aggregate([
       {
         $match: {
-          teams: mongoose.Types.ObjectId(teamId),
           isActive: true,
+          _id: { $ne: mongoose.Types.ObjectId(excludeUserId) },
         },
       },
-      { $limit: 1 },
       { $project: { teamCode: 1 } },
     ]);
 
-    // Return the teamCode if found
-    return result.length > 0 ? result[0].teamCode : null;
+    return result
+      .map(({ teamCode }) => (typeof teamCode === 'string' ? teamCode.trim() : ''))
+      .filter(Boolean);
   }
 
   async function checkTeamCodeMismatch(user) {
     try {
-      // no user or no teams → nothing to compare
-      if (!user || !user.teams.length) {
+      if (!user) {
         return false;
       }
 
-      // looks like they always checked the first (latest) team
-      const latestTeamId = user.teams[0];
-
-      // this was in your diff: getCurrentTeamCode(latestTeamId)
-      const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-      if (!teamCodeFromFirstActive) {
+      const userCode = typeof user.teamCode === 'string' ? user.teamCode.trim() : '';
+      if (userCode.length < 3) {
         return false;
       }
+      const userSuffix = userCode.slice(-3);
 
-      // mismatch if user's stored teamCode != that team's current code
-      return teamCodeFromFirstActive !== user.teamCode;
+      const otherActiveCodes = await getActiveTeamCodes(user._id);
+      return otherActiveCodes.some((code) => code.endsWith(userSuffix) && code !== userCode);
     } catch (error) {
       logger.logException(error);
       return false;
@@ -935,10 +932,6 @@ const userHelper = function () {
         );
       }
 
-      if (!emailConfig.targetUserId) {
-        await deleteOldTimeOffRequests();
-      }
-
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -1519,7 +1512,12 @@ const userHelper = function () {
       return hasTimeOff ? 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE' : '4TH_BLUE_SQUARE';
     }
 
-    // Priorities 4–7: early-team-member patterns.
+    // Priority 4: Scheduled Time Off
+    if (hasTimeOff && hasTodayBlueSquare) {
+      return 'SCHEDULED_TIME_OFF';
+    }
+
+    // Priorities 5–8: early-team-member patterns.
     // Only applies when a blue square was received today, no time off,
     // and not a near/medium miss (those have their own emails below).
     if (hasTodayBlueSquare && !hasTimeOff && !nearMiss && !mediumMiss) {
@@ -2765,7 +2763,13 @@ const userHelper = function () {
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     const leaderRoles = new Set(['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team']);
-    const approvedRoles = ['Mentor', 'Manager'];
+    // The Badges Detail doc specifies this badge for "a Manager, Core Team, or
+    // Admin class", and Jae's comment there puts it as "the Users Class being
+    // one of the Management classes". Core Team and Administrator were missing,
+    // so no Administrator could ever earn it. Mentor is not named in the doc but
+    // has always been allowed and is kept on purpose, confirmed with Sita Ram.
+    // Owner is not named either and stays out, matching the previous behaviour.
+    const approvedRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
     if (!approvedRoles.includes(user.role)) return;
     const teams = await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams
@@ -2800,7 +2804,14 @@ const userHelper = function () {
     await badge
       .find({
         type: 'Lead a team of X+',
-        people: { $lte: totalNonLeaderMembers }, // Only get badges where requirement is <= team size
+        // At or below the team size, and never a zero-threshold record. Dev
+        // holds a badge called "0 Hours for 7 Week Streak" saved with this
+        // type and people: 0. Because this query takes the highest qualifying
+        // badge, that record would be handed to anyone leading 1 to 4 people,
+        // which is the wrong badge entirely. Guarded here rather than by
+        // correcting the record, because one mistyped row should not be able
+        // to award something unrelated.
+        people: { $lte: totalNonLeaderMembers, $gt: 0 },
       })
       .sort({ people: -1 }) // Sort descending
       .limit(1) // Get only the highest qualifying badge
@@ -3687,6 +3698,7 @@ const userHelper = function () {
     getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
+    resolveAutoReplyTemplate,
   };
 };
 
