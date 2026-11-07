@@ -12,9 +12,16 @@ jest.mock('../models/promotionDetail', () => ({
   bulkWrite: jest.fn().mockResolvedValue({}),
 }));
 
+jest.mock('../models/hgnFormResponse', () => ({
+  find: jest.fn(() => ({
+    lean: jest.fn().mockResolvedValue([]),
+  })),
+}));
+
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const PromotionDetail = require('../models/promotionDetail');
+const FormResponse = require('../models/hgnFormResponse');
 const promotionEligibilityController = require('./promotionEligibilityController');
 
 const OWNER_ID = '665234c757ca141fe891e1ca';

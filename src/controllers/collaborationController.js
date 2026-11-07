@@ -19,6 +19,7 @@ const {
   parseBooleanQuery,
   sanitizeObjectIdQuery,
 } = require('../utilities/mongoQuerySanitizer');
+const { shouldSendConfirmation } = require('../utilities/confirmationEmailCap');
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -140,6 +141,9 @@ function resolveApplicationInput(body) {
   };
 }
 
+// Exported so the rate limiter and bot guard read the applicant email exactly as this controller does.
+exports.resolveApplicationInput = resolveApplicationInput;
+
 async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
   if (!resumeFile) {
     return '';
@@ -219,6 +223,7 @@ function appendResumeAndProfileAnswers(
 }
 
 async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+  if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
     const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
     const safeTitle = escapeHtml(form.title);
@@ -236,6 +241,27 @@ async function sendApplicationConfirmationEmail(form, respondent, normalizedEmai
     await emailSender([normalizedEmail], `Application Received — ${subjectTitle}`, emailBody);
   } catch (emailErr) {
     console.error('Confirmation email failed (non-fatal):', emailErr.message);
+  }
+}
+
+// Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
+async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {
+  try {
+    const title = escapeHtml(form.title);
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Already Received: ${title}</h2>
+          <p>Hi ${displayName},</p>
+          <p>We already have an application from this email address for <strong>${title}</strong>, so we did not create a new one. There is nothing more you need to do.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+    await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
+  } catch (emailErr) {
+    console.error('Duplicate application email failed (non-fatal):', emailErr.message);
   }
 }
 
@@ -439,9 +465,8 @@ exports.submitJobApplicationMiddleware = upload.any();
  *   Size, count and type limits are enforced by jobApplicationUploadMiddleware (400/413).
  *
  * Responses:
- *   201 - { message, response }
+ *   201 - { message } (identical for new and duplicate applications; duplicates get an email)
  *   400 - missing required fields
- *   409 - duplicate application
  *   404 - form not found
  *   500 - server error
  */
@@ -474,7 +499,9 @@ exports.submitFormResponse = async (req, res) => {
       $or: [{ email: normalizedEmail }, { respondent: normalizedEmail }],
     });
     if (existing) {
-      return res.status(409).json({ error: 'Application already submitted.' });
+      // Same response as a new submission so the endpoint does not reveal who has applied.
+      await sendDuplicateApplicationEmail(form, respondent, normalizedEmail);
+      return res.status(201).json({ message: 'Application submitted successfully.' });
     }
 
     const fileMap = filesByField(req);
@@ -509,7 +536,7 @@ exports.submitFormResponse = async (req, res) => {
     await response.save();
     await sendApplicationConfirmationEmail(form, respondent, normalizedEmail);
 
-    return res.status(201).json({ message: 'Application submitted successfully.', response });
+    return res.status(201).json({ message: 'Application submitted successfully.' });
   } catch (error) {
     console.error('Error submitting form response:', error);
     return res.status(500).json({ message: 'Error submitting application.', error: error.message });

@@ -38,6 +38,7 @@ describe('submitFormResponse', () => {
     saveMock = jest.fn().mockResolvedValue(true);
     Form.findById = jest.fn();
     Response.findOne = jest.fn();
+    Response.countDocuments = jest.fn().mockResolvedValue(1);
     Response.mockImplementation((data) => ({ ...data, save: saveMock }));
     emailSender.mockResolvedValue('ok');
     uploadFileToAzureBlobStorage.mockResolvedValue('https://blob/resume.pdf');
@@ -108,16 +109,81 @@ describe('submitFormResponse', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Form not found.' });
   });
 
-  it('returns 409 when the email already applied to this form', async () => {
-    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
-    Response.findOne.mockResolvedValue({ _id: 'existing' });
-    await submitFormResponse({ params: { formId }, body: validBody }, res);
-    expect(Response.findOne).toHaveBeenCalledWith({
-      formId,
-      $or: [{ email: 'ada@example.com' }, { respondent: 'ada@example.com' }],
+  describe('duplicate application', () => {
+    const successBody = { message: 'Application submitted successfully.' };
+    const resumeFile = {
+      originalname: 'resume.pdf',
+      buffer: Buffer.from('pdf'),
+      mimetype: 'application/pdf',
+    };
+
+    it('returns the same 201 body as a new submission', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue(null);
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      const newRes = res;
+
+      const dupRes = createMockRes();
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+      await submitFormResponse({ params: { formId }, body: validBody }, dupRes);
+
+      expect(Response.findOne).toHaveBeenLastCalledWith({
+        formId,
+        $or: [{ email: 'ada@example.com' }, { respondent: 'ada@example.com' }],
+      });
+      expect(newRes.status).toHaveBeenCalledWith(201);
+      expect(newRes.json).toHaveBeenCalledWith(successBody);
+      expect(dupRes.status).toHaveBeenCalledWith(201);
+      expect(dupRes.json).toHaveBeenCalledWith(successBody);
+      expect(dupRes.json.mock.calls[0]).toEqual(newRes.json.mock.calls[0]);
     });
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Application already submitted.' });
+
+    it('does not save a second Response or upload files', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+
+      await submitFormResponse({ params: { formId }, body: validBody, file: resumeFile }, res);
+
+      expect(Response).not.toHaveBeenCalled();
+      expect(saveMock).not.toHaveBeenCalled();
+      expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
+    });
+
+    it('emails the normalized address with escaped values', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Dev <b>Role</b>' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+
+      await submitFormResponse(
+        {
+          params: { formId },
+          body: { ...validBody, respondent: '<script>alert("x")</script> & Co' },
+        },
+        res,
+      );
+
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      const [to, subject, html] = emailSender.mock.calls[0];
+      expect(to).toEqual(['ada@example.com']);
+      expect(subject).toContain('Already Received');
+      expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co');
+      expect(html).toContain('Dev &lt;b&gt;Role&lt;/b&gt;');
+      expect(html).not.toContain('<script>');
+      expect(html).not.toContain('<b>Role</b>');
+    });
+
+    it('still returns the identical 201 when the email fails', async () => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue({ _id: 'existing' });
+      emailSender.mockRejectedValue(new Error('smtp down'));
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+
+      expect(errorSpy).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(successBody);
+      errorSpy.mockRestore();
+    });
   });
 
   it('returns 201, saves email, and sends a confirmation email', async () => {
@@ -133,11 +199,7 @@ describe('submitFormResponse', () => {
       expect.stringContaining('Ada Lovelace'),
     );
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Application submitted successfully.',
-      }),
-    );
+    expect(res.json).toHaveBeenCalledWith({ message: 'Application submitted successfully.' });
   });
 
   it('escapes applicant name and form title in the confirmation email HTML', async () => {
@@ -384,5 +446,64 @@ describe('submitFormResponse', () => {
       expect.objectContaining({ fileName: 'cover.pdf', mimeType: 'application/pdf' }),
     );
     expect(savedDoc.answers[0].answer.url).toBeUndefined();
+  });
+
+  describe('confirmation email cap', () => {
+    let warnSpy;
+    let errorSpy;
+
+    // Per-address count queries carry `email`; the global count does not.
+    const mockCounts = ({ address, global }) => {
+      Response.countDocuments = jest.fn((query) =>
+        Promise.resolve(Object.prototype.hasOwnProperty.call(query, 'email') ? address : global),
+      );
+    };
+
+    beforeEach(() => {
+      Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+      Response.findOne.mockResolvedValue(null);
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('sends the email for the 3rd application from one address in 24 h', async () => {
+      mockCounts({ address: 3, global: 3 });
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('skips the email for the 4th application but still saves and returns 201', async () => {
+      mockCounts({ address: 4, global: 4 });
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      expect(saveMock).toHaveBeenCalled();
+      expect(emailSender).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Application submitted successfully.' }),
+      );
+      const logged = warnSpy.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).not.toContain('ada@example.com');
+    });
+
+    it('skips the email when the global daily cap is exceeded', async () => {
+      mockCounts({ address: 1, global: 301 });
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      expect(saveMock).toHaveBeenCalled();
+      expect(emailSender).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('fails open and sends the email when the count query throws', async () => {
+      Response.countDocuments = jest.fn().mockRejectedValue(new Error('db hiccup'));
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 });
