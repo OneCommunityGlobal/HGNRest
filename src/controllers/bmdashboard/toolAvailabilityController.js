@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
 
 const { ObjectId } = mongoose.Types;
 
@@ -23,6 +24,15 @@ const toolAvailabilityController = function (ToolAvailability) {
       // Validate project ID format
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
+      }
+
+      // Reject unparsable dates rather than silently ignoring them, which would
+      // otherwise return unfiltered results for a filter the caller thinks is applied.
+      if (startDate && Number.isNaN(new Date(startDate).getTime())) {
+        return res.status(400).json({ error: 'Invalid startDate format' });
+      }
+      if (endDate && Number.isNaN(resolveEndDate(endDate).getTime())) {
+        return res.status(400).json({ error: 'Invalid endDate format' });
       }
 
       // Build date filter based on what's provided
@@ -138,38 +148,26 @@ const toolAvailabilityController = function (ToolAvailability) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      // Use aggregation to get distinct project IDs and lookup their names
-      const results = await ToolAvailability.aggregate([
-        {
-          $group: {
-            _id: '$projectId',
-          },
-        },
-        {
-          $lookup: {
-            from: 'buildingProjects',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'projectDetails',
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            projectName: { $arrayElemAt: ['$projectDetails.name', 0] },
-          },
-        },
-        {
-          $sort: { projectName: 1 },
-        },
-      ]);
+      const projectIds = await ToolAvailability.distinct('projectId');
 
-      // Format the response. Leave projectName unset (rather than a generic "Unknown
-      // Project" placeholder) when no matching project exists, so the frontend can fall
-      // back to the still-unique projectId instead of showing indistinguishable labels.
-      const formattedResults = results.map((item) => ({
-        projectId: item._id,
-        projectName: item.projectName || null,
+      const validProjectIds = projectIds
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => new ObjectId(String(id)));
+
+      if (validProjectIds.length === 0) {
+        return res.json([]);
+      }
+
+      const projects = await BuildingProject.find({
+        _id: { $in: validProjectIds },
+      })
+        .select('_id name')
+        .sort({ name: 1 })
+        .lean();
+
+      const formattedResults = projects.map((project) => ({
+        projectId: project._id,
+        projectName: project.name,
       }));
 
       return res.json(formattedResults);
