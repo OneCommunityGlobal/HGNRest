@@ -18,7 +18,7 @@ const UserPermissionChangeLog = new Schema({
   permissionsRemoved: { type: [String], default: [] },
   requestorRole: { type: String },
   requestorEmail: { type: String, required: true },
-  reason: { type: String, default: '', maxlength: 75 },
+  reason: { type: String, default: '', maxlength: 100 },
 });
 
 module.exports = mongoose.model(

@@ -31,7 +31,6 @@ const logUserPermissionChangeByAccount = async (req, user) => {
       return;
     }
 
-    const roles = await roleModel.find({}).lean();
     // Fetch requestor email (may be null if requestor deleted)
     const requestorDoc = await UserProfile.findById(requestor.requestorId)
       .select('email')
@@ -45,7 +44,9 @@ const logUserPermissionChangeByAccount = async (req, user) => {
     const { userId } = req.params;
     const Permissions = checkPermissionArray(permissions.frontPermissions);
     const removedPermissions = checkPermissionArray(permissions.removedDefaultPermissions); // removed default permissions
-    const newRolePermissions = roles?.find(({ roleName }) => roleName === newRole).permissions;
+    const roleToFind = newRole || user.role;
+    const role = await roleModel.findOne({ roleName: roleToFind }).lean();
+    const newRolePermissions = role?.permissions ?? [];
     const rolePermissions = checkPermissionArray(newRolePermissions); // default permissions for user provided by their role
     const changedPermissions = [...Permissions, ...removedPermissions];
 
