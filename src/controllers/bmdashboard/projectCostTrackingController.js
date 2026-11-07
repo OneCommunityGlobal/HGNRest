@@ -1,4 +1,6 @@
 /* eslint-disable no-plusplus */
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+
 const projectCostTrackingController = function (ProjectCostTracking) {
   // Simple linear regression class compatible with older Node.js versions
   class SimpleLinearRegression {
@@ -185,9 +187,56 @@ const projectCostTrackingController = function (ProjectCostTracking) {
     }
   };
 
+  // GET /bm/project-cost-entries
+  // Flat, per-entry cost records across all (or one) BM Dashboard construction
+  // project, with real project names and real dates. Used by the Financials
+  // charts that previously ran on hardcoded sample data (Planned vs Actual Cost,
+  // Cost Variance Trend). plannedCost is null wherever no real budget figure has
+  // been entered yet — never a guessed/computed value.
+  const getCostEntries = async (req, res) => {
+    try {
+      const { projectId, category, startDate, endDate } = req.query;
+
+      const query = {};
+      if (projectId) query.projectId = projectId;
+      if (category) query.category = category;
+      if (startDate || endDate) {
+        query.date = {};
+        if (startDate) query.date.$gte = new Date(startDate);
+        if (endDate) query.date.$lte = new Date(endDate);
+      }
+
+      const entries = await ProjectCostTracking.find(query).sort({ date: 1 }).lean();
+
+      const distinctProjectIds = [...new Set(entries.map((entry) => entry.projectId.toString()))];
+      const projects = await BuildingProject.find(
+        { _id: { $in: distinctProjectIds } },
+        { name: 1 },
+      ).lean();
+      const projectNameById = new Map(projects.map((p) => [p._id.toString(), p.name]));
+
+      const result = entries
+        // Entries whose projectId no longer resolves to a real project (stale/test
+        // fixtures) are dropped rather than shown under a made-up name.
+        .filter((entry) => projectNameById.has(entry.projectId.toString()))
+        .map((entry) => ({
+          projectId: projectNameById.get(entry.projectId.toString()),
+          category: entry.category,
+          actualCost: entry.cost,
+          plannedCost: entry.plannedCost ?? null,
+          date: entry.date.toISOString().split('T')[0],
+        }));
+
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   return {
     getProjectCosts,
     getAllProjectIds,
+    getCostEntries,
   };
 };
 
