@@ -201,6 +201,8 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      // Project Management > Misc/Unsorted
+      'listingAndBiddingAdvancedAccess',
     ],
   },
   {
@@ -319,6 +321,8 @@ const permissionsRoles = [
       'deleteFormQuestions',
       'manageJobForms',
       'interactWithPauseUserButton',
+      // Project Management > Misc/Unsorted
+      'listingAndBiddingAdvancedAccess',
     ],
   },
 ];
