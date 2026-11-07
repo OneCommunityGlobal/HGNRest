@@ -1,4 +1,4 @@
-// v1.0.0
+// v1.0.1
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const express = require('express');
@@ -145,6 +145,40 @@ test('nonexistent issue references are rejected before create and update', async
     .send({ issues })
     .expect(400);
   expect((await Profile.findOne()).issues).toHaveLength(0);
+});
+
+test.each([{ $ne: null }, ['abcdefabcdefabcdefabcdef'], null, 123, 'not-an-id'])(
+  'rejects non-scalar or invalid project IDs before querying (%j)',
+  async (projectId) => {
+    const lookup = jest.spyOn(Profile, 'exists');
+    try {
+      await request(app)
+        .post('/api/projects/risk-profile')
+        .set('test-role', 'Administrator')
+        .send({ ...input(), projectId })
+        .expect(400);
+      expect(lookup).not.toHaveBeenCalled();
+      expect(await Profile.countDocuments()).toBe(0);
+      expect(await Observation.countDocuments()).toBe(0);
+    } finally {
+      lookup.mockRestore();
+    }
+  },
+);
+
+test('PATCH rejects invalid IDs and denied roles without changing saved data', async () => {
+  const original = await Profile.create(input());
+  await request(app)
+    .patch('/api/projects/risk-profile/not-an-id')
+    .set('test-role', 'Administrator')
+    .send({ currentCostIncurred: 999 })
+    .expect(400);
+  await request(app)
+    .patch(`/api/projects/risk-profile/${project._id}`)
+    .set('test-role', 'Volunteer')
+    .send({ currentCostIncurred: 999 })
+    .expect(403);
+  expect(await Profile.findById(original._id).lean()).toEqual(original.toObject());
 });
 
 test('a delayed older capture cannot overwrite a newer daily observation', async () => {

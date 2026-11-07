@@ -1,10 +1,18 @@
-// v1.1.0
+// v1.1.1
+const mongoose = require('mongoose');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const Issue = require('../../models/bmdashboard/Issues');
 const Observation = require('../../models/bmdashboard/projectRiskObservation');
 const { calculateRiskMetrics } = require('../../utilities/projectRiskMetrics');
 const { issueCount, recordObservation } = require('../../services/projectRiskHistory');
 const logger = require('../../startup/logger');
+
+function parseProjectId(value) {
+  if (typeof value !== 'string' || !/^[a-f0-9]{24}$/i.test(value)) {
+    throw new Error('Invalid project ID');
+  }
+  return mongoose.Types.ObjectId(value);
+}
 
 async function validateIssueReferences(projectId, issues = []) {
   if (!Array.isArray(issues)) throw new Error('Issues must be an array of issue IDs');
@@ -82,14 +90,16 @@ const projectRiskProfileController = {
   // Create new risk profile
   createRiskProfile: async (req, res) => {
     try {
-      await validateIssueReferences(req.body.projectId, req.body.issues);
-      if (await ProjectRiskProfile.exists({ projectId: req.body.projectId })) {
+      const projectId = parseProjectId(req.body.projectId);
+      await validateIssueReferences(projectId, req.body.issues);
+      if (await ProjectRiskProfile.exists({ projectId })) {
         return res.status(409).json({ message: 'Risk profile already exists for this project' });
       }
       // Canonical IDs make concurrent creates unique without reindexing legacy profiles.
       const riskProfile = new ProjectRiskProfile({
         ...profileInput(req.body),
-        _id: req.body.projectId,
+        projectId,
+        _id: projectId,
       });
       const savedRiskProfile = await riskProfile.save();
       await recordChange(savedRiskProfile);
@@ -105,7 +115,7 @@ const projectRiskProfileController = {
   updateRiskProfile: async (req, res) => {
     try {
       const updatedRiskProfile = await ProjectRiskProfile.findOne({
-        projectId: req.params.projectId,
+        projectId: parseProjectId(req.params.projectId),
       });
       if (!updatedRiskProfile) return res.status(404).json({ message: 'Risk profile not found' });
       const changes = profileInput(req.body);
