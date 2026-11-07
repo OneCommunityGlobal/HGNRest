@@ -37,6 +37,7 @@ const mockHasPermission = (value) =>
 describe('current warnings controller module', () => {
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('get current warnings method', () => {
@@ -45,7 +46,8 @@ describe('current warnings controller module', () => {
       const errorMessage = 'Database Error';
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockRejectedValue(new Error('Database Error')),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(new Error('Database Error')),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
@@ -56,7 +58,8 @@ describe('current warnings controller module', () => {
       const { getCurrentWarnings } = makeSut();
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockReturnValueOnce([]),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce([]),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
@@ -65,14 +68,27 @@ describe('current warnings controller module', () => {
 
     test('Ensure getCurrentWarnings returns warning list', async () => {
       const { getCurrentWarnings } = makeSut();
-      const testWarnings = [{ order: 1 }, { order: 2 }];
+      const testWarnings = [
+        { order: 1, description: 'No description', orderSequence: 1 },
+        { order: 2, description: 'No description provided', orderSequence: 2 },
+      ];
 
       jest.spyOn(currentWarnings, 'find').mockReturnValue({
-        sort: jest.fn().mockReturnValueOnce([{ order: 1 }, { order: 2 }]),
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnValueOnce(testWarnings),
       });
 
       const res = await getCurrentWarnings(mockReq, mockRes);
-      assertResMock(200, { currentWarningDescriptions: testWarnings }, res);
+      assertResMock(
+        200,
+        {
+          currentWarningDescriptions: [
+            { order: 1, description: 'No description' },
+            { order: 2, description: 'No description provided' },
+          ],
+        },
+        res,
+      );
     });
   });
 
@@ -85,10 +101,35 @@ describe('current warnings controller module', () => {
       assertResMock(403, 'You are not authorized to add a new WarningTracker.', res);
     });
 
+    test('Ensure postNewWarningDescription returns error 400 if warning description is not a string', async () => {
+      mockReq.body.newWarning = '#new';
+      mockReq.body.isPermanent = true;
+      mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = 123;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      assertResMock(400, { error: 'Description must be a string' }, res);
+    });
+
+    test('Ensure postNewWarningDescription returns error 400 if warning description length is over 500', async () => {
+      mockReq.body.newWarning = '#new';
+      mockReq.body.isPermanent = true;
+      mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = 'test'.repeat(126);
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      assertResMock(400, { error: 'Description cannot exceed 500 characters' }, res);
+    });
+
     test('Ensure postNewWarningDescription returns error 400 if warning title provided has special character as their first letter', async () => {
       mockReq.body.newWarning = '#new';
       mockReq.body.isPermanent = true;
       mockReq.body.activeWarning = true;
+      mockReq.body.newWarningDescription = '';
       const { postNewWarningDescription } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
       const res = await postNewWarningDescription(mockReq, mockRes);
@@ -131,22 +172,136 @@ describe('current warnings controller module', () => {
       assertResMock(400, { error: 'Warning already exists, please try a different name' }, res);
     });
 
-    test('Ensure postNewWarningDescription returns error 201 if warning creation was successful', async () => {
-      const testWarning = { newWarning: 'example', isPermanent: true, activeWarning: true };
+    test('Ensure postNewWarningDescription returns error 409 if warning creation hit duplicate key with the normalizedWarningTitle', async () => {
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: '',
+      };
       mockReq.body.newWarning = testWarning.newWarning;
       mockReq.body.isPermanent = testWarning.isPermanent;
       mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const duplicateTitleError = new Error('Duplicate Key Error');
+      duplicateTitleError.code = 11000;
+      duplicateTitleError.keyPattern = { normalizedWarningTitle: 1 };
+
+      jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
+      const saveSpy = jest
+        .spyOn(currentWarnings.prototype, 'save')
+        .mockRejectedValue(duplicateTitleError);
+      jest.spyOn(currentWarnings, 'findOne').mockImplementationOnce(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
+
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      assertResMock(
+        409,
+        {
+          message:
+            'Another warning was just made with this title. Please try another name. (Provided title will be made lowercase for queries)',
+        },
+        res,
+      );
+    });
+
+    test('Ensure postNewWarningDescription returns error 409 if warning creation hit duplicate key error 3 times', async () => {
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: '',
+      };
+      mockReq.body.newWarning = testWarning.newWarning;
+      mockReq.body.isPermanent = testWarning.isPermanent;
+      mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const duplicateTitleError = new Error('Duplicate Key Error');
+      duplicateTitleError.code = 11000;
+      duplicateTitleError.keyPattern = { orderSequence: 1 };
+
+      jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
+      const saveSpy = jest
+        .spyOn(currentWarnings.prototype, 'save')
+        .mockRejectedValue(duplicateTitleError);
+      jest.spyOn(currentWarnings, 'findOne').mockImplementation(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
+
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      expect(saveSpy).toHaveBeenCalledTimes(3);
+      assertResMock(
+        409,
+        {
+          message:
+            'Unable to create the warning due to concurrent requests. Please try again later.',
+        },
+        res,
+      );
+    });
+
+    test('Ensure postNewWarningDescription returns error 401 if warning creation hit an error not duplicate key related', async () => {
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: '',
+      };
+      mockReq.body.newWarning = testWarning.newWarning;
+      mockReq.body.isPermanent = testWarning.isPermanent;
+      mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+      const error = new Error('Error');
+
+      jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
+      const saveSpy = jest.spyOn(currentWarnings.prototype, 'save').mockRejectedValue(error);
+      jest.spyOn(currentWarnings, 'findOne').mockImplementation(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
+
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      assertResMock(401, { message: 'Error' }, res);
+    });
+
+    test('Ensure postNewWarningDescription returns error 201 if warning creation was successful', async () => {
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: '',
+      };
+      mockReq.body.newWarning = testWarning.newWarning;
+      mockReq.body.isPermanent = testWarning.isPermanent;
+      mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
       const { postNewWarningDescription } = makeSut();
       const hasPermissionSpy = mockHasPermission(true);
 
       jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
       const saveSpy = jest.spyOn(currentWarnings.prototype, 'save').mockResolvedValue(testWarning);
-      jest.spyOn(currentWarnings, 'find').mockResolvedValueOnce(testWarning);
+      jest.spyOn(currentWarnings, 'find').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValue([testWarning]),
+      });
+      jest.spyOn(currentWarnings, 'findOne').mockImplementationOnce(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
 
       const res = await postNewWarningDescription(mockReq, mockRes);
       expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
       expect(saveSpy).toHaveBeenCalledTimes(1);
-      assertResMock(201, { newWarnings: testWarning }, res);
+      assertResMock(201, { newWarnings: [testWarning] }, res);
     });
   });
 
