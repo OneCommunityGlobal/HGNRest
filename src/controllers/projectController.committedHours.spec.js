@@ -11,8 +11,6 @@ jest.mock('../startup/logger', () => ({
   logException: jest.fn(),
 }));
 
-const task = require('../models/task');
-const wbs = require('../models/wbs');
 const logger = require('../startup/logger');
 const projectController = require('./projectController');
 
@@ -22,17 +20,22 @@ describe('getProjectsCommittedHours', () => {
   let req;
   let res;
 
+  const validDates = {
+    fromDate: '2026-01-10',
+    toDate: '2026-01-20',
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
 
     Project = {
-      find: jest.fn(),
+      aggregate: jest.fn(),
     };
 
     ({ getProjectsCommittedHours } = projectController(Project));
 
     req = {
-      body: {},
+      body: { ...validDates },
     };
 
     res = {
@@ -41,138 +44,74 @@ describe('getProjectsCommittedHours', () => {
     };
   });
 
-  test('returns committed hours totals for projects with tasks', async () => {
-    const projects = [
-      { _id: 'project-1', projectName: 'Project Alpha' },
-      { _id: 'project-2', projectName: 'Project Beta' },
-    ];
-
-    Project.find.mockResolvedValue(projects);
-
-    wbs.find
-      .mockResolvedValueOnce([{ _id: 'wbs-1' }, { _id: 'wbs-2' }])
-      .mockResolvedValueOnce([{ _id: 'wbs-3' }]);
-
-    task.find
-      .mockResolvedValueOnce([
-        { estimatedHours: 5 },
-        { estimatedHours: 7.5 },
-        { estimatedHours: 2 },
-      ])
-      .mockResolvedValueOnce([{ estimatedHours: 10 }, { estimatedHours: 4 }]);
-
-    await getProjectsCommittedHours(req, res);
-
-    expect(Project.find).toHaveBeenCalledWith({ isArchived: { $ne: true } }, '_id projectName');
-
-    expect(wbs.find).toHaveBeenNthCalledWith(1, { projectId: 'project-1' }, '_id');
-    expect(wbs.find).toHaveBeenNthCalledWith(2, { projectId: 'project-2' }, '_id');
-
-    expect(task.find).toHaveBeenNthCalledWith(
-      1,
-      { wbsId: { $in: ['wbs-1', 'wbs-2'] } },
-      'estimatedHours',
-    );
-    expect(task.find).toHaveBeenNthCalledWith(2, { wbsId: { $in: ['wbs-3'] } }, 'estimatedHours');
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.send).toHaveBeenCalledWith([
+  test('returns actual logged hours for projects', async () => {
+    Project.aggregate.mockResolvedValue([
       {
         projectId: 'project-1',
         projectName: 'Project Alpha',
-        committedHours: 14.5,
+        totalSeconds: 52200,
       },
       {
         projectId: 'project-2',
         projectName: 'Project Beta',
-        committedHours: 14,
+        totalSeconds: 36000,
       },
     ]);
-  });
-
-  test('applies all three date conditions when both dates are provided', async () => {
-    req.body = {
-      fromDate: '2026-01-10',
-      toDate: '2026-01-20',
-    };
-
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([{ _id: 'wbs-1' }]);
-    task.find.mockResolvedValue([{ estimatedHours: 8 }]);
 
     await getProjectsCommittedHours(req, res);
 
-    const expectedStart = new Date('2026-01-10');
-    const expectedEnd = new Date('2026-01-20');
-    expectedEnd.setHours(23, 59, 59, 999);
-
-    expect(task.find).toHaveBeenCalledWith(
-      {
-        wbsId: { $in: ['wbs-1'] },
-        $or: [
-          {
-            startedDatetime: { $lte: expectedEnd },
-            dueDatetime: { $gte: expectedStart },
-          },
-          {
-            startedDatetime: {
-              $gte: expectedStart,
-              $lte: expectedEnd,
-            },
-          },
-          {
-            dueDatetime: {
-              $gte: expectedStart,
-              $lte: expectedEnd,
-            },
-          },
-        ],
-      },
-      'estimatedHours',
-    );
-
+    expect(Project.aggregate).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith([
       {
         projectId: 'project-1',
         projectName: 'Project Alpha',
-        committedHours: 8,
+        loggedHours: 14.5,
+      },
+      {
+        projectId: 'project-2',
+        projectName: 'Project Beta',
+        loggedHours: 10,
       },
     ]);
   });
 
-  test('does not apply date conditions when dates are absent', async () => {
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([{ _id: 'wbs-1' }]);
-    task.find.mockResolvedValue([{ estimatedHours: 6 }]);
+  test('uses the requested date range and accepted entry types', async () => {
+    Project.aggregate.mockResolvedValue([]);
 
     await getProjectsCommittedHours(req, res);
 
-    expect(task.find).toHaveBeenCalledWith({ wbsId: { $in: ['wbs-1'] } }, 'estimatedHours');
+    const pipeline = Project.aggregate.mock.calls[0][0];
+
+    expect(pipeline[0]).toEqual({
+      $match: {
+        isArchived: { $ne: true },
+      },
+    });
+
+    const lookup = pipeline.find((stage) => stage.$lookup)?.$lookup;
+    const matchStage = lookup.pipeline.find((stage) => stage.$match);
+
+    expect(matchStage.$match).toEqual({
+      entryType: { $in: ['default', 'person', null] },
+      dateOfWork: {
+        $gte: '2026-01-10',
+        $lte: '2026-01-20',
+      },
+      $expr: {
+        $eq: ['$projectId', '$$projectId'],
+      },
+    });
   });
 
-  test('returns zero committed hours when a project has no WBS records', async () => {
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([]);
-    task.find.mockResolvedValue([]);
-
-    await getProjectsCommittedHours(req, res);
-
-    expect(task.find).toHaveBeenCalledWith({ wbsId: { $in: [] } }, 'estimatedHours');
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.send).toHaveBeenCalledWith([
+  test('includes projects with zero logged hours', async () => {
+    Project.aggregate.mockResolvedValue([
       {
         projectId: 'project-1',
         projectName: 'Project Alpha',
-        committedHours: 0,
+        totalSeconds: 0,
       },
     ]);
-  });
-
-  test('returns zero committed hours when no tasks exist', async () => {
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([{ _id: 'wbs-1' }]);
-    task.find.mockResolvedValue([]);
 
     await getProjectsCommittedHours(req, res);
 
@@ -181,15 +120,19 @@ describe('getProjectsCommittedHours', () => {
       {
         projectId: 'project-1',
         projectName: 'Project Alpha',
-        committedHours: 0,
+        loggedHours: 0,
       },
     ]);
   });
 
-  test('treats missing estimatedHours as zero', async () => {
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([{ _id: 'wbs-1' }]);
-    task.find.mockResolvedValue([{ estimatedHours: 5 }, {}, { estimatedHours: null }]);
+  test('rounds logged hours to one decimal place', async () => {
+    Project.aggregate.mockResolvedValue([
+      {
+        projectId: 'project-1',
+        projectName: 'Project Alpha',
+        totalSeconds: 3700,
+      },
+    ]);
 
     await getProjectsCommittedHours(req, res);
 
@@ -197,57 +140,51 @@ describe('getProjectsCommittedHours', () => {
       {
         projectId: 'project-1',
         projectName: 'Project Alpha',
-        committedHours: 5,
+        loggedHours: 1,
       },
     ]);
   });
 
-  test('returns an empty array when there are no projects', async () => {
-    Project.find.mockResolvedValue([]);
+  test('returns an empty array when there are no active projects', async () => {
+    Project.aggregate.mockResolvedValue([]);
 
     await getProjectsCommittedHours(req, res);
 
-    expect(wbs.find).not.toHaveBeenCalled();
-    expect(task.find).not.toHaveBeenCalled();
+    expect(Project.aggregate).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith([]);
   });
 
-  test('returns HTTP 500 and logs the exception when fetching projects fails', async () => {
+  test.each([
+    [{ fromDate: '2026-01-10' }, 'missing toDate'],
+    [{ toDate: '2026-01-20' }, 'missing fromDate'],
+    [{}, 'both dates missing'],
+    [{ fromDate: 'invalid-date', toDate: '2026-01-20' }, 'invalid fromDate'],
+    [{ fromDate: '2026-01-10', toDate: 'invalid-date' }, 'invalid toDate'],
+    [{ fromDate: '2026-02-30', toDate: '2026-03-01' }, 'impossible calendar date'],
+    [{ fromDate: '2026-01-21', toDate: '2026-01-20' }, 'toDate before fromDate'],
+  ])('returns HTTP 400 for %s (%s)', async (body) => {
+    req.body = body;
+
+    await getProjectsCommittedHours(req, res);
+
+    expect(Project.aggregate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(String),
+      }),
+    );
+  });
+
+  test('returns HTTP 500 and logs the exception when aggregation fails', async () => {
     const error = new Error('Database unavailable');
-    Project.find.mockRejectedValue(error);
+    Project.aggregate.mockRejectedValue(error);
 
     await getProjectsCommittedHours(req, res);
 
     expect(logger.logException).toHaveBeenCalledWith(error);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.send).toHaveBeenCalledWith('Error fetching project committed hours.');
-  });
-
-  test('returns HTTP 500 when fetching WBS records fails', async () => {
-    const error = new Error('WBS query failed');
-
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockRejectedValue(error);
-
-    await getProjectsCommittedHours(req, res);
-
-    expect(logger.logException).toHaveBeenCalledWith(error);
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.send).toHaveBeenCalledWith('Error fetching project committed hours.');
-  });
-
-  test('returns HTTP 500 when fetching tasks fails', async () => {
-    const error = new Error('Task query failed');
-
-    Project.find.mockResolvedValue([{ _id: 'project-1', projectName: 'Project Alpha' }]);
-    wbs.find.mockResolvedValue([{ _id: 'wbs-1' }]);
-    task.find.mockRejectedValue(error);
-
-    await getProjectsCommittedHours(req, res);
-
-    expect(logger.logException).toHaveBeenCalledWith(error);
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.send).toHaveBeenCalledWith('Error fetching project committed hours.');
+    expect(res.send).toHaveBeenCalledWith('Error fetching project logged hours.');
   });
 });

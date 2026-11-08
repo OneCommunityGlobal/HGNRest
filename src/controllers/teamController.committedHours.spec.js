@@ -53,8 +53,8 @@ describe('getTeamsCommittedHours', () => {
     };
   });
 
-  test('returns committed hours and individual member hours for each team', async () => {
-    const teams = [
+  test('returns actual logged hours and individual member hours for each team', async () => {
+    setTeams([
       {
         _id: 'team-1',
         teamName: 'Team Alpha',
@@ -63,35 +63,44 @@ describe('getTeamsCommittedHours', () => {
       {
         _id: 'team-2',
         teamName: 'Team Beta',
-        members: [{ _id: memberId3 }],
+        members: [{ userId: memberId3 }],
       },
-    ];
+    ]);
 
-    setTeams(teams);
-
-    TimeEntry.aggregate
-      .mockResolvedValueOnce([
-        { _id: new mongoose.Types.ObjectId(memberId1), totalHours: 5.25 },
-        { _id: new mongoose.Types.ObjectId(memberId2), totalHours: 7.25 },
-      ])
-      .mockResolvedValueOnce([{ _id: new mongoose.Types.ObjectId(memberId3), totalHours: 3.75 }]);
+    TimeEntry.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(memberId1),
+        totalSeconds: 18900,
+      },
+      {
+        _id: new mongoose.Types.ObjectId(memberId2),
+        totalSeconds: 26100,
+      },
+      {
+        _id: new mongoose.Types.ObjectId(memberId3),
+        totalSeconds: 13500,
+      },
+    ]);
 
     await getTeamsCommittedHours(req, res);
 
     expect(Team.find).toHaveBeenCalledWith({ isActive: true });
+    expect(Team.find).toHaveBeenCalledTimes(1);
+    expect(TimeEntry.aggregate).toHaveBeenCalledTimes(1);
+
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith([
       {
         teamId: 'team-1',
         teamName: 'Team Alpha',
-        committedHours: 12.5,
+        loggedHours: 12.5,
         membersHours: [
           {
-            userId: new mongoose.Types.ObjectId(memberId1),
+            userId: memberId1,
             totalHours: 5.3,
           },
           {
-            userId: new mongoose.Types.ObjectId(memberId2),
+            userId: memberId2,
             totalHours: 7.3,
           },
         ],
@@ -99,10 +108,10 @@ describe('getTeamsCommittedHours', () => {
       {
         teamId: 'team-2',
         teamName: 'Team Beta',
-        committedHours: 3.8,
+        loggedHours: 3.8,
         membersHours: [
           {
-            userId: new mongoose.Types.ObjectId(memberId3),
+            userId: memberId3,
             totalHours: 3.8,
           },
         ],
@@ -110,12 +119,17 @@ describe('getTeamsCommittedHours', () => {
     ]);
   });
 
-  test('uses the expected team query and date range in the aggregation pipeline', async () => {
+  test('uses one aggregation for all team members with the expected date and entry-type filters', async () => {
     setTeams([
       {
         _id: 'team-1',
         teamName: 'Team Alpha',
-        members: [{ userId: memberId1 }],
+        members: [{ userId: memberId1 }, { userId: memberId2 }],
+      },
+      {
+        _id: 'team-2',
+        teamName: 'Team Beta',
+        members: [{ userId: memberId3 }],
       },
     ]);
 
@@ -123,14 +137,18 @@ describe('getTeamsCommittedHours', () => {
 
     await getTeamsCommittedHours(req, res);
 
-    expect(Team.find).toHaveBeenCalledWith({ isActive: true });
+    expect(TimeEntry.aggregate).toHaveBeenCalledTimes(1);
 
     const pipeline = TimeEntry.aggregate.mock.calls[0][0];
 
     expect(pipeline[0]).toEqual({
       $match: {
         personId: {
-          $in: [new mongoose.Types.ObjectId(memberId1)],
+          $in: [
+            new mongoose.Types.ObjectId(memberId1),
+            new mongoose.Types.ObjectId(memberId2),
+            new mongoose.Types.ObjectId(memberId3),
+          ],
         },
         dateOfWork: {
           $gte: '2026-01-01',
@@ -143,16 +161,68 @@ describe('getTeamsCommittedHours', () => {
     expect(pipeline[1]).toEqual({
       $group: {
         _id: '$personId',
-        totalHours: {
-          $sum: { $divide: ['$totalSeconds', 3600] },
+        totalSeconds: {
+          $sum: { $ifNull: ['$totalSeconds', 0] },
         },
       },
     });
   });
 
+  test('does not duplicate member IDs when a member belongs to multiple teams', async () => {
+    setTeams([
+      {
+        _id: 'team-1',
+        teamName: 'Team Alpha',
+        members: [{ userId: memberId1 }],
+      },
+      {
+        _id: 'team-2',
+        teamName: 'Team Beta',
+        members: [{ userId: memberId1 }],
+      },
+    ]);
+
+    TimeEntry.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(memberId1),
+        totalSeconds: 18000,
+      },
+    ]);
+
+    await getTeamsCommittedHours(req, res);
+
+    const pipeline = TimeEntry.aggregate.mock.calls[0][0];
+
+    expect(pipeline[0].$match.personId.$in).toHaveLength(1);
+
+    expect(res.json).toHaveBeenCalledWith([
+      {
+        teamId: 'team-1',
+        teamName: 'Team Alpha',
+        loggedHours: 5,
+        membersHours: [
+          {
+            userId: memberId1,
+            totalHours: 5,
+          },
+        ],
+      },
+      {
+        teamId: 'team-2',
+        teamName: 'Team Beta',
+        loggedHours: 5,
+        membersHours: [
+          {
+            userId: memberId1,
+            totalHours: 5,
+          },
+        ],
+      },
+    ]);
+  });
+
   test('returns an empty array when there are no active teams', async () => {
     setTeams([]);
-    TimeEntry.aggregate.mockResolvedValue([]);
 
     await getTeamsCommittedHours(req, res);
 
@@ -161,51 +231,31 @@ describe('getTeamsCommittedHours', () => {
     expect(res.json).toHaveBeenCalledWith([]);
   });
 
-  test('returns zero committed hours when a team has no members', async () => {
+  test('returns zero logged hours when a team has no members', async () => {
     setTeams([
       {
         _id: 'team-1',
         teamName: 'Empty Team',
+        members: [],
       },
     ]);
-
-    TimeEntry.aggregate.mockResolvedValue([]);
 
     await getTeamsCommittedHours(req, res);
 
-    expect(TimeEntry.aggregate).toHaveBeenCalledWith([
-      {
-        $match: {
-          personId: { $in: [] },
-          dateOfWork: {
-            $gte: '2026-01-01',
-            $lte: '2026-01-31',
-          },
-          entryType: { $in: ['default', 'person', null] },
-        },
-      },
-      {
-        $group: {
-          _id: '$personId',
-          totalHours: {
-            $sum: { $divide: ['$totalSeconds', 3600] },
-          },
-        },
-      },
-    ]);
+    expect(TimeEntry.aggregate).not.toHaveBeenCalled();
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith([
       {
         teamId: 'team-1',
         teamName: 'Empty Team',
-        committedHours: 0,
+        loggedHours: 0,
         membersHours: [],
       },
     ]);
   });
 
-  test('returns zero committed hours when no time entries match', async () => {
+  test('returns zero logged hours when no time entries match', async () => {
     setTeams([
       {
         _id: 'team-1',
@@ -223,13 +273,13 @@ describe('getTeamsCommittedHours', () => {
       {
         teamId: 'team-1',
         teamName: 'Team Alpha',
-        committedHours: 0,
+        loggedHours: 0,
         membersHours: [],
       },
     ]);
   });
 
-  test('rounds committed hours and individual member hours to one decimal place', async () => {
+  test('rounds individual member hours and team total to one decimal place', async () => {
     setTeams([
       {
         _id: 'team-1',
@@ -239,8 +289,14 @@ describe('getTeamsCommittedHours', () => {
     ]);
 
     TimeEntry.aggregate.mockResolvedValue([
-      { _id: new mongoose.Types.ObjectId(memberId1), totalHours: 1.26 },
-      { _id: new mongoose.Types.ObjectId(memberId2), totalHours: 2.24 },
+      {
+        _id: new mongoose.Types.ObjectId(memberId1),
+        totalSeconds: 4536,
+      },
+      {
+        _id: new mongoose.Types.ObjectId(memberId2),
+        totalSeconds: 8064,
+      },
     ]);
 
     await getTeamsCommittedHours(req, res);
@@ -249,14 +305,14 @@ describe('getTeamsCommittedHours', () => {
       {
         teamId: 'team-1',
         teamName: 'Team Alpha',
-        committedHours: 3.5,
+        loggedHours: 3.5,
         membersHours: [
           {
-            userId: new mongoose.Types.ObjectId(memberId1),
+            userId: memberId1,
             totalHours: 1.3,
           },
           {
-            userId: new mongoose.Types.ObjectId(memberId2),
+            userId: memberId2,
             totalHours: 2.2,
           },
         ],
@@ -264,8 +320,30 @@ describe('getTeamsCommittedHours', () => {
     ]);
   });
 
-  test('logs the error and returns HTTP 500 when fetching teams fails', async () => {
+  test.each([
+    [{ fromDate: '2026-01-01' }, 'missing toDate'],
+    [{ toDate: '2026-01-31' }, 'missing fromDate'],
+    [{}, 'both dates missing'],
+    [{ fromDate: 'invalid-date', toDate: '2026-01-31' }, 'invalid fromDate'],
+    [{ fromDate: '2026-01-01', toDate: 'invalid-date' }, 'invalid toDate'],
+    [{ fromDate: '2026-02-30', toDate: '2026-03-01' }, 'impossible calendar date'],
+    [{ fromDate: '2026-01-31', toDate: '2026-01-01' }, 'toDate before fromDate'],
+  ])('returns HTTP 400 for invalid date input: %s (%s)', async (body) => {
+    req.body = body;
+
+    await getTeamsCommittedHours(req, res);
+
+    expect(Team.find).not.toHaveBeenCalled();
+    expect(TimeEntry.aggregate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: expect.any(String),
+    });
+  });
+
+  test('returns HTTP 500 and logs the error when fetching teams fails', async () => {
     const error = new Error('Team query failed');
+
     const lean = jest.fn().mockRejectedValue(error);
     const select = jest.fn().mockReturnValue({ lean });
 
@@ -281,7 +359,7 @@ describe('getTeamsCommittedHours', () => {
     });
   });
 
-  test('logs the error and returns HTTP 500 when aggregating time entries fails', async () => {
+  test('returns HTTP 500 and logs the error when time-entry aggregation fails', async () => {
     const error = new Error('Time entry aggregation failed');
 
     setTeams([

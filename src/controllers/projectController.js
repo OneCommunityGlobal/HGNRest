@@ -1,6 +1,7 @@
 /* eslint-disable quotes */
 /* eslint-disable arrow-parens */
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
@@ -29,68 +30,87 @@ const projectController = function (Project) {
 
   const getProjectsCommittedHours = async function (req, res) {
     try {
-      const { fromDate, toDate } = req.body;
-      logger.logInfo(
-        `Fetching projects with committed hours. Date filter: ${JSON.stringify({ fromDate, toDate })}`,
-      );
+      const { fromDate, toDate } = req.body || {};
+      const timezone = 'America/Los_Angeles';
 
-      const taskDateFilter = {};
+      const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
+      const end = moment.tz(toDate, 'YYYY-MM-DD', true, timezone);
 
-      if (fromDate && toDate) {
-        const start = new Date(fromDate);
-
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-
-        taskDateFilter.$or = [
-          {
-            startedDatetime: { $lte: end },
-            dueDatetime: { $gte: start },
-          },
-          {
-            startedDatetime: { $gte: start, $lte: end },
-          },
-          {
-            dueDatetime: { $gte: start, $lte: end },
-          },
-        ];
+      if (
+        !start.isValid() ||
+        !end.isValid() ||
+        !start.isSame(start.clone().startOf('day')) ||
+        !end.isSame(end.clone().startOf('day')) ||
+        end.isBefore(start, 'day')
+      ) {
+        return res.status(400).send({
+          error:
+            'Valid fromDate and toDate are required. Dates must use YYYY-MM-DD, and toDate cannot precede fromDate.',
+        });
       }
 
-      logger.logInfo(
-        `Fetching projects with committed hours. Date filter: ${JSON.stringify(taskDateFilter)}`,
-      );
-      const projects = await Project.find({ isArchived: { $ne: true } }, '_id projectName');
+      const startDate = start.format('YYYY-MM-DD');
+      const endDate = end.format('YYYY-MM-DD');
 
-      const result = await Promise.all(
-        projects.map(async (project) => {
-          const wbsList = await wbs.find({ projectId: project._id }, '_id');
-          const wbsIds = wbsList.map((wbsItem) => wbsItem._id);
+      logger.logInfo(`Fetching project logged hours between ${startDate} and ${endDate}`);
 
-          const tasks = await task.find(
-            {
-              wbsId: { $in: wbsIds },
-              ...taskDateFilter,
+      const result = await Project.aggregate([
+        {
+          $match: {
+            isArchived: { $ne: true },
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            let: { projectId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  entryType: { $in: ['default', 'person', null] },
+                  dateOfWork: {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                  $expr: {
+                    $eq: ['$projectId', '$$projectId'],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  totalSeconds: {
+                    $sum: { $ifNull: ['$totalSeconds', 0] },
+                  },
+                },
+              },
+            ],
+            as: 'hoursSummary',
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            projectId: '$_id',
+            projectName: 1,
+            totalSeconds: {
+              $ifNull: [{ $arrayElemAt: ['$hoursSummary.totalSeconds', 0] }, 0],
             },
-            'estimatedHours',
-          );
+          },
+        },
+      ]);
 
-          const committedHours = tasks.reduce(
-            (total, taskItem) => total + Number(taskItem.estimatedHours || 0),
-            0,
-          );
+      const response = result.map((project) => ({
+        projectId: project.projectId,
+        projectName: project.projectName,
+        loggedHours: Math.round((project.totalSeconds / 3600) * 10) / 10,
+      }));
 
-          return {
-            projectId: project._id,
-            projectName: project.projectName,
-            committedHours,
-          };
-        }),
-      );
-
-      res.status(200).send(result);
+      return res.status(200).send(response);
     } catch (error) {
       logger.logException(error);
-      res.status(500).send('Error fetching project committed hours.');
+      return res.status(500).send('Error fetching project logged hours.');
     }
   };
 

@@ -129,54 +129,90 @@ const teamcontroller = function (Team) {
 
   const getTeamsCommittedHours = async function (req, res) {
     try {
-      const { fromDate, toDate } = req.body;
+      const { fromDate, toDate } = req.body || {};
+      const timezone = 'America/Los_Angeles';
+
+      const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
+      const end = moment.tz(toDate, 'YYYY-MM-DD', true, timezone);
+
+      if (!start.isValid() || !end.isValid() || end.isBefore(start, 'day')) {
+        return res.status(400).json({
+          error:
+            'Valid fromDate and toDate are required. Dates must use YYYY-MM-DD, and toDate cannot precede fromDate.',
+        });
+      }
+
+      const startDate = start.format('YYYY-MM-DD');
+      const endDate = end.format('YYYY-MM-DD');
 
       const teams = await Team.find({ isActive: true }).select('_id teamName members').lean();
-      Logger.logInfo(
-        `Calculating committed hours for ${teams.length} active teams between ${fromDate} and ${toDate}`,
-      );
-      const result = await Promise.all(
-        teams.map(async (teamData) => {
-          const memberIds = (teamData.members || [])
-            .map((member) => member.userId || member._id)
-            .filter(Boolean);
 
-          const hoursSummary = await TimeEntry.aggregate([
-            {
-              $match: {
-                personId: {
-                  $in: memberIds.map((id) => mongoose.Types.ObjectId(id)),
-                },
-                dateOfWork: {
-                  $gte: moment(fromDate).format('YYYY-MM-DD'),
-                  $lte: moment(toDate).format('YYYY-MM-DD'),
-                },
-                entryType: { $in: ['default', 'person', null] },
+      const memberIds = [
+        ...new Set(
+          teams.flatMap((teamData) =>
+            (teamData.members || [])
+              .map((member) => member.userId)
+              .filter(Boolean)
+              .map((id) => String(id)),
+          ),
+        ),
+      ];
+
+      let hoursSummary = [];
+
+      if (memberIds.length > 0) {
+        hoursSummary = await TimeEntry.aggregate([
+          {
+            $match: {
+              personId: {
+                $in: memberIds.map((id) => new mongoose.Types.ObjectId(id)),
+              },
+              dateOfWork: {
+                $gte: startDate,
+                $lte: endDate,
+              },
+              entryType: { $in: ['default', 'person', null] },
+            },
+          },
+          {
+            $group: {
+              _id: '$personId',
+              totalSeconds: {
+                $sum: { $ifNull: ['$totalSeconds', 0] },
               },
             },
-            {
-              $group: {
-                _id: '$personId',
-                totalHours: {
-                  $sum: { $divide: ['$totalSeconds', 3600] },
-                },
-              },
-            },
-          ]);
+          },
+        ]);
+      }
 
-          const committedHours = hoursSummary.reduce((total, user) => total + user.totalHours, 0);
-
-          return {
-            teamId: teamData._id,
-            teamName: teamData.teamName,
-            committedHours: Math.round(committedHours * 10) / 10,
-            membersHours: hoursSummary.map((user) => ({
-              userId: user._id,
-              totalHours: Math.round(user.totalHours * 10) / 10,
-            })),
-          };
-        }),
+      const hoursByUser = new Map(
+        hoursSummary.map((entry) => [String(entry._id), entry.totalSeconds / 3600]),
       );
+
+      const result = teams.map((teamData) => {
+        const membersHours = (teamData.members || [])
+          .filter((member) => member.userId)
+          .map((member) => {
+            const totalHours = hoursByUser.get(String(member.userId)) || 0;
+
+            return {
+              userId: member.userId,
+              totalHours: Math.round(totalHours * 10) / 10,
+            };
+          })
+          .filter((member) => member.totalHours > 0);
+
+        const totalHours = (teamData.members || []).reduce((total, member) => {
+          if (!member.userId) return total;
+          return total + (hoursByUser.get(String(member.userId)) || 0);
+        }, 0);
+        return {
+          teamId: teamData._id,
+          teamName: teamData.teamName,
+          loggedHours: Math.round(totalHours * 10) / 10,
+          membersHours,
+        };
+      });
 
       return res.status(200).json(result);
     } catch (error) {
