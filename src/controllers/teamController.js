@@ -153,7 +153,7 @@ const teamcontroller = function (Team) {
             (teamData.members || [])
               .map((member) => member.userId)
               .filter(Boolean)
-              .map((id) => String(id)),
+              .map(String),
           ),
         ),
       ];
