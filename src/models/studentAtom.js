@@ -29,6 +29,15 @@ const studentAtomSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Activity',
     },
+    status: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'completed'],
+      default: 'not_started',
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
