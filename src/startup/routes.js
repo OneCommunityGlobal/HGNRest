@@ -603,6 +603,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolsReturnedLateRouter);
+  app.use('/api/bm', bmRentalChart);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
@@ -682,7 +683,6 @@ module.exports = function (app) {
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
 
-  app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', actualCostRouter);
@@ -709,7 +709,7 @@ module.exports = function (app) {
   app.use('/api', prGradingConfigRouter);
   app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
+
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
