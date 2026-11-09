@@ -68,8 +68,8 @@ function getPreviousRange(current) {
       return { start: subWeeks(current.start, 1), end: subWeeks(current.end, 1), type: 'weekly' };
     case 'monthly':
       return {
-        start: subMonths(current.start, 1),
-        end: subMonths(current.end, 1),
+        start: startOfMonth(subMonths(current.start, 1)),
+        end: endOfMonth(subMonths(current.start, 1)),
         type: 'monthly',
       };
     case 'yearly':
