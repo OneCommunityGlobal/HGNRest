@@ -15,6 +15,7 @@ describe('routed equipment history schema', () => {
         replacementRequired,
         description: '',
         notes: 'Needs inspection',
+        imageUrl: 'https://images.example.test/equipment/status.png',
       };
       const query = Equipment.findByIdAndUpdate(
         new mongoose.Types.ObjectId(),

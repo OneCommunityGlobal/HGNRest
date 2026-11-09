@@ -112,6 +112,7 @@ const largeItemBaseSchema = mongoose.Schema({
       },
       description: { type: String, maxlength: 2000 },
       notes: { type: String, maxlength: 2000 },
+      imageUrl: { type: String },
     },
   ],
   logRecord: [

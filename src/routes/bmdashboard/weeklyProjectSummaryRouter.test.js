@@ -1,5 +1,6 @@
 const mockController = {
   getProjectStatus: jest.fn((req, res) => res.status(200).json({ ok: true })),
+  getFinancialOverview: jest.fn((req, res) => res.status(200).json({ ok: true })),
 };
 
 jest.mock('../../controllers/bmdashboard/weeklyProjectSummaryController', () => mockController);
@@ -11,12 +12,15 @@ describe('weeklyProjectSummaryRouter', () => {
     jest.clearAllMocks();
   });
 
-  test('registers GET /project-status to the project status controller', () => {
+  test.each([
+    ['/project-status', 'getProjectStatus'],
+    ['/financial-overview', 'getFinancialOverview'],
+  ])('registers GET %s to the %s controller', (path, handlerName) => {
     const routeLayer = router.stack.find(
-      (layer) => layer.route?.path === '/project-status' && layer.route?.methods?.get,
+      (layer) => layer.route?.path === path && layer.route?.methods?.get,
     );
 
     expect(routeLayer).toBeDefined();
-    expect(routeLayer.route.stack[0].handle).toBe(mockController.getProjectStatus);
+    expect(routeLayer.route.stack[0].handle).toBe(mockController[handlerName]);
   });
 });

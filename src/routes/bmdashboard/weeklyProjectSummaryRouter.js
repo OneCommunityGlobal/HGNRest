@@ -4,5 +4,6 @@ const controller = require('../../controllers/bmdashboard/weeklyProjectSummaryCo
 const router = express.Router();
 
 router.get('/project-status', controller.getProjectStatus);
+router.get('/financial-overview', controller.getFinancialOverview);
 
 module.exports = router;
