@@ -46,8 +46,9 @@ const transporter = hasOAuthEmailConfig
     })
   : nodemailer.createTransport({
       host: process.env.SMTPDomain,
+      // Always use SMTPS (implicit TLS) so the transport never falls back to cleartext.
       port: Number(process.env.SMTPPort || 465),
-      secure: String(process.env.SMTPPort || '465') === '465',
+      secure: true,
       auth: {
         user: process.env.SMTPUser,
         pass: process.env.SMTPPass,
