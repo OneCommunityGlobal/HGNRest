@@ -25,41 +25,43 @@ const hasSmtpEmailConfig = Boolean(
   process.env.SMTPUser && process.env.SMTPPass && process.env.SMTPDomain,
 );
 
-const OAuth2Client = hasOAuthEmailConfig
-  ? new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri)
-  : null;
+const OAuth2Client = new google.auth.OAuth2(
+  config.clientId,
+  config.clientSecret,
+  config.redirectUri,
+);
+OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
 
-if (OAuth2Client) {
-  OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
-}
+// Create the email envelope (transport)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    type: 'OAuth2',
+    user: config.email,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+  },
+});
 
-// Prefer Gmail OAuth in production-like setups; fall back to SMTP for local/dev testing.
-const transporter = hasOAuthEmailConfig
-  ? nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        type: 'OAuth2',
-        user: config.email,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-      },
-    })
-  : nodemailer.createTransport({
-      host: process.env.SMTPDomain,
-      // Always use SMTPS (implicit TLS) so the transport never falls back to cleartext.
-      port: Number(process.env.SMTPPort || 465),
-      secure: true,
-      auth: {
-        user: process.env.SMTPUser,
-        pass: process.env.SMTPPass,
-      },
-    });
+// SMTPS-only fallback for local/dev when Gmail OAuth env vars are not configured.
+const createSecureSmtpTransporter = () =>
+  nodemailer.createTransport({
+    host: process.env.SMTPDomain,
+    port: Number(process.env.SMTPPort || 465),
+    secure: true,
+    auth: {
+      user: process.env.SMTPUser,
+      pass: process.env.SMTPPass,
+    },
+  });
 
 const sendEmail = async (mailOptions) => {
   try {
     if (!hasOAuthEmailConfig && !hasSmtpEmailConfig) {
       throw new Error('NO_EMAIL_TRANSPORT_CONFIGURED');
     }
+
+    const activeTransporter = hasOAuthEmailConfig ? transporter : createSecureSmtpTransporter();
 
     if (hasOAuthEmailConfig) {
       const accessTokenResp = await OAuth2Client.getAccessToken();
@@ -110,7 +112,7 @@ const sendEmail = async (mailOptions) => {
     logger.logInfo(
       `[sendEmail] about to send to=${mailOptions.to} subject="${mailOptions.subject}"`,
     );
-    const result = await transporter.sendMail(mailOptions);
+    const result = await activeTransporter.sendMail(mailOptions);
     logger.logInfo(`[sendEmail] sent messageId=${result?.messageId} response=${result?.response}`);
     return result;
   } catch (error) {
