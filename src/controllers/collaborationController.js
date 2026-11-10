@@ -146,6 +146,9 @@ function resolveApplicationInput(body) {
   };
 }
 
+// Used by jobApplicationBotGuard to mask the applicant email in bot-drop logs.
+exports.resolveApplicationInput = resolveApplicationInput;
+
 async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
   if (!resumeFile) {
     return '';
@@ -340,7 +343,6 @@ async function sendApplicationConfirmationEmail(
  * Notify configured recipients about a saved job application.
  * Notification failures must never undo the application submission.
  */
-
 
 // Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
 async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {

@@ -2,6 +2,7 @@
 // the models are mocked.
 jest.mock('../../models/JobFormsModel');
 jest.mock('../../models/jobApplicationsModel');
+jest.mock('../../models/JobApplicationEmailRecipients');
 jest.mock('../../models/questionSet');
 jest.mock('../../utilities/AzureBlobImages');
 jest.mock('../../utilities/emailSender');
@@ -16,6 +17,7 @@ const express = require('express');
 const request = require('supertest');
 const Form = require('../../models/JobFormsModel');
 const Response = require('../../models/jobApplicationsModel');
+const JobApplicationEmailRecipients = require('../../models/JobApplicationEmailRecipients');
 const emailSender = require('../../utilities/emailSender');
 
 const FORM_ID = '507f1f77bcf86cd799439011';
@@ -61,7 +63,11 @@ describe('POST /jobforms/:formId/responses bot protection', () => {
     saveMock = jest.fn().mockResolvedValue(true);
     Form.findById = jest.fn().mockResolvedValue({ title: 'Dev', _id: FORM_ID, questions: [] });
     Response.findOne = jest.fn().mockResolvedValue(null);
+    Response.countDocuments = jest.fn().mockResolvedValue(1);
     Response.mockImplementation((data) => ({ ...data, save: saveMock }));
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({ recipients: [] }),
+    });
     emailSender.mockResolvedValue('ok');
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
