@@ -5,7 +5,45 @@ const {
   extractPrNumbersFromSummary,
   isValidRating,
   groupEntriesByWeek,
+  resolvePrEntryWeek,
 } = require('./prEntryHelper');
+
+describe('resolvePrEntryWeek', () => {
+  const currentWeek = { year: 2026, week: 44 };
+
+  test('defaults to the current week when neither is sent', () => {
+    expect(resolvePrEntryWeek({ currentWeek })).toEqual({ target: currentWeek });
+  });
+
+  test('accepts the current week and past weeks', () => {
+    expect(resolvePrEntryWeek({ year: 2026, week: 44, currentWeek }).target).toEqual(currentWeek);
+    expect(resolvePrEntryWeek({ year: 2026, week: 1, currentWeek }).target).toEqual({
+      year: 2026,
+      week: 1,
+    });
+    expect(resolvePrEntryWeek({ year: 2025, week: 52, currentWeek }).target).toEqual({
+      year: 2025,
+      week: 52,
+    });
+  });
+
+  test('rejects future weeks, later this year or in a later year', () => {
+    [
+      { year: 2026, week: 45 },
+      { year: 2027, week: 0 },
+      { year: 2030, week: 10 },
+    ].forEach((week) => {
+      expect(resolvePrEntryWeek({ ...week, currentWeek }).error).toMatch(/future week/);
+    });
+  });
+
+  test('rejects half a week and out of range values', () => {
+    expect(resolvePrEntryWeek({ year: 2026, currentWeek }).error).toBeDefined();
+    expect(resolvePrEntryWeek({ week: 3, currentWeek }).error).toBeDefined();
+    expect(resolvePrEntryWeek({ year: 2026, week: 54, currentWeek }).error).toBeDefined();
+    expect(resolvePrEntryWeek({ year: '2026', week: 3, currentWeek }).error).toBeDefined();
+  });
+});
 
 describe('PR_RATINGS', () => {
   test('is exactly the five options the spec lists, in order', () => {
@@ -53,6 +91,19 @@ describe('normalisePrNumber', () => {
     ['', '   ', 'abc', '#', 'PR', '12345678', null, undefined, {}, -5, 0].forEach((value) => {
       expect(normalisePrNumber(value)).toBeNull();
     });
+  });
+
+  test('rejects PR number zero in every shape', () => {
+    ['0', '000', '#0', 'PR 0', 'FE-0', 'be 00', 'https://github.com/org/repo/pull/0'].forEach(
+      (value) => {
+        expect(normalisePrNumber(value)).toBeNull();
+      },
+    );
+  });
+
+  test('drops leading zeros so the same PR is not stored twice', () => {
+    expect(normalisePrNumber('0123')).toBe('123');
+    expect(normalisePrNumber('FE-0042')).toBe('FE-42');
   });
 });
 

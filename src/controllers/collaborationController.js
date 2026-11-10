@@ -6,8 +6,10 @@ const upload = require('../middleware/multerMiddleware');
 const QuestionSet = require('../models/questionSet');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
+const { getEmailDomainError } = require('../utilities/emailValidators');
+const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
+const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
 const {
-  escapeHtml,
   formatApplicationAnswers,
   attachQuestionLabels,
 } = require('../utilities/jobApplicationEmailFormatter');
@@ -22,6 +24,7 @@ const {
   parseBooleanQuery,
   sanitizeObjectIdQuery,
 } = require('../utilities/mongoQuerySanitizer');
+const { shouldSendConfirmation } = require('../utilities/confirmationEmailCap');
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -92,13 +95,6 @@ function filesByField(req) {
   return map;
 }
 
-function fileExtension(file) {
-  if (file?.originalname?.includes('.')) {
-    return file.originalname.split('.').pop();
-  }
-  return 'bin';
-}
-
 async function uploadOptionalFile(file, blobName) {
   if (!file) {
     return '';
@@ -156,7 +152,7 @@ async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
   }
   return uploadOptionalFile(
     resumeFile,
-    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${fileExtension(resumeFile)}`,
+    `resumes/${safeFormTitle}_${safeEmail}_${Date.now()}.${safeFileExtension(resumeFile)}`,
   );
 }
 
@@ -171,7 +167,7 @@ async function buildAnswerEntry(item, fileMap, safeFormTitle, safeEmail) {
 
   const fileUrl = await uploadOptionalFile(
     uploaded,
-    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${fileExtension(uploaded)}`,
+    `resumes/${safeFormTitle}_${safeEmail}_q_${sanitizeBlobPart(qIdStr)}_${Date.now()}.${safeFileExtension(uploaded)}`,
   );
 
   return {
@@ -295,9 +291,11 @@ async function sendApplicationConfirmationEmail(
   normalizedEmail,
   { answers, attachments, attachmentNotice },
 ) {
+  if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
     const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
     const safeFormTitle = escapeHtml(form.title);
+    const subjectTitle = stripControlChars(form.title).trim();
 
     const labeledAnswers = attachQuestionLabels(form, answers);
     const formattedAnswers = formatApplicationAnswers(labeledAnswers);
@@ -325,7 +323,7 @@ async function sendApplicationConfirmationEmail(
       </div>
     `;
 
-    const args = [[normalizedEmail], `Application Received — ${form.title}`, emailBody];
+    const args = [[normalizedEmail], `Application Received — ${subjectTitle}`, emailBody];
 
     if (attachments.length > 0) {
       args.push(attachments);
@@ -342,6 +340,28 @@ async function sendApplicationConfirmationEmail(
  * Notify configured recipients about a saved job application.
  * Notification failures must never undo the application submission.
  */
+
+
+// Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
+async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {
+  try {
+    const title = escapeHtml(form.title);
+    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
+    const emailBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+          <h2>Application Already Received: ${title}</h2>
+          <p>Hi ${displayName},</p>
+          <p>We already have an application from this email address for <strong>${title}</strong>, so we did not create a new one. There is nothing more you need to do.</p>
+          <p>If you have any questions, feel free to reach out.</p>
+          <br/>
+          <p>Best regards,<br/>One Community</p>
+        </div>
+      `;
+    await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
+  } catch (emailErr) {
+    console.error('Duplicate application email failed (non-fatal):', emailErr.message);
+  }
+}
 
 async function sendAdminApplicationNotification(
   form,
@@ -613,6 +633,11 @@ exports.submitFormResponse = async (req, res) => {
       return res.status(400).json({ error: 'respondent, email, and answers are required.' });
     }
 
+    const emailError = getEmailDomainError(String(email));
+    if (emailError) {
+      return res.status(400).json({ error: emailError });
+    }
+
     const form = await Form.findById(formId);
     if (!form) {
       return res.status(404).json({ error: 'Form not found.' });
@@ -624,7 +649,9 @@ exports.submitFormResponse = async (req, res) => {
       $or: [{ email: normalizedEmail }, { respondent: normalizedEmail }],
     });
     if (existing) {
-      return res.status(409).json({ error: 'Application already submitted.' });
+      // Same response as a new submission so the endpoint does not reveal who has applied.
+      await sendDuplicateApplicationEmail(form, respondent, normalizedEmail);
+      return res.status(201).json({ message: 'Application submitted successfully.' });
     }
 
     const fileMap = filesByField(req);
@@ -667,10 +694,10 @@ exports.submitFormResponse = async (req, res) => {
 
     await sendAdminApplicationNotification(form, respondent, normalizedEmail, emailContent);
 
-    return res.status(201).json({ message: 'Application submitted successfully.', response });
+    return res.status(201).json({ message: 'Application submitted successfully.' });
   } catch (error) {
     console.error('Error submitting form response:', error);
-    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+    return res.status(500).json({ message: 'Error submitting application.' });
   }
 };
 

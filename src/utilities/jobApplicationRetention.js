@@ -1,4 +1,4 @@
-const { randomUUID } = require('crypto');
+const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
 const JobApplications = require('../models/jobApplicationsModel');
 const { getApplicationBlobName } = require('./jobApplicationBlobValidator');

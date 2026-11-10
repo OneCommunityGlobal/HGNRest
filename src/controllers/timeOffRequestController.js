@@ -140,6 +140,12 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
     }
   };
 
+  const isNewUserRestricted = async (userId) => {
+    const profile = await UserProfile.findById(userId).select('startDate');
+    if (!profile?.startDate) return false;
+    return moment().isBefore(moment(profile.startDate).add(2, 'months'));
+  };
+
   const setTimeOffRequest = async (req, res) => {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
@@ -157,6 +163,17 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const { duration, startingDate, reason, reasonType, requestFor } = req.body;
       if (!duration || !startingDate || !reason || !requestFor) {
         res.status(400).send('bad request');
+        return;
+      }
+
+      if (
+        setOwnRequested &&
+        !hasRolePermission &&
+        (await isNewUserRestricted(req.body.requestor.requestorId))
+      ) {
+        res
+          .status(403)
+          .send('New users cannot schedule time off within 2 months of their start date.');
         return;
       }
 
@@ -255,6 +272,17 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const { duration, startingDate, reason, reasonType } = req.body;
       if (!duration || !startingDate || !reason || !requestId) {
         res.status(400).send('bad request');
+        return;
+      }
+
+      if (
+        updateOwnRequest &&
+        !hasRolePermission &&
+        (await isNewUserRestricted(req.body.requestor.requestorId))
+      ) {
+        res
+          .status(403)
+          .send('New users cannot schedule time off within 2 months of their start date.');
         return;
       }
       moment.tz.setDefault('America/Los_Angeles');

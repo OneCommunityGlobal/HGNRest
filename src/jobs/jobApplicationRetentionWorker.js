@@ -54,6 +54,81 @@ function getStorageConfig() {
   };
 }
 
+function buildRequireActiveClaim(applicationId, claimToken) {
+  return async function requireActiveClaim() {
+    const active = await verifyCleanupClaim(applicationId, claimToken, new Date());
+    if (!active) {
+      throw new Error('Cleanup claim expired or belongs to another worker.');
+    }
+  };
+}
+
+function buildCleanupOperations(applicationId, claimToken, storage, requireActiveClaim) {
+  return {
+    findApplication: async (id) => {
+      await requireActiveClaim();
+      return JobApplications.findById(id).lean();
+    },
+
+    checkSharedFile: async (id, blobName) => {
+      await requireActiveClaim();
+      return isApplicationFileShared(id, blobName, storage.expectedOrigin, storage.containerName);
+    },
+
+    deleteBlob: async (blobName) => {
+      // Recheck ownership and references immediately before deletion.
+      await requireActiveClaim();
+      const shared = await isApplicationFileShared(
+        applicationId,
+        blobName,
+        storage.expectedOrigin,
+        storage.containerName,
+      );
+      if (shared) {
+        throw new Error('Uploaded file became shared during cleanup.');
+      }
+      await requireActiveClaim();
+      return deleteApplicationBlob(blobName);
+    },
+
+    deleteApplication: async (id) => {
+      await requireActiveClaim();
+      const cutoff = getRetentionCutoff(new Date());
+      // An atomic, claim-bound delete prevents a stale worker from
+      // removing a record whose claim has changed or expired.
+      const result = await JobApplications.deleteOne({
+        _id: id,
+        'cleanup.status': 'processing',
+        'cleanup.claimToken': claimToken,
+        'cleanup.leaseExpiresAt': { $gt: new Date() },
+        $or: [
+          { submittedAt: { $lt: cutoff } },
+          {
+            submittedAt: null,
+            createdAt: { $lt: cutoff },
+          },
+        ],
+      });
+      if (result.deletedCount !== 1) {
+        throw new Error('Application deletion was not confirmed.');
+      }
+      return true;
+    },
+  };
+}
+
+async function releaseClaimAfterFailure(applicationId, claimToken, error) {
+  try {
+    await releaseCleanupClaim(applicationId, claimToken, error.message);
+  } catch (releaseError) {
+    // Preserve the original failure; the lease can expire for retry.
+    throw new Error(
+      `Cleanup failed: ${error.message}; claim release failed: ${releaseError.message}`,
+    );
+  }
+  throw error;
+}
+
 /**
  * Cleanup a single expired application while holding its MongoDB claim.
  * Actual deletion is unavailable unless explicitly enabled in production.
@@ -76,76 +151,15 @@ async function cleanupClaimedApplication(applicationId, options = {}) {
   }
 
   const { claimToken } = claim;
-
-  async function requireActiveClaim() {
-    const active = await verifyCleanupClaim(applicationId, claimToken, new Date());
-
-    if (!active) {
-      throw new Error('Cleanup claim expired or belongs to another worker.');
-    }
-  }
+  const requireActiveClaim = buildRequireActiveClaim(applicationId, claimToken);
 
   try {
-    const operations = {
-      findApplication: async (id) => {
-        await requireActiveClaim();
-
-        return JobApplications.findById(id).lean();
-      },
-
-      checkSharedFile: async (id, blobName) => {
-        await requireActiveClaim();
-
-        return isApplicationFileShared(id, blobName, storage.expectedOrigin, storage.containerName);
-      },
-
-      deleteBlob: async (blobName) => {
-        // Recheck ownership and references immediately before deletion.
-        await requireActiveClaim();
-
-        const shared = await isApplicationFileShared(
-          applicationId,
-          blobName,
-          storage.expectedOrigin,
-          storage.containerName,
-        );
-
-        if (shared) {
-          throw new Error('Uploaded file became shared during cleanup.');
-        }
-
-        await requireActiveClaim();
-        return deleteApplicationBlob(blobName);
-      },
-
-      deleteApplication: async (id) => {
-        await requireActiveClaim();
-
-        const cutoff = getRetentionCutoff(new Date());
-
-        // An atomic, claim-bound delete prevents a stale worker from
-        // removing a record whose claim has changed or expired.
-        const result = await JobApplications.deleteOne({
-          _id: id,
-          'cleanup.status': 'processing',
-          'cleanup.claimToken': claimToken,
-          'cleanup.leaseExpiresAt': { $gt: new Date() },
-          $or: [
-            { submittedAt: { $lt: cutoff } },
-            {
-              submittedAt: null,
-              createdAt: { $lt: cutoff },
-            },
-          ],
-        });
-
-        if (result.deletedCount !== 1) {
-          throw new Error('Application deletion was not confirmed.');
-        }
-
-        return true;
-      },
-    };
+    const operations = buildCleanupOperations(
+      applicationId,
+      claimToken,
+      storage,
+      requireActiveClaim,
+    );
 
     const result = await executeApplicationCleanup(applicationId, storage, operations, {
       allowDeletion: true,
@@ -158,16 +172,7 @@ async function cleanupClaimedApplication(applicationId, options = {}) {
 
     return result;
   } catch (error) {
-    try {
-      await releaseCleanupClaim(applicationId, claimToken, error.message);
-    } catch (releaseError) {
-      // Preserve the original failure; the lease can expire for retry.
-      throw new Error(
-        `Cleanup failed: ${error.message}; claim release failed: ${releaseError.message}`,
-      );
-    }
-
-    throw error;
+    await releaseClaimAfterFailure(applicationId, claimToken, error);
   }
 }
 
@@ -208,33 +213,34 @@ async function runRetentionDeletion() {
         cursor,
       );
 
-      for (const candidate of preview.results) {
-        if (!candidate.eligible) {
-          skipped += 1;
-          continue;
-        }
-
-        try {
-          const result = await cleanupClaimedApplication(candidate.applicationId, {
-            allowDeletion: true,
-            now,
-          });
-
-          if (result.deleted) {
-            deleted += 1;
-          } else {
-            skipped += 1;
+      const outcomes = await Promise.all(
+        preview.results.map(async (candidate) => {
+          if (!candidate.eligible) {
+            return 'skipped';
           }
-        } catch (error) {
-          failed += 1;
 
-          // Record the failed application so cleanup problems can be investigated.
-          logger.logException(
-            error,
-            `Job application retention cleanup failed for application ${candidate.applicationId}`,
-          );
-        }
-      }
+          try {
+            const result = await cleanupClaimedApplication(candidate.applicationId, {
+              allowDeletion: true,
+              now,
+            });
+            return result.deleted ? 'deleted' : 'skipped';
+          } catch (error) {
+            // Record the failed application so cleanup problems can be investigated.
+            logger.logException(
+              error,
+              `Job application retention cleanup failed for application ${candidate.applicationId}`,
+            );
+            return 'failed';
+          }
+        }),
+      );
+
+      outcomes.forEach((outcome) => {
+        if (outcome === 'deleted') deleted += 1;
+        else if (outcome === 'failed') failed += 1;
+        else skipped += 1;
+      });
 
       batches += 1;
 
