@@ -220,6 +220,33 @@ describe('equipment status JSON and multipart integration', () => {
     expect(JSON.stringify(res.body)).not.toContain('private database');
   });
 
+  test.each(['database failure', 'missing equipment'])(
+    '%s preserves cleanup failure logging and HTTP response',
+    async (kind) => {
+      const cleanupError = new Error('private cleanup details');
+      removeBlob.mockRejectedValue(cleanupError);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: async () => {
+          if (kind === 'missing equipment') return null;
+          throw new mongoose.Error.ValidationError();
+        },
+      });
+      const res = await request(app)
+        .put(endpoint())
+        .set('Authorization', token)
+        .field('condition', 'Good')
+        .attach('image', Buffer.from('image'), { filename: 'photo.png', contentType: 'image/png' });
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Image selected but not saved.' });
+      expect(removeBlob).toHaveBeenCalledTimes(1);
+      expect(removeBlob).toHaveBeenCalledWith(upload.mock.calls[0][1]);
+      expect(require('../../../startup/logger').logException).toHaveBeenCalledWith(
+        cleanupError,
+        'updateEquipmentStatus',
+      );
+    },
+  );
+
   test('Azure failure does not write history or attempt to delete a nonexistent upload', async () => {
     upload.mockRejectedValue(new Error('private Azure details'));
     const res = await request(app)

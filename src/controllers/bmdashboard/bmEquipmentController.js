@@ -58,6 +58,46 @@ const buildUpdateRecord = (fields, createdBy, imageUrl) => {
   return record;
 };
 
+/** Delete only blobs created by the current request; propagate cleanup failures. */
+const cleanupUploadedImage = async (blobName) => {
+  if (blobName) {
+    await deleteBlobFromAzureBlobStorage(blobName);
+  }
+};
+
+/** Validate JSON and multipart status fields in their existing error precedence. */
+const validateStatusPayload = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'Invalid status payload.';
+  }
+  const { condition, replacementRequired, sendNote } = body;
+  if (
+    typeof condition !== 'string' ||
+    !['Good', 'Needs Repair', 'Out of Order'].includes(condition)
+  ) {
+    return 'Condition must be Good, Needs Repair, or Out of Order.';
+  }
+  const validSelection = (value) =>
+    value === undefined || ['', 'yes', 'no', true, false].includes(value);
+  if (!validSelection(replacementRequired) || !validSelection(sendNote)) {
+    return 'Replacement and note selections must be yes/no or boolean values.';
+  }
+  const textLimits = { lastUsedBy: 200, lastUsedFor: 500, description: 2000, notes: 2000 };
+  const invalidText = Object.entries(textLimits).find(
+    ([field, limit]) =>
+      body[field] !== undefined &&
+      body[field] !== null &&
+      (typeof body[field] !== 'string' || body[field].length > limit),
+  );
+  if (invalidText) {
+    return `${invalidText[0]} must be a string of at most ${invalidText[1]} characters.`;
+  }
+  if ((sendNote === 'yes' || sendNote === true) && !body.notes?.trim()) {
+    return 'Notes are required when sendNote is yes.';
+  }
+  return null;
+};
+
 // eslint-disable-next-line max-lines-per-function
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
@@ -93,6 +133,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       if (!equipment) return res.status(404).send({ error: 'Equipment not found.' });
       return res.status(200).send(equipment);
     } catch (error) {
+      logException(error, 'fetchSingleEquipment');
       return res.status(500).send({ error: 'Failed to fetch equipment.' });
     }
   };
@@ -360,39 +401,9 @@ const bmEquipmentController = (BuildingEquipment) => {
       return res.status(401).send({ error: 'User not authenticated.' });
     }
     const { body } = req;
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return res.status(400).send({ error: 'Invalid status payload.' });
-    }
-    const { condition, replacementRequired, sendNote } = body;
-    if (
-      typeof condition !== 'string' ||
-      !['Good', 'Needs Repair', 'Out of Order'].includes(condition)
-    ) {
-      return res
-        .status(400)
-        .send({ error: 'Condition must be Good, Needs Repair, or Out of Order.' });
-    }
-    const validSelection = (value) =>
-      value === undefined || ['', 'yes', 'no', true, false].includes(value);
-    if (!validSelection(replacementRequired) || !validSelection(sendNote)) {
-      return res
-        .status(400)
-        .send({ error: 'Replacement and note selections must be yes/no or boolean values.' });
-    }
-    const textLimits = { lastUsedBy: 200, lastUsedFor: 500, description: 2000, notes: 2000 };
-    const invalidText = Object.entries(textLimits).find(
-      ([field, limit]) =>
-        body[field] !== undefined &&
-        body[field] !== null &&
-        (typeof body[field] !== 'string' || body[field].length > limit),
-    );
-    if (invalidText) {
-      return res.status(400).send({
-        error: `${invalidText[0]} must be a string of at most ${invalidText[1]} characters.`,
-      });
-    }
-    if ((sendNote === 'yes' || sendNote === true) && !body.notes?.trim()) {
-      return res.status(400).send({ error: 'Notes are required when sendNote is yes.' });
+    const validationError = validateStatusPayload(body);
+    if (validationError) {
+      return res.status(400).send({ error: validationError });
     }
 
     try {
@@ -436,16 +447,12 @@ const bmEquipmentController = (BuildingEquipment) => {
       } catch (dbError) {
         // Image already uploaded to Azure but the DB write failed - clean up
         // the now-orphaned blob before surfacing the error.
-        if (uploadedBlobName) {
-          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
-        }
+        await cleanupUploadedImage(uploadedBlobName);
         throw dbError;
       }
 
       if (!updatedEquipment) {
-        if (uploadedBlobName) {
-          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
-        }
+        await cleanupUploadedImage(uploadedBlobName);
         return res.status(404).send({ error: 'Equipment not found.' });
       }
 

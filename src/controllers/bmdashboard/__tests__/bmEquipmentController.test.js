@@ -88,6 +88,7 @@ describe('bmEquipmentController', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.send).toHaveBeenCalledWith({ error: 'Failed to fetch equipment.' });
+      expect(logException).toHaveBeenCalledWith(error, 'fetchSingleEquipment');
     });
   });
 
@@ -473,6 +474,38 @@ describe('bmEquipmentController', () => {
 
       const [[, blobName]] = uploadFileToAzureBlobStorage.mock.calls;
       expect(blobName).toMatch(/image\.png$/);
+    });
+
+    it.each([
+      [null, 'Invalid status payload.'],
+      [[], 'Invalid status payload.'],
+      [
+        { condition: 'Broken', replacementRequired: 'maybe' },
+        'Condition must be Good, Needs Repair, or Out of Order.',
+      ],
+      [
+        { condition: 'Good', sendNote: 'maybe' },
+        'Replacement and note selections must be yes/no or boolean values.',
+      ],
+      [
+        { condition: 'Good', lastUsedBy: 42 },
+        'lastUsedBy must be a string of at most 200 characters.',
+      ],
+      [
+        { condition: 'Good', notes: 'x'.repeat(2001) },
+        'notes must be a string of at most 2000 characters.',
+      ],
+      [
+        { condition: 'Good', sendNote: true, notes: '   ' },
+        'Notes are required when sendNote is yes.',
+      ],
+    ])('preserves payload validation and error precedence for %j', async (body, error) => {
+      mockReq.body = body;
+      await controller.updateEquipmentStatus(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({ error });
+      expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
+      expect(mockBuildingEquipment.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
     it('should return 400 when condition is missing', async () => {
