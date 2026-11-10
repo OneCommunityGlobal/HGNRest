@@ -365,6 +365,17 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
   }
 }
 
+function getJobApplicationDefaultEmail() {
+  const configured =
+    process.env.JOB_APPLICATION_DEFAULT_EMAIL ||
+    process.env.REACT_APP_EMAIL ||
+    process.env.SMTPUser;
+
+  return String(configured || '')
+    .trim()
+    .toLowerCase();
+}
+
 async function sendAdminApplicationNotification(
   form,
   respondent,
@@ -372,15 +383,31 @@ async function sendAdminApplicationNotification(
   { answers, attachments, attachmentNotice },
 ) {
   try {
+    const defaultEmail = getJobApplicationDefaultEmail();
+
+    if (!defaultEmail) {
+      console.error(
+        'Admin application notification skipped: JOB_APPLICATION_DEFAULT_EMAIL (or SMTPUser) is not configured.',
+      );
+      return;
+    }
+
     const settings = await JobApplicationEmailRecipients.findOne({
       settingsKey: 'jobApplicationNotifications',
     }).lean();
 
-    const recipients = settings?.recipients || [];
-
-    if (recipients.length === 0) {
-      return;
-    }
+    // UI-managed addresses + the applicant (sender) are CC'd; default inbox is always TO.
+    const ccRecipients = [
+      ...new Set(
+        [...(settings?.recipients || []), normalizedEmail]
+          .map((email) =>
+            String(email || '')
+              .trim()
+              .toLowerCase(),
+          )
+          .filter((email) => email && email !== defaultEmail),
+      ),
+    ];
 
     const safeFormTitle = escapeHtml(form.title);
     const safeApplicantName = escapeHtml(respondent || normalizedEmail);
@@ -405,13 +432,13 @@ async function sendAdminApplicationNotification(
       </div>
     `;
 
-    const args = [recipients, `New Job Application — ${form.title}`, emailBody];
-
-    if (attachments.length > 0) {
-      args.push(attachments);
-    }
-
-    await emailSender(...args);
+    await emailSender(
+      [defaultEmail],
+      `New Job Application — ${form.title}`,
+      emailBody,
+      attachments.length > 0 ? attachments : null,
+      ccRecipients.length > 0 ? ccRecipients : null,
+    );
   } catch (error) {
     // Staff notification failures must not undo the saved application.
     console.error('Admin application notification failed (non-fatal):', error.message);

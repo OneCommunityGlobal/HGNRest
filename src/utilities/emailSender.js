@@ -8,7 +8,7 @@ const EmailHistory = require('../models/emailHistory');
 const EmailThread = require('../models/emailThread');
 
 const config = {
-  email: process.env.REACT_APP_EMAIL,
+  email: process.env.REACT_APP_EMAIL || process.env.SMTPUser,
   clientId: process.env.REACT_APP_EMAIL_CLIENT_ID,
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
@@ -18,41 +18,69 @@ const config = {
   rateLimitDelay: 1000,
 };
 
-const OAuth2Client = new google.auth.OAuth2(
-  config.clientId,
-  config.clientSecret,
-  config.redirectUri,
+const hasOAuthEmailConfig = Boolean(
+  config.email && config.clientId && config.clientSecret && config.refreshToken,
 );
-OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
+const hasSmtpEmailConfig = Boolean(
+  process.env.SMTPUser && process.env.SMTPPass && process.env.SMTPDomain,
+);
 
-// Create the email envelope (transport)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    type: 'OAuth2',
-    user: config.email,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-  },
-});
+const OAuth2Client = hasOAuthEmailConfig
+  ? new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri)
+  : null;
+
+if (OAuth2Client) {
+  OAuth2Client.setCredentials({ refresh_token: config.refreshToken });
+}
+
+// Prefer Gmail OAuth in production-like setups; fall back to SMTP for local/dev testing.
+const transporter = hasOAuthEmailConfig
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: config.email,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+      },
+    })
+  : nodemailer.createTransport({
+      host: process.env.SMTPDomain,
+      port: Number(process.env.SMTPPort || 465),
+      secure: String(process.env.SMTPPort || '465') === '465',
+      auth: {
+        user: process.env.SMTPUser,
+        pass: process.env.SMTPPass,
+      },
+    });
 
 const sendEmail = async (mailOptions) => {
   try {
-    const accessTokenResp = await OAuth2Client.getAccessToken();
-    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
-
-    if (!token) {
-      throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    if (!hasOAuthEmailConfig && !hasSmtpEmailConfig) {
+      throw new Error('NO_EMAIL_TRANSPORT_CONFIGURED');
     }
 
-    mailOptions.auth = {
-      type: 'OAuth2', // include type
-      user: config.email,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      refreshToken: config.refreshToken,
-      accessToken: token,
-    };
+    if (hasOAuthEmailConfig) {
+      const accessTokenResp = await OAuth2Client.getAccessToken();
+      const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+
+      if (!token) {
+        throw new Error('NO_OAUTH_ACCESS_TOKEN');
+      }
+
+      mailOptions.auth = {
+        type: 'OAuth2', // include type
+        user: config.email,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        refreshToken: config.refreshToken,
+        accessToken: token,
+      };
+    }
+
+    if (!mailOptions.from) {
+      mailOptions.from = config.email;
+    }
     // Ensure threading headers are included in the outgoing mail options
     // Nodemailer accepts messageId, inReplyTo, and references as top-level options
     // and will include any headers provided in mailOptions.headers.
@@ -83,9 +111,6 @@ const sendEmail = async (mailOptions) => {
     );
     const result = await transporter.sendMail(mailOptions);
     logger.logInfo(`[sendEmail] sent messageId=${result?.messageId} response=${result?.response}`);
-    if (process.env.NODE_ENV === 'local') {
-      logger.logInfo(`Local emails - not attempting to send!`);
-    }
     return result;
   } catch (error) {
     console.error('Error sending email:', error);
@@ -305,8 +330,11 @@ const emailSender = (
 ) => {
   const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
+  // Explicit opt-in so local/dev can test real SMTP/OAuth without forcing NODE_ENV=production.
+  // Production still requires sendEmail=true (existing gate below).
+  const emailSendingEnabled = String(process.env.sendEmail).toLowerCase() === 'true';
 
-  if (process.env.NODE_ENV !== 'production' && !isReset) {
+  if (process.env.NODE_ENV !== 'production' && !isReset && !emailSendingEnabled) {
     return Promise.resolve('EMAIL_SENDING_DISABLED_NON_PROD');
   }
 

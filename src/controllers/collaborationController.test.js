@@ -36,6 +36,7 @@ describe('submitFormResponse', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.JOB_APPLICATION_DEFAULT_EMAIL = 'default@example.com';
     JobApplicationEmailRecipients.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
         recipients: [],
@@ -260,7 +261,7 @@ describe('submitFormResponse', () => {
     expect(subject).not.toMatch(/[\r\n]/);
   });
 
-it('sends submitted answers to configured admin recipients', async () => {
+  it('sends submitted answers to the default inbox and CCs configured UI recipients', async () => {
     const questionId = '507f1f77bcf86cd799439012';
 
     Form.findById.mockResolvedValue({
@@ -278,7 +279,7 @@ it('sends submitted answers to configured admin recipients', async () => {
 
     JobApplicationEmailRecipients.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
-        recipients: ['admin@example.com', 'manager@example.com'],
+        recipients: ['admin@example.com', 'manager@example.com', 'default@example.com'],
       }),
     });
 
@@ -311,9 +312,11 @@ it('sends submitted answers to configured admin recipients', async () => {
 
     expect(emailSender).toHaveBeenNthCalledWith(
       2,
-      ['admin@example.com', 'manager@example.com'],
+      ['default@example.com'],
       'New Job Application — Software Developer',
       expect.stringContaining('Why do you want to volunteer?'),
+      null,
+      ['admin@example.com', 'manager@example.com', 'applicant@example.com'],
     );
 
     const adminEmailBody = emailSender.mock.calls[1][2];
@@ -401,7 +404,7 @@ it('sends submitted answers to configured admin recipients', async () => {
     );
 
     expect(saveMock).toHaveBeenCalled();
-    expect(emailSender).toHaveBeenCalledTimes(1);
+    expect(emailSender).toHaveBeenCalledTimes(2);
 
     expect(emailSender).toHaveBeenCalledWith(
       ['applicant@example.com'],
@@ -511,7 +514,8 @@ it('sends submitted answers to configured admin recipients', async () => {
       expect(saveMock).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
       expect(emailSender).toHaveBeenCalledTimes(2);
-      expect(emailSender.mock.calls[1][0]).toEqual(['admin@example.com']);
+      expect(emailSender.mock.calls[1][0]).toEqual(['default@example.com']);
+      expect(emailSender.mock.calls[1][4]).toEqual(['admin@example.com', 'ada@example.com']);
     } finally {
       consoleSpy.mockRestore();
     }
@@ -712,7 +716,7 @@ it('sends submitted answers to configured admin recipients', async () => {
     expect(savedDoc.answers[0].answer.url).toBeUndefined();
   });
 
-it('omits an oversized attachment and explains the omission in both emails', async () => {
+  it('omits an oversized attachment and explains the omission in both emails', async () => {
     const questionId = '507f1f77bcf86cd799439012';
 
     Form.findById.mockResolvedValue({
@@ -754,7 +758,7 @@ it('omits an oversized attachment and explains the omission in both emails', asy
 
     emailSender.mock.calls.forEach(([, , html, attachments]) => {
       expect(html).toContain('1 uploaded file(s) could not be attached');
-      expect(attachments).toBeUndefined();
+      expect(attachments == null).toBe(true);
       expect(html).not.toContain('https://blob/');
     });
   });
@@ -790,7 +794,7 @@ it('omits an oversized attachment and explains the omission in both emails', asy
     );
 
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(emailSender).toHaveBeenCalledTimes(1);
+    expect(emailSender).toHaveBeenCalledTimes(2);
 
     const attachments = emailSender.mock.calls[0][3];
 
@@ -873,15 +877,23 @@ it('omits an oversized attachment and explains the omission in both emails', asy
     it('sends the email for the 3rd application from one address in 24 h', async () => {
       mockCounts({ address: 3, global: 3 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
-      expect(emailSender).toHaveBeenCalledTimes(1);
+      // Applicant confirmation + default-inbox staff notification.
+      expect(emailSender).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('skips the email for the 4th application but still saves and returns 201', async () => {
+    it('skips the confirmation for the 4th application but still notifies the default inbox', async () => {
       mockCounts({ address: 4, global: 4 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
       expect(saveMock).toHaveBeenCalled();
-      expect(emailSender).not.toHaveBeenCalled();
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender).toHaveBeenCalledWith(
+        ['default@example.com'],
+        'New Job Application — Software Developer',
+        expect.any(String),
+        null,
+        ['ada@example.com'],
+      );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Application submitted successfully.' }),
@@ -890,18 +902,19 @@ it('omits an oversized attachment and explains the omission in both emails', asy
       expect(logged).not.toContain('ada@example.com');
     });
 
-    it('skips the email when the global daily cap is exceeded', async () => {
+    it('skips the confirmation when the global daily cap is exceeded but still notifies staff', async () => {
       mockCounts({ address: 1, global: 301 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
       expect(saveMock).toHaveBeenCalled();
-      expect(emailSender).not.toHaveBeenCalled();
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender.mock.calls[0][0]).toEqual(['default@example.com']);
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
     it('fails open and sends the email when the count query throws', async () => {
       Response.countDocuments = jest.fn().mockRejectedValue(new Error('db hiccup'));
       await submitFormResponse({ params: { formId }, body: validBody }, res);
-      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });
