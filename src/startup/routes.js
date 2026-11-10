@@ -62,6 +62,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -233,9 +234,12 @@ const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRou
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
 const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
-  buildingMaterial,
+  buildingMaterialModel,
 );
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
@@ -270,6 +274,7 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
+const weeklyProjectSummaryRouter = require('../routes/bmdashboard/weeklyProjectSummaryRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
 const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
@@ -401,7 +406,7 @@ const listOverviewRouter = require('../routes/lbdashboard/listOverviewRouter')()
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
-const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
 const educatorGroupRouter = require('../routes/educatorGroupRoutes');
@@ -413,6 +418,8 @@ const permissionRouter = require('../routes/permissionRouter');
 // Analytics
 const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
+const ReviewerGroup = require('../models/reviewerGroup');
+const PromotionPrEntry = require('../models/promotionPrEntry');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
@@ -452,6 +459,7 @@ const educatorRoutes = require('../routes/educatorRoutes');
 // Class Aggregation Reports
 const classAggregationRouter = require('../routes/classAgreegraterRouter');
 const activityLogRouter = require('../routes/activityLogRouter')();
+const eventRouter = require('../routes/eventRouter');
 
 const educationTaskRouter = require('../routes/educationTaskRouter')();
 
@@ -479,6 +487,7 @@ module.exports = function (app) {
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
@@ -594,6 +603,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolsReturnedLateRouter);
+  app.use('/api/bm', bmRentalChart);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
@@ -633,6 +643,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
+  app.use('/api/bm/weekly-project-summary', weeklyProjectSummaryRouter);
   app.use('/api/bm', bmInjuryRouter);
   app.use('/api', bmProjectRiskProfileRouter);
 
@@ -644,9 +655,15 @@ module.exports = function (app) {
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
 
+  const eventPopularityRouter = require('../routes/eventPopularityRouter');
+  app.use('/api', eventPopularityRouter);
+
+  app.use('/api', eventRouter);
+
   // lb dashboard
   app.use('/api/lbdashboard', lbRegisterRouter);
   app.use('/api/lb', lbListingsRouter);
+
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
@@ -666,14 +683,25 @@ module.exports = function (app) {
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
 
-  app.use('/api/bm', bmRentalChart);
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', actualCostRouter);
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
-  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
+  app.use(
+    '/api/',
+    promotionEligibilityRouter(
+      userProfile,
+      timeEntry,
+      task,
+      PromotionEligibility,
+      ReviewerGroup,
+      team,
+      hgnFormResponses,
+      PromotionPrEntry,
+    ),
+  );
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
@@ -681,7 +709,7 @@ module.exports = function (app) {
   app.use('/api', prGradingConfigRouter);
   app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
+
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard

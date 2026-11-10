@@ -1,6 +1,10 @@
+/* eslint-disable max-lines-per-function */
 /* eslint-disable quotes */
 const moment = require('moment-timezone');
 const userProfile = require('../models/userProfile');
+const { getFinalWeekIndex } = require('../utilities/finalWeekIndex');
+
+const ISO_DATE_LENGTH = 10;
 
 /**
  *
@@ -38,9 +42,38 @@ const reporthelper = function () {
     const pstStartStr = moment(pstStart).tz('America/Los_Angeles').format('YYYY-MM-DD');
     const pstEndStr = moment(pstEnd).tz('America/Los_Angeles').format('YYYY-MM-DD');
 
+    // Badge earnedDate values are stored as an array of date strings.
+    // Build the valid date strings for the requested week so each earned
+    // date can be checked individually.
+    const badgeEarnedDatesInRange = [];
+    const badgeDateCursor = moment(pstStart).tz('America/Los_Angeles').startOf('day');
+    const badgeDateEnd = moment(pstEnd).tz('America/Los_Angeles').startOf('day');
+
+    while (badgeDateCursor.isSameOrBefore(badgeDateEnd, 'day')) {
+      // Both padded and unpadded days exist in saved badge histories.
+      badgeEarnedDatesInRange.push(
+        badgeDateCursor.format('MMM-DD-YY'),
+        badgeDateCursor.format('MMM-D-YY'),
+        badgeDateCursor.format('YYYY-MM-DD'),
+      );
+      badgeDateCursor.add(1, 'day');
+    }
+
     const results = await userProfile.aggregate([
       {
-        $match: { isActive: { $in: [true, false] } },
+        // Active users, plus users who left during the requested weeks so
+        // their final week can still be reported. Paused users are
+        // excluded because they are expected to return.
+        $match: {
+          $or: [
+            { isActive: true },
+            {
+              isActive: false,
+              inactiveReason: { $ne: 'Paused' },
+              endDate: { $gte: pstStart, $lte: pstEnd },
+            },
+          ],
+        },
       },
       {
         $lookup: {
@@ -104,14 +137,53 @@ const reporthelper = function () {
               cond: {
                 $or: [
                   {
-                    $and: [
-                      {
-                        $gte: ['$$badge.earnedDate', moment(pstStart).format('YYYY-MM-DD')],
+                    $anyElementTrue: {
+                      $map: {
+                        input: {
+                          $cond: [{ $isArray: '$$badge.earnedDate' }, '$$badge.earnedDate', []],
+                        },
+                        as: 'earnedDate',
+                        in: {
+                          $or: [
+                            { $in: ['$$earnedDate', badgeEarnedDatesInRange] },
+                            {
+                              $let: {
+                                vars: {
+                                  earnedTimestamp: {
+                                    $convert: {
+                                      input: '$$earnedDate',
+                                      to: 'date',
+                                      onError: null,
+                                      onNull: null,
+                                    },
+                                  },
+                                },
+                                in: {
+                                  $and: [
+                                    // Only timestamps use instant comparisons. Date-only values
+                                    // above must retain their day instead of being parsed as UTC midnight.
+                                    {
+                                      $cond: [
+                                        { $eq: [{ $type: '$$earnedDate' }, 'string'] },
+                                        {
+                                          $eq: [
+                                            { $substrCP: ['$$earnedDate', ISO_DATE_LENGTH, 1] },
+                                            'T',
+                                          ],
+                                        },
+                                        false,
+                                      ],
+                                    },
+                                    { $gte: ['$$earnedTimestamp', pstStart] },
+                                    { $lte: ['$$earnedTimestamp', pstEnd] },
+                                  ],
+                                },
+                              },
+                            },
+                          ],
+                        },
                       },
-                      {
-                        $lte: ['$$badge.earnedDate', moment(pstEnd).format('YYYY-MM-DD')],
-                      },
-                    ],
+                    },
                   },
                   {
                     $and: [
@@ -177,6 +249,12 @@ const reporthelper = function () {
       result.totalSeconds = [0, 0, 0, 0];
       result.totalTangibleSeconds = [0, 0, 0, 0];
 
+      // Only users who have already left have a final week. Active users
+      // may carry an endDate for a scheduled separation; ignore it.
+      // Set before the early return below, so a user who logged no time in
+      // their final week still gets an index.
+      result.finalWeekIndex = result.isActive ? null : getFinalWeekIndex(result.endDate);
+
       if (!result.timeEntries || result.timeEntries.length === 0) return;
       const isSingleWeekRequest = startWeekIndex === endWeekIndex;
       result.timeEntries.forEach((entry) => {
@@ -207,11 +285,6 @@ const reporthelper = function () {
         seconds === 0 ? undefined : seconds,
       );
 
-      if (result.endDate) {
-        result.finalWeekIndex = absoluteDifferenceInWeeks(result.endDate, pstEnd);
-      } else {
-        result.finalWeekIndex = undefined;
-      }
       delete result.timeEntries;
     });
 

@@ -1,6 +1,27 @@
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const Issue = require('../../models/bmdashboard/Issues');
 
+// Build a createdAt filter from optional YYYY-MM-DD start/end query params.
+function buildCreatedAtRange(start, end) {
+  const range = {};
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+  if (startDate && Number.isFinite(startDate.getTime())) range.$gte = startDate;
+  if (endDate && Number.isFinite(endDate.getTime())) {
+    endDate.setUTCHours(23, 59, 59, 999);
+    range.$lte = endDate;
+  }
+  return Object.keys(range).length ? range : null;
+}
+
+function sumIssueCounts(issueDocs) {
+  return issueDocs.reduce(
+    (sum, doc) =>
+      sum + (doc.equipmentIssues || 0) + (doc.laborIssues || 0) + (doc.materialIssues || 0),
+    0,
+  );
+}
+
 const projectRiskProfileController = {
   // Get all risk profiles
   getAllRiskProfiles: async (req, res) => {
@@ -134,7 +155,8 @@ const projectRiskProfileController = {
   // Get risk profile summary for dashboard
   getRiskProfileSummary: async (req, res) => {
     try {
-      const { dates, projects } = req.query;
+      const { dates, projects, startDate: rangeStart, endDate: rangeEnd } = req.query;
+      const createdAtRange = buildCreatedAtRange(rangeStart, rangeEnd);
       const filter = {};
       if (projects) {
         // projects can be a comma-separated list of Issue IDs
@@ -175,14 +197,15 @@ const projectRiskProfileController = {
           if (plannedTime > 0 && actualTimeElapsed > 0) {
             predictedTimeDelay = (actualTimeElapsed / plannedTime) * 100;
           }
-          // Fetch Issue document by its _id
-          const issueDoc = await Issue.findById(profile.projectId);
-          // Calculate total open issues by summing all issue counts
-          const totalOpenIssues = issueDoc
-            ? (issueDoc.equipmentIssues || 0) +
-              (issueDoc.laborIssues || 0) +
-              (issueDoc.materialIssues || 0)
-            : 0;
+          // Issue document for the project name (projectId is the Issue _id)
+          const issueDoc = await Issue.findById(profile.projectId).lean();
+          // Issue records for this project; when a time range is given, only
+          // count records created within it.
+          const issueIds = (profile.issues || []).length ? profile.issues : [profile.projectId];
+          const issueQuery = { _id: { $in: issueIds } };
+          if (createdAtRange) issueQuery.createdAt = createdAtRange;
+          const issueDocs = await Issue.find(issueQuery).lean();
+          const totalOpenIssues = sumIssueCounts(issueDocs);
           return {
             projectName: issueDoc ? issueDoc.projectName : '',
             predictedCostOverrun:

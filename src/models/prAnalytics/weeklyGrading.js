@@ -9,6 +9,10 @@ const WeeklyGradingSchema = new Schema(
     reviewer: { type: String, required: true, index: true },
     prsNeeded: { type: Number, required: true },
     prsReviewed: { type: Number, required: true },
+    // Removal only affects the grading list; retain grades for history/analytics.
+    isRemoved: { type: Boolean, default: false },
+    removedAt: { type: Date, default: null },
+    removedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
     version: { type: Number, default: 1, required: true },
     gradedPrs: [
       {

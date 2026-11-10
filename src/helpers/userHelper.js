@@ -17,17 +17,21 @@ const sharp = require('sharp');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 const _ = require('lodash');
+const { v4: uuidv4 } = require('uuid');
 const userProfile = require('../models/userProfile');
 const timeEntries = require('../models/timeentry');
 const badge = require('../models/badge');
+const currentWarnings = require('../models/currentWarnings');
 const myTeam = require('./helperModels/myTeam');
 const dashboardHelper = require('./dashboardhelper')();
 const reportHelper = require('./reporthelper')();
+const warningsHelper = require('./warningsHelper');
 const emailSender = require('../utilities/emailSender');
 const logger = require('../startup/logger');
 const token = require('../models/profileInitialSetupToken');
 const BlueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment');
 const cache = require('../utilities/nodeCache')();
+const { activeFields } = require('./userStatusFields');
 const timeOffRequest = require('../models/timeOffRequest');
 const notificationService = require('../services/notificationService');
 const { NEW_USER_BLUE_SQUARE_NOTIFICATION_MESSAGE } = require('../constants/message');
@@ -37,6 +41,7 @@ const Team = require('../models/team');
 const DEFAULT_CC_EMAILS = ['onecommunityglobal@gmail.com', 'jae@onecommunityglobal.org'];
 const DEFAULT_BCC_EMAILS = ['onecommunityhospitality@gmail.com'];
 const { COMPANY_TZ } = require('../constants/company');
+const { MONITOR_CONTACT_CONFIG } = require('../config/monitorContactConfig');
 
 const delay = (ms) =>
   new Promise((resolve) => {
@@ -66,44 +71,41 @@ const userHelper = function () {
     });
   };
 
-  async function getCurrentTeamCode(teamId) {
-    // Ensure teamId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(teamId)) return null;
+  async function getActiveTeamCodes(excludeUserId) {
+    if (!mongoose.Types.ObjectId.isValid(excludeUserId)) {
+      return [];
+    }
 
-    // Fetch the current team code of the given teamId from active users
+    // Quick Setup team codes can be out of sync with recorded team memberships.
     const result = await userProfile.aggregate([
       {
         $match: {
-          teams: mongoose.Types.ObjectId(teamId),
           isActive: true,
+          _id: { $ne: mongoose.Types.ObjectId(excludeUserId) },
         },
       },
-      { $limit: 1 },
       { $project: { teamCode: 1 } },
     ]);
 
-    // Return the teamCode if found
-    return result.length > 0 ? result[0].teamCode : null;
+    return result
+      .map(({ teamCode }) => (typeof teamCode === 'string' ? teamCode.trim() : ''))
+      .filter(Boolean);
   }
 
   async function checkTeamCodeMismatch(user) {
     try {
-      // no user or no teams → nothing to compare
-      if (!user || !user.teams.length) {
+      if (!user) {
         return false;
       }
 
-      // looks like they always checked the first (latest) team
-      const latestTeamId = user.teams[0];
-
-      // this was in your diff: getCurrentTeamCode(latestTeamId)
-      const teamCodeFromFirstActive = await getCurrentTeamCode(latestTeamId);
-      if (!teamCodeFromFirstActive) {
+      const userCode = typeof user.teamCode === 'string' ? user.teamCode.trim() : '';
+      if (userCode.length < 3) {
         return false;
       }
+      const userSuffix = userCode.slice(-3);
 
-      // mismatch if user's stored teamCode != that team's current code
-      return teamCodeFromFirstActive !== user.teamCode;
+      const otherActiveCodes = await getActiveTeamCodes(user._id);
+      return otherActiveCodes.some((code) => code.endsWith(userSuffix) && code !== userCode);
     } catch (error) {
       logger.logException(error);
       return false;
@@ -164,6 +166,23 @@ const userHelper = function () {
       )
       .exec();
   };
+
+  // helper to get the team members admin emails
+  async function getUserRoleByEmail(user) {
+    const recipients = ['jae@onecommunityglobal.org'];
+
+    for (const teamId of user.teams) {
+      // eslint-disable-next-line no-await-in-loop
+      const managementEmails = await getTeamManagementEmail(teamId);
+      if (Array.isArray(managementEmails) && managementEmails.length > 0) {
+        managementEmails.forEach((management) => {
+          recipients.push(management.email);
+        });
+      }
+    }
+
+    return [...new Set(recipients)];
+  }
 
   const getUserName = async function (userId) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -294,7 +313,7 @@ const userHelper = function () {
       }
     }
     // add administrative content
-    const text = `Good Morning <b>${firstName}</b>,
+    const text = `Dear <b>${firstName}</b>,
         <p>Oops, it looks like something happened and you’ve managed to get a blue square.</p>
         <p><b>Date Assigned:</b> ${moment(new Date(infringement.date)).format('M-D-YYYY')}</p>\
         <p><b>Description:</b> ${emailDescription}</p>
@@ -307,6 +326,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
+        <p><b>Name:</b> ${firstName} ${lastName}</p>
         <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -356,7 +376,7 @@ const userHelper = function () {
         '<div><b>Weekly Summary:</b> <span style="color: green;"> Not required for this user </span></div>';
 
       results.sort((a, b) =>
-        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastname}`),
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
       );
 
       // After:
@@ -582,7 +602,7 @@ const userHelper = function () {
       person.totalIntangibleHrs === 0 &&
       timeSpent === 0 &&
       userStartDate.isAfter(pdtStartOfLastWeek) &&
-      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1 // only Tuesday+ gets a pass
+      timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2 // only Wednesday+ gets a pass
     ) {
       return true;
     }
@@ -591,7 +611,7 @@ const userHelper = function () {
       userStartDate.isAfter(pdtEndOfLastWeek) ||
       (userStartDate.isAfter(pdtStartOfLastWeek) &&
         userStartDate.isBefore(pdtEndOfLastWeek) &&
-        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 1) // ← > 1 means after Monday
+        timeUtils.getDayOfWeekStringFromUTC(person.startDate) > 2) // ← > 2 means after Tuesday
     ) {
       return true;
     }
@@ -670,6 +690,7 @@ const userHelper = function () {
     user,
     pdtStartOfLastWeek,
     pdtEndOfLastWeek,
+    emailsCCs,
     emailsBCCs,
     emailQueue,
     usersRequiringBlueSqNotification,
@@ -758,7 +779,7 @@ const userHelper = function () {
       requestForTimeOffEmailBody = `<span style="color: blue;">You had scheduled time off From ${startingDateStr}, To ${endingDateStr}, due to: <b>${requestForTimeOffreason}</b></span>`;
     }
 
-    if ((timeNotMet || !hasWeeklySummary) && !hasTimeOffRequest) {
+    if (timeNotMet || !hasWeeklySummary) {
       const description = buildInfringementDescription(
         person,
         timeNotMet,
@@ -823,7 +844,7 @@ const userHelper = function () {
           to: status.email,
           subject: 'New Infringement Assigned',
           body: emailBody,
-          cc: DEFAULT_CC_EMAILS,
+          cc: emailsCCs,
           replyTo: status.email,
           bcc: emailsBCCs,
           startDate: person.startDate,
@@ -848,7 +869,7 @@ const userHelper = function () {
   };
 
   // ─── Main function (now lean orchestrator) ───────────────────────────────────
-  const assignBlueSquareForTimeNotMet = async () => {
+  const assignBlueSquareForTimeNotMet = async (emailConfig = {}) => {
     const t0 = Date.now();
     console.log('[BlueSquare] start');
     try {
@@ -860,20 +881,19 @@ const userHelper = function () {
       const pdtStartOfLastWeek = moment().tz(COMPANY_TZ).startOf('week').subtract(1, 'week');
       const pdtEndOfLastWeek = moment().tz(COMPANY_TZ).endOf('week').subtract(1, 'week');
 
+      const query = emailConfig.targetUserId
+        ? { _id: emailConfig.targetUserId }
+        : { isActive: true };
       const users = await userProfile.find(
-        { isActive: true },
+        query,
         '_id weeklycommittedHours weeklySummaries missedHours startDate role totalTangibleHrs totalIntangibleHrs',
       );
 
-      const blueSquareBCCs = await BlueSquareEmailAssignment.find().populate('assignedTo').exec();
-      const emailsBCCs =
-        blueSquareBCCs.length > 0
-          ? blueSquareBCCs
-              .filter((assignment) => assignment.assignedTo?.isActive === true)
-              .map((assignment) => assignment.email)
-          : null;
+      const resolvedCCs = resolveCCs(emailConfig);
 
-      console.log('Email BCCs for blue square assignment:', emailsBCCs);
+      const resolvedBCCs = await resolveBCCs(emailConfig);
+
+      console.log('Email BCCs for blue square assignment:', resolvedBCCs);
 
       const emailQueue = [];
       const usersRequiringBlueSqNotification = [];
@@ -888,7 +908,8 @@ const userHelper = function () {
           users[i],
           pdtStartOfLastWeek,
           pdtEndOfLastWeek,
-          emailsBCCs,
+          resolvedCCs,
+          resolvedBCCs,
           emailQueue,
           usersRequiringBlueSqNotification,
         );
@@ -912,8 +933,6 @@ const userHelper = function () {
         );
       }
 
-      await deleteOldTimeOffRequests();
-
       if (usersRequiringBlueSqNotification.length > 0) {
         const senderId = await userProfile.findOne({ role: 'Owner', isActive: true }, '_id');
         await notificationService.createNotification(
@@ -929,13 +948,15 @@ const userHelper = function () {
     }
 
     // Process weekly summaries for inactive users
-    try {
-      const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
-      for (const user of inactiveUsers) {
-        await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+    if (!emailConfig.targetUserId) {
+      try {
+        const inactiveUsers = await userProfile.find({ isActive: false }, '_id');
+        for (const user of inactiveUsers) {
+          await processWeeklySummariesByUserId(mongoose.Types.ObjectId(user._id), false);
+        }
+      } catch (err) {
+        logger.logException(err);
       }
-    } catch (err) {
-      logger.logException(err);
     }
   };
 
@@ -1132,6 +1153,14 @@ const userHelper = function () {
   };
 
   /**
+   * Returns CC list: override if provided, else defaults.
+   */
+  const resolveCCs = (emailConfig) => {
+    if (emailConfig.ccOverride) return emailConfig.ccOverride;
+    return DEFAULT_CC_EMAILS;
+  };
+
+  /**
    * Sends a blue-square reply email with standard subject/cc/bcc.
    */
   const sendBlueSquareEmail = async (emailConfig, user, weekStart, bodyHtml, resolvedBCCs) => {
@@ -1266,8 +1295,12 @@ const userHelper = function () {
         : { isActive: true };
       const users = await userProfile.find(
         query,
-        '_id weeklycommittedHours missedHours email firstName infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq',
+        '_id weeklycommittedHours missedHours email firstName lastName teams infringements startDate weeklySummaries weeklySummaryOption weeklySummaryNotReq warnings',
       );
+
+      const currentWarningDescriptions = await currentWarnings
+        .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+        .sort({ order: 1 });
 
       const { pdtStartOfLastWeek, pdtEndOfLastWeek } = getLastWeekRange();
       // Compute once — all blue squares from this Sunday's assignment run share this date
@@ -1291,7 +1324,9 @@ const userHelper = function () {
 
         const numMonths = getNumMonthsOnTeam(user);
         const hasTimeOff = await userHasTimeOff(user._id, pdtStartOfLastWeek, pdtEndOfLastWeek);
-        const hasTodayBlueSquare = user.infringements.some((inf) => inf.date === assignmentDate);
+        const hasTodayBlueSquare = user.infringements.some(
+          (inf) => inf.date === assignmentDate && inf.manuallyAssigned === false,
+        );
 
         const templateKey = resolveAutoReplyTemplate(
           timeSpent,
@@ -1305,6 +1340,134 @@ const userHelper = function () {
         if (!templateKey) continue;
 
         console.log(`[autoReply] ${user.email} → ${templateKey}`);
+
+        // Remove the blue square from the database if hours were close enough
+        if (templateKey === 'MISSED_HOURS_BY_<15%' && hasSummary) {
+          const WARNING_DESC = 'Blu Sq Rmvd - Hrs Close Enoug';
+
+          const occurrence =
+            (user.warnings?.filter((w) => w.description === WARNING_DESC).length ?? 0) + 1;
+
+          let color = 'blue';
+          if (occurrence === 3) color = 'yellow';
+          else if (occurrence >= 4) color = 'red';
+          const issueBlueSquare = occurrence >= 4;
+
+          const newWarning = {
+            _id: new mongoose.Types.ObjectId(),
+            iconId: uuidv4(),
+            color,
+            date: assignmentDate,
+            description: WARNING_DESC,
+            warningId: currentWarningDescriptions.find((w) => w.warningTitle === WARNING_DESC)?._id,
+          };
+
+          const replacementSquares = issueBlueSquare
+            ? [
+                {
+                  _id: new mongoose.Types.ObjectId(),
+                  date: assignmentDate,
+                  description: `Issued a blue square for an Admin having to remove past blue squares ${occurrence} times for "completing most of your hours but not all".`,
+                  createdDate: moment().tz(COMPANY_TZ).format('YYYY-MM-DD'),
+                  manuallyAssigned: false,
+                  reason: 'missingHours',
+                  reasons: ['time not met'],
+                  editedBy: [],
+                },
+              ]
+            : [];
+
+          const updatedUser = await userProfile.findOneAndUpdate(
+            {
+              _id: user._id,
+              // system square for this week must still exist
+              infringements: {
+                $elemMatch: { date: assignmentDate, manuallyAssigned: { $ne: true } },
+              },
+              // and this week's warning must not have been recorded yet
+              warnings: {
+                $not: { $elemMatch: { description: WARNING_DESC, date: assignmentDate } },
+              },
+            },
+            [
+              {
+                $set: {
+                  infringements: {
+                    $concatArrays: [
+                      {
+                        $filter: {
+                          input: { $ifNull: ['$infringements', []] },
+                          cond: {
+                            $not: {
+                              $and: [
+                                { $eq: ['$$this.date', assignmentDate] },
+                                { $ne: ['$$this.manuallyAssigned', true] },
+                              ],
+                            },
+                          },
+                        },
+                      },
+                      replacementSquares, // empty unless 4th+ offense
+                    ],
+                  },
+                  warnings: { $concatArrays: [{ $ifNull: ['$warnings', []] }, [newWarning]] },
+                },
+              },
+              { $set: { infringementCount: { $size: '$infringements' } } },
+            ],
+            { new: true },
+          );
+
+          // Another run (cron/manual) already claimed this user/week, or nothing to remove
+          if (!updatedUser) continue;
+
+          // ---- State is fully committed. Emails below can fail without corrupting data ----
+          try {
+            const { sendEmail, size } = warningsHelper.filterWarnings(
+              currentWarningDescriptions,
+              updatedUser.warnings,
+              newWarning.iconId,
+              color,
+            );
+            if (sendEmail !== null) {
+              const adminEmails = await getUserRoleByEmail(user);
+              await warningsHelper.sendEmailToUser(
+                sendEmail,
+                'Removed Blue Square for Hours Close Enough',
+                { firstName: user.firstName, lastName: user.lastName, email: user.email },
+                {
+                  firstName: MONITOR_CONTACT_CONFIG.FIRST_NAME,
+                  lastName: MONITOR_CONTACT_CONFIG.LAST_NAME,
+                  email: MONITOR_CONTACT_CONFIG.EMAIL,
+                },
+                size,
+                adminEmails,
+              );
+            }
+          } catch (err) {
+            console.error(`[autoReply] warning email failed for ${user.email}:`, err);
+          }
+
+          if (issueBlueSquare) {
+            try {
+              await notifyInfringements(
+                user.infringements || [],
+                updatedUser.infringements,
+                updatedUser.firstName,
+                updatedUser.lastName,
+                updatedUser.email,
+                updatedUser.role,
+                updatedUser.startDate,
+                updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
+                updatedUser.weeklycommittedHours,
+              );
+            } catch (err) {
+              console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
+            }
+            continue; // skip the "close enough" template on a 4th+ offense
+          }
+        }
+
         await sendBlueSquareEmail(
           emailConfig,
           user,
@@ -1341,7 +1504,7 @@ const userHelper = function () {
     if (metHours) return null;
 
     // Priority 2: 85–99% hours, got a blue square today, fewer than 4 total
-    if (nearMiss && hasTodayBlueSquare && infringementCount < 4 && !hasTimeOff) {
+    if (nearMiss && hasTodayBlueSquare && infringementCount < 4) {
       return 'MISSED_HOURS_BY_<15%';
     }
 
@@ -1350,7 +1513,12 @@ const userHelper = function () {
       return hasTimeOff ? 'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE' : '4TH_BLUE_SQUARE';
     }
 
-    // Priorities 4–7: early-team-member patterns.
+    // Priority 4: Scheduled Time Off
+    if (hasTimeOff && hasTodayBlueSquare) {
+      return 'SCHEDULED_TIME_OFF';
+    }
+
+    // Priorities 5–8: early-team-member patterns.
     // Only applies when a blue square was received today, no time off,
     // and not a near/medium miss (those have their own emails below).
     if (hasTodayBlueSquare && !hasTimeOff && !nearMiss && !mediumMiss) {
@@ -1651,61 +1819,97 @@ const userHelper = function () {
     return null;
   };
 
-  const reActivateUser = async () => {
-    const currentFormattedDate = moment().tz(COMPANY_TZ).format();
-
+  /**
+   * Daily job: bring paused users back on the date they were paused until.
+   *
+   * The manual Resume button and this job have to agree about what "active"
+   * means, so the fields written here mirror the ACTIVATE branch of
+   * userProfileController exactly. Leaving any of them behind has real
+   * consequences: a stale `reactivationDate` permanently excludes the user
+   * from finalizeUserEndDates, which deliberately skips anyone who still looks
+   * paused, so they could never be separated afterwards.
+   */
+  const reactivateUser = async () => {
     logger.logInfo(
-      `Job for activating users based on scheduled re-activation date starting at ${currentFormattedDate}`,
+      `Job for activating users based on scheduled re-activation date starting at ${moment()
+        .tz(COMPANY_TZ)
+        .format()}`,
     );
 
+    let users;
     try {
-      const users = await userProfile.find(
-        { isActive: false, reactivationDate: { $exists: true } },
-        '_id isActive reactivationDate',
+      users = await userProfile.find(
+        { isActive: false, reactivationDate: { $ne: null } },
+        '_id firstName lastName email deactivatedAt reactivationDate',
       );
-      for (let i = 0; i < users.length; i += 1) {
-        const user = users[i];
-        const canActivate = moment().isSameOrAfter(moment(user.reactivationDate));
-        if (canActivate) {
-          // Use '!' to invert the boolean value for testing
-          await userProfile.findByIdAndUpdate(
-            user._id,
-            {
-              $set: {
-                isActive: true,
-              },
-              $unset: {
-                endDate: user.endDate,
-              },
-            },
-            { new: true },
-          );
-          logger.logInfo(
-            `User with id: ${user._id} was re-acticated at ${moment().tz(COMPANY_TZ).format()}.`,
-          );
-          const id = user._id;
-          const person = await userProfile.findById(id);
-
-          const endDate = moment(person.endDate).format('YYYY-MM-DD');
-          logger.logInfo(`User with id: ${user._id} was re-acticated at ${moment().format()}.`);
-
-          const subject = `IMPORTANT:${person.firstName} ${person.lastName} has been RE-activated in the Highest Good Network`;
-
-          const emailBody = `<p> Hi Admin! </p>
-
-          <p>This email is to let you know that ${person.firstName} ${person.lastName} has been made active again in the Highest Good Network application after being paused on ${endDate}.</p>
-
-          <p>If you need to communicate anything with them, this is their email from the system: ${person.email}.</p>
-
-          <p> Thanks! </p>
-
-          <p>The HGN A.I. (and One Community)</p>`;
-
-          emailSender('onecommunityglobal@gmail.com', subject, emailBody, null, null, person.email);
-        }
-      }
     } catch (err) {
-      logger.logException(err);
+      logger.logException(err, 'reactivateUser: could not load paused users');
+      return;
+    }
+
+    const now = moment().tz(COMPANY_TZ);
+
+    for (let i = 0; i < users.length; i += 1) {
+      const user = users[i];
+
+      // Per user, so one unreadable record cannot stop everybody else from
+      // being reactivated.
+      try {
+        const reactivateOn = moment(user.reactivationDate).tz(COMPANY_TZ);
+        if (!reactivateOn.isValid()) {
+          logger.logInfo(`reactivateUser: skipping user ${user._id}, unreadable reactivationDate.`);
+          continue;
+        }
+
+        // The date is stored as the start of the day in company time and this
+        // job runs just after midnight, so "on that day" is an inclusive
+        // comparison rather than a strict one.
+        if (now.isBefore(reactivateOn)) continue;
+
+        // Read before the update, because the email reports the date they were
+        // paused on and the update clears it.
+        const pausedOn = user.deactivatedAt;
+        const recipients = await getEmailRecipientsForStatusChange(user._id);
+
+        // The same fields the Resume button and the lifecycle Activate action
+        // write, as an update document: everything except inactiveReason, which
+        // is removed rather than set.
+        const { inactiveReason, ...activate } = activeFields();
+
+        // Only if the user is still in the state this job read. The list was
+        // loaded before the awaits above, and an admin may have resumed,
+        // re-paused or separated the user in between; matching on `_id` alone
+        // would overwrite that newer change with this stale one.
+        const reactivated = await userProfile.findOneAndUpdate(
+          { _id: user._id, isActive: false, reactivationDate: user.reactivationDate },
+          {
+            $set: activate,
+            $unset: { inactiveReason: '' },
+          },
+          { new: true },
+        );
+
+        if (!reactivated) {
+          logger.logInfo(
+            `reactivateUser: skipping user ${user._id}, status changed since the job started.`,
+          );
+          continue;
+        }
+
+        logger.logInfo(
+          `User with id: ${user._id} was reactivated at ${moment().tz(COMPANY_TZ).format()}.`,
+        );
+
+        sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
+      } catch (err) {
+        logger.logException(err, `reactivateUser: failed for user ${user._id}`);
+      }
     }
   };
 
@@ -2596,7 +2800,13 @@ const userHelper = function () {
 
   const checkLeadTeamOfXplus = async function (personId, user, badgeCollection) {
     const leaderRoles = new Set(['Mentor', 'Manager', 'Administrator', 'Owner', 'Core Team']);
-    const approvedRoles = ['Mentor', 'Manager'];
+    // The Badges Detail doc specifies this badge for "a Manager, Core Team, or
+    // Admin class", and Jae's comment there puts it as "the Users Class being
+    // one of the Management classes". Core Team and Administrator were missing,
+    // so no Administrator could ever earn it. Mentor is not named in the doc but
+    // has always been allowed and is kept on purpose, confirmed with Sita Ram.
+    // Owner is not named either and stays out, matching the previous behaviour.
+    const approvedRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
     if (!approvedRoles.includes(user.role)) return;
     const teams = await getAllTeamMembers(personId);
     // Calculate total unique non-leader members across all teams
@@ -2631,7 +2841,14 @@ const userHelper = function () {
     await badge
       .find({
         type: 'Lead a team of X+',
-        people: { $lte: totalNonLeaderMembers }, // Only get badges where requirement is <= team size
+        // At or below the team size, and never a zero-threshold record. Dev
+        // holds a badge called "0 Hours for 7 Week Streak" saved with this
+        // type and people: 0. Because this query takes the highest qualifying
+        // badge, that record would be handed to anyone leading 1 to 4 people,
+        // which is the wrong badge entirely. Guarded here rather than by
+        // correcting the record, because one mistyped row should not be able
+        // to award something unrelated.
+        people: { $lte: totalNonLeaderMembers, $gt: 0 },
       })
       .sort({ people: -1 }) // Sort descending
       .limit(1) // Get only the highest qualifying badge
@@ -3165,10 +3382,10 @@ const userHelper = function () {
   };
 
   const sendUserPausedEmail = ({ firstName, lastName, email, reactivationDate, recipients }) => {
-    const returnDate = moment(reactivationDate)
-      .tz(COMPANY_TZ)
-      .add(1, 'day') // adding a day to make it clear they return on the day of reactivation
-      .format('M-D-YYYY');
+    // The reactivation date is the day they are back, so it is the date to
+    // name here. It used to carry a day added on top, which compensated for the
+    // date being stored a day early.
+    const returnDate = moment(reactivationDate).tz(COMPANY_TZ).format('M-D-YYYY');
     const subject = `IMPORTANT: ${firstName} ${lastName} has been PAUSED in the Highest Good Network`;
 
     const emailBody = `
@@ -3482,7 +3699,7 @@ const userHelper = function () {
     // inCompleteHoursEmailFunction,
     // weeklyBlueSquareReminderFunction,
     weeklyAutoReplyEmailFunction,
-    reActivateUser,
+    reactivateUser,
     sendDeactivateEmailBody,
     deActivateUser,
     notifyInfringements,
@@ -3497,6 +3714,7 @@ const userHelper = function () {
     checkLeadTeamOfXplus,
     checkMostHrsWeek,
     checkXHrsInOneWeek,
+    checkIsNewUser,
     updatePersonalMax,
     getAllTeamMembers,
     getAllWeeksData,
@@ -3514,8 +3732,10 @@ const userHelper = function () {
     sendUserCancelledSeparationEmail,
     finalizeUserEndDates,
     getEmailRecipientsForStatusChange,
+    getUserRoleByEmail,
     getTeamManagementEmail,
     resendBlueSquareEmailsOnlyForLastWeek,
+    resolveAutoReplyTemplate,
   };
 };
 
