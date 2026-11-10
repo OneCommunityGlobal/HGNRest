@@ -17,7 +17,7 @@ const AttendanceLogSchema = new mongoose.Schema(
     },
     participantId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'UserProfile',
+      ref: 'userProfile',
     },
     participantExternalId: {
       type: String,

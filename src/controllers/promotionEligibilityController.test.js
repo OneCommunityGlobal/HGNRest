@@ -1034,6 +1034,125 @@ describe('PR entries and ratings', () => {
       await controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: 'nope' }), mockRes);
       expect(mockRes.status).toHaveBeenCalledWith(400);
     });
+
+    it.each(['0', 0, 'FE-0', '#000'])('rejects PR number %p', async (prNumber) => {
+      await controller.addPrEntry(request({ prNumber }, { reviewerId: REVIEWER }), mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.create).not.toHaveBeenCalled();
+    });
+
+    describe('future weeks', () => {
+      beforeEach(() => {
+        jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+        // Week 33 of 2026.
+        jest.setSystemTime(new Date('2026-08-19T12:00:00Z'));
+      });
+
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it.each([
+        [2026, 34],
+        [2027, 1],
+        [2030, 10],
+      ])('rejects year %i week %i', async (year, week) => {
+        await controller.addPrEntry(
+          request({ prNumber: '1234', year, week }, { reviewerId: REVIEWER }),
+          mockRes,
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(400);
+        expect(PromotionPrEntry.create).not.toHaveBeenCalled();
+      });
+
+      it('accepts the current week given explicitly', async () => {
+        await controller.addPrEntry(
+          request({ prNumber: '1234', year: 2026, week: 33 }, { reviewerId: REVIEWER }),
+          mockRes,
+        );
+        expect(mockRes.status).toHaveBeenCalledWith(201);
+      });
+    });
+  });
+
+  describe('deletePrEntry', () => {
+    it('deletes the entry and returns it', async () => {
+      PromotionPrEntry.findByIdAndDelete = jest
+        .fn()
+        .mockResolvedValue({ _id: ENTRY, reviewerId: REVIEWER, prNumber: '1234' });
+      controller = build();
+
+      await controller.deletePrEntry(request({}, { entryId: ENTRY }), mockRes);
+
+      expect(PromotionPrEntry.findByIdAndDelete).toHaveBeenCalledWith(ENTRY);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(body().prNumber).toBe('1234');
+    });
+
+    it('lets the same PR be added again after it is deleted', async () => {
+      const duplicate = new Error('E11000 duplicate key');
+      duplicate.code = 11000;
+      let stored = true;
+      PromotionPrEntry.create = jest.fn().mockImplementation((doc) => {
+        if (stored) return Promise.reject(duplicate);
+        stored = true;
+        return Promise.resolve({ _id: ENTRY, ...doc });
+      });
+      PromotionPrEntry.findByIdAndDelete = jest.fn().mockImplementation(() => {
+        stored = false;
+        return Promise.resolve({ _id: ENTRY, reviewerId: REVIEWER, prNumber: '1234' });
+      });
+      controller = build();
+      const add = () =>
+        controller.addPrEntry(request({ prNumber: '1234' }, { reviewerId: REVIEWER }), mockRes);
+
+      await add();
+      expect(mockRes.status).toHaveBeenLastCalledWith(409);
+
+      await controller.deletePrEntry(request({}, { entryId: ENTRY }), mockRes);
+      await add();
+      expect(mockRes.status).toHaveBeenLastCalledWith(201);
+    });
+
+    it('404s on an entry that does not exist', async () => {
+      PromotionPrEntry.findByIdAndDelete = jest.fn().mockResolvedValue(null);
+      controller = build();
+
+      await controller.deletePrEntry(request({}, { entryId: ENTRY }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+    });
+
+    it('rejects a malformed entry id without touching the database', async () => {
+      PromotionPrEntry.findByIdAndDelete = jest.fn();
+      controller = build();
+
+      await controller.deletePrEntry(request({}, { entryId: 'nope' }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(PromotionPrEntry.findByIdAndDelete).not.toHaveBeenCalled();
+    });
+
+    it('uses the same permission check as adding one', async () => {
+      hasPermission.mockResolvedValue(false);
+      PromotionPrEntry.findByIdAndDelete = jest.fn();
+      controller = build();
+
+      await controller.deletePrEntry(request({}, { entryId: ENTRY }), mockRes);
+
+      expect(hasPermission).toHaveBeenCalledWith(expect.anything(), 'getReports');
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(PromotionPrEntry.findByIdAndDelete).not.toHaveBeenCalled();
+    });
+
+    it('500s when the delete fails', async () => {
+      PromotionPrEntry.findByIdAndDelete = jest.fn().mockRejectedValue(new Error('down'));
+      controller = build();
+
+      await controller.deletePrEntry(request({}, { entryId: ENTRY }), mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
   });
 
   describe('updatePrEntryRating', () => {

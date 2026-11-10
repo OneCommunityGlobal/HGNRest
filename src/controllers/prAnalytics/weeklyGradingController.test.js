@@ -9,7 +9,7 @@ const makeMockModel = () => ({
   find: jest.fn(),
   findOne: jest.fn(),
   findOneAndUpdate: jest.fn(),
-  findOneAndDelete: jest.fn(),
+  updateMany: jest.fn(),
 });
 
 const makeRes = () => ({
@@ -77,6 +77,7 @@ describe('weeklyGradingController', () => {
       await controller.deleteWeeklyGrading(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
+      expect(model.updateMany).not.toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         error: 'You are not authorized to remove a reviewer.',
       });
@@ -101,7 +102,7 @@ describe('weeklyGradingController', () => {
         body: { requestor: { requestorId: 'abc123' } },
       };
       hasPermission.mockResolvedValue(true);
-      model.findOneAndDelete.mockResolvedValue(null);
+      model.updateMany.mockResolvedValue({ n: 0 });
 
       await controller.deleteWeeklyGrading(req, res);
 
@@ -109,13 +110,13 @@ describe('weeklyGradingController', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'Grading record not found' });
     });
 
-    it('returns 200 when reviewer is successfully deleted', async () => {
+    it('returns 200 when reviewer is successfully hidden', async () => {
       const req = {
         query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
         body: { requestor: { requestorId: 'abc123' } },
       };
       hasPermission.mockResolvedValue(true);
-      model.findOneAndDelete.mockResolvedValue({ reviewer: 'Alice' });
+      model.updateMany.mockResolvedValue({ n: 2, nModified: 2 });
 
       await controller.deleteWeeklyGrading(req, res);
 
@@ -125,13 +126,40 @@ describe('weeklyGradingController', () => {
       });
     });
 
+    it('marks matching records removed without replacing their grading data', async () => {
+      hasPermission.mockResolvedValue(true);
+      model.updateMany.mockResolvedValue({ matchedCount: 2, modifiedCount: 2 });
+      await controller.deleteWeeklyGrading(
+        {
+          query: { team: ' TeamA ', date: '2026-11-02', reviewer: ' Alice ' },
+          body: { requestor: { requestorId: 'abc123' } },
+        },
+        res,
+      );
+      expect(hasPermission).toHaveBeenCalledWith(
+        { requestorId: 'abc123' },
+        'accessPRTeamDashboard',
+      );
+      expect(model.updateMany).toHaveBeenCalledWith(
+        {
+          teamCode: 'TeamA',
+          reviewer: 'Alice',
+          isRemoved: { $ne: true },
+          date: { $gte: new Date('2026-11-02'), $lt: new Date('2026-11-09') },
+        },
+        { $set: { isRemoved: true, removedAt: expect.any(Date), removedBy: 'abc123' } },
+        { runValidators: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('returns 500 on unexpected database error', async () => {
       const req = {
         query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
         body: { requestor: { requestorId: 'abc123' } },
       };
       hasPermission.mockResolvedValue(true);
-      model.findOneAndDelete.mockRejectedValue(new Error('DB error'));
+      model.updateMany.mockRejectedValue(new Error('DB error'));
 
       await controller.deleteWeeklyGrading(req, res);
 
@@ -180,7 +208,7 @@ describe('weeklyGradingController', () => {
       model.find.mockReturnValue({ lean: jest.fn().mockResolvedValue(dbData) });
 
       await controller.getWeeklyGrading(req, res);
-
+      expect(model.find).toHaveBeenCalledWith({ teamCode: 'TeamA', isRemoved: { $ne: true } });
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
