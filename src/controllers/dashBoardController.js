@@ -358,9 +358,23 @@ const dashboardcontroller = function () {
       "userId": "5baac381e16814009017678c"
   } */
     try {
-      const savingRequestFeedbackData = await dashboardhelper.requestFeedback(req);
-      return res.status(200).json({ savingRequestFeedbackData });
+      const { status, body } = await dashboardhelper.requestFeedback(req);
+      if (status !== 200) {
+        return res.status(status).json(body);
+      }
+      return res.status(200).json({ savingRequestFeedbackData: body });
     } catch (err) {
+      console.error('Error saving questionaire feedback:', err);
+      return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
+    }
+  };
+
+  const checkQuestionaireModal = async function (req, res) {
+    try {
+      const { status, body } = await dashboardhelper.checkQuestionaireModal(req);
+      return res.status(status).json(body);
+    } catch (err) {
+      console.error('Error checking questionaire modal:', err);
       return res.status(500).send({ msg: 'Error occured while fetching data. Please try again!' });
     }
   };
@@ -418,6 +432,7 @@ const dashboardcontroller = function () {
     getPromptCopiedDate,
     postTrophyIcon,
     requestFeedbackModal,
+    checkQuestionaireModal,
     getUserNames,
     checkUserFoundHelpSomewhere,
   };

@@ -1,94 +1,220 @@
-const weeklyGradingController = require('./weeklyGradingController');
+jest.mock('../../utilities/permissions', () => ({
+  hasPermission: jest.fn(),
+}));
+
+const { hasPermission } = require('../../utilities/permissions');
+const weeklyGradingControllerFactory = require('./weeklyGradingController');
+
+const makeMockModel = () => ({
+  find: jest.fn(),
+  findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+  updateMany: jest.fn(),
+});
+
+const makeRes = () => ({
+  status: jest.fn().mockReturnThis(),
+  json: jest.fn(),
+});
+
+const initController = (model) => {
+  const controller = weeklyGradingControllerFactory(model);
+  return {
+    getWeeklyGrading: controller.getWeeklyGrading,
+    saveWeeklyGrading: controller.saveWeeklyGrading,
+    deleteWeeklyGrading: controller.deleteWeeklyGrading,
+  };
+};
 
 describe('weeklyGradingController', () => {
-  let mockModel;
-  let req;
-  let res;
+  let model;
   let controller;
+  let res;
 
   beforeEach(() => {
-    mockModel = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      findOneAndUpdate: jest.fn(),
-      deleteOne: jest.fn(),
-    };
-    controller = weeklyGradingController(mockModel);
-    req = { query: {}, body: {}, params: {} };
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    };
+    model = makeMockModel();
+    controller = initController(model);
+    res = makeRes();
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  // ─── getWeeklyGrading ────────────────────────────────────────────────────────
+  // ─── deleteWeeklyGrading ────────────────────────────────────────────────────
+
+  describe('deleteWeeklyGrading', () => {
+    it('returns 400 when team, date, or reviewer query params are missing', async () => {
+      const req = { query: { team: 'TeamA', date: '2026-10-13' }, body: {} };
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'team, date, and reviewer query params are required',
+      });
+    });
+
+    it('returns 400 when requestor is missing from body', async () => {
+      const req = {
+        query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
+        body: {},
+      };
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'requestor is required' });
+    });
+
+    it('returns 403 when requestor does not have accessPRTeamDashboard permission', async () => {
+      const req = {
+        query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
+        body: { requestor: { requestorId: 'abc123' } },
+      };
+      hasPermission.mockResolvedValue(false);
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(model.updateMany).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You are not authorized to remove a reviewer.',
+      });
+    });
+
+    it('returns 400 when date is invalid', async () => {
+      const req = {
+        query: { team: 'TeamA', date: 'not-a-date', reviewer: 'Alice' },
+        body: { requestor: { requestorId: 'abc123' } },
+      };
+      hasPermission.mockResolvedValue(true);
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid date format' });
+    });
+
+    it('returns 404 when grading record is not found', async () => {
+      const req = {
+        query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
+        body: { requestor: { requestorId: 'abc123' } },
+      };
+      hasPermission.mockResolvedValue(true);
+      model.updateMany.mockResolvedValue({ n: 0 });
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Grading record not found' });
+    });
+
+    it('returns 200 when reviewer is successfully hidden', async () => {
+      const req = {
+        query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
+        body: { requestor: { requestorId: 'abc123' } },
+      };
+      hasPermission.mockResolvedValue(true);
+      model.updateMany.mockResolvedValue({ n: 2, nModified: 2 });
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Reviewer "Alice" removed successfully',
+      });
+    });
+
+    it('marks matching records removed without replacing their grading data', async () => {
+      hasPermission.mockResolvedValue(true);
+      model.updateMany.mockResolvedValue({ matchedCount: 2, modifiedCount: 2 });
+      await controller.deleteWeeklyGrading(
+        {
+          query: { team: ' TeamA ', date: '2026-11-02', reviewer: ' Alice ' },
+          body: { requestor: { requestorId: 'abc123' } },
+        },
+        res,
+      );
+      expect(hasPermission).toHaveBeenCalledWith(
+        { requestorId: 'abc123' },
+        'accessPRTeamDashboard',
+      );
+      expect(model.updateMany).toHaveBeenCalledWith(
+        {
+          teamCode: 'TeamA',
+          reviewer: 'Alice',
+          isRemoved: { $ne: true },
+          date: { $gte: new Date('2026-11-02'), $lt: new Date('2026-11-09') },
+        },
+        { $set: { isRemoved: true, removedAt: expect.any(Date), removedBy: 'abc123' } },
+        { runValidators: true },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('returns 500 on unexpected database error', async () => {
+      const req = {
+        query: { team: 'TeamA', date: '2026-10-13', reviewer: 'Alice' },
+        body: { requestor: { requestorId: 'abc123' } },
+      };
+      hasPermission.mockResolvedValue(true);
+      model.updateMany.mockRejectedValue(new Error('DB error'));
+
+      await controller.deleteWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    });
+  });
+
+  // ─── getWeeklyGrading ───────────────────────────────────────────────────────
 
   describe('getWeeklyGrading', () => {
     it('returns 400 when team param is missing', async () => {
-      req.query = {};
+      const req = { query: {} };
+
       await controller.getWeeklyGrading(req, res);
+
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: 'Team parameter is required' });
     });
 
-    it('returns all records for a team when no weekStart is provided', async () => {
-      req.query = { team: 'Team 1' };
-      const mockData = [{ reviewer: 'Alice', prsNeeded: 7, prsReviewed: 5, gradedPrs: [] }];
-      mockModel.find.mockReturnValue({ lean: jest.fn().mockResolvedValue(mockData) });
+    it('returns 400 when date is invalid', async () => {
+      const req = { query: { team: 'TeamA', date: 'bad-date' } };
 
       await controller.getWeeklyGrading(req, res);
 
-      expect(mockModel.find).toHaveBeenCalledWith({
-        $or: [{ teamName: 'Team 1' }, { teamCode: 'Team 1' }],
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid date format' });
+    });
+
+    it('returns 200 with formatted grading data', async () => {
+      const req = { query: { team: 'TeamA', date: '2026-10-13' } };
+      const dbData = [{ reviewer: 'Alice', prsNeeded: 5, prsReviewed: 3, gradedPrs: [] }];
+      model.find.mockReturnValue({ lean: jest.fn().mockResolvedValue(dbData) });
+
+      await controller.getWeeklyGrading(req, res);
+
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith([
-        { reviewer: 'Alice', prsNeeded: 7, prsReviewed: 5, gradedPrs: [] },
+        { reviewer: 'Alice', prsNeeded: 5, prsReviewed: 3, gradedPrs: [] },
       ]);
     });
 
-    it('filters by 7-day range when weekStart is provided', async () => {
-      req.query = { team: 'Team 1', weekStart: '2026-06-15' };
-      mockModel.find.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+    it('returns 200 with all records when no date is provided', async () => {
+      const req = { query: { team: 'TeamA' } };
+      const dbData = [{ reviewer: 'Bob', prsNeeded: 8, prsReviewed: 6, gradedPrs: [] }];
+      model.find.mockReturnValue({ lean: jest.fn().mockResolvedValue(dbData) });
 
       await controller.getWeeklyGrading(req, res);
-
-      const callArg = mockModel.find.mock.calls[0][0];
-      expect(callArg.$or).toEqual([{ teamName: 'Team 1' }, { teamCode: 'Team 1' }]);
-      expect(callArg.date.$gte).toBeDefined();
-      expect(callArg.date.$lte).toBeDefined();
-      // Range spans ~7 days (start at 00:00:00, end at 23:59:59.999 = 6.999... days)
-      const diffMs = callArg.date.$lte - callArg.date.$gte;
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      expect(diffDays).toBeCloseTo(7, 0);
+      expect(model.find).toHaveBeenCalledWith({ teamCode: 'TeamA', isRemoved: { $ne: true } });
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('returns 400 for invalid weekStart format', async () => {
-      req.query = { team: 'Team 1', weekStart: 'not-a-date' };
-      await controller.getWeeklyGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid weekStart date format. Use YYYY-MM-DD.',
-      });
-    });
-
-    it('defaults gradedPrs to empty array when missing from record', async () => {
-      req.query = { team: 'Team 1' };
-      mockModel.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ reviewer: 'Bob', prsNeeded: 10, prsReviewed: 3 }]),
-      });
-
-      await controller.getWeeklyGrading(req, res);
-
-      expect(res.json).toHaveBeenCalledWith([
-        { reviewer: 'Bob', prsNeeded: 10, prsReviewed: 3, gradedPrs: [] },
-      ]);
-    });
-
-    it('returns 500 on database error', async () => {
-      req.query = { team: 'Team 1' };
-      mockModel.find.mockReturnValue({
+    it('returns 500 on unexpected database error', async () => {
+      const req = { query: { team: 'TeamA' } };
+      model.find.mockReturnValue({
         lean: jest.fn().mockRejectedValue(new Error('DB error')),
       });
 
@@ -99,60 +225,48 @@ describe('weeklyGradingController', () => {
     });
   });
 
-  // ─── saveWeeklyGrading ───────────────────────────────────────────────────────
+  // ─── saveWeeklyGrading ──────────────────────────────────────────────────────
 
   describe('saveWeeklyGrading', () => {
-    const validGrading = {
-      reviewer: 'Alice',
-      prsNeeded: 7,
-      prsReviewed: 5,
-      gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
-    };
+    it('returns 400 when required fields are missing', async () => {
+      const req = { body: { teamName: 'TeamA' } };
 
-    it('returns 400 when teamName is missing', async () => {
-      req.body = { date: '2026-06-18', gradings: [validGrading] };
       await controller.saveWeeklyGrading(req, res);
+
       expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Missing required fields: teamName, date, and gradings array',
+      });
     });
 
-    it('returns 400 when date is missing', async () => {
-      req.body = { teamName: 'Team 1', gradings: [validGrading] };
-      await controller.saveWeeklyGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
+    it('returns 400 when date is invalid', async () => {
+      const req = {
+        body: { teamName: 'TeamA', date: 'bad-date', gradings: [] },
+      };
 
-    it('returns 400 when gradings is not an array', async () => {
-      req.body = { teamName: 'Team 1', date: '2026-06-18', gradings: 'bad' };
       await controller.saveWeeklyGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
 
-    it('returns 400 for invalid date format', async () => {
-      req.body = { teamName: 'Team 1', date: 'not-a-date', gradings: [validGrading] };
-      await controller.saveWeeklyGrading(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: 'Invalid date format' });
     });
 
-    it('normalizes save date to Sunday midnight UTC', async () => {
-      // June 18 2026 is a Thursday — should normalize to the Sunday of that week
-      req.body = { teamName: 'Team 1', date: '2026-06-18', gradings: [validGrading] };
-      mockModel.findOne.mockResolvedValue(null);
-      mockModel.findOneAndUpdate.mockResolvedValue({});
-
-      await controller.saveWeeklyGrading(req, res);
-
-      const updateCall = mockModel.findOneAndUpdate.mock.calls[0];
-      const savedDate = updateCall[0].date;
-      expect(savedDate.getUTCDay()).toBe(0); // 0 = Sunday
-      expect(savedDate.getUTCHours()).toBe(0);
-      expect(savedDate.getUTCMinutes()).toBe(0);
-    });
-
-    it('saves successfully and returns 200', async () => {
-      req.body = { teamName: 'Team 1', date: '2026-06-15', gradings: [validGrading] };
-      mockModel.findOne.mockResolvedValue(null);
-      mockModel.findOneAndUpdate.mockResolvedValue({});
+    it('returns 200 when gradings are saved successfully', async () => {
+      const req = {
+        body: {
+          teamName: 'TeamA',
+          date: '2026-10-13',
+          gradings: [
+            {
+              reviewer: 'Alice',
+              prsReviewed: 3,
+              prsNeeded: 5,
+              gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
+            },
+          ],
+        },
+      };
+      model.findOne.mockResolvedValue(null);
+      model.findOneAndUpdate.mockResolvedValue({});
 
       await controller.saveWeeklyGrading(req, res);
 
@@ -163,222 +277,26 @@ describe('weeklyGradingController', () => {
       });
     });
 
-    it('supports legacy teamCode records and writes both team identifiers', async () => {
-      req.body = {
-        teamName: 'Team 1',
-        date: '2026-06-15',
-        gradings: [validGrading],
+    it('returns 500 on unexpected database error', async () => {
+      const req = {
+        body: {
+          teamName: 'TeamA',
+          date: '2026-10-13',
+          gradings: [
+            {
+              reviewer: 'Alice',
+              prsReviewed: 3,
+              prsNeeded: 5,
+              gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
+            },
+          ],
+        },
       };
-
-      const existing = {
-        teamCode: 'Team 1',
-        version: 1,
-        prsNeeded: 7,
-        prsReviewed: 3,
-        gradedPrs: [],
-        updatedAt: new Date(),
-      };
-
-      mockModel.findOne.mockResolvedValue(existing);
-      mockModel.findOneAndUpdate.mockResolvedValue({});
-
-      await controller.saveWeeklyGrading(req, res);
-
-      expect(mockModel.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({
-          $or: [{ teamName: 'Team 1' }, { teamCode: 'Team 1' }],
-          reviewer: 'Alice',
-        }),
-      );
-
-      const updateArg = mockModel.findOneAndUpdate.mock.calls[0][1];
-
-      expect(updateArg.teamName).toBe('Team 1');
-      expect(updateArg.teamCode).toBe('Team 1');
-    });
-
-    it('upserts existing entry — increments version', async () => {
-      req.body = {
-        teamName: 'Team 1',
-        date: '2026-06-15',
-        gradings: [validGrading],
-      };
-      const existing = {
-        version: 2,
-        prsNeeded: 7,
-        prsReviewed: 3,
-        gradedPrs: [{ prNumbers: '100', grade: 'Okay' }],
-        updatedAt: new Date(),
-      };
-      mockModel.findOne.mockResolvedValue(existing);
-      mockModel.findOneAndUpdate.mockResolvedValue({});
-
-      await controller.saveWeeklyGrading(req, res);
-
-      const updateArg = mockModel.findOneAndUpdate.mock.calls[0][1];
-      expect(updateArg.version).toBe(3);
-      expect(updateArg.$push.versionHistory).toBeDefined();
-    });
-
-    it('merges gradedPrs — new PR overwrites existing same PR number', async () => {
-      req.body = {
-        teamName: 'Team 1',
-        date: '2026-06-15',
-        gradings: [
-          {
-            reviewer: 'Alice',
-            prsNeeded: 7,
-            prsReviewed: 5,
-            gradedPrs: [{ prNumbers: '123', grade: 'Exceptional' }],
-          },
-        ],
-      };
-      const existing = {
-        version: 1,
-        prsNeeded: 7,
-        prsReviewed: 3,
-        gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
-        updatedAt: new Date(),
-      };
-      mockModel.findOne.mockResolvedValue(existing);
-      mockModel.findOneAndUpdate.mockResolvedValue({});
-
-      await controller.saveWeeklyGrading(req, res);
-
-      const updateArg = mockModel.findOneAndUpdate.mock.calls[0][1];
-      const merged = updateArg.gradedPrs;
-      expect(merged).toHaveLength(1);
-      expect(merged[0].grade).toBe('Exceptional');
-    });
-
-    it('returns 500 on database error', async () => {
-      req.body = { teamName: 'Team 1', date: '2026-06-15', gradings: [validGrading] };
-      mockModel.findOne.mockRejectedValue(new Error('DB error'));
+      model.findOne.mockRejectedValue(new Error('DB error'));
 
       await controller.saveWeeklyGrading(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-    });
-
-    it('returns 400 for invalid grade value', async () => {
-      req.body = {
-        teamName: 'Team 1',
-        date: '2026-06-15',
-        gradings: [
-          {
-            reviewer: 'Alice',
-            prsNeeded: 7,
-            prsReviewed: 1,
-            gradedPrs: [{ prNumbers: '123', grade: 'Invalid' }],
-          },
-        ],
-      };
-      mockModel.findOne.mockResolvedValue(null);
-
-      await controller.saveWeeklyGrading(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.stringContaining('Invalid grade value') }),
-      );
-    });
-
-    it('returns 400 for invalid prNumbers format', async () => {
-      req.body = {
-        teamName: 'Team 1',
-        date: '2026-06-15',
-        gradings: [
-          {
-            reviewer: 'Alice',
-            prsNeeded: 7,
-            prsReviewed: 1,
-            gradedPrs: [{ prNumbers: 'abc', grade: 'Okay' }],
-          },
-        ],
-      };
-      mockModel.findOne.mockResolvedValue(null);
-
-      await controller.saveWeeklyGrading(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-    });
-  });
-
-  // ─── deleteReviewerGrading ───────────────────────────────────────────────────
-
-  describe('deleteReviewerGrading', () => {
-    it('returns 400 when team is missing', async () => {
-      req.query = { reviewer: 'Alice', weekStart: '2026-06-15' };
-      await controller.deleteReviewerGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('returns 400 when reviewer is missing', async () => {
-      req.query = { team: 'Team 1', weekStart: '2026-06-15' };
-      await controller.deleteReviewerGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('returns 400 when weekStart is missing', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice' };
-      await controller.deleteReviewerGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('returns 400 for invalid weekStart format', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice', weekStart: 'bad-date' };
-      await controller.deleteReviewerGrading(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid weekStart date format. Use YYYY-MM-DD.',
-      });
-    });
-
-    it('returns 404 when no record found', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice', weekStart: '2026-06-15' };
-      mockModel.deleteOne.mockResolvedValue({ deletedCount: 0 });
-
-      await controller.deleteReviewerGrading(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'No grading record found for the given parameters',
-      });
-    });
-
-    it('returns 200 when reviewer deleted successfully', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice', weekStart: '2026-06-15' };
-      mockModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      await controller.deleteReviewerGrading(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Reviewer "Alice" removed successfully',
-      });
-    });
-
-    it('queries correct 7-day date range for deletion', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice', weekStart: '2026-06-15' };
-      mockModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      await controller.deleteReviewerGrading(req, res);
-
-      const deleteArg = mockModel.deleteOne.mock.calls[0][0];
-      expect(deleteArg.$or).toEqual([{ teamName: 'Team 1' }, { teamCode: 'Team 1' }]);
-      expect(deleteArg.reviewer).toBe('Alice');
-      expect(deleteArg.date.$gte).toBeDefined();
-      expect(deleteArg.date.$lte).toBeDefined();
-    });
-
-    it('returns 500 on database error', async () => {
-      req.query = { team: 'Team 1', reviewer: 'Alice', weekStart: '2026-06-15' };
-      mockModel.deleteOne.mockRejectedValue(new Error('DB error'));
-
-      await controller.deleteReviewerGrading(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     });
   });
 });

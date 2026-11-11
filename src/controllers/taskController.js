@@ -13,7 +13,28 @@ const followUp = require('../models/followUp');
 const logger = require('../startup/logger');
 
 const taskController = function (Task) {
-  const getTasks = (req, res) => {
+  const canSeeTaskExtensionCount = async (requestor) =>
+    await hasPermission(requestor, 'seeNumberOfTimesTimeAdded');
+
+  const stripDeadlineCounts = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(stripDeadlineCounts);
+    } else if (value && typeof value === 'object') {
+      delete value.deadlineCount;
+      Object.values(value).forEach(stripDeadlineCounts);
+    }
+  };
+
+  // Returns a plain copy without deadlineCount. Mongoose documents point back at their
+  // parents, so walking them directly recursed forever (400 on every volunteer dashboard);
+  // the JSON copy is what res.send would serialize anyway and has no cycles.
+  const removeTaskExtensionCounts = (value) => {
+    if (value === undefined || value === null) return value;
+    const plain = JSON.parse(JSON.stringify(value));
+    stripDeadlineCounts(plain);
+    return plain;
+  };
+  const getTasks = async (req, res) => {
     const { level } = req.params;
 
     let query = {
@@ -32,19 +53,25 @@ const taskController = function (Task) {
       };
     }
 
-    Task.find(query)
-      .populate('createdBy', 'firstName lastName email') // <-- added
-      .lean()
-      .then((results) => {
-        const withCreator = results.map((t) => ({
-          ...t,
-          creatorName: t.createdBy
-            ? [t.createdBy.firstName, t.createdBy.lastName].filter(Boolean).join(' ').trim()
-            : undefined,
-        }));
-        return res.status(200).send(withCreator);
-      })
-      .catch((error) => res.status(404).send(error));
+    try {
+      const results = await Task.find(query)
+        .populate('createdBy', 'firstName lastName email')
+        .lean();
+
+      const withCreator = results.map((t) => ({
+        ...t,
+        creatorName: t.createdBy
+          ? [t.createdBy.firstName, t.createdBy.lastName].filter(Boolean).join(' ').trim()
+          : undefined,
+      }));
+
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+      return res
+        .status(200)
+        .send(canSeeCount ? withCreator : removeTaskExtensionCounts(withCreator));
+    } catch (error) {
+      return res.status(404).send(error);
+    }
   };
 
   const getWBSId = (req, res) => {
@@ -529,16 +556,13 @@ const taskController = function (Task) {
       });
 
       const saveTask = _task.save();
-      const saveWbs = WBS.findById(wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-      const saveProject = WBS.findById(wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
+      const currentWbs = await WBS.findById(wbsId);
+      currentWbs.modifiedDatetime = Date.now();
+      const saveWbs = currentWbs.save();
+
+      const currentProject = await Project.findById(currentWbs.projectId);
+      currentProject.modifiedDatetime = Date.now();
+      const saveProject = currentProject.save();
 
       Promise.all([saveTask, saveWbs, saveProject])
         .then(async ([savedTask]) => {
@@ -646,13 +670,13 @@ const taskController = function (Task) {
     res.status(200).send(true);
   };
 
-  const moveTask = (req, res) => {
+  const moveTask = async (req, res) => {
     if (!req.body.fromNum || !req.body.toNum) {
-      res.status(400).send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
-      return;
+      return res.status(400).send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
     }
 
-    Task.find({ wbsId: { $in: req.params.wbsId } }).then((tasks) => {
+    try {
+      const tasks = await Task.find({ wbsId: { $in: req.params.wbsId } });
       const fromNumArr = req.body.fromNum.replace(/\.0/g, '').split('.');
       const toNumArr = req.body.toNum.replace(/\.0/g, '').split('.');
 
@@ -692,10 +716,11 @@ const taskController = function (Task) {
         queries.push(task.save());
       });
 
-      Promise.all(queries)
-        .then(() => res.status(200).send('Success!'))
-        .catch((err) => res.status(400).send(err));
-    });
+      await Promise.all(queries);
+      return res.status(200).send('Success!');
+    } catch (error) {
+      return res.status(400).send(error);
+    }
   };
 
   const deleteTask = async (req, res) => {
@@ -1071,7 +1096,9 @@ const taskController = function (Task) {
         resource.name = resourceNames[index] !== ' ' ? resourceNames[index] : resource.name;
       });
 
-      return res.status(200).send(task);
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+
+      return res.status(200).send(canSeeCount ? task : removeTaskExtensionCounts(task));
     } catch (error) {
       return res.status(500).send({ error: 'Internal Server Error', details: error.message });
     }
@@ -1267,12 +1294,16 @@ const taskController = function (Task) {
 
       if (teamsData && teamsData.length > 0) {
         await attachCreatorNames(teamsData);
-        return res.status(200).send(teamsData);
+        const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+        return res.status(200).send(canSeeCount ? teamsData : removeTaskExtensionCounts(teamsData));
       }
 
       const singleUserData = await taskHelper.getTasksForSingleUser(userId).exec();
       await attachCreatorNames(singleUserData);
-      return res.status(200).send(singleUserData);
+      const canSeeCount = await canSeeTaskExtensionCount(req.body.requestor);
+      return res
+        .status(200)
+        .send(canSeeCount ? singleUserData : removeTaskExtensionCounts(singleUserData));
     } catch (error) {
       console.log(error);
       return res.status(400).send({ error });
@@ -1280,36 +1311,28 @@ const taskController = function (Task) {
   };
 
   const updateTaskStatus = async (req, res) => {
-    if (
-      !(await hasPermission(
-        req.body.requestor,
-        'viewAndInteractWithTaskDeadlinesBoxes',
-      ))
-    ) {
-      return res.status(403).send({
-        error: 'You are not authorized to update task deadline status.',
-      });
+    try {
+      // This endpoint is the Review button, not the deadline boxes. The
+      // viewAndInteractWithTaskDeadlinesBoxes permission stays on the frontend.
+      const { taskId } = req.params;
+      const currentTask = await Task.findById(taskId);
+      const currentwbs = await WBS.findById(currentTask.wbsId);
+      const currentProject = await Project.findById(currentwbs.projectId);
+      const modifiedDatetime = Date.now();
+
+      currentwbs.modifiedDatetime = modifiedDatetime;
+      currentProject.modifiedDatetime = modifiedDatetime;
+
+      await Promise.all([
+        currentwbs.save(),
+        currentProject.save(),
+        Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime }),
+      ]);
+
+      return res.status(201).send();
+    } catch (error) {
+      return res.status(404).send(error);
     }
-
-    const { taskId } = req.params;
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        currentwbs.modifiedDatetime = Date.now();
-        return currentwbs.save();
-      });
-    });
-
-    Task.findById(taskId).then((currentTask) => {
-      WBS.findById(currentTask.wbsId).then((currentwbs) => {
-        Project.findById(currentwbs.projectId).then((currentProject) => {
-          currentProject.modifiedDatetime = Date.now();
-          return currentProject.save();
-        });
-      });
-    });
-    Task.findOneAndUpdate({ _id: taskId }, { ...req.body, modifiedDatetime: Date.now() })
-      .then(() => res.status(201).send())
-      .catch((error) => res.status(404).send(error));
   };
 
   const getReviewReqEmailBody = function (name, taskName) {
@@ -1444,8 +1467,8 @@ const taskController = function (Task) {
   const getTaskChangeLogs = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ taskId })
@@ -1472,12 +1495,57 @@ const taskController = function (Task) {
     }
   };
 
+  const getResolvedTasks = async (req, res) => {
+    try {
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
+      const skip = (page - 1) * limit;
+
+      const changeLogs = await TaskChangeLog.find({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'taskId',
+          select: 'taskName num resources projectId',
+          populate: {
+            path: 'resources.userID',
+            model: 'userProfile',
+            select: 'email',
+          },
+        })
+        .populate('userId', 'firstName lastName email')
+        .lean();
+
+      const total = await TaskChangeLog.countDocuments({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      res.status(200).json({
+        tasks: changeLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching resolved tasks:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   // New endpoint to get change logs for a user across all tasks
   const getUserTaskChangeLogs = async (req, res) => {
     try {
       const { userId } = req.params;
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 50;
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      const limit = Number.parseInt(req.query.limit, 10) || 50;
       const skip = (page - 1) * limit;
 
       const changeLogs = await TaskChangeLog.find({ userId })
@@ -1539,6 +1607,7 @@ const taskController = function (Task) {
     fixTaskOverrides,
     getTaskChangeLogs,
     getUserTaskChangeLogs,
+    getResolvedTasks,
     replicateTasks,
   };
 };

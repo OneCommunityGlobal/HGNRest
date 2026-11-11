@@ -6,6 +6,9 @@
 const FormResponse = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');
 
+// How many skills a member card shows, and how deep the skills filter looks.
+const TOP_SKILLS_COUNT = 4;
+
 const hgnFormController = () => {
   const submitFormResponse = async (req, res) => {
     const { userInfo, general, frontend, backend, followUp, user_id } = req.body;
@@ -44,12 +47,17 @@ const hgnFormController = () => {
       // FIX ISSUE #8: Manually fetch user profiles to get isActive
       const UserProfile = require('../models/userProfile');
       const userIds = responses.map((r) => r.user_id).filter(Boolean);
-      const users = await UserProfile.find({ _id: { $in: userIds } }, 'isActive');
+      const users = await UserProfile.find(
+        { _id: { $in: userIds } },
+        'isActive firstName lastName',
+      );
 
       // Create a map for quick lookup
       const userMap = {};
+      const profileNameMap = {};
       users.forEach((u) => {
         userMap[u._id.toString()] = u.isActive;
+        profileNameMap[u._id.toString()] = [u.firstName, u.lastName].filter(Boolean).join(' ');
       });
 
       const scoredUsers = responses.map((user) => {
@@ -85,19 +93,30 @@ const hgnFormController = () => {
           ? allSkills.reduce((a, b) => a + b.score, 0) / allSkills.length
           : 0;
 
-        // Decide which section to use for topSkills
-        let sectionToUse = null;
-        if (skills) {
-          const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
-          const match = allSkills.find((s) => skillList.includes(s.skill.toLowerCase()));
-          if (match) sectionToUse = match.section;
-        }
+        const byScore = (a, b) => b.score - a.score;
+        const skillList = skills ? skills.split(',').map((s) => s.trim().toLowerCase()) : [];
+        const isSelected = (s) => skillList.includes(s.skill.toLowerCase());
 
-        // Pick top 4 from chosen section, or global top 4
-        const topSkills = allSkills
-          .filter((s) => (sectionToUse ? s.section === sectionToUse : true))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 4)
+        // Who matches the skills filter: unchanged rule. A selected skill must be
+        // among the user's top 4 in the section of their first selected skill.
+        // Every form response stores a score for every skill, so matching on
+        // "has the skill" alone would let 0-2/10 scores through.
+        const firstMatch = allSkills.find(isSelected);
+        const matchesSkills =
+          !skills ||
+          allSkills
+            .filter((s) => (firstMatch ? s.section === firstMatch.section : true))
+            .sort(byScore)
+            .slice(0, TOP_SKILLS_COUNT)
+            .some(isSelected);
+
+        // What "Top Skills" displays: the selected skills first (by score), then
+        // the user's other highest-scoring skills, up to 4. Display only; it no
+        // longer decides who passes the filter.
+        const matchedSkills = allSkills.filter(isSelected).sort(byScore);
+        const remainingSkills = allSkills.filter((s) => !isSelected(s)).sort(byScore);
+        const topSkills = [...matchedSkills, ...remainingSkills]
+          .slice(0, TOP_SKILLS_COUNT)
           .map((s) => s.skill);
 
         // FIX ISSUE #8: Get isActive from userMap
@@ -107,13 +126,16 @@ const hgnFormController = () => {
         return {
           _id: user._id,
           userId: user.user_id,
-          name: user.userInfo?.name,
+          // Some responses were saved with an empty userInfo.name; fall back to the
+          // linked profile's name so the member card is not blank.
+          name: user.userInfo?.name?.trim() || profileNameMap[userId] || user.userInfo?.name,
           email: user.userInfo?.email,
           slack: user.userInfo?.slack,
           score: Number(avgScore.toFixed(1)),
           topSkills,
           preferences: user.general?.preferences || [],
           isActive,
+          matchesSkills,
         };
       });
 
@@ -127,18 +149,16 @@ const hgnFormController = () => {
         );
       }
 
-      // Filter by skills
+      // Filter by skills (decided per user above, independent of the display list)
       if (skills) {
-        const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
-        filteredUsers = filteredUsers.filter((user) =>
-          user.topSkills.some((skill) => skillList.includes(skill.toLowerCase())),
-        );
+        filteredUsers = filteredUsers.filter((user) => user.matchesSkills);
       }
 
       // Sort by avg score
       filteredUsers.sort((a, b) => b.score - a.score);
 
-      res.json(filteredUsers);
+      // matchesSkills is internal; keep the response shape unchanged
+      res.json(filteredUsers.map(({ matchesSkills, ...user }) => user));
     } catch (err) {
       console.error('Error in getRankedResponses:', err);
       res.status(500).json({ error: 'Failed to rank users' });

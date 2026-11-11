@@ -45,6 +45,10 @@ const route = function () {
     controller.requestFeedbackModal,
   );
 
+  Dashboardrouter.route('/dashboard/questionaire/checkModal/:userId').get(
+    controller.checkQuestionaireModal,
+  );
+
   Dashboardrouter.route('/dashboard/questionaire/userNamesList').get(controller.getUserNames);
 
   Dashboardrouter.route('/dashboard/questionaire/checkUserFoundHelpSomewhere').post(
