@@ -1,5 +1,6 @@
 jest.mock('../../../services/bmdashboard/weeklyProjectSummaryService', () => ({
   getWeeklyProjectSummaryProjectStatus: jest.fn(),
+  getWeeklyProjectSummaryFinancialOverview: jest.fn(),
 }));
 jest.mock('../../../startup/logger', () => ({
   logException: jest.fn().mockReturnValue('tracking-id'),
@@ -7,6 +8,7 @@ jest.mock('../../../startup/logger', () => ({
 
 const {
   getWeeklyProjectSummaryProjectStatus,
+  getWeeklyProjectSummaryFinancialOverview,
 } = require('../../../services/bmdashboard/weeklyProjectSummaryService');
 const logger = require('../../../startup/logger');
 const controller = require('../weeklyProjectSummaryController');
@@ -128,5 +130,55 @@ describe('weeklyProjectSummaryController', () => {
       { endpoint: '/weekly-project-summary/project-status', query: req.query },
     );
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  describe('getFinancialOverview', () => {
+    const query = { startDate: '2026-08-30', endDate: '2026-09-05', projectId: VALID_PROJECT_ID };
+
+    test.each([
+      ['returns the overview data', Promise.resolve({ current: { metrics: {} } }), 200],
+      [
+        'returns 404 for a missing project',
+        Promise.reject(Object.assign(new Error('Building project not found'), { status: 404 })),
+        404,
+      ],
+      ['returns 500 for unexpected errors', Promise.reject(new Error('boom')), 500],
+    ])('%s', async (_case, serviceResult, status) => {
+      serviceResult.catch(() => {});
+      getWeeklyProjectSummaryFinancialOverview.mockReturnValue(serviceResult);
+      const res = makeRes();
+
+      await controller.getFinancialOverview(makeReq(query), res);
+
+      expect(getWeeklyProjectSummaryFinancialOverview).toHaveBeenCalledWith(query);
+      expect(getWeeklyProjectSummaryProjectStatus).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(status);
+    });
+
+    test('uses the same query checks as Project Status', async () => {
+      const res = makeRes();
+
+      await controller.getFinancialOverview(makeReq({ startDate: '2026-08-30' }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Validation Error',
+        message: 'endDate is required',
+      });
+      expect(getWeeklyProjectSummaryFinancialOverview).not.toHaveBeenCalled();
+    });
+
+    test('logs errors under its own name and endpoint', async () => {
+      const error = new Error('boom');
+      getWeeklyProjectSummaryFinancialOverview.mockRejectedValue(error);
+
+      await controller.getFinancialOverview(makeReq(query), makeRes());
+
+      expect(logger.logException).toHaveBeenCalledWith(
+        error,
+        'weeklyProjectSummaryController.getFinancialOverview',
+        { endpoint: '/weekly-project-summary/financial-overview', query },
+      );
+    });
   });
 });

@@ -1,4 +1,48 @@
 const mongoose = require('mongoose');
+const {
+  uploadFileToAzureBlobStorage,
+  deleteBlobFromAzureBlobStorage,
+} = require('../../utilities/AzureBlobImages');
+const { logException } = require('../../startup/logger');
+const {
+  ALLOWED_IMAGE_MIME_TYPES,
+  INVALID_IMAGE_ERROR,
+  IMAGE_NOT_SAVED_ERROR,
+} = require('../../middleware/bmEquipmentStatusUpload');
+
+const AZURE_NOT_CONFIGURED_ERROR = 'Image storage is not configured on this server.';
+
+/**
+ * Validates the uploaded file's MIME type and uploads it to Azure Blob Storage.
+ * Returns { imageUrl } on success, or { error, status } on validation/upload failure.
+ *
+ * Returns 503 if Azure env vars are not set, so a missing configuration is clearly
+ * distinguishable from a runtime upload failure (500).
+ */
+const validateAndUploadImage = async (file, equipmentId) => {
+  if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
+    return { error: INVALID_IMAGE_ERROR, status: 400 };
+  }
+  if (!process.env.AZURE_STORAGE_CONNECTION_STRING || !process.env.AZURE_STORAGE_CONTAINER_NAME) {
+    logException(new Error('Azure Blob Storage env vars are not set'), 'validateAndUploadImage');
+    return { error: AZURE_NOT_CONFIGURED_ERROR, status: 503 };
+  }
+  // Map extension from validated MIME type rather than trusting the
+  // client-supplied filename, to avoid extension spoofing.
+  const MIME_TO_EXTENSION = { 'image/png': 'png', 'image/jpeg': 'jpg' };
+  const ext = MIME_TO_EXTENSION[file.mimetype] || 'png';
+  const safeName = file.originalname
+    ? file.originalname.replaceAll(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+    : 'image';
+  const blobName = `equipment/${equipmentId}/status/${Date.now()}_${safeName}.${ext}`;
+  try {
+    const imageUrl = await uploadFileToAzureBlobStorage(file, blobName);
+    return { imageUrl, blobName };
+  } catch (err) {
+    logException(err, 'validateAndUploadImage');
+    return { error: IMAGE_NOT_SAVED_ERROR, status: 500 };
+  }
+};
 
 // Canonical status values match the buildingEquipment updateRecord.condition enum.
 const CANONICAL_STATUSES = ['Good', 'Needs Repair', 'Out of Order'];
@@ -72,6 +116,29 @@ const validateEquipmentStatusUpdate = ({
   return { normalizedCondition };
 };
 
+/**
+ * Builds the updateRecord subdocument for a status update.
+ * Defaults all optional string fields to '' so they are always present in the schema.
+ * If imageUrl is provided it is included; otherwise it is omitted entirely so the field
+ * does not appear in this subdocument entry.
+ */
+const buildUpdateRecord = (fields, imageUrl) => ({
+  date: new Date(),
+  createdBy: new mongoose.Types.ObjectId(fields.createdBy),
+  condition: fields.condition,
+  lastUsedBy: fields.lastUsedBy || '',
+  lastUsedFor: fields.lastUsedFor || '',
+  replacementRequired: fields.replacementRequired || '',
+  replacementReason:
+  fields.replacementRequired === 'yes'
+    ? fields.replacementReason.trim()
+    : '',
+  description: fields.description || '',
+  notes: fields.notes || '',
+  ...(imageUrl && { imageUrl }),
+});
+
+// eslint-disable-next-line max-lines-per-function
 const bmEquipmentController = (BuildingEquipment) => {
   const equipmentPopulateConfig = [
     { path: 'itemType', select: '_id name description unit imageUrl category' },
@@ -344,67 +411,105 @@ const bmEquipmentController = (BuildingEquipment) => {
 
       return res.status(200).send(equipmentList);
     } catch (error) {
-      console.error('[updateMultipleLogRecords] ', error);
+      logException(error, 'updateMultipleLogRecords');
       return res.status(500).send(error);
     }
   };
 
+  /**
+   * PUT /equipment/:equipmentId/status
+   *
+   * Appends a new entry to updateRecord[].
+   * If a file is included (multipart/form-data), it is uploaded to Azure and its URL is stored
+   * in both the new updateRecord entry AND the root imageUrl field (which always reflects the
+   * most recently uploaded equipment photo).
+   * JSON-only requests (no file) leave root imageUrl unchanged — it continues to show the last
+   * photo ever uploaded for this equipment.
+   */
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const {
-      condition,
-      lastUsedBy,
-      lastUsedFor,
-      replacementRequired,
-      replacementReason,
-      description,
-      notes,
-    } = req.body;
+
+    const { condition, replacementRequired, replacementReason } = req.body;
     const createdBy = req.user?.requestorId;
 
     try {
+      // Validate equipment ID
+      if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
+        return res.status(400).send({ error: 'Invalid equipment ID.' });
+      }
+
+      // Validate authentication, status, and replacement reason
       const validation = validateEquipmentStatusUpdate({
         condition,
         createdBy,
         replacementRequired,
         replacementReason,
       });
-      if (validation.status) return res.status(validation.status).send(validation.body);
 
-      const updateRecord = {
-        date: new Date(),
-        createdBy: new mongoose.Types.ObjectId(createdBy),
-        condition: validation.normalizedCondition,
-        lastUsedBy: lastUsedBy || '',
-        lastUsedFor: lastUsedFor || '',
-        replacementRequired: replacementRequired || '',
-        replacementReason: replacementRequired === 'yes' ? replacementReason.trim() : '',
-        description: description || '',
-        notes: notes || '',
-      };
+      if (validation.status) {
+        return res.status(validation.status).send(validation.body);
+      }
 
-      // Update the equipment with new status
-      const updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
-        equipmentId,
+      // Upload image to Azure if one was provided
+      let imageUrl;
+      let uploadedBlobName;
+
+      if (req.file) {
+        const result = await validateAndUploadImage(req.file, equipmentId);
+
+        if (result.error) {
+          return res.status(result.status).send({ error: result.error });
+        }
+
+        imageUrl = result.imageUrl;
+        uploadedBlobName = result.blobName;
+      }
+
+      // Build the status update record with validated values
+      const updateRecord = buildUpdateRecord(
         {
-          $push: {
-            updateRecord,
-          },
+          ...req.body,
+          createdBy,
+          condition: validation.normalizedCondition,
         },
-        { new: true },
-      ).populate(equipmentPopulateConfig);
+        imageUrl,
+      );
+
+      // Append update history and save image URL when provided
+      const dbUpdate = { $push: { updateRecord } };
+
+      if (imageUrl) {
+        dbUpdate.$set = { imageUrl };
+      }
+
+      let updatedEquipment;
+
+      try {
+        updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
+          equipmentId,
+          dbUpdate,
+          { new: true },
+        ).populate(equipmentPopulateConfig);
+      } catch (dbError) {
+        // Remove uploaded image if database update fails
+        if (uploadedBlobName) {
+          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
+        }
+        throw dbError;
+      }
+
 
       if (!updatedEquipment) {
+        if (uploadedBlobName) {
+          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
+        }
         return res.status(404).send({ error: 'Equipment not found.' });
       }
 
-      res.status(200).send(updatedEquipment);
+      return res.status(200).send(updatedEquipment);
     } catch (error) {
-      console.error('[updateEquipmentStatus] ', error);
-      res.status(500).send({
-        error: 'Failed to update equipment status',
-        details: error.message,
-      });
+      logException(error, 'updateEquipmentStatus');
+      return res.status(500).send({ error: IMAGE_NOT_SAVED_ERROR });
     }
   };
 

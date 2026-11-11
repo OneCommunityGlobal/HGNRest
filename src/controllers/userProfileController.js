@@ -110,6 +110,12 @@ const {
   UserStatusOperations,
   LifecycleStatus,
 } = require('../constants/userProfile');
+const {
+  isValidCalendarDate,
+  pauseFields,
+  activeFields,
+  LIFECYCLE_PROJECTION,
+} = require('../helpers/userStatusFields');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -901,10 +907,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       userid,
     );
 
+    if (!canEditProtectedAccount) {
+      return { authorized: false, message: 'You are not authorized to update this user' };
+    }
+
     const isRequestorAuthorized = !!(
-      canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+      (await hasPermission(req.body.requestor, 'putUserProfile')) ||
+      req.body.requestor.requestorId === userid
     );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
@@ -1347,7 +1356,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
       const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
 
-      if (!canEditProtectedAccount && !canToggleRequestBio) {
+      if (!canEditProtectedAccount) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      if (!canToggleRequestBio) {
         return res.status(403).json({ error: 'Permission denied to toggle bio.' });
       }
 
@@ -1571,7 +1584,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
 
-    if (userId === req.body.requestor) {
+    if (userId === req.body.requestor.requestorId) {
       res.status(403).send({
         error: 'You cannot delete your own account',
       });
@@ -1579,9 +1592,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     const user = await UserProfile.findById(userId);
+    if (!user) {
+      res.status(400).send({
+        error: 'Invalid user',
+      });
+      return;
+    }
 
     // Check if the user is protected and if the requestor has permission to delete protected accounts
-    if (PROTECTED_EMAIL_ACCOUNT.includes(user.email) && !canEditProtectedAccount) {
+    if (!canEditProtectedAccount) {
       res.status(403).send({
         error: 'Only authorized users can delete protected accounts',
       });
@@ -1589,13 +1608,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       logger.logInfo(
         `Unauthorized attempt to delete a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${user.email}`,
       );
-      return;
-    }
-
-    if (!user) {
-      res.status(400).send({
-        error: 'Invalid user',
-      });
       return;
     }
 
@@ -2043,9 +2055,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       cache.removeCache(`user-${userId}`);
       const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
 
+      // deactivatedAt is in the projection because the resume email reports the
+      // date the user was paused on, and a field left out of the projection
+      // reads as undefined rather than as its stored value.
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason deactivatedByProductionSync',
+        `email firstName lastName teams teamCode deactivatedByProductionSync ${LIFECYCLE_PROJECTION}`,
       );
 
       if (!user) {
@@ -2058,7 +2073,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         pausedOn: user.inactiveReason === InactiveReason.PAUSED ? user.deactivatedAt : null,
         previousEndDate:
           user.inactiveReason === InactiveReason.SCHEDULED_SEPARATION ||
-            user.inactiveReason === InactiveReason.SEPARATED
+          user.inactiveReason === InactiveReason.SEPARATED
             ? user.endDate
             : null,
       };
@@ -2071,13 +2086,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 'This Dev account was deactivated because the linked Production account is inactive. It can only be reactivated when Production reactivates the account.',
             });
           }
-          user.isActive = true;
-          user.inactiveReason = undefined;
-          user.deactivatedAt = null;
-          user.reactivationDate = null;
-          user.endDate = null;
-          user.isSet = false;
-          user.finalEmailThreeWeeksSent = false;
+          user.set(activeFields());
           break;
         }
 
@@ -2113,15 +2122,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (!reactivationDate) {
             return res.status(400).send({ error: 'Reactivation date is required for pause' });
           }
-          user.isActive = false;
-          user.inactiveReason = InactiveReason.PAUSED;
-          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
-          user.reactivationDate = moment(reactivationDate)
-            .tz(COMPANY_TZ)
-            .startOf('day')
-            .toISOString();
-          user.endDate = null;
-          user.isSet = false;
+          if (!isValidCalendarDate(reactivationDate)) {
+            return res
+              .status(400)
+              .send({ error: 'Reactivation date must be a valid date in YYYY-MM-DD format' });
+          }
+          user.set(pauseFields(reactivationDate));
           break;
         }
 
@@ -2170,6 +2176,24 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getPauseReactivationDateError = (isResuming, activationDate) => {
+    if (isResuming) return null;
+    if (!activationDate) return 'Reactivation date is required for pause';
+    if (!isValidCalendarDate(activationDate)) {
+      return 'Reactivation date must be a valid date in YYYY-MM-DD format';
+    }
+    return null;
+  };
+
+  const updateUserInAllUsersCache = (userId, fields) => {
+    if (!cache.hasCache('allusers')) return;
+    const allUserData = JSON.parse(cache.getCache('allusers'));
+    const userIdx = allUserData.findIndex((u) => u._id === userId);
+    if (userIdx === -1) return;
+    allUserData.splice(userIdx, 1, { ...allUserData[userIdx], ...fields });
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
   const pauseResumeUser = async function (req, res) {
     const { userId } = req.params;
     const activationDate = req.body.reactivationDate;
@@ -2198,33 +2222,53 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change user status');
     }
 
+    const reactivationDateError = getPauseReactivationDateError(status, activationDate);
+    if (reactivationDateError) {
+      return res.status(400).send({ error: reactivationDateError });
+    }
+
     cache.removeCache(`user-${userId}`);
 
     try {
-      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      const user = await UserProfile.findById(
+        userId,
+        `email firstName lastName ${LIFECYCLE_PROJECTION}`,
+      );
       if (!user) {
         return res.status(404).send({ error: 'User not found' });
       }
 
-      user.set({
-        isActive: status,
-        reactivationDate: activationDate,
-      });
+      // Read before the update, because the resume email reports the date the
+      // user was paused on and the update clears it.
+      const pausedOn = user.deactivatedAt;
+      const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
+
+      // The same fields the lifecycle endpoint writes. These two are the only
+      // ways to pause or resume from the UI and they have to agree about what
+      // paused and active mean.
+      const appliedFields = status ? activeFields() : pauseFields(activationDate);
+      user.set(appliedFields);
 
       await user.save();
 
-      const isUserInCache = cache.hasCache('allusers');
-      if (isUserInCache) {
-        const allUserData = JSON.parse(cache.getCache('allusers'));
-        const userIdx = allUserData.findIndex((u) => u._id === userId);
-        if (userIdx !== -1) {
-          const userData = allUserData[userIdx];
-          userData.isActive = user.isActive;
-          userData.reactivationDate = null;
-          userData.endDate = null;
-          allUserData.splice(userIdx, 1, userData);
-          cache.setCache('allusers', JSON.stringify(allUserData));
-        }
+      updateUserInAllUsersCache(userId, appliedFields);
+
+      if (status) {
+        userHelper.sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
+      } else {
+        userHelper.sendUserPausedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          reactivationDate: user.reactivationDate,
+          recipients,
+        });
       }
 
       auditIfProtectedAccountUpdated({
@@ -2681,10 +2725,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         manuallyAssigned: true,
         manuallyAssignedBy: requestorProfile
           ? {
-            firstName: requestorProfile.firstName,
-            lastName: requestorProfile.lastName,
-            userId: requestorId,
-          }
+              firstName: requestorProfile.firstName,
+              lastName: requestorProfile.lastName,
+              userId: requestorId,
+            }
           : undefined,
         // Initialize empty edit history
         editedBy: [],
@@ -2899,28 +2943,28 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       const query = match[1]
         ? {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              $and: [
-                { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
-                { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
-              ],
-            },
-          ],
-        }
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                $and: [
+                  { firstName: { $regex: new RegExp(`${escapeRegExp(firstName)}`, 'i') } },
+                  { lastName: { $regex: new RegExp(`${escapeRegExp(lastName)}`, 'i') } },
+                ],
+              },
+            ],
+          }
         : {
-          $or: [
-            {
-              firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-            {
-              lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
-            },
-          ],
-        };
+            $or: [
+              {
+                firstName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+              {
+                lastName: { $regex: new RegExp(`${escapeRegExp(name)}`, 'i') },
+              },
+            ],
+          };
 
       const userProfile = await UserProfile.find(query);
 

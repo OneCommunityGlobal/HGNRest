@@ -124,6 +124,16 @@ const saveGradingEntry = async (weeklyGradingModel, query, updateData) => {
   });
 };
 
+// Dates sent by the grading dashboard are ISO week-start dates, stored in UTC.
+const getWeekRange = (date) => {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  const DAYS_IN_WEEK = 7;
+  end.setUTCDate(end.getUTCDate() + DAYS_IN_WEEK);
+  return { $gte: start, $lt: end };
+};
+
 const weeklyGradingController = function (weeklyGradingModel) {
   // Process and save a single reviewer's grading
   const processReviewerGrading = async (grading, teamCode, gradingDate) => {
@@ -159,7 +169,8 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(400).json({ error: 'Team parameter is required' });
       }
 
-      const query = { teamCode: team };
+      // Legacy records have no removal flag and must remain visible.
+      const query = { teamCode: team, isRemoved: { $ne: true } };
 
       // If date is provided, filter by the full week (Monday to Sunday)
       if (date) {
@@ -167,12 +178,7 @@ const weeklyGradingController = function (weeklyGradingModel) {
         if (Number.isNaN(gradingDate.getTime())) {
           return res.status(400).json({ error: 'Invalid date format' });
         }
-        const startOfWeek = new Date(gradingDate);
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(gradingDate);
-        endOfWeek.setDate(endOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        query.date = { $gte: startOfWeek, $lte: endOfWeek };
+        query.date = getWeekRange(gradingDate);
       }
 
       const gradingData = await weeklyGradingModel.find(query).lean();
@@ -252,31 +258,42 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(403).json({ error: 'You are not authorized to remove a reviewer.' });
       }
 
-      if (typeof team !== 'string' || typeof reviewer !== 'string') {
+      if (typeof team !== 'string' || typeof reviewer !== 'string' || typeof date !== 'string') {
         return res.status(400).json({ error: 'Invalid query parameters' });
       }
 
       const sanitizedTeam = String(team).trim();
       const sanitizedReviewer = String(reviewer).trim();
+      if (!sanitizedTeam || !sanitizedReviewer) {
+        return res.status(400).json({ error: 'Invalid query parameters' });
+      }
 
       const gradingDate = new Date(date);
       if (Number.isNaN(gradingDate.getTime())) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
 
-      const startOfWeek = new Date(gradingDate);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const endOfWeek = new Date(gradingDate);
-      endOfWeek.setDate(endOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
+      // A week can contain several legacy snapshots for the same reviewer.
+      // Hide all of them so another snapshot cannot reappear after refresh.
+      const result = await weeklyGradingModel.updateMany(
+        {
+          teamCode: sanitizedTeam,
+          date: getWeekRange(gradingDate),
+          reviewer: sanitizedReviewer,
+          isRemoved: { $ne: true },
+        },
+        {
+          $set: {
+            isRemoved: true,
+            removedAt: new Date(),
+            removedBy: requestor.requestorId,
+          },
+        },
+        { runValidators: true },
+      );
 
-      const result = await weeklyGradingModel.findOneAndDelete({
-        teamCode: sanitizedTeam,
-        date: { $gte: startOfWeek, $lte: endOfWeek },
-        reviewer: sanitizedReviewer,
-      });
-
-      if (!result) {
+      // Mongoose 5 returns n; newer versions return matchedCount.
+      if (!(result.matchedCount ?? result.n)) {
         return res.status(404).json({ error: 'Grading record not found' });
       }
       return res.status(200).json({ message: `Reviewer "${reviewer}" removed successfully` });
