@@ -55,6 +55,51 @@ const createSecureSmtpTransporter = () =>
     },
   });
 
+const applyOAuthAuth = async (mailOptions) => {
+  const accessTokenResp = await OAuth2Client.getAccessToken();
+  const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+
+  if (!token) {
+    throw new Error('NO_OAUTH_ACCESS_TOKEN');
+  }
+
+  mailOptions.auth = {
+    type: 'OAuth2', // include type
+    user: config.email,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    refreshToken: config.refreshToken,
+    accessToken: token,
+  };
+};
+
+// Nodemailer accepts messageId, inReplyTo, and references as top-level options
+// and will include any headers provided in mailOptions.headers.
+const attachThreadingHeaders = (mailOptions) => {
+  try {
+    if (mailOptions.messageId) {
+      // set Message-ID both as option and header (header key uses 'Message-ID')
+      mailOptions.headers = { ...mailOptions.headers, 'Message-ID': mailOptions.messageId };
+    }
+
+    if (mailOptions.inReplyTo) {
+      mailOptions.headers = { ...mailOptions.headers, 'In-Reply-To': mailOptions.inReplyTo };
+    }
+
+    if (mailOptions.references) {
+      // normalize references to a space-separated string per RFC
+      const refs = Array.isArray(mailOptions.references)
+        ? mailOptions.references.join(' ')
+        : String(mailOptions.references);
+      mailOptions.references = refs;
+      mailOptions.headers = { ...mailOptions.headers, References: refs };
+    }
+  } catch (hdrErr) {
+    // header construction should never block sending; log and continue
+    logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
+  }
+};
+
 const sendEmail = async (mailOptions) => {
   try {
     if (!hasOAuthEmailConfig && !hasSmtpEmailConfig) {
@@ -64,51 +109,15 @@ const sendEmail = async (mailOptions) => {
     const activeTransporter = hasOAuthEmailConfig ? transporter : createSecureSmtpTransporter();
 
     if (hasOAuthEmailConfig) {
-      const accessTokenResp = await OAuth2Client.getAccessToken();
-      const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
-
-      if (!token) {
-        throw new Error('NO_OAUTH_ACCESS_TOKEN');
-      }
-
-      mailOptions.auth = {
-        type: 'OAuth2', // include type
-        user: config.email,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        refreshToken: config.refreshToken,
-        accessToken: token,
-      };
+      await applyOAuthAuth(mailOptions);
     }
 
     if (!mailOptions.from) {
       mailOptions.from = config.email;
     }
-    // Ensure threading headers are included in the outgoing mail options
-    // Nodemailer accepts messageId, inReplyTo, and references as top-level options
-    // and will include any headers provided in mailOptions.headers.
-    try {
-      if (mailOptions.messageId) {
-        // set Message-ID both as option and header (header key uses 'Message-ID')
-        mailOptions.headers = { ...mailOptions.headers, 'Message-ID': mailOptions.messageId };
-      }
 
-      if (mailOptions.inReplyTo) {
-        mailOptions.headers = { ...mailOptions.headers, 'In-Reply-To': mailOptions.inReplyTo };
-      }
+    attachThreadingHeaders(mailOptions);
 
-      if (mailOptions.references) {
-        // normalize references to a space-separated string per RFC
-        const refs = Array.isArray(mailOptions.references)
-          ? mailOptions.references.join(' ')
-          : String(mailOptions.references);
-        mailOptions.references = refs;
-        mailOptions.headers = { ...mailOptions.headers, References: refs };
-      }
-    } catch (hdrErr) {
-      // header construction should never block sending; log and continue
-      logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
-    }
     logger.logInfo(
       `[sendEmail] about to send to=${mailOptions.to} subject="${mailOptions.subject}"`,
     );
