@@ -3,6 +3,7 @@ const UserProfile = require('../models/userProfile');
 const Notification = require('../models/notification');
 const StudentEvaluation = require('../models/studentEvaluation');
 const EvaluationTask = require('../models/evaluationTask');
+const validateEvaluationPublication = require('./evaluationPublishValidation');
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 const toObjectId = (id, errorMessage = 'Invalid student ID provided.') => {
@@ -29,11 +30,6 @@ const PERFORMANCE_COLORS = {
   at_risk: '#EB5757',
   poor: '#EB5757',
 };
-
-function normalizePercentage(value) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, Number(value)));
-}
 
 function getPerformanceColor(performanceLevel, percentage) {
   const normalizedLevel = String(performanceLevel || '')
@@ -65,19 +61,69 @@ function getSubmissionStatus(task) {
   return new Date(task.submissionDate) <= new Date(task.dueDate) ? 'on_time' : 'late';
 }
 
+// Read responses preserve missing values without changing publishing normalization.
+const availableNumber = (value) => (Number.isFinite(value) && value >= 0 ? value : null);
+const availablePercentage = (value) =>
+  availableNumber(value) !== null && value <= 100 ? value : null;
+
+// Validate before arithmetic: only explicit zero weights may be excluded.
+function calculateOverallScore(categories) {
+  if (!categories.length || categories.some((item) => availableNumber(item.weightage) === null)) {
+    return null;
+  }
+  const weightedCategories = categories.filter((item) => item.weightage > 0);
+  // Fall back to an unweighted average only when every validated weight is zero.
+  const included = weightedCategories.length ? weightedCategories : categories;
+  if (included.some((item) => availablePercentage(item.percentage) === null)) return null;
+
+  const totalWeight = weightedCategories.reduce((sum, item) => sum + item.weightage, 0);
+  const score = weightedCategories.length
+    ? weightedCategories.reduce((sum, item) => sum + item.percentage * item.weightage, 0) /
+      totalWeight
+    : included.reduce((sum, item) => sum + item.percentage, 0) / included.length;
+  return Number.isFinite(score) ? Number(score.toFixed(2)) : null;
+}
+
+// Resolve only the recorded author; missing authors must not erase stored feedback.
+async function buildTeacherFeedback(student) {
+  const feedback = student.educationProfiles.student.evaluationFeedback || {};
+  let teacherName = null;
+  if (feedback.authorId) {
+    const author = await UserProfile.findById(feedback.authorId)
+      .select('firstName lastName')
+      .lean();
+    teacherName = author
+      ? [author.firstName, author.lastName].filter(Boolean).join(' ') || null
+      : null;
+  }
+  return {
+    teacherName,
+    teacherTitle: feedback.teacherTitle || null,
+    overall: feedback.overall || null,
+    strengths: Array.isArray(feedback.strengths) ? feedback.strengths : [],
+    improvements: Array.isArray(feedback.improvements) ? feedback.improvements : [],
+    updatedAt: feedback.updatedAt || null,
+  };
+}
+
 function buildTaskResult(task) {
   return {
     taskId: task._id,
     taskName: task.taskName,
     weightage: task.weightage,
-    marks: task.marks,
-    percentage: normalizePercentage(task.percentage),
+    marks: availableNumber(task.marks),
+    maxMarks: availableNumber(task.maxMarks),
+    type: task.type || null,
+    percentage: availablePercentage(task.percentage),
     status: task.status,
     feedback: task.feedback,
     dueDate: task.dueDate,
     submissionDate: task.submissionDate,
     submissionStatus: getSubmissionStatus(task),
-    performanceColor: getPerformanceColor(null, task.percentage),
+    performanceColor:
+      availablePercentage(task.percentage) === null
+        ? null
+        : getPerformanceColor(null, task.percentage),
   };
 }
 
@@ -88,10 +134,14 @@ function buildCategoryResult(evaluation, categoryTasks) {
     weightage: evaluation.weightage,
     totalItems: evaluation.totalItems,
     completedItems: evaluation.completedItems,
-    marks: evaluation.marks,
-    percentage: normalizePercentage(evaluation.percentage),
+    marks: availableNumber(evaluation.marks),
+    maxMarks: availableNumber(evaluation.maxMarks),
+    percentage: availablePercentage(evaluation.percentage),
     performanceLevel: evaluation.performanceLevel,
-    performanceColor: getPerformanceColor(evaluation.performanceLevel, evaluation.percentage),
+    performanceColor:
+      availablePercentage(evaluation.percentage) === null
+        ? null
+        : getPerformanceColor(evaluation.performanceLevel, evaluation.percentage),
     feedback: evaluation.feedback,
     createdAt: evaluation.createdAt,
     updatedAt: evaluation.updatedAt,
@@ -132,7 +182,9 @@ async function getValidatedStudent(studentId) {
   const studentObjectId = toObjectId(studentId);
 
   const student = await UserProfile.findById(studentObjectId)
-    .select('firstName lastName role educationProfiles.student.lastEvaluationResultsViewedAt')
+    .select(
+      'firstName lastName role educationProfiles.student.lastEvaluationResultsViewedAt educationProfiles.student.evaluationFeedback',
+    )
     .lean();
 
   if (!student?.educationProfiles?.student) {
@@ -143,7 +195,8 @@ async function getValidatedStudent(studentId) {
 }
 
 async function getStudentEvaluationResults(studentId) {
-  await getValidatedStudent(studentId);
+  const student = await getValidatedStudent(studentId);
+  const teacherFeedback = await buildTeacherFeedback(student);
   const studentObjectId = toObjectId(studentId);
 
   const evaluations = await StudentEvaluation.find({ studentId: studentObjectId })
@@ -153,18 +206,22 @@ async function getStudentEvaluationResults(studentId) {
   if (!evaluations.length) {
     return {
       summary: {
-        overallScore: 0,
+        overallScore: null,
+        averageScore: null,
+        earnedMarks: null,
+        maxMarks: null,
         totalCategories: 0,
         totalTasks: 0,
         completedTasks: 0,
         onTimeSubmissions: 0,
         lateSubmissions: 0,
-        performanceLevel: 'No Results',
-        performanceColor: '#9CA3AF',
+        performanceLevel: null,
+        performanceColor: null,
         lastPublishedAt: null,
       },
       categories: [],
       taskResults: [],
+      teacherFeedback,
     };
   }
 
@@ -182,8 +239,6 @@ async function getStudentEvaluationResults(studentId) {
     return accumulator;
   }, {});
 
-  let weightedMarks = 0;
-  let totalWeightage = 0;
   let totalTasks = 0;
   let completedTasks = 0;
   let onTimeSubmissions = 0;
@@ -197,32 +252,33 @@ async function getStudentEvaluationResults(studentId) {
     onTimeSubmissions += taskSummary.onTimeSubmissions;
     lateSubmissions += taskSummary.lateSubmissions;
 
-    weightedMarks += normalizePercentage(evaluation.percentage) * Number(evaluation.weightage || 0);
-    totalWeightage += Number(evaluation.weightage || 0);
-
     return buildCategoryResult(evaluation, categoryTasks);
   });
 
-  const overallScore =
-    totalWeightage > 0
-      ? Number((weightedMarks / totalWeightage).toFixed(2))
-      : Number(
-          (
-            categories.reduce((sum, category) => sum + Number(category.percentage || 0), 0) /
-            categories.length
-          ).toFixed(2),
-        );
+  const overallScore = calculateOverallScore(categories);
+  // The task average is separate from the weighted overall grade; omit unknown scores.
+  const scoredTasks = tasks
+    .map((task) => availablePercentage(task.percentage))
+    .filter((score) => score !== null);
+  const averageScore = scoredTasks.length
+    ? Number((scoredTasks.reduce((sum, score) => sum + score, 0) / scoredTasks.length).toFixed(2))
+    : null;
+  // Return aggregate marks only when every category supplies both sides of the total.
+  const completeMarks = categories.every((item) => item.marks !== null && item.maxMarks !== null);
 
   return {
     summary: {
       overallScore,
+      averageScore,
+      earnedMarks: completeMarks ? categories.reduce((sum, item) => sum + item.marks, 0) : null,
+      maxMarks: completeMarks ? categories.reduce((sum, item) => sum + item.maxMarks, 0) : null,
       totalCategories: categories.length,
       totalTasks,
       completedTasks,
       onTimeSubmissions,
       lateSubmissions,
-      performanceLevel: getAggregatePerformanceLevel(overallScore),
-      performanceColor: getPerformanceColor(null, overallScore),
+      performanceLevel: overallScore === null ? null : getAggregatePerformanceLevel(overallScore),
+      performanceColor: overallScore === null ? null : getPerformanceColor(null, overallScore),
       lastPublishedAt: categories.reduce((latest, category) => {
         if (!latest || new Date(category.updatedAt) > new Date(latest)) {
           return category.updatedAt;
@@ -231,6 +287,7 @@ async function getStudentEvaluationResults(studentId) {
       }, null),
     },
     categories,
+    teacherFeedback,
     taskResults: categories.flatMap((category) =>
       category.tasks.map((task) => ({
         ...task,
@@ -295,84 +352,81 @@ async function markEvaluationResultsViewed(studentId, viewedAt = new Date()) {
   return updatedStudent;
 }
 
-async function publishStudentEvaluationResults({
-  studentId,
-  teacherId,
-  evaluations,
-  message = 'New evaluation results are available.',
-}) {
-  await getValidatedStudent(studentId);
-  const studentObjectId = toObjectId(studentId);
-  const teacherObjectId = toObjectId(teacherId, 'Invalid teacher ID provided.');
-
-  const persistedEvaluations = await Promise.all(
-    evaluations.map(async (evaluation) => {
-      const persistedEvaluation = await StudentEvaluation.findOneAndUpdate(
-        {
-          studentId: studentObjectId,
-          category: evaluation.category,
-        },
-        {
-          $set: {
-            weightage: evaluation.weightage,
-            totalItems: evaluation.totalItems,
-            completedItems: evaluation.completedItems,
-            marks: evaluation.marks,
-            percentage: normalizePercentage(evaluation.percentage),
-            performanceLevel: evaluation.performanceLevel,
-            feedback: evaluation.feedback,
-            publishedBy: teacherObjectId,
-          },
-        },
-        {
-          upsert: true,
-          new: true,
-          setDefaultsOnInsert: true,
-        },
-      );
-
-      if (Array.isArray(evaluation.tasks)) {
-        await EvaluationTask.deleteMany({ evaluationId: persistedEvaluation._id });
-
-        if (evaluation.tasks.length) {
-          await EvaluationTask.insertMany(
-            evaluation.tasks.map((task) => ({
-              evaluationId: persistedEvaluation._id,
-              taskName: task.taskName,
-              weightage: task.weightage,
-              marks: task.marks,
-              percentage: normalizePercentage(task.percentage),
-              status: task.status,
-              feedback: task.feedback,
-              dueDate: task.dueDate,
-              submissionDate: task.submissionDate,
-            })),
-          );
-        }
-      }
-
-      return persistedEvaluation;
-    }),
+// Every write uses the same session and runs sequentially; failures roll back the publication.
+async function persistCategory(evaluation, studentId, teacherId, session) {
+  const { tasks, ...fields } = evaluation;
+  const persisted = await StudentEvaluation.findOneAndUpdate(
+    { studentId, category: fields.category },
+    { $set: { ...fields, publishedBy: teacherId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true, session },
   );
+  await EvaluationTask.deleteMany({ evaluationId: persisted._id }, { session });
+  if (tasks.length) {
+    await EvaluationTask.insertMany(
+      tasks.map((item) => ({ ...item, evaluationId: persisted._id })),
+      { session },
+    );
+  }
+  return persisted;
+}
 
-  await Notification.create({
-    message,
-    sender: teacherObjectId,
-    recipient: studentObjectId,
-    type: 'evaluation_results',
-    metadata: {
-      categories: persistedEvaluations.map((evaluation) => evaluation.category),
-    },
-    isSystemGenerated: false,
-  });
-
-  await UserProfile.findByIdAndUpdate(studentObjectId, {
-    $set: {
-      'educationProfiles.student.lastEvaluationResultsViewedAt': null,
-    },
-  });
-
-  return persistedEvaluations;
+async function publishStudentEvaluationResults(payload) {
+  const validated = validateEvaluationPublication(payload);
+  await getValidatedStudent(validated.studentObjectId);
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    // Promise chaining avoids parallel operations on a transaction's session.
+    const persistedEvaluations = await validated.evaluations.reduce(
+      async (previous, evaluation) => {
+        const persisted = await previous;
+        persisted.push(
+          await persistCategory(
+            evaluation,
+            validated.studentObjectId,
+            validated.teacherObjectId,
+            session,
+          ),
+        );
+        return persisted;
+      },
+      Promise.resolve([]),
+    );
+    const updates = { 'educationProfiles.student.lastEvaluationResultsViewedAt': null };
+    if (validated.teacherFeedback !== undefined) {
+      updates['educationProfiles.student.evaluationFeedback'] = {
+        ...validated.teacherFeedback,
+        authorId: validated.teacherObjectId,
+        updatedAt: new Date(),
+      };
+    }
+    const student = await UserProfile.findByIdAndUpdate(
+      validated.studentObjectId,
+      { $set: updates },
+      { new: true, runValidators: true, session },
+    );
+    if (!student) throw new Error('Student profile not found.');
+    await Notification.create(
+      [
+        {
+          message: validated.message,
+          sender: validated.teacherObjectId,
+          recipient: validated.studentObjectId,
+          type: 'evaluation_results',
+          metadata: { categories: persistedEvaluations.map((item) => item.category) },
+          isSystemGenerated: false,
+        },
+      ],
+      { session },
+    );
+    await session.commitTransaction();
+    return persistedEvaluations;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
 }
 
 module.exports = {

@@ -13,6 +13,12 @@ const evaluationTaskSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Optional display metadata; do not invent a type for existing tasks.
+    type: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     weightage: {
       type: Number,
       default: 0,
@@ -21,6 +27,13 @@ const evaluationTaskSchema = new mongoose.Schema(
     marks: {
       type: Number,
       default: 0,
+      min: 0,
+    },
+    // Unknown maximum marks must not be inferred from a percentage.
+    // Preserve explicit zero maxima while leaving unspecified values null.
+    maxMarks: {
+      type: Number,
+      default: null,
       min: 0,
     },
     percentage: {

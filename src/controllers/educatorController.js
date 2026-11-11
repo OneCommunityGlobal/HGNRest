@@ -190,7 +190,7 @@ const educatorController = function () {
 
   const publishEvaluationResults = async (req, res) => {
     try {
-      const { requestor, studentId, evaluations, message } = req.body;
+      const { requestor, studentId, evaluations, message, teacherFeedback } = req.body;
 
       if (!requestor?.requestorId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -213,7 +213,7 @@ const educatorController = function () {
       }
 
       const hasInvalidEvaluation = evaluations.some(
-        (evaluation) => !evaluation.category || !Array.isArray(evaluation.tasks),
+        (evaluation) => !evaluation || !evaluation.category || !Array.isArray(evaluation.tasks),
       );
 
       if (hasInvalidEvaluation) {
@@ -227,6 +227,7 @@ const educatorController = function () {
         teacherId: requestor.requestorId,
         evaluations,
         message,
+        teacherFeedback,
       });
 
       return res.status(201).json({
@@ -236,6 +237,15 @@ const educatorController = function () {
         categories: persistedEvaluations.map((evaluation) => evaluation.category),
       });
     } catch (error) {
+      // Malformed publications are rejected before persistence by the service validator.
+      if (
+        error.statusCode === 400 ||
+        error.name === 'ValidationError' ||
+        error.name === 'CastError'
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
       if (error.message === 'Invalid student ID provided.') {
         return res.status(400).json({ error: error.message });
       }

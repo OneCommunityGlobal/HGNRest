@@ -33,6 +33,13 @@ const studentEvaluationSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Unknown maximum marks must not be inferred from a percentage.
+    // Null leaves legacy totals unavailable; an explicitly supplied zero remains valid.
+    maxMarks: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     percentage: {
       type: Number,
       default: 0,

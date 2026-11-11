@@ -10,7 +10,7 @@ describe('educatorController - publishEvaluationResults', () => {
   let req;
   let res;
 
-  const validEvaluations = [{ category: 'Coding', tasks: ['Task 1'] }];
+  const validEvaluations = [{ category: 'Coding', tasks: [{ taskName: 'Task 1' }] }];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -95,6 +95,7 @@ describe('educatorController - publishEvaluationResults', () => {
       teacherId: 'teacher123',
       evaluations: validEvaluations,
       message: 'Great work',
+      teacherFeedback: undefined,
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
@@ -141,5 +142,41 @@ describe('educatorController - publishEvaluationResults', () => {
       error: 'Internal server error',
       details: 'Unexpected failure',
     });
+  });
+  it('forwards general feedback and uses only the authenticated publisher identity', async () => {
+    req.body.teacherFeedback = {
+      overall: 'Progress',
+      strengths: [],
+      improvements: [],
+      teacherTitle: null,
+    };
+    req.body.teacherId = 'spoofed';
+    evaluationResultsService.publishStudentEvaluationResults.mockResolvedValue([
+      { category: 'Coding' },
+    ]);
+    await controller.publishEvaluationResults(req, res);
+    expect(evaluationResultsService.publishStudentEvaluationResults).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teacherId: 'teacher123',
+        teacherFeedback: req.body.teacherFeedback,
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('returns HTTP 400 for complete-payload validation errors', async () => {
+    const error = new Error('Invalid task status');
+    error.statusCode = 400;
+    evaluationResultsService.publishStudentEvaluationResults.mockRejectedValue(error);
+    await controller.publishEvaluationResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid task status' });
+  });
+
+  it('rejects null evaluation entries with HTTP 400', async () => {
+    req.body.evaluations = [null];
+    await controller.publishEvaluationResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(evaluationResultsService.publishStudentEvaluationResults).not.toHaveBeenCalled();
   });
 });
