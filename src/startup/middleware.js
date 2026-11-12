@@ -153,6 +153,13 @@ module.exports = function (app) {
       return;
     }
 
+    // Tumblr OAuth callback: Tumblr redirects the browser here with no Authorization header.
+    // The user is identified by the signed `state` + nonce cookie inside the handler.
+    if (req.path === '/api/auth/tumblr/callback' && req.method === 'GET') {
+      next();
+      return;
+    }
+
     // Skip auth check for PayPal webhook route
 
     if (openPaths.includes(req.path)) {
