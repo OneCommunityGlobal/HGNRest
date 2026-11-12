@@ -13,11 +13,20 @@ const makeRes = () => ({
 });
 
 describe('linkedinPostController', () => {
-  const originalOrganizationUrn = process.env.ORGANIZATION_URN;
-  const originalAccessToken = process.env.LINKEDIN_ACCESS_TOKEN;
+  const envKeys = ['LINKEDIN_POSTING_ENABLED', 'ORGANIZATION_URN', 'LINKEDIN_ACCESS_TOKEN'];
+  const originalEnv = Object.fromEntries(
+    envKeys.map((key) => [
+      key,
+      {
+        exists: Object.prototype.hasOwnProperty.call(process.env, key),
+        value: process.env[key],
+      },
+    ]),
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.LINKEDIN_POSTING_ENABLED = 'true';
     process.env.ORGANIZATION_URN = 'urn:li:organization:123';
     process.env.LINKEDIN_ACCESS_TOKEN = 'test-token';
     schedule.scheduleJob.mockReturnValue({
@@ -25,9 +34,77 @@ describe('linkedinPostController', () => {
     });
   });
 
-  afterAll(() => {
-    process.env.ORGANIZATION_URN = originalOrganizationUrn;
-    process.env.LINKEDIN_ACCESS_TOKEN = originalAccessToken;
+  afterEach(() => {
+    envKeys.forEach((key) => {
+      if (originalEnv[key].exists) {
+        process.env[key] = originalEnv[key].value;
+      } else {
+        delete process.env[key];
+      }
+    });
+  });
+
+  const expectPostingDisabled = (res) => {
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      code: 'LINKEDIN_POSTING_DISABLED',
+      message: 'LinkedIn posting is disabled in this environment.',
+    });
+    expect(axios.post).not.toHaveBeenCalled();
+    expect(axios.put).not.toHaveBeenCalled();
+  };
+
+  test('does not post when LINKEDIN_POSTING_ENABLED is missing', async () => {
+    delete process.env.LINKEDIN_POSTING_ENABLED;
+    const controller = linkedinPostController();
+    const req = { body: { content: 'Do not post' }, files: [] };
+    const res = makeRes();
+
+    await controller.postToLinkedin(req, res);
+
+    expectPostingDisabled(res);
+  });
+
+  test('does not post when LINKEDIN_POSTING_ENABLED is false', async () => {
+    process.env.LINKEDIN_POSTING_ENABLED = 'false';
+    const controller = linkedinPostController();
+    const req = { body: { content: 'Do not post' }, files: [] };
+    const res = makeRes();
+
+    await controller.postToLinkedin(req, res);
+
+    expectPostingDisabled(res);
+  });
+
+  test('returns the configuration error when enabled without ORGANIZATION_URN', async () => {
+    delete process.env.ORGANIZATION_URN;
+    const controller = linkedinPostController();
+    const req = { body: { content: 'Configured post' }, files: [] };
+    const res = makeRes();
+
+    await controller.postToLinkedin(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Missing required environment variables.' }),
+    );
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  test('returns the configuration error when enabled without LINKEDIN_ACCESS_TOKEN', async () => {
+    delete process.env.LINKEDIN_ACCESS_TOKEN;
+    const controller = linkedinPostController();
+    const req = { body: { content: 'Configured post' }, files: [] };
+    const res = makeRes();
+
+    await controller.postToLinkedin(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Missing required environment variables.' }),
+    );
+    expect(axios.post).not.toHaveBeenCalled();
   });
 
   test('returns 400 when content is missing', async () => {
@@ -179,5 +256,71 @@ describe('linkedinPostController', () => {
     const deleteRes = makeRes();
     controller.deleteScheduledPost({ params: { jobId: createdJobId } }, deleteRes);
     expect(deleteRes.status).toHaveBeenCalledWith(200);
+  });
+
+  test('does not execute an existing scheduled post after posting is disabled', async () => {
+    let scheduledCallback;
+    schedule.scheduleJob.mockImplementationOnce((scheduledDateTime, callback) => {
+      scheduledCallback = callback;
+      return { cancel: jest.fn() };
+    });
+    const controller = linkedinPostController();
+    const createRes = makeRes();
+
+    await controller.postToLinkedin(
+      {
+        body: {
+          content: 'Scheduled content',
+          scheduleTime: new Date(Date.now() + 60_000).toISOString(),
+        },
+        files: [],
+      },
+      createRes,
+    );
+
+    process.env.LINKEDIN_POSTING_ENABLED = 'false';
+    await scheduledCallback();
+
+    expect(axios.post).not.toHaveBeenCalled();
+    const listRes = makeRes();
+    controller.getScheduledPosts({}, listRes);
+    expect(listRes.json).toHaveBeenCalledWith({
+      success: true,
+      scheduledPosts: [
+        expect.objectContaining({
+          content: 'Scheduled content',
+        }),
+      ],
+    });
+  });
+
+  test('does not update a scheduled post after posting is disabled', async () => {
+    const controller = linkedinPostController();
+    const createRes = makeRes();
+    await controller.postToLinkedin(
+      {
+        body: {
+          content: 'Scheduled content',
+          scheduleTime: new Date(Date.now() + 60_000).toISOString(),
+        },
+        files: [],
+      },
+      createRes,
+    );
+    const [{ jobId }] = createRes.json.mock.calls[0];
+
+    process.env.LINKEDIN_POSTING_ENABLED = 'false';
+    const updateRes = makeRes();
+    controller.updateScheduledPost(
+      {
+        params: { jobId },
+        body: { content: 'Updated content' },
+        files: [],
+      },
+      updateRes,
+    );
+
+    expectPostingDisabled(updateRes);
+    expect(schedule.scheduleJob).toHaveBeenCalledTimes(1);
   });
 });
