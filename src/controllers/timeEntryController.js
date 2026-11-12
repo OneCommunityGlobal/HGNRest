@@ -1140,7 +1140,7 @@ const timeEntrycontroller = function (TimeEntry) {
       },
       '-createdDateTime',
     )
-      .populate('personId')
+      .populate('personId', '_id email')
       .populate('projectId')
       .populate('taskId')
       .populate('wbsId')
