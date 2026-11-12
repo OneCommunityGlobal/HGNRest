@@ -277,6 +277,7 @@ const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRout
 const weeklyProjectSummaryRouter = require('../routes/bmdashboard/weeklyProjectSummaryRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const bmIssueGraphRouter = require('../routes/bmdashboard/bmIssueGraphRouter');
 const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
@@ -553,6 +554,7 @@ module.exports = function (app) {
   app.use('/api/costs', costsRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
+  app.use('/api', bmIssueGraphRouter);
   app.use('/api/issues', bmIssuesRouter);
   app.use('/api/hgnform', hgnFormResponseRouter);
   app.use('/api/progress', progressRouter);
