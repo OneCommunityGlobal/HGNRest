@@ -275,12 +275,40 @@ describe('current warnings controller module', () => {
       assertResMock(401, { message: 'Error' }, res);
     });
 
-    test('Ensure postNewWarningDescription returns error 201 if warning creation was successful', async () => {
+    test('Ensure postNewWarningDescription returns 201 if warning creation was successful', async () => {
       const testWarning = {
         newWarning: 'example',
         isPermanent: true,
         activeWarning: true,
-        newWarningDescription: '',
+      };
+      mockReq.body.newWarning = testWarning.newWarning;
+      mockReq.body.isPermanent = testWarning.isPermanent;
+      mockReq.body.activeWarning = testWarning.activeWarning;
+      mockReq.body.newWarningDescription = testWarning.newWarningDescription;
+      const { postNewWarningDescription } = makeSut();
+      const hasPermissionSpy = mockHasPermission(true);
+
+      jest.spyOn(currentWarnings, 'exists').mockResolvedValueOnce(null);
+      const saveSpy = jest.spyOn(currentWarnings.prototype, 'save').mockResolvedValue(testWarning);
+      jest.spyOn(currentWarnings, 'find').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValue([testWarning]),
+      });
+      jest.spyOn(currentWarnings, 'findOne').mockImplementationOnce(() => ({
+        sort: jest.fn().mockResolvedValueOnce(null),
+      }));
+
+      const res = await postNewWarningDescription(mockReq, mockRes);
+      expect(hasPermissionSpy).toHaveBeenCalledWith(mockReq.body.requestor, 'addWarningTracker');
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      assertResMock(201, { newWarnings: [testWarning] }, res);
+    });
+
+    test('Ensure postNewWarningDescription returns 201 if warning creation was successful with a provided description', async () => {
+      const testWarning = {
+        newWarning: 'example',
+        isPermanent: true,
+        activeWarning: true,
+        newWarningDescription: 'test',
       };
       mockReq.body.newWarning = testWarning.newWarning;
       mockReq.body.isPermanent = testWarning.isPermanent;

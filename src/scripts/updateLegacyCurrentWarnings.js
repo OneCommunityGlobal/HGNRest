@@ -9,7 +9,7 @@ async function run() {
     throw new Error('Missing required env vars: user, password, cluster, dbName');
   }
 
-  const uri = `mongodb+srv://${user}:${encodeURIComponent(password)}@${cluster}/${dbName}?retryWrites=true&w=majority&appName=${appName}`;
+  const uri = `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(process.env.password)}@${process.env.cluster}/${process.env.dbName}?retryWrites=true&w=majority&appName=${appName}`;
   await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
   const isMissing = (value) => value === null || value === undefined || value === -1;

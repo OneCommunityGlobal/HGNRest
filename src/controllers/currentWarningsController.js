@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
 const { setOutdatedWarningsFlag } = require('../utilities/warningsCache');
-const { cleanHtml } = require('../utilities/htmlContentSanitizer');
+const { stripHtml } = require('../utilities/htmlContentSanitizer');
 const currentWarningsController = function (currentWarnings) {
   const normalizeWarningTitle = (warningTitle /*: string */) => warningTitle.toLowerCase().trim();
 
@@ -32,7 +32,7 @@ const currentWarningsController = function (currentWarnings) {
       return;
     }
     try {
-      const { newWarning, activeWarning, isPermanent, newWarningDescription } = req.body;
+      const { newWarning, activeWarning, isPermanent, newWarningDescription = '' } = req.body;
       if (typeof newWarningDescription !== 'string') {
         return res.status(400).send({ error: 'Description must be a string' });
       }
@@ -42,7 +42,7 @@ const currentWarningsController = function (currentWarnings) {
       const trimmedWarning = newWarning.trim();
 
       const trimmedDescription = newWarningDescription.trim();
-      const cleanedDescription = cleanHtml(trimmedDescription);
+      const cleanedDescription = stripHtml(trimmedDescription);
       // Validate first
       if (checkIfSpecialCharacter(normalizedWarningTitle)) {
         return res.status(400).send({
@@ -52,7 +52,7 @@ const currentWarningsController = function (currentWarnings) {
 
       // DB check
       const warning = await currentWarnings.exists({
-        normalizedWarningTitle,
+        $or: [{ normalizedWarningTitle }, { warningTitle: trimmedWarning }],
       });
 
       if (warning) {
@@ -63,8 +63,11 @@ const currentWarningsController = function (currentWarnings) {
       // Prevents simultaneous requests of new warnings to have same order value assigned
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-          const lastWarning = await currentWarnings.findOne().sort({ orderSequence: -1 });
-          const newOrderSequence = (lastWarning?.orderSequence ?? -1) + 1;
+          // If warnings does not have order sequece, sort and use order instead
+          const lastWarning = await currentWarnings
+            .findOne()
+            .sort({ orderSequence: -1, order: -1 });
+          const newOrderSequence = (lastWarning?.orderSequence ?? lastWarning?.order ?? -1) + 1;
 
           await new currentWarnings({
             warningTitle: trimmedWarning,
