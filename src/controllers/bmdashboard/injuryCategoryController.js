@@ -75,6 +75,8 @@ const buildMatch = ({
   return { match, invalidDate };
 };
 
+exports.buildMatch = buildMatch;
+
 // ---------- controllers ----------
 exports.getCategoryBreakdown = async (req, res) => {
   try {
