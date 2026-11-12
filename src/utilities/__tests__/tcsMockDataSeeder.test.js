@@ -50,6 +50,13 @@ const makeDeps = ({ projects = PROJECTS, user = USER, manifest = null } = {}) =>
     create: jest.fn().mockResolvedValue({}),
   },
   now: NOW,
+  createId: (() => {
+    let next = 0;
+    return () => {
+      next += 1;
+      return `id-${next}`;
+    };
+  })(),
 });
 
 describe('tcsMockDataSeeder', () => {
@@ -204,6 +211,44 @@ describe('tcsMockDataSeeder', () => {
       expect(summary.missingProjects).toEqual(
         MOCK_PROJECT_NAMES.filter((name) => !['Building 1', 'Building 2'].includes(name)),
       );
+    });
+
+    it('records every planned ID in the manifest before inserting anything', async () => {
+      const deps = makeDeps();
+      await seedTcsMockData(deps);
+
+      const manifestOrder = deps.Manifest.create.mock.invocationCallOrder[0];
+      MOCK_COLLECTIONS.forEach(([key]) => {
+        expect(deps.models[key].insertMany.mock.invocationCallOrder[0]).toBeGreaterThan(
+          manifestOrder,
+        );
+      });
+
+      const manifest = deps.Manifest.create.mock.calls[0][0];
+      const issueEntry = manifest.entries.find((entry) => entry.collectionKey === 'buildingIssue');
+      const insertedIssues = deps.models.buildingIssue.insertMany.mock.calls[0][0];
+      expect(issueEntry.ids).toEqual(insertedIssues.map((doc) => doc._id));
+    });
+
+    it('keeps the IDs of a failed run in the manifest so reset can remove them', async () => {
+      const deps = makeDeps();
+      deps.models.injurySeverity.insertMany = jest
+        .fn()
+        .mockRejectedValue(new Error('insert failed'));
+
+      await expect(seedTcsMockData(deps)).rejects.toThrow('insert failed');
+
+      const manifest = deps.Manifest.create.mock.calls[0][0];
+      const keys = manifest.entries.map((entry) => entry.collectionKey);
+      expect(keys).toContain('buildingIssue');
+      expect(keys).toContain('injurySeverity');
+      manifest.entries.forEach((entry) => expect(entry.ids.length).toBeGreaterThan(0));
+    });
+
+    it('requires createId', async () => {
+      const deps = makeDeps();
+      delete deps.createId;
+      await expect(seedTcsMockData(deps)).rejects.toThrow('createId is required');
     });
 
     it('inserts nothing when no projects are found', async () => {

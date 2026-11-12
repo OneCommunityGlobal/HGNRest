@@ -1,5 +1,4 @@
 /* eslint-disable no-magic-numbers -- mock data uses literal counts, ranges and prices on purpose */
-
 /**
  * Mock data for the Total Construction Summary (BM Dashboard → Reports).
  *
@@ -322,7 +321,6 @@ const buildProjectStatuses = ({ projects, now, rand }) =>
       status,
       startDate: daysBefore(now, rand.int(90, 200)),
       // Completed within the last week so the default weekly view counts it
-      // Mid-week of the previous Sunday–Saturday week, so the default "last week" view counts it
       completionDate: status === 'Completed' ? daysBefore(now, now.getUTCDay() + 4) : undefined,
     };
   });
@@ -442,6 +440,10 @@ const seedTcsMockData = async ({
   seed = 42,
   createId,
 }) => {
+  if (typeof createId !== 'function') {
+    throw new TypeError('createId is required so every mock record ID is known before inserting');
+  }
+
   const { removed } = await resetTcsMockData({ models, Manifest });
 
   const projects = await BuildingProject.find(
@@ -470,21 +472,29 @@ const seedTcsMockData = async ({
     createId,
   });
 
-  const inserted = {};
-  const entries = [];
-  // Insert one collection at a time so a failure leaves a clear manifest of what exists
-  // eslint-disable-next-line no-restricted-syntax
-  for (const [key, docs] of Object.entries(data)) {
-    const model = models[key];
-    if (model && docs.length) {
-      // eslint-disable-next-line no-await-in-loop
-      const created = await model.insertMany(docs);
-      inserted[key] = created.length;
-      entries.push({ collectionKey: key, ids: created.map((doc) => doc._id) });
-    }
-  }
+  // Give every record its ID up front
+  const planned = Object.entries(data)
+    .filter(([key, docs]) => models[key] && docs.length)
+    .map(([key, docs]) => [key, docs.map((doc) => (doc._id ? doc : { ...doc, _id: createId() }))]);
 
-  await Manifest.create({ name: MANIFEST_NAME, entries, seededAt: now });
+  // Record every planned ID in the manifest BEFORE inserting anything, so if a run fails
+  // part-way, reset can still remove every record that did get inserted
+  await Manifest.create({
+    name: MANIFEST_NAME,
+    entries: planned.map(([key, docs]) => ({
+      collectionKey: key,
+      ids: docs.map((doc) => doc._id),
+    })),
+    seededAt: now,
+  });
+
+  const inserted = {};
+  // eslint-disable-next-line no-restricted-syntax
+  for (const [key, docs] of planned) {
+    // eslint-disable-next-line no-await-in-loop
+    await models[key].insertMany(docs);
+    inserted[key] = docs.length;
+  }
 
   return {
     removed,
