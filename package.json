@@ -91,7 +91,7 @@
     "card-validator": "^10.0.2",
     "cheerio": "^0.22.0",
     "cloudinary": "^2.8.0",
-    "compression": "^1.8.0",
+    "compression": "^1.8.2",
     "cors": "^2.8.4",
     "cron": "^1.8.2",
     "date-fns": "^2.30.0",
