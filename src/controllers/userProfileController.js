@@ -1028,6 +1028,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             filterColor: 1,
             bioPosted: 1,
             infringementCCList: 1,
+            statusNote: 1,
+            statusNoteHistory: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -2418,6 +2420,133 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const STATUS_NOTE_MAX_LENGTH = 2000;
+
+  const getStatusNoteValidationError = (userId, statusNote) => {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return 'Bad Request';
+    if (typeof statusNote !== 'string') return 'statusNote must be a string';
+    if (statusNote.trim().length > STATUS_NOTE_MAX_LENGTH) {
+      return `The note must be ${STATUS_NOTE_MAX_LENGTH} characters or less`;
+    }
+    return null;
+  };
+
+  // Same people who can click the status dot can add or change its note
+  const canChangeStatusNote = async (requestor, requestorId, userId) => {
+    if (!requestorId) return false;
+    if (!(await hasPermission(requestor, 'changeUserStatus'))) return false;
+    return canRequestorUpdateUser(requestorId, userId);
+  };
+
+  const getStatusNoteAction = (currentNote, newNote) => {
+    if (currentNote === newNote) return null;
+    if (!newNote) return 'deleted';
+    return currentNote ? 'edited' : 'added';
+  };
+
+  const createStatusNoteUpdate = (currentNote, newNote, action, requestorProfile) => ({
+    $set: { statusNote: newNote },
+    $push: {
+      statusNoteHistory: {
+        action,
+        // A deleted entry keeps the text that was removed
+        note: action === 'deleted' ? currentNote : newNote,
+        changedAt: new Date(),
+        changedBy: {
+          userId: requestorProfile._id,
+          username: requestorProfile.email,
+          firstName: requestorProfile.firstName,
+          lastName: requestorProfile.lastName,
+        },
+      },
+    },
+  });
+
+  const syncStatusNoteCache = (userId, updatedUser) => {
+    cache.removeCache(`user-${userId}`);
+
+    if (!cache.hasCache('allusers')) return;
+
+    const allUserData = JSON.parse(cache.getCache('allusers') || '[]');
+    if (!Array.isArray(allUserData)) return;
+
+    const userIdx = allUserData.findIndex((user) => String(user._id) === String(userId));
+    if (userIdx < 0) return;
+
+    allUserData[userIdx] = {
+      ...allUserData[userIdx],
+      statusNote: updatedUser.statusNote,
+      statusNoteHistory: updatedUser.statusNoteHistory,
+    };
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
+  const updateStatusNote = async function (req, res) {
+    const { userId } = req.params;
+    const { statusNote, requestor } = req.body;
+    const requestorId = requestor?.requestorId;
+
+    const validationError = getStatusNoteValidationError(userId, statusNote);
+    if (validationError) {
+      return res.status(400).send({ error: validationError });
+    }
+
+    const isAuthorized = await canChangeStatusNote(requestor, requestorId, userId);
+    if (!isAuthorized) {
+      return res.status(403).send('You are not authorized to change notes for this user');
+    }
+
+    try {
+      const currentUser = await UserProfile.findById(userId).select('statusNote statusNoteHistory');
+      if (!currentUser) return res.status(404).send({ error: 'User not found' });
+
+      const currentNote = currentUser.statusNote || '';
+      const newNote = statusNote.trim();
+      const action = getStatusNoteAction(currentNote, newNote);
+      if (!action) {
+        return res.status(200).send({
+          message: 'Note unchanged',
+          statusNote: currentNote,
+          statusNoteHistory: currentUser.statusNoteHistory || [],
+        });
+      }
+
+      const requestorProfile = await UserProfile.findById(requestorId).select(
+        'email firstName lastName',
+      );
+      if (!requestorProfile) {
+        return res.status(404).send({ error: 'Requestor not found' });
+      }
+
+      const updatedUser = await UserProfile.findByIdAndUpdate(
+        userId,
+        createStatusNoteUpdate(currentNote, newNote, action, requestorProfile),
+        { new: true, runValidators: true },
+      );
+      if (!updatedUser) return res.status(404).send({ error: 'User not found' });
+
+      syncStatusNoteCache(userId, updatedUser);
+
+      auditIfProtectedAccountUpdated({
+        requestorId,
+        updatedRecordEmail: updatedUser.email,
+        originalRecord: null,
+        updatedRecord: null,
+        updateDiffPaths: null,
+        actionPerformed: 'UserStatusNoteUpdate',
+      });
+
+      return res.status(200).send({
+        message: `Note ${action}`,
+        statusNote: updatedUser.statusNote,
+        statusNoteHistory: updatedUser.statusNoteHistory,
+      });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
+    }
+  };
+
   const resetPassword = async function (req, res) {
     try {
       await ValidatePassword(req);
@@ -3351,6 +3480,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     getTeamMembersofUser,
     getProjectMembers,
     changeUserStatus,
+    updateStatusNote,
     pauseResumeUser,
     resetPassword,
     getUserByName,
