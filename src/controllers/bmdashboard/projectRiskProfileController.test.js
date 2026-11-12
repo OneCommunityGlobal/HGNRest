@@ -98,6 +98,41 @@ describe('projectRiskProfileController.getRiskProfileSummary - issue counts', ()
     expect(res.json.mock.calls[0][0][0].totalOpenIssues).toBe(0);
   });
 
+  test('returns per-day issue counts grouped by createdAt, sorted, skipping undated records', async () => {
+    ProjectRiskProfile.find.mockReturnValue(leanResult([baseProfile()]));
+    Issue.find.mockReturnValue(
+      leanResult([
+        { createdAt: '2026-01-10T15:00:00.000Z', laborIssues: 3 },
+        { createdAt: '2026-01-02T08:00:00.000Z', equipmentIssues: 1, materialIssues: 1 },
+        { createdAt: '2026-01-10T01:00:00.000Z', materialIssues: 4 },
+        { laborIssues: 9 },
+        { createdAt: 'not-a-date', laborIssues: 7 },
+      ]),
+    );
+    const res = mockRes();
+
+    await controller.getRiskProfileSummary(
+      { query: { startDate: '2026-01-01', endDate: '2026-01-31' } },
+      res,
+    );
+
+    const [result] = res.json.mock.calls[0][0];
+    expect(result.dailyIssueCounts).toEqual([
+      { date: '2026-01-02', issues: 2 },
+      { date: '2026-01-10', issues: 7 },
+    ]);
+  });
+
+  test('returns an empty dailyIssueCounts when there are no issue records', async () => {
+    ProjectRiskProfile.find.mockReturnValue(leanResult([baseProfile()]));
+    Issue.find.mockReturnValue(leanResult([]));
+    const res = mockRes();
+
+    await controller.getRiskProfileSummary({ query: {} }, res);
+
+    expect(res.json.mock.calls[0][0][0].dailyIssueCounts).toEqual([]);
+  });
+
   test('returns 500 when loading risk profiles fails', async () => {
     ProjectRiskProfile.find.mockReturnValue({
       lean: jest.fn().mockRejectedValue(new Error('db down')),

@@ -22,6 +22,21 @@ function sumIssueCounts(issueDocs) {
   );
 }
 
+// Per-day issue totals keyed by createdAt (UTC YYYY-MM-DD), sorted by date, so
+// the client can chart how the issue count changed over the selected range.
+function buildDailyIssueCounts(issueDocs) {
+  const byDay = {};
+  issueDocs.forEach((doc) => {
+    const created = doc.createdAt ? new Date(doc.createdAt) : null;
+    if (!created || !Number.isFinite(created.getTime())) return;
+    const day = created.toISOString().slice(0, 10);
+    byDay[day] = (byDay[day] || 0) + sumIssueCounts([doc]);
+  });
+  return Object.keys(byDay)
+    .sort()
+    .map((date) => ({ date, issues: byDay[date] }));
+}
+
 const projectRiskProfileController = {
   // Get all risk profiles
   getAllRiskProfiles: async (req, res) => {
@@ -212,6 +227,7 @@ const projectRiskProfileController = {
               predictedCostOverrun !== null ? Number(predictedCostOverrun.toFixed(2)) : null,
             predictedTimeDelay,
             totalOpenIssues,
+            dailyIssueCounts: buildDailyIssueCounts(issueDocs),
             dates: [
               profile.startDate ? new Date(profile.startDate).toISOString().slice(0, 10) : null,
               profile.endDate ? new Date(profile.endDate).toISOString().slice(0, 10) : null,
