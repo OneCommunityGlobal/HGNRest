@@ -249,7 +249,33 @@ describe('weeklyGradingController', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: 'Invalid date format' });
     });
+    it('accepts legacy teamCode when saving', async () => {
+      const req = {
+        body: {
+          teamCode: 'TeamA',
+          date: '2026-10-13',
+          gradings: [
+            {
+              reviewer: 'Alice',
+              prsReviewed: 3,
+              prsNeeded: 5,
+              gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
+            },
+          ],
+        },
+      };
 
+      model.findOne.mockResolvedValue(null);
+      model.findOneAndUpdate.mockResolvedValue({});
+
+      await controller.saveWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'ok',
+        message: 'Weekly grades saved successfully',
+      });
+    });
     it('returns 200 when gradings are saved successfully', async () => {
       const req = {
         body: {

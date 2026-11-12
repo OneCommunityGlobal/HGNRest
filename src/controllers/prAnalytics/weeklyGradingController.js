@@ -213,7 +213,8 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
   const saveWeeklyGrading = async (req, res) => {
     try {
-      const { teamName, date, gradings } = req.body;
+      const { date, gradings } = req.body;
+      const teamName = req.body.teamName || req.body.teamCode;
 
       if (!teamName || !date || !gradings || !Array.isArray(gradings)) {
         return res

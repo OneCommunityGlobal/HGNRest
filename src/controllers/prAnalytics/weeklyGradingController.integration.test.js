@@ -171,7 +171,7 @@ describe('weekly grading soft removal integration', () => {
     const response = await request(app)
       .post('/api/weekly-grading/save')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ teamName: query.team, date: week, gradings: [grading('Alice')] });
+      .send({ teamCode: query.team, date: week, gradings: [grading('Alice')] });
     expect(response.status).toBe(200);
     expect((await get()).body.map((row) => row.reviewer)).toEqual(['Bob']);
     expect(await WeeklyGrading.countDocuments({ isRemoved: true })).toBe(2);
