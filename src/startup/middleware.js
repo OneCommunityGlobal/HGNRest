@@ -47,7 +47,20 @@ module.exports = function (app) {
       next();
       return;
     }
-    if (req.originalUrl === '/api/lbdashboard/register' && req.method === 'POST') {
+    if (
+      (req.originalUrl === '/api/lbdashboard/register' ||
+        req.originalUrl === '/lbdashboard/register') &&
+      req.method === 'POST'
+    ) {
+      next();
+      return;
+    }
+    // LB admin routes verify the JWT and admin role themselves (requireLBAdmin) so they can
+    // return their own 401/403 bodies.
+    if (
+      req.path.startsWith('/api/lbdashboard/admin') ||
+      req.path.startsWith('/lbdashboard/admin')
+    ) {
       next();
       return;
     }
