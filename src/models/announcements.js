@@ -28,8 +28,14 @@ const announcementSchema = new Schema(
     audience: {
       type: String,
       required: true,
-      enum: ['students', 'educators', 'support'],
-      default: 'all',
+      enum: ['students', 'educators', 'support', 'all'],
+      default: 'students',
+    },
+    groupId: { type: Schema.Types.ObjectId, ref: 'StudentGroup' },
+    // Absent means broad; an empty snapshot must never be treated as broadcast.
+    recipientStudentIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: 'userProfile' }],
+      default: undefined,
     },
     created_at: {
       type: Date,
