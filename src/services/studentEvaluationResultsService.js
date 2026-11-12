@@ -374,11 +374,12 @@ async function publishStudentEvaluationResults(payload) {
   const validated = validateEvaluationPublication(payload);
   await getValidatedStudent(validated.studentObjectId);
   const session = await mongoose.startSession();
+  let persistedEvaluations;
   try {
-    session.startTransaction();
-    // Promise chaining avoids parallel operations on a transaction's session.
-    const persistedEvaluations = await validated.evaluations.reduce(
-      async (previous, evaluation) => {
+    // The driver retries transient transactions and retries only commit when its outcome is uncertain.
+    await session.withTransaction(async () => {
+      // Promise chaining avoids parallel operations on a transaction's session.
+      persistedEvaluations = await validated.evaluations.reduce(async (previous, evaluation) => {
         const persisted = await previous;
         persisted.push(
           await persistCategory(
@@ -389,43 +390,42 @@ async function publishStudentEvaluationResults(payload) {
           ),
         );
         return persisted;
-      },
-      Promise.resolve([]),
-    );
-    const updates = { 'educationProfiles.student.lastEvaluationResultsViewedAt': null };
-    if (validated.teacherFeedback !== undefined) {
-      updates['educationProfiles.student.evaluationFeedback'] = {
-        ...validated.teacherFeedback,
-        authorId: validated.teacherObjectId,
-        updatedAt: new Date(),
-      };
-    }
-    const student = await UserProfile.findByIdAndUpdate(
-      validated.studentObjectId,
-      { $set: updates },
-      { new: true, runValidators: true, session },
-    );
-    if (!student) throw new Error('Student profile not found.');
-    await Notification.create(
-      [
-        {
-          message: validated.message,
-          sender: validated.teacherObjectId,
-          recipient: validated.studentObjectId,
-          type: 'evaluation_results',
-          metadata: { categories: persistedEvaluations.map((item) => item.category) },
-          isSystemGenerated: false,
-        },
-      ],
-      { session },
-    );
-    await session.commitTransaction();
+      }, Promise.resolve([]));
+      const updates = { 'educationProfiles.student.lastEvaluationResultsViewedAt': null };
+      if (validated.teacherFeedback !== undefined) {
+        updates['educationProfiles.student.evaluationFeedback'] = {
+          ...validated.teacherFeedback,
+          authorId: validated.teacherObjectId,
+          updatedAt: new Date(),
+        };
+      }
+      const student = await UserProfile.findByIdAndUpdate(
+        validated.studentObjectId,
+        { $set: updates },
+        { new: true, runValidators: true, session },
+      );
+      if (!student) throw new Error('Student profile not found.');
+      await Notification.create(
+        [
+          {
+            message: validated.message,
+            sender: validated.teacherObjectId,
+            recipient: validated.studentObjectId,
+            type: 'evaluation_results',
+            metadata: { categories: persistedEvaluations.map((item) => item.category) },
+            isSystemGenerated: false,
+          },
+        ],
+        { session },
+      );
+    });
     return persistedEvaluations;
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
   } finally {
-    await session.endSession();
+    try {
+      await session.endSession();
+    } catch (cleanupError) {
+      // Cleanup must not mask a transaction error or a successful publication.
+    }
   }
 }
 

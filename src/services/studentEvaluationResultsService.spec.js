@@ -21,6 +21,8 @@ jest.mock('../models/evaluationTask', () => ({
 }));
 
 const mongoose = require('mongoose');
+const { ClientSession, TxnState } = require('mongodb/lib/core/sessions');
+const { MongoError } = require('mongodb');
 const UserProfile = require('../models/userProfile');
 const Notification = require('../models/notification');
 const StudentEvaluation = require('../models/studentEvaluation');
@@ -28,12 +30,34 @@ const EvaluationTask = require('../models/evaluationTask');
 const service = require('./studentEvaluationResultsService');
 
 const startSession = jest.spyOn(mongoose, 'startSession');
-const mockSession = () => ({
-  startTransaction: jest.fn(),
-  commitTransaction: jest.fn().mockResolvedValue(),
-  abortTransaction: jest.fn().mockResolvedValue(),
-  endSession: jest.fn().mockResolvedValue(),
-});
+// Exercise the installed driver's actual retry algorithm with mocked operations;
+// no connection or database writes are involved.
+const mockSession = () => {
+  const transaction = {
+    state: TxnState.NO_TRANSACTION,
+    get isActive() {
+      return this.state === TxnState.TRANSACTION_IN_PROGRESS;
+    },
+  };
+  const session = {
+    transaction,
+    inTransaction: jest.fn(() => transaction.isActive),
+    startTransaction: jest.fn(() => {
+      transaction.state = TxnState.TRANSACTION_IN_PROGRESS;
+    }),
+    commitTransaction: jest.fn(async () => {
+      transaction.state = TxnState.TRANSACTION_COMMITTED;
+    }),
+    abortTransaction: jest.fn(async () => {
+      transaction.state = TxnState.TRANSACTION_ABORTED;
+    }),
+    endSession: jest.fn().mockResolvedValue(),
+  };
+  session.withTransaction = jest.fn((callback) =>
+    ClientSession.prototype.withTransaction.call(session, callback),
+  );
+  return session;
+};
 
 const validStudentId = '65cf6c3706d8ac105827bb2e';
 const validTeacherId = '65cf6c3706d8ac105827bb2f';
@@ -729,5 +753,185 @@ describe('atomic evaluation publishing', () => {
     release([]);
     await publication;
     expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(2);
+  });
+  test('preserves the driver error when automatic abort and cleanup fail', async () => {
+    const original = new Error('Original write failure');
+    const abortError = new Error('Abort failed');
+    EvaluationTask.insertMany.mockRejectedValueOnce(original);
+    // An exceptional abort rejection is propagated by the installed driver.
+    session.abortTransaction.mockRejectedValue(abortError);
+    session.endSession.mockRejectedValue(new Error('Cleanup failed'));
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(abortError);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not abort an inactive failed transaction', async () => {
+    const original = new Error('Write failed');
+    EvaluationTask.insertMany.mockImplementationOnce(async () => {
+      session.transaction.state = TxnState.TRANSACTION_ABORTED;
+      throw original;
+    });
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(original);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns a successful publication even if session cleanup fails', async () => {
+    session.endSession.mockRejectedValueOnce(new Error('Cleanup failed'));
+    await expect(service.publishStudentEvaluationResults(payload())).resolves.toEqual([
+      { _id: 'evaluation-1', category: 'Math' },
+    ]);
+    expect(session.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+  });
+
+  test('preserves commit failure without aborting or rerunning writes', async () => {
+    const original = new Error('Commit failed');
+    session.commitTransaction.mockImplementationOnce(async () => {
+      session.transaction.state = TxnState.TRANSACTION_COMMITTED;
+      throw original;
+    });
+    session.endSession.mockRejectedValueOnce(new Error('Cleanup failed'));
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(original);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('retries uncertain commit without duplicating publication writes', async () => {
+    const uncertain = new MongoError('Commit acknowledgment lost');
+    uncertain.addErrorLabel('UnknownTransactionCommitResult');
+    session.commitTransaction.mockImplementationOnce(async () => {
+      session.transaction.state = TxnState.TRANSACTION_COMMITTED;
+      throw uncertain;
+    });
+    await service.publishStudentEvaluationResults(payload());
+    expect(session.commitTransaction).toHaveBeenCalledTimes(2);
+    expect(session.startTransaction).toHaveBeenCalledTimes(1);
+    expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(EvaluationTask.insertMany).toHaveBeenCalledTimes(1);
+    expect(Notification.create).toHaveBeenCalledTimes(1);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+  });
+
+  test('leaves an unresolved commit outcome intact without rerunning writes', async () => {
+    const uncertain = new MongoError('Commit deadline exceeded');
+    uncertain.code = 50;
+    uncertain.addErrorLabel('UnknownTransactionCommitResult');
+    session.commitTransaction.mockImplementationOnce(async () => {
+      session.transaction.state = TxnState.TRANSACTION_COMMITTED;
+      throw uncertain;
+    });
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(uncertain);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(Notification.create).toHaveBeenCalledTimes(1);
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('retries the whole transaction only for a transient transaction failure', async () => {
+    const transient = new MongoError('Write conflict');
+    transient.addErrorLabel('TransientTransactionError');
+    EvaluationTask.insertMany.mockRejectedValueOnce(transient);
+    await service.publishStudentEvaluationResults(payload());
+    expect(session.startTransaction).toHaveBeenCalledTimes(2);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    expect(Notification.create).toHaveBeenCalledTimes(1);
+  });
+
+  test('cleans up after transaction startup fails without masking the error', async () => {
+    const original = new Error('Cannot start transaction');
+    session.startTransaction.mockImplementationOnce(() => {
+      throw original;
+    });
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(original);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves retry startup failure after a transient write failure', async () => {
+    const transient = new MongoError('Write conflict');
+    transient.addErrorLabel('TransientTransactionError');
+    const startupError = new Error('Retry cannot start');
+    EvaluationTask.insertMany.mockRejectedValueOnce(transient);
+    session.startTransaction
+      .mockImplementationOnce(() => {
+        session.transaction.state = TxnState.TRANSACTION_IN_PROGRESS;
+      })
+      .mockImplementationOnce(() => {
+        throw startupError;
+      });
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(startupError);
+    expect(session.startTransaction).toHaveBeenCalledTimes(2);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves terminal commit failure after retrying a transient write failure', async () => {
+    const transient = new MongoError('Write conflict');
+    transient.addErrorLabel('TransientTransactionError');
+    const commitError = new MongoError('Terminal commit failure');
+    EvaluationTask.insertMany.mockRejectedValueOnce(transient);
+    session.commitTransaction.mockImplementationOnce(async () => {
+      session.transaction.state = TxnState.TRANSACTION_COMMITTED;
+      throw commitError;
+    });
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(commitError);
+    expect(session.startTransaction).toHaveBeenCalledTimes(2);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(Notification.create).toHaveBeenCalledTimes(1);
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves a different terminal write error on the next transaction attempt', async () => {
+    const transient = new MongoError('Write conflict');
+    transient.addErrorLabel('TransientTransactionError');
+    const terminalError = new Error('Terminal write failure');
+    EvaluationTask.insertMany.mockRejectedValueOnce(transient).mockRejectedValueOnce(terminalError);
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(terminalError);
+    expect(session.startTransaction).toHaveBeenCalledTimes(2);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(2);
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('retries multiple uncertain commits without repeating any publication writes', async () => {
+    const uncertainCommit = async () => {
+      session.transaction.state = TxnState.TRANSACTION_COMMITTED;
+      const uncertain = new MongoError('Commit acknowledgment lost');
+      uncertain.addErrorLabel('UnknownTransactionCommitResult');
+      throw uncertain;
+    };
+    session.commitTransaction
+      .mockImplementationOnce(uncertainCommit)
+      .mockImplementationOnce(uncertainCommit);
+    await expect(service.publishStudentEvaluationResults(payload())).resolves.toEqual([
+      { _id: 'evaluation-1', category: 'Math' },
+    ]);
+    expect(session.commitTransaction).toHaveBeenCalledTimes(3);
+    expect(session.startTransaction).toHaveBeenCalledTimes(1);
+    expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(EvaluationTask.deleteMany).toHaveBeenCalledTimes(1);
+    expect(EvaluationTask.insertMany).toHaveBeenCalledTimes(1);
+    expect(UserProfile.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+    expect(Notification.create).toHaveBeenCalledTimes(1);
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves the original write error after a normal automatic abort', async () => {
+    const original = new Error('Write failed');
+    EvaluationTask.insertMany.mockRejectedValueOnce(original);
+    // Normal driver aborts resolve and transition to aborted, even on command errors.
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(original);
+    expect(session.transaction.state).toBe(TxnState.TRANSACTION_ABORTED);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
   });
 });
