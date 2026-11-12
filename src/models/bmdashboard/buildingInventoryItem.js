@@ -54,7 +54,7 @@ const largeItemBaseSchema = mongoose.Schema({
   // for now they have default dummy values
   purchaseStatus: {
     type: String,
-    enum: ['Rental', 'Purchase', 'Needed', 'Purchased', 'Rented'],
+    enum: ['Rental', 'Purchase', 'Needed', 'Purchased', 'Rented', 'Returned'],
     default: 'Rental',
   },
   condition: {
@@ -77,6 +77,18 @@ const largeItemBaseSchema = mongoose.Schema({
   // TODO: rental fields should be required if purchaseStatus === "Rental"
   rentedOnDate: { type: Date, default: Date.now() },
   rentalDueDate: { type: Date, default: new Date(Date.now() + 3600 * 1000 * 24 * 14) },
+  rentalReturnedDate: { type: Date }, // set when a rental is marked returned
+  rentalHistory: [
+    {
+      // audit trail for rental quick actions on the project dashboard
+      action: { type: String, enum: ['Returned', 'Extended', 'Reminder Sent'], required: true },
+      date: { type: Date, default: Date.now },
+      createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+      previousDueDate: Date,
+      newDueDate: Date,
+      sentTo: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
+    },
+  ],
   // image of actual tool (remove default once there is a system for this)
   imageUrl: {
     type: String,
@@ -184,7 +196,7 @@ const buildingTool = largeItemBase.discriminator(
     code: { type: String, default: '001' },
     purchaseStatus: {
       type: String,
-      enum: ['Rental', 'Purchased'], // Override enum values
+      enum: ['Rental', 'Purchased', 'Returned'], // Override enum values
       default: 'Rental',
     },
   }),
