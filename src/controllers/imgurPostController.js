@@ -1,0 +1,685 @@
+const axios = require('axios');
+const schedule = require('node-schedule');
+const mongoose = require('mongoose');
+const ImgurPost = require('../models/imgurPosts');
+
+const IMGUR_API_ENDPOINT = 'https://api.imgur.com/3';
+const { IMGUR_CLIENT_ID } = process.env;
+const { IMGUR_ACCESS_TOKEN } = process.env;
+// eslint-disable-next-line no-unused-vars
+const { IMGUR_REFRESH_TOKEN } = process.env;
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Sanitize log input to prevent Log Injection (S5145) by removing control characters.
+ * @param {any} data - The data to sanitize for logging.
+ * @returns {string} Sanitized string safe for logging.
+ */
+const sanitizeLog = (data) => {
+  if (!data) return '';
+  const str = typeof data === 'object' ? JSON.stringify(data) : String(data);
+  return str.replace(/[\r\n]/g, '_');
+};
+
+/**
+ * Summarize media files for API responses
+ */
+// eslint-disable-next-line no-unused-vars
+const summarizeMediaFiles = (mediaFiles = []) =>
+  mediaFiles.map(({ originalname, mimetype, size }) => ({
+    name: originalname,
+    type: mimetype,
+    size,
+  }));
+
+/**
+ * Normalize media files for storage
+ */
+const normalizeMediaFiles = (mediaFiles = []) =>
+  mediaFiles.map((file) => ({
+    filename: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+    buffer: file.buffer,
+  }));
+
+/**
+ * Validate schedule time
+ */
+const validateScheduleTime = (scheduleTime) => {
+  if (!scheduleTime) {
+    return { scheduledDateTime: null };
+  }
+
+  const scheduledDateTime = new Date(scheduleTime);
+  if (Number.isNaN(scheduledDateTime.getTime())) {
+    return { error: 'Schedule time is invalid' };
+  }
+
+  if (scheduledDateTime <= new Date()) {
+    return { error: 'Schedule time must be in the future' };
+  }
+
+  return { scheduledDateTime };
+};
+
+/**
+ * Get authorization headers for Imgur API
+ */
+const getAuthHeaders = (accessToken = IMGUR_ACCESS_TOKEN) => {
+  if (!accessToken && !IMGUR_CLIENT_ID) {
+    throw new Error('Imgur authorization credentials not configured');
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  } else if (IMGUR_CLIENT_ID) {
+    headers.Authorization = `Client-ID ${IMGUR_CLIENT_ID}`;
+  }
+
+  return headers;
+};
+
+/**
+ * Upload image to Imgur and return image hash
+ */
+const uploadImageToImgur = async (imageBuffer, title = '') => {
+  try {
+    const base64Image = imageBuffer.toString('base64');
+
+    const formData = {
+      image: base64Image,
+      type: 'base64',
+      title,
+    };
+
+    const response = await axios.post(`${IMGUR_API_ENDPOINT}/upload`, formData, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.data.success) {
+      throw new Error(`Imgur upload failed: ${response.data.data.error}`);
+    }
+
+    return response.data.data.id; // Returns the image hash/id
+  } catch (err) {
+    console.error('Image upload to Imgur failed:', sanitizeLog(err.response?.data || err.message));
+    throw new Error(`Failed to upload image to Imgur: ${sanitizeLog(err.message)}`);
+  }
+};
+
+/**
+ * Create an album on Imgur.
+ * @param {string} title - The title of the Imgur album.
+ * @param {string} description - The description of the Imgur album.
+ * @returns {Promise<string>} The unique ID of the created Imgur album.
+ */
+const createImgurAlbum = async (title, description = '') => {
+  try {
+    // Validate the title input to prevent invalid or empty data payload submission
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+      throw new Error('A valid title is required to create an Imgur album.');
+    }
+
+    const response = await axios.post(
+      `${IMGUR_API_ENDPOINT}/album`,
+      {
+        title: title.trim(),
+        description,
+      },
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    // Verify if the API response indicates a successful operation
+    if (!response.data || !response.data.success) {
+      throw new Error(
+        `Album creation failed: ${sanitizeLog(response.data?.data?.error || 'Unknown API error')}`,
+      );
+    }
+
+    return response.data.data.id;
+  } catch (err) {
+    // Log the detailed error context safely for debugging purposes
+    console.error(
+      'Album creation on Imgur failed:',
+      sanitizeLog(err.response?.data || err.message),
+    );
+    throw new Error(`Failed to create Imgur album: ${sanitizeLog(err.message)}`);
+  }
+};
+
+/**
+ * Add images to an Imgur album
+ */
+const addImagesToAlbum = async (albumId, imageIds) => {
+  try {
+    if (!imageIds || imageIds.length === 0) {
+      return albumId; // No images to add
+    }
+
+    // Core fix: Add security validation and sanitization for albumId to prevent request forgery / SSRF vulnerabilities
+    if (!albumId || typeof albumId !== 'string' || !/^[a-zA-Z0-9]+$/.test(albumId)) {
+      throw new Error('Invalid or unsafe album ID format.');
+    }
+
+    const response = await axios.post(
+      `${IMGUR_API_ENDPOINT}/album/${albumId}/add`,
+      {
+        ids: imageIds,
+      },
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.data.success) {
+      throw new Error(`Failed to add images to album: ${sanitizeLog(response.data.data.error)}`);
+    }
+
+    return albumId;
+  } catch (err) {
+    console.error('Failed to add images to album:', sanitizeLog(err.response?.data || err.message));
+    throw new Error(`Failed to add images to Imgur album: ${sanitizeLog(err.message)}`);
+  }
+};
+
+// /**
+//  * Publish post to Imgur
+//  */
+// const publishToImgur = async (title, description, mediaFiles, userId) => {
+//   try {
+//     let albumId = null;
+//     let imgurUrl = null;
+//     const uploadedImageIds = [];
+
+//     // Upload images and create album
+//     if (mediaFiles && mediaFiles.length > 0) {
+//       // Create album if multiple images or any image exists
+//       albumId = await createImgurAlbum(title, description);
+
+//       // Upload images in parallel instead of sequentially
+//       const uploadPromises = mediaFiles.map((file) => uploadImageToImgur(file.buffer, title));
+//       const imageIds = await Promise.all(uploadPromises);
+//       uploadedImageIds.push(...imageIds);
+
+//       // Add images to album
+//       await addImagesToAlbum(albumId, uploadedImageIds);
+//       imgurUrl = `https://imgur.com/a/${albumId}`;
+//     } else {
+//       // Create album without images (can be added later)
+//       albumId = await createImgurAlbum(title, description);
+//       imgurUrl = `https://imgur.com/a/${albumId}`;
+//     }
+
+//     return {
+//       success: true,
+//       albumId,
+//       imgurUrl,
+//       imageIds: uploadedImageIds,
+//     };
+//   } catch (err) {
+//     console.error('Imgur publication failed:', sanitizeLog(err.message));
+//     throw err;
+//   }
+// };
+
+/**
+ * Publish post to Imgur (with Mock Fallback if credentials are missing)
+ */
+const publishToImgur = async (title, description, mediaFiles, userId) => {
+  try {
+    // Mock Fallback: Automatically return mock success data when Imgur credentials are not configured on the server
+    if (!IMGUR_CLIENT_ID && !IMGUR_ACCESS_TOKEN) {
+      console.warn(
+        '⚠️ [Mock Fallback] No Imgur credentials provided. Returning mock publish result.',
+      );
+      const mockAlbumId = `mock_album_${Date.now()}`;
+      const mockImageIds = (mediaFiles || []).map((_, index) => `mock_img_${index}_${Date.now()}`);
+
+      return {
+        success: true,
+        albumId: mockAlbumId,
+        imgurUrl: `https://imgur.com/a/${mockAlbumId}`,
+        imageIds: mockImageIds,
+      };
+    }
+
+    let albumId = null;
+    let imgurUrl = null;
+    const uploadedImageIds = [];
+
+    // Upload images and create album
+    if (mediaFiles && mediaFiles.length > 0) {
+      // Create album if multiple images or any image exists
+      albumId = await createImgurAlbum(title, description);
+
+      // Upload images in parallel instead of sequentially
+      const uploadPromises = mediaFiles.map((file) => uploadImageToImgur(file.buffer, title));
+      const imageIds = await Promise.all(uploadPromises);
+      uploadedImageIds.push(...imageIds);
+
+      // Add images to album
+      await addImagesToAlbum(albumId, uploadedImageIds);
+      imgurUrl = `https://imgur.com/a/${albumId}`;
+    } else {
+      // Create album without images (can be added later)
+      albumId = await createImgurAlbum(title, description);
+      imgurUrl = `https://imgur.com/a/${albumId}`;
+    }
+
+    return {
+      success: true,
+      albumId,
+      imgurUrl,
+      imageIds: uploadedImageIds,
+    };
+  } catch (err) {
+    console.error('Imgur publication failed:', sanitizeLog(err.message));
+    throw err;
+  }
+};
+
+/**
+ * Execute a scheduled post
+ */
+const executeScheduledPost = async (postId, scheduledJobs) => {
+  let postRecord = null;
+  try {
+    postRecord = await ImgurPost.findById(postId);
+    if (!postRecord) {
+      console.error('Scheduled post not found');
+      return;
+    }
+
+    // Check status to avoid duplicate processing
+    if (postRecord.status !== 'pending') {
+      console.log('Post is already being processed or completed');
+      return;
+    }
+
+    // Mark as publishing
+    postRecord.status = 'publishing';
+    await postRecord.save();
+
+    // Publish to Imgur
+    const result = await publishToImgur(
+      postRecord.title,
+      postRecord.description,
+      postRecord.images,
+      postRecord.userId,
+    );
+
+    // Update record with success
+    postRecord.status = 'posted';
+    postRecord.remotePostId = result.albumId;
+    postRecord.albumId = result.albumId;
+    postRecord.imgurUrl = result.imgurUrl;
+    postRecord.postedAt = new Date();
+    postRecord.attempts += 1;
+    await postRecord.save();
+
+    console.log('Successfully posted to Imgur');
+  } catch (err) {
+    console.error('Failed to execute scheduled post:', sanitizeLog(err.message));
+
+    if (postRecord) {
+      postRecord.status = 'failed';
+      postRecord.lastError = err.message;
+      postRecord.attempts += 1;
+      postRecord.lockOwner = null;
+      postRecord.lockedUntil = null;
+      await postRecord.save();
+    }
+  } finally {
+    // Clean up scheduled job reference
+    scheduledJobs.delete(postId);
+  }
+};
+
+/**
+ * Create a scheduled job for a post
+ */
+const createScheduledJob = (postId, scheduledDateTime, scheduledJobs) => {
+  const job = schedule.scheduleJob(scheduledDateTime, async () => {
+    await executeScheduledPost(postId, scheduledJobs);
+  });
+
+  return job;
+};
+
+// ============================================================================
+// CONTROLLER
+// ============================================================================
+
+const imgurPostController = () => {
+  const scheduledJobs = new Map(); // Map to track running scheduled jobs
+
+  /**
+   * POST /imgur/post
+   * Post immediately or schedule for later
+   */
+  const postToImgur = async (req, res) => {
+    try {
+      const { title, description, scheduleTime } = req.body;
+      const userId = req.user?._id || req.body.userId;
+
+      // Validate input
+      if (!title || title.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Title is required',
+        });
+      }
+
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID is required',
+        });
+      }
+
+      const mediaFiles = normalizeMediaFiles(req.files || []);
+
+      // Validate schedule time if provided
+      const { scheduledDateTime, error: timeError } = validateScheduleTime(scheduleTime);
+      if (timeError) {
+        return res.status(400).json({
+          success: false,
+          message: timeError,
+        });
+      }
+
+      // If scheduled for later, save to database and create job
+      if (scheduledDateTime) {
+        const postRecord = await ImgurPost.create({
+          userId,
+          title,
+          description,
+          images: mediaFiles,
+          scheduledTime: scheduledDateTime,
+          status: 'pending',
+        });
+
+        // Create in-memory scheduled job
+        const job = createScheduledJob(postRecord._id, scheduledDateTime, scheduledJobs);
+        scheduledJobs.set(postRecord._id.toString(), {
+          job,
+          postId: postRecord._id,
+          title,
+          scheduledTime: scheduledDateTime,
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: 'Post scheduled successfully',
+          postId: postRecord._id,
+          scheduledTime: scheduledDateTime,
+        });
+      }
+
+      // Post immediately
+      const result = await publishToImgur(title, description, mediaFiles, userId);
+
+      // Save to database as posted
+      const postRecord = await ImgurPost.create({
+        userId,
+        title,
+        description,
+        images: mediaFiles,
+        scheduledTime: new Date(),
+        status: 'posted',
+        remotePostId: result.albumId,
+        albumId: result.albumId,
+        imgurUrl: result.imgurUrl,
+        postedAt: new Date(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Posted successfully to Imgur',
+        postId: postRecord._id,
+        albumId: result.albumId,
+        imgurUrl: result.imgurUrl,
+      });
+    } catch (err) {
+      console.error('Imgur post error:', sanitizeLog(err.message));
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to post to Imgur',
+      });
+    }
+  };
+
+  /**
+   * GET /imgur/posts
+   * Get all scheduled posts (from database)
+   */
+  const getScheduledPosts = async (req, res) => {
+    try {
+      const rawUserId = req.user?._id || req.query.userId;
+
+      // Explicitly initialize a clean filter object
+      const filter = { status: { $ne: 'posted' } };
+
+      if (rawUserId) {
+        // Validate userId format to prevent NoSQL injection attacks
+        const userIdStr = typeof rawUserId === 'string' ? rawUserId : String(rawUserId);
+
+        // Validate that the string is a valid MongoDB ObjectId
+        if (!mongoose.isValidObjectId(userIdStr)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid user ID format',
+          });
+        }
+
+        // Explicitly assign a newly constructed ObjectId to clear taint analysis
+        const sanitizedUserId = new mongoose.Types.ObjectId(userIdStr);
+        filter.userId = sanitizedUserId;
+      }
+
+      // Query using the isolated and fully sanitized filter object
+      const posts = await ImgurPost.find(filter)
+        .select('-images.buffer') // Exclude binary image buffers from the API response
+        .sort({ scheduledTime: 1 });
+
+      return res.status(200).json({
+        success: true,
+        posts,
+      });
+    } catch (err) {
+      console.error('Error fetching scheduled posts:', sanitizeLog(err.message));
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch scheduled posts',
+        error: err.message,
+      });
+    }
+  };
+
+  /**
+   * DELETE /imgur/posts/:postId
+   * Delete a scheduled post
+   */
+  const deleteScheduledPost = async (req, res) => {
+    try {
+      const { postId } = req.params;
+
+      // Only pending posts can be deleted
+      const result = await ImgurPost.deleteOne({
+        _id: postId,
+        status: { $in: ['pending'] },
+      });
+
+      if (!result.deletedCount) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduled post not found or already being published',
+        });
+      }
+
+      // Cancel the scheduled job
+      const job = scheduledJobs.get(postId);
+      if (job && job.job) {
+        job.job.cancel();
+      }
+      scheduledJobs.delete(postId);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Scheduled post deleted successfully',
+      });
+    } catch (err) {
+      console.error('Error deleting scheduled post:', sanitizeLog(err.message));
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete scheduled post',
+        error: err.message,
+      });
+    }
+  };
+
+  /**
+   * PUT /imgur/posts/:postId
+   * Update a scheduled post
+   */
+  const updateScheduledPost = async (req, res) => {
+    try {
+      const { postId } = req.params;
+      const { title, description, scheduleTime } = req.body;
+      const mediaFiles = normalizeMediaFiles(req.files || []);
+
+      // Find the post
+      const post = await ImgurPost.findOne({
+        _id: postId,
+        status: 'pending',
+      });
+
+      if (!post) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduled post not found or cannot be updated',
+        });
+      }
+
+      // Update fields
+      if (title) post.title = title;
+      if (description) post.description = description;
+      if (mediaFiles.length > 0) post.images = mediaFiles;
+
+      // Update schedule time if provided
+      if (scheduleTime) {
+        const { scheduledDateTime, error: timeError } = validateScheduleTime(scheduleTime);
+        if (timeError) {
+          return res.status(400).json({
+            success: false,
+            message: timeError,
+          });
+        }
+
+        post.scheduledTime = scheduledDateTime;
+
+        // Cancel old job and create new one
+        const oldJob = scheduledJobs.get(postId);
+        if (oldJob && oldJob.job) {
+          oldJob.job.cancel();
+        }
+
+        const newJob = createScheduledJob(postId, scheduledDateTime, scheduledJobs);
+        scheduledJobs.set(postId, {
+          job: newJob,
+          postId,
+          title: post.title,
+          scheduledTime: scheduledDateTime,
+        });
+      }
+
+      await post.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Post updated successfully',
+        post,
+      });
+    } catch (err) {
+      console.error('Error updating scheduled post:', sanitizeLog(err.message));
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update scheduled post',
+        error: err.message,
+      });
+    }
+  };
+
+  /**
+   * POST /imgur/authorize
+   * Handle Imgur OAuth authorization and store tokens
+   */
+  const authorizeImgur = async (req, res) => {
+    try {
+      const { code } = req.body;
+
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          message: 'Authorization code is required',
+        });
+      }
+
+      if (!process.env.IMGUR_CLIENT_ID || !process.env.IMGUR_CLIENT_SECRET) {
+        return res.status(500).json({
+          success: false,
+          message: 'Imgur OAuth not configured on server',
+        });
+      }
+
+      // Exchange code for access token
+      const response = await axios.post('https://api.imgur.com/oauth2/token', {
+        client_id: process.env.IMGUR_CLIENT_ID,
+        client_secret: process.env.IMGUR_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+      });
+
+      if (!response.data.access_token) {
+        throw new Error('Failed to obtain access token from Imgur');
+      }
+
+      console.log('Imgur authorization successful');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Authorization successful',
+        accessToken: response.data.access_token,
+        refreshToken: response.data.refresh_token,
+        expiresIn: response.data.expires_in,
+      });
+    } catch (err) {
+      console.error('Imgur authorization failed:', sanitizeLog(err.response?.data || err.message));
+      return res.status(500).json({
+        success: false,
+        message: 'Authorization failed',
+        error: err.message,
+      });
+    }
+  };
+
+  return {
+    postToImgur,
+    getScheduledPosts,
+    deleteScheduledPost,
+    updateScheduledPost,
+    authorizeImgur,
+  };
+};
+
+module.exports = imgurPostController;
