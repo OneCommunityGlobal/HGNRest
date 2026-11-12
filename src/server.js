@@ -16,6 +16,8 @@ const liveJournalRoutes = require('./routes/liveJournalRoutes').default;
 require('./cronjobs/userProfileJobs')();
 require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
+// Student-level metrics refresh job
+require('./jobs/studentMetricsJob').scheduleDaily();
 require('./cronjobs/bidWinnerJobs')();
 require('./cronjobs/mastodonScheduleJob').startMastodonScheduleJob();
 
