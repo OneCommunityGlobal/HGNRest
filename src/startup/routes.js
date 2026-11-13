@@ -54,6 +54,9 @@ const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
 const PRGradingConfig = require('../models/prAnalytics/prGradingConfig');
 const prGradingConfigRouter = require('../routes/prAnalytics/prGradingConfigRouter')(
   PRGradingConfig,
+  userProfile,
+  hgnFormResponses,
+  require('../models/team'),
 );
 
 // Title
@@ -377,6 +380,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const templateRouter = require('../routes/templateRouter');
 const emailTemplateRouter = require('../routes/emailTemplateRouter');
+const attendanceRouter = require('../routes/attendanceRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 console.log('Loading plannedCost model...');
@@ -580,6 +584,7 @@ module.exports = function (app) {
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
   app.use('/api', injuryAnalyticsRoutes);
+  app.use('/api', attendanceRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
