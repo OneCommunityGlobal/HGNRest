@@ -1,11 +1,12 @@
 const LaborCost = require('../../models/laborCost');
+const { getLaborCostDetails } = require('../../utilities/laborCostDetails');
 const logger = require('../../startup/logger');
 
 /**
  * Helper function to check if a string looks like a JSON object or array
  * Used to detect invalid mixed formats (e.g., {"key":"val"},Project 1)
  */
-const looksLikeJson = (str) => {
+const looksLikeJson = str => {
   if (typeof str !== 'string') return false;
   const trimmed = str.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('[');
@@ -15,7 +16,7 @@ const looksLikeJson = (str) => {
  * Helper function to parse array from query parameter
  * Handles JSON strings, comma-separated strings, or already parsed arrays
  */
-const parseArrayParam = (param) => {
+const parseArrayParam = param => {
   if (!param) return [];
   if (Array.isArray(param)) return param;
   if (typeof param === 'string') {
@@ -35,11 +36,11 @@ const parseArrayParam = (param) => {
       // If not JSON, treat as comma-separated string
       const commaSeparated = param
         .split(',')
-        .map((item) => item.trim())
+        .map(item => item.trim())
         .filter(Boolean);
 
       // Check if any item looks like JSON (invalid mixed format)
-      const hasJsonLike = commaSeparated.some((item) => looksLikeJson(item));
+      const hasJsonLike = commaSeparated.some(item => looksLikeJson(item));
       if (hasJsonLike) {
         return {
           __invalidFormat: true,
@@ -58,7 +59,7 @@ const parseArrayParam = (param) => {
  * Helper function to parse date_range object from query parameter
  * Handles JSON strings or already parsed objects
  */
-const parseDateRangeParam = (param) => {
+const parseDateRangeParam = param => {
   if (!param) return null;
   if (typeof param === 'object' && param !== null) return param;
   if (typeof param === 'string') {
@@ -75,7 +76,7 @@ const parseDateRangeParam = (param) => {
  * Validate ISO 8601 date format and value (not NaN when parsed)
  * Handles edge cases like invalid months (e.g., "2025-13-01"), invalid days, dates far in past/future
  */
-const isValidDateValue = (dateString) => {
+const isValidDateValue = dateString => {
   if (!dateString) return true; // null/undefined is valid (optional)
   if (typeof dateString !== 'string') return false;
 
@@ -120,7 +121,7 @@ const isValidDateValue = (dateString) => {
  * Validates and parses projects parameter
  * Returns { error: { status, response } } if validation fails, or { projectsArray } on success
  */
-const validateAndParseProjects = (projects) => {
+const validateAndParseProjects = projects => {
   if (projects === undefined) {
     return { projectsArray: [] };
   }
@@ -153,7 +154,7 @@ const validateAndParseProjects = (projects) => {
   }
 
   // Validate that all project names are strings
-  if (projectsArray.length > 0 && !projectsArray.every((p) => typeof p === 'string')) {
+  if (projectsArray.length > 0 && !projectsArray.every(p => typeof p === 'string')) {
     return {
       error: {
         status: 400,
@@ -172,7 +173,7 @@ const validateAndParseProjects = (projects) => {
  * Validates and parses tasks parameter
  * Returns { error: { status, response } } if validation fails, or { tasksArray } on success
  */
-const validateAndParseTasks = (tasks) => {
+const validateAndParseTasks = tasks => {
   if (tasks === undefined) {
     return { tasksArray: [] };
   }
@@ -205,7 +206,7 @@ const validateAndParseTasks = (tasks) => {
   }
 
   // Validate that all task names are strings
-  if (tasksArray.length > 0 && !tasksArray.every((t) => typeof t === 'string')) {
+  if (tasksArray.length > 0 && !tasksArray.every(t => typeof t === 'string')) {
     return {
       error: {
         status: 400,
@@ -283,7 +284,7 @@ const validateDateRangeLogic = (startDate, endDate) => {
  * Parses date_range parameter structure
  * Returns { error: { status, response } } if parsing fails, or { dateRange, startDate, endDate } on success
  */
-const parseDateRangeStructure = (dateRangeParam) => {
+const parseDateRangeStructure = dateRangeParam => {
   if (dateRangeParam === undefined || dateRangeParam === null) {
     return { dateRange: null, startDate: null, endDate: null };
   }
@@ -339,7 +340,7 @@ const parseDateRangeStructure = (dateRangeParam) => {
  * Validates and parses date_range parameter
  * Returns { error: { status, response } } if validation fails, or { dateRange, startDate, endDate } on success
  */
-const validateAndParseDateRange = (dateRangeParam) => {
+const validateAndParseDateRange = dateRangeParam => {
   // Parse date range structure
   const parseResult = parseDateRangeStructure(dateRangeParam);
   if (parseResult.error) {
@@ -386,8 +387,7 @@ const END_OF_DAY_MS = 999;
  * @param {string[]} arr - Validated array of string values from user input
  * @returns {string[]} Array of sanitized string primitives safe for use in queries
  */
-const sanitizeStringArrayForQuery = (arr) =>
-  arr.map(String).filter((item) => !item.startsWith('$'));
+const sanitizeStringArrayForQuery = arr => arr.map(String).filter(item => !item.startsWith('$'));
 
 /**
  * Builds MongoDB query filter from parsed and sanitized parameters
@@ -460,18 +460,27 @@ const findLaborCostByValidatedFilter = async ({
     startDate,
     endDate,
   });
-  return LaborCost.find(queryFilter).sort({ date: 1 }).lean().exec();
+  return LaborCost.find(queryFilter)
+    .sort({ date: 1 })
+    .lean()
+    .exec();
 };
 
 /**
  * Formats response data and calculates total cost
  */
-const formatResponseData = (laborCostRecords) => {
-  const formattedData = laborCostRecords.map((record) => ({
+const formatResponseData = laborCostRecords => {
+  const formattedData = laborCostRecords.map(record => ({
     project: record.project_name,
     task: record.task,
     date: record.date ? new Date(record.date).toISOString() : null,
     cost: typeof record.cost === 'number' ? record.cost : Number(record.cost),
+    ...(record.budget !== undefined && record.budget !== null
+      ? { budget: Number(record.budget) }
+      : {}),
+    ...(record.hoursWorked !== undefined || record.hourlyRate !== undefined
+      ? getLaborCostDetails(record)
+      : {}),
   }));
 
   const totalCost =

@@ -502,6 +502,31 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
    * Response Formatting
    */
   describe('Response Formatting', () => {
+    it('returns recorded and calculated paid labor details for task tooltips', async () => {
+      await callGetLaborCost({}, [
+        {
+          project_name: 'A',
+          task: 'Review',
+          date: new Date('2026-11-12'),
+          cost: 100,
+          hoursWorked: 4,
+          budget: 120,
+        },
+      ]);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({
+              cost: 100,
+              hoursWorked: 4,
+              hourlyRate: 25,
+              rateSource: 'calculated',
+              budget: 120,
+            }),
+          ],
+        }),
+      );
+    });
     it('should return empty results with totalCost 0', async () => {
       await callGetLaborCost({});
       expect(mockRes.status).toHaveBeenCalledWith(200);
