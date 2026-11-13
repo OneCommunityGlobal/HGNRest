@@ -1,5 +1,10 @@
+const mongoose = require('mongoose');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
-const Issue = require('../../models/bmdashboard/Issues');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
+
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+const DECIMAL_PLACES = 2;
 
 // Build a createdAt filter from optional YYYY-MM-DD start/end query params.
 function buildCreatedAtRange(start, end) {
@@ -14,12 +19,44 @@ function buildCreatedAtRange(start, end) {
   return Object.keys(range).length ? range : null;
 }
 
-function sumIssueCounts(issueDocs) {
-  return issueDocs.reduce(
-    (sum, doc) =>
-      sum + (doc.equipmentIssues || 0) + (doc.laborIssues || 0) + (doc.materialIssues || 0),
-    0,
-  );
+function buildRiskResult(project, profile, totalOpenIssues, now) {
+  const baseResult = {
+    _id: project._id,
+    projectId: project._id,
+    projectName: project.name,
+    predictedCostOverrun: null,
+    predictedTimeDelay: null,
+    totalOpenIssues,
+    dates: [],
+  };
+  if (!profile) return baseResult;
+
+  const startDate = new Date(profile.startDate);
+  const endDate = new Date(profile.endDate);
+  const totalDuration = endDate - startDate;
+  const elapsed = now - startDate;
+  const percentElapsed = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
+  const predictedCostOverrun =
+    profile.initialCostEstimate > 0 && percentElapsed > 0
+      ? ((profile.currentCostIncurred || 0) / profile.initialCostEstimate) * percentElapsed - 100
+      : null;
+  const plannedTime = profile.plannedTime || Math.round(totalDuration / MILLISECONDS_PER_DAY);
+  const actualTimeElapsed =
+    profile.actualTimeElapsed ||
+    Math.round(((now < endDate ? now : endDate) - startDate) / MILLISECONDS_PER_DAY);
+
+  return {
+    ...baseResult,
+    predictedCostOverrun:
+      predictedCostOverrun === null
+        ? null
+        : Number(predictedCostOverrun.toFixed(DECIMAL_PLACES)),
+    predictedTimeDelay:
+      plannedTime > 0 && actualTimeElapsed > 0 ? (actualTimeElapsed / plannedTime) * 100 : null,
+    dates: [profile.startDate, profile.endDate]
+      .filter(Boolean)
+      .map((date) => new Date(date).toISOString().slice(0, 10)),
+  };
 }
 
 const projectRiskProfileController = {
@@ -157,67 +194,46 @@ const projectRiskProfileController = {
     try {
       const { dates, projects, startDate: rangeStart, endDate: rangeEnd } = req.query;
       const createdAtRange = buildCreatedAtRange(rangeStart, rangeEnd);
-      const filter = {};
+      const projectFilter = { isActive: { $ne: false } };
       if (projects) {
-        // projects can be a comma-separated list of Issue IDs
-        const projectIds = projects.split(',').map((id) => id.trim());
-        filter.projectId = { $in: projectIds };
+        const projectIds = projects
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => mongoose.Types.ObjectId.isValid(id));
+        projectFilter._id = { $in: projectIds };
       }
+
+      const buildingProjects = await BuildingProject.find(projectFilter).sort({ name: 1 }).lean();
+      const buildingProjectIds = buildingProjects.map((project) => project._id);
+      const profileFilter = { projectId: { $in: buildingProjectIds } };
       if (dates) {
-        // dates can be a comma-separated pair: start,end
         const [start, end] = dates.split(',');
-        filter.startDate = { $gte: new Date(start) };
-        filter.endDate = { $lte: new Date(end) };
+        profileFilter.startDate = { $gte: new Date(start) };
+        profileFilter.endDate = { $lte: new Date(end) };
       }
-      // No population needed; projectId is the Issue _id
-      const riskProfiles = await ProjectRiskProfile.find(filter).lean();
+
+      const issueFilter = { projectId: { $in: buildingProjectIds }, status: { $ne: 'closed' } };
+      if (createdAtRange) issueFilter.issueDate = createdAtRange;
+      const [riskProfiles, openIssues] = await Promise.all([
+        ProjectRiskProfile.find(profileFilter).lean(),
+        BuildingIssue.find(issueFilter).select('projectId').lean(),
+      ]);
+      const profileByProject = new Map(
+        riskProfiles.map((profile) => [String(profile.projectId), profile]),
+      );
+      const issueCountByProject = openIssues.reduce((counts, issue) => {
+        const projectId = String(issue.projectId);
+        counts.set(projectId, (counts.get(projectId) || 0) + 1);
+        return counts;
+      }, new Map());
       const now = new Date();
-      const results = await Promise.all(
-        riskProfiles.map(async (profile) => {
-          // Cost Overrun Calculation
-          const initialCost = profile.initialCostEstimate || 0;
-          const currentCost = profile.currentCostIncurred || 0;
-          const startDate = new Date(profile.startDate);
-          const endDate = new Date(profile.endDate);
-          const totalDuration = endDate - startDate;
-          const elapsed = now - startDate;
-          const percentElapsed = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
-          let predictedCostOverrun = null;
-          if (initialCost > 0 && percentElapsed > 0) {
-            predictedCostOverrun = (currentCost / initialCost) * percentElapsed - 100;
-          }
-          // Calculate plannedTime and actualTimeElapsed if not provided
-          const plannedTime =
-            profile.plannedTime || Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
-          const actualTimeElapsed =
-            profile.actualTimeElapsed ||
-            Math.round(((now < endDate ? now : endDate) - startDate) / (1000 * 60 * 60 * 24));
-          // Time Delay Calculation
-          let predictedTimeDelay = null;
-          if (plannedTime > 0 && actualTimeElapsed > 0) {
-            predictedTimeDelay = (actualTimeElapsed / plannedTime) * 100;
-          }
-          // Issue document for the project name (projectId is the Issue _id)
-          const issueDoc = await Issue.findById(profile.projectId).lean();
-          // Issue records for this project; when a time range is given, only
-          // count records created within it.
-          const issueIds = (profile.issues || []).length ? profile.issues : [profile.projectId];
-          const issueQuery = { _id: { $in: issueIds } };
-          if (createdAtRange) issueQuery.createdAt = createdAtRange;
-          const issueDocs = await Issue.find(issueQuery).lean();
-          const totalOpenIssues = sumIssueCounts(issueDocs);
-          return {
-            projectName: issueDoc ? issueDoc.projectName : '',
-            predictedCostOverrun:
-              predictedCostOverrun !== null ? Number(predictedCostOverrun.toFixed(2)) : null,
-            predictedTimeDelay,
-            totalOpenIssues,
-            dates: [
-              profile.startDate ? new Date(profile.startDate).toISOString().slice(0, 10) : null,
-              profile.endDate ? new Date(profile.endDate).toISOString().slice(0, 10) : null,
-            ].filter(Boolean),
-          };
-        }),
+      const results = buildingProjects.map((project) =>
+        buildRiskResult(
+          project,
+          profileByProject.get(String(project._id)),
+          issueCountByProject.get(String(project._id)) || 0,
+          now,
+        ),
       );
       res.status(200).json(results);
     } catch (error) {

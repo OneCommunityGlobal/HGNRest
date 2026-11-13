@@ -1,141 +1,147 @@
-const LaborHours = require('../../models/summaryDashboard/laborHours');
+const mongoose = require('mongoose');
+const BuildingTimeLog = require('../../models/bmdashboard/buildingTimeLogger');
 const logger = require('../../startup/logger');
-const cache = require('../../utilities/nodeCache')();
 const { hasPermission } = require('../../utilities/permissions');
 
+const MILLISECONDS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+const MINUTES_PER_HOUR = 60;
+const HOURS_IN_MILLISECOND =
+  MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
 const PERCENTAGE_MULTIPLIER = 100;
 
-/**
- * Build aggregation pipeline for labor hours distribution
- */
-function buildDistributionAggregation(startDate, endDate, categoryFilter) {
-  const matchStage = {
-    date: { $gte: new Date(startDate), $lte: new Date(endDate) },
-  };
-
-  if (categoryFilter) {
-    matchStage.category = categoryFilter;
-  }
-
-  return [
-    { $match: matchStage },
-    { $group: { _id: '$category', hours: { $sum: '$hours' } } },
-    { $project: { _id: 0, category: '$_id', hours: 1 } },
-    { $sort: { hours: -1 } },
-  ];
-}
-
-/**
- * Format aggregation results with percentages
- */
-function formatDistribution(aggregationResult, totalHours) {
-  return aggregationResult.map((item) => {
-    const percentage =
-      totalHours > 0
-        ? Math.round((item.hours / totalHours) * PERCENTAGE_MULTIPLIER * 100) / 100
-        : 0;
-    return { category: item.category, hours: item.hours, percentage };
-  });
-}
-
-/**
- * Check if a date string represents a valid calendar date (rejects invalid months, days, etc.)
- */
 function isValidCalendarDate(dateString) {
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(dateString)) return false;
-
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
   const [year, month, day] = dateString.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
-/**
- * Validate query parameters
- */
 function validateParams(query) {
-  const { start_date: startDate, end_date: endDate, category } = query;
+  const { start_date: startDate, end_date: endDate, project, member } = query;
   const errors = [];
-
-  if (!startDate || !endDate) {
-    errors.push('Missing required query parameters: start_date and end_date are required');
+  if ((startDate && !endDate) || (!startDate && endDate)) {
+    errors.push('start_date and end_date must be provided together');
   }
+  const invalidStartDate = startDate && !isValidCalendarDate(startDate);
+  const invalidEndDate = endDate && !isValidCalendarDate(endDate);
+  if (invalidStartDate) errors.push('Invalid start_date. Please use a valid YYYY-MM-DD date');
+  if (invalidEndDate) errors.push('Invalid end_date. Please use a valid YYYY-MM-DD date');
+  const reversedRange =
+    startDate && endDate && !invalidStartDate && !invalidEndDate && startDate > endDate;
+  if (reversedRange) errors.push('Invalid date range: start_date must be before or equal to end_date');
 
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (startDate && !dateRegex.test(startDate)) {
-    errors.push('Invalid start_date format. Please use YYYY-MM-DD format');
-  } else if (startDate && !isValidCalendarDate(startDate)) {
-    errors.push('Invalid start_date: date does not exist (e.g., invalid month or day)');
-  }
-  if (endDate && !dateRegex.test(endDate)) {
-    errors.push('Invalid end_date format. Please use YYYY-MM-DD format');
-  } else if (endDate && !isValidCalendarDate(endDate)) {
-    errors.push('Invalid end_date: date does not exist (e.g., invalid month or day)');
-  }
-
-  if (errors.length === 0 && startDate && endDate && new Date(startDate) > new Date(endDate)) {
-    errors.push('Invalid date range: start_date must be before or equal to end_date');
-  }
-
-  return { startDate, endDate, category, errors };
+  [
+    ['project', project],
+    ['member', member],
+  ].forEach(([label, value]) => {
+    if (value && !mongoose.Types.ObjectId.isValid(value)) errors.push(`Invalid ${label} id`);
+  });
+  return { startDate, endDate, project, member, errors };
 }
 
-/**
- * Controller for Labor Hours Distribution Pie Chart
- */
+function buildMatch({ startDate, endDate, project, member }) {
+  const match = { status: 'completed', totalElapsedTime: { $gt: 0 } };
+  if (startDate && endDate) {
+    match.createdAt = {
+      $gte: new Date(`${startDate}T00:00:00.000Z`),
+      $lte: new Date(`${endDate}T23:59:59.999Z`),
+    };
+  }
+  if (project) match.project = new mongoose.Types.ObjectId(project);
+  if (member) match.member = new mongoose.Types.ObjectId(member);
+  return match;
+}
+
+function formatDistribution(rows) {
+  const totalHours = rows.reduce((sum, row) => sum + row.hours, 0);
+  return {
+    total_hours: Number(totalHours.toFixed(2)),
+    distribution: rows.map((row) => ({
+      task: row.task,
+      hours: Number(row.hours.toFixed(2)),
+      percentage:
+        totalHours > 0
+          ? Number(((row.hours / totalHours) * PERCENTAGE_MULTIPLIER).toFixed(2))
+          : 0,
+    })),
+  };
+}
+
+async function getFilterOptions() {
+  const completedMatch = { status: 'completed', totalElapsedTime: { $gt: 0 } };
+  const [projects, members] = await Promise.all([
+    BuildingTimeLog.aggregate([
+      { $match: completedMatch },
+      { $group: { _id: '$project' } },
+      { $lookup: { from: 'buildingProjects', localField: '_id', foreignField: '_id', as: 'item' } },
+      { $unwind: '$item' },
+      { $project: { _id: 0, id: '$_id', name: '$item.name' } },
+      { $sort: { name: 1 } },
+    ]),
+    BuildingTimeLog.aggregate([
+      { $match: completedMatch },
+      { $group: { _id: '$member' } },
+      { $lookup: { from: 'userProfiles', localField: '_id', foreignField: '_id', as: 'item' } },
+      { $unwind: '$item' },
+      {
+        $project: {
+          _id: 0,
+          id: '$_id',
+          name: { $trim: { input: { $concat: ['$item.firstName', ' ', '$item.lastName'] } } },
+        },
+      },
+      { $sort: { name: 1 } },
+    ]),
+  ]);
+  return { projects, members };
+}
+
 const laborHoursDistributionController = function () {
-  /**
-   * GET /api/labor-hours/distribution
-   * Fetches aggregated labor hours data for pie chart visualization
-   *
-   * Query Parameters:
-   * - start_date (required): Start date in YYYY-MM-DD format
-   * - end_date (required): End date in YYYY-MM-DD format
-   * - category (optional): Filter by specific category
-   *
-   * Response:
-   * {
-   *   "total_hours": 1000,
-   *   "distribution": [
-   *     { "category": "Team A", "hours": 200, "percentage": 20 },
-   *     { "category": "Team B", "hours": 300, "percentage": 30 }
-   *   ]
-   * }
-   */
   const getLaborHoursDistribution = async function (req, res) {
     try {
-      const { requestor } = req.body;
-
-      const hasAccess = await hasPermission(requestor, 'getWeeklySummaries');
+      const hasAccess = await hasPermission(req.body.requestor, 'getWeeklySummaries');
       if (!hasAccess) {
         return res
           .status(403)
           .json({ error: 'You are not authorized to access labor hours distribution data' });
       }
 
-      const { startDate, endDate, category, errors } = validateParams(req.query);
-      if (errors.length > 0) {
-        return res.status(400).json({ error: errors[0] });
-      }
+      const params = validateParams(req.query);
+      if (params.errors.length) return res.status(400).json({ error: params.errors[0] });
 
-      const cacheKey = `labor_hours_distribution:${startDate}:${endDate}:${category || 'all'}`;
-      if (cache.hasCache(cacheKey)) {
-        return res.status(200).json(cache.getCache(cacheKey));
-      }
+      const [rows, filters] = await Promise.all([
+        BuildingTimeLog.aggregate([
+          { $match: buildMatch(params) },
+          {
+            $group: {
+              _id: {
+                $cond: [
+                  { $in: ['$task', [null, '', 'Default Task']] },
+                  'Unspecified task',
+                  '$task',
+                ],
+              },
+              milliseconds: { $sum: '$totalElapsedTime' },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              task: '$_id',
+              hours: { $divide: ['$milliseconds', HOURS_IN_MILLISECOND] },
+            },
+          },
+          { $sort: { hours: -1, task: 1 } },
+        ]),
+        getFilterOptions(),
+      ]);
 
-      const aggregationPipeline = buildDistributionAggregation(startDate, endDate, category);
-      const aggregationResult = await LaborHours.aggregate(aggregationPipeline);
-
-      const totalHours = aggregationResult.reduce((sum, item) => sum + (item.hours || 0), 0);
-
-      const response = {
-        total_hours: totalHours,
-        distribution: formatDistribution(aggregationResult, totalHours),
-      };
-
-      cache.setCache(cacheKey, response);
-      return res.status(200).json(response);
+      return res.status(200).json({ ...formatDistribution(rows), filters });
     } catch (error) {
       logger.logException(error);
       return res
@@ -143,8 +149,14 @@ const laborHoursDistributionController = function () {
         .json({ error: 'Error fetching labor hours distribution data. Please try again.' });
     }
   };
-
   return { getLaborHoursDistribution };
+};
+
+laborHoursDistributionController.testExports = {
+  buildMatch,
+  formatDistribution,
+  isValidCalendarDate,
+  validateParams,
 };
 
 module.exports = laborHoursDistributionController;
