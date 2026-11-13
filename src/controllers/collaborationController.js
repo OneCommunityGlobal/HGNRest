@@ -12,6 +12,7 @@ const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
 const {
   formatApplicationAnswers,
   attachQuestionLabels,
+  buildApplicantConfirmationEmail,
 } = require('../utilities/jobApplicationEmailFormatter');
 const {
   canManageJobForms,
@@ -296,35 +297,17 @@ async function sendApplicationConfirmationEmail(
 ) {
   if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
-    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
-    const safeFormTitle = escapeHtml(form.title);
+    const displayName = String(respondent || normalizedEmail).trim();
     const subjectTitle = stripControlChars(form.title).trim();
 
     const labeledAnswers = attachQuestionLabels(form, answers);
     const formattedAnswers = formatApplicationAnswers(labeledAnswers);
-
-    const emailBody = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-        <h2>Application Received — ${safeFormTitle}</h2>
-
-        <p>Hi ${displayName},</p>
-
-        <p>
-          Thank you for applying for <strong>${safeFormTitle}</strong>.
-          We have received your application and will be in touch shortly.
-        </p>
-
-        <h3>Your Submitted Application</h3>
-
-        ${formattedAnswers}
-
-        ${attachmentNotice}
-
-        <p>If you have any questions, feel free to reach out.</p>
-
-        <p>Best regards,<br/>One Community</p>
-      </div>
-    `;
+    const emailBody = buildApplicantConfirmationEmail({
+      form,
+      displayName,
+      formattedAnswers,
+      attachmentNotice,
+    });
 
     const args = [[normalizedEmail], `Application Received — ${subjectTitle}`, emailBody];
 

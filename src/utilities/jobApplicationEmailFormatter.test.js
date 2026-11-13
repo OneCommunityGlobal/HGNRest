@@ -3,6 +3,8 @@ const {
   formatAnswer,
   formatApplicationAnswers,
   attachQuestionLabels,
+  resolveApplicantEmailTemplate,
+  buildApplicantConfirmationEmail,
 } = require('./jobApplicationEmailFormatter');
 
 describe('Job application email formatter', () => {
@@ -160,4 +162,48 @@ test('matches saved answers with their original question text', () => {
       },
     },
   ]);
+});
+
+describe('Jae applicant confirmation templates', () => {
+  test('resolves software, administrative, and general templates', () => {
+    expect(resolveApplicantEmailTemplate({ title: 'MERN Stack Developer', category: 'Engineering' })).toBe(
+      'software',
+    );
+    expect(
+      resolveApplicantEmailTemplate({ title: 'Seeking Administrative Assistant', category: 'Other' }),
+    ).toBe('administrative');
+    expect(resolveApplicantEmailTemplate({ title: 'Master Carpenter', category: 'General' })).toBe(
+      'general',
+    );
+  });
+
+  test('builds Jae letter format with numbered answers and signature', () => {
+    const html = buildApplicantConfirmationEmail({
+      form: { title: 'SEEKING SOFTWARE POSITION', category: 'Engineering' },
+      displayName: 'Purav Patel',
+      formattedAnswers: formatApplicationAnswers([
+        { questionText: 'Rate your frontend skills', answer: '8' },
+      ]),
+    });
+
+    expect(html).toContain('Dear Purav Patel,');
+    expect(html).toContain('&quot;SEEKING SOFTWARE POSITION&quot;');
+    expect(html).toContain('1.) Rate your frontend skills');
+    expect(html).toContain('8');
+    expect(html).toContain('With Gratitude,');
+    expect(html).toContain('Jae Sabol');
+    expect(html).toContain('onecommunityglobal@gmail.com');
+    expect(html).toContain('(310) 755-4693');
+  });
+
+  test('administrative template asks applicants to email questions', () => {
+    const html = buildApplicantConfirmationEmail({
+      form: { title: 'Seeking Administrative Assistant' },
+      displayName: 'Alex',
+      formattedAnswers: '<p>answers</p>',
+    });
+
+    expect(html).toContain('please email them to me');
+    expect(html).not.toContain('(310) 755-4693');
+  });
 });

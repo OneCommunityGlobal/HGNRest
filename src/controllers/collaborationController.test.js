@@ -237,10 +237,15 @@ describe('submitFormResponse', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
     const html = emailSender.mock.calls[0][2];
-    expect(html).not.toContain('<a href');
+    expect(html).not.toContain('<a href="https://evil.example"');
     expect(html).not.toContain('<script>');
-    expect(html).toContain('Hi &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,');
+    expect(html).toContain(
+      'Dear &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,',
+    );
     expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('With Gratitude,');
+    expect(html).toContain('Jae Sabol');
+    expect(html).toContain('https://www.tinyurl.com/zoomoc');
   });
 
   it('keeps ordinary applicant names readable in the confirmation email', async () => {
@@ -253,8 +258,10 @@ describe('submitFormResponse', () => {
     );
 
     const html = emailSender.mock.calls[0][2];
-    expect(html).toContain('Hi José Núñez-Ochoa,');
-    expect(html).toContain('<strong>Software Developer</strong>');
+    expect(html).toContain('Dear José Núñez-Ochoa,');
+    expect(html).toContain('&quot;Software Developer&quot;');
+    expect(html).toContain('With Gratitude,');
+    expect(html).toContain('(310) 755-4693');
   });
 
   it('strips CR/LF and control characters from the confirmation email subject', async () => {
