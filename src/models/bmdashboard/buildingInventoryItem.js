@@ -102,6 +102,17 @@ const largeItemBaseSchema = mongoose.Schema({
       date: { type: Date, default: Date.now() },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
+      lastUsedBy: { type: String, maxlength: 200 },
+      lastUsedFor: { type: String, maxlength: 500 },
+      // Keep the existing form's yes/no strings and boolean API clients compatible.
+      replacementRequired: {
+        type: mongoose.Schema.Types.Mixed,
+        validate: (value) =>
+          value === undefined || value === null || ['', 'yes', 'no', true, false].includes(value),
+      },
+      description: { type: String, maxlength: 2000 },
+      notes: { type: String, maxlength: 2000 },
+      imageUrl: { type: String },
     },
   ],
   logRecord: [
