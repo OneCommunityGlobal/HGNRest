@@ -5,7 +5,7 @@ Cross Mark: ❌
 
 > ## Positive case
 1. ✅ Returns 201 if adding new information successfullyn and no cache.
-2. ✅ Returns if adding new information successfully and hascache.
+2. ✅ Returns 201 if adding new information successfully and has cache.
 
 > ## Negative case
 1. ✅ Returns error 500 if if there are no information in the database and any error occurs when finding the infoName.
