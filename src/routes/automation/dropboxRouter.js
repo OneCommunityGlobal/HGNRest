@@ -10,5 +10,6 @@ router.post('/create-folder-and-invite', dropboxController.createFolderAndInvite
 router.delete('/delete-folder', dropboxController.deleteFolder);
 router.get('/team-folders', dropboxController.getTeamFolders);
 router.post('/folder-details', dropboxController.getFolderDetails);
+router.get('/check-access', dropboxController.checkDropboxAccess);
 
 module.exports = router;
