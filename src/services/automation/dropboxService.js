@@ -680,7 +680,23 @@ async function getFolderDetails(folderId) {
   }
 }
 
+/**
+ * Find which team folder (e.g. 'HGN', 'ADMIN') a user folder lives in.
+ * Returns null when the folder is not inside a known team folder.
+ */
+async function getTeamFolderKeyForFolder(folderId) {
+  const folderMetadata = await dbx.filesGetMetadata({ path: folderId });
+  const [, topLevelFolder] = folderMetadata.result.path_display.split('/');
+  const match = Object.entries(TEAM_FOLDERS).find(
+    ([, name]) => name.toLowerCase() === (topLevelFolder || '').toLowerCase(),
+  );
+  return match ? match[0] : null;
+}
+
 module.exports = {
+  TEAM_FOLDERS,
+  DEFAULT_TEAM_FOLDER,
+  getTeamFolderKeyForFolder,
   createFolderWithSubfolder,
   createFolderAndInvite,
   deleteFolder,
