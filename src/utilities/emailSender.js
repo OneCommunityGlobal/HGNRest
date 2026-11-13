@@ -43,7 +43,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// SMTPS-only fallback for local/dev when Gmail OAuth env vars are not configured.
+// Local/dev-only fallback when REACT_APP_EMAIL_* OAuth is unset.
+// Production (blue square, weekly summary, job applications) uses Gmail OAuth — not app passwords.
 const createSecureSmtpTransporter = () =>
   nodemailer.createTransport({
     host: process.env.SMTPDomain,

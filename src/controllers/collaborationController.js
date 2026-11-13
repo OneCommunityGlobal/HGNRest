@@ -365,11 +365,12 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
   }
 }
 
+// Same staff inbox used by blue-square / weekly-summary routing (userHelper DEFAULT_CC_EMAILS).
+// Production sends via Gmail OAuth (REACT_APP_EMAIL_*), not SMTP app passwords.
+const DEFAULT_JOB_APPLICATION_INBOX = 'onecommunityglobal@gmail.com';
+
 function getJobApplicationDefaultEmail() {
-  const configured =
-    process.env.JOB_APPLICATION_DEFAULT_EMAIL ||
-    process.env.REACT_APP_EMAIL ||
-    process.env.SMTPUser;
+  const configured = process.env.JOB_APPLICATION_DEFAULT_EMAIL || DEFAULT_JOB_APPLICATION_INBOX;
 
   return String(configured || '')
     .trim()
@@ -387,7 +388,7 @@ async function sendAdminApplicationNotification(
 
     if (!defaultEmail) {
       console.error(
-        'Admin application notification skipped: JOB_APPLICATION_DEFAULT_EMAIL (or SMTPUser) is not configured.',
+        'Admin application notification skipped: no default job-application inbox configured.',
       );
       return;
     }

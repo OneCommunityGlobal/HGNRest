@@ -34,6 +34,8 @@ describe('submitFormResponse', () => {
   let res;
   let saveMock;
 
+  const originalJobApplicationDefaultEmail = process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.JOB_APPLICATION_DEFAULT_EMAIL = 'default@example.com';
@@ -50,6 +52,14 @@ describe('submitFormResponse', () => {
     Response.mockImplementation((data) => ({ ...data, save: saveMock }));
     emailSender.mockResolvedValue('ok');
     uploadFileToAzureBlobStorage.mockResolvedValue('https://blob/resume.pdf');
+  });
+
+  afterAll(() => {
+    if (originalJobApplicationDefaultEmail === undefined) {
+      delete process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+    } else {
+      process.env.JOB_APPLICATION_DEFAULT_EMAIL = originalJobApplicationDefaultEmail;
+    }
   });
 
   const validBody = {
@@ -259,6 +269,43 @@ describe('submitFormResponse', () => {
     const subject = emailSender.mock.calls[0][1];
     expect(subject).toBe('Application Received — DevBcc: victim@example.com');
     expect(subject).not.toMatch(/[\r\n]/);
+  });
+
+  it('defaults staff notifications to onecommunityglobal@gmail.com like blue-square mail', async () => {
+    delete process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [],
+    });
+    Response.findOne.mockResolvedValue(null);
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['cc@example.com'],
+      }),
+    });
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [],
+        },
+      },
+      res,
+    );
+
+    expect(emailSender).toHaveBeenNthCalledWith(
+      2,
+      ['onecommunityglobal@gmail.com'],
+      'New Job Application — Software Developer',
+      expect.any(String),
+      null,
+      ['cc@example.com', 'applicant@example.com'],
+    );
   });
 
   it('sends submitted answers to the default inbox and CCs configured UI recipients', async () => {
