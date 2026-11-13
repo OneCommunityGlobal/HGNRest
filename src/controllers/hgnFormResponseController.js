@@ -5,6 +5,11 @@
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');
+const {
+  getWeeklySummaryStatus,
+  canViewWeeklySummaryStatus,
+  SUMMARY_STATUS_PROJECTION,
+} = require('../helpers/weeklySummaryStatusHelper');
 
 // How many skills a member card shows, and how deep the skills filter looks.
 const TOP_SKILLS_COUNT = 4;
@@ -49,14 +54,17 @@ const hgnFormController = () => {
       const userIds = responses.map((r) => r.user_id).filter(Boolean);
       const users = await UserProfile.find(
         { _id: { $in: userIds } },
-        'isActive firstName lastName',
+        { isActive: 1, firstName: 1, lastName: 1, ...SUMMARY_STATUS_PROJECTION },
       );
+      const canSeeSummaryStatus = await canViewWeeklySummaryStatus(req.body?.requestor);
 
       // Create a map for quick lookup
       const userMap = {};
       const profileNameMap = {};
+      const summaryStatusMap = {};
       users.forEach((u) => {
         userMap[u._id.toString()] = u.isActive;
+        summaryStatusMap[u._id.toString()] = getWeeklySummaryStatus(u);
         profileNameMap[u._id.toString()] = [u.firstName, u.lastName].filter(Boolean).join(' ');
       });
 
@@ -135,6 +143,9 @@ const hgnFormController = () => {
           topSkills,
           preferences: user.general?.preferences || [],
           isActive,
+          ...(canSeeSummaryStatus && {
+            weeklySummaryStatus: (userId && summaryStatusMap[userId]) || null,
+          }),
           matchesSkills,
         };
       });
