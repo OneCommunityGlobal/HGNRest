@@ -15,6 +15,7 @@ const routes = function (buildingNewLesson) {
   NewLessonRouter.route('/lessons/new').post(controller.bmPostLessonList);
   NewLessonRouter.route('/lesson/:lessonId/like').put(controller.likeLesson);
   NewLessonRouter.route('/tags').get(controller.getLessonTags).post(controller.addNewTag);
+  NewLessonRouter.route('/tags/counts').get(controller.getLessonTagCounts);
   NewLessonRouter.route('/tags/:tag').delete(controller.deleteTag);
   NewLessonRouter.route('/lessons-learnt').get(controller.getLessonsLearnt);
 
