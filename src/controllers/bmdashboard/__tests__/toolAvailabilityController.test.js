@@ -44,6 +44,28 @@ describe('Tool Availability Controller', () => {
       expect(ToolAvailability.aggregate).not.toHaveBeenCalled();
     });
 
+    it('returns 400 for an unparsable startDate without calling aggregate', async () => {
+      const req = { params: { id: projectId }, query: { startDate: 'garbage' } };
+      const res = makeResponse();
+
+      await controller.getToolsAvailability(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid startDate format' });
+      expect(ToolAvailability.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for an unparsable endDate without calling aggregate', async () => {
+      const req = { params: { id: projectId }, query: { endDate: 'garbage' } };
+      const res = makeResponse();
+
+      await controller.getToolsAvailability(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid endDate format' });
+      expect(ToolAvailability.aggregate).not.toHaveBeenCalled();
+    });
+
     it('returns aggregated tool availability data', async () => {
       const data = [
         {
@@ -73,7 +95,7 @@ describe('Tool Availability Controller', () => {
       expect(res.json).toHaveBeenCalledWith(data);
     });
 
-    it('applies both start and end date filters', async () => {
+    it('applies both start and end date filters, extending a date-only endDate to end of day', async () => {
       ToolAvailability.aggregate.mockResolvedValue([]);
 
       const req = {
@@ -89,9 +111,12 @@ describe('Tool Availability Controller', () => {
 
       const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
 
+      const expectedEndOfDay = new Date('2026-01-31');
+      expectedEndOfDay.setUTCHours(23, 59, 59, 999);
+
       expect(pipeline[0].$match.date).toEqual({
         $gte: new Date('2026-01-01'),
-        $lte: new Date('2026-01-31'),
+        $lte: expectedEndOfDay,
       });
     });
 
@@ -113,7 +138,7 @@ describe('Tool Availability Controller', () => {
       });
     });
 
-    it('applies only the end date when start date is absent', async () => {
+    it('applies only the end date when start date is absent, extended to end of day', async () => {
       ToolAvailability.aggregate.mockResolvedValue([]);
 
       const req = {
@@ -126,8 +151,29 @@ describe('Tool Availability Controller', () => {
 
       const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
 
+      const expectedEndOfDay = new Date('2026-01-31');
+      expectedEndOfDay.setUTCHours(23, 59, 59, 999);
+
       expect(pipeline[0].$match.date).toEqual({
-        $lte: new Date('2026-01-31'),
+        $lte: expectedEndOfDay,
+      });
+    });
+
+    it('leaves an explicit timestamp endDate as-is instead of extending it to end of day', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([]);
+
+      const req = {
+        params: { id: projectId },
+        query: { endDate: '2026-01-31T10:00:00.000Z' },
+      };
+      const res = makeResponse();
+
+      await controller.getToolsAvailability(req, res);
+
+      const pipeline = ToolAvailability.aggregate.mock.calls[0][0];
+
+      expect(pipeline[0].$match.date).toEqual({
+        $lte: new Date('2026-01-31T10:00:00.000Z'),
       });
     });
 
