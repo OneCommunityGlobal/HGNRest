@@ -84,7 +84,7 @@ const createVersionHistoryEntry = (existingEntry) => {
 // Build update data for saving grading
 const buildUpdateData = (params) => {
   const {
-    teamCode,
+    teamName,
     gradingDate,
     reviewer,
     prsNeeded,
@@ -94,7 +94,8 @@ const buildUpdateData = (params) => {
     versionHistoryEntry,
   } = params;
   const updateData = {
-    teamCode,
+    teamName,
+    teamCode: teamName,
     date: gradingDate,
     reviewer,
     prsNeeded,
@@ -136,19 +137,23 @@ const getWeekRange = (date) => {
 
 const weeklyGradingController = function (weeklyGradingModel) {
   // Process and save a single reviewer's grading
-  const processReviewerGrading = async (grading, teamCode, gradingDate) => {
+  const processReviewerGrading = async (grading, teamName, gradingDate) => {
     const { reviewer, prsReviewed, prsNeeded, gradedPrs } = grading;
 
     validateGradingEntry(grading);
 
-    const query = { teamCode, date: gradingDate, reviewer };
+    const query = {
+      $or: [{ teamName }, { teamCode: teamName }],
+      date: gradingDate,
+      reviewer,
+    };
     const existingEntry = await weeklyGradingModel.findOne(query);
 
     const mergedGradedPrs = mergeGradedPrs(existingEntry?.gradedPrs, gradedPrs);
     const newVersion = calculateNextVersion(existingEntry);
     const versionHistoryEntry = createVersionHistoryEntry(existingEntry);
     const updateData = buildUpdateData({
-      teamCode,
+      teamName,
       gradingDate,
       reviewer,
       prsNeeded,
@@ -168,7 +173,6 @@ const weeklyGradingController = function (weeklyGradingModel) {
       if (!team) {
         return res.status(400).json({ error: 'Team parameter is required' });
       }
-
       // Legacy records have no removal flag and must remain visible.
       const query = { teamCode: team, isRemoved: { $ne: true } };
 
@@ -209,12 +213,13 @@ const weeklyGradingController = function (weeklyGradingModel) {
 
   const saveWeeklyGrading = async (req, res) => {
     try {
-      const { teamCode, date, gradings } = req.body;
+      const { date, gradings } = req.body;
+      const teamName = req.body.teamName || req.body.teamCode;
 
-      if (!teamCode || !date || !gradings || !Array.isArray(gradings)) {
+      if (!teamName || !date || !gradings || !Array.isArray(gradings)) {
         return res
           .status(400)
-          .json({ error: 'Missing required fields: teamCode, date, and gradings array' });
+          .json({ error: 'Missing required fields: teamName, date, and gradings array' });
       }
 
       const gradingDate = new Date(date);
@@ -222,8 +227,15 @@ const weeklyGradingController = function (weeklyGradingModel) {
         return res.status(400).json({ error: 'Invalid date format' });
       }
 
+      // Normalize to Sunday midnight UTC of the week the date falls in.
+      // Any save made Mon–Sat will resolve to the same Sunday anchor,
+      // so repeated saves within the same week always upsert the same document.
+      const dayOfWeek = gradingDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+      gradingDate.setUTCDate(gradingDate.getUTCDate() - dayOfWeek);
+      gradingDate.setUTCHours(0, 0, 0, 0);
+
       const updatePromises = gradings.map((grading) =>
-        processReviewerGrading(grading, teamCode, gradingDate),
+        processReviewerGrading(grading, teamName, gradingDate),
       );
 
       await Promise.all(updatePromises);
@@ -240,7 +252,6 @@ const weeklyGradingController = function (weeklyGradingModel) {
       });
     }
   };
-
   const deleteWeeklyGrading = async (req, res) => {
     try {
       const { team, date, reviewer } = req.query;

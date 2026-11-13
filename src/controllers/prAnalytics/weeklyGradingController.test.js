@@ -229,19 +229,19 @@ describe('weeklyGradingController', () => {
 
   describe('saveWeeklyGrading', () => {
     it('returns 400 when required fields are missing', async () => {
-      const req = { body: { teamCode: 'TeamA' } };
+      const req = { body: { teamName: 'TeamA' } };
 
       await controller.saveWeeklyGrading(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Missing required fields: teamCode, date, and gradings array',
+        error: 'Missing required fields: teamName, date, and gradings array',
       });
     });
 
     it('returns 400 when date is invalid', async () => {
       const req = {
-        body: { teamCode: 'TeamA', date: 'bad-date', gradings: [] },
+        body: { teamName: 'TeamA', date: 'bad-date', gradings: [] },
       };
 
       await controller.saveWeeklyGrading(req, res);
@@ -249,11 +249,37 @@ describe('weeklyGradingController', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: 'Invalid date format' });
     });
-
-    it('returns 200 when gradings are saved successfully', async () => {
+    it('accepts legacy teamCode when saving', async () => {
       const req = {
         body: {
           teamCode: 'TeamA',
+          date: '2026-10-13',
+          gradings: [
+            {
+              reviewer: 'Alice',
+              prsReviewed: 3,
+              prsNeeded: 5,
+              gradedPrs: [{ prNumbers: '123', grade: 'Okay' }],
+            },
+          ],
+        },
+      };
+
+      model.findOne.mockResolvedValue(null);
+      model.findOneAndUpdate.mockResolvedValue({});
+
+      await controller.saveWeeklyGrading(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'ok',
+        message: 'Weekly grades saved successfully',
+      });
+    });
+    it('returns 200 when gradings are saved successfully', async () => {
+      const req = {
+        body: {
+          teamName: 'TeamA',
           date: '2026-10-13',
           gradings: [
             {
@@ -280,7 +306,7 @@ describe('weeklyGradingController', () => {
     it('returns 500 on unexpected database error', async () => {
       const req = {
         body: {
-          teamCode: 'TeamA',
+          teamName: 'TeamA',
           date: '2026-10-13',
           gradings: [
             {
