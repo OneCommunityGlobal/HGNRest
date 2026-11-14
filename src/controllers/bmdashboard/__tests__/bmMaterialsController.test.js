@@ -1,47 +1,27 @@
 // Mock utilities BEFORE requiring the controller
 // Note: Paths are relative to the controller file, not the test file
-jest.mock(
-  '../../../utilities/queryParamParser',
-  () => ({
-    parseMultiSelectQueryParam: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../utilities/materialCostCorrelationDateUtils',
-  () => ({
-    parseAndNormalizeDateRangeUTC: jest.fn(),
-    normalizeStartDate: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../utilities/materialCostCorrelationHelpers',
-  () => ({
-    getEarliestRelevantMaterialDate: jest.fn(),
-    aggregateMaterialUsage: jest.fn(),
-    aggregateMaterialCost: jest.fn(),
-    buildCostCorrelationResponse: jest.fn(),
-    resolveProjectNamesToIds: jest.fn().mockResolvedValue([]),
-    resolveMaterialNamesToIds: jest.fn().mockResolvedValue([]),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../startup/logger',
-  () => ({
-    logException: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock('../../../models/bmdashboard/buildingProject', () => ({}), { virtual: true });
-jest.mock(
-  '../../../models/bmdashboard/buildingInventoryType',
-  () => ({
-    invTypeBase: {},
-  }),
-  { virtual: true },
-);
+jest.mock('../../../utilities/queryParamParser', () => ({
+  parseMultiSelectQueryParam: jest.fn(),
+}));
+jest.mock('../../../utilities/materialCostCorrelationDateUtils', () => ({
+  parseAndNormalizeDateRangeUTC: jest.fn(),
+  normalizeStartDate: jest.fn(),
+}));
+jest.mock('../../../utilities/materialCostCorrelationHelpers', () => ({
+  getEarliestRelevantMaterialDate: jest.fn(),
+  aggregateMaterialUsage: jest.fn(),
+  aggregateMaterialCost: jest.fn(),
+  buildCostCorrelationResponse: jest.fn(),
+  resolveProjectNamesToIds: jest.fn().mockResolvedValue([]),
+  resolveMaterialNamesToIds: jest.fn().mockResolvedValue([]),
+}));
+jest.mock('../../../startup/logger', () => ({
+  logException: jest.fn(),
+}));
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({}));
+jest.mock('../../../models/bmdashboard/buildingInventoryType', () => ({
+  invTypeBase: {},
+}));
 
 const mongoose = require('mongoose');
 const bmMaterialsController = require('../bmMaterialsController');

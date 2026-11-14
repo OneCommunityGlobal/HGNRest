@@ -25,6 +25,7 @@ jest.mock('@sentry/integrations', () => ({
 }));
 
 const request = require('supertest');
+const express = require('express');
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 
@@ -43,14 +44,6 @@ const UserModel = require('../../models/userProfile');
 const ReasonModel = require('../../models/reason');
 
 jest.mock('../../utilities/emailSender', () => jest.fn());
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.log('Uncaught Exception:', error);
-});
 
 // Using dbConnect from mongo-helper which has fallback to MongoMemoryServer
 
@@ -152,7 +145,11 @@ if (shouldSkipTests) {
           }
         }
 
-        ({ app } = require('../../app'));
+        // Exercise the real auth middleware and router without booting unrelated
+        // application routes, scheduled jobs and external integrations.
+        app = express();
+        require('../../startup/middleware')(app);
+        app.use('/api', require('../../routes/reasonRouter')());
         agent = request.agent(app);
 
         adminUser = await createUser();

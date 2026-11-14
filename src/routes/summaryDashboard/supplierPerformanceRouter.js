@@ -4,6 +4,9 @@ const routes = function () {
   const controller = require('../../controllers/summaryDashboard/supplierPerformance')();
   const supplierPerformanceRouter = express.Router();
 
+  supplierPerformanceRouter.get('/analytics', controller.getAnalytics);
+  supplierPerformanceRouter.put('/root-causes', controller.updateRootCauses);
+
   // Route to get supplier performance for a project in a specific date range
   supplierPerformanceRouter.route('/performance').get(controller.getSupplierPerformance);
 
