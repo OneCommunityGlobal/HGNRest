@@ -1,6 +1,7 @@
 /* eslint-disable quotes */
 /* eslint-disable arrow-parens */
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 const timeentry = require('../models/timeentry');
 const task = require('../models/task');
 const wbs = require('../models/wbs');
@@ -24,6 +25,96 @@ const projectController = function (Project) {
     } catch (error) {
       logger.logException(error);
       res.status(404).send('Error fetching projects. Please try again.');
+    }
+  };
+
+  const getProjectsCommittedHours = async function (req, res) {
+    try {
+      if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+        return res.status(403).send('You are not authorized to view volunteer hours reports.');
+      }
+
+      const { fromDate, toDate } = req.body || {};
+      const timezone = 'America/Los_Angeles';
+
+      const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
+      const end = moment.tz(toDate, 'YYYY-MM-DD', true, timezone);
+
+      if (
+        !start.isValid() ||
+        !end.isValid() ||
+        !start.isSame(start.clone().startOf('day')) ||
+        !end.isSame(end.clone().startOf('day')) ||
+        end.isBefore(start, 'day')
+      ) {
+        return res.status(400).send({
+          error:
+            'Valid fromDate and toDate are required. Dates must use YYYY-MM-DD, and toDate cannot precede fromDate.',
+        });
+      }
+
+      const startDate = start.format('YYYY-MM-DD');
+      const endDate = end.format('YYYY-MM-DD');
+
+      logger.logInfo(`Fetching project logged hours between ${startDate} and ${endDate}`);
+
+      const result = await Project.aggregate([
+        {
+          $match: {
+            isArchived: { $ne: true },
+          },
+        },
+        {
+          $lookup: {
+            from: 'timeEntries',
+            let: { projectId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  entryType: { $in: ['default', 'person', null] },
+                  dateOfWork: {
+                    $gte: startDate,
+                    $lte: endDate,
+                  },
+                  $expr: {
+                    $eq: ['$projectId', '$$projectId'],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  totalSeconds: {
+                    $sum: { $ifNull: ['$totalSeconds', 0] },
+                  },
+                },
+              },
+            ],
+            as: 'hoursSummary',
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            projectId: '$_id',
+            projectName: 1,
+            totalSeconds: {
+              $ifNull: [{ $arrayElemAt: ['$hoursSummary.totalSeconds', 0] }, 0],
+            },
+          },
+        },
+      ]);
+
+      const response = result.map((project) => ({
+        projectId: project.projectId,
+        projectName: project.projectName,
+        loggedHours: Math.round((project.totalSeconds / 3600) * 10) / 10,
+      }));
+
+      return res.status(200).send(response);
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send('Error fetching project logged hours.');
     }
   };
 
@@ -698,6 +789,7 @@ const projectController = function (Project) {
     searchProjectMembers,
     getProjectsWithActiveUserCounts,
     getAllTimeprojectMembership,
+    getProjectsCommittedHours,
   };
 };
 
