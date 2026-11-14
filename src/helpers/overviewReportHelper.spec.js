@@ -454,3 +454,46 @@ describe('getCommittedHoursStats', () => {
     ]);
   });
 });
+
+describe('getTotalSummariesSubmitted', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('returns the current count with no comparison percentage when comparison dates are omitted', async () => {
+    jest.spyOn(UserProfile, 'aggregate').mockResolvedValue([{ totalSummaries: 12 }]);
+
+    const { getTotalSummariesSubmitted } = overviewReportHelper();
+    const result = await getTotalSummariesSubmitted('2026-01-01', '2026-01-31');
+
+    expect(result).toEqual({ count: 12 });
+  });
+
+  it('returns 0 when the aggregation returns no matching documents', async () => {
+    jest.spyOn(UserProfile, 'aggregate').mockResolvedValue([]);
+
+    const { getTotalSummariesSubmitted } = overviewReportHelper();
+    const result = await getTotalSummariesSubmitted('2026-01-01', '2026-01-31');
+
+    expect(result).toEqual({ count: 0 });
+  });
+
+  it('returns a comparisonPercentage when comparison dates are provided', async () => {
+    const aggregateSpy = jest
+      .spyOn(UserProfile, 'aggregate')
+      .mockResolvedValueOnce([{ totalSummaries: 20 }])
+      .mockResolvedValueOnce([{ totalSummaries: 10 }]);
+
+    const { getTotalSummariesSubmitted } = overviewReportHelper();
+    const result = await getTotalSummariesSubmitted(
+      '2026-02-01',
+      '2026-02-28',
+      '2026-01-01',
+      '2026-01-31',
+    );
+
+    expect(aggregateSpy).toHaveBeenCalledTimes(2);
+    expect(result.count).toBe(20);
+    expect(result.comparisonPercentage).toBeDefined();
+  });
+});
