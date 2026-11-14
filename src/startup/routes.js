@@ -304,6 +304,11 @@ const bmToolStoppageReasonRouter = require('../routes/bmdashboard/bmToolStoppage
 const bmActualVsPlannedCostRouter = require('../routes/bmdashboard/bmActualVsPlannedCostRouter');
 const bmRentalChart = require('../routes/bmdashboard/bmRentalChartRouter')();
 const bmToolsReturnedLateRouter = require('../routes/bmdashboard/bmToolsReturnedLateRouter')();
+const bmRentalActionsRouter = require('../routes/bmdashboard/bmRentalActionsRouter')(
+  buildingTool,
+  buildingEquipment,
+  userProfile,
+);
 const toolUtilizationRouter = require('../routes/bmdashboard/toolUtilizationRouter')(buildingTool);
 const bmToolsDowntimeRouter = require('../routes/bmdashboard/bmToolsDowntimeRouter');
 
@@ -608,6 +613,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolsReturnedLateRouter);
+  app.use('/api/bm', bmRentalActionsRouter);
   app.use('/api/bm', bmRentalChart);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
