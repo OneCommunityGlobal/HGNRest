@@ -21,6 +21,14 @@ function calculateGrowthPercentage(current, prev) {
   return Math.round(percentage * 100) / 100;
 }
 
+function weeksBetweenDates(startDateStr, endDateStr) {
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  const timeDifferenceInMilliseconds = end - start;
+  const weeksDifference = timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24 * 7);
+  return Math.ceil(weeksDifference);
+}
+
 /**
  * Validates date parameters for pie chart functions
  * @param {string|Date} startDate - Start date to validate
@@ -2039,49 +2047,17 @@ const overviewReportHelper = function () {
       {
         $addFields: {
           earnedDateParsed: {
-            $switch: {
-              branches: [
-                {
-                  case: {
-                    $regexMatch: {
-                      input: {
-                        $toString: {
-                          $ifNull: ['$fixedDateString', ''],
-                        },
-                      },
-                      regex: /T\d{2}:/,
-                    },
-                  },
-                  then: {
-                    $dateFromString: {
-                      dateString: '$fixedDateString',
-                      onError: null,
-                      onNull: null,
-                    },
-                  },
+            $dateFromString: {
+              dateString: '$fixedDateString',
+              onError: {
+                $dateFromString: {
+                  dateString: '$fixedDateString',
+                  format: '%b-%d-%Y',
+                  onError: null,
+                  onNull: null,
                 },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: {
-                        $toString: {
-                          $ifNull: ['$fixedDateString', ''],
-                        },
-                      },
-                      regex: /^[A-Z][a-z]{2}-\d{2}-20\d{2}$/,
-                    },
-                  },
-                  then: {
-                    $dateFromString: {
-                      dateString: '$fixedDateString',
-                      format: '%b-%d-%Y',
-                      onError: null,
-                      onNull: null,
-                    },
-                  },
-                },
-              ],
-              default: null,
+              },
+              onNull: null,
             },
           },
         },
@@ -2358,14 +2334,6 @@ const overviewReportHelper = function () {
           : 0;
     }
 
-    // Calculates the number of weeks, rounded up, for a given time range.
-    function weeksBetweenDates(startDateStr, endDateStr) {
-      const start = new Date(startDateStr);
-      const end = new Date(endDateStr);
-      const timeDifferenceInMilliseconds = end - start;
-      const weeksDifference = timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24 * 7);
-      return Math.ceil(weeksDifference);
-    }
     const numberOfWeeks = weeksBetweenDates(startDateString, endDateString);
 
     // 4. Retrieves the total committed hours that should have been completed for the given date range.

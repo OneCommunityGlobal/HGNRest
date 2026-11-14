@@ -78,6 +78,38 @@ function buildWeekBuckets(endWeekZoned, weeks) {
   return buckets.reverse();
 }
 
+function getTaskCompletionDate(task) {
+  const hasResourceCompletion = task.resources?.some((resource) => resource.completedTask === true);
+  if (hasResourceCompletion) return task.modifiedDatetime;
+  if (task.completedDatetime) return task.completedDatetime;
+  return TERMINAL_STATUS_REGEX.test(task.status || '') ? task.modifiedDatetime : null;
+}
+
+function countTasksByWeek(tasks, buckets, rangeStartUTC, rangeEndUTC) {
+  const counts = Object.fromEntries(
+    buckets.map((bucket) => [bucket.label, { assigned: 0, completed: 0 }]),
+  );
+
+  for (const task of tasks) {
+    const assignedAt = task.createdDatetime || task.modifiedDatetime;
+    const completedAt = getTaskCompletionDate(task);
+
+    for (const bucket of buckets) {
+      const bucketStart = bucket.startUTC < rangeStartUTC ? rangeStartUTC : bucket.startUTC;
+      const bucketEnd = bucket.endUTC > rangeEndUTC ? rangeEndUTC : bucket.endUTC;
+
+      if (assignedAt >= bucketStart && assignedAt <= bucketEnd) {
+        counts[bucket.label].assigned += 1;
+      }
+      if (completedAt >= bucketStart && completedAt <= bucketEnd) {
+        counts[bucket.label].completed += 1;
+      }
+    }
+  }
+
+  return buckets.map((bucket) => ({ week: bucket.label, ...counts[bucket.label] }));
+}
+
 /** GET /api/tasks/trends
  * Params: start (YYYY-MM-DD), end (YYYY-MM-DD), weeks (4|8|12 default 8)
  * Return: [{ week: 'YYYY-MM-DD', assigned: number, completed: number }, ...]
@@ -131,31 +163,7 @@ async function getTrends(req, res) {
       },
     ]);
 
-    const counts = Object.fromEntries(buckets.map((b) => [b.label, { assigned: 0, completed: 0 }]));
-
-    for (const t of tasks) {
-      const assignedAt = t.createdDatetime || t.modifiedDatetime;
-      const hasResourceCompletion = t.resources?.some(
-        (resource) => resource.completedTask === true,
-      );
-      const completedAt = hasResourceCompletion
-        ? t.modifiedDatetime
-        : t.completedDatetime || (TERMINAL_STATUS_REGEX.test(t.status || '') && t.modifiedDatetime);
-
-      for (const b of buckets) {
-        const bucketStart = b.startUTC < rangeStartUTC ? rangeStartUTC : b.startUTC;
-        const bucketEnd = b.endUTC > rangeEndUTC ? rangeEndUTC : b.endUTC;
-
-        if (assignedAt >= bucketStart && assignedAt <= bucketEnd) {
-          counts[b.label].assigned += 1;
-        }
-        if (completedAt >= bucketStart && completedAt <= bucketEnd) {
-          counts[b.label].completed += 1;
-        }
-      }
-    }
-
-    const data = buckets.map((b) => ({ week: b.label, ...counts[b.label] }));
+    const data = countTasksByWeek(tasks, buckets, rangeStartUTC, rangeEndUTC);
     return res.json(data);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message || 'Invalid request' });
