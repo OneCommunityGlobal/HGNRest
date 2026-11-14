@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
-const BuildingTool = require('../../models/bmdashboard/buildingTool');
-const { TOOL_CONDITIONS, TOOL_LOG_TYPES } = require('../../utilities/constants');
+const { logException } = require('../../startup/logger');
+// The Tools List model (tool_item in buildingInventoryItems), not the separate buildingTools
+// collection, so the donut counts the same tools as the Tools List.
+const { buildingTool: BuildingTool } = require('../../models/bmdashboard/buildingInventoryItem');
+const { getToolStatus, getProjectIdsSharingName } = require('../../helpers/toolAvailabilityHelper');
 
 // Helper function to validate exact ObjectId format
 const isValidMongoId = (id) =>
@@ -21,38 +24,33 @@ exports.getToolAvailability = async (req, res) => {
     if (!isValidMongoId(projectId)) {
       return res.status(400).json({ error: 'Invalid projectId format' });
     }
-    filter.project = projectId;
   }
 
   try {
+    if (projectId) {
+      // Same project scope as the Tools List, which filters by project name.
+      filter.project = { $in: await getProjectIdsSharingName(projectId) };
+    }
+
     const tools = await BuildingTool.find(filter)
-      .populate({ path: 'itemType', model: 'invTypeBase', select: 'name' })
+      .populate({ path: 'itemType', model: 'invTypeBase', select: 'name using available' })
       .populate('project', 'name')
       .lean();
 
-    const { available, used, maintenance } = tools.reduce(
-      (acc, tool) => {
-        const lastLog = tool.logRecord?.[tool.logRecord.length - 1];
-        const lastUpdate = tool.updateRecord?.[tool.updateRecord.length - 1];
+    // Same status rules as the Tools List and the Tools by Availability chart. Editing a
+    // tool's status from the Tools List does not add a log record, so log-based statuses
+    // could disagree with the list.
+    const counts = { available: 0, inUse: 0, needsReplacement: 0, yetToReceive: 0 };
+    tools.forEach((tool) => {
+      counts[getToolStatus(tool)] += 1;
+    });
 
-        if (lastUpdate?.condition === TOOL_CONDITIONS.OUT_OF_ORDER) {
-          acc.maintenance += 1;
-        } else if (lastLog?.type === TOOL_LOG_TYPES.CHECK_OUT) {
-          acc.used += 1;
-        } else {
-          acc.available += 1;
-        }
-
-        return acc;
-      },
-      { available: 0, used: 0, maintenance: 0 },
-    );
-
-    const total = available + used + maintenance;
+    const total = tools.length;
     const data = [
-      { status: 'Available', count: available },
-      { status: 'Used', count: used },
-      { status: 'Maintenance', count: maintenance },
+      { status: 'Available', count: counts.available },
+      { status: 'Used', count: counts.inUse },
+      { status: 'Needs Replacement', count: counts.needsReplacement },
+      { status: 'Yet to Receive', count: counts.yetToReceive },
     ].map((entry) => ({
       ...entry,
       percentage: total > 0 ? parseFloat(((entry.count / total) * 100).toFixed(1)) : 0,
@@ -68,7 +66,7 @@ exports.getToolAvailability = async (req, res) => {
 
     return res.status(200).json({ data, total, tools: toolDropdownData });
   } catch (err) {
-    console.error('Error calculating tool availability:', err.message, err.stack);
+    logException(err, 'bmToolAvailabilityController.getToolAvailability', req.query);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
