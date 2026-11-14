@@ -7,6 +7,7 @@ const {
   resetJobsFilters,
   getCategories,
   getPositions,
+  getActiveJobPositions,
   getJobById,
   createJob,
   updateJob,
@@ -26,6 +27,7 @@ Job.findByIdAndUpdate = jest.fn();
 Job.findByIdAndDelete = jest.fn();
 Job.countDocuments = jest.fn();
 Job.bulkWrite = jest.fn();
+Job.distinct = jest.fn();
 JobPositionCategory.distinct = jest.fn();
 
 // --- HELPER FACTORIES ---
@@ -38,6 +40,10 @@ const mockQueryChain = (resolvedValue) => {
   });
   chain.lean = jest.fn().mockResolvedValue(resolvedValue);
   return chain;
+};
+
+const mockFindByIdLean = (value) => {
+  Job.findById.mockReturnValue({ lean: jest.fn().mockResolvedValue(value) });
 };
 
 const createMockRes = () => {
@@ -71,6 +77,17 @@ describe('jobsController', () => {
         { category: 'Software & IT' },
         { $and: [{ category: { $in: ['Software & IT'] } }] },
       ],
+      [
+        'category containing a comma',
+        { category: 'Architecture, Landscape & Environment' },
+        { $and: [{ category: { $in: ['Architecture, Landscape & Environment'] } }] },
+      ],
+      [
+        'category with surrounding whitespace',
+        { category: '  Software & IT  ' },
+        { $and: [{ category: { $in: ['Software & IT'] } }] },
+      ],
+      ['whitespace-only category', { category: '   ' }, {}],
       [
         'category as JSON array string',
         { category: '["Software & IT","Marketing"]' },
@@ -133,6 +150,16 @@ describe('jobsController', () => {
       await getPositions({}, res);
       expect(res.json).toHaveBeenCalledWith({ positions: ['Pos1'] });
     });
+
+    it('should return distinct job titles for the application form dropdown', async () => {
+      Job.distinct.mockResolvedValue(['Writer', 'Software Developer', '', 'Analyst']);
+      await getActiveJobPositions({}, res);
+      expect(Job.distinct).toHaveBeenCalledWith('title', {});
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        positions: ['Analyst', 'Software Developer', 'Writer'],
+      });
+    });
   });
 
   describe('CRUD Operations', () => {
@@ -152,9 +179,118 @@ describe('jobsController', () => {
 
     it('updateJob: should update successfully', async () => {
       const updateData = { title: 'New' };
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
       Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, ...updateData });
       await updateJob({ params: { id: jobId }, body: updateData }, res);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining(updateData));
+    });
+
+    it('updateJob: returns 404 when job does not exist', async () => {
+      mockFindByIdLean(null);
+      await updateJob({ params: { id: jobId }, body: { title: 'New' } }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Job not found' });
+    });
+
+    it('updateJob: backfills datePosted from the job _id when missing on an existing job', async () => {
+      const expectedDate = new Date(parseInt(jobId.substring(0, 8), 16) * 1000);
+      mockFindByIdLean({ _id: jobId, datePosted: null });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, datePosted: expectedDate });
+      await updateJob({ params: { id: jobId }, body: { title: 'New' } }, res);
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        expect.objectContaining({ datePosted: expectedDate }),
+        { new: true },
+      );
+    });
+
+    it('updateJob: keeps a valid datePosted supplied in the request body', async () => {
+      const newDate = new Date('2024-01-01');
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, datePosted: newDate });
+      await updateJob({ params: { id: jobId }, body: { datePosted: newDate } }, res);
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        expect.objectContaining({ datePosted: newDate }),
+        { new: true },
+      );
+    });
+
+    it('updateJob: strips a falsy datePosted from the request body so it cannot be cleared', async () => {
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, title: 'New' });
+      await updateJob({ params: { id: jobId }, body: { title: 'New', datePosted: null } }, res);
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        expect.not.objectContaining({ datePosted: null }),
+        { new: true },
+      );
+    });
+
+    it('updateJob: backfills datePosted from _id when the field is absent from the stored document', async () => {
+      const expectedDate = new Date(parseInt(jobId.substring(0, 8), 16) * 1000);
+      mockFindByIdLean({ _id: jobId, title: 'Legacy' });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId, datePosted: expectedDate });
+      await updateJob({ params: { id: jobId }, body: { title: 'New' } }, res);
+      expect(Job.findById.mock.results[0].value.lean).toHaveBeenCalled();
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        expect.objectContaining({ datePosted: expectedDate }),
+        { new: true },
+      );
+    });
+
+    it('updateJob: returns 400 for an invalid datePosted value', async () => {
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      await updateJob({ params: { id: jobId }, body: { datePosted: 'not-a-date' } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid datePosted' });
+      expect(Job.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('updateJob: rejects update operators so datePosted cannot be cleared', async () => {
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      await updateJob({ params: { id: jobId }, body: { $set: { datePosted: null } } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(Job.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('updateJob: should store the description as plain text', async () => {
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '<p>Build <strong>useful</strong> tools</p>' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: 'Build useful tools' },
+        { new: true },
+      );
+    });
+
+    it('updateJob: keeps encoded tags from becoming stored markup', async () => {
+      mockFindByIdLean({ _id: jobId, datePosted: new Date() });
+      Job.findByIdAndUpdate.mockResolvedValue({ _id: jobId });
+
+      await updateJob(
+        {
+          params: { id: jobId },
+          body: { description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(Job.findByIdAndUpdate).toHaveBeenCalledWith(
+        jobId,
+        { description: '&lt;img src=x onerror=alert(1)>' },
+        { new: true },
+      );
     });
 
     it('deleteJob: should delete successfully', async () => {
@@ -213,6 +349,7 @@ describe('jobsController', () => {
     });
 
     it('updateJob: returns a 500 when the database call fails', async () => {
+      mockFindByIdLean({ _id: '507f1f77bcf86cd799439011', datePosted: new Date() });
       Job.findByIdAndUpdate.mockRejectedValue(new Error('db down'));
       await updateJob({ params: { id: '507f1f77bcf86cd799439011' }, body: {} }, res);
       expect(res.status).toHaveBeenCalledWith(500);
@@ -253,6 +390,38 @@ describe('jobsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(savedJob);
+    });
+
+    it('stores a new job description as plain text', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: {
+            ...newJobBody,
+            description: '<p>Build <strong>useful</strong> tools</p><script>bad()</script>',
+          },
+        },
+        res,
+      );
+
+      const savedInstance = saveSpy.mock.instances.at(-1);
+      expect(savedInstance.description).toBe('Build useful tools');
+    });
+
+    it('keeps encoded tags from becoming markup in a new job description', async () => {
+      Job.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      const saveSpy = jest.spyOn(Job.prototype, 'save').mockResolvedValue({ _id: 'job1' });
+
+      await createJob(
+        {
+          body: { ...newJobBody, description: '&lt;img src=x onerror=alert(1)&gt;' },
+        },
+        res,
+      );
+
+      expect(saveSpy.mock.instances.at(-1).description).toBe('&lt;img src=x onerror=alert(1)>');
     });
 
     it('defaults displayOrder to 0 when no jobs exist yet', async () => {

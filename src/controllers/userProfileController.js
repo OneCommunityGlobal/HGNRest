@@ -110,6 +110,12 @@ const {
   UserStatusOperations,
   LifecycleStatus,
 } = require('../constants/userProfile');
+const {
+  isValidCalendarDate,
+  pauseFields,
+  activeFields,
+  LIFECYCLE_PROJECTION,
+} = require('../helpers/userStatusFields');
 
 async function ValidatePassword(req, res) {
   const { userId } = req.params;
@@ -901,10 +907,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       userid,
     );
 
+    if (!canEditProtectedAccount) {
+      return { authorized: false, message: 'You are not authorized to update this user' };
+    }
+
     const isRequestorAuthorized = !!(
-      canEditProtectedAccount &&
-      ((await hasPermission(req.body.requestor, 'putUserProfile')) ||
-        req.body.requestor.requestorId === userid)
+      (await hasPermission(req.body.requestor, 'putUserProfile')) ||
+      req.body.requestor.requestorId === userid
     );
 
     const hasEditTeamCodePermission = await hasPermission(req.body.requestor, 'editTeamCode');
@@ -1018,6 +1027,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             timeZone: 1,
             filterColor: 1,
             bioPosted: 1,
+            infringementCCList: 1,
             infringementCount: { $size: { $ifNull: ['$infringements', []] } },
             jobTitle: {
               $cond: {
@@ -1346,7 +1356,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       );
       const canToggleRequestBio = await hasPermission(req.body.requestor, 'requestBio');
 
-      if (!canEditProtectedAccount && !canToggleRequestBio) {
+      if (!canEditProtectedAccount) {
+        return res.status(403).json({ error: 'Permission denied to toggle bio.' });
+      }
+
+      if (!canToggleRequestBio) {
         return res.status(403).json({ error: 'Permission denied to toggle bio.' });
       }
 
@@ -1570,7 +1584,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
 
-    if (userId === req.body.requestor) {
+    if (userId === req.body.requestor.requestorId) {
       res.status(403).send({
         error: 'You cannot delete your own account',
       });
@@ -1578,9 +1592,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
 
     const user = await UserProfile.findById(userId);
+    if (!user) {
+      res.status(400).send({
+        error: 'Invalid user',
+      });
+      return;
+    }
 
     // Check if the user is protected and if the requestor has permission to delete protected accounts
-    if (PROTECTED_EMAIL_ACCOUNT.includes(user.email) && !canEditProtectedAccount) {
+    if (!canEditProtectedAccount) {
       res.status(403).send({
         error: 'Only authorized users can delete protected accounts',
       });
@@ -1588,13 +1608,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       logger.logInfo(
         `Unauthorized attempt to delete a protected account. Requestor: ${req.body.requestor.requestorId} Target: ${user.email}`,
       );
-      return;
-    }
-
-    if (!user) {
-      res.status(400).send({
-        error: 'Invalid user',
-      });
       return;
     }
 
@@ -1809,12 +1822,46 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return;
     }
     const { userIds, replaceCode } = req.body;
-    if (userIds === null || userIds.length <= 0 || replaceCode === undefined) {
+    if (
+      !Array.isArray(userIds) ||
+      userIds.length === 0 ||
+      !userIds.every((id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id)) ||
+      replaceCode === undefined
+    ) {
       return res.status(400).send({ error: 'Missing property or value' });
     }
-    return UserProfile.updateMany({ _id: { $in: userIds } }, { $set: { teamCode: replaceCode } })
-      .then((result) => res.status(200).send({ isUpdated: result.nModified > 0 }))
-      .catch((error) => res.status(500).send(error));
+    const safeUserIds = userIds.map((id) => new mongoose.Types.ObjectId(id));
+    try {
+      const result = await UserProfile.updateMany(
+        { _id: { $in: safeUserIds } },
+        { $set: { teamCode: replaceCode } },
+      );
+      const updatedUsers = await UserProfile.find({ _id: { $in: safeUserIds } });
+      const warningUpdates = await Promise.all(
+        updatedUsers.map(async (user) => ({
+          userId: user._id.toString(),
+          teamCodeWarning: user.isActive ? await userHelper.checkTeamCodeMismatch(user) : false,
+        })),
+      );
+      if (warningUpdates.length > 0) {
+        await UserProfile.bulkWrite(
+          warningUpdates.map(({ userId, teamCodeWarning }) => ({
+            updateOne: {
+              filter: { _id: userId },
+              update: { $set: { teamCodeWarning } },
+            },
+          })),
+        );
+      }
+      cache.removeCache('teamCodes');
+      cache.clearByPrefix('weeklySummaries');
+      return res.status(200).send({
+        isUpdated: (result.modifiedCount ?? result.nModified ?? 0) > 0,
+        updatedUsers: warningUpdates,
+      });
+    } catch (error) {
+      return res.status(500).send(error);
+    }
   };
 
   const updatepassword = async function (req, res) {
@@ -2008,9 +2055,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       cache.removeCache(`user-${userId}`);
       const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
 
+      // deactivatedAt is in the projection because the resume email reports the
+      // date the user was paused on, and a field left out of the projection
+      // reads as undefined rather than as its stored value.
       const user = await UserProfile.findById(
         userId,
-        'isActive email firstName lastName teams teamCode endDate isSet finalEmailThreeWeeksSent reactivationDate inactiveReason deactivatedByProductionSync',
+        `email firstName lastName teams teamCode deactivatedByProductionSync ${LIFECYCLE_PROJECTION}`,
       );
 
       if (!user) {
@@ -2036,13 +2086,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
                 'This Dev account was deactivated because the linked Production account is inactive. It can only be reactivated when Production reactivates the account.',
             });
           }
-          user.isActive = true;
-          user.inactiveReason = undefined;
-          user.deactivatedAt = null;
-          user.reactivationDate = null;
-          user.endDate = null;
-          user.isSet = false;
-          user.finalEmailThreeWeeksSent = false;
+          user.set(activeFields());
           break;
         }
 
@@ -2078,15 +2122,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           if (!reactivationDate) {
             return res.status(400).send({ error: 'Reactivation date is required for pause' });
           }
-          user.isActive = false;
-          user.inactiveReason = InactiveReason.PAUSED;
-          user.deactivatedAt = moment().tz(COMPANY_TZ).toISOString();
-          user.reactivationDate = moment(reactivationDate)
-            .tz(COMPANY_TZ)
-            .startOf('day')
-            .toISOString();
-          user.endDate = null;
-          user.isSet = false;
+          if (!isValidCalendarDate(reactivationDate)) {
+            return res
+              .status(400)
+              .send({ error: 'Reactivation date must be a valid date in YYYY-MM-DD format' });
+          }
+          user.set(pauseFields(reactivationDate));
           break;
         }
 
@@ -2100,10 +2141,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!user.isActive) {
         user.teamCodeWarning = false;
       } else if (wasInactive) {
-        const mismatch = await userHelper.checkTeamCodeMismatch(user);
-        if (mismatch) {
-          user.teamCodeWarning = true;
-        }
+        user.teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
       }
       await user.save();
 
@@ -2138,6 +2176,24 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getPauseReactivationDateError = (isResuming, activationDate) => {
+    if (isResuming) return null;
+    if (!activationDate) return 'Reactivation date is required for pause';
+    if (!isValidCalendarDate(activationDate)) {
+      return 'Reactivation date must be a valid date in YYYY-MM-DD format';
+    }
+    return null;
+  };
+
+  const updateUserInAllUsersCache = (userId, fields) => {
+    if (!cache.hasCache('allusers')) return;
+    const allUserData = JSON.parse(cache.getCache('allusers'));
+    const userIdx = allUserData.findIndex((u) => u._id === userId);
+    if (userIdx === -1) return;
+    allUserData.splice(userIdx, 1, { ...allUserData[userIdx], ...fields });
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
   const pauseResumeUser = async function (req, res) {
     const { userId } = req.params;
     const activationDate = req.body.reactivationDate;
@@ -2166,33 +2222,53 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       return res.status(403).send('You are not authorized to change user status');
     }
 
+    const reactivationDateError = getPauseReactivationDateError(status, activationDate);
+    if (reactivationDateError) {
+      return res.status(400).send({ error: reactivationDateError });
+    }
+
     cache.removeCache(`user-${userId}`);
 
     try {
-      const user = await UserProfile.findById(userId, 'isActive email firstName lastName');
+      const user = await UserProfile.findById(
+        userId,
+        `email firstName lastName ${LIFECYCLE_PROJECTION}`,
+      );
       if (!user) {
         return res.status(404).send({ error: 'User not found' });
       }
 
-      user.set({
-        isActive: status,
-        reactivationDate: activationDate,
-      });
+      // Read before the update, because the resume email reports the date the
+      // user was paused on and the update clears it.
+      const pausedOn = user.deactivatedAt;
+      const recipients = await userHelper.getEmailRecipientsForStatusChange(userId);
+
+      // The same fields the lifecycle endpoint writes. These two are the only
+      // ways to pause or resume from the UI and they have to agree about what
+      // paused and active mean.
+      const appliedFields = status ? activeFields() : pauseFields(activationDate);
+      user.set(appliedFields);
 
       await user.save();
 
-      const isUserInCache = cache.hasCache('allusers');
-      if (isUserInCache) {
-        const allUserData = JSON.parse(cache.getCache('allusers'));
-        const userIdx = allUserData.findIndex((u) => u._id === userId);
-        if (userIdx !== -1) {
-          const userData = allUserData[userIdx];
-          userData.isActive = user.isActive;
-          userData.reactivationDate = null;
-          userData.endDate = null;
-          allUserData.splice(userIdx, 1, userData);
-          cache.setCache('allusers', JSON.stringify(allUserData));
-        }
+      updateUserInAllUsersCache(userId, appliedFields);
+
+      if (status) {
+        userHelper.sendUserResumedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          recipients,
+          pausedOn,
+        });
+      } else {
+        userHelper.sendUserPausedEmail({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          reactivationDate: user.reactivationDate,
+          recipients,
+        });
       }
 
       auditIfProtectedAccountUpdated({
@@ -2208,66 +2284,138 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
   };
 
+  const getRehireableStatusValidationError = (userId, isRehireable, reason) => {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return 'Bad Request';
+    if (typeof isRehireable !== 'boolean') {
+      return 'isRehireable must be a boolean';
+    }
+    if (!isRehireable && !reason) {
+      return 'A reason is required when a user is not rehireable';
+    }
+    return null;
+  };
+
+  const canChangeRehireableStatus = async (requestor, requestorId, userId) => {
+    if (!requestorId) return false;
+
+    const hasStatusPermission = await hasPermission(requestor, 'changeUserRehireableStatus');
+    if (!hasStatusPermission) return false;
+
+    return canRequestorUpdateUser(requestorId, userId);
+  };
+
+  const createRehireableStatusUpdate = (currentUser, isRehireable, reason, requestorProfile) => {
+    const currentReason = currentUser.notRehireableReason || '';
+    const shouldLogReason =
+      !isRehireable && (currentUser.isRehireable !== false || currentReason !== reason);
+
+    const update = {
+      $set: {
+        isRehireable,
+        notRehireableReason: isRehireable ? '' : reason,
+      },
+    };
+
+    if (shouldLogReason) {
+      update.$push = {
+        notRehireableReasonHistory: {
+          action: currentUser.isRehireable === false && currentReason ? 'edited' : 'submitted',
+          reason,
+          changedAt: new Date(),
+          changedBy: {
+            userId: requestorProfile._id,
+            username: requestorProfile.email,
+            firstName: requestorProfile.firstName,
+            lastName: requestorProfile.lastName,
+          },
+        },
+      };
+    }
+
+    return update;
+  };
+
+  const syncRehireableStatusCache = (userId, updatedUser) => {
+    cache.removeCache(`user-${userId}`);
+
+    if (!cache.hasCache('allusers')) return;
+
+    const allUserData = JSON.parse(cache.getCache('allusers') || '[]');
+    if (!Array.isArray(allUserData)) return;
+
+    const userIdx = allUserData.findIndex((user) => String(user._id) === String(userId));
+    if (userIdx < 0) return;
+
+    allUserData[userIdx] = {
+      ...allUserData[userIdx],
+      isRehireable: updatedUser.isRehireable,
+      notRehireableReason: updatedUser.notRehireableReason,
+      notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
+    };
+    cache.setCache('allusers', JSON.stringify(allUserData));
+  };
+
   const changeUserRehireableStatus = async function (req, res) {
     const { userId } = req.params;
-    const { isRehireable } = req.body;
-    const canEditProtectedAccount = await canRequestorUpdateUser(
-      req.body.requestor.requestorId,
-      userId,
-    );
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).send({ error: 'Bad Request' });
+    const { isRehireable, notRehireableReason, requestor } = req.body;
+    const requestorId = requestor?.requestorId;
+    const reason = typeof notRehireableReason === 'string' ? notRehireableReason.trim() : '';
+
+    const validationError = getRehireableStatusValidationError(userId, isRehireable, reason);
+    if (validationError) {
+      return res.status(400).send({ error: validationError });
     }
-    if (
-      !(await hasPermission(req.body.requestor, 'changeUserRehireableStatus')) ||
-      !canEditProtectedAccount
-    ) {
+
+    const isAuthorized = await canChangeRehireableStatus(requestor, requestorId, userId);
+    if (!isAuthorized) {
       return res.status(403).send('You are not authorized to change rehireable status');
     }
 
-    // Invalidate the cache for this user
-    cache.removeCache(`user-${userId}`);
+    try {
+      const currentUser = await UserProfile.findById(userId);
+      if (!currentUser) return res.status(404).send({ error: 'User not found' });
 
-    UserProfile.findByIdAndUpdate(
-      userId,
-      { $set: { isRehireable } },
-      { new: true },
-      // eslint-disable-next-line no-unused-vars
-      (error, updatedUser) => {
-        if (error) {
-          return res.status(500).send(error);
-        }
-        // Check if there's a cache for all users and update it accordingly
-        const isUserInCache = cache.hasCache('allusers');
-        if (isUserInCache) {
-          const allUserData = JSON.parse(cache.getCache('allusers'));
-          const userIdx = allUserData.findIndex((users) => users._id === userId);
-          const userData = allUserData[userIdx];
-          userData.isRehireable = isRehireable;
-          allUserData.splice(userIdx, 1, userData);
-          cache.setCache('allusers', JSON.stringify(allUserData));
-        }
+      const requestorProfile = await UserProfile.findById(requestorId).select(
+        'email firstName lastName',
+      );
+      if (!requestorProfile) {
+        return res.status(404).send({ error: 'Requestor not found' });
+      }
 
-        // Optionally, re-fetch the user to verify the updated data
-        UserProfile.findById(userId, (err, verifiedUser) => {
-          if (err) {
-            return res.status(500).send('Error fetching updated user data.');
-          }
-          auditIfProtectedAccountUpdated({
-            requestorId: req.body.requestor.requestorId,
-            updatedRecordEmail: verifiedUser.email,
-            originalRecord: null,
-            updatedRecord: null,
-            updateDiffPaths: null,
-            actionPerformed: 'UserRehireableStatusUpdate',
-          });
-          res.status(200).send({
-            message: 'Rehireable status updated and verified successfully',
-            isRehireable: verifiedUser.isRehireable,
-          });
-        });
-      },
-    );
+      const update = createRehireableStatusUpdate(
+        currentUser,
+        isRehireable,
+        reason,
+        requestorProfile,
+      );
+
+      const updatedUser = await UserProfile.findByIdAndUpdate(userId, update, {
+        new: true,
+        runValidators: true,
+      });
+      if (!updatedUser) return res.status(404).send({ error: 'User not found' });
+
+      syncRehireableStatusCache(userId, updatedUser);
+
+      auditIfProtectedAccountUpdated({
+        requestorId,
+        updatedRecordEmail: updatedUser.email,
+        originalRecord: null,
+        updatedRecord: null,
+        updateDiffPaths: null,
+        actionPerformed: 'UserRehireableStatusUpdate',
+      });
+
+      return res.status(200).send({
+        message: 'Rehireable status updated successfully',
+        isRehireable: updatedUser.isRehireable,
+        notRehireableReason: updatedUser.notRehireableReason,
+        notRehireableReasonHistory: updatedUser.notRehireableReasonHistory,
+      });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Internal Error' });
+    }
   };
 
   const resetPassword = async function (req, res) {
@@ -2844,7 +2992,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       });
 
       distinctTeamCodes = distinctTeamCodes
-        .map((code) => (code ? code.trim().toUpperCase() : ''))
+        .map((code) => (code ? code.trim() : ''))
         .filter((code) => code !== '');
 
       if (includePRTeams) {

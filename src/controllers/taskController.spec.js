@@ -20,6 +20,7 @@ const emailSender = require('../utilities/emailSender');
 
 // MongoDB Model imports
 const Task = require('../models/task');
+const TaskChangeLog = require('../models/taskChangeLog');
 const Project = require('../models/project');
 const UserProfile = require('../models/userProfile');
 const TaskChangeTracker = require('../middleware/taskChangeTracker');
@@ -79,6 +80,9 @@ const makeSut = () => {
     sendReviewReq,
     getTasksForTeamsByUser,
     updateTaskStatus,
+    getResolvedTasks,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
   } = taskController(Task);
 
   return {
@@ -99,6 +103,9 @@ const makeSut = () => {
     sendReviewReq,
     getTasksForTeamsByUser,
     updateTaskStatus,
+    getResolvedTasks,
+    getTaskChangeLogs,
+    getUserTaskChangeLogs,
   };
 };
 
@@ -144,6 +151,22 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(404, error, response, mockRes);
       expect(taskFindSpy).toHaveBeenCalled();
       expect(taskFindSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Hides deadlineCount when the user lacks task extension count permission', async () => {
+      const { getTasks } = makeSut();
+      const mockData = [{ _id: '1', taskName: 'A', deadlineCount: 5, createdBy: null }];
+      const chain = makeFindChain({ data: mockData });
+      jest.spyOn(Task, 'find').mockReturnValueOnce(chain);
+      hasPermission.mockResolvedValue(false);
+
+      const response = await getTasks(mockReq, mockRes);
+      await flushPromises();
+
+      const expected = mockData.map((t) => ({ ...t, creatorName: undefined }));
+      delete expected[0].deadlineCount;
+      assertResMock(200, expected, response, mockRes);
+      expect(chain.populate).toHaveBeenCalled();
     });
   });
 
@@ -303,7 +326,257 @@ describe('Unit Tests for taskController.js', () => {
 
       assertResMock(400, error, response, mockRes);
     });
+    test('Return 201 on successful task creation', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
 
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'Test Task',
+        isActive: true,
+        category: 'General',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const savedTask = {
+        _id: 'task123',
+      };
+
+      const populatedTask = {
+        _id: 'task123',
+        taskName: 'Test Task',
+        createdBy: {
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@example.com',
+        },
+      };
+
+      jest.spyOn(Task, 'find').mockResolvedValueOnce([]);
+
+      jest.spyOn(Task.prototype, 'save').mockResolvedValueOnce(savedTask);
+
+      const mockWbs = {
+        projectId: 'project123',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockProject = {
+        category: 'General',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWbs);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProject);
+
+      const taskFindByIdChain = {
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(populatedTask),
+      };
+
+      jest.spyOn(Task, 'findById').mockReturnValue(taskFindByIdChain);
+
+      await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      expect(WBS.findById).toHaveBeenCalledWith('wbs123');
+      expect(Project.findById).toHaveBeenCalledWith('project123');
+      expect(mockWbs.save).toHaveBeenCalled();
+      expect(mockProject.save).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(populatedTask);
+      wbsFindByIdSpy.mockRestore();
+      projectFindByIdSpy.mockRestore();
+      mockReq.body = originalBody;
+    });
+    test('Return 400 when parent task does not exist', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'Child Task',
+        isActive: true,
+        mother: 'parent123',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const taskFindByIdSpy = jest.spyOn(Task, 'findById').mockResolvedValueOnce(null);
+
+      await postTask(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        error: 'Invalid parent task ID provided.',
+      });
+
+      mockReq.body = originalBody;
+      taskFindByIdSpy.mockRestore();
+    });
+    test('Return 201 when creating child task with existing siblings', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'Child Task',
+        isActive: true,
+        mother: 'parent123',
+        category: 'General',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const parentTask = {
+        _id: 'parent123',
+        level: 1,
+        num: '1',
+      };
+
+      const siblings = [{ num: '1.1' }, { num: '1.2' }];
+
+      const savedTask = {
+        _id: 'task123',
+      };
+
+      const populatedTask = {
+        _id: 'task123',
+        taskName: 'Child Task',
+      };
+
+      const taskFindByIdChain = {
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(populatedTask),
+      };
+
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValueOnce(parentTask)
+        .mockReturnValueOnce(taskFindByIdChain);
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce(siblings);
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockResolvedValueOnce(savedTask);
+
+      const mockWbs = {
+        projectId: 'project123',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockProject = {
+        category: 'General',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWbs);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProject);
+
+      await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      expect(Task.find).toHaveBeenCalledWith({ mother: 'parent123' });
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(populatedTask);
+
+      taskFindByIdSpy.mockRestore();
+      taskFindSpy.mockRestore();
+      taskSaveSpy.mockRestore();
+      wbsFindByIdSpy.mockRestore();
+      projectFindByIdSpy.mockRestore();
+      mockReq.body = originalBody;
+    });
+    test('Return 201 when creating first child task under a parent', async () => {
+      const { postTask } = makeSut();
+      const originalBody = { ...mockReq.body };
+
+      hasPermission.mockResolvedValueOnce(true);
+
+      mockReq.params.id = 'wbs123';
+      mockReq.body = {
+        ...mockReq.body,
+        taskName: 'First Child Task',
+        isActive: true,
+        mother: 'parent123',
+        category: 'General',
+        requestor: {
+          requestorId: 'user123',
+        },
+      };
+
+      const parentTask = {
+        _id: 'parent123',
+        level: 1,
+        num: '1',
+      };
+
+      const savedTask = {
+        _id: 'task123',
+      };
+
+      const populatedTask = {
+        _id: 'task123',
+        taskName: 'First Child Task',
+      };
+
+      const taskFindByIdChain = {
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(populatedTask),
+      };
+
+      const taskFindByIdSpy = jest
+        .spyOn(Task, 'findById')
+        .mockResolvedValueOnce(parentTask)
+        .mockReturnValueOnce(taskFindByIdChain);
+
+      const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValueOnce([]);
+      const taskSaveSpy = jest.spyOn(Task.prototype, 'save').mockResolvedValueOnce(savedTask);
+
+      const mockWbs = {
+        projectId: 'project123',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockProject = {
+        category: 'General',
+        modifiedDatetime: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const wbsFindByIdSpy = jest.spyOn(WBS, 'findById').mockResolvedValue(mockWbs);
+      const projectFindByIdSpy = jest.spyOn(Project, 'findById').mockResolvedValue(mockProject);
+
+      await postTask(mockReq, mockRes);
+      await flushPromises();
+
+      expect(Task.find).toHaveBeenCalledWith({ mother: 'parent123' });
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.send).toHaveBeenCalledWith(populatedTask);
+
+      taskFindByIdSpy.mockRestore();
+      taskFindSpy.mockRestore();
+      taskSaveSpy.mockRestore();
+      wbsFindByIdSpy.mockRestore();
+      projectFindByIdSpy.mockRestore();
+      mockReq.body = originalBody;
+    });
     // TODO: Fix
     // ... (unchanged commented tests)
   });
@@ -1339,6 +1612,50 @@ describe('Unit Tests for taskController.js', () => {
       assertResMock(200, mockData, response, mockRes);
     });
 
+    // Mongoose documents keep references back to their parents; toJSON drops them
+    const makeCyclicMember = () => {
+      const team = { toJSON: () => ({ _id: 't1', teamName: 'Team' }) };
+      team.$parent = team;
+      return {
+        personId: 'u1',
+        teams: [team],
+        tasks: [{ _id: 'k1', taskName: 'A', deadlineCount: 3 }],
+      };
+    };
+
+    test('Returns 200 without deadlineCount for cyclic documents when the user lacks the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce([makeCyclicMember()]);
+      hasPermission.mockResolvedValue(false);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send).toHaveBeenCalledWith([
+        {
+          personId: 'u1',
+          teams: [{ _id: 't1', teamName: 'Team' }],
+          tasks: [{ _id: 'k1', taskName: 'A' }],
+        },
+      ]);
+    });
+
+    test('Keeps deadlineCount for users with the count permission', async () => {
+      mockReq.params.userId = '5a7e21f00317bc1538def4b7';
+      const data = [makeCyclicMember()];
+      taskHelperMethods.getTasksForTeams.mockResolvedValueOnce(data);
+      hasPermission.mockResolvedValue(true);
+
+      const { getTasksForTeamsByUser } = makeSut();
+      await getTasksForTeamsByUser(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.send.mock.calls.at(-1)[0][0].tasks[0].deadlineCount).toBe(3);
+    });
+
     test('Returns 200 on success - getTasksForTeamsByUser', async () => {
       mockReq.params.userId = 1234;
       const mockData = ['mockData'];
@@ -1394,7 +1711,6 @@ describe('Unit Tests for taskController.js', () => {
 
     test('Returns 200 on success - updateTaskStatus', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(true);
 
       mockReq.params = {
         ...mockReq.params,
@@ -1420,24 +1736,32 @@ describe('Unit Tests for taskController.js', () => {
       expect(projectFindByIdSpy).toHaveBeenCalled();
     });
 
-    test('Returns 403 when task deadline permission is missing', async () => {
+    test('Does not require the task deadline permission (submit for review)', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(false);
+      hasPermission.mockResolvedValue(false);
 
-      const response = await updateTaskStatus(mockReq, mockRes);
+      mockReq.params = {
+        ...mockReq.params,
+        taskId: 456,
+      };
 
-      assertResMock(
-        403,
-        { error: 'You are not authorized to update task deadline status.' },
-        response,
-        mockRes,
-      );
-      expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
+      jest.spyOn(Task, 'findById').mockResolvedValue(mockedTask);
+      const taskFindOneAndUpdateSpy = jest
+        .spyOn(Task, 'findOneAndUpdate')
+        .mockResolvedValueOnce(true);
+      jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+      jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+
+      await updateTaskStatus(mockReq, mockRes);
+      await flushPromises();
+
+      expect(mockRes.status).not.toBeCalledWith(403);
+      expect(mockRes.status).toBeCalledWith(201);
+      expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
     });
 
     test('Returns 400 on error', async () => {
       const { updateTaskStatus } = makeSut();
-      hasPermission.mockResolvedValueOnce(true);
       const error = new Error('some error');
 
       mockReq.params = {
@@ -1461,6 +1785,233 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
       expect(wbsFindByIdSpy).toHaveBeenCalled();
       expect(projectFindByIdSpy).toHaveBeenCalled();
+    });
+  });
+  describe('getTaskChangeLogs function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getTaskChangeLogs } = makeSut();
+      const originalQuery = { ...mockReq.query };
+      const originalParams = { ...mockReq.params };
+
+      mockReq.params.taskId = 'task123';
+      mockReq.query = {};
+
+      const changeLogs = [];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(changeLogs),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getTaskChangeLogs(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        taskId: 'task123',
+      });
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        changeLogs,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+      mockReq.params = originalParams;
+    });
+  });
+  describe('getUserTaskChangeLogs function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getUserTaskChangeLogs } = makeSut();
+      const originalQuery = { ...mockReq.query };
+      const originalParams = { ...mockReq.params };
+
+      mockReq.params.userId = 'user123';
+      mockReq.query = {};
+
+      const changeLogs = [];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(changeLogs),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getUserTaskChangeLogs(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        userId: 'user123',
+      });
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        changeLogs,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+      mockReq.params = originalParams;
+    });
+  });
+  describe('getResolvedTasks function()', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test('Returns resolved tasks with pagination', async () => {
+      const { getResolvedTasks } = makeSut();
+
+      mockReq.query = {
+        page: '2',
+        limit: '10',
+      };
+
+      const resolvedTasks = [
+        {
+          _id: 'log-1',
+          changeType: 'status_change',
+          newValue: 'Resolved',
+        },
+      ];
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(resolvedTasks),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(25);
+
+      await getResolvedTasks(mockReq, mockRes);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      expect(findChain.sort).toHaveBeenCalledWith({ timestamp: -1 });
+      expect(findChain.skip).toHaveBeenCalledWith(10);
+      expect(findChain.limit).toHaveBeenCalledWith(10);
+
+      expect(countSpy).toHaveBeenCalledWith({
+        changeType: 'status_change',
+        newValue: { $in: ['Complete', 'Resolved', 'Closed'] },
+      });
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        tasks: resolvedTasks,
+        pagination: {
+          page: 2,
+          limit: 10,
+          total: 25,
+          pages: 3,
+        },
+      });
+    });
+    test('Uses default pagination when page and limit are missing', async () => {
+      const { getResolvedTasks } = makeSut();
+      const originalQuery = { ...mockReq.query };
+
+      mockReq.query = {};
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      };
+
+      const findSpy = jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+      const countSpy = jest.spyOn(TaskChangeLog, 'countDocuments').mockResolvedValue(0);
+
+      await getResolvedTasks(mockReq, mockRes);
+
+      expect(findChain.skip).toHaveBeenCalledWith(0);
+      expect(findChain.limit).toHaveBeenCalledWith(50);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        tasks: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0,
+        },
+      });
+
+      findSpy.mockRestore();
+      countSpy.mockRestore();
+      mockReq.query = originalQuery;
+    });
+    test('Returns 500 when fetching resolved tasks fails', async () => {
+      const { getResolvedTasks } = makeSut();
+
+      mockReq.query = {
+        page: '1',
+        limit: '10',
+      };
+
+      const error = new Error('Database error');
+
+      const findChain = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockRejectedValue(error),
+      };
+
+      jest.spyOn(TaskChangeLog, 'find').mockReturnValue(findChain);
+
+      await getResolvedTasks(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Database error',
+      });
     });
   });
 });

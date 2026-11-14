@@ -103,4 +103,47 @@ describe('getInfringementEmailBody', () => {
 
     expect(result).toContain('time entries <b>3 times</b>');
   });
+
+  it('should include Full name in Administrative Details formatted with firstName and lastName', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: `System auto-assigned infringement for not meeting weekly volunteer time commitment.`,
+    };
+
+    const result = getInfringementEmailBody(
+      'John',
+      'Doe',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      baseAdministrativeContent,
+    );
+
+    expect(result).toContain('<p><b>Name:</b> John Doe</p>');
+  });
+
+  it('uses a neutral "Dear" greeting instead of a time-of-day greeting', () => {
+    const infringement = {
+      date: '2025-05-12',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Maria',
+      'Gomez',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      baseAdministrativeContent,
+    );
+
+    expect(result).toContain('Dear <b>Maria</b>,');
+    expect(result).not.toContain('Good Morning');
+    expect(result).not.toContain('Good Afternoon');
+    expect(result).not.toContain('Good Evening');
+  });
 });

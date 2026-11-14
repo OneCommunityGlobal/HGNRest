@@ -26,6 +26,10 @@ const routes = function (
 
   router.route('/promotion-eligibility').post(controller.getPromotionEligibilityData);
 
+  // Confirmation modal pending list. POST for the same requestor-in-body reason
+  // as /promotion-eligibility (see BE PR 2201).
+  router.route('/promotion-pending').post(controller.getPromotionPending);
+
   router.route('/promotion-eligibility/:reviewerId/prs-needed').patch(controller.updatePrsNeeded);
 
   // "+ Add New" column. Reads are POST for the same requestor-in-body reason
@@ -48,6 +52,10 @@ const routes = function (
   router
     .route('/promotion-eligibility/pr-entries/:entryId/rating')
     .patch(controller.updatePrEntryRating);
+
+  // The permission check reads `req.body.requestor`, which the auth middleware
+  // sets on every request, so a DELETE needs no body from the client.
+  router.route('/promotion-eligibility/pr-entries/:entryId').delete(controller.deletePrEntry);
 
   // Preview is its own route rather than a flag on /promote-members, so there
   // is no way for a caller to promote people by accident while asking what
