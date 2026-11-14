@@ -34,11 +34,23 @@ describe('Building Consumable Controller', () => {
   });
 
   describe('fetchBMConsumables', () => {
-    it('should fetch all consumables successfully', async () => {
+    it('should return Available calculated as Bought - Used - Wasted', async () => {
       const mockResult = [
         {
           project: { _id: '1', name: 'Project 1' },
           itemType: { _id: '1', name: 'Item 1', unit: 'kg' },
+          stockBought: 64,
+          stockUsed: 4,
+          stockWasted: 3,
+          stockAvailable: 43, // stored value that has drifted
+        },
+        {
+          project: { _id: '1', name: 'Project 1' },
+          itemType: { _id: '2', name: 'Item 2', unit: 'kg' },
+          stockBought: 13,
+          stockUsed: 14,
+          stockWasted: 0,
+          stockAvailable: 49, // Used is more than Bought, so Available is negative
         },
       ];
 
@@ -48,10 +60,14 @@ describe('Building Consumable Controller', () => {
       });
 
       await controller.fetchBMConsumables({}, mockResponse);
+      await flushPromises();
 
       expect(mockBuildingConsumable.find).toHaveBeenCalled();
       expect(mockResponse.status).toHaveBeenCalledWith(200);
-      expect(mockResponse.send).toHaveBeenCalledWith(mockResult);
+      expect(mockResponse.send).toHaveBeenCalledWith([
+        { ...mockResult[0], stockAvailable: 57 },
+        { ...mockResult[1], stockAvailable: -1 },
+      ]);
     });
   });
 
@@ -131,6 +147,7 @@ describe('Building Consumable Controller', () => {
         stockAvailable: 100,
         consumable: {
           _id: '123',
+          stockBought: 170,
           stockUsed: 50,
           stockWasted: 20,
         },
@@ -153,7 +170,7 @@ describe('Building Consumable Controller', () => {
           $set: {
             stockUsed: 60,
             stockWasted: 25,
-            stockAvailable: 85,
+            stockAvailable: 85, // 170 bought - 60 used - 25 wasted
           },
           $push: {
             updateRecord: {
@@ -188,7 +205,7 @@ describe('Building Consumable Controller', () => {
       const expectedWasted = 5; // 5% of 100
       const newStockUsed = 50 + expectedUsed;
       const newStockWasted = 20 + expectedWasted;
-      const newAvailable = 100 - (expectedUsed + expectedWasted);
+      const newAvailable = 170 - newStockUsed - newStockWasted; // Bought - Used - Wasted
 
       expect(mockBuildingConsumable.updateOne).toHaveBeenCalledWith(
         { _id: '123' },
@@ -244,6 +261,36 @@ describe('Building Consumable Controller', () => {
       expect(mockResponse.send).toHaveBeenCalledWith({
         message: 'Please check the used and wasted stock values. Negative numbers are invalid.',
       });
+    });
+  });
+
+  describe('bmUpdateConsumablePurchaseStatus', () => {
+    it('should add an approved purchase to both Bought and Available', async () => {
+      mockBuildingConsumable.findOne.mockResolvedValue({
+        purchaseRecord: [{ _id: 'purchase1', status: 'Pending' }],
+      });
+      mockBuildingConsumable.findOneAndUpdate.mockResolvedValue({ _id: '123' });
+
+      const request = {
+        body: {
+          purchaseId: 'purchase1',
+          status: 'Approved',
+          quantity: 10,
+          requestor: { role: 'Owner' },
+        },
+      };
+
+      await controller.bmUpdateConsumablePurchaseStatus(request, mockResponse);
+
+      expect(mockBuildingConsumable.findOneAndUpdate).toHaveBeenCalledWith(
+        { 'purchaseRecord._id': 'purchase1' },
+        {
+          $set: { 'purchaseRecord.$.status': 'Approved' },
+          $inc: { stockBought: 10, stockAvailable: 10 },
+        },
+        { new: true },
+      );
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
   });
 });
