@@ -157,7 +157,7 @@ describe('bmMaterialsController', () => {
               requestedBy: validRequestorId,
             },
           ],
-          stockBought: 100,
+          stockBought: 0,
         }),
       );
       expect(res.status).toHaveBeenCalledWith(201);
@@ -185,6 +185,7 @@ describe('bmMaterialsController', () => {
       };
 
       req.body = updateData;
+      BuildingMaterialMock.findOne.mockResolvedValue({ ...updateData.material, stockBought: 125 });
 
       const mockUpdateResult = { modifiedCount: 1 };
       BuildingMaterialMock.updateOne.mockResolvedValue(mockUpdateResult);
@@ -230,6 +231,7 @@ describe('bmMaterialsController', () => {
       };
 
       req.body = updateData;
+      BuildingMaterialMock.findOne.mockResolvedValue({ ...updateData.material, stockBought: 125 });
 
       const mockUpdateResult = { modifiedCount: 1 };
       BuildingMaterialMock.updateOne.mockResolvedValue(mockUpdateResult);
@@ -283,8 +285,8 @@ describe('bmMaterialsController', () => {
 
       await controller.bmPostMaterialUpdateBulk(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith('Stock quantities submitted seems to be invalid');
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith('Invalid material ID format');
     });
   });
 

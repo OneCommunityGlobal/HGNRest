@@ -458,12 +458,7 @@ describe('bmMaterialsController', () => {
     const validMaterialId = '507f1f77bcf86cd799439011';
 
     it('should update material stock and add update record', async () => {
-      mockUpdateOne.mockReturnValue({
-        then(callback) {
-          callback({ nModified: 1 });
-          return { catch: jest.fn() };
-        },
-      });
+      mockUpdateOne.mockResolvedValue({ n: 1, nModified: 1 });
 
       const material = {
         _id: validMaterialId,
@@ -488,10 +483,17 @@ describe('bmMaterialsController', () => {
         send: jest.fn(),
       };
 
+      if (req.body.material._id === validMaterialId) {
+        const m = req.body.material;
+        mockFindOne.mockResolvedValue({
+          ...m,
+          stockBought: m.stockAvailable + m.stockUsed + m.stockWasted,
+        });
+      }
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(mockUpdateOne).toHaveBeenCalledWith(
-        { _id: expect.any(mongoose.Types.ObjectId) },
+        expect.objectContaining({ _id: validMaterialId, stockBought: expect.any(Number) }),
         expect.any(Object),
       );
       expect(res.status).toHaveBeenCalledWith(200);
@@ -518,6 +520,13 @@ describe('bmMaterialsController', () => {
         send: jest.fn(),
         json: jest.fn().mockReturnThis(),
       };
+      if (req.body.material._id === validMaterialId) {
+        const m = req.body.material;
+        mockFindOne.mockResolvedValue({
+          ...m,
+          stockBought: m.stockAvailable + m.stockUsed + m.stockWasted,
+        });
+      }
       await controller.bmPostMaterialUpdateRecord(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -548,21 +557,23 @@ describe('bmMaterialsController', () => {
         send: jest.fn(),
       };
 
+      if (req.body.material._id === validMaterialId) {
+        const m = req.body.material;
+        mockFindOne.mockResolvedValue({
+          ...m,
+          stockBought: m.stockAvailable + m.stockUsed + m.stockWasted,
+        });
+      }
       await controller.bmPostMaterialUpdateRecord(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.status).toHaveBeenCalledWith(400);
       expect(res.send).toHaveBeenCalledWith(
         expect.stringContaining('exceeds the total stock available'),
       );
     });
 
     it('should convert percent-based quantityUsed and quantityWasted to actual values', async () => {
-      mockUpdateOne.mockReturnValue({
-        then(callback) {
-          callback({ nModified: 1 });
-          return { catch: jest.fn() };
-        },
-      });
+      mockUpdateOne.mockResolvedValue({ n: 1, nModified: 1 });
 
       const material = {
         _id: validMaterialId,
@@ -587,10 +598,17 @@ describe('bmMaterialsController', () => {
         send: jest.fn(),
       };
 
+      if (req.body.material._id === validMaterialId) {
+        const m = req.body.material;
+        mockFindOne.mockResolvedValue({
+          ...m,
+          stockBought: m.stockAvailable + m.stockUsed + m.stockWasted,
+        });
+      }
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(mockUpdateOne).toHaveBeenCalledWith(
-        { _id: expect.any(mongoose.Types.ObjectId) },
+        expect.objectContaining({ _id: validMaterialId, stockBought: expect.any(Number) }),
         expect.objectContaining({
           $set: expect.objectContaining({
             stockUsed: 10,
@@ -603,15 +621,7 @@ describe('bmMaterialsController', () => {
     });
 
     it('should return 500 when updateOne fails', async () => {
-      mockUpdateOne.mockReturnValue({
-        then() {
-          return {
-            catch(callback) {
-              callback(new Error('update failed'));
-            },
-          };
-        },
-      });
+      mockUpdateOne.mockRejectedValue(new Error('update failed'));
 
       const material = {
         _id: validMaterialId,
@@ -636,10 +646,17 @@ describe('bmMaterialsController', () => {
         send: jest.fn(),
       };
 
+      if (req.body.material._id === validMaterialId) {
+        const m = req.body.material;
+        mockFindOne.mockResolvedValue({
+          ...m,
+          stockBought: m.stockAvailable + m.stockUsed + m.stockWasted,
+        });
+      }
       await controller.bmPostMaterialUpdateRecord(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith({ message: expect.any(Error) });
+      expect(res.send).toHaveBeenCalledWith('Unable to update material stock.');
     });
   });
 
@@ -648,7 +665,7 @@ describe('bmMaterialsController', () => {
     const validMaterialId2 = '507f1f77bcf86cd799439022';
 
     it('should update multiple materials successfully', async () => {
-      mockUpdateOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ nModified: 1 }) });
+      mockUpdateOne.mockResolvedValue({ n: 1, nModified: 1 });
 
       const req = {
         body: {
@@ -684,6 +701,12 @@ describe('bmMaterialsController', () => {
         json: jest.fn(),
       };
 
+      mockFindOne.mockImplementation(({ _id }) => {
+        const m = req.body.upadateMaterials.find((row) => row.material._id === _id)?.material;
+        return Promise.resolve(
+          m && { ...m, stockBought: m.stockAvailable + m.stockUsed + m.stockWasted },
+        );
+      });
       await controller.bmPostMaterialUpdateBulk(req, res);
       await Promise.resolve();
       await Promise.resolve();
@@ -695,7 +718,7 @@ describe('bmMaterialsController', () => {
       );
     });
 
-    it('should return 500 when resulting stock available would be negative', async () => {
+    it('should return 400 when resulting stock available would be negative', async () => {
       const req = {
         body: {
           upadateMaterials: [
@@ -717,14 +740,22 @@ describe('bmMaterialsController', () => {
         json: jest.fn(),
       };
 
+      mockFindOne.mockImplementation(({ _id }) => {
+        const m = req.body.upadateMaterials.find((row) => row.material._id === _id)?.material;
+        return Promise.resolve(
+          m && { ...m, stockBought: m.stockAvailable + m.stockUsed + m.stockWasted },
+        );
+      });
       await controller.bmPostMaterialUpdateBulk(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith('Stock quantities submitted seems to be invalid');
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith(
+        expect.stringMatching(/exceeds the total stock available|Invalid material ID format/),
+      );
       expect(mockUpdateOne).not.toHaveBeenCalled();
     });
 
-    it('should return 500 when a material._id is not a valid ObjectId', async () => {
+    it('should return 400 when a material._id is not a valid ObjectId', async () => {
       const req = {
         body: {
           upadateMaterials: [
@@ -751,17 +782,21 @@ describe('bmMaterialsController', () => {
         json: jest.fn(),
       };
 
+      mockFindOne.mockImplementation(({ _id }) => {
+        const m = req.body.upadateMaterials.find((row) => row.material._id === _id)?.material;
+        return Promise.resolve(
+          m && { ...m, stockBought: m.stockAvailable + m.stockUsed + m.stockWasted },
+        );
+      });
       await controller.bmPostMaterialUpdateBulk(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith('Stock quantities submitted seems to be invalid');
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.send).toHaveBeenCalledWith('Invalid material ID format');
       expect(mockUpdateOne).not.toHaveBeenCalled();
     });
 
     it('should return 500 when one of the bulk updates fails', async () => {
-      mockUpdateOne.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('bulk update failed')),
-      });
+      mockUpdateOne.mockRejectedValue(new Error('bulk update failed'));
 
       const req = {
         body: {
@@ -789,12 +824,18 @@ describe('bmMaterialsController', () => {
         json: jest.fn(),
       };
 
+      mockFindOne.mockImplementation(({ _id }) => {
+        const m = req.body.upadateMaterials.find((row) => row.material._id === _id)?.material;
+        return Promise.resolve(
+          m && { ...m, stockBought: m.stockAvailable + m.stockUsed + m.stockWasted },
+        );
+      });
       await controller.bmPostMaterialUpdateBulk(req, res);
       await Promise.resolve();
       await Promise.resolve();
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith(expect.any(Error));
+      expect(res.send).toHaveBeenCalledWith('Unable to update material stock.');
     });
   });
 
@@ -827,7 +868,7 @@ describe('bmMaterialsController', () => {
     //     { 'purchaseRecord._id': 'purchase123' },
     //     {
     //       $set: { 'purchaseRecord.$.status': 'Approved' },
-    //       $inc: { stockBought: 30 },
+    //       $inc: { stockBought: 30, stockAvailable: 30 },
     //     },
     //     { new: true },
     //   );
@@ -942,7 +983,7 @@ describe('bmMaterialsController', () => {
     it('should approve a purchase, increment stockBought, and return 200', async () => {
       const validPurchaseId = '507f1f77bcf86cd799439abd';
       const mockMaterial = {
-        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending', quantity: 30 }],
       };
       mockFindOne.mockResolvedValue(mockMaterial);
       mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
@@ -962,10 +1003,18 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+              quantity: 30,
+            },
+          },
+        },
         {
           $set: { 'purchaseRecord.$.status': 'Approved' },
-          $inc: { stockBought: 30 },
+          $inc: { stockBought: 30, stockAvailable: 30 },
         },
         { new: true },
       );
@@ -976,7 +1025,7 @@ describe('bmMaterialsController', () => {
     it('should reject a purchase without incrementing stockBought', async () => {
       const validPurchaseId = '507f1f77bcf86cd799439abe';
       const mockMaterial = {
-        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending', quantity: 30 }],
       };
       mockFindOne.mockResolvedValue(mockMaterial);
       mockFindOneAndUpdate.mockResolvedValue({ status: 'Rejected' });
@@ -996,7 +1045,15 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+              quantity: 30,
+            },
+          },
+        },
         { $set: { 'purchaseRecord.$.status': 'Rejected' } },
         { new: true },
       );
@@ -1004,10 +1061,10 @@ describe('bmMaterialsController', () => {
       expect(res.send).toHaveBeenCalledWith('Purchase rejected successfully');
     });
 
-    it('should return 500 when findOneAndUpdate fails to apply the update', async () => {
+    it('should return 409 when the purchase changed before saving', async () => {
       const validPurchaseId = '507f1f77bcf86cd799439abf';
       const mockMaterial = {
-        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending', quantity: 30 }],
       };
       mockFindOne.mockResolvedValue(mockMaterial);
       mockFindOneAndUpdate.mockResolvedValue(null);
@@ -1026,8 +1083,8 @@ describe('bmMaterialsController', () => {
 
       await controller.bmupdatePurchaseStatus(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith('Failed to apply purchase status update to material.');
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.send).toHaveBeenCalledWith('Purchase changed. Refresh before trying again.');
     });
 
     it('should return 500 on an unexpected error', async () => {

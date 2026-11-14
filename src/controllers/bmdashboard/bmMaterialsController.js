@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { buildMaterialUpdate, stockError } = require('../../utilities/materialStockValidation');
 const logger = require('../../startup/logger');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
@@ -20,9 +21,7 @@ const {
 const HTTP_STATUS_BAD_REQUEST = 400;
 const HTTP_STATUS_UNPROCESSABLE_ENTITY = 422;
 const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
-
-// Decimal precision for quantity calculations
-const DECIMAL_PRECISION = 4;
+const HTTP_STATUS_CONFLICT = 409;
 
 // Time period constants (days)
 const DAYS_IN_WEEK = 7;
@@ -51,7 +50,7 @@ const validatePurchaseMaterialsBody = function (body) {
   if (!mongoose.Types.ObjectId.isValid(requestorId))
     return { status: 400, message: 'Invalid requestor ID format', field: 'requestorId' };
   const quantityNum = Number(quantity);
-  if (Number.isNaN(quantityNum))
+  if (!Number.isFinite(quantityNum))
     return { status: 400, message: 'Quantity must be a valid number', field: 'quantity' };
   if (quantityNum <= 0)
     return { status: 400, message: 'Quantity must be greater than 0', field: 'quantity' };
@@ -290,7 +289,7 @@ const bmMaterialsController = function (BuildingMaterial) {
         itemType: matTypeObjectId,
         project: projectObjectId,
         purchaseRecord: [newPurchaseRecord],
-        stockBought: quantityNum,
+        stockBought: 0,
       };
       return BuildingMaterial.create(newDoc)
         .then(() => res.status(201).send())
@@ -321,157 +320,88 @@ const bmMaterialsController = function (BuildingMaterial) {
     }
   };
 
-  const bmPostMaterialUpdateRecord = function (req, res) {
-    const payload = req.body;
-    const { material } = req.body;
-    if (!material || !mongoose.Types.ObjectId.isValid(material._id)) {
-      return res.status(400).json({
-        message: 'Invalid material ID format',
-        field: 'material._id',
-      });
+  const prepareMaterialUpdate = async (payload, body) => {
+    if (!payload?.material || !mongoose.Types.ObjectId.isValid(payload.material._id)) {
+      throw stockError('Invalid material ID format');
     }
-    const materialObjectId = new mongoose.Types.ObjectId(material._id);
-    let quantityUsed = +req.body.quantityUsed;
-    let quantityWasted = +req.body.quantityWasted;
-    if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-      quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(DECIMAL_PRECISION);
-    }
-    if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-      quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
-        DECIMAL_PRECISION,
+    const material = await BuildingMaterial.findOne({ _id: payload.material._id });
+    if (!material) throw stockError('Material not found', 404);
+    return buildMaterialUpdate(material, payload, {
+      date: body.date,
+      createdBy: body.requestor?.requestorId,
+    });
+  };
+
+  const applyMaterialUpdate = async ({ filter, update }) => {
+    const result = await BuildingMaterial.updateOne(filter, update);
+    if ((result.n ?? result.matchedCount) === 0) {
+      throw stockError(
+        'Material stock changed. Refresh and review before submitting again.',
+        HTTP_STATUS_CONFLICT,
       );
     }
+    return result;
+  };
 
-    if (
-      quantityUsed > material.stockAvailable ||
-      quantityWasted > material.stockAvailable ||
-      quantityUsed + quantityWasted > material.stockAvailable
-    ) {
-      res
-        .status(500)
-        .send(
-          'Please check the used and wasted stock values. Either individual values or their sum exceeds the total stock available.',
-        );
-    } else {
-      let newStockUsed = +material.stockUsed + Number.parseFloat(quantityUsed);
-      let newStockWasted = +material.stockWasted + Number.parseFloat(quantityWasted);
-      let newAvailable =
-        +material.stockAvailable -
-        Number.parseFloat(quantityUsed) -
-        Number.parseFloat(quantityWasted);
-      newStockUsed = Number.parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
-      newStockWasted = Number.parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
-      newAvailable = Number.parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
-      BuildingMaterial.updateOne(
-        { _id: materialObjectId },
-        {
-          $set: {
-            stockUsed: newStockUsed,
-            stockWasted: newStockWasted,
-            stockAvailable: newAvailable,
-          },
-          $push: {
-            updateRecord: {
-              date: req.body.date,
-              createdBy: req.body.requestor.requestorId,
-              quantityUsed,
-              quantityWasted,
-            },
-          },
-        },
-      )
-        .then((results) => {
-          res.status(200).send(results);
-        })
-        .catch((error) => res.status(500).send({ message: error }));
+  const bmPostMaterialUpdateRecord = async function (req, res) {
+    if (!req.body?.material || !mongoose.Types.ObjectId.isValid(req.body.material._id)) {
+      return res.status(400).json({ message: 'Invalid material ID format', field: 'material._id' });
+    }
+    try {
+      const update = await prepareMaterialUpdate(req.body, req.body);
+      const result = await applyMaterialUpdate(update);
+      return res.status(200).send(result);
+    } catch (error) {
+      return res
+        .status(error.status || 500)
+        .send(error.status ? error.message : 'Unable to update material stock.');
     }
   };
 
-  const bmPostMaterialUpdateBulk = function (req, res) {
-    const materialUpdates = req.body.upadateMaterials;
-    let errorFlag = false;
-    const updateRecordsToBeAdded = [];
-    for (let i = 0; i < materialUpdates.length; i += 1) {
-      const payload = materialUpdates[i];
-      let quantityUsed = +payload.quantityUsed;
-      let quantityWasted = +payload.quantityWasted;
-      const { material } = payload;
-      if (payload.QtyUsedLogUnit === 'percent' && quantityWasted >= 0) {
-        quantityUsed = +((+quantityUsed / 100) * material.stockAvailable).toFixed(
-          DECIMAL_PRECISION,
-        );
-      }
-      if (payload.QtyWastedLogUnit === 'percent' && quantityUsed >= 0) {
-        quantityWasted = +((+quantityWasted / 100) * material.stockAvailable).toFixed(
-          DECIMAL_PRECISION,
-        );
-      }
-
-      let newStockUsed = +material.stockUsed + Number.parseFloat(quantityUsed);
-      let newStockWasted = +material.stockWasted + Number.parseFloat(quantityWasted);
-      let newAvailable =
-        +material.stockAvailable -
-        Number.parseFloat(quantityUsed) -
-        Number.parseFloat(quantityWasted);
-      newStockUsed = Number.parseFloat(newStockUsed.toFixed(DECIMAL_PRECISION));
-      newStockWasted = Number.parseFloat(newStockWasted.toFixed(DECIMAL_PRECISION));
-      newAvailable = Number.parseFloat(newAvailable.toFixed(DECIMAL_PRECISION));
-      if (newAvailable < 0) {
-        errorFlag = true;
-        break;
-      }
-      if (!mongoose.Types.ObjectId.isValid(material._id)) {
-        errorFlag = true;
-        break;
-      }
-      updateRecordsToBeAdded.push({
-        updateId: material._id,
-        set: {
-          stockUsed: newStockUsed,
-          stockWasted: newStockWasted,
-          stockAvailable: newAvailable,
-        },
-        updateValue: {
-          createdBy: req.body.requestor.requestorId,
-          quantityUsed,
-          quantityWasted,
-          date: req.body.date,
-        },
-      });
+  const bmPostMaterialUpdateBulk = async function (req, res) {
+    const materialUpdates = req.body?.upadateMaterials;
+    if (!Array.isArray(materialUpdates) || materialUpdates.length === 0) {
+      return res.status(400).send('At least one material update is required.');
     }
-
+    const ids = materialUpdates.map((payload) => String(payload?.material?._id));
+    if (new Set(ids).size !== ids.length) {
+      return res.status(400).send('Submit only one update per material in a batch.');
+    }
+    let updatedCount = 0;
     try {
-      if (errorFlag) {
-        res.status(500).send('Stock quantities submitted seems to be invalid');
-        return;
+      // Validate every row before any write. Each write also checks the saved snapshot.
+      const updates = await Promise.all(
+        materialUpdates.map((payload) => prepareMaterialUpdate(payload, req.body)),
+      );
+      for (let index = 0; index < updates.length; index += 1) {
+        // Save sequentially so a conflict stops the batch and the saved count stays accurate.
+        // eslint-disable-next-line no-await-in-loop
+        await applyMaterialUpdate(updates[index]);
+        updatedCount += 1;
       }
-      const updatePromises = updateRecordsToBeAdded.map((updateItem) => {
-        const materialObjectId = new mongoose.Types.ObjectId(updateItem.updateId);
-        return BuildingMaterial.updateOne(
-          { _id: materialObjectId },
-          {
-            $set: updateItem.set,
-            $push: { updateRecord: updateItem.updateValue },
-          },
-        ).exec();
-      });
-      Promise.all(updatePromises)
-        .then((results) => {
-          res.status(200).send({
-            result: `Successfully posted log for ${results.length} Material records.`,
-          });
-        })
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+      return res
+        .status(200)
+        .send({ result: `Successfully posted log for ${updatedCount} Material records.` });
+    } catch (error) {
+      const message = error.status ? error.message : 'Unable to update material stock.';
+      return res
+        .status(error.status || 500)
+        .send(
+          updatedCount > 0
+            ? `${updatedCount} material updates were saved before the failure. Refresh before retrying. ${message}`
+            : message,
+        );
     }
   };
 
   const bmupdatePurchaseStatus = async function (req, res) {
-    const { purchaseId, status, quantity } = req.body;
+    const { purchaseId, status } = req.body;
     try {
       if (!purchaseId || !mongoose.Types.ObjectId.isValid(purchaseId)) {
         return res.status(400).json({ message: 'Invalid purchase ID format', field: 'purchaseId' });
+      }
+      if (!['Approved', 'Rejected'].includes(status)) {
+        return res.status(400).send('Status must be Approved or Rejected.');
       }
       const purchaseObjectId = new mongoose.Types.ObjectId(purchaseId);
       const material = await BuildingMaterial.findOne({ 'purchaseRecord._id': purchaseObjectId });
@@ -499,17 +429,33 @@ const bmMaterialsController = function (BuildingMaterial) {
         $set: { 'purchaseRecord.$.status': status },
       };
       if (status === 'Approved') {
-        updateObject.$inc = { stockBought: quantity };
+        if (!Number.isFinite(purchaseRecord.quantity) || purchaseRecord.quantity <= 0) {
+          return res.status(HTTP_STATUS_CONFLICT).send('Purchase quantity needs investigation.');
+        }
+        updateObject.$inc = {
+          stockBought: purchaseRecord.quantity,
+          stockAvailable: purchaseRecord.quantity,
+        };
       }
 
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-        { 'purchaseRecord._id': purchaseObjectId },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: purchaseObjectId,
+              status: 'Pending',
+              quantity: purchaseRecord.quantity,
+            },
+          },
+        },
         updateObject,
         { new: true },
       );
 
       if (!updatedMaterial) {
-        return res.status(500).send('Failed to apply purchase status update to material.');
+        return res
+          .status(HTTP_STATUS_CONFLICT)
+          .send('Purchase changed. Refresh before trying again.');
       }
 
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
