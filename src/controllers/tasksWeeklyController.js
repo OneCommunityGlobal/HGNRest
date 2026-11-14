@@ -103,14 +103,18 @@ async function getTrends(req, res) {
               createdDatetime: { $exists: false },
               modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
             },
-            { completedDatetime: { $ne: null, $gte: rangeStartUTC, $lte: rangeEndUTC } },
             {
-              completedDatetime: null,
-              status: { $regex: TERMINAL_STATUS_REGEX },
+              'resources.completedTask': true,
               modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
             },
             {
-              'resources.completedTask': true,
+              'resources.completedTask': { $ne: true },
+              completedDatetime: { $ne: null, $gte: rangeStartUTC, $lte: rangeEndUTC },
+            },
+            {
+              'resources.completedTask': { $ne: true },
+              completedDatetime: null,
+              status: { $regex: TERMINAL_STATUS_REGEX },
               modifiedDatetime: { $gte: rangeStartUTC, $lte: rangeEndUTC },
             },
           ],
@@ -134,13 +138,9 @@ async function getTrends(req, res) {
       const hasResourceCompletion = t.resources?.some(
         (resource) => resource.completedTask === true,
       );
-      const hasCompletionDateInRange =
-        t.completedDatetime >= rangeStartUTC && t.completedDatetime <= rangeEndUTC;
-      const completedAt = hasCompletionDateInRange
-        ? t.completedDatetime
-        : ((!t.completedDatetime && TERMINAL_STATUS_REGEX.test(t.status || '')) ||
-            hasResourceCompletion) &&
-          t.modifiedDatetime;
+      const completedAt = hasResourceCompletion
+        ? t.modifiedDatetime
+        : t.completedDatetime || (TERMINAL_STATUS_REGEX.test(t.status || '') && t.modifiedDatetime);
 
       for (const b of buckets) {
         const bucketStart = b.startUTC < rangeStartUTC ? rangeStartUTC : b.startUTC;
@@ -187,14 +187,18 @@ async function getSummary(req, res) {
       deleted: { $ne: true },
       isActive: { $ne: false },
       $or: [
-        { completedDatetime: { $ne: null, $gte: latest.startUTC, $lte: latest.endUTC } },
         {
-          completedDatetime: null,
-          status: { $regex: TERMINAL_STATUS_REGEX },
+          'resources.completedTask': true,
           modifiedDatetime: { $gte: latest.startUTC, $lte: latest.endUTC },
         },
         {
-          'resources.completedTask': true,
+          'resources.completedTask': { $ne: true },
+          completedDatetime: { $ne: null, $gte: latest.startUTC, $lte: latest.endUTC },
+        },
+        {
+          'resources.completedTask': { $ne: true },
+          completedDatetime: null,
+          status: { $regex: TERMINAL_STATUS_REGEX },
           modifiedDatetime: { $gte: latest.startUTC, $lte: latest.endUTC },
         },
       ],

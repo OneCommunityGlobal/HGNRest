@@ -4,7 +4,7 @@ jest.mock('../models/task', () => ({
 }));
 
 const Task = require('../models/task');
-const { getTrends } = require('./tasksWeeklyController');
+const { getSummary, getTrends } = require('./tasksWeeklyController');
 
 describe('tasksWeeklyController.getTrends', () => {
   beforeEach(() => {
@@ -75,11 +75,45 @@ describe('tasksWeeklyController.getTrends', () => {
     );
 
     expect(response.json).toHaveBeenCalledWith([
-      { week: '2026-09-13', assigned: 0, completed: 1 },
-      { week: '2026-09-20', assigned: 0, completed: 1 },
+      { week: '2026-09-13', assigned: 0, completed: 0 },
+      { week: '2026-09-20', assigned: 0, completed: 2 },
       { week: '2026-09-27', assigned: 0, completed: 0 },
       { week: '2026-10-04', assigned: 0, completed: 0 },
     ]);
+  });
+
+  it('uses the same resource completion date in the summary as the weekly buckets', async () => {
+    Task.countDocuments.mockResolvedValueOnce(10).mockResolvedValueOnce(2).mockResolvedValueOnce(8);
+    Task.aggregate.mockResolvedValue([]);
+    const response = {
+      json: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+    };
+
+    await getSummary({ query: { start: '2026-09-20', end: '2026-09-20', weeks: '4' } }, response);
+
+    expect(response.json).toHaveBeenCalledWith({
+      totalTasks: 10,
+      completedThisWeek: 2,
+      openTasks: 8,
+      averageCompletionTimeDays: 0,
+    });
+    const completedFilter = Task.countDocuments.mock.calls[1][0];
+    expect(completedFilter.$or).toEqual(
+      expect.arrayContaining([
+        {
+          'resources.completedTask': true,
+          modifiedDatetime: {
+            $gte: new Date('2026-09-20T07:00:00.000Z'),
+            $lte: new Date('2026-09-27T06:59:59.999Z'),
+          },
+        },
+        expect.objectContaining({
+          'resources.completedTask': { $ne: true },
+          completedDatetime: expect.any(Object),
+        }),
+      ]),
+    );
   });
 
   it('rejects invalid date-only values', async () => {

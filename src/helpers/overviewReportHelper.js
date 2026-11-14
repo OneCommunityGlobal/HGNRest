@@ -1074,15 +1074,17 @@ const overviewReportHelper = function () {
         ...baseTaskFilter,
         $or: [
           {
-            completedDatetime: { $ne: null, $gte: rangeStart, $lte: rangeEnd },
-          },
-          {
-            completedDatetime: null,
-            status: { $regex: terminalStatusRegex },
+            'resources.completedTask': true,
             modifiedDatetime: { $gte: rangeStart, $lte: rangeEnd },
           },
           {
-            'resources.completedTask': true,
+            'resources.completedTask': { $ne: true },
+            completedDatetime: { $ne: null, $gte: rangeStart, $lte: rangeEnd },
+          },
+          {
+            'resources.completedTask': { $ne: true },
+            completedDatetime: null,
+            status: { $regex: terminalStatusRegex },
             modifiedDatetime: { $gte: rangeStart, $lte: rangeEnd },
           },
         ],
@@ -2454,15 +2456,17 @@ const overviewReportHelper = function () {
       ...baseTaskFilter,
       $or: [
         {
-          completedDatetime: { $ne: null, $gte: dueDateStart, $lte: dueDateEnd },
-        },
-        {
-          completedDatetime: null,
-          status: { $regex: /^(complete|completed|closed|done|finished)$/i },
+          'resources.completedTask': true,
           modifiedDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
         },
         {
-          'resources.completedTask': true,
+          'resources.completedTask': { $ne: true },
+          completedDatetime: { $ne: null, $gte: dueDateStart, $lte: dueDateEnd },
+        },
+        {
+          'resources.completedTask': { $ne: true },
+          completedDatetime: null,
+          status: { $regex: /^(complete|completed|closed|done|finished)$/i },
           modifiedDatetime: { $gte: dueDateStart, $lte: dueDateEnd },
         },
       ],

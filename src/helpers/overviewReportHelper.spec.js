@@ -68,15 +68,17 @@ describe('overviewReportHelper tests', () => {
           deleted: { $ne: true },
           $or: expect.arrayContaining([
             {
-              completedDatetime: { $ne: null, $gte: startDate, $lte: endDate },
-            },
-            {
-              completedDatetime: null,
-              status: { $regex: /^(complete|completed|closed|done|finished)$/i },
+              'resources.completedTask': true,
               modifiedDatetime: { $gte: startDate, $lte: endDate },
             },
             {
-              'resources.completedTask': true,
+              'resources.completedTask': { $ne: true },
+              completedDatetime: { $ne: null, $gte: startDate, $lte: endDate },
+            },
+            {
+              'resources.completedTask': { $ne: true },
+              completedDatetime: null,
+              status: { $regex: /^(complete|completed|closed|done|finished)$/i },
               modifiedDatetime: { $gte: startDate, $lte: endDate },
             },
           ]),

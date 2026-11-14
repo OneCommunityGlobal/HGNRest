@@ -130,6 +130,47 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
     jest.clearAllMocks();
   });
 
+  it.each(['UTC', 'Asia/Tokyo'])(
+    'keeps Pacific date-only boundaries for Date inputs when the server timezone is %s',
+    async (timezone) => {
+      const originalTimezone = process.env.TZ;
+      process.env.TZ = timezone;
+      try {
+        const timeEntries = [
+          { dateOfWork: '2026-10-10', totalSeconds: 3600 },
+          { dateOfWork: '2026-10-11', totalSeconds: 4 * 3600 },
+        ];
+        TimeEntries.aggregate.mockImplementation(async (pipeline) => {
+          const match = pipeline[0].$match;
+          if (match.projectId) return [];
+          const { $gte, $lte } = match.dateOfWork;
+          const totalSeconds = timeEntries
+            .filter((entry) => entry.dateOfWork >= $gte && entry.dateOfWork <= $lte)
+            .reduce((total, entry) => total + entry.totalSeconds, 0);
+          return totalSeconds ? [{ totalHours: totalSeconds / 3600 }] : [];
+        });
+        UserProfile.aggregate.mockResolvedValue([]);
+        Task.distinct.mockResolvedValue([]);
+        UserProfile.countDocuments.mockResolvedValue(0);
+        Task.countDocuments.mockResolvedValue(0);
+
+        const result = await helper.getTaskAndProjectStats(
+          new Date('2026-10-10T07:00:00.000Z'),
+          new Date('2026-10-11T06:59:59.999Z'),
+        );
+
+        expect(TimeEntries.aggregate.mock.calls[0][0][0].$match.dateOfWork).toEqual({
+          $gte: '2026-10-10',
+          $lte: '2026-10-10',
+        });
+        expect(result.taskHours.count).toBe(1);
+      } finally {
+        if (originalTimezone === undefined) delete process.env.TZ;
+        else process.env.TZ = originalTimezone;
+      }
+    },
+  );
+
   it('uses Pacific calendar-day boundaries for task counts and date-string hour filters', async () => {
     TimeEntries.aggregate
       .mockResolvedValueOnce([{ totalHours: 10 }])
@@ -178,13 +219,16 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
     expect(completedFilter.$or).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          'resources.completedTask': { $ne: true },
           completedDatetime: expect.objectContaining({ $ne: null }),
         }),
         expect.objectContaining({
+          'resources.completedTask': { $ne: true },
           status: { $regex: /^(complete|completed|closed|done|finished)$/i },
         }),
         expect.objectContaining({
           'resources.completedTask': true,
+          modifiedDatetime: expect.any(Object),
         }),
       ]),
     );
