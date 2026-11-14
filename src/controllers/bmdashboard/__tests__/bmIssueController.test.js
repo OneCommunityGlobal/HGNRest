@@ -820,6 +820,20 @@ describe('Building Issue Controller', () => {
       expect(callArgs.issueDate.$lte).toEqual(new Date('2024-12-31'));
     });
 
+    it('should filter by projects and dates query params when provided', async () => {
+      req.query.projects = TEST_ISSUE_ID;
+      req.query.dates = '2022-01-01,2024-12-31';
+
+      mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
+
+      await controller.getLongestOpenIssues(req, res);
+
+      const callArgs = mockBuildingIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
+      expect(callArgs.issueDate.$gte).toEqual(new Date('2022-01-01'));
+      expect(callArgs.issueDate.$lte).toEqual(new Date('2024-12-31'));
+    });
+
     it('should return top 5 issues sorted by daysOpen', async () => {
       const mockIssues = Array.from({ length: 10 }, (_, i) => ({
         _id: `50000000000000000000000${i}`,
@@ -907,6 +921,20 @@ describe('Building Issue Controller', () => {
       await controller.getMostExpensiveIssues(req, res);
 
       const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.openDate.$gte).toEqual(new Date('2022-01-01'));
+      expect(callArgs.openDate.$lte).toEqual(new Date('2024-12-31'));
+    });
+
+    it('should filter by projects and dates query params when provided', async () => {
+      req.query.projects = TEST_ISSUE_ID;
+      req.query.dates = '2022-01-01,2024-12-31';
+
+      mockInjuryIssue.find.mockReturnValue(mockFindChain([]));
+
+      await controller.getMostExpensiveIssues(req, res);
+
+      const callArgs = mockInjuryIssue.find.mock.calls[0][0];
+      expect(callArgs.projectId.$in).toContain(TEST_ISSUE_ID);
       expect(callArgs.openDate.$gte).toEqual(new Date('2022-01-01'));
       expect(callArgs.openDate.$lte).toEqual(new Date('2024-12-31'));
     });
