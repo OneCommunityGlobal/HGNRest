@@ -15,6 +15,11 @@ const appAccess = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Dropbox only: which team folder (e.g. 'HGN', 'ADMIN') the user was invited into
+    teamFolderKey: {
+      type: String,
+      default: null,
+    },
     invitedOn: {
       type: Date,
       default: null,

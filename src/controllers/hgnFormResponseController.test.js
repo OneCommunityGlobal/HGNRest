@@ -4,10 +4,14 @@ jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
+jest.mock('../helpers/questionnaireAccessHelper', () => ({
+  getQuestionnaireAccess: jest.fn(),
+}));
 
 const FormResponse = require('../models/hgnFormResponse');
 const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
+const { getQuestionnaireAccess } = require('../helpers/questionnaireAccessHelper');
 const hgnFormController = require('./hgnFormResponseController');
 
 describe('HgnFormResponseController', () => {
@@ -31,6 +35,7 @@ describe('HgnFormResponseController', () => {
 
     controller = hgnFormController();
     hasPermission.mockResolvedValue(true);
+    getQuestionnaireAccess.mockResolvedValue({ eligible: true, reason: null });
   });
 
   describe('submitFormResponse', () => {
@@ -42,6 +47,7 @@ describe('HgnFormResponseController', () => {
         backend: {},
         followUp: {},
         user_id: '123',
+        requestor: { requestorId: '123', role: 'Volunteer' },
       };
 
       const saveMock = jest.fn().mockResolvedValue(true);
@@ -75,6 +81,57 @@ describe('HgnFormResponseController', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         error: 'All fields (userInfo, general, frontend, backend, followUp, user_id) are required',
       });
+    });
+
+    const validBody = (requestor) => ({
+      userInfo: { name: 'John' },
+      general: {},
+      frontend: {},
+      backend: {},
+      followUp: {},
+      user_id: '123',
+      requestor,
+    });
+
+    it('should return 403 if the requestor was not invited through the Dropbox process', async () => {
+      getQuestionnaireAccess.mockResolvedValue({ eligible: false, reason: 'NOT_INVITED' });
+      mockReq.body = validBody({ requestorId: '123', role: 'Volunteer' });
+
+      await controller.submitFormResponse(mockReq, mockRes);
+
+      expect(FormResponse).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Not authorized', reason: 'NOT_INVITED' });
+    });
+
+    it("should return 403 when submitting someone else's questionnaire", async () => {
+      mockReq.body = validBody({ requestorId: '456', role: 'Volunteer' });
+
+      await controller.submitFormResponse(mockReq, mockRes);
+
+      expect(FormResponse).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('getAccess', () => {
+    it('should return the questionnaire access result for the requestor', async () => {
+      const access = { eligible: false, reason: 'NOT_INVITED' };
+      getQuestionnaireAccess.mockResolvedValue(access);
+
+      await controller.getAccess(mockReq, mockRes);
+
+      expect(getQuestionnaireAccess).toHaveBeenCalledWith(mockReq.body.requestor);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(access);
+    });
+
+    it('should return 500 if the access check fails', async () => {
+      getQuestionnaireAccess.mockRejectedValue(new Error('DB failed'));
+
+      await controller.getAccess(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
   });
 
