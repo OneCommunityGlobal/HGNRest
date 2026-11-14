@@ -318,7 +318,10 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingToolModel,
 );
 const bookingRouter = require('../routes/lbdashboard/bookingsRouter');
-const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')();
+// Same tool model as the Tools List (bmToolRouter), so the charts show the same tools.
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
+  buildingTool,
+);
 
 const downloadReportRouter = require('../routes/educationPortal/downloadReportRouter');
 

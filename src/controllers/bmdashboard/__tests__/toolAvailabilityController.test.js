@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { MongoMemoryServer } = require('mongodb-memory-server');
-const BuildingTool = require('../../../models/bmdashboard/buildingTool');
+// The Tools List model: tool_item documents in buildingInventoryItems.
+const { buildingTool: BuildingTool } = require('../../../models/bmdashboard/buildingInventoryItem');
 const toolAvailabilityController = require('../toolAvailabilityController');
 const { getToolAvailability } = require('../bmToolAvailabilityController');
 
@@ -85,18 +86,36 @@ describe('Tool availability charts read the Tools List records', () => {
       },
       { _id: type.drill, __t: 'tool_type', name: 'Drill', description: 'drill' },
     ]);
-    await db.collection('buildingTools').insertMany([
-      { _id: tool.sawInUse, itemType: type.circularSaw, project: building1 },
-      { _id: tool.sawAvailable, itemType: type.circularSawLower, project: building1Duplicate },
+    // Separate legacy collection the donut used to read. Nothing in it may be counted.
+    await db.collection('buildingTools').insertOne({
+      _id: new ObjectId(),
+      itemType: type.hammer,
+      project: building1,
+    });
+    await db.collection('buildingInventoryItems').insertMany([
+      { __t: 'tool_item', _id: tool.sawInUse, itemType: type.circularSaw, project: building1 },
       {
+        __t: 'tool_item',
+        _id: tool.sawAvailable,
+        itemType: type.circularSawLower,
+        project: building1Duplicate,
+      },
+      {
+        __t: 'tool_item',
         _id: tool.hammerNeedsReplacing,
         itemType: type.hammer,
         project: building1,
         condition: 'Needs Replacing',
       },
-      { _id: tool.hammerAvailable, itemType: type.hammer, project: building1, condition: 'Good' },
-      { _id: tool.drillNotReceived, itemType: type.drill, project: building1 },
-      { _id: tool.hammerOtherProject, itemType: type.hammer, project: building2 },
+      {
+        __t: 'tool_item',
+        _id: tool.hammerAvailable,
+        itemType: type.hammer,
+        project: building1,
+        condition: 'Good',
+      },
+      { __t: 'tool_item', _id: tool.drillNotReceived, itemType: type.drill, project: building1 },
+      { __t: 'tool_item', _id: tool.hammerOtherProject, itemType: type.hammer, project: building2 },
     ]);
   });
 
@@ -166,12 +185,18 @@ describe('Tool availability charts read the Tools List records', () => {
   });
 
   describe('getToolAvailability (Proportion of Tools/Equipment donut)', () => {
-    it('totals every Building 1 tool, matching the Tools List row count', async () => {
+    it('totals every Building 1 tool by Tools List status, matching the Tools List', async () => {
       const res = makeResponse();
       await getToolAvailability({ query: { projectId: String(building1Duplicate) } }, res);
       const [body] = res.json.mock.calls[0];
       expect(res.status).toHaveBeenCalledWith(200);
       expect(body.total).toBe(5);
+      expect(body.data.map(({ status, count }) => [status, count])).toEqual([
+        ['Available', 2],
+        ['Used', 1],
+        ['Needs Replacement', 1],
+        ['Yet to Receive', 1],
+      ]);
     });
   });
 });
