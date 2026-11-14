@@ -11,7 +11,10 @@ const {
 let currentWarningDescriptions = null;
 async function getWarningDescriptions() {
   currentWarningDescriptions = await currentWarnings
-    .find({ activeWarning: true }, { warningTitle: 1, _id: 1, abbreviation: 1, order: 1 })
+    .find(
+      { activeWarning: true },
+      { warningTitle: 1, _id: 1, abbreviation: 1, order: 1, description: 1 },
+    )
     .sort({ order: 1 });
   clearOutdatedWarningsFlag();
 }

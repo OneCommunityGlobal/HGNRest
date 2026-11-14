@@ -204,12 +204,13 @@ const filterWarnings = (
   });
 
   const completedData = [];
-  for (const { warningTitle, abbreviation, order } of warningDescriptions) {
+  for (const { warningTitle, abbreviation, order, description } of warningDescriptions) {
     completedData.push({
       title: warningTitle,
       warnings: warns[warningTitle] ? warns[warningTitle] : [],
       abbreviation: abbreviation || null,
       order,
+      description,
     });
   }
 
