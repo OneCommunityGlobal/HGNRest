@@ -70,6 +70,14 @@ describe('eventController.getEvents', () => {
     );
   });
 
+  it('preserves descending sort behavior with a stable id tie-breaker', async () => {
+    req.query = { sortBy: 'title', sortOrder: 'desc' };
+
+    await getEvents(req, res);
+
+    expect(query.sort).toHaveBeenCalledWith({ title: -1, _id: -1 });
+  });
+
   it('filters events within two months of the selected month', async () => {
     req.query.date = '2026-10-15';
 

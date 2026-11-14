@@ -98,7 +98,15 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy = 'date', date } = req.query;
+    const {
+      page,
+      limit,
+      type,
+      location,
+      sortBy = 'date',
+      sortOrder = 'asc',
+      date,
+    } = req.query;
 
     validateQuery({ type, location, sortBy, date });
 
@@ -148,9 +156,11 @@ const getEvents = async function (req, res) {
       });
     }
 
+    const sortDirection = sortOrder === 'desc' ? -1 : 1;
+
     let eventQuery = Event.find(safeQuery)
       .populate('resources.userID', 'firstName lastName profilePic')
-      .sort({ [sortBy]: 1, _id: 1 });
+      .sort({ [sortBy]: sortDirection, _id: sortDirection });
 
     if (hasLimit) {
       eventQuery = eventQuery.skip(skip).limit(limitNumber);

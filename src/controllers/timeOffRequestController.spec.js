@@ -52,6 +52,14 @@ const mockTimeOffRequest = () => ({
   duration: 1,
 });
 
+const mockUserStartDate = (startDate) =>
+  jest.spyOn(UserProfile, 'findById').mockReturnValue({
+    select: jest.fn().mockResolvedValue(startDate === undefined ? null : { startDate }),
+  });
+
+const newUserStartDate = () => moment().subtract(1, 'month').toDate();
+const oldUserStartDate = () => moment().subtract(6, 'months').toDate();
+
 describe('timeOffRequestController.js module', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -800,6 +808,83 @@ describe('timeOffRequestController.js module', () => {
         },
       );
     });
+
+    describe('new user restriction', () => {
+      const buildReq = (role = 'Volunteer') => {
+        const req = JSON.parse(JSON.stringify(mockReq));
+        req.params.id = '123';
+        req.body = {
+          ...req.body,
+          requestor: {
+            role,
+            permissions: { frontPermissions: [], backPermissions: [] },
+            requestorId: 'testUser123',
+          },
+          duration: 2,
+          startingDate: new Date(2024, 5, 12),
+          reason: 'Updated reason',
+        };
+        return req;
+      };
+
+      test('Returns 403 if a new user updates their own request', async () => {
+        const { updateTimeOffRequestById } = makeSut();
+        const req = buildReq();
+        hasPermission.mockResolvedValue(false);
+        jest
+          .spyOn(TimeOffRequest, 'findById')
+          .mockResolvedValueOnce({ requestFor: { toString: () => 'testUser123' } });
+        const findByIdSpy = mockUserStartDate(newUserStartDate());
+        const updateSpy = jest.spyOn(TimeOffRequest, 'findByIdAndUpdate');
+
+        const response = await updateTimeOffRequestById(req, mockRes);
+        await flushPromises();
+
+        assertResMock(
+          403,
+          'New users cannot schedule time off within 2 months of their start date.',
+          response,
+          mockRes,
+        );
+        expect(findByIdSpy).toHaveBeenCalledWith('testUser123');
+        expect(updateSpy).not.toHaveBeenCalled();
+      });
+
+      test("Does not block a manager updating a new user's request", async () => {
+        const { updateTimeOffRequestById } = makeSut();
+        const req = buildReq('Manager');
+        hasPermission.mockResolvedValue(true);
+        jest
+          .spyOn(TimeOffRequest, 'findById')
+          .mockResolvedValueOnce({ requestFor: { toString: () => 'newUser456' } });
+        const findByIdSpy = mockUserStartDate(newUserStartDate());
+        const updated = { reason: 'Updated reason' };
+        jest.spyOn(TimeOffRequest, 'findByIdAndUpdate').mockResolvedValueOnce(updated);
+
+        const response = await updateTimeOffRequestById(req, mockRes);
+        await flushPromises();
+
+        assertResMock(200, updated, response, mockRes);
+        expect(findByIdSpy).not.toHaveBeenCalled();
+      });
+
+      test('Allows a user past the 2-month window to update their own request', async () => {
+        const { updateTimeOffRequestById } = makeSut();
+        const req = buildReq();
+        hasPermission.mockResolvedValue(false);
+        jest
+          .spyOn(TimeOffRequest, 'findById')
+          .mockResolvedValueOnce({ requestFor: { toString: () => 'testUser123' } });
+        mockUserStartDate(oldUserStartDate());
+        const updated = { requestFor: 'testUser123', reason: 'Updated reason' };
+        jest.spyOn(TimeOffRequest, 'findByIdAndUpdate').mockResolvedValueOnce(updated);
+
+        const response = await updateTimeOffRequestById(req, mockRes);
+        await flushPromises();
+
+        assertResMock(200, updated, response, mockRes);
+      });
+    });
   });
 
   describe('setTimeOffRequest function', () => {
@@ -1039,6 +1124,109 @@ describe('timeOffRequestController.js module', () => {
 
       expect(timeOffRequestSaveSpy).toBeCalled();
       expect(timeOffRequestSaveSpy).toBeCalledTimes(1);
+    });
+
+    describe('new user restriction', () => {
+      const buildReq = (role = 'Volunteer', requestFor = 'testUser123') => {
+        const req = JSON.parse(JSON.stringify(mockReq));
+        req.body = {
+          ...req.body,
+          requestor: {
+            role,
+            permissions: { frontPermissions: [], backPermissions: [] },
+            requestorId: 'testUser123',
+          },
+          requestFor,
+          duration: 1,
+          startingDate: new Date(2024, 5, 15),
+          reason: 'Test set time off',
+        };
+        return req;
+      };
+
+      test('Returns 403 if a new user requests time off for themselves', async () => {
+        const { setTimeOffRequest } = makeSut();
+        const req = buildReq();
+        hasPermission.mockResolvedValue(false);
+        const findByIdSpy = mockUserStartDate(newUserStartDate());
+        const saveSpy = jest.spyOn(TimeOffRequest.prototype, 'save');
+
+        const response = await setTimeOffRequest(req, mockRes);
+        await flushPromises();
+
+        assertResMock(
+          403,
+          'New users cannot schedule time off within 2 months of their start date.',
+          response,
+          mockRes,
+        );
+        expect(findByIdSpy).toHaveBeenCalledWith('testUser123');
+        expect(saveSpy).not.toHaveBeenCalled();
+      });
+
+      test('Does not block a new user when request is made on their behalf by a manager', async () => {
+        const { setTimeOffRequest } = makeSut();
+        const req = buildReq('Manager', 'newUser456');
+        hasPermission.mockResolvedValue(true);
+        const findByIdSpy = mockUserStartDate(newUserStartDate());
+        const saved = { reason: 'Test set time off' };
+        jest.spyOn(mongoose.Types, 'ObjectId').mockImplementationOnce(() => 'newUser456');
+        jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValueOnce(saved);
+
+        const response = await setTimeOffRequest(req, mockRes);
+        await flushPromises();
+
+        assertResMock(201, saved, response, mockRes);
+        expect(findByIdSpy).not.toHaveBeenCalled();
+      });
+
+      test.each(['Owner', 'Administrator'])(
+        'Does not block a new user when requestor role is %s',
+        async (role) => {
+          const { setTimeOffRequest } = makeSut();
+          const req = buildReq(role);
+          hasPermission.mockResolvedValue(false);
+          const findByIdSpy = mockUserStartDate(newUserStartDate());
+          const saved = { reason: 'Test set time off' };
+          jest.spyOn(mongoose.Types, 'ObjectId').mockImplementationOnce(() => 'testUser123');
+          jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValueOnce(saved);
+
+          const response = await setTimeOffRequest(req, mockRes);
+          await flushPromises();
+
+          assertResMock(201, saved, response, mockRes);
+        },
+      );
+
+      test('Allows a user whose start date is more than 2 months ago', async () => {
+        const { setTimeOffRequest } = makeSut();
+        const req = buildReq();
+        hasPermission.mockResolvedValue(false);
+        mockUserStartDate(oldUserStartDate());
+        const saved = { reason: 'Test set time off' };
+        jest.spyOn(mongoose.Types, 'ObjectId').mockImplementationOnce(() => 'testUser123');
+        jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValueOnce(saved);
+
+        const response = await setTimeOffRequest(req, mockRes);
+        await flushPromises();
+
+        assertResMock(201, saved, response, mockRes);
+      });
+
+      test('Allows a user with no startDate', async () => {
+        const { setTimeOffRequest } = makeSut();
+        const req = buildReq();
+        hasPermission.mockResolvedValue(false);
+        mockUserStartDate(undefined);
+        const saved = { reason: 'Test set time off' };
+        jest.spyOn(mongoose.Types, 'ObjectId').mockImplementationOnce(() => 'testUser123');
+        jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValueOnce(saved);
+
+        const response = await setTimeOffRequest(req, mockRes);
+        await flushPromises();
+
+        assertResMock(201, saved, response, mockRes);
+      });
     });
   });
 });
