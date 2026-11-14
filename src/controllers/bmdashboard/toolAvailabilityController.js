@@ -1,121 +1,54 @@
 const mongoose = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { getToolStatus, getProjectIdsSharingName } = require('../../helpers/toolAvailabilityHelper');
 
 const { ObjectId } = mongoose.Types;
-const toolAvailabilityController = function (ToolAvailability) {
+
+// Reads the same BuildingTool records as the Tools List (/bmdashboard/tools), so the
+// "Tools by Availability" chart shows the same tools with the same statuses.
+const toolAvailabilityController = function (BuildingTool) {
   const getToolsAvailability = async (req, res) => {
     try {
       const { id: projectId } = req.params;
-      const { startDate, endDate } = req.query;
 
-      // Validate project ID format
       if (!ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
-      // Build date filter based on what's provided
-      let dateFilter = {};
+      // startDate/endDate are accepted but not applied: like the Tools List, this shows each
+      // tool's current status, and tool records hold no dated status history to filter on.
+      const projectIds = await getProjectIdsSharingName(projectId);
+      const tools = await BuildingTool.find({ project: { $in: projectIds } })
+        .populate({ path: 'itemType', model: 'invTypeBase', select: 'name using available' })
+        .lean();
 
-      if (startDate && endDate) {
-        // If both dates are provided, use them as range
-        dateFilter = {
-          date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        };
-      } else if (startDate) {
-        // If only start date is provided, use it as lower bound
-        dateFilter = {
-          date: { $gte: new Date(startDate) },
-        };
-      } else if (endDate) {
-        // If only end date is provided, use it as upper bound
-        dateFilter = {
-          date: { $lte: new Date(endDate) },
-        };
-      }
-      // If no dates are provided, don't filter by date at all
+      // Names that differ only by case or surrounding spaces are one tool.
+      const byName = new Map();
+      tools.forEach((tool) => {
+        const name = (tool.itemType?.name || '').trim() || 'Unnamed Tool';
+        const key = name.toLowerCase();
+        if (!byName.has(key)) {
+          byName.set(key, {
+            spellings: new Map(),
+            inUse: 0,
+            needsReplacement: 0,
+            yetToReceive: 0,
+            available: 0,
+          });
+        }
+        const entry = byName.get(key);
+        entry.spellings.set(name, (entry.spellings.get(name) || 0) + 1);
+        entry[getToolStatus(tool)] += 1;
+      });
 
-      // Query the database for tool availability data
-      const results = await ToolAvailability.aggregate([
-        {
-          $match: {
-            projectId: new ObjectId(projectId),
-            ...dateFilter,
-          },
-        },
-        {
-          $group: {
-            _id: {
-              toolName: '$toolName',
-              status: '$status',
-            },
-            totalQuantity: { $sum: '$quantity' },
-          },
-        },
-        {
-          $group: {
-            _id: '$_id.toolName',
-            statusCounts: {
-              $push: {
-                status: '$_id.status',
-                quantity: '$totalQuantity',
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            toolName: '$_id',
-            inUse: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'In Use'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-            needsReplacement: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'Needs to be replaced'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-            yetToReceive: {
-              $reduce: {
-                input: {
-                  $filter: {
-                    input: '$statusCounts',
-                    as: 'count',
-                    cond: { $eq: ['$$count.status', 'Yet to receive'] },
-                  },
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this.quantity'] },
-              },
-            },
-          },
-        },
-      ]);
-
-      // If no results found, return empty array
-      if (!results || results.length === 0) {
-        return res.json([]);
-      }
+      const results = [...byName.values()].map(({ spellings, ...counts }) => {
+        // Show the most used spelling; ties go to the one that sorts first ("Circular Saw").
+        const [toolName] = [...spellings.entries()].sort(
+          ([a, countA], [b, countB]) => countB - countA || (a < b ? -1 : 1),
+        )[0];
+        return { toolName, ...counts };
+      });
+      results.sort((a, b) => a.toolName.localeCompare(b.toolName));
 
       return res.json(results);
     } catch (error) {
@@ -126,7 +59,7 @@ const toolAvailabilityController = function (ToolAvailability) {
 
   const getUniqueProjectIds = async (req, res) => {
     try {
-      const projectIds = await ToolAvailability.distinct('projectId');
+      const projectIds = await BuildingTool.distinct('project');
 
       const validProjectIds = projectIds
         .filter((id) => ObjectId.isValid(id))
@@ -143,10 +76,19 @@ const toolAvailabilityController = function (ToolAvailability) {
         .sort({ name: 1 })
         .lean();
 
-      const formattedResults = projects.map((project) => ({
-        projectId: project._id,
-        projectName: project.name,
-      }));
+      // One entry per name, like the Tools List project filter. Selecting it covers every
+      // project record with that name (see getProjectIdsSharingName).
+      const seenNames = new Set();
+      const formattedResults = projects
+        .filter((project) => {
+          if (seenNames.has(project.name)) return false;
+          seenNames.add(project.name);
+          return true;
+        })
+        .map((project) => ({
+          projectId: project._id,
+          projectName: project.name,
+        }));
 
       return res.json(formattedResults);
     } catch (error) {

@@ -318,10 +318,7 @@ const bmFinancialRouter = require('../routes/bmdashboard/bmFinancialRouter')(
   buildingToolModel,
 );
 const bookingRouter = require('../routes/lbdashboard/bookingsRouter');
-const toolAvailability = require('../models/bmdashboard/toolAvailability');
-const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')(
-  toolAvailability,
-);
+const toolAvailabilityRouter = require('../routes/bmdashboard/toolAvailabilityRouter')();
 
 const downloadReportRouter = require('../routes/educationPortal/downloadReportRouter');
 

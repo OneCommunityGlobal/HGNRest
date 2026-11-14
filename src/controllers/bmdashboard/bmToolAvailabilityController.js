@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const BuildingTool = require('../../models/bmdashboard/buildingTool');
 const { TOOL_CONDITIONS, TOOL_LOG_TYPES } = require('../../utilities/constants');
+const { getProjectIdsSharingName } = require('../../helpers/toolAvailabilityHelper');
 
 // Helper function to validate exact ObjectId format
 const isValidMongoId = (id) =>
@@ -21,10 +22,14 @@ exports.getToolAvailability = async (req, res) => {
     if (!isValidMongoId(projectId)) {
       return res.status(400).json({ error: 'Invalid projectId format' });
     }
-    filter.project = projectId;
   }
 
   try {
+    if (projectId) {
+      // Same project scope as the Tools List, which filters by project name.
+      filter.project = { $in: await getProjectIdsSharingName(projectId) };
+    }
+
     const tools = await BuildingTool.find(filter)
       .populate({ path: 'itemType', model: 'invTypeBase', select: 'name' })
       .populate('project', 'name')
