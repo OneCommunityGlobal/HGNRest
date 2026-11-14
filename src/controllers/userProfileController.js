@@ -2527,6 +2527,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
       syncStatusNoteCache(userId, updatedUser);
 
+      // The note is already saved, so a failed audit is logged instead of failing the request
       auditIfProtectedAccountUpdated({
         requestorId,
         updatedRecordEmail: updatedUser.email,
@@ -2534,7 +2535,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         updatedRecord: null,
         updateDiffPaths: null,
         actionPerformed: 'UserStatusNoteUpdate',
-      });
+      }).catch((error) => logger.logException(error));
 
       return res.status(200).send({
         message: `Note ${action}`,
