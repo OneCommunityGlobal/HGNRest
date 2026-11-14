@@ -130,27 +130,26 @@ async function getTrends(req, res) {
     const counts = Object.fromEntries(buckets.map((b) => [b.label, { assigned: 0, completed: 0 }]));
 
     for (const t of tasks) {
+      const assignedAt = t.createdDatetime || t.modifiedDatetime;
+      const hasResourceCompletion = t.resources?.some(
+        (resource) => resource.completedTask === true,
+      );
+      const hasCompletionDateInRange =
+        t.completedDatetime >= rangeStartUTC && t.completedDatetime <= rangeEndUTC;
+      const completedAt = hasCompletionDateInRange
+        ? t.completedDatetime
+        : ((!t.completedDatetime && TERMINAL_STATUS_REGEX.test(t.status || '')) ||
+            hasResourceCompletion) &&
+          t.modifiedDatetime;
+
       for (const b of buckets) {
         const bucketStart = b.startUTC < rangeStartUTC ? rangeStartUTC : b.startUTC;
         const bucketEnd = b.endUTC > rangeEndUTC ? rangeEndUTC : b.endUTC;
-        const assignedAt = t.createdDatetime || t.modifiedDatetime;
-        const completedAt = t.completedDatetime || t.modifiedDatetime;
-        const isCompleted =
-          (t.completedDatetime &&
-            t.completedDatetime >= bucketStart &&
-            t.completedDatetime <= bucketEnd) ||
-          (!t.completedDatetime &&
-            TERMINAL_STATUS_REGEX.test(t.status || '') &&
-            t.modifiedDatetime >= bucketStart &&
-            t.modifiedDatetime <= bucketEnd) ||
-          (t.resources?.some((resource) => resource.completedTask === true) &&
-            t.modifiedDatetime >= bucketStart &&
-            t.modifiedDatetime <= bucketEnd);
 
         if (assignedAt >= bucketStart && assignedAt <= bucketEnd) {
           counts[b.label].assigned += 1;
         }
-        if (isCompleted && completedAt >= bucketStart && completedAt <= bucketEnd) {
+        if (completedAt >= bucketStart && completedAt <= bucketEnd) {
           counts[b.label].completed += 1;
         }
       }

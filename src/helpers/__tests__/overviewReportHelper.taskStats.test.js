@@ -130,7 +130,7 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
     jest.clearAllMocks();
   });
 
-  it('uses Date boundaries for dueDatetime filter so dashboard date changes affect task counts', async () => {
+  it('uses Pacific calendar-day boundaries for task counts and date-string hour filters', async () => {
     TimeEntries.aggregate
       .mockResolvedValueOnce([{ totalHours: 10 }])
       .mockResolvedValueOnce([{ totalHours: 5 }]);
@@ -144,6 +144,10 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
     await helper.getTaskAndProjectStats('2026-08-01', '2026-08-07');
 
     expect(Task.countDocuments).toHaveBeenCalledTimes(2);
+    expect(TimeEntries.aggregate.mock.calls[0][0][0].$match.dateOfWork).toEqual({
+      $gte: '2026-08-01',
+      $lte: '2026-08-07',
+    });
 
     // Verify assigned tasks filter
     const assignedFilter = Task.countDocuments.mock.calls[0][0];
@@ -152,11 +156,17 @@ describe('overviewReportHelper.getTaskAndProjectStats', () => {
     expect(assignedFilter.$or).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          createdDatetime: expect.any(Object),
+          createdDatetime: {
+            $gte: new Date('2026-08-01T07:00:00.000Z'),
+            $lte: new Date('2026-08-08T06:59:59.999Z'),
+          },
         }),
         expect.objectContaining({
           createdDatetime: { $exists: false },
-          modifiedDatetime: expect.any(Object),
+          modifiedDatetime: {
+            $gte: new Date('2026-08-01T07:00:00.000Z'),
+            $lte: new Date('2026-08-08T06:59:59.999Z'),
+          },
         }),
       ]),
     );

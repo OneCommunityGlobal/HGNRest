@@ -43,6 +43,45 @@ describe('tasksWeeklyController.getTrends', () => {
     });
   });
 
+  it('uses the modified week as a resource-completion fallback without double-counting', async () => {
+    Task.aggregate.mockResolvedValue([
+      {
+        createdDatetime: new Date('2026-08-01T00:00:00.000Z'),
+        completedDatetime: new Date('2026-08-02T00:00:00.000Z'),
+        modifiedDatetime: new Date('2026-09-20T12:00:00.000Z'),
+        resources: [{ completedTask: true }],
+      },
+      {
+        createdDatetime: new Date('2026-08-02T00:00:00.000Z'),
+        completedDatetime: new Date('2026-09-14T12:00:00.000Z'),
+        modifiedDatetime: new Date('2026-09-21T12:00:00.000Z'),
+        resources: [{ completedTask: true }],
+      },
+    ]);
+    const response = {
+      json: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+    };
+
+    await getTrends(
+      {
+        query: {
+          start: '2026-09-13',
+          end: '2026-10-06',
+          weeks: '4',
+        },
+      },
+      response,
+    );
+
+    expect(response.json).toHaveBeenCalledWith([
+      { week: '2026-09-13', assigned: 0, completed: 1 },
+      { week: '2026-09-20', assigned: 0, completed: 1 },
+      { week: '2026-09-27', assigned: 0, completed: 0 },
+      { week: '2026-10-04', assigned: 0, completed: 0 },
+    ]);
+  });
+
   it('rejects invalid date-only values', async () => {
     const response = {
       json: jest.fn(),

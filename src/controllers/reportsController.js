@@ -256,10 +256,10 @@ const reportsController = function () {
           isoComparisonEndDate,
         ),
         overviewReportHelper.getTaskAndProjectStats(
-          isoStartDate,
-          isoEndDate,
-          isoComparisonStartDate,
-          isoComparisonEndDate,
+          startDate,
+          endDate,
+          comparisonStartDate,
+          comparisonEndDate,
         ),
         overviewReportHelper.getVolunteersOverAssignedTime(isoStartDate, isoEndDate),
         overviewReportHelper.getVolunteersCompletedAssignedHours(

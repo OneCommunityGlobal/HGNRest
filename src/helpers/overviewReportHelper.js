@@ -4,7 +4,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable guard-for-in */
 /* eslint-disable no-unused-vars */
-const moment = require('moment');
+const moment = require('moment-timezone');
 const Team = require('../models/team');
 const UserProfile = require('../models/userProfile');
 const TimeEntries = require('../models/timeentry');
@@ -2251,14 +2251,17 @@ const overviewReportHelper = function () {
     comparisonStartDate,
     comparisonEndDate,
   ) {
-    const startDateString = moment(startDate).format('YYYY-MM-DD');
-    const endDateString = moment(endDate).format('YYYY-MM-DD');
+    const timeZone = 'America/Los_Angeles';
+    const startDateString = moment.tz(startDate, timeZone).format('YYYY-MM-DD');
+    const endDateString = moment.tz(endDate, timeZone).format('YYYY-MM-DD');
     const comparisonStartDateString = comparisonStartDate
-      ? moment(comparisonStartDate).format('YYYY-MM-DD')
+      ? moment.tz(comparisonStartDate, timeZone).format('YYYY-MM-DD')
       : comparisonStartDate;
     const comparisonEndDateString = comparisonEndDate
-      ? moment(comparisonEndDate).format('YYYY-MM-DD')
+      ? moment.tz(comparisonEndDate, timeZone).format('YYYY-MM-DD')
       : comparisonEndDate;
+    const dueDateStart = moment.tz(startDateString, 'YYYY-MM-DD', timeZone).startOf('day').toDate();
+    const dueDateEnd = moment.tz(endDateString, 'YYYY-MM-DD', timeZone).endOf('day').toDate();
 
     // 1. Retrieves the total hours logged to tasks for a given date range.
     // Tasks are entries where entryType is NOT 'person', 'team', or 'project' (defaulting to 'default')
@@ -2351,7 +2354,7 @@ const overviewReportHelper = function () {
       const weeksDifference = timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24 * 7);
       return Math.ceil(weeksDifference);
     }
-    const numberOfWeeks = weeksBetweenDates(startDate, endDate);
+    const numberOfWeeks = weeksBetweenDates(startDateString, endDateString);
 
     // 4. Retrieves the total committed hours that should have been completed for the given date range.
     const getTotalCommittedHours = await UserProfile.aggregate([
@@ -2366,7 +2369,7 @@ const overviewReportHelper = function () {
             $filter: {
               input: '$weeklycommittedHoursHistory',
               as: 'history',
-              cond: { $lte: ['$$history.dateChanged', new Date(endDate)] },
+              cond: { $lte: ['$$history.dateChanged', dueDateEnd] },
             },
           },
         },
@@ -2421,8 +2424,6 @@ const overviewReportHelper = function () {
 
     // 7. Number of assigned tasks within the date range
     // Tasks are assigned if created or modified within the date range
-    const dueDateStart = moment(startDate).startOf('day').toDate();
-    const dueDateEnd = moment(endDate).endOf('day').toDate();
     const baseTaskFilter = { isActive: true, deleted: { $ne: true } };
 
     const tasksAssignedWithinDate = await Task.countDocuments({
