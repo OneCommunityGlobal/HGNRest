@@ -22,6 +22,7 @@ const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const PromotionDetail = require('../models/promotionDetail');
 const FormResponse = require('../models/hgnFormResponse');
+const { QUALIFYING_REVIEW_RATINGS } = require('../helpers/prEntryHelper');
 const promotionEligibilityController = require('./promotionEligibilityController');
 
 const OWNER_ID = '665234c757ca141fe891e1ca';
@@ -524,6 +525,127 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
 
       expect(entryReturned().isNewMember).toBe(false);
     });
+  });
+});
+
+describe('getPromotionEligibilityData, PR Grading entries add to the review count', () => {
+  const REVIEWER = {
+    _id: '637af0c0fb9bbc1e308cff62',
+    firstName: 'Ann',
+    lastName: 'Adams',
+    weeklycommittedHours: 10, // 7 PRs needed
+    createdDate: '2020-01-01',
+  };
+
+  let UserProfile;
+  let TimeEntry;
+  let Task;
+  let PromotionEligibility;
+  let PromotionPrEntry;
+  let controller;
+  let mockRes;
+
+  const NOW = new Date('2026-08-19T12:00:00Z');
+
+  const request = () => ({ body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' } } });
+  const entryReturned = () => mockRes.json.mock.calls[0][0][0];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }).setSystemTime(NOW);
+    hasPermission.mockResolvedValue(true);
+
+    UserProfile = { find: jest.fn(() => ({ lean: () => Promise.resolve([REVIEWER]) })) };
+    TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+    Task = { countDocuments: jest.fn().mockResolvedValue(0) };
+    PromotionEligibility = {
+      find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+      findOneAndUpdate: jest.fn().mockResolvedValue({}),
+    };
+    PromotionPrEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      Task,
+      PromotionEligibility,
+      null,
+      undefined,
+      undefined,
+      PromotionPrEntry,
+    );
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('adds PR Grading weekly counts to the task-based weekly count rather than replacing it', async () => {
+    // Task-based proxy: 3 that week. PR Grading: 4 that same week. 3 + 4 = 7
+    // clears the 7 needed; neither source alone would.
+    TimeEntry.aggregate = jest.fn().mockResolvedValue([{ year: 2026, week: 32, reviewCount: 3 }]);
+    PromotionPrEntry.aggregate = jest
+      .fn()
+      .mockResolvedValueOnce([{ reviewerId: REVIEWER._id, year: 2026, week: 32, reviewCount: 4 }])
+      .mockResolvedValueOnce([]);
+
+    await controller.getPromotionEligibilityData(request(), mockRes);
+
+    const entry = entryReturned();
+    expect(entry.successfulWeeks).toBe(1);
+    expect(entry.remainingWeeks).toBe(1);
+  });
+
+  it('adds the PR Grading lifetime total to the Task-based lifetime total', async () => {
+    Task.countDocuments = jest.fn().mockResolvedValue(5);
+    PromotionPrEntry.aggregate = jest
+      .fn()
+      .mockResolvedValueOnce([]) // weekly counts call
+      .mockResolvedValueOnce([{ _id: REVIEWER._id, totalReviews: 4 }]); // lifetime total call
+
+    await controller.getPromotionEligibilityData(request(), mockRes);
+
+    expect(entryReturned().totalReviews).toBe(9);
+  });
+
+  it('keeps working, falling back to task-only counts, when PromotionPrEntry is not wired up', async () => {
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      Task,
+      PromotionEligibility,
+      null,
+    );
+    Task.countDocuments = jest.fn().mockResolvedValue(5);
+    TimeEntry.aggregate = jest.fn().mockResolvedValue([{ year: 2026, week: 32, reviewCount: 3 }]);
+
+    await controller.getPromotionEligibilityData(request(), mockRes);
+
+    const entry = entryReturned();
+    expect(entry.totalReviews).toBe(5);
+    expect(entry.successfulWeeks).toBe(0); // 3 alone does not clear 7
+  });
+
+  it('only counts PR Grading entries rated Needs more details, Good, or Exceptional', async () => {
+    await controller.getPromotionEligibilityData(request(), mockRes);
+
+    const [weeklyPipeline, totalPipeline] = PromotionPrEntry.aggregate.mock.calls.map(
+      (call) => call[0],
+    );
+
+    const weeklyMatch = weeklyPipeline.find((stage) => stage.$match).$match;
+    const totalMatch = totalPipeline.find((stage) => stage.$match).$match;
+
+    expect(weeklyMatch.rating.$in).toEqual(QUALIFYING_REVIEW_RATINGS);
+    expect(totalMatch.rating.$in).toEqual(QUALIFYING_REVIEW_RATINGS);
+    expect(QUALIFYING_REVIEW_RATINGS).not.toContain('Did not review');
+    expect(QUALIFYING_REVIEW_RATINGS).not.toContain('No Image');
   });
 });
 
@@ -1751,6 +1873,100 @@ describe('getPromotionPending', () => {
     expect(rows()).toEqual([]);
     const [filter] = UserProfile.find.mock.calls[0];
     expect(filter.role.$nin).toContain('Promoted Reviewer');
+  });
+});
+
+describe('getPromotionPending, PR Grading entries add to the review count', () => {
+  const ID_PR_GRADING_ONLY = '637af0c0fb9bbc1e308cff03';
+  const REVIEWER_PR_GRADING_ONLY = {
+    _id: ID_PR_GRADING_ONLY,
+    firstName: 'Priya',
+    lastName: 'Rao',
+    weeklycommittedHours: 10, // 7 PRs needed
+    teamCode: 'GHI56',
+    role: 'Volunteer',
+  };
+
+  let UserProfile;
+  let TimeEntry;
+  let PromotionEligibility;
+  let PromotionPrEntry;
+  let controller;
+  let mockRes;
+
+  const NOW = new Date('2026-08-19T12:00:00Z');
+  const request = () => ({
+    body: { requestor: { requestorId: OWNER_ID, role: 'Administrator' } },
+  });
+  const rows = () => mockRes.json.mock.calls[0][0];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }).setSystemTime(NOW);
+    hasPermission.mockResolvedValue(true);
+    PromotionDetail.findOneAndUpdate.mockResolvedValue({});
+    PromotionDetail.bulkWrite.mockResolvedValue({});
+
+    UserProfile = {
+      find: jest
+        .fn()
+        .mockReturnValueOnce({ lean: () => Promise.resolve([REVIEWER_PR_GRADING_ONLY]) })
+        .mockReturnValueOnce({ lean: () => Promise.resolve([]) }),
+    };
+    // No task-based review history at all for this reviewer.
+    TimeEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+    PromotionEligibility = {
+      find: jest.fn(() => ({ lean: () => Promise.resolve([]) })),
+      findOneAndUpdate: jest.fn().mockResolvedValue({}),
+    };
+    PromotionPrEntry = { aggregate: jest.fn().mockResolvedValue([]) };
+
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      {},
+      PromotionEligibility,
+      null,
+      undefined,
+      undefined,
+      PromotionPrEntry,
+    );
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+    };
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('counts a reviewer as pending when only PR Grading entries clear the weekly requirement, with no task history at all', async () => {
+    PromotionPrEntry.aggregate = jest.fn().mockResolvedValue([
+      { reviewerId: ID_PR_GRADING_ONLY, year: 2026, week: 32, reviewCount: 7 },
+      { reviewerId: ID_PR_GRADING_ONLY, year: 2026, week: 31, reviewCount: 7 },
+    ]);
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].reviewerId).toBe(ID_PR_GRADING_ONLY);
+  });
+
+  it('is not pending when PromotionPrEntry is not wired up and there is no task history', async () => {
+    controller = promotionEligibilityController(
+      UserProfile,
+      TimeEntry,
+      {},
+      PromotionEligibility,
+      null,
+    );
+
+    await controller.getPromotionPending(request(), mockRes);
+
+    expect(rows()).toHaveLength(0);
   });
 });
 

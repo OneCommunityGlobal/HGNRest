@@ -191,6 +191,41 @@ function summariseWeeks({ weeklyCounts, prsNeeded, currentWeek }) {
   };
 }
 
+/**
+ * Add two reviewers' per-week review counts together, one week at a time.
+ *
+ * The dashboard counts review work from two places: PR Grading entries
+ * (`PromotionPrEntry`) and the older review-task proxy Task/TimeEntry counts
+ * predate this file by. Neither source is dropped when the other exists, so a
+ * reviewer who already had task-based history keeps it after they start using
+ * PR Grading, and vice versa.
+ *
+ * Each input list is `{year, week, reviewCount}` in any order; duplicate
+ * (year, week) entries within one list are summed too, though neither real
+ * source produces them. The result is sorted newest first, matching the shape
+ * every caller of `weeklyReviewCounts`/`weeklyReviewCountsByUserIds` expects.
+ *
+ * @param {...Array<{year: number, week: number, reviewCount: number}>} countLists
+ * @returns {Array<{year: number, week: number, reviewCount: number}>} newest first
+ */
+function mergeWeeklyCounts(...countLists) {
+  const totalsByWeek = new Map();
+
+  countLists.forEach((counts) => {
+    (counts || []).forEach((entry) => {
+      const key = `${entry.year}-${entry.week}`;
+      const existing = totalsByWeek.get(key);
+      totalsByWeek.set(key, {
+        year: entry.year,
+        week: entry.week,
+        reviewCount: (existing ? existing.reviewCount : 0) + (Number(entry.reviewCount) || 0),
+      });
+    });
+  });
+
+  return [...totalsByWeek.values()].sort((a, b) => b.year - a.year || b.week - a.week);
+}
+
 module.exports = {
   PRS_NEEDED_BANDS,
   SUCCESSFUL_WEEKS_REQUIRED,
@@ -199,4 +234,5 @@ module.exports = {
   mongoWeekOf,
   weekMeetsRequirement,
   summariseWeeks,
+  mergeWeeklyCounts,
 };
