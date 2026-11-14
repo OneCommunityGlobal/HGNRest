@@ -6,6 +6,8 @@ const routes = function (TimeEntry) {
   const controller = require('../controllers/timeEntryController')(TimeEntry);
 
   TimeEntryRouter.route('/TimeEntry').post(controller.postTimeEntry);
+  TimeEntryRouter.route('/TimeEntry/split').post(controller.postSplitTimeEntries);
+  TimeEntryRouter.route('/TimeEntry/split/:batchId').get(controller.getSplitTimeEntryReceipt);
 
   TimeEntryRouter.route('/TimeEntry/:timeEntryId')
     .put(controller.editTimeEntry)
