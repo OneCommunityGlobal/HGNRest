@@ -1,3 +1,4 @@
+jest.mock('../models/JobApplicationEmailRecipients');
 jest.mock('../models/JobFormsModel');
 jest.mock('../models/jobApplicationsModel');
 jest.mock('../models/questionSet');
@@ -15,6 +16,7 @@ jest.mock('../middleware/multerMiddleware', () => ({
 }));
 
 const Form = require('../models/JobFormsModel');
+const JobApplicationEmailRecipients = require('../models/JobApplicationEmailRecipients');
 const Response = require('../models/jobApplicationsModel');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
@@ -32,8 +34,16 @@ describe('submitFormResponse', () => {
   let res;
   let saveMock;
 
+  const originalJobApplicationDefaultEmail = process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.JOB_APPLICATION_DEFAULT_EMAIL = 'default@example.com';
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: [],
+      }),
+    });
     res = createMockRes();
     saveMock = jest.fn().mockResolvedValue(true);
     Form.findById = jest.fn();
@@ -42,6 +52,14 @@ describe('submitFormResponse', () => {
     Response.mockImplementation((data) => ({ ...data, save: saveMock }));
     emailSender.mockResolvedValue('ok');
     uploadFileToAzureBlobStorage.mockResolvedValue('https://blob/resume.pdf');
+  });
+
+  afterAll(() => {
+    if (originalJobApplicationDefaultEmail === undefined) {
+      delete process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+    } else {
+      process.env.JOB_APPLICATION_DEFAULT_EMAIL = originalJobApplicationDefaultEmail;
+    }
   });
 
   const validBody = {
@@ -219,10 +237,15 @@ describe('submitFormResponse', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
     const html = emailSender.mock.calls[0][2];
-    expect(html).not.toContain('<a href');
+    expect(html).not.toContain('<a href="https://evil.example"');
     expect(html).not.toContain('<script>');
-    expect(html).toContain('Hi &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,');
+    expect(html).toContain(
+      'Dear &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,',
+    );
     expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('With Gratitude,');
+    expect(html).toContain('Jae Sabol');
+    expect(html).toContain('https://www.tinyurl.com/zoomoc');
   });
 
   it('keeps ordinary applicant names readable in the confirmation email', async () => {
@@ -235,8 +258,10 @@ describe('submitFormResponse', () => {
     );
 
     const html = emailSender.mock.calls[0][2];
-    expect(html).toContain('Hi José Núñez-Ochoa,');
-    expect(html).toContain('<strong>Software Developer</strong>');
+    expect(html).toContain('Dear José Núñez-Ochoa,');
+    expect(html).toContain('&quot;Software Developer&quot;');
+    expect(html).toContain('With Gratitude,');
+    expect(html).toContain('(310) 755-4693');
   });
 
   it('strips CR/LF and control characters from the confirmation email subject', async () => {
@@ -251,6 +276,303 @@ describe('submitFormResponse', () => {
     const subject = emailSender.mock.calls[0][1];
     expect(subject).toBe('Application Received — DevBcc: victim@example.com');
     expect(subject).not.toMatch(/[\r\n]/);
+  });
+
+  it('defaults staff notifications to onecommunityglobal@gmail.com like blue-square mail', async () => {
+    delete process.env.JOB_APPLICATION_DEFAULT_EMAIL;
+
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [],
+    });
+    Response.findOne.mockResolvedValue(null);
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['cc@example.com'],
+      }),
+    });
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [],
+        },
+      },
+      res,
+    );
+
+    expect(emailSender).toHaveBeenNthCalledWith(
+      2,
+      ['onecommunityglobal@gmail.com'],
+      'New Job Application — Software Developer',
+      expect.any(String),
+      null,
+      ['cc@example.com', 'applicant@example.com'],
+    );
+  });
+
+  it('sends submitted answers to the default inbox and CCs configured UI recipients', async () => {
+    const questionId = '507f1f77bcf86cd799439012';
+
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [
+        {
+          _id: questionId,
+          questionText: 'Why do you want to volunteer?',
+        },
+      ],
+    });
+
+    Response.findOne.mockResolvedValue(null);
+
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['admin@example.com', 'manager@example.com', 'default@example.com'],
+      }),
+    });
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [
+            {
+              questionId,
+              answer: 'I want to contribute to the community.',
+            },
+          ],
+        },
+      },
+      res,
+    );
+
+    expect(saveMock).toHaveBeenCalled();
+    expect(emailSender).toHaveBeenCalledTimes(2);
+
+    expect(emailSender).toHaveBeenNthCalledWith(
+      1,
+      ['applicant@example.com'],
+      'Application Received — Software Developer',
+      expect.any(String),
+    );
+
+    expect(emailSender).toHaveBeenNthCalledWith(
+      2,
+      ['default@example.com'],
+      'New Job Application — Software Developer',
+      expect.stringContaining('Why do you want to volunteer?'),
+      null,
+      ['admin@example.com', 'manager@example.com', 'applicant@example.com'],
+    );
+
+    const adminEmailBody = emailSender.mock.calls[1][2];
+
+    expect(adminEmailBody).toContain('I want to contribute to the community.');
+    expect(adminEmailBody).toContain('applicant@example.com');
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('still saves the application when admin notification delivery fails', async () => {
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [],
+    });
+
+    Response.findOne.mockResolvedValue(null);
+
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['admin@example.com'],
+      }),
+    });
+
+    emailSender
+      .mockResolvedValueOnce('Applicant confirmation sent')
+      .mockRejectedValueOnce(new Error('Admin email delivery failed'));
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await submitFormResponse(
+        {
+          params: { formId },
+          body: validBody,
+        },
+        res,
+      );
+
+      expect(saveMock).toHaveBeenCalled();
+      expect(emailSender).toHaveBeenCalledTimes(2);
+      expect(res.status).toHaveBeenCalledWith(201);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Application submitted successfully.',
+        }),
+      );
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it('includes submitted questions and safely escaped answers in the applicant email', async () => {
+    const questionId = '507f1f77bcf86cd799439012';
+
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [
+        {
+          _id: questionId,
+          questionText: 'Why do you want to volunteer?',
+        },
+      ],
+    });
+
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [
+            {
+              questionId,
+              answer: '<script>alert("test")</script>',
+            },
+          ],
+        },
+      },
+      res,
+    );
+
+    expect(saveMock).toHaveBeenCalled();
+    expect(emailSender).toHaveBeenCalledTimes(2);
+
+    expect(emailSender).toHaveBeenCalledWith(
+      ['applicant@example.com'],
+      'Application Received — Software Developer',
+      expect.stringContaining('Why do you want to volunteer?'),
+    );
+
+    const emailBody = emailSender.mock.calls[0][2];
+
+    expect(emailBody).toContain('&lt;script&gt;alert(&quot;test&quot;)&lt;/script&gt;');
+    expect(emailBody).not.toContain('<script>');
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('includes resume, question upload, and profile metadata in both emails', async () => {
+    const questionId = '507f1f77bcf86cd799439012';
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [{ _id: questionId, questionText: 'Upload a cover letter' }],
+    });
+    Response.findOne.mockResolvedValue(null);
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({ recipients: ['admin@example.com'] }),
+    });
+    uploadFileToAzureBlobStorage
+      .mockResolvedValueOnce('https://private.example/resume?token=hidden')
+      .mockResolvedValueOnce('https://private.example/cover?token=hidden');
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [{ questionId, answer: 'Attached my cover letter' }],
+        },
+        files: [
+          {
+            fieldname: 'resume',
+            originalname: 'resume.pdf',
+            mimetype: 'application/pdf',
+            size: 123,
+            buffer: Buffer.from('resume'),
+          },
+          {
+            fieldname: `questionFile_${questionId}`,
+            originalname: 'cover.pdf',
+            mimetype: 'application/pdf',
+            size: 456,
+            buffer: Buffer.from('cover'),
+          },
+        ],
+      },
+      res,
+    );
+
+    expect(saveMock).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(emailSender).toHaveBeenCalledTimes(2);
+    emailSender.mock.calls.forEach(([, , html]) => {
+      expect(html).toContain('Upload a cover letter');
+      expect(html).toContain('Uploaded file: resume.pdf');
+      expect(html).toContain('Uploaded file: cover.pdf');
+      expect(html).toContain('File type: application/pdf');
+      expect(html).toContain('File size (bytes): 123');
+      expect(html).toContain('File size (bytes): 456');
+      expect(html).toContain('Applicant Information');
+      expect(html).toContain('applicant@example.com');
+      expect(html).not.toContain('private.example');
+      expect(html).not.toContain('token=hidden');
+    });
+
+    emailSender.mock.calls.forEach(([, , html, attachments]) => {
+      expect(attachments).toHaveLength(2);
+
+      expect(attachments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            filename: 'resume.pdf',
+            contentType: 'application/pdf',
+            content: Buffer.from('resume'),
+          }),
+          expect.objectContaining({
+            filename: 'cover.pdf',
+            contentType: 'application/pdf',
+            content: Buffer.from('cover'),
+          }),
+        ]),
+      );
+
+      expect(html).not.toContain('could not be attached');
+    });
+  });
+
+  it('still saves when applicant email fails and admin email succeeds', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({ recipients: ['admin@example.com'] }),
+    });
+    emailSender.mockRejectedValueOnce(new Error('Applicant mail failed'));
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await submitFormResponse({ params: { formId }, body: validBody }, res);
+      expect(saveMock).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(emailSender).toHaveBeenCalledTimes(2);
+      expect(emailSender.mock.calls[1][0]).toEqual(['default@example.com']);
+      expect(emailSender.mock.calls[1][4]).toEqual(['admin@example.com', 'ada@example.com']);
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it('parses answers JSON strings and stores resumeUrl when a file is uploaded', async () => {
@@ -448,6 +770,141 @@ describe('submitFormResponse', () => {
     expect(savedDoc.answers[0].answer.url).toBeUndefined();
   });
 
+  it('omits an oversized attachment and explains the omission in both emails', async () => {
+    const questionId = '507f1f77bcf86cd799439012';
+
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [{ _id: questionId, questionText: 'Upload a document' }],
+    });
+    Response.findOne.mockResolvedValue(null);
+
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['admin@example.com'],
+      }),
+    });
+
+    const oversizedFile = {
+      fieldname: `questionFile_${questionId}`,
+      originalname: 'large.pdf',
+      mimetype: 'application/pdf',
+      buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+    };
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          respondent: 'Test Applicant',
+          email: 'applicant@example.com',
+          answers: [{ questionId, answer: 'Document attached' }],
+        },
+        files: [oversizedFile],
+      },
+      res,
+    );
+
+    expect(saveMock).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(emailSender).toHaveBeenCalledTimes(2);
+
+    emailSender.mock.calls.forEach(([, , html, attachments]) => {
+      expect(html).toContain('1 uploaded file(s) could not be attached');
+      expect(attachments == null).toBe(true);
+      expect(html).not.toContain('https://blob/');
+    });
+  });
+
+  it('does not attach unrelated uploaded fields', async () => {
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [],
+    });
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: validBody,
+        files: [
+          {
+            fieldname: 'unrelatedFile',
+            originalname: 'unrelated.pdf',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('unrelated content'),
+          },
+          {
+            fieldname: 'resume',
+            originalname: 'resume.pdf',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('resume content'),
+          },
+        ],
+      },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(emailSender).toHaveBeenCalledTimes(2);
+
+    const attachments = emailSender.mock.calls[0][3];
+
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].filename).toBe('resume.pdf');
+    expect(attachments[0].content).toEqual(Buffer.from('resume content'));
+  });
+
+  it('keeps the saved application when email delivery with attachments fails', async () => {
+    Form.findById.mockResolvedValue({
+      _id: formId,
+      title: 'Software Developer',
+      questions: [],
+    });
+    Response.findOne.mockResolvedValue(null);
+
+    JobApplicationEmailRecipients.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        recipients: ['admin@example.com'],
+      }),
+    });
+
+    emailSender.mockRejectedValue(new Error('Email delivery failed'));
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await submitFormResponse(
+        {
+          params: { formId },
+          body: validBody,
+          files: [
+            {
+              fieldname: 'resume',
+              originalname: 'resume.pdf',
+              mimetype: 'application/pdf',
+              buffer: Buffer.from('resume content'),
+            },
+          ],
+        },
+        res,
+      );
+
+      expect(saveMock).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(emailSender).toHaveBeenCalledTimes(2);
+
+      emailSender.mock.calls.forEach(([, , , attachments]) => {
+        expect(attachments).toHaveLength(1);
+        expect(attachments[0].filename).toBe('resume.pdf');
+      });
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
   describe('confirmation email cap', () => {
     let warnSpy;
     let errorSpy;
@@ -474,15 +931,23 @@ describe('submitFormResponse', () => {
     it('sends the email for the 3rd application from one address in 24 h', async () => {
       mockCounts({ address: 3, global: 3 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
-      expect(emailSender).toHaveBeenCalledTimes(1);
+      // Applicant confirmation + default-inbox staff notification.
+      expect(emailSender).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('skips the email for the 4th application but still saves and returns 201', async () => {
+    it('skips the confirmation for the 4th application but still notifies the default inbox', async () => {
       mockCounts({ address: 4, global: 4 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
       expect(saveMock).toHaveBeenCalled();
-      expect(emailSender).not.toHaveBeenCalled();
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender).toHaveBeenCalledWith(
+        ['default@example.com'],
+        'New Job Application — Software Developer',
+        expect.any(String),
+        null,
+        ['ada@example.com'],
+      );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Application submitted successfully.' }),
@@ -491,18 +956,19 @@ describe('submitFormResponse', () => {
       expect(logged).not.toContain('ada@example.com');
     });
 
-    it('skips the email when the global daily cap is exceeded', async () => {
+    it('skips the confirmation when the global daily cap is exceeded but still notifies staff', async () => {
       mockCounts({ address: 1, global: 301 });
       await submitFormResponse({ params: { formId }, body: validBody }, res);
       expect(saveMock).toHaveBeenCalled();
-      expect(emailSender).not.toHaveBeenCalled();
+      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender.mock.calls[0][0]).toEqual(['default@example.com']);
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
     it('fails open and sends the email when the count query throws', async () => {
       Response.countDocuments = jest.fn().mockRejectedValue(new Error('db hiccup'));
       await submitFormResponse({ params: { formId }, body: validBody }, res);
-      expect(emailSender).toHaveBeenCalledTimes(1);
+      expect(emailSender).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });

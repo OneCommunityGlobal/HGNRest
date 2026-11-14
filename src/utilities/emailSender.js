@@ -8,7 +8,7 @@ const EmailHistory = require('../models/emailHistory');
 const EmailThread = require('../models/emailThread');
 
 const config = {
-  email: process.env.REACT_APP_EMAIL,
+  email: process.env.REACT_APP_EMAIL || process.env.SMTPUser,
   clientId: process.env.REACT_APP_EMAIL_CLIENT_ID,
   clientSecret: process.env.REACT_APP_EMAIL_CLIENT_SECRET,
   redirectUri: process.env.REACT_APP_EMAIL_CLIENT_REDIRECT_URI,
@@ -17,6 +17,13 @@ const config = {
   concurrency: 3,
   rateLimitDelay: 1000,
 };
+
+const hasOAuthEmailConfig = Boolean(
+  config.email && config.clientId && config.clientSecret && config.refreshToken,
+);
+const hasSmtpEmailConfig = Boolean(
+  process.env.SMTPUser && process.env.SMTPPass && process.env.SMTPDomain,
+);
 
 const OAuth2Client = new google.auth.OAuth2(
   config.clientId,
@@ -36,56 +43,87 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Local/dev-only fallback when REACT_APP_EMAIL_* OAuth is unset.
+// Production (blue square, weekly summary, job applications) uses Gmail OAuth — not app passwords.
+const createSecureSmtpTransporter = () =>
+  nodemailer.createTransport({
+    host: process.env.SMTPDomain,
+    port: Number(process.env.SMTPPort || 465),
+    secure: true,
+    auth: {
+      user: process.env.SMTPUser,
+      pass: process.env.SMTPPass,
+    },
+  });
+
+const applyOAuthAuth = async (mailOptions) => {
+  const accessTokenResp = await OAuth2Client.getAccessToken();
+  const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
+
+  if (!token) {
+    throw new Error('NO_OAUTH_ACCESS_TOKEN');
+  }
+
+  mailOptions.auth = {
+    type: 'OAuth2', // include type
+    user: config.email,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    refreshToken: config.refreshToken,
+    accessToken: token,
+  };
+};
+
+// Nodemailer accepts messageId, inReplyTo, and references as top-level options
+// and will include any headers provided in mailOptions.headers.
+const attachThreadingHeaders = (mailOptions) => {
+  try {
+    if (mailOptions.messageId) {
+      // set Message-ID both as option and header (header key uses 'Message-ID')
+      mailOptions.headers = { ...mailOptions.headers, 'Message-ID': mailOptions.messageId };
+    }
+
+    if (mailOptions.inReplyTo) {
+      mailOptions.headers = { ...mailOptions.headers, 'In-Reply-To': mailOptions.inReplyTo };
+    }
+
+    if (mailOptions.references) {
+      // normalize references to a space-separated string per RFC
+      const refs = Array.isArray(mailOptions.references)
+        ? mailOptions.references.join(' ')
+        : String(mailOptions.references);
+      mailOptions.references = refs;
+      mailOptions.headers = { ...mailOptions.headers, References: refs };
+    }
+  } catch (hdrErr) {
+    // header construction should never block sending; log and continue
+    logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
+  }
+};
+
 const sendEmail = async (mailOptions) => {
   try {
-    const accessTokenResp = await OAuth2Client.getAccessToken();
-    const token = typeof accessTokenResp === 'object' ? accessTokenResp?.token : accessTokenResp;
-
-    if (!token) {
-      throw new Error('NO_OAUTH_ACCESS_TOKEN');
+    if (!hasOAuthEmailConfig && !hasSmtpEmailConfig) {
+      throw new Error('NO_EMAIL_TRANSPORT_CONFIGURED');
     }
 
-    mailOptions.auth = {
-      type: 'OAuth2', // include type
-      user: config.email,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      refreshToken: config.refreshToken,
-      accessToken: token,
-    };
-    // Ensure threading headers are included in the outgoing mail options
-    // Nodemailer accepts messageId, inReplyTo, and references as top-level options
-    // and will include any headers provided in mailOptions.headers.
-    try {
-      if (mailOptions.messageId) {
-        // set Message-ID both as option and header (header key uses 'Message-ID')
-        mailOptions.headers = { ...mailOptions.headers, 'Message-ID': mailOptions.messageId };
-      }
+    const activeTransporter = hasOAuthEmailConfig ? transporter : createSecureSmtpTransporter();
 
-      if (mailOptions.inReplyTo) {
-        mailOptions.headers = { ...mailOptions.headers, 'In-Reply-To': mailOptions.inReplyTo };
-      }
-
-      if (mailOptions.references) {
-        // normalize references to a space-separated string per RFC
-        const refs = Array.isArray(mailOptions.references)
-          ? mailOptions.references.join(' ')
-          : String(mailOptions.references);
-        mailOptions.references = refs;
-        mailOptions.headers = { ...mailOptions.headers, References: refs };
-      }
-    } catch (hdrErr) {
-      // header construction should never block sending; log and continue
-      logger.logException(hdrErr, 'Failed to attach threading headers to mailOptions');
+    if (hasOAuthEmailConfig) {
+      await applyOAuthAuth(mailOptions);
     }
+
+    if (!mailOptions.from) {
+      mailOptions.from = config.email;
+    }
+
+    attachThreadingHeaders(mailOptions);
+
     logger.logInfo(
       `[sendEmail] about to send to=${mailOptions.to} subject="${mailOptions.subject}"`,
     );
-    const result = await transporter.sendMail(mailOptions);
+    const result = await activeTransporter.sendMail(mailOptions);
     logger.logInfo(`[sendEmail] sent messageId=${result?.messageId} response=${result?.response}`);
-    if (process.env.NODE_ENV === 'local') {
-      logger.logInfo(`Local emails - not attempting to send!`);
-    }
     return result;
   } catch (error) {
     console.error('Error sending email:', error);
@@ -305,8 +343,11 @@ const emailSender = (
 ) => {
   const type = opts?.type ?? 'general';
   const isReset = type === 'password_reset';
+  // Explicit opt-in so local/dev can test real SMTP/OAuth without forcing NODE_ENV=production.
+  // Production still requires sendEmail=true (existing gate below).
+  const emailSendingEnabled = String(process.env.sendEmail).toLowerCase() === 'true';
 
-  if (process.env.NODE_ENV !== 'production' && !isReset) {
+  if (process.env.NODE_ENV !== 'production' && !isReset && !emailSendingEnabled) {
     return Promise.resolve('EMAIL_SENDING_DISABLED_NON_PROD');
   }
 
