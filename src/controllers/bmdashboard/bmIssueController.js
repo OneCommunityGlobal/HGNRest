@@ -513,13 +513,17 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       }
 
       const today = new Date();
-      const issues = await injuryIssue.find(query).select('name openDate totalCost').lean();
+      const issues = await injuryIssue
+        .find(query)
+        .select('name openDate totalCost projectId')
+        .lean();
 
       const result = issues
         .filter((issue) => issue.totalCost != null)
         .map((issue) => ({
           issueId: issue._id,
           title: issue.name,
+          projectId: issue.projectId,
           totalCost: issue.totalCost,
           daysOpen: Math.floor((today - new Date(issue.openDate)) / (1000 * 60 * 60 * 24)),
         }))
