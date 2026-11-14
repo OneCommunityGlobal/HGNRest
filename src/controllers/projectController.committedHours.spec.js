@@ -11,7 +11,13 @@ jest.mock('../startup/logger', () => ({
   logException: jest.fn(),
 }));
 
+jest.mock('../utilities/permissions', () => ({
+  ...jest.requireActual('../utilities/permissions'),
+  hasPermission: jest.fn(),
+}));
+
 const logger = require('../startup/logger');
+const { hasPermission } = require('../utilities/permissions');
 const projectController = require('./projectController');
 
 describe('getProjectsCommittedHours', () => {
@@ -27,6 +33,7 @@ describe('getProjectsCommittedHours', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    hasPermission.mockResolvedValue(true);
 
     Project = {
       aggregate: jest.fn(),
@@ -35,13 +42,32 @@ describe('getProjectsCommittedHours', () => {
     ({ getProjectsCommittedHours } = projectController(Project));
 
     req = {
-      body: { ...validDates },
+      body: {
+        ...validDates,
+        requestor: { userId: 'test-user' },
+      },
     };
 
     res = {
       status: jest.fn().mockReturnThis(),
       send: jest.fn().mockReturnThis(),
     };
+  });
+
+  test('returns HTTP 403 when requestor does not have getReports permission', async () => {
+    hasPermission.mockResolvedValue(false);
+
+    await getProjectsCommittedHours(req, res);
+
+    expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'getReports');
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).toHaveBeenCalledWith(
+      'You are not authorized to view volunteer hours reports.',
+    );
+
+    // Unauthorized requests must not execute the database aggregation.
+    expect(Project.aggregate).not.toHaveBeenCalled();
   });
 
   test('returns actual logged hours for projects', async () => {

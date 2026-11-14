@@ -30,6 +30,10 @@ const projectController = function (Project) {
 
   const getProjectsCommittedHours = async function (req, res) {
     try {
+      if (!(await hasPermission(req.body.requestor, 'getReports'))) {
+        return res.status(403).send('You are not authorized to view volunteer hours reports.');
+      }
+
       const { fromDate, toDate } = req.body || {};
       const timezone = 'America/Los_Angeles';
 
