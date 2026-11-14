@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { logException } = require('../../startup/logger');
 // The Tools List model (tool_item in buildingInventoryItems), not the separate buildingTools
 // collection, so the donut counts the same tools as the Tools List.
 const { buildingTool: BuildingTool } = require('../../models/bmdashboard/buildingInventoryItem');
@@ -65,7 +66,7 @@ exports.getToolAvailability = async (req, res) => {
 
     return res.status(200).json({ data, total, tools: toolDropdownData });
   } catch (err) {
-    console.error('Error calculating tool availability:', err.message, err.stack);
+    logException(err, 'bmToolAvailabilityController.getToolAvailability', req.query);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

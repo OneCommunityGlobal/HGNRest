@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { logException } = require('../../startup/logger');
 const { getToolStatus, getProjectIdsSharingName } = require('../../helpers/toolAvailabilityHelper');
 
 const { ObjectId } = mongoose.Types;
@@ -52,7 +53,7 @@ const toolAvailabilityController = function (BuildingTool) {
 
       return res.json(results);
     } catch (error) {
-      console.error('Error fetching tools availability:', error);
+      logException(error, 'toolAvailabilityController.getToolsAvailability', req.params);
       return res.status(500).json({ error: 'Internal server error' });
     }
   };
@@ -92,7 +93,7 @@ const toolAvailabilityController = function (BuildingTool) {
 
       return res.json(formattedResults);
     } catch (error) {
-      console.error('Error fetching unique project IDs:', error);
+      logException(error, 'toolAvailabilityController.getUniqueProjectIds');
       return res.status(500).json({ error: 'Internal server error' });
     }
   };
