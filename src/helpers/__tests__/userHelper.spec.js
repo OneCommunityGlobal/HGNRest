@@ -94,6 +94,7 @@ const {
   checkIsNewUser,
   weeklyAutoReplyEmailFunction,
   assignBlueSquareForTimeNotMet,
+  resolveAutoReplyTemplate,
 } = userHelperFactory();
 
 /* =======================
@@ -725,11 +726,35 @@ describe('checkLeadTeamOfXplus', () => {
     badge.find.mockReset();
   });
 
-  test('returns early for roles that cannot lead teams', async () => {
-    const user = { role: 'Volunteer' };
-    await checkLeadTeamOfXplus(personId, user, []);
+  // The Badges Detail doc describes this badge as being for "a Manager, Core
+  // Team, or Admin class", and Jae's comment on that doc puts it as "the Users
+  // Class being one of the Management classes". Mentor is not named there but
+  // has always been allowed and stays allowed deliberately. Owner is not named
+  // either and stays ineligible, which is the behaviour that was already here.
+  const eligibleRoles = ['Mentor', 'Manager', 'Core Team', 'Administrator'];
+  const ineligibleRoles = ['Volunteer', 'Owner'];
+
+  test.each(ineligibleRoles)('returns early for %s, who cannot lead teams', async (role) => {
+    await checkLeadTeamOfXplus(personId, { role }, []);
 
     expect(Team.aggregate).not.toHaveBeenCalled();
+  });
+
+  test.each(eligibleRoles)('sizes the team and awards a badge for %s', async (role) => {
+    const qualifyingBadgeId = new mongoose.Types.ObjectId();
+
+    Team.aggregate.mockResolvedValue([
+      {
+        _id: new mongoose.Types.ObjectId(),
+        teamName: 'Team A',
+        members: [{ userId: new mongoose.Types.ObjectId(), role: 'Volunteer' }],
+      },
+    ]);
+    badge.find.mockReturnValue(makeQuery([{ _id: qualifyingBadgeId, people: 1 }]));
+
+    await checkLeadTeamOfXplus(personId, { role }, []);
+
+    expect(userProfile.findByIdAndUpdate).toHaveBeenCalled();
   });
 
   test('adds a qualifying team-size badge for an eligible leader', async () => {
@@ -798,7 +823,9 @@ describe('checkLeadTeamOfXplus', () => {
     const user = { role: 'Manager' };
     await checkLeadTeamOfXplus(personId, user, []);
 
-    expect(badge.find).toHaveBeenCalledWith(expect.objectContaining({ people: { $lte: 1 } }));
+    expect(badge.find).toHaveBeenCalledWith(
+      expect.objectContaining({ people: { $lte: 1, $gt: 0 } }),
+    );
   });
 
   test('skips badgeCollection entries that are not team-size badges', async () => {
@@ -845,6 +872,32 @@ describe('checkLeadTeamOfXplus', () => {
     await checkLeadTeamOfXplus(personId, user, badgeCollection);
 
     expect(badge.find).toHaveBeenCalled();
+  });
+
+  test('never asks for a badge whose threshold is zero people', async () => {
+    const members = [
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+      { userId: new mongoose.Types.ObjectId(), role: 'Volunteer' },
+    ];
+
+    Team.aggregate.mockResolvedValue([
+      { _id: new mongoose.Types.ObjectId(), teamName: 'Team A', members },
+    ]);
+    badge.find.mockReturnValue(makeQuery([]));
+
+    await checkLeadTeamOfXplus(personId, { role: 'Manager' }, []);
+
+    // Pinned as a whole object rather than objectContaining, so neither the
+    // type filter nor the zero guard can be dropped without this failing.
+    // Dev holds a badge called "0 Hours for 7 Week Streak" saved with this
+    // type and people: 0. Without $gt it is the highest match for anyone
+    // leading 1 to 4 people, so they would be handed an hours-streak badge
+    // for leading a team.
+    expect(badge.find).toHaveBeenCalledWith({
+      type: 'Lead a team of X+',
+      people: { $lte: 3, $gt: 0 },
+    });
   });
 
   test('does nothing when no team-size badge qualifies', async () => {
@@ -1636,5 +1689,53 @@ describe('assignBlueSquareForTimeNotMet', () => {
     expect(loggerSpy).toHaveBeenCalledWith(inactiveError);
 
     loggerSpy.mockRestore();
+  });
+});
+
+describe('resolveAutoReplyTemplate', () => {
+  test('returns null when hours are met', () => {
+    expect(resolveAutoReplyTemplate(40, 40, 6, 1, true, false)).toBeNull();
+  });
+
+  test('returns MISSED_HOURS_BY_<15%', () => {
+    expect(resolveAutoReplyTemplate(36, 40, 6, 1, true, false)).toBe('MISSED_HOURS_BY_<15%');
+  });
+
+  test('returns 4TH_BLUE_SQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 4, true, false)).toBe('4TH_BLUE_SQUARE');
+  });
+
+  test('returns SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 4, true, true)).toBe(
+      'SCHEDULED_TIME_OFF_AND_4TH_BLUE_SQUARE',
+    );
+  });
+
+  test('returns SCHEDULED_TIME_OFF', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 6, 1, true, true)).toBe('SCHEDULED_TIME_OFF');
+  });
+
+  test('returns <2MON_THREE_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 1, 3, true, false)).toBe('<2MON_THREE_BLUESQUARE');
+  });
+
+  test('returns <1MON_TWO_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 0.5, 2, true, false)).toBe('<1MON_TWO_BLUESQUARE');
+  });
+
+  test('returns <2MON_TWO_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 1.5, 2, true, false)).toBe('<2MON_TWO_BLUESQUARE');
+  });
+
+  test('returns <1MON_ONE_BLUESQUARE', () => {
+    expect(resolveAutoReplyTemplate(0, 40, 0.5, 1, true, false)).toBe('<1MON_ONE_BLUESQUARE');
+  });
+
+  test('returns COMPLETED_HOURS_65%_84.9%', () => {
+    expect(resolveAutoReplyTemplate(30, 40, 6, 1, true, false)).toBe('COMPLETED_HOURS_65%_84.9%');
+  });
+
+  test('returns COMPLETED_HOURS_25%_64.9%', () => {
+    expect(resolveAutoReplyTemplate(20, 40, 6, 1, true, false)).toBe('COMPLETED_HOURS_25%_64.9%');
   });
 });

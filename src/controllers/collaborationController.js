@@ -19,6 +19,7 @@ const {
   parseBooleanQuery,
   sanitizeObjectIdQuery,
 } = require('../utilities/mongoQuerySanitizer');
+const { shouldSendConfirmation } = require('../utilities/confirmationEmailCap');
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -222,6 +223,7 @@ function appendResumeAndProfileAnswers(
 }
 
 async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+  if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
     const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
     const safeTitle = escapeHtml(form.title);
@@ -257,11 +259,7 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
           <p>Best regards,<br/>One Community</p>
         </div>
       `;
-    await emailSender(
-      [normalizedEmail],
-      `Application Already Received: ${form.title}`,
-      emailBody,
-    );
+    await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
   } catch (emailErr) {
     console.error('Duplicate application email failed (non-fatal):', emailErr.message);
   }

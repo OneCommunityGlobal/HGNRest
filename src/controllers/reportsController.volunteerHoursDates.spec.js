@@ -1,5 +1,6 @@
 const mockGetHoursStats = jest.fn();
 const mockGetTotalHoursWorked = jest.fn();
+const mockGetCountryCounts = jest.fn();
 
 jest.mock(
   '../helpers/overviewReportHelper',
@@ -8,6 +9,7 @@ jest.mock(
       {
         getHoursStats: mockGetHoursStats,
         getTotalHoursWorked: mockGetTotalHoursWorked,
+        getCountryCounts: mockGetCountryCounts,
       },
       {
         get(target, property) {
@@ -32,6 +34,7 @@ describe('getVolunteerStatsData volunteer-hours date flow', () => {
     jest.clearAllMocks();
     mockGetHoursStats.mockResolvedValue([]);
     mockGetTotalHoursWorked.mockResolvedValue({ current: 0 });
+    mockGetCountryCounts.mockResolvedValue({ allTime: 4, active: 3 });
   });
 
   test.each([
@@ -57,6 +60,9 @@ describe('getVolunteerStatsData volunteer-hours date flow', () => {
 
     expect(mockGetHoursStats).toHaveBeenCalledWith(startDate, endDate, '2026-06-21', '2026-06-27');
     expect(mockGetTotalHoursWorked).toHaveBeenCalledWith(startDate, endDate);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ countryCounts: { allTime: 4, active: 3 } }),
+    );
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });
