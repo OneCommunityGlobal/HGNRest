@@ -60,7 +60,6 @@ describe('getProjectsCommittedHours', () => {
     await getProjectsCommittedHours(req, res);
 
     expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'getReports');
-
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.send).toHaveBeenCalledWith(
       'You are not authorized to view volunteer hours reports.',
