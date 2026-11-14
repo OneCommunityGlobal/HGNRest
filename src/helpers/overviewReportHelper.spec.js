@@ -97,14 +97,8 @@ describe('overviewReportHelper tests', () => {
 
     afterEach(() => jest.restoreAllMocks());
 
-    test('counts Active and Started tasks as assigned when comparison is off', async () => {
-      const stats = [
-        { _id: 'Active', count: 3 },
-        { _id: 'Started', count: 2 },
-        { _id: 'Complete', count: 4 },
-        { _id: 'Not Started', count: 7 },
-      ];
-      jest.spyOn(Task, 'aggregate').mockResolvedValue(stats);
+    test('returns assigned and completed counts when comparison is off', async () => {
+      jest.spyOn(Task, 'countDocuments').mockResolvedValueOnce(5).mockResolvedValueOnce(4);
 
       const { getTasksStats } = overviewReportHelper();
       const result = await getTasksStats(startDate, endDate);
@@ -112,24 +106,23 @@ describe('overviewReportHelper tests', () => {
       expect(result).toEqual({
         active: { current: 5 },
         complete: { current: 4 },
-        raw: { current: stats },
+        raw: {
+          current: [
+            { _id: 'Assigned', count: 5 },
+            { _id: 'Completed', count: 4 },
+          ],
+          counts: { current: { assigned: 5, completed: 4 } },
+        },
       });
     });
 
-    test('counts Active and Started tasks as assigned in both comparison ranges', async () => {
-      const current = [
-        { _id: 'Active', count: 3 },
-        { _id: 'Started', count: 2 },
-        { _id: 'Complete', count: 4 },
-        { _id: 'Not Started', count: 7 },
-      ];
-      const comparison = [
-        { _id: 'Started', count: 4 },
-        { _id: 'Complete', count: 2 },
-      ];
-      const aggregateSpy = jest
-        .spyOn(Task, 'aggregate')
-        .mockResolvedValue([{ current, comparison }]);
+    test('returns assigned and completed counts in both comparison ranges', async () => {
+      const countDocumentsSpy = jest
+        .spyOn(Task, 'countDocuments')
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(4)
+        .mockResolvedValueOnce(4)
+        .mockResolvedValueOnce(2);
 
       const { getTasksStats } = overviewReportHelper();
       const result = await getTasksStats(
@@ -142,19 +135,26 @@ describe('overviewReportHelper tests', () => {
       expect(result).toEqual({
         active: { current: 5, percentage: 0.25 },
         complete: { current: 4, percentage: 1 },
-        raw: { current, comparison },
+        raw: {
+          current: [
+            { _id: 'Assigned', count: 5 },
+            { _id: 'Completed', count: 4 },
+          ],
+          comparison: [
+            { _id: 'Assigned', count: 4 },
+            { _id: 'Completed', count: 2 },
+          ],
+          counts: {
+            current: { assigned: 5, completed: 4 },
+            comparison: { assigned: 4, completed: 2 },
+          },
+        },
       });
-      const { $facet } = aggregateSpy.mock.calls[0][0][0];
-      expect($facet.current[0]).toEqual({
-        $match: { modifiedDatetime: { $gte: startDate, $lte: endDate } },
-      });
-      expect($facet.comparison[0]).toEqual({
-        $match: { modifiedDatetime: { $gte: comparisonStartDate, $lte: comparisonEndDate } },
-      });
+      expect(countDocumentsSpy).toHaveBeenCalledTimes(4);
     });
 
-    test('returns zero counts when the comparison aggregation is empty', async () => {
-      jest.spyOn(Task, 'aggregate').mockResolvedValue([]);
+    test('returns zero counts when both task-count ranges are empty', async () => {
+      jest.spyOn(Task, 'countDocuments').mockResolvedValue(0);
 
       const { getTasksStats } = overviewReportHelper();
       const result = await getTasksStats(
@@ -167,29 +167,39 @@ describe('overviewReportHelper tests', () => {
       expect(result).toEqual({
         active: { current: 0, percentage: 0 },
         complete: { current: 0, percentage: 0 },
-        raw: { current: [], comparison: [] },
+        raw: {
+          current: [
+            { _id: 'Assigned', count: 0 },
+            { _id: 'Completed', count: 0 },
+          ],
+          comparison: [
+            { _id: 'Assigned', count: 0 },
+            { _id: 'Completed', count: 0 },
+          ],
+          counts: {
+            current: { assigned: 0, completed: 0 },
+            comparison: { assigned: 0, completed: 0 },
+          },
+        },
       });
     });
 
-    test('treats a missing comparison range as zero counts', async () => {
-      const current = [
-        { _id: 'Active', count: 1 },
-        { _id: 'Complete', count: 2 },
-      ];
-      jest.spyOn(Task, 'aggregate').mockResolvedValue([{ current }]);
+    test('treats a partial comparison range as no comparison', async () => {
+      jest.spyOn(Task, 'countDocuments').mockResolvedValueOnce(1).mockResolvedValueOnce(2);
 
       const { getTasksStats } = overviewReportHelper();
-      const result = await getTasksStats(
-        startDate,
-        endDate,
-        comparisonStartDate,
-        comparisonEndDate,
-      );
+      const result = await getTasksStats(startDate, endDate, comparisonStartDate);
 
       expect(result).toEqual({
-        active: { current: 1, percentage: 'No Comparison Data' },
-        complete: { current: 2, percentage: 'No Comparison Data' },
-        raw: { current, comparison: [] },
+        active: { current: 1 },
+        complete: { current: 2 },
+        raw: {
+          current: [
+            { _id: 'Assigned', count: 1 },
+            { _id: 'Completed', count: 2 },
+          ],
+          counts: { current: { assigned: 1, completed: 2 } },
+        },
       });
     });
   });
