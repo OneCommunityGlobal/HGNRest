@@ -65,7 +65,7 @@ const readPlacementFields = function (body) {
 };
 
 const teamcontroller = function (Team) {
-  const getAllTeams = function (req, res) {
+  const getAllTeams = function (_req, res) {
     Team.aggregate([
       {
         // Unwind members so each member becomes its own document.
