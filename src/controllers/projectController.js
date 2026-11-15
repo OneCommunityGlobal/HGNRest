@@ -104,11 +104,11 @@ const projectController = function (Project) {
           },
         },
       ]);
-
+      const TOTAL_HOURS = 10;
       const response = result.map((project) => ({
         projectId: project.projectId,
         projectName: project.projectName,
-        loggedHours: Math.round((project.totalSeconds / 3600) * 10) / 10,
+        loggedHours: Math.round((project.totalSeconds / 3600) * TOTAL_HOURS) / TOTAL_HOURS,
       }));
 
       return res.status(200).send(response);
@@ -730,7 +730,7 @@ const projectController = function (Project) {
       const updateTask = await helper.hasPermission(req.body.requestor, 'updateTask');
       const suggestTask = await helper.hasPermission(req.body.requestor, 'suggestTask');
       const canGetId = getProjMembers || postTask || updateTask || suggestTask;
-
+      const MAX_PROJECTS = 30;
       const results = await userProfile
         .find({
           projects: projectId,
@@ -738,7 +738,7 @@ const projectController = function (Project) {
         })
         .select(`firstName lastName isActive ${canGetId ? '_id' : ''}`)
         .sort({ firstName: 1, lastName: 1 })
-        .limit(30);
+        .limit(MAX_PROJECTS);
       res.status(200).send(results);
     } catch (error) {
       res.status(500).send(error);
@@ -770,7 +770,6 @@ const projectController = function (Project) {
 
       res.status(200).send(result);
     } catch (error) {
-      console.error(error);
       res.status(500).send('Error fetching active member counts');
     }
   };

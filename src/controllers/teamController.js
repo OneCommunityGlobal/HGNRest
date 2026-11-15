@@ -11,7 +11,8 @@ const placement = require('../helpers/teamPlacementHelper');
 const TimeEntry = require('../models/timeentry');
 
 const INTERNAL_SERVER_ERROR = 'Internal server error';
-
+const HOURS_DECIMAL_PRECISION = 10;
+const TOTAL_HOURS = 3600;
 /**
  * Validate the optional placement fields used by the Promotion Eligibility
  * dashboard (doc item #23), and return only the ones the caller actually sent.
@@ -121,7 +122,7 @@ const teamcontroller = function (Team) {
         res.status(200).send(results);
       })
       .catch((error) => {
-        console.error('Aggregation failed unexpectedly:', error);
+        // console.error('Aggregation failed unexpectedly:', error);
         Logger.logException(error);
         res.status(500).send(error);
       });
@@ -189,7 +190,7 @@ const teamcontroller = function (Team) {
       }
 
       const hoursByUser = new Map(
-        hoursSummary.map((entry) => [String(entry._id), entry.totalSeconds / 3600]),
+        hoursSummary.map((entry) => [String(entry._id), entry.totalSeconds / TOTAL_HOURS]),
       );
 
       const result = teams.map((teamData) => {
@@ -200,7 +201,8 @@ const teamcontroller = function (Team) {
 
             return {
               userId: member.userId,
-              totalHours: Math.round(totalHours * 10) / 10,
+              totalHours:
+                Math.round(totalHours * HOURS_DECIMAL_PRECISION) / HOURS_DECIMAL_PRECISION,
             };
           })
           .filter((member) => member.totalHours > 0);
@@ -212,7 +214,7 @@ const teamcontroller = function (Team) {
         return {
           teamId: teamData._id,
           teamName: teamData.teamName,
-          loggedHours: Math.round(totalHours * 10) / 10,
+          loggedHours: Math.round(totalHours * HOURS_DECIMAL_PRECISION) / HOURS_DECIMAL_PRECISION,
           membersHours,
         };
       });
@@ -693,7 +695,7 @@ const teamcontroller = function (Team) {
 
       return res.status(200).send(sortedData);
     } catch (error) {
-      console.error('Error in getTeamMembersSkillsAndContact:', error);
+      // console.error('Error in getTeamMembersSkillsAndContact:', error);
       return res.status(500).send({
         message: 'Failed to retrieve team members',
         error: error.message,
