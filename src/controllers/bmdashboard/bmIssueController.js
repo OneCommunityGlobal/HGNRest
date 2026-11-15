@@ -181,6 +181,32 @@ function validatePostBody(body) {
   return null;
 }
 
+function buildIssueFilterQuery(reqQuery, dateField, baseQuery) {
+  const { projectIds, projects, startDate, endDate, dates } = reqQuery;
+  const query = { ...baseQuery };
+  const rawProjects = projectIds || projects;
+
+  if (rawProjects) {
+    const ids = rawProjects
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (ids.length > 0) query.projectId = { $in: ids };
+  }
+
+  const [parsedStart, parsedEnd] = dates
+    ? dates.split(',').map((d) => d.trim())
+    : [startDate, endDate];
+
+  if (parsedStart || parsedEnd) {
+    query[dateField] = {};
+    if (parsedStart) query[dateField].$gte = new Date(parsedStart);
+    if (parsedEnd) query[dateField].$lte = new Date(parsedEnd);
+  }
+
+  return query;
+}
+
 /* eslint-disable-next-line max-lines-per-function */
 const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
@@ -431,28 +457,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- LONGEST OPEN ISSUES -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
-      const { projectIds, projects, startDate, endDate, dates } = req.query;
-      const query = { status: 'open' };
-      const rawProjects = projectIds || projects;
-
-      if (rawProjects) {
-        const ids = rawProjects
-          .split(',')
-          .map((id) => id.trim())
-          .filter(Boolean);
-        if (ids.length > 0) query.projectId = { $in: ids };
-      }
-
-      const [parsedStart, parsedEnd] = dates
-        ? dates.split(',').map((d) => d.trim())
-        : [startDate, endDate];
-
-      if (parsedStart || parsedEnd) {
-        query.issueDate = {};
-        if (parsedStart) query.issueDate.$gte = new Date(parsedStart);
-        if (parsedEnd) query.issueDate.$lte = new Date(parsedEnd);
-      }
-
+      const query = buildIssueFilterQuery(req.query, 'issueDate', { status: 'open' });
       const today = new Date();
       const issues = await BuildingIssue.find(query).select('issueTitle issueDate').lean();
 
@@ -475,28 +480,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- MOST EXPENSIVE ISSUES -------------------- */
   const getMostExpensiveIssues = async (req, res) => {
     try {
-      const { projectIds, projects, startDate, endDate, dates } = req.query;
-      const query = {};
-      const rawProjects = projectIds || projects;
-
-      if (rawProjects) {
-        const ids = rawProjects
-          .split(',')
-          .map((id) => id.trim())
-          .filter(Boolean);
-        if (ids.length > 0) query.projectId = { $in: ids };
-      }
-
-      const [parsedStart, parsedEnd] = dates
-        ? dates.split(',').map((d) => d.trim())
-        : [startDate, endDate];
-
-      if (parsedStart || parsedEnd) {
-        query.openDate = {};
-        if (parsedStart) query.openDate.$gte = new Date(parsedStart);
-        if (parsedEnd) query.openDate.$lte = new Date(parsedEnd);
-      }
-
+      const query = buildIssueFilterQuery(req.query, 'openDate', {});
       const today = new Date();
       const issues = await injuryIssue.find(query).select('name openDate totalCost').lean();
 
