@@ -84,6 +84,23 @@ async function pingAdmin(timeoutMs = 10000) {
   }
 }
 
+function raceWithTimeout(promise, timeoutMs, timeoutError) {
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      if (timeoutError) {
+        reject(timeoutError);
+      } else {
+        resolve();
+      }
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 function mockDay(dayIdx, past = false) {
   const date = moment().tz('America/Los_Angeles').startOf('day');
 
@@ -105,7 +122,9 @@ function mockDay(dayIdx, past = false) {
 
 async function safeClearAll() {
   try {
-    if (mongoose.connection?.db) await dbClearAll();
+    if (mongoose.connection?.readyState === 1 && mongoose.connection?.db) {
+      await raceWithTimeout(dbClearAll(), 3000);
+    }
   } catch (e) {
     console.warn('safeClearAll skipped:', e.message);
   }
@@ -113,7 +132,9 @@ async function safeClearAll() {
 
 async function safeDisconnect() {
   try {
-    if (mongoose.connection?.readyState) await dbDisconnect();
+    if (mongoose.connection?.readyState !== 0) {
+      await raceWithTimeout(dbDisconnect(), 3000);
+    }
   } catch (e) {
     console.warn('safeDisconnect skipped:', e.message);
   }
@@ -137,9 +158,14 @@ if (shouldSkipTests) {
 
     beforeAll(async () => {
       try {
-        await dbConnect();
-        await waitForMongoReady(60_000);
-        await pingAdmin(8_000);
+        // Race dbConnect against a hard 30s limit to catch hanging downloads/connections
+        await raceWithTimeout(dbConnect(), 30000, new Error('dbConnect timed out after 30s'));
+
+        await waitForMongoReady(15_000);
+        await pingAdmin(5_000);
+
+        // Clear existing database collections before seeding test permissions
+        await safeClearAll();
 
         for (let i = 0; i < 3; i += 1) {
           try {

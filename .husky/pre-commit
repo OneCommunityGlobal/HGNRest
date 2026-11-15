@@ -1,4 +1,3 @@
-
 echo "✅ Husky pre-commit is running..."
 npx lint-staged --allow-empty
 
