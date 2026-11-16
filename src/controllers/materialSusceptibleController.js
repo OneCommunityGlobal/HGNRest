@@ -21,13 +21,15 @@ const createProjectMaterial = async (req, res) => {
   }
 
   const { projectName, toolName, replacedPercentage, date } = projectMaterialbody;
-  const newProjectMaterial = new ProjectMaterial({
+
+  const safeProjectMaterialData = {
     projectName,
     toolName,
     replacedPercentage,
     date,
-  });
+  };
 
+  const newProjectMaterial = new ProjectMaterial(safeProjectMaterialData);
   try {
     await newProjectMaterial.save();
     res.status(201).json({
