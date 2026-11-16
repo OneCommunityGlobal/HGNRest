@@ -1,39 +1,62 @@
 const Job = require('../models/jobs');
 const JobPositionCategory = require('../models/jobPositionCategory');
+const { stripHtml } = require('../utilities/htmlContentSanitizer');
 
 /* ============================================================
    UTILS
    ============================================================ */
 
-// Prevent regex injection / crashes
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
-// Build query (REUSABLE)
-const buildJobQuery = ({ search = '', category = '', position = '' }) => {
+/** Posted date from a Mongo ObjectId (creation time encoded in the id). */
+const datePostedFromId = (id) => {
+  if (id && typeof id.getTimestamp === 'function') {
+    return id.getTimestamp();
+  }
+  return new Date(Number.parseInt(String(id).substring(0, 8), 16) * 1000);
+};
+
+const parseCategory = (category) => {
+  if (!category) return [];
+
+  if (Array.isArray(category)) return category;
+
+  try {
+    const parsed = JSON.parse(category);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // A plain string is one category. Don't split on commas: names like
+    // "Architecture, Landscape & Environment" contain them. Send multiple as a JSON array.
+    const single = String(category).trim();
+    return single ? [single] : [];
+  }
+};
+
+const buildConditions = ({ search, category, position }) => {
   const conditions = [];
 
-  /* SEARCH FILTER */
-  if (search && search.trim() !== '') {
-    const safeSearch = escapeRegex(search.trim());
+  /* SEARCH */
+  if (search?.trim()) {
+    const safe = escapeRegex(search.trim());
     conditions.push({
       $or: [
-        { title: { $regex: safeSearch, $options: 'i' } },
-        { description: { $regex: safeSearch, $options: 'i' } },
+        { title: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } },
       ],
     });
   }
 
-  /* POSITION FILTER (uses title) */
-  if (position && position.trim() !== '') {
-    const safePosition = escapeRegex(position.trim());
+  /* POSITION */
+  if (position?.trim()) {
+    const safe = escapeRegex(position.trim());
     conditions.push({
-      title: { $regex: `^${safePosition}`, $options: 'i' },
+      title: { $regex: `^${safe}`, $options: 'i' },
     });
   }
 
-  /* CATEGORY FILTER */
-  if (category && category.trim() !== '') {
-    const categoryList = category.split(',').map((c) => c.trim());
+  /* CATEGORY */
+  const categoryList = parseCategory(category);
+  if (categoryList.length > 0) {
     conditions.push({ category: { $in: categoryList } });
   }
 
@@ -41,21 +64,22 @@ const buildJobQuery = ({ search = '', category = '', position = '' }) => {
 };
 
 /* ============================================================
-   INTERNAL: MAIN PAGINATION + FILTERING LOGIC
+   PAGINATION CONTROLLER
    ============================================================ */
+
 const paginationForJobs = async (req, res) => {
   const { page = 1, limit = 18, search = '', category = '', position = '' } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
-    const query = buildJobQuery({ search, category, position });
+    const query = buildConditions({ search, category, position });
 
     const totalJobs = await Job.countDocuments(query);
     const totalPages = Math.max(1, Math.ceil(totalJobs / limitNumber));
 
-    const pageNum = pageNumber > totalPages ? 1 : pageNumber;
+    const pageNum = Math.min(pageNumber, totalPages);
 
     const jobs = await Job.find(query)
       .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
@@ -84,19 +108,17 @@ const paginationForJobs = async (req, res) => {
   }
 };
 
-/* ============================================================
-   EXPORT: GET JOBS WITH PAGINATION
-   ============================================================ */
 const getJobs = (req, res) => paginationForJobs(req, res);
 
 /* ============================================================
    JOB SUMMARIES
    ============================================================ */
+
 const getJobSummaries = async (req, res) => {
   const { search = '', category = '', position = '' } = req.query;
 
   try {
-    const query = buildJobQuery({ search, category, position });
+    const query = buildConditions({ search, category, position });
 
     const jobs = await Job.find(query)
       .select('title category location description datePosted featured jobDetailsLink')
@@ -105,7 +127,11 @@ const getJobSummaries = async (req, res) => {
 
     const totalJobs = jobs.length;
 
-    res.json({ success: true, jobs, totalJobs });
+    res.json({
+      success: true,
+      jobs,
+      totalJobs,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -118,8 +144,10 @@ const getJobSummaries = async (req, res) => {
 /* ============================================================
    OTHER CONTROLLERS
    ============================================================ */
+
 const getJobTitleSuggestions = async (req, res) => {
   const { query = '' } = req.query;
+
   try {
     const suggestions = await Job.find({
       title: { $regex: query, $options: 'i' },
@@ -135,19 +163,14 @@ const resetJobsFilters = async (req, res) => {
   const { page = 1, limit = 18 } = req.query;
 
   try {
-    const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, parseInt(limit, 10));
-
-    const sortCriteria = {
-      displayOrder: 1,
-      featured: -1,
-      datePosted: -1,
-      title: 1,
-    };
+    const pageNumber = Math.max(1, Number.parseInt(page, 10));
+    const limitNumber = Math.max(1, Number.parseInt(limit, 10));
 
     const totalJobs = await Job.countDocuments({});
+    const totalPages = Math.ceil(totalJobs / limitNumber);
+
     const jobs = await Job.find({})
-      .sort(sortCriteria)
+      .sort({ displayOrder: 1, featured: -1, datePosted: -1, title: 1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
       .lean();
@@ -156,15 +179,18 @@ const resetJobsFilters = async (req, res) => {
       jobs,
       pagination: {
         totalJobs,
-        totalPages: Math.ceil(totalJobs / limitNumber),
+        totalPages,
         currentPage: pageNumber,
         limit: limitNumber,
-        hasNextPage: pageNumber < Math.ceil(totalJobs / limitNumber),
+        hasNextPage: pageNumber < totalPages,
         hasPreviousPage: pageNumber > 1,
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to reset filters', details: error.message });
+    res.status(500).json({
+      error: 'Failed to reset filters',
+      details: error.message,
+    });
   }
 };
 
@@ -188,14 +214,33 @@ const getPositions = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/jobs/positions
+ * Distinct job titles from the jobs collection for the job application form dropdown.
+ */
+const getActiveJobPositions = async (req, res) => {
+  try {
+    const positions = (await Job.distinct('title', {})).filter(Boolean);
+    positions.sort((a, b) => a.localeCompare(b));
+    res.status(200).json({ positions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch active job positions', details: error.message });
+  }
+};
+
 const getJobById = async (req, res) => {
   const { id } = req.params;
+
   try {
     const job = await Job.findById(id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
+
     res.json(job);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch job', details: error.message });
+    res.status(500).json({
+      error: 'Failed to fetch job',
+      details: error.message,
+    });
   }
 };
 
@@ -203,13 +248,13 @@ const createJob = async (req, res) => {
   const { title, category, description, imageUrl, location, applyLink, jobDetailsLink } = req.body;
 
   try {
-    const highestOrderJob = await Job.findOne().sort({ displayOrder: -1 }).limit(1);
+    const highestOrderJob = await Job.findOne().sort({ displayOrder: -1 });
     const newDisplayOrder = highestOrderJob ? highestOrderJob.displayOrder + 1 : 0;
 
     const newJob = new Job({
       title,
       category,
-      description,
+      description: typeof description === 'string' ? stripHtml(description) : description,
       imageUrl,
       location,
       applyLink,
@@ -220,19 +265,53 @@ const createJob = async (req, res) => {
     const savedJob = await newJob.save();
     res.status(201).json(savedJob);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create job', details: error.message });
+    res.status(500).json({
+      error: 'Failed to create job',
+      details: error.message,
+    });
   }
 };
 
 const updateJob = async (req, res) => {
   const { id } = req.params;
+  const update = { ...req.body };
+
+  if (Object.keys(update).some((key) => key.startsWith('$'))) {
+    return res.status(400).json({ error: 'Update operators are not allowed' });
+  }
+
+  // Never let an update request clear the posted date.
+  if (!update.datePosted) {
+    delete update.datePosted;
+  } else {
+    const parsed = new Date(update.datePosted);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ error: 'Invalid datePosted' });
+    }
+    update.datePosted = parsed;
+  }
 
   try {
-    const updatedJob = await Job.findByIdAndUpdate(id, req.body, { new: true });
-    if (!updatedJob) return res.status(404).json({ error: 'Job not found' });
+    const existingJob = await Job.findById(id).lean();
+    if (!existingJob) return res.status(404).json({ error: 'Job not found' });
+
+    // Align with backfillJobDatePosted: use creation time from _id, not "now".
+    if (!existingJob.datePosted && !update.datePosted) {
+      update.datePosted = datePostedFromId(existingJob._id);
+    }
+
+    if (typeof update.description === 'string') {
+      update.description = stripHtml(update.description);
+    }
+
+    const updatedJob = await Job.findByIdAndUpdate(id, update, { new: true });
+
     res.json(updatedJob);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update job', details: error.message });
+    res.status(500).json({
+      error: 'Failed to update job',
+      details: error.message,
+    });
   }
 };
 
@@ -242,9 +321,13 @@ const deleteJob = async (req, res) => {
   try {
     const deletedJob = await Job.findByIdAndDelete(id);
     if (!deletedJob) return res.status(404).json({ error: 'Job not found' });
+
     res.json({ message: 'Job deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete job', details: error.message });
+    res.status(500).json({
+      error: 'Failed to delete job',
+      details: error.message,
+    });
   }
 };
 
@@ -252,8 +335,9 @@ const reorderJobs = async (req, res) => {
   const { jobIds } = req.body;
 
   try {
-    if (!Array.isArray(jobIds) || jobIds.length === 0)
+    if (!Array.isArray(jobIds) || jobIds.length === 0) {
       return res.status(400).json({ error: 'Invalid job order data' });
+    }
 
     const updateOperations = jobIds.map((jobId, index) => ({
       updateOne: {
@@ -272,9 +356,16 @@ const reorderJobs = async (req, res) => {
       jobs,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to reorder jobs', details: error.message });
+    res.status(500).json({
+      error: 'Failed to reorder jobs',
+      details: error.message,
+    });
   }
 };
+
+/* ============================================================
+   EXPORTS
+   ============================================================ */
 
 module.exports = {
   getJobs,
@@ -288,4 +379,5 @@ module.exports = {
   getCategories,
   reorderJobs,
   getPositions,
+  getActiveJobPositions,
 };

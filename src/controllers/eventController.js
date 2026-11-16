@@ -91,7 +91,7 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type, location, sortBy } = req.query;
+    const { page, limit, type, location, sortBy, sortOrder = 'asc' } = req.query;
 
     validateQuery({ type, location, sortBy });
 
@@ -101,7 +101,7 @@ const getEvents = async function (req, res) {
 
     const events = await Event.find(safeQuery)
       .populate('resources.userID')
-      .sort(sortBy ? { [sortBy]: 1 } : {})
+      .sort(sortBy ? { [sortBy]: sortOrder === 'desc' ? -1 : 1 } : {})
       .skip(skip)
       .limit(limitNumber);
 

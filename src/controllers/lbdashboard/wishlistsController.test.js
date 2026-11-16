@@ -195,7 +195,7 @@ describe('wishlistController', () => {
       Wishlist.findOne.mockResolvedValue(mockWishlist);
 
       await wishlistController.addToWishlist(req, res);
-      expect(mockPush).toHaveBeenCalledWith(validListingId);
+      expect(mockPush).toHaveBeenCalledWith(new mongoose.Types.ObjectId(validListingId));
       expect(mockSave).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });

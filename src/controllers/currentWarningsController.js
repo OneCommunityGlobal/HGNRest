@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const userProfile = require('../models/userProfile');
 const helper = require('../utilities/permissions');
+const { setOutdatedWarningsFlag } = require('../utilities/warningsCache');
 const currentWarningsController = function (currentWarnings) {
   const normalizeWarningTitle = (warningTitle /*: string */) => warningTitle.toLowerCase().trim();
 
@@ -9,15 +10,45 @@ const currentWarningsController = function (currentWarnings) {
     return !/^[a-zA-Z][a-zA-Z0-9,+-]*(?: [a-zA-Z0-9,+-]+)*$/.test(warning);
   };
 
+  const addMissingOrderValues = async (warnings) => {
+    const updates = [];
+    warnings.forEach((warning, index) => {
+      if (warning.order === null || warning.order === undefined || warning.order === -1) {
+        updates.push({
+          updateOne: {
+            filter: { _id: warning._id },
+            update: { $set: { order: index } },
+          },
+        });
+      }
+    });
+
+    if (updates.length > 0) {
+      await currentWarnings.bulkWrite(updates);
+    }
+    // only updates warnings missing an order value
+    return warnings.map((warning, index) => ({
+      ...warning,
+      order: warning.order ?? index,
+    }));
+  };
+
   const getCurrentWarnings = async (req, res) => {
     try {
-      const response = await currentWarnings.find({});
+      const response = await currentWarnings.find({}).sort({ order: 1 });
 
       if (response.length === 0) {
         return res.status(400).send({ message: 'No records', response: response });
       }
-      return res.status(200).send({ currentWarningDescriptions: response });
+
+      const missingOrder = response.some(
+        (warning) => warning.order === null || warning.order === undefined || warning.order === -1,
+      );
+
+      const updatedWarnings = missingOrder ? await addMissingOrderValues(response) : response;
+      return res.status(200).send({ currentWarningDescriptions: updatedWarnings });
     } catch (error) {
+      console.log('Entered error of fetch warnings');
       res.status(401).send({ message: error.message || error });
     }
   };
@@ -55,6 +86,7 @@ const currentWarningsController = function (currentWarnings) {
         isPermanent,
       }).save();
 
+      setOutdatedWarningsFlag();
       const updatedWarnings = await currentWarnings.find({});
       return res.status(201).send({ newWarnings: updatedWarnings });
     } catch (error) {
@@ -63,6 +95,14 @@ const currentWarningsController = function (currentWarnings) {
   };
 
   const editWarningDescription = async (req, res) => {
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) &&
+      !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker'))
+    ) {
+      res.status(403).send('You are not authorized to edit a WarningTracker.');
+      return;
+    }
+
     try {
       const { editedWarning } = req.body;
       const normalizedWarningTitle = normalizeWarningTitle(editedWarning.warningTitle);
@@ -91,7 +131,45 @@ const currentWarningsController = function (currentWarnings) {
       warning.warningTitle = trimmedWarning;
 
       await warning.save();
+      setOutdatedWarningsFlag();
       res.status(201).send({ message: 'warning description was updated' });
+    } catch (error) {
+      res.status(401).send({ message: error.message || error });
+    }
+  };
+
+  const reorderWarningDescriptions = async (req, res) => {
+    if (
+      !(await helper.hasPermission(req.body.requestor, 'addWarningTracker')) &&
+      !(await helper.hasPermission(req.body.requestor, 'deleteWarningTracker'))
+    ) {
+      res.status(403).send('You are not authorized to edit the order of the WarningTrackers.');
+      return;
+    }
+    try {
+      const reorderedWarningDescriptions = req.body.warningDescriptions;
+      const response = await currentWarnings.find({}).sort({ order: 1 });
+
+      reorderedWarningDescriptions.map((warning, index) => (warning.order = index));
+      await currentWarnings.bulkWrite(
+        response.map((warning, index) => ({
+          updateOne: {
+            filter: { _id: warning._id },
+            update: {
+              $set: {
+                order: reorderedWarningDescriptions.findIndex(
+                  (warn) => warn.warningTitle === warning.warningTitle,
+                ),
+              },
+            },
+          },
+        })),
+      );
+
+      setOutdatedWarningsFlag();
+      res.status(201).send({
+        reorderedWarningDescriptions: reorderedWarningDescriptions,
+      });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
     }
@@ -116,7 +194,7 @@ const currentWarningsController = function (currentWarnings) {
         [{ $set: { activeWarning: { $not: '$activeWarning' } } }],
         { new: true },
       );
-
+      setOutdatedWarningsFlag();
       res.status(201).send({ message: 'warning description was updated' });
     } catch (error) {
       res.status(401).send({ message: error.message || error });
@@ -148,7 +226,7 @@ const currentWarningsController = function (currentWarnings) {
           },
         },
       );
-
+      setOutdatedWarningsFlag();
       return res.status(200);
     } catch (error) {
       res.status(401).send({ message: error.message || error });
@@ -161,6 +239,7 @@ const currentWarningsController = function (currentWarnings) {
     updateWarningDescription,
     deleteWarningDescription,
     editWarningDescription,
+    reorderWarningDescriptions,
   };
 };
 module.exports = currentWarningsController;

@@ -470,12 +470,12 @@ async function seed() {
 
     // Quick stats summary
     const total = inserted.length;
-    const critical = inserted.filter(i => i.presentQuantity <= i.reorderAt * 0.5).length;
+    const critical = inserted.filter((i) => i.presentQuantity <= i.reorderAt * 0.5).length;
     const low = inserted.filter(
-      i => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
+      (i) => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
     ).length;
     const preserved = inserted.filter(
-      i =>
+      (i) =>
         i.category === 'INGREDIENT' &&
         new Date(i.expiryDate) >= new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     ).length;

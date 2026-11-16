@@ -27,7 +27,7 @@ const rolePreset = require('../models/rolePreset');
 const ownerMessage = require('../models/ownerMessage');
 const currentWarnings = require('../models/currentWarnings');
 const availability = require('../models/lbdashboard/availability');
-
+const activityRouter = require('../routes/activityRouter');
 const listingAvailablityRouter = require('../routes/lbdashboard/listingAvailablityRouter')(
   availability,
 );
@@ -38,13 +38,11 @@ const hgnFormResponses = require('../models/hgnFormResponse');
 const listings = require('../models/lbdashboard/listings');
 const biddingHome = require('../models/lbdashboard/biddings');
 const village = require('../models/lbdashboard/villages');
-const event = require('../models/event');
 const registration = require('../models/registration');
 const projectCost = require('../models/bmdashboard/projectCost');
 const userPreferences = require('../models/lbdashboard/userPreferences');
 const message = require('../models/lbdashboard/message');
 const helpCategory = require('../models/helpCategory');
-const wishlists = require('../models/lbdashboard/wishlists');
 const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 const injuryAnalyticsRoutes = require('../routes/injuryAnalytics');
@@ -55,6 +53,9 @@ const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
 const PRGradingConfig = require('../models/prAnalytics/prGradingConfig');
 const prGradingConfigRouter = require('../routes/prAnalytics/prGradingConfigRouter')(
   PRGradingConfig,
+  userProfile,
+  hgnFormResponses,
+  require('../models/team'),
 );
 
 // Title
@@ -63,6 +64,7 @@ const blueSquareEmailAssignment = require('../models/BlueSquareEmailAssignment')
 const hgnformRouter = require('../routes/hgnformRouter');
 const hgnFormResponseRouter = require('../routes/hgnFormResponseRouter');
 const progressRouter = require('../routes/progressRouter');
+const mastodonRouter = require('../routes/mastodonRouter');
 
 const questionnaireAnalyticsRouter = require('../routes/questionnaireAnalyticsRouter');
 const applicantAnalyticsRouter = require('../routes/applicantAnalyticsRoutes');
@@ -126,9 +128,12 @@ const bidoverview_Listing = require('../models/lbdashboard/bidoverview/Listing')
 const bidoverview_Bid = require('../models/lbdashboard/bidoverview/Bid');
 const bidoverview_User = require('../models/lbdashboard/bidoverview/User');
 const bidoverview_Notification = require('../models/lbdashboard/bidoverview/Notification');
+const meeting = require('../models/meeting');
 const hoursPledgedRoutes = require('../routes/jobAnalytics/hoursPledgedRoutes');
 const userStateRouter = require('../routes/userState');
 const userProfileRouter = require('../routes/userProfileRouter')(userProfile, project);
+const productionIdentityRouter = require('../routes/productionIdentityRouter');
+const productionWebhookRouter = require('../routes/productionWebhookRouter');
 const userSkillTabsRouter = require('../routes/userSkillTabsRouter')(hgnFormResponses);
 const warningRouter = require('../routes/warningRouter')(userProfile);
 const currentWarningsRouter = require('../routes/curentWarningsRouter')(currentWarnings);
@@ -157,6 +162,7 @@ const reportsRouter = require('../routes/reportsRouter')();
 const wbsRouter = require('../routes/wbsRouter')(wbs);
 const taskRouter = require('../routes/taskRouter')(task);
 const studentTaskRouter = require('../routes/studentTaskRouter')();
+const studentEvaluationResultsRouter = require('../routes/studentEvaluationResultsRouter')();
 const popupRouter = require('../routes/popupEditorRouter')(popup);
 const popupBackupRouter = require('../routes/popupEditorBackupRouter')(popupBackup);
 const taskNotificationRouter = require('../routes/taskNotificationRouter')(taskNotification);
@@ -218,6 +224,7 @@ const costsRouter = require('../routes/costsRouter')(costs);
 const form = require('../models/forms');
 const formResponse = require('../models/formResponse');
 const formRouter = require('../routes/formRouter')(form, formResponse);
+const meetingRouter = require('../routes/meetingRouter')(meeting);
 
 const wastedMaterialRouter = require('../routes/mostWastedRouter');
 const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRouter')();
@@ -225,10 +232,17 @@ const weeklySummariesFilterRouter = require('../routes/weeklySummariesFilterRout
 const jobAnalyticsRoutes = require('../routes/jobAnalytics');
 
 const materialCostRouter = require('../routes/materialCostRouter')();
+const applicationTimeRoutes = require('../routes/jobAnalytics/applicationTimeRoutes');
 
 // bm dashboard
 const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
-const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterial);
+// NOTE: Use buildingMaterialModel (from buildingMaterial.js, queries 'buildingMaterials' collection)
+// NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
+// See DEBUGGING_DOCUMENTATION.md for details on this fix
+const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
+const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
+  buildingMaterialModel,
+);
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
@@ -262,10 +276,13 @@ const bmDashboardRouter = require('../routes/bmdashboard/bmDashboardPrototypeRou
 
 const bmTimeLoggerRouter = require('../routes/bmdashboard/bmTimeLoggerRouter')(bmTimeLog);
 const bmPaidLaborCostRouter = require('../routes/bmdashboard/bmPaidLaborCostRouter');
+const weeklyProjectSummaryRouter = require('../routes/bmdashboard/weeklyProjectSummaryRouter');
 const bmProjectRiskProfileRouter = require('../routes/bmdashboard/bmProjectRiskProfileRouter');
 const bmIssuesRouter = require('../routes/bmdashboard/IssuesRouter');
+const knowledgeEvolutionRouter = require('../routes/bmdashboard/knowledgeEvolutionRouter');
 
 // lb dashboard
+const lbRegisterRouter = require('../routes/lbdashboard/lbdashboardRoutes')();
 const lbListingsRouter = require('../routes/lbdashboard/listingsRouter')(listings);
 
 const lbWishlistsRouter = require('../routes/lbdashboard/wishlistsRouter');
@@ -322,8 +339,8 @@ const prInsightsRouter = require('../routes/prAnalytics/prInsightsRouter')(
   userProfile,
 );
 const weeklyGradingRouter = require('../routes/prAnalytics/weeklyGradingRouter')(WeeklyGrading);
+const githubAnalyticsRouter = require('../routes/githubAnalyticsRouter');
 
-const eventRouter = require('../routes/eventRouter');
 const weeklySummaryEmailAssignmentRouter = require('../routes/WeeklySummaryEmailAssignmentRoute')(
   weeklySummaryEmailAssignment,
   userProfile,
@@ -351,6 +368,7 @@ const cpNoShowRouter = require('../routes/CommunityPortal/NoshowVizRouter')();
 const cpEventFeedbackRouter = require('../routes/CommunityPortal/eventFeedbackRouter');
 
 const collaborationRouter = require('../routes/collaborationRouter');
+const questionSetRouter = require('../routes/questionSetRouter');
 
 // summary dashboard routes
 const supplierPerformanceRouter = require('../routes/summaryDashboard/supplierPerformanceRouter')();
@@ -361,6 +379,7 @@ const registrationRouter = require('../routes/registrationRouter')(registration)
 
 const templateRouter = require('../routes/templateRouter');
 const emailTemplateRouter = require('../routes/emailTemplateRouter');
+const attendanceRouter = require('../routes/attendanceRouter');
 
 const projectMaterialRouter = require('../routes/projectMaterialroutes');
 console.log('Loading plannedCost model...');
@@ -374,7 +393,6 @@ console.log('PlannedCostRouter loaded:', plannedCostRouter ? 'success' : 'failed
 const projectCostRouter = require('../routes/bmdashboard/projectCostRouter')(projectCost);
 
 const tagRouter = require('../routes/tagRouter')(tag);
-const educationTaskRouter = require('../routes/educationTaskRouter');
 const educatorRouter = require('../routes/educatorRouter');
 const atomRouter = require('../routes/atomRouter');
 const intermediateTaskRouter = require('../routes/intermediateTaskRouter');
@@ -387,12 +405,15 @@ const webhookRouter = require('../routes/lbdashboard/webhookRouter');
 const bidNotificationsRouter = require('../routes/lbdashboard/bidNotificationsRouter');
 const bidDeadlinesRouter = require('../routes/lbdashboard/bidDeadlinesRouter');
 const SMSRouter = require('../routes/lbdashboard/SMSRouter')();
+const listOverviewRouter = require('../routes/lbdashboard/listOverviewRouter')();
 const blueskyRouter = require('../routes/blueskyRouter');
 
 const NoShowFollowUpRouter = require('../routes/CommunityPortal/noShowFollowUpRouter')();
-const applicantVolunteerRatioRouter = require('../routes/applicantAnalyticsRouter');
+const applicantVolunteerRatioRouter = require('../routes/applicantVolunteerRatioRouter');
 const analyticsRouter = require('../routes/optanalyticsRoutes')();
 const applicationRoutes = require('../routes/applications');
+const educatorGroupRouter = require('../routes/educatorGroupRoutes');
+const toolReplacementRoutes = require('../routes/toolReplacementRoutes');
 const announcementRouter = require('../routes/announcementRouter')();
 
 const permissionRouter = require('../routes/permissionRouter');
@@ -400,6 +421,8 @@ const permissionRouter = require('../routes/permissionRouter');
 // Analytics
 const analyticsPopularPRsRouter = require('../routes/analyticsPopularPRsRouter')();
 const PromotionEligibility = require('../models/promotionEligibility');
+const ReviewerGroup = require('../models/reviewerGroup');
+const PromotionPrEntry = require('../models/promotionPrEntry');
 
 const promotionEligibilityRouter = require('../routes/promotionEligibilityRouter');
 
@@ -410,6 +433,8 @@ const educationProfileRouter = require('../routes/educationRouter');
 // lesson planner router
 
 const lessonPlanSubmissionRouter = require('../routes/lessonPlanner/lessonPlanSubmissionRouter');
+
+const pmRouter = require('../routes/pmDashboardRouter');
 
 // education portal
 
@@ -434,15 +459,42 @@ const jobHitsAndApplicationsRoutes = require('../routes/jobAnalytics/JobHitsAndA
 // Education Portal
 const educatorRoutes = require('../routes/educatorRoutes');
 
+// Class Aggregation Reports
+const classAggregationRouter = require('../routes/classAgreegraterRouter');
+const activityLogRouter = require('../routes/activityLogRouter')();
+const eventRouter = require('../routes/eventRouter');
+
+const educationTaskRouter = require('../routes/educationTaskRouter')();
+
+const resourceRequest = require('../models/resourceRequest');
+const resourceRequestController = require('../controllers/resourceRequestController')(
+  resourceRequest,
+  userProfile,
+);
+const resourceRequestRouter = require('../routes/resourceRequestRouter')(
+  resourceRequest,
+  userProfile,
+  resourceRequestController,
+);
+
+const gardenCalendarRouter = require('../routes/gardenManagement/gardenCalendarRouter');
+const seedInventoryRouter = require('../routes/gardenManagement/seedInventoryRouter');
+const seedOrderRouter = require('../routes/gardenManagement/seedOrderRouter');
+
 module.exports = function (app) {
+  app.use('/api/project-status', projectStatusRouter);
+
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
   app.use('/api', loginRouter);
   app.use('/api', forcePwdRouter);
+  app.use('/api', productionIdentityRouter);
+  app.use('/api', productionWebhookRouter);
   app.use('/api', projectRouter);
   app.use('/api', userProfileRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', timeEntryRouter);
+  app.use('/api', mastodonRouter);
   app.use('/api', timelogTrackingRouter);
   app.use('/api', teamRouter);
   app.use('/api', wastedMaterialRouter);
@@ -455,7 +507,9 @@ module.exports = function (app) {
   app.use('/api', reportsRouter);
   app.use('/api', wbsRouter);
   app.use('/api', taskRouter);
+  app.use('/api', educationTaskRouter);
   app.use('/api', studentTaskRouter);
+  app.use('/api', studentEvaluationResultsRouter);
   app.use('/api', popupRouter);
   app.use('/api', popupBackupRouter);
   app.use('/api', taskNotificationRouter);
@@ -493,11 +547,16 @@ module.exports = function (app) {
   app.use('/api', blueSquareEmailAssignmentRouter);
   app.use('/api', weeklySummaryEmailAssignmentRouter);
   app.use('/api', materialUtilizationRouter);
+  app.use('/api/communityportal/activities', activityRouter);
+  app.use('/public/communityportal/activities', activityRouter);
 
   app.use('/api', formRouter);
+  app.use('/api', meetingRouter);
   app.use('/api', collaborationRouter);
+  app.use('/api/question-sets', questionSetRouter);
   app.use('/api', userSkillsProfileRouter);
   app.use('/api', savedFilterRouter);
+  app.use('/api', toolReplacementRoutes);
   app.use('/api/costs', costsRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/questions', hgnformRouter);
@@ -518,37 +577,41 @@ module.exports = function (app) {
   app.use('/api', hoursPledgedRoutes);
   app.use('/api', templateRouter);
   app.use('/api', emailTemplateRouter);
+  app.use('/api/educator', educatorGroupRouter);
 
   app.use('/api/help-categories', helpCategoryRouter);
   app.use('/api', tagRouter);
-  app.use('/api/education-tasks', educationTaskRouter);
   app.use('/api/educator', educatorRouter);
   app.use('/api/atoms', atomRouter);
-  app.use('/api/intermediate-tasks', intermediateTaskRouter);
+  app.use('/api/educator', intermediateTaskRouter);
   app.use('/api/analytics', pledgeAnalyticsRoutes);
   app.use('/api', registrationRouter);
   app.use('/api', injuryAnalyticsRoutes);
+  app.use('/api', attendanceRouter);
 
   app.use('/api/job-analytics', jobAnalyticsRoutes);
   app.use('/api/applicant-volunteer-ratio', applicantVolunteerRatioRouter);
   app.use('/api/map-analytics', mapAnalyticsRouter);
   app.use('/api/analytics', countryAnalyticsRouter);
-  app.use('/job-analytics', jobAnalyticsRouter);
+  app.use('/api/job-analytics-router', jobAnalyticsRouter);
   app.use('/api', weeklySummariesFilterRouter);
   app.use('/api/popularity', popularityTimelineRoutes);
   app.use('/applications', applicationRoutes);
   app.use('/api', taskCommentRouter);
   app.use('/api/popularity-enhanced', popularityEnhancedRoutes);
   app.use('/api', jobHitsAndApplicationsRoutes);
+  app.use('/api/analytics', applicationTimeRoutes);
 
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmMaterialInsightsRouter);
   app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
   app.use('/api/bm', bmNewLessonRouter);
   app.use('/api/bm', bmInventoryTypeRouter);
   app.use('/api/bm', bmToolsReturnedLateRouter);
+  app.use('/api/bm', bmRentalChart);
   app.use('/api/bm', bmToolRouter);
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
@@ -560,15 +623,24 @@ module.exports = function (app) {
   app.use('/api/slack', slackRouter);
   app.use('/api/accessManagement', appAccessRouter);
   app.use('/api/bm', bmExternalTeam);
+  app.use('/api', costBreakdownRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
+  app.use('/api/bm', bmIssueRouter);
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
+  app.use('/api', knowledgeEvolutionRouter);
+
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api', costBreakdownRouter);
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
-
   app.use('/api', toolAvailabilityRouter);
   app.use('/api', projectCostTrackingRouter);
+
+  // app.use('/api/bm', bmOrgLocation);
+  app.use('api', bmIssueRouter);
 
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
@@ -579,6 +651,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmOrgLocation);
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
+  app.use('/api/bm/weekly-project-summary', weeklyProjectSummaryRouter);
   app.use('/api/bm', bmInjuryRouter);
   app.use('/api', bmProjectRiskProfileRouter);
 
@@ -590,10 +663,15 @@ module.exports = function (app) {
   app.use('/api/communityportal/activities/', cpEventFeedbackRouter);
   app.use('/api/communityportal', NoShowFollowUpRouter);
 
-  // lb dashboard
-  app.use('/api/lb', lbListingsRouter);
-  app.use('/api/bm', bmIssueRouter);
+  const eventPopularityRouter = require('../routes/eventPopularityRouter');
+  app.use('/api', eventPopularityRouter);
+
   app.use('/api', eventRouter);
+
+  // lb dashboard
+  app.use('/api/lbdashboard', lbRegisterRouter);
+  app.use('/api/lb', lbListingsRouter);
+
   app.use('/api/villages', require('../routes/lbdashboard/villages'));
   app.use('/api/lb', lbMessageRouter);
   app.use('/api/lb', lbUserPrefRouter);
@@ -612,21 +690,33 @@ module.exports = function (app) {
   app.use('/api/', projectCostRouter);
   app.use('/api', toolAvailabilityRoutes);
   app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
+
   app.use('/api', bmToolsDowntimeRouter);
   app.use('/api/lb', lbWishlistsRouter);
   app.use('/api', actualCostRouter);
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
   app.use('/api/analytics', analyticsPopularPRsRouter);
-  app.use('/api/', promotionEligibilityRouter(userProfile, timeEntry, task, PromotionEligibility));
+  app.use(
+    '/api/',
+    promotionEligibilityRouter(
+      userProfile,
+      timeEntry,
+      task,
+      PromotionEligibility,
+      ReviewerGroup,
+      team,
+      hgnFormResponses,
+      PromotionPrEntry,
+    ),
+  );
 
   // PR Analytics
   app.use('/api', prInsightsRouter);
   app.use('/api', weeklyGradingRouter);
   app.use('/api', prGradingConfigRouter);
+  app.use('/api/analytics', githubAnalyticsRouter);
   app.use('/api', projectMaterialRouter);
-  app.use('/api/bm', bmRentalChart);
   app.use('/api/lb', listingAvailablityRouter);
   // lb dashboard
   app.use('/api/lb', bidTermsRouter);
@@ -637,11 +727,18 @@ module.exports = function (app) {
   app.use('/api/lb', bidDeadlinesRouter);
   app.use('/api/lb', SMSRouter);
 
+  //pm dashboard
+  app.use('/api/pm', pmRouter);
+  app.use('/api', resourceRequestRouter);
+  app.use('/api/lb', listOverviewRouter);
+  app.use('/api/educator/reports', classAggregationRouter);
+
+  app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
   app.use('/api', materialCostRouter);
 
-  app.use('/api/educator/reports', studentReportRouter());
+  app.use('/api/educator/report', studentReportRouter());
   // education portal
   app.use('/api/education', badgeSystemRouter);
 
@@ -649,7 +746,7 @@ module.exports = function (app) {
 
   app.use('/api/education', browsableLessonPlanRouter);
 
-  app.use('/api/educator/reports', downloadReportRouter);
+  app.use('/api/educator/reportdownload', downloadReportRouter);
 
   // Kitchen and Inventory portal routes
   app.use('/api/kitchenandinventory/inventory', kitchenInventoryRouter);
@@ -665,4 +762,9 @@ module.exports = function (app) {
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 
   app.use('/api/analytics', analyticsRouter);
+
+  // Kitchen and Inventory - Garden Management
+  app.use('/api/kitchenandinventory/gardenmanagement/calendar', gardenCalendarRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/seeds', seedInventoryRouter);
+  app.use('/api/kitchenandinventory/gardenmanagement/orders', seedOrderRouter);
 };

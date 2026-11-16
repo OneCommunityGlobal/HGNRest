@@ -3,15 +3,19 @@ const Wishlist = require('../../models/lbdashboard/wishlists');
 const Listing = require('../../models/lbdashboard/listings');
 const Village = require('../../models/lbdashboard/villages');
 
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const toObjectId = (value) =>
+  typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)
+    ? new mongoose.Types.ObjectId(value)
+    : null;
 
 const wishlistController = {
   getWishlist: async (req, res) => {
     try {
       const { userId } = req.query;
       if (!userId) return res.status(400).json({ message: 'userId is required' });
-      if (!isValidObjectId(userId)) return res.status(400).json({ message: 'Invalid userId' });
-      const wishlist = await Wishlist.findOne({ userId }).populate(
+      const userObjectId = toObjectId(userId);
+      if (!userObjectId) return res.status(400).json({ message: 'Invalid userId' });
+      const wishlist = await Wishlist.findOne({ userId: userObjectId }).populate(
         'listingId',
         'title images description price amenities village',
       );
@@ -22,7 +26,9 @@ const wishlistController = {
         wishlist.listingId.map(async (listing) => {
           let villageAmenities = [];
           if (listing.village) {
-            const village = await Village.findOne({ name: listing.village }).select('amenities');
+            const village = await Village.findOne({ name: String(listing.village) }).select(
+              'amenities',
+            );
             if (village) villageAmenities = village.amenities;
           }
 
@@ -45,21 +51,23 @@ const wishlistController = {
 
   addToWishlist: async (req, res) => {
     try {
-      const { userId } = req.body;
-      const { listingId } = req.body;
+      const { userId, listingId } = req.body;
       if (!userId || !listingId)
         return res.status(400).json({ message: 'userId and listingId required' });
-      if (!isValidObjectId(userId) || !isValidObjectId(listingId))
+      const userObjectId = toObjectId(userId);
+      const listingObjectId = toObjectId(listingId);
+      if (!userObjectId || !listingObjectId)
         return res.status(400).json({ message: 'Invalid userId or listingId' });
 
-      const listingExists = await Listing.findById(listingId);
+      const listingExists = await Listing.findById(listingObjectId);
       if (!listingExists) return res.status(404).json({ message: 'Listing not found' });
 
-      let wishlist = await Wishlist.findOne({ userId });
-      if (!wishlist) wishlist = new Wishlist({ userId, listingId: [listingId] });
-      else if (wishlist.listingId.some((id) => id.toString() === listingId))
+      let wishlist = await Wishlist.findOne({ userId: userObjectId });
+      if (!wishlist)
+        wishlist = new Wishlist({ userId: userObjectId, listingId: [listingObjectId] });
+      else if (wishlist.listingId.some((id) => String(id) === String(listingObjectId)))
         return res.status(409).json({ message: 'Listing already in wishlist' });
-      else wishlist.listingId.push(listingId);
+      else wishlist.listingId.push(listingObjectId);
 
       await wishlist.save();
       res.status(200).json(wishlist);
@@ -75,16 +83,20 @@ const wishlistController = {
       const { listingId } = req.params;
       if (!userId || !listingId)
         return res.status(400).json({ message: 'userId and listingId required' });
-      if (!isValidObjectId(userId) || !isValidObjectId(listingId))
+      const userObjectId = toObjectId(userId);
+      const listingObjectId = toObjectId(listingId);
+      if (!userObjectId || !listingObjectId)
         return res.status(400).json({ message: 'Invalid userId or listingId' });
 
-      const wishlist = await Wishlist.findOne({ userId });
+      const wishlist = await Wishlist.findOne({ userId: userObjectId });
       if (!wishlist) return res.status(404).json({ message: 'Wishlist not found' });
 
-      if (!wishlist.listingId.some((id) => id.toString() === listingId))
+      if (!wishlist.listingId.some((id) => String(id) === String(listingObjectId)))
         return res.status(404).json({ message: 'Listing not in wishlist' });
 
-      wishlist.listingId = wishlist.listingId.filter((id) => id.toString() !== listingId);
+      wishlist.listingId = wishlist.listingId.filter(
+        (id) => !String(id) === String(listingObjectId),
+      );
       await wishlist.save();
 
       res.status(200).json({ message: 'Listing removed from wishlist' });
