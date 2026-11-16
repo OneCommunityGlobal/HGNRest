@@ -8,6 +8,7 @@ const middleware = require('../startup/middleware');
 const UserProfile = require('../models/userProfile');
 const Role = require('../models/role');
 const FormResponse = require('../models/hgnFormResponse');
+const ApplicationAccess = require('../models/applicationAccess');
 const TimeEntry = require('../models/timeentry');
 const Task = require('../models/task');
 const PromotionEligibility = require('../models/promotionEligibility');
@@ -76,9 +77,16 @@ describe('questionnaire promotion eligibility integration', () => {
 
   beforeEach(async () => {
     await Promise.all(
-      [UserProfile, Role, FormResponse, TimeEntry, Task, PromotionEligibility, ReviewerGroup].map(
-        (model) => model.deleteMany({}),
-      ),
+      [
+        UserProfile,
+        Role,
+        FormResponse,
+        ApplicationAccess,
+        TimeEntry,
+        Task,
+        PromotionEligibility,
+        ReviewerGroup,
+      ].map((model) => model.deleteMany({})),
     );
     ids = Object.fromEntries(
       ['admin', 'newMember', 'respondent', 'inactive', 'owner', 'promoted'].map((key) => [
@@ -110,6 +118,10 @@ describe('questionnaire promotion eligibility integration', () => {
         user_id: ids[key],
       })),
     );
+    await ApplicationAccess.create({
+      userId: String(ids.newMember),
+      apps: [{ app: 'dropbox', status: 'invited', teamFolderKey: 'HGN' }],
+    });
     adminToken = token(ids.admin, 'Administrator');
     volunteerToken = token(ids.newMember, 'Volunteer');
   });

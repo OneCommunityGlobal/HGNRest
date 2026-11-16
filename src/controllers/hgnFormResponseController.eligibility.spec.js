@@ -9,6 +9,11 @@ jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
+jest.mock('../helpers/questionnaireAccessHelper', () => ({
+  getQuestionnaireAccess: jest.fn(),
+}));
+
+const { getQuestionnaireAccess } = require('../helpers/questionnaireAccessHelper');
 const FormResponse = require('../models/hgnFormResponse');
 const UserProfile = require('../models/userProfile');
 const { getHelpRequestEligibility } = require('../helpers/helpRequestEligibility');
@@ -46,7 +51,13 @@ describe('HGN questionnaire submission -> help request eligibility (same persist
     }));
 
     const { submitFormResponse } = hgnFormController();
-    const req = { body: submissionBody };
+    getQuestionnaireAccess.mockResolvedValue({ eligible: true });
+    const req = {
+      body: {
+        ...submissionBody,
+        requestor: { requestorId: AUTHENTICATED_USER_ID, role: 'Volunteer' },
+      },
+    };
     const res = makeRes();
 
     await submitFormResponse(req, res);
