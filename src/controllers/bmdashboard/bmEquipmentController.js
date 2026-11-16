@@ -44,23 +44,59 @@ const validateAndUploadImage = async (file, equipmentId) => {
   }
 };
 
-/**
- * Builds the updateRecord subdocument for a status update.
- * Defaults all optional string fields to '' so they are always present in the schema.
- * If imageUrl is provided it is included; otherwise it is omitted entirely so the field
- * does not appear in this subdocument entry.
- */
-const buildUpdateRecord = (fields, imageUrl) => ({
-  date: new Date(),
-  createdBy: new mongoose.Types.ObjectId(fields.createdBy),
-  condition: fields.condition,
-  lastUsedBy: fields.lastUsedBy || '',
-  lastUsedFor: fields.lastUsedFor || '',
-  replacementRequired: fields.replacementRequired || '',
-  description: fields.description || '',
-  notes: fields.notes || '',
-  ...(imageUrl && { imageUrl }),
-});
+/** Build history from validated fields and the authenticated author, preserving false. */
+const buildUpdateRecord = (fields, createdBy, imageUrl) => {
+  const record = {
+    date: new Date(),
+    createdBy: new mongoose.Types.ObjectId(createdBy),
+    condition: fields.condition,
+  };
+  ['lastUsedBy', 'lastUsedFor', 'replacementRequired', 'description', 'notes'].forEach((field) => {
+    if (fields[field] !== undefined) record[field] = fields[field];
+  });
+  if (imageUrl) record.imageUrl = imageUrl;
+  return record;
+};
+
+/** Delete only blobs created by the current request; propagate cleanup failures. */
+const cleanupUploadedImage = async (blobName) => {
+  if (blobName) {
+    await deleteBlobFromAzureBlobStorage(blobName);
+  }
+};
+
+/** Validate JSON and multipart status fields in their existing error precedence. */
+const validateStatusPayload = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'Invalid status payload.';
+  }
+  const { condition, replacementRequired, sendNote } = body;
+  if (
+    typeof condition !== 'string' ||
+    !['Good', 'Needs Repair', 'Out of Order'].includes(condition)
+  ) {
+    return 'Condition must be Good, Needs Repair, or Out of Order.';
+  }
+  const validSelection = (value) =>
+    value === undefined || ['', 'yes', 'no', true, false].includes(value);
+  if (!validSelection(replacementRequired) || !validSelection(sendNote)) {
+    return 'Replacement and note selections must be yes/no or boolean values.';
+  }
+  const textLimits = { lastUsedBy: 200, lastUsedFor: 500, description: 2000, notes: 2000 };
+  const invalidText = Object.entries(textLimits).find(
+    ([field, limit]) =>
+      body[field] !== undefined &&
+      body[field] !== null &&
+      (typeof body[field] !== 'string' || body[field].length > limit),
+  );
+  if (invalidText) {
+    return `${invalidText[0]} must be a string of at most ${invalidText[1]} characters.`;
+  }
+  if ((sendNote === 'yes' || sendNote === true) && !body.notes?.trim()) {
+    return 'Notes are required when sendNote is yes.';
+  }
+  return null;
+};
 
 // eslint-disable-next-line max-lines-per-function
 const bmEquipmentController = (BuildingEquipment) => {
@@ -87,14 +123,18 @@ const bmEquipmentController = (BuildingEquipment) => {
 
   const fetchSingleEquipment = async (req, res) => {
     const { equipmentId } = req.params;
+    if (!/^[a-f\d]{24}$/i.test(equipmentId || '')) {
+      return res.status(400).send({ error: 'Invalid equipment ID.' });
+    }
     try {
-      BuildingEquipment.findById(equipmentId)
+      const equipment = await BuildingEquipment.findById(equipmentId)
         .populate(equipmentPopulateConfig)
-        .exec()
-        .then((equipment) => res.status(200).send(equipment))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+        .exec();
+      if (!equipment) return res.status(404).send({ error: 'Equipment not found.' });
+      return res.status(200).send(equipment);
+    } catch (error) {
+      logException(error, 'fetchSingleEquipment');
+      return res.status(500).send({ error: 'Failed to fetch equipment.' });
     }
   };
 
@@ -352,27 +392,21 @@ const bmEquipmentController = (BuildingEquipment) => {
    */
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const { condition, createdBy } = req.body;
+    if (!/^[a-f\d]{24}$/i.test(equipmentId || '')) {
+      return res.status(400).send({ error: 'Invalid equipment ID.' });
+    }
+    // req.user is set by JWT middleware; never trust the client's createdBy.
+    const createdBy = req.user?.requestorId;
+    if (typeof createdBy !== 'string' || !/^[a-f\d]{24}$/i.test(createdBy)) {
+      return res.status(401).send({ error: 'User not authenticated.' });
+    }
+    const { body } = req;
+    const validationError = validateStatusPayload(body);
+    if (validationError) {
+      return res.status(400).send({ error: validationError });
+    }
 
     try {
-      if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
-        return res.status(400).send({ error: 'Invalid equipment ID.' });
-      }
-
-      if (!condition || !createdBy) {
-        return res.status(400).send({
-          error: 'Condition and createdBy are required fields.',
-        });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        logException(new Error('Invalid createdBy ID'), 'updateEquipmentStatus', { createdBy });
-        return res.status(400).send({
-          error: 'Invalid user ID format. Please log in again.',
-          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
-        });
-      }
-
       let imageUrl;
       let uploadedBlobName;
       if (req.file) {
@@ -384,7 +418,7 @@ const bmEquipmentController = (BuildingEquipment) => {
         uploadedBlobName = result.blobName;
       }
 
-      const updateRecord = buildUpdateRecord(req.body, imageUrl);
+      const updateRecord = buildUpdateRecord(body, createdBy, imageUrl);
 
       const dbUpdate = { $push: { updateRecord } };
       if (imageUrl) {
@@ -395,6 +429,7 @@ const bmEquipmentController = (BuildingEquipment) => {
       try {
         updatedEquipment = await BuildingEquipment.findByIdAndUpdate(equipmentId, dbUpdate, {
           new: true,
+          runValidators: true,
         }).populate([
           {
             path: 'itemType',
@@ -412,23 +447,24 @@ const bmEquipmentController = (BuildingEquipment) => {
       } catch (dbError) {
         // Image already uploaded to Azure but the DB write failed - clean up
         // the now-orphaned blob before surfacing the error.
-        if (uploadedBlobName) {
-          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
-        }
+        await cleanupUploadedImage(uploadedBlobName);
         throw dbError;
       }
 
       if (!updatedEquipment) {
-        if (uploadedBlobName) {
-          await deleteBlobFromAzureBlobStorage(uploadedBlobName);
-        }
+        await cleanupUploadedImage(uploadedBlobName);
         return res.status(404).send({ error: 'Equipment not found.' });
       }
 
       return res.status(200).send(updatedEquipment);
     } catch (error) {
       logException(error, 'updateEquipmentStatus');
-      return res.status(500).send({ error: IMAGE_NOT_SAVED_ERROR });
+      if (error.name === 'ValidationError' || error.name === 'CastError') {
+        return res.status(400).send({ error: 'Invalid status payload.' });
+      }
+      return res.status(500).send({
+        error: req.file ? IMAGE_NOT_SAVED_ERROR : 'Failed to update equipment status.',
+      });
     }
   };
 
