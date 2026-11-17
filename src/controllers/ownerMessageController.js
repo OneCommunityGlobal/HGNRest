@@ -55,8 +55,16 @@ const ownerMessageController = function (OwnerMessage) {
     }
   };
 
+  const canManageOwnerMessage = async (requestor) => {
+    if (process.env.dbName === 'hgnData_dev') {
+      return requestor?.role === 'Owner';
+    }
+
+    return helper.hasPermission(requestor, 'editHeaderMessage');
+  };
+
   const updateOwnerMessage = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'editHeaderMessage'))) {
+    if (!(await canManageOwnerMessage(req.body.requestor))) {
       return res.status(403).send('You are not authorized to create messages!');
     }
     const { isStandard, newMessage } = req.body;
@@ -102,7 +110,7 @@ const ownerMessageController = function (OwnerMessage) {
   };
 
   const deleteOwnerMessage = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'editHeaderMessage'))) {
+    if (!(await canManageOwnerMessage(req.body.requestor))) {
       return res.status(403).send('You are not authorized to delete messages!');
     }
     // Use a session to ensure atomicity of operations
