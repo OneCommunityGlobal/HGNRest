@@ -21,7 +21,6 @@ jest.mock('../models/hgnFormResponse', () => ({
 const mongoose = require('mongoose');
 const { hasPermission } = require('../utilities/permissions');
 const PromotionDetail = require('../models/promotionDetail');
-const FormResponse = require('../models/hgnFormResponse');
 const promotionEligibilityController = require('./promotionEligibilityController');
 
 const OWNER_ID = '665234c757ca141fe891e1ca';

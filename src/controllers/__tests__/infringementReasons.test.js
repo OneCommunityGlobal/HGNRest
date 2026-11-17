@@ -26,7 +26,6 @@ jest.mock('../../utilities/permissions', () => ({
   canRequestorUpdateUser: jest.fn(),
 }));
 
-const mongoose = require('mongoose');
 const moment = require('moment-timezone');
 
 // Import the UserProfile model to test schema
