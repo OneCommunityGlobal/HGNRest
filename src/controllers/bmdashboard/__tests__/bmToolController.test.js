@@ -246,6 +246,197 @@ describe('Building Tool Controller Tests', () => {
     });
   });
 
+  describe('bmUpdateToolPurchaseStatus', () => {
+    const purchaseId = '507f1f77bcf86cd799439011';
+
+    const createRequest = ({ role = 'Owner', bodyRole = 'Volunteer', ...bodyOverrides } = {}) => ({
+      body: {
+        purchaseId,
+        status: 'Approved',
+        quantity: 2,
+        requestor: { role: bodyRole },
+        ...bodyOverrides,
+      },
+      user: { role },
+    });
+
+    const createPendingTool = () => ({
+      purchaseRecord: [{ _id: purchaseId, status: 'Pending' }],
+    });
+
+    beforeEach(() => {
+      mongoose.Types.ObjectId = jest.fn((id) => id);
+      mongoose.Types.ObjectId.isValid = jest.fn(() => true);
+    });
+
+    test.each(['Owner', 'Administrator'])('allows %s to approve a purchase', async (role) => {
+      mockBuildingTool.findOne = jest.fn().mockResolvedValue(createPendingTool());
+      mockBuildingTool.findOneAndUpdate = jest.fn().mockResolvedValue({
+        purchaseStatus: 'Purchased',
+      });
+
+      await controller.bmUpdateToolPurchaseStatus(createRequest({ role }), mockResponse);
+
+      expect(mockBuildingTool.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
+        {
+          $set: {
+            'purchaseRecord.$.status': 'Approved',
+            purchaseStatus: 'Purchased',
+          },
+        },
+        { new: true },
+      );
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.send).toHaveBeenCalledWith('Purchase approved successfully');
+    });
+
+    test('allows an Administrator to reject a purchase without changing ownership', async () => {
+      mockBuildingTool.findOne = jest.fn().mockResolvedValue(createPendingTool());
+      mockBuildingTool.findOneAndUpdate = jest.fn().mockResolvedValue({
+        purchaseStatus: 'Rental',
+      });
+
+      await controller.bmUpdateToolPurchaseStatus(
+        createRequest({ role: 'Administrator', status: 'Rejected' }),
+        mockResponse,
+      );
+
+      expect(mockBuildingTool.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
+        { $set: { 'purchaseRecord.$.status': 'Rejected' } },
+        { new: true },
+      );
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.send).toHaveBeenCalledWith('Purchase rejected successfully');
+    });
+
+    test('rejects a forged privileged role in the request body', async () => {
+      await controller.bmUpdateToolPurchaseStatus(
+        createRequest({ role: 'Volunteer', bodyRole: 'Owner' }),
+        mockResponse,
+      );
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockResponse.send).toHaveBeenCalledWith(
+        'You are not authorized to approve or reject purchases.',
+      );
+      expect(mockBuildingTool.findOne).not.toHaveBeenCalled();
+    });
+
+    test('rejects a forged Administrator role when no authenticated user exists', async () => {
+      const request = createRequest({ bodyRole: 'Administrator' });
+      delete request.user;
+
+      await controller.bmUpdateToolPurchaseStatus(request, mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockBuildingTool.findOne).not.toHaveBeenCalled();
+    });
+
+    test('rejects approval without a positive quantity', async () => {
+      await controller.bmUpdateToolPurchaseStatus(
+        createRequest({ quantity: 0 }),
+        mockResponse,
+      );
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.send).toHaveBeenCalledWith(
+        'A positive quantity is required when approving a purchase.',
+      );
+    });
+
+    test('rejects a purchase that is not pending', async () => {
+      mockBuildingTool.findOne = jest.fn().mockResolvedValue({
+        purchaseRecord: [{ _id: purchaseId, status: 'Approved' }],
+      });
+
+      await controller.bmUpdateToolPurchaseStatus(createRequest(), mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.send).toHaveBeenCalledWith(
+        expect.stringContaining("can only be updated from 'Pending'"),
+      );
+      expect(mockBuildingTool.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('uses a pending predicate for an atomic competing transition', async () => {
+      mockBuildingTool.findOne = jest.fn().mockResolvedValue(createPendingTool());
+      mockBuildingTool.findOneAndUpdate = jest.fn().mockResolvedValue(null);
+
+      await controller.bmUpdateToolPurchaseStatus(createRequest(), mockResponse);
+
+      expect(mockBuildingTool.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
+        {
+          $set: {
+            'purchaseRecord.$.status': 'Approved',
+            purchaseStatus: 'Purchased',
+          },
+        },
+        { new: true },
+      );
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.send).toHaveBeenCalledWith(
+        expect.stringContaining('The record may have already been updated'),
+      );
+    });
+
+    test('matches the purchase ID and Pending status on the same record', async () => {
+      mockBuildingTool.findOne = jest.fn().mockResolvedValue({
+        purchaseRecord: [
+          { _id: purchaseId, status: 'Pending' },
+          { _id: '507f1f77bcf86cd799439012', status: 'Approved' },
+        ],
+      });
+      mockBuildingTool.findOneAndUpdate = jest.fn().mockResolvedValue({
+        purchaseStatus: 'Purchased',
+      });
+
+      await controller.bmUpdateToolPurchaseStatus(createRequest(), mockResponse);
+
+      expect(mockBuildingTool.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
+        {
+          $set: {
+            'purchaseRecord.$.status': 'Approved',
+            purchaseStatus: 'Purchased',
+          },
+        },
+        { new: true },
+      );
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+    });
+  });
+
   describe('bmLogTools', () => {
     beforeEach(() => {
       // Setup mock request for checking out tools

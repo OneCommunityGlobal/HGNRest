@@ -13,6 +13,8 @@ const routes = function (BuildingTool, ToolType) {
 
   toolRouter.route('/tools/purchase').post(controller.bmPurchaseTools);
 
+  toolRouter.route('/updateToolStatus').post(controller.bmUpdateToolPurchaseStatus);
+
   toolRouter.route('/tools/log').post(controller.bmLogTools);
 
   return toolRouter;
