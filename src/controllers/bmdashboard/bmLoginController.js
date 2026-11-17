@@ -8,9 +8,30 @@ const bmLoginController = function () {
   const bmLogin = async function _login(req, res) {
     const { email: _email, password: _password } = req.body;
     const currentToken = req.headers.authorization;
+    let decode;
     try {
-      const decode = jwt.verify(currentToken, JWT_SECRET);
+      decode = jwt.verify(currentToken, JWT_SECRET);
+    } catch {
+      return res.status(401).json({
+        label: 'email',
+        message: 'Your login has expired or is invalid. Please sign in again.',
+      });
+    }
+    try {
       const user = await userprofile.findOne({ _id: decode.userid });
+
+      if (!user) {
+        return res.status(401).json({
+          label: 'email',
+          message: 'Your account is no longer available. Please sign in again.',
+        });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({
+          label: 'email',
+          message: 'Your account is inactive. Please contact your administrator.',
+        });
+      }
 
       // check email
       if (user.email !== _email) {
@@ -38,8 +59,11 @@ const bmLoginController = function () {
       };
       const newToken = jwt.sign(jwtPayload, JWT_SECRET);
       return res.json({ token: newToken });
-    } catch (err) {
-      res.json(err);
+    } catch {
+      return res.status(500).json({
+        label: 'form',
+        message: 'Unable to verify your login right now. Please try again.',
+      });
     }
   };
   return { bmLogin };
