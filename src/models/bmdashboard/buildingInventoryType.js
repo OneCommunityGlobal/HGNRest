@@ -83,6 +83,9 @@ const toolType = invTypeBase.discriminator(
     totalPriceWithShipping: Number,
     images: String,
     link: String,
+    // tool items of this type that can be checked out, and that are checked out
+    available: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
+    using: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'tool_item' }],
 
     // isPowered: { type: Boolean, required: true },
     // powerSource: { type: String, required: () => this.isPowered }, // required if isPowered = true (syntax?)
