@@ -770,6 +770,27 @@ describe('Building Issue Controller', () => {
   describe('getLongestOpenIssues', () => {
     const mockIssueDate = new Date('2022-01-15');
 
+    it('should use issueText when issueTitle is missing', async () => {
+      const mockIssues = [
+        {
+          _id: TEST_ISSUE_ID,
+          projectId: TEST_ISSUE_ID,
+          issueTitle: [],
+          issueText: ['Labor shortage causing project delays'],
+          issueDate: mockIssueDate,
+        },
+      ];
+
+      mockBuildingIssue.find.mockReturnValue(mockFindChain(mockIssues));
+
+      await controller.getLongestOpenIssues(req, res);
+
+      const result = res.json.mock.calls[0][0];
+
+      expect(result.data[0].title).toBe('Labor shortage causing project delays');
+      expect(result.data[0].projectId).toBe(TEST_ISSUE_ID);
+    });
+
     beforeEach(() => {
       mockBuildingIssue.find.mockReturnValue(mockFindChain([]));
     });
