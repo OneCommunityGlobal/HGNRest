@@ -431,6 +431,16 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      // General evaluation feedback is separate from category/task feedback.
+      // Defaults represent absent feedback, not an assessment or publication date.
+      evaluationFeedback: {
+        overall: { type: String, trim: true, default: null },
+        strengths: { type: [String], default: [] },
+        improvements: { type: [String], default: [] },
+        authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', default: null },
+        teacherTitle: { type: String, trim: true, default: null },
+        updatedAt: { type: Date, default: null },
+      },
       lastEvaluationResultsViewedAt: {
         type: Date,
       },
