@@ -2,6 +2,13 @@ const express = require('express');
 
 const routes = function (buildingNewLesson) {
   const NewLessonRouter = express.Router();
+  const bulkTags = require('../../controllers/bmdashboard/bmBulkLessonTagController')(
+    buildingNewLesson,
+  );
+  NewLessonRouter.post('/lessons/bulk-tags/preview', bulkTags.preview);
+  NewLessonRouter.post('/lessons/bulk-tags', bulkTags.apply);
+  NewLessonRouter.get('/lessons/bulk-tags/history', bulkTags.history);
+  NewLessonRouter.post('/lessons/bulk-tags/:batchId/undo', bulkTags.undo);
   const controller = require('../../controllers/bmdashboard/bmNewLessonController')(
     buildingNewLesson,
   );
