@@ -247,7 +247,8 @@ const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsigh
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
-const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
+const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
+const projectCostBreakdownRouter = require('../routes/bmdashboard/projectCostBreakdownRouter')();
 
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter');
@@ -617,6 +618,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExpenditureRouter);
+  app.use('/api/projects', projectCostBreakdownRouter);
   app.use('/api/bm', bmUpdateHistoryRouter);
   app.use('/api/dropbox', dropboxRouter);
   app.use('/api/github', githubRouter);
@@ -634,7 +636,11 @@ module.exports = function (app) {
   //app.use('api', bmIssueRouter);
   app.use('/api', bmToolStoppageReasonRouter);
   app.use('/api', costBreakdownRouter);
-  app.use('/api', toolAvailabilityRouter);
+  app.use('/api', bmProjectRiskProfileRouter);
+
+  app.use('/api/bm', bmTimeLoggerRouter);
+  app.use('/api/bm/injuries', injuryCategoryRoutes);
+
   app.use('/api', toolUtilizationRouter);
   // lb dashboard
   app.use('/api', toolAvailabilityRouter);
@@ -646,15 +652,12 @@ module.exports = function (app) {
   app.use('/api/bm', bmIssueRouter);
   app.use('/api/bm', bmDashboardRouter);
   app.use('/api/bm', bmActualVsPlannedCostRouter);
-  app.use('/api/bm', bmTimeLoggerRouter);
-  app.use('/api/bm/injuries', injuryCategoryRoutes);
-  app.use('/api', projectCostTrackingRouter);
+
   app.use('/api/bm', bmOrgLocation);
-  app.use('/api/bm', bmIssueRouter);
+
   app.use('/api/labor-cost', bmPaidLaborCostRouter);
   app.use('/api/bm/weekly-project-summary', weeklyProjectSummaryRouter);
   app.use('/api/bm', bmInjuryRouter);
-  app.use('/api', bmProjectRiskProfileRouter);
 
   app.use('/api/lb', bidPropertyRouter);
   app.use('/api/lb', userBidRouter);
@@ -681,8 +684,7 @@ module.exports = function (app) {
   app.use('/api/lbdashboard/bookings', bookingRouter);
 
   app.use('/api/lb', biddingRouter);
-  app.use('/api', registrationRouter);
-  app.use('/api', projectMaterialRouter);
+
   app.use('/api', plannedCostRouter(plannedCost, project));
 
   // summary dashboard
@@ -693,7 +695,7 @@ module.exports = function (app) {
   app.use('/api', projectMaterialRouter);
 
   app.use('/api', bmToolsDowntimeRouter);
-  app.use('/api/lb', lbWishlistsRouter);
+
   app.use('/api', actualCostRouter);
   app.use('/api/userstate', userStateRouter);
   app.use('/api', promotionDetailsRouter);
@@ -739,7 +741,6 @@ module.exports = function (app) {
   app.use('/api/', activityLogRouter);
   // Education Portal
   app.use('/api/educationportal/educator', educatorRoutes);
-  app.use('/api', materialCostRouter);
 
   app.use('/api/educator/report', studentReportRouter());
   // education portal
@@ -759,8 +760,6 @@ module.exports = function (app) {
   app.use('/api/student/profile', educationProfileRouter);
 
   app.use('/api', materialCostRouter);
-
-  app.use('/api/lp', lessonPlanSubmissionRouter);
 
   app.use('/api/kitchenandinventory/recipes', recipeRouter);
 

@@ -15,6 +15,11 @@ const routes = function (BuildingTool, ToolType) {
 
   toolRouter.route('/tools/log').post(controller.bmLogTools);
 
+  toolRouter.put(
+    '/tools/:toolId/count',
+    require('../../controllers/bmdashboard/updateInventoryCount')(BuildingTool, 'toolId'),
+  );
+
   return toolRouter;
 };
 
