@@ -1,5 +1,6 @@
 process.env.JWT_SECRET = 'test-secret';
 process.env.PRODUCTION_STATUS_WEBHOOK_SECRET = 'webhook-secret';
+process.env.dbName = 'hgnData_prod';
 
 const productionIdentityService = require('../productionIdentityService');
 
@@ -128,6 +129,48 @@ describe('productionIdentityService — credential scenarios', () => {
     expect(result.reason).toBe(REASON.INVALID_CREDENTIALS);
   });
 
+  test('fails closed when Dev has no Production API URL', async () => {
+    process.env.dbName = 'hgnData_dev';
+    process.env.PRODUCTION_API_BASE_URL = '';
+    jest.resetModules();
+    const service = require('../productionIdentityService');
+    const userProfileModel = { findOne: jest.fn() };
+    const fetchMock = jest.fn();
+
+    const result = await service.verifyProductionCredentials(
+      'user@example.com',
+      'password',
+      userProfileModel,
+      fetchMock,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: REASON.PRODUCTION_UNAVAILABLE,
+      retryable: true,
+    });
+    expect(userProfileModel.findOne).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('fails closed when Production API URL is not HTTPS', async () => {
+    process.env.dbName = 'hgnData_dev';
+    process.env.PRODUCTION_API_BASE_URL = 'http://production.example.com';
+    jest.resetModules();
+    const service = require('../productionIdentityService');
+    const fetchMock = jest.fn();
+
+    const result = await service.verifyProductionCredentials(
+      'user@example.com',
+      'password',
+      { findOne: jest.fn() },
+      fetchMock,
+    );
+
+    expect(result.reason).toBe(REASON.PRODUCTION_UNAVAILABLE);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test('returns user_not_found for remote 403 username not found', async () => {
     process.env.PRODUCTION_IDENTITY_VERIFICATION_ENABLED = 'true';
     process.env.dbName = 'hgnData_dev';
@@ -197,6 +240,31 @@ describe('productionIdentityService — credential scenarios', () => {
     );
 
     expect(result.retryable).toBe(true);
+  });
+
+  test('treats a rejected Production API key as unavailable, not a bad user password', async () => {
+    process.env.dbName = 'hgnData_dev';
+    process.env.PRODUCTION_API_BASE_URL = 'https://production.example.com';
+    jest.resetModules();
+    const service = require('../productionIdentityService');
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: 'Unauthorized' }),
+    });
+
+    const result = await service.verifyProductionCredentials(
+      'user@example.com',
+      'password',
+      {},
+      fetchMock,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: REASON.PRODUCTION_UNAVAILABLE,
+      retryable: true,
+    });
   });
 });
 

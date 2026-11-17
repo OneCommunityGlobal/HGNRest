@@ -1,7 +1,5 @@
 process.env.JWT_SECRET = 'test-secret';
 
-const { isProductionIdentityEnforcementActive } = require('../productionIdentityConfig');
-
 describe('productionIdentityConfig', () => {
   const originalEnv = process.env;
 
@@ -10,20 +8,27 @@ describe('productionIdentityConfig', () => {
     jest.resetModules();
   });
 
-  test('is inactive before feature enabled date', () => {
-    process.env.PRODUCTION_IDENTITY_VERIFICATION_ENABLED = 'true';
+  test('is active for Dev even when an old feature date is in the future', () => {
     process.env.PRODUCTION_IDENTITY_DEV_DB_NAME = 'hgnData_dev';
     process.env.dbName = 'hgnData_dev';
     process.env.PRODUCTION_IDENTITY_FEATURE_ENABLED_DATE = '2099-01-01';
 
     jest.resetModules();
     const config = require('../productionIdentityConfig');
-    expect(config.isProductionIdentityEnforcementActive()).toBe(false);
+    expect(config.isProductionIdentityEnforcementActive()).toBe(true);
   });
 
-  test('is inactive when verification flag is false', () => {
+  test('cannot be disabled for Dev by an old feature flag', () => {
     process.env.PRODUCTION_IDENTITY_VERIFICATION_ENABLED = 'false';
     process.env.dbName = 'hgnData_dev';
+
+    jest.resetModules();
+    const config = require('../productionIdentityConfig');
+    expect(config.isProductionIdentityEnforcementActive()).toBe(true);
+  });
+
+  test('does not enforce Dev identity rules against Production', () => {
+    process.env.dbName = 'hgnData_prod';
 
     jest.resetModules();
     const config = require('../productionIdentityConfig');

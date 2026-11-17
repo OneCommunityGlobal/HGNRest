@@ -30,8 +30,9 @@ const isFeatureCutoffActive = () => {
   return new Date() >= cutoff;
 };
 
-const isProductionIdentityEnforcementActive = () =>
-  productionIdentityConfig.verificationEnabled && isDevDatabase() && isFeatureCutoffActive();
+// Every new account created against the Dev database requires a Production identity.
+// This must not be disabled by a missing or stale feature flag.
+const isProductionIdentityEnforcementActive = () => isDevDatabase();
 
 const shouldEmitProductionWebhooks = () =>
   productionIdentityConfig.webhookEmitEnabled &&
