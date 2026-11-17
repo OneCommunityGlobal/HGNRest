@@ -1,3 +1,4 @@
+// File version: 1.0.1
 const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
@@ -168,16 +169,6 @@ const buildStockOutRiskQuery = function (projectIds) {
       },
     },
   };
-};
-
-const isValidMaterialForStockRisk = function (material) {
-  return (
-    material &&
-    typeof material.stockAvailable === 'number' &&
-    material.stockAvailable > 0 &&
-    material.project?._id &&
-    material.itemType?._id
-  );
 };
 
 const computeUsageFromUpdateRecords = function (updateRecords, thirtyDaysAgo, now) {
@@ -763,7 +754,7 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const bmGetMaterialStockOutRisk = async function (req, res) {
     try {
-      const { projectIds } = req.query || {};
+      const { projectIds, includeReadiness } = req.query || {};
       const queryResult = buildStockOutRiskQuery(projectIds);
       if (queryResult.error) {
         return res.status(queryResult.error.status).json(queryResult.error.body);
@@ -779,22 +770,68 @@ const bmMaterialsController = function (BuildingMaterial) {
       const thirtyDaysAgo = new Date(now);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - DAYS_IN_STOCK_RISK_PERIOD);
 
-      const stockOutRiskData = materials
-        .filter((material) => isValidMaterialForStockRisk(material))
-        .map((material) => {
-          const { totalUsage } = computeUsageFromUpdateRecords(
-            material.updateRecord,
-            thirtyDaysAgo,
-            now,
+      const stockOutRiskData = [];
+      const readiness = new Map(
+        (queryResult.query.project?.$in || []).map((id) => [
+          id.toString(),
+          {
+            projectId: id.toString(),
+            materialCount: 0,
+            readyMaterialCount: 0,
+            missingInputs: new Set(),
+          },
+        ]),
+      );
+
+      for (const material of materials) {
+        if (!material?.project?._id) continue;
+
+        const projectId = material.project._id.toString();
+        if (!readiness.has(projectId)) {
+          readiness.set(projectId, {
+            projectId,
+            materialCount: 0,
+            readyMaterialCount: 0,
+            missingInputs: new Set(),
+          });
+        }
+        const projectReadiness = readiness.get(projectId);
+        projectReadiness.materialCount += 1;
+        const hasStock = typeof material.stockAvailable === 'number' && material.stockAvailable > 0;
+        const hasMapping = Boolean(material.itemType?._id);
+
+        const { totalUsage } = computeUsageFromUpdateRecords(
+          material.updateRecord,
+          thirtyDaysAgo,
+          now,
+        );
+        const { averageDailyUsage, daysUntilStockOut } = computeAverageDailyAndDaysOut(
+          material,
+          totalUsage,
+        );
+
+        // Readiness uses the same inputs and usage calculation as the chart.
+        const hasUsage = averageDailyUsage > 0;
+        if (!hasMapping) projectReadiness.missingInputs.add('Material type mapping is missing.');
+        if (!hasStock) projectReadiness.missingInputs.add('Positive available stock is missing.');
+        if (!hasUsage) {
+          projectReadiness.missingInputs.add(
+            'Usage data is missing: record consumption within the last 30 days or total stock used.',
           );
-          const { averageDailyUsage, daysUntilStockOut } = computeAverageDailyAndDaysOut(
-            material,
-            totalUsage,
+        }
+        if (!hasMapping || !hasStock || !hasUsage) continue;
+
+        if (daysUntilStockOut >= 0 && daysUntilStockOut < SENTINEL_NO_USAGE_DATA) {
+          projectReadiness.readyMaterialCount += 1;
+          stockOutRiskData.push(
+            buildStockOutRiskItem(material, averageDailyUsage, daysUntilStockOut),
           );
-          return { material, averageDailyUsage, daysUntilStockOut };
-        })
-        .filter((x) => x.daysUntilStockOut >= 0 && x.daysUntilStockOut < SENTINEL_NO_USAGE_DATA)
-        .map((x) => buildStockOutRiskItem(x.material, x.averageDailyUsage, x.daysUntilStockOut));
+        } else {
+          projectReadiness.missingInputs.add(
+            'An estimate is outside the chart range of 0–998 days.',
+          );
+        }
+      }
 
       stockOutRiskData.sort((a, b) => {
         const daysA = Number(a.daysUntilStockOut) || 0;
@@ -802,7 +839,20 @@ const bmMaterialsController = function (BuildingMaterial) {
         return daysA - daysB;
       });
 
-      res.status(200).json(stockOutRiskData);
+      if (includeReadiness === 'true') {
+        const projectReadiness = Array.from(readiness.values()).map((project) => {
+          let status = 'Partial';
+          if (project.materialCount === 0) {
+            status = 'Not Configured';
+            project.missingInputs.add('No materials are mapped to this project.');
+          } else if (project.readyMaterialCount === project.materialCount) {
+            status = 'Ready';
+          }
+          return { ...project, status, missingInputs: Array.from(project.missingInputs) };
+        });
+        return res.status(200).json({ chartData: stockOutRiskData, readiness: projectReadiness });
+      }
+      return res.status(200).json(stockOutRiskData);
     } catch (err) {
       const { statusCode, errorMessage } = getStockOutRiskErrorResponse(err);
       res.status(statusCode).json({ error: errorMessage });
