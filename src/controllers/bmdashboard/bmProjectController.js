@@ -2,7 +2,6 @@
 /* eslint-disable no-shadow */
 /* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-const Task = require('../../models/task');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 // TODO: uncomment when executing auth checks
@@ -169,13 +168,14 @@ const bmMProjectController = function () {
 
   const fetchProjectMembers = async (req, res) => {
     const { projectId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
     try {
-      BuildingProject.findById(projectId)
+      const project = await BuildingProject.findById(projectId)
         .populate({ path: 'buildingManager', select: '_id firstName lastName email' })
-        // .populate({
-        //   path: 'teams',
-        //   select: '_id teamName'
-        // })
         .populate({
           path: 'members',
           populate: [
@@ -185,34 +185,21 @@ const bmMProjectController = function () {
             },
           ],
         })
-        .exec()
-        .then((project) => {
-          project.members.forEach((member) => {
-            const userId = member.user._id;
-            try {
-              Task.find({
-                'resources.userID': mongoose.Types.ObjectId(userId),
-              }).then((results) => {
-                // console.log("results", results);
-                if (results[0]?.taskName) {
-                  const memberTaskName = results[0].taskName;
-                  // console.log("memberTaskName: ", memberTaskName);
-                  // Not working because of db access latency, maybe need to implement separate signaling to fetch task name
-                  // also needs to add 'task' field to insert memberTaskName rather than using teams field
-                  member.user.teams[0] = memberTaskName;
-                  // console.log("member: ", member);
-                }
-              });
-            } catch (error) {
-              console.log('error');
-            }
-          });
-          return project;
-        })
-        .then((project) => res.status(200).send(project))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+        .lean()
+        .exec();
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // A member whose user profile no longer exists populates as null.
+      // Drop those entries so one missing user does not fail the whole list.
+      project.members = (project.members || []).filter((member) => member && member.user);
+
+      return res.status(200).send(project);
+    } catch (error) {
+      console.error('Error in fetchProjectMembers:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
   };
 
