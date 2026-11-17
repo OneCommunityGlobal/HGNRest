@@ -34,7 +34,7 @@ const bmMProjectController = function () {
             as: 'buildingManager',
           },
         },
-        { $unwind: '$buildingManager' },
+        { $unwind: { path: '$buildingManager', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: 'buildingInventoryItems',
@@ -65,6 +65,8 @@ const bmMProjectController = function () {
             template: 1,
             location: 1,
             dateCreated: 1,
+            createdAt: 1,
+            updatedAt: 1,
             buildingManager: 1,
             teams: 1,
             members: 1,

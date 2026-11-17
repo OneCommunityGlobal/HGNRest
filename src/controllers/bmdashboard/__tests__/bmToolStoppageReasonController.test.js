@@ -53,6 +53,17 @@ describe('Tool Stoppage Reason Controller', () => {
 
   // ==================== getToolsStoppageReason Tests ====================
   describe('getToolsStoppageReason', () => {
+    it('aggregates raw stoppage records across all projects before computing percentages', async () => {
+      req.params.id = 'all';
+      req.query.startDate = '2026-01-01';
+      mockToolStoppageReason.aggregate.mockResolvedValue([]);
+      await controller.getToolsStoppageReason(req, res);
+      expect(mockBuildingProjectExists).not.toHaveBeenCalled();
+      const match = mockToolStoppageReason.aggregate.mock.calls[0][0][0].$match;
+      expect(match.projectId).toBeUndefined();
+      expect(match.date.$gte).toEqual(new Date('2026-01-01'));
+    });
+
     it('should return 400 for an invalid project ID format', async () => {
       req.params.id = 'not-a-valid-id';
 

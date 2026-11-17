@@ -104,6 +104,13 @@ describe('Building Manager Project Controller', () => {
 
       // Assertions
       expect(BuildingProject.aggregate).toHaveBeenCalled();
+      const pipeline = BuildingProject.aggregate.mock.calls[0][0];
+      expect(pipeline).toContainEqual({
+        $unwind: { path: '$buildingManager', preserveNullAndEmptyArrays: true },
+      });
+      const projection = pipeline.find((stage) => stage.$project)?.$project;
+      expect(projection).toMatchObject({ updatedAt: 1, createdAt: 1, dateCreated: 1 });
+
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalled();
     });

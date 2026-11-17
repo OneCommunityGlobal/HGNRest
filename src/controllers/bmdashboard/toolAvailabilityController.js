@@ -9,7 +9,7 @@ const toolAvailabilityController = function (ToolAvailability) {
       const { startDate, endDate } = req.query;
 
       // Validate project ID format
-      if (!ObjectId.isValid(projectId)) {
+      if (projectId !== 'all' && !ObjectId.isValid(projectId)) {
         return res.status(400).json({ error: 'Invalid project ID format' });
       }
 
@@ -41,7 +41,7 @@ const toolAvailabilityController = function (ToolAvailability) {
       const results = await ToolAvailability.aggregate([
         {
           $match: {
-            projectId: new ObjectId(projectId),
+            ...(projectId === 'all' ? {} : { projectId: new ObjectId(projectId) }),
             ...dateFilter,
           },
         },
