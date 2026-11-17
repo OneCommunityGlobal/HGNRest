@@ -71,6 +71,69 @@ describe('submitFormResponse', () => {
     expect(Response.findOne).not.toHaveBeenCalled();
   });
 
+  it('returns 400 when the name is missing', async () => {
+    const { respondent: _respondent, ...noName } = validBody;
+    await submitFormResponse({ params: { formId }, body: noName }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'respondent, email, and answers are required.',
+    });
+    expect(Form.findById).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['digits', '123', 'Name may contain only letters, spaces, hyphens, and apostrophes.'],
+    ['symbols', '@#$%', 'Name may contain only letters, spaces, hyphens, and apostrophes.'],
+    ['an emoji', 'Ada 😀', 'Name may contain only letters, spaces, hyphens, and apostrophes.'],
+    ['one character', 'A', 'Name must be at least 2 characters.'],
+    ['500 characters', 'a'.repeat(500), 'Name must not exceed 201 characters.'],
+  ])('returns 400 and saves nothing when the name has %s', async (_label, name, error) => {
+    await submitFormResponse({ params: { formId }, body: { ...validBody, respondent: name } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error });
+    expect(Form.findById).not.toHaveBeenCalled();
+    expect(Response.findOne).not.toHaveBeenCalled();
+    expect(emailSender).not.toHaveBeenCalled();
+  });
+
+  it('checks the name from the payload when one is sent', async () => {
+    await submitFormResponse(
+      {
+        params: { formId },
+        body: {
+          payload: JSON.stringify({
+            applicantName: '12345',
+            applicantEmail: 'ada@example.com',
+            answers: [],
+          }),
+        },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Name may contain only letters, spaces, hyphens, and apostrophes.',
+    });
+  });
+
+  it('saves the cleaned name and uses it in the confirmation email', async () => {
+    Form.findById.mockResolvedValue({ _id: formId, title: 'Software Developer' });
+    Response.findOne.mockResolvedValue(null);
+
+    await submitFormResponse(
+      { params: { formId }, body: { ...validBody, respondent: '  José   Álvarez ' } },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(Response).toHaveBeenCalledWith(expect.objectContaining({ respondent: 'José Álvarez' }));
+    expect(emailSender).toHaveBeenCalledWith(
+      ['ada@example.com'],
+      expect.any(String),
+      expect.stringContaining('Hi José Álvarez,'),
+    );
+  });
+
   it('returns 400 for invalid payload JSON', async () => {
     await submitFormResponse({ params: { formId }, body: { payload: '{bad json' } }, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -156,7 +219,7 @@ describe('submitFormResponse', () => {
       await submitFormResponse(
         {
           params: { formId },
-          body: { ...validBody, respondent: '<script>alert("x")</script> & Co' },
+          body: { ...validBody, respondent: "Mary-Jane O'Neil" },
         },
         res,
       );
@@ -165,7 +228,7 @@ describe('submitFormResponse', () => {
       const [to, subject, html] = emailSender.mock.calls[0];
       expect(to).toEqual(['ada@example.com']);
       expect(subject).toContain('Already Received');
-      expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co');
+      expect(html).toContain('Hi Mary-Jane O&#39;Neil,');
       expect(html).toContain('Dev &lt;b&gt;Role&lt;/b&gt;');
       expect(html).not.toContain('<script>');
       expect(html).not.toContain('<b>Role</b>');
@@ -210,6 +273,19 @@ describe('submitFormResponse', () => {
     Response.findOne.mockResolvedValue(null);
 
     await submitFormResponse(
+      { params: { formId }, body: { ...validBody, respondent: "Mary-Jane O'Neil" } },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const html = emailSender.mock.calls[0][2];
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('Hi Mary-Jane O&#39;Neil,');
+    expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('rejects a name that contains HTML before any email is sent', async () => {
+    await submitFormResponse(
       {
         params: { formId },
         body: { ...validBody, respondent: '<a href="https://evil.example">click</a>' },
@@ -217,12 +293,12 @@ describe('submitFormResponse', () => {
       res,
     );
 
-    expect(res.status).toHaveBeenCalledWith(201);
-    const html = emailSender.mock.calls[0][2];
-    expect(html).not.toContain('<a href');
-    expect(html).not.toContain('<script>');
-    expect(html).toContain('Hi &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,');
-    expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Name may contain only letters, spaces, hyphens, and apostrophes.',
+    });
+    expect(emailSender).not.toHaveBeenCalled();
+    expect(Response).not.toHaveBeenCalled();
   });
 
   it('keeps ordinary applicant names readable in the confirmation email', async () => {

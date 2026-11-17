@@ -6,6 +6,7 @@ const QuestionSet = require('../models/questionSet');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const emailSender = require('../utilities/emailSender');
 const { getEmailDomainError } = require('../utilities/emailValidators');
+const { getApplicantNameError, normalizeApplicantName } = require('../utilities/applicantName');
 const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
 const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
 const {
@@ -478,9 +479,15 @@ exports.submitFormResponse = async (req, res) => {
       return res.status(400).json({ error: resolved.error });
     }
 
-    const { respondent, email, answers, profile } = resolved;
-    if (!email || answers == null) {
+    const { email, answers, profile } = resolved;
+    const respondent = normalizeApplicantName(resolved.respondent);
+    if (!respondent || !email || answers == null) {
       return res.status(400).json({ error: 'respondent, email, and answers are required.' });
+    }
+
+    const nameError = getApplicantNameError(respondent);
+    if (nameError) {
+      return res.status(400).json({ error: nameError });
     }
 
     const emailError = getEmailDomainError(String(email));
@@ -527,7 +534,7 @@ exports.submitFormResponse = async (req, res) => {
 
     const response = new Response({
       formId,
-      respondent: String(respondent || normalizedEmail).trim(),
+      respondent,
       email: normalizedEmail,
       answers: builtAnswers,
       resumeUrl,
