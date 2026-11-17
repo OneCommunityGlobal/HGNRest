@@ -59,6 +59,7 @@ const wishlistController = {
         return res.status(400).json({ message: 'userId and listingId required' });
       const userObjectId = toObjectId(userId);
       const listingObjectId = toObjectId(listingId);
+      const listingHex = listingObjectId ? listingObjectId.toHexString() : null;
       if (!userObjectId || !listingObjectId)
         return res.status(400).json({ message: 'Invalid userId or listingId' });
 
@@ -68,7 +69,7 @@ const wishlistController = {
       let wishlist = await Wishlist.findOne({ userId: userObjectId });
       if (!wishlist)
         wishlist = new Wishlist({ userId: userObjectId, listingId: [listingObjectId] });
-      else if (wishlist.listingId.some((id) => String(id) === String(listingObjectId)))
+      else if (wishlist.listingId.some((id) => String(id) === listingHex))
         return res.status(HTTP_CONFLICT).json({ message: 'Listing already in wishlist' });
       else wishlist.listingId.push(listingObjectId);
 
@@ -88,18 +89,17 @@ const wishlistController = {
         return res.status(400).json({ message: 'userId and listingId required' });
       const userObjectId = toObjectId(userId);
       const listingObjectId = toObjectId(listingId);
+      const listingHex = listingObjectId ? listingObjectId.toHexString() : null;
       if (!userObjectId || !listingObjectId)
         return res.status(400).json({ message: 'Invalid userId or listingId' });
 
       const wishlist = await Wishlist.findOne({ userId: userObjectId });
       if (!wishlist) return res.status(404).json({ message: 'Wishlist not found' });
 
-      if (!wishlist.listingId.some((id) => String(id) === String(listingObjectId)))
+      if (!wishlist.listingId.some((id) => String(id) === listingHex))
         return res.status(404).json({ message: 'Listing not in wishlist' });
 
-      wishlist.listingId = wishlist.listingId.filter(
-        (id) => !String(id) === String(listingObjectId),
-      );
+      wishlist.listingId = wishlist.listingId.filter((id) => String(id) !== listingHex);
       await wishlist.save();
 
       res.status(200).json({ message: 'Listing removed from wishlist' });

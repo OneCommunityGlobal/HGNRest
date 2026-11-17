@@ -273,6 +273,20 @@ describe('wishlistController', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Listing removed from wishlist' });
     });
 
+    it('removes only the matching listing from the stored array', async () => {
+      const otherId = new mongoose.Types.ObjectId();
+      req.body = { userId: validUserId };
+      req.params = { listingId: validListingId };
+      const mockWishlist = {
+        listingId: [new mongoose.Types.ObjectId(validListingId), otherId],
+        save: jest.fn().mockResolvedValue(),
+      };
+      Wishlist.findOne.mockResolvedValue(mockWishlist);
+
+      await wishlistController.removeFromWishlist(req, res);
+      expect(mockWishlist.listingId).toEqual([otherId]);
+    });
+
     it('returns 500 on unexpected error', async () => {
       req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
