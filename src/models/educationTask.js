@@ -92,6 +92,16 @@ const educationTaskSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    suggestedTotalHours: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    loggedHours: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,

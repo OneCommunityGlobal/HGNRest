@@ -14,6 +14,35 @@ const toObjectId = (value) => {
   return new mongoose.Types.ObjectId(trimmed);
 };
 
+const validateTaskUpdateDetails = (name, suggestedTotalHours) => {
+  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+    return 'Name must be a nonempty string';
+  }
+  if (
+    suggestedTotalHours !== undefined &&
+    (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0)
+  ) {
+    return 'Suggested total hours must be a finite, nonnegative number';
+  }
+  return null;
+};
+
+const validateTaskUpdateState = (type, status) => {
+  if (type) {
+    const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
+    if (!validTaskTypes.includes(type)) {
+      return `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`;
+    }
+  }
+  if (status) {
+    const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
+    if (!validStatuses.includes(status)) {
+      return `Invalid status. Must be one of: ${validStatuses.join(', ')}`;
+    }
+  }
+  return null;
+};
+
 const educationTaskController = () => {
   /**
    * Get all education tasks (admin/educator)
@@ -24,7 +53,8 @@ const educationTaskController = () => {
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
         .populate('atomIds', 'name description difficulty')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .allowDiskUse(true);
 
       res.status(200).json(tasks);
     } catch (err) {
@@ -146,7 +176,25 @@ const educationTaskController = () => {
    */
   const createTask = async (req, res) => {
     try {
-      const { lessonPlanId, studentId, groupId, atomIds, type, dueAt } = req.body;
+      const {
+        name,
+        suggestedTotalHours = 0,
+        lessonPlanId,
+        studentId,
+        groupId,
+        atomIds,
+        type,
+        dueAt,
+      } = req.body;
+
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name must be a nonempty string' });
+      }
+      if (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0) {
+        return res
+          .status(400)
+          .json({ error: 'suggestedTotalHours must be a finite, nonnegative number' });
+      }
 
       // Validate lesson plan
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -179,6 +227,9 @@ const educationTaskController = () => {
 
       // Insert tasks
       const tasksToInsert = targetStudents.map((id) => ({
+        name: name.trim(),
+        suggestedTotalHours,
+        loggedHours: 0,
         lessonPlanId,
         studentId: id,
         atomIds: atomIds || [],
@@ -215,11 +266,46 @@ const educationTaskController = () => {
    */
   const updateTask = async (req, res) => {
     try {
+      const requestor = req.user;
+      const validRoles = [
+        'admin',
+        'educator',
+        'Educator',
+        'teacher',
+        'Teacher',
+        'owner',
+        'Owner',
+        'Administrator',
+      ];
+
+      if (!requestor?.requestorId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!validRoles.includes(requestor.role)) {
+        return res.status(403).json({
+          error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
+        });
+      }
+
       const { id } = req.params;
-      const { atomIds, type, status, dueAt, uploadUrls, grade, feedback } = req.body;
+      const {
+        name,
+        suggestedTotalHours,
+        atomIds,
+        type,
+        status,
+        dueAt,
+        uploadUrls,
+        grade,
+        feedback,
+      } = req.body;
 
       const task = await EducationTask.findById(id);
       if (!task) return res.status(404).json({ error: 'Task not found' });
+
+      const detailsError = validateTaskUpdateDetails(name, suggestedTotalHours);
+      if (detailsError) return res.status(400).json({ error: detailsError });
 
       // Validate atoms
       if (atomIds && atomIds.length > 0) {
@@ -229,25 +315,8 @@ const educationTaskController = () => {
         }
       }
 
-      // Validate type
-      if (type) {
-        const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
-        if (!validTaskTypes.includes(type)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` });
-        }
-      }
-
-      // Validate status
-      if (status) {
-        const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
-        if (!validStatuses.includes(status)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
-        }
-      }
+      const stateError = validateTaskUpdateState(type, status);
+      if (stateError) return res.status(400).json({ error: stateError });
 
       // Update completedAt if status is being changed to completed
       let { completedAt } = task;
@@ -257,7 +326,18 @@ const educationTaskController = () => {
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
-        { atomIds, type, status, dueAt, uploadUrls, grade, feedback, completedAt },
+        {
+          name: name !== undefined ? name.trim() : undefined,
+          suggestedTotalHours,
+          atomIds,
+          type,
+          status,
+          dueAt,
+          uploadUrls,
+          grade,
+          feedback,
+          completedAt,
+        },
         { new: true, runValidators: true },
       )
         .populate('lessonPlanId', 'title theme')
@@ -359,10 +439,14 @@ const educationTaskController = () => {
   // Mark a student's task as completed from the student dashboard flow.
   const markTaskAsComplete = async (req, res) => {
     try {
-      const { taskId, studentId } = req.body;
+      const { taskId } = req.body;
+      const studentId = req.user?.requestorId;
 
-      if (!taskId || !studentId) {
-        return res.status(400).json({ error: 'taskId and studentId are required' });
+      if (!studentId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (!taskId) {
+        return res.status(400).json({ error: 'taskId is required' });
       }
 
       const safeTaskId = toObjectId(taskId);
@@ -380,8 +464,34 @@ const educationTaskController = () => {
         return res.status(200).json(task);
       }
 
-      const updatedTask = await EducationTask.findByIdAndUpdate(
-        safeTaskId,
+      if (task.type !== 'read') {
+        return res.status(400).json({ error: 'Only read tasks can be completed manually' });
+      }
+      if (!['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Task status is not eligible for completion' });
+      }
+      if (
+        !Number.isFinite(task.loggedHours) ||
+        !Number.isFinite(task.suggestedTotalHours) ||
+        task.loggedHours < 0 ||
+        task.suggestedTotalHours < 0 ||
+        task.loggedHours < task.suggestedTotalHours
+      ) {
+        return res
+          .status(400)
+          .json({ error: 'Valid logged hours must meet suggested total hours' });
+      }
+
+      // Compare and update atomically so ownership or eligibility cannot change unnoticed.
+      const updatedTask = await EducationTask.findOneAndUpdate(
+        {
+          _id: safeTaskId,
+          studentId: safeStudentId,
+          type: 'read',
+          status: task.status,
+          loggedHours: task.loggedHours,
+          suggestedTotalHours: task.suggestedTotalHours,
+        },
         {
           status: 'completed',
           completedAt: new Date(),
@@ -391,6 +501,10 @@ const educationTaskController = () => {
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
         .populate('atomIds', 'name description difficulty');
+
+      if (!updatedTask) {
+        return res.status(409).json({ error: 'Task changed; reload and retry completion' });
+      }
 
       res.status(200).json(updatedTask);
     } catch (error) {
