@@ -242,6 +242,8 @@ async function checkDropboxAccess(req, res) {
       status: appAccess?.status || 'none',
     });
   } catch (error) {
+    console.error('Failed to check Dropbox access:', error);
+
     return res.status(200).json({
       eligible: false,
       status: 'none',
