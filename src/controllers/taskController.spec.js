@@ -1709,7 +1709,7 @@ describe('Unit Tests for taskController.js', () => {
       save: jest.fn(),
     };
 
-    test('Returns 200 on success - updateTaskStatus', async () => {
+    test('Returns 201 on success - updateTaskStatus', async () => {
       const { updateTaskStatus } = makeSut();
 
       mockReq.params = {
@@ -1760,7 +1760,7 @@ describe('Unit Tests for taskController.js', () => {
       expect(taskFindOneAndUpdateSpy).toHaveBeenCalled();
     });
 
-    test('Returns 400 on error', async () => {
+    test('Returns 404 on error', async () => {
       const { updateTaskStatus } = makeSut();
       const error = new Error('some error');
 
