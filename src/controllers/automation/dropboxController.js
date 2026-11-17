@@ -225,6 +225,30 @@ async function getFolderDetails(req, res) {
   }
 }
 
+async function checkDropboxAccess(req, res) {
+  const { userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+
+  try {
+    const appAccess = await appAccessService.getAppAccess(userId, 'dropbox');
+
+    const eligible = ['active', 'invited'].includes(appAccess?.status);
+
+    return res.status(200).json({
+      eligible,
+      status: appAccess?.status || 'none',
+    });
+  } catch (error) {
+    return res.status(200).json({
+      eligible: false,
+      status: 'none',
+    });
+  }
+}
+
 module.exports = {
   createFolder,
   createFolderAndInvite,
@@ -232,4 +256,5 @@ module.exports = {
   deleteFolder,
   getTeamFolders,
   getFolderDetails,
+  checkDropboxAccess,
 };
