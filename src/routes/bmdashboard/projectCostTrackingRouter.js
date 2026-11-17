@@ -12,6 +12,9 @@ const routes = function (ProjectCostTracking) {
   // GET /api/bm/projects-cost/ids
   projectCostTrackingRouter.route('/bm/projects-cost/ids').get(controller.getAllProjectIds);
 
+  // GET /api/bm/project-cost-entries
+  projectCostTrackingRouter.route('/bm/project-cost-entries').get(controller.getCostEntries);
+
   return projectCostTrackingRouter;
 };
 

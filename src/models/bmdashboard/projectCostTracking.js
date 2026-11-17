@@ -6,7 +6,10 @@ const projectCostTrackingSchema = new Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'Project',
+    // Was 'Project' (the unrelated general org-project collection: "HG Education",
+    // "Sid Project", etc.) — these entries are actually keyed to BM Dashboard
+    // construction projects (Building 1, 2, 3, ...), which live in buildingProjects.
+    ref: 'buildingProject',
   },
   date: {
     type: Date,
@@ -20,6 +23,14 @@ const projectCostTrackingSchema = new Schema({
   cost: {
     type: Number,
     required: true,
+    min: 0,
+  },
+  // No real planned-budget source exists yet for these entries, so this stays null
+  // rather than being backfilled with an estimate. Once real budget data exists,
+  // it belongs here.
+  plannedCost: {
+    type: Number,
+    default: null,
     min: 0,
   },
   createdAt: {
