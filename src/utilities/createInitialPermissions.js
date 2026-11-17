@@ -8,6 +8,7 @@ const permissionsRoles = [
     permissions: [
       // Reports
       'getWeeklySummaries',
+      'getVolunteerWeeklySummary',
       'getReports', // Doesn't do anything on back-end.
       'totalValidWeeklySummaries',
       'requestBio',
@@ -104,6 +105,7 @@ const permissionsRoles = [
       'addNewTitle',
       'editTitle',
       'assignTitle',
+      'deleteTitle',
 
       'seeUsersInDashboard',
       'editTeamCode',
@@ -131,6 +133,7 @@ const permissionsRoles = [
     permissions: [
       'getReports',
       'getWeeklySummaries',
+      'getVolunteerWeeklySummary',
       'getUserProfiles',
       'getProjectMembers',
       'getAllInvInProjectWBS',
@@ -287,6 +290,7 @@ const permissionsRoles = [
       'getAllInvType',
       'postInvType',
       'getWeeklySummaries',
+      'getVolunteerWeeklySummary',
       'getReports',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
@@ -300,6 +304,7 @@ const permissionsRoles = [
       'addNewTitle',
       'editTitle',
       'assignTitle',
+      'deleteTitle',
 
       'seeUsersInDashboard',
 
@@ -307,6 +312,7 @@ const permissionsRoles = [
       'toggleInvisibility',
       'manageAdminLinks',
       'removeUserFromTask',
+      'canDeleteTask',
       'editHeaderMessage',
       'accessHgnSkillsDashboard',
       'manageFAQs',
