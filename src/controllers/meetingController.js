@@ -15,8 +15,8 @@ const meetingController = function (Meeting) {
     const isInvalid =
       !req.body.dateOfMeeting ||
       !moment(req.body.dateOfMeeting).isValid() ||
-      req.body.startHour == null ||
-      req.body.startMinute == null ||
+      [null, undefined].includes(req.body.startHour) ||
+      [null, undefined].includes(req.body.startMinute) ||
       !req.body.startTimePeriod ||
       !['AM', 'PM'].includes(req.body.startTimePeriod) ||
       !req.body.duration ||

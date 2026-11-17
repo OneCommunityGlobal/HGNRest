@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Listing = require('../../models/lbdashboard/listings');
 
+const HTTP_CONFLICT = 409;
+
 const listingAvailablityController = (Availability) => {
   const getListingAvailablity = async (req, res) => {
     try {
@@ -27,7 +29,7 @@ const listingAvailablityController = (Availability) => {
       }
       let availability = await Availability.findOne({ listingId });
       if (availability) {
-        return res.status(409).json({ error: 'Availability already exists for this listing' });
+        return res.status(HTTP_CONFLICT).json({ error: 'Availability already exists for this listing' });
       }
       availability = new Availability({ ...data, listingId });
       await availability.save();

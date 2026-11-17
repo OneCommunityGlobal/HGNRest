@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const SeedInventory = require('../../../models/gardenManagement/seedInventory');
 const {
   getSeedInventory,

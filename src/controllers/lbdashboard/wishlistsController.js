@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const Wishlist = require('../../models/lbdashboard/wishlists');
 const Listing = require('../../models/lbdashboard/listings');
 const Village = require('../../models/lbdashboard/villages');
+const logger = require('../../startup/logger');
+
+const HTTP_CONFLICT = 409;
 
 const toObjectId = (value) =>
   typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)
@@ -44,7 +47,7 @@ const wishlistController = {
         listingId: listingsWithVillageAmenities,
       });
     } catch (error) {
-      console.error(error);
+      logger.logException(error);
       res.status(500).json({ message: 'Error fetching wishlist' });
     }
   },
@@ -66,13 +69,13 @@ const wishlistController = {
       if (!wishlist)
         wishlist = new Wishlist({ userId: userObjectId, listingId: [listingObjectId] });
       else if (wishlist.listingId.some((id) => String(id) === String(listingObjectId)))
-        return res.status(409).json({ message: 'Listing already in wishlist' });
+        return res.status(HTTP_CONFLICT).json({ message: 'Listing already in wishlist' });
       else wishlist.listingId.push(listingObjectId);
 
       await wishlist.save();
       res.status(200).json(wishlist);
     } catch (error) {
-      console.error(error);
+      logger.logException(error);
       res.status(500).json({ message: 'Error adding to wishlist' });
     }
   },
@@ -101,7 +104,7 @@ const wishlistController = {
 
       res.status(200).json({ message: 'Listing removed from wishlist' });
     } catch (error) {
-      console.error(error);
+      logger.logException(error);
       res.status(500).json({ message: 'Error removing from wishlist' });
     }
   },
