@@ -43,37 +43,67 @@ const dashboardcontroller = function () {
       }
     });
   };
-  const updateAIPrompt = function (req, res) {
-    if (req.body.requestor.role === 'Owner') {
-      AIPrompt.findOneAndUpdate(
-        { _id: 'ai-prompt' },
+  const updateAIPrompt = async function (req, res) {
+    if (req.body.requestor.role !== 'Owner') return;
+    if (typeof req.body.aIPromptText !== 'string') {
+      res.status(400).send({ message: 'AI prompt text must be a string.' });
+      return;
+    }
+
+    try {
+      const current = await AIPrompt.findById('ai-prompt');
+      if (!current) {
+        res.status(404).send({ message: 'AI prompt not found.' });
+        return;
+      }
+
+      const update = {
+        aIPromptText: req.body.aIPromptText,
+        modifiedDatetime: Date.now(),
+      };
+      if (current.aIPromptText !== req.body.aIPromptText) {
+        update.lastEditedDatetime = new Date(update.modifiedDatetime);
+      }
+
+      // Only save if the persisted content and timestamps still match the snapshot.
+      const saved = await AIPrompt.findOneAndUpdate(
         {
-          ...req.body,
-          aIPromptText: req.body.aIPromptText,
-          modifiedDatetime: Date.now(),
+          _id: 'ai-prompt',
+          aIPromptText: current.aIPromptText,
+          lastEditedDatetime: current.lastEditedDatetime || null,
+          modifiedDatetime: current.modifiedDatetime,
         },
-      )
-        .then(() => {
-          res.status(200).send('Successfully saved AI prompt.');
-        })
-        .catch((error) => res.status(500).send(error));
+        { $set: update },
+        { new: true },
+      );
+      if (!saved) {
+        res
+          .status(409)
+          .send({ message: 'AI prompt changed while saving. Please reload and retry.' });
+        return;
+      }
+      res.status(200).send('Successfully saved AI prompt.');
+    } catch (error) {
+      res.status(500).send(error);
     }
   };
 
   const getAIPrompt = function (req, res) {
-    AIPrompt.findById({ _id: 'ai-prompt' })
+    return AIPrompt.findById({ _id: 'ai-prompt' })
       .then((result) => {
         if (result) {
           // If the GPT prompt exists, send it back.
+          result.lastEditedDatetime = result.lastEditedDatetime || null;
           res.status(200).send(result);
         } else {
           // If the GPT prompt does not exist, create it.
           const defaultPrompt = {
             _id: 'ai-prompt',
+            lastEditedDatetime: null,
             aIPromptText:
               "Please edit the following summary of my week's work. Make sure it is professionally written in 3rd person format.\nWrite it as only one paragraph. It must be only one paragraph. Keep it less than 500 words. Start the paragraph with 'This week'.\nMake sure the paragraph contains no links or URLs and write it in a tone that is matter-of-fact and without embellishment.\nDo not add flowery language, keep it simple and factual. Do not add a final summary sentence. Apply all this to the following:",
           };
-          AIPrompt.create(defaultPrompt)
+          return AIPrompt.create(defaultPrompt)
             .then((newResult) => {
               res.status(200).send(newResult);
             })
