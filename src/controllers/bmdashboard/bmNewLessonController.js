@@ -1,6 +1,11 @@
 /* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
+const {
+  parseLessonListQuery,
+  buildTagFrequencyPipeline,
+  LessonListQueryError,
+} = require('../../helpers/bmLessonListQuery');
 
 /** Builds a MongoDB filter fragment for projectId. Returns {} for 'ALL' or absent value. */
 const buildProjectIdFilter = (projectId) => {
@@ -29,12 +34,57 @@ const bmNewLessonController = function (BuildingNewLesson) {
   const Like = require('../../models/bmdashboard/buldingLessonLike');
   const bmGetLessonList = async (req, res) => {
     try {
-      BuildingNewLesson.find()
-        .populate()
-        .then((result) => res.status(200).send(result))
-        .catch((error) => res.status(500).send(error));
-    } catch (err) {
-      res.json(err);
+      const options = parseLessonListQuery(req.query);
+      const { filter, sort, sortFields, pagination } = options;
+      let query;
+      if (sort === 'tagFrequency') {
+        query = BuildingNewLesson.aggregate(
+          buildTagFrequencyPipeline(options, BuildingNewLesson.collection.name),
+        )
+          .collation({ locale: 'simple' })
+          .allowDiskUse(true);
+      } else {
+        query = BuildingNewLesson.find(filter, null, { collation: { locale: 'simple' } });
+        if (sortFields) query = query.sort(sortFields);
+        if (pagination) query = query.skip(pagination.offset).limit(pagination.limit);
+      }
+      const [results, total] = await Promise.all([
+        query,
+        pagination
+          ? BuildingNewLesson.countDocuments(filter).collation({ locale: 'simple' })
+          : Promise.resolve(null),
+      ]);
+      // Aggregations bypass Mongoose document casting/defaults (notably embedded file buffers).
+      // Hydrate locally to preserve the same serialization/reference shapes as find(), without queries.
+      const lessons =
+        sort === 'tagFrequency'
+          ? results.map((lesson) => BuildingNewLesson.hydrate(lesson))
+          : results;
+      // Like IDs in lesson.likes identify records, not users. Query only this response's lessons.
+      const requestorId = req.user && req.user.requestorId;
+      const likes =
+        requestorId && lessons.length
+          ? await Like.find({ user: requestorId, lesson: { $in: lessons.map((lesson) => lesson._id) } })
+              .select('lesson -_id')
+              .lean()
+          : [];
+      const likedLessonIds = new Set(likes.map((like) => String(like.lesson)));
+      const data = lessons.map((lesson) => ({
+        ...(typeof lesson.toJSON === 'function' ? lesson.toJSON() : lesson),
+        isLiked: likedLessonIds.has(String(lesson._id)),
+      }));
+      if (!pagination) return res.status(200).send(data);
+      const { page, limit } = pagination;
+      const totalPages = Math.ceil(total / limit);
+      return res.status(200).send({
+        data,
+        pagination: { page, limit, total, totalPages, hasNextPage: page < totalPages },
+      });
+    } catch (error) {
+      if (error instanceof LessonListQueryError)
+        return res.status(400).send({ error: error.message });
+      logger.logException(error, 'bmGetLessonList');
+      return res.status(500).send({ error: 'Failed to fetch lessons.' });
     }
   };
   const bmPostLessonList = async (req, res) => {
@@ -238,6 +288,24 @@ const bmNewLessonController = function (BuildingNewLesson) {
       res.status(500).json({ error: 'Error fetching tags' });
     }
   };
+  // Global tag occurrences only: no lesson documents/files leave MongoDB.
+  const getLessonTagCounts = async (req, res) => {
+    try {
+      const counts = await BuildingNewLesson.aggregate([
+        { $project: { tags: 1, _id: 0 } },
+        { $unwind: '$tags' },
+        { $group: { _id: '$tags', count: { $sum: 1 } } },
+        { $project: { _id: 0, tag: '$_id', count: 1 } },
+        { $sort: { count: -1, tag: 1 } },
+      ])
+        .collation({ locale: 'simple' })
+        .allowDiskUse(true);
+      return res.status(200).json(counts);
+    } catch (error) {
+      logger.logException(error, 'getLessonTagCounts');
+      return res.status(500).json({ error: 'Failed to fetch lesson tag counts.' });
+    }
+  };
   const getLessonsLearnt = async (req, res) => {
     try {
       const { projectId, startDate, endDate } = req.query;
@@ -342,6 +410,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
     bmEditSingleLesson,
     likeLesson,
     getLessonTags,
+    getLessonTagCounts,
     addNewTag,
     deleteTag,
     getLessonsLearnt,
