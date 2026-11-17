@@ -22,6 +22,8 @@ const MINIMAL_POST_BODY = {
   status: 'open',
 };
 
+const INVALID_SEVERITY_MESSAGE = 'Invalid severity. Allowed values: Low, Medium, High, Critical.';
+
 // Mocking the BuildingIssue Model
 const mockBuildingIssue = {
   find: jest.fn(),
@@ -439,6 +441,26 @@ describe('Building Issue Controller', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'Database error' });
     });
 
+    it('should return 400 when severity is invalid', async () => {
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { severity: 'Urgent' };
+      await controller.bmUpdateIssue(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: INVALID_SEVERITY_MESSAGE });
+      expect(mockBuildingIssue.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should update severity when it is valid', async () => {
+      const mockUpdatedIssue = { _id: TEST_ISSUE_ID, severity: 'High' };
+      req.params.id = TEST_ISSUE_ID;
+      req.body = { severity: 'High' };
+      mockBuildingIssue.findByIdAndUpdate.mockResolvedValue(mockUpdatedIssue);
+      await controller.bmUpdateIssue(req, res);
+      const callArgs = mockBuildingIssue.findByIdAndUpdate.mock.calls[0];
+      expect(callArgs[1].$set.severity).toBe('High');
+      expect(res.json).toHaveBeenCalledWith(mockUpdatedIssue);
+    });
+
     it('should return 500 when findByIdAndUpdate throws synchronously', async () => {
       const error = new Error('Unexpected error');
       req.params.id = TEST_ISSUE_ID;
@@ -623,6 +645,11 @@ describe('Building Issue Controller', () => {
         { error: 'Invalid status. Allowed values: open, closed.' },
       ],
       [
+        'severity',
+        { ...MINIMAL_POST_BODY, severity: 'Urgent' },
+        { error: INVALID_SEVERITY_MESSAGE },
+      ],
+      [
         'issueDate',
         { ...MINIMAL_POST_BODY, issueDate: 'not-a-date' },
         { error: 'Invalid issueDate.' },
@@ -635,6 +662,16 @@ describe('Building Issue Controller', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(expectedError);
       expect(mockBuildingIssue.create).not.toHaveBeenCalled();
+    });
+
+    it('should save a valid severity on the new issue', async () => {
+      req.body = { ...MINIMAL_POST_BODY, severity: 'Critical' };
+      mockBuildingIssue.create.mockResolvedValue({ ...req.body });
+      await controller.bmPostIssue(req, res);
+      expect(mockBuildingIssue.create).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'Critical' }),
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
     });
   });
 
