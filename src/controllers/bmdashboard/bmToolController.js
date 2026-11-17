@@ -160,6 +160,80 @@ const bmToolController = (BuildingTool, ToolType) => {
     }
   };
 
+  const bmUpdateToolPurchaseStatus = async function (req, res) {
+    const { purchaseId, status, quantity } = req.body;
+
+    if (!purchaseId || !mongoose.Types.ObjectId.isValid(purchaseId)) {
+      return res.status(400).send('Invalid purchase ID format.');
+    }
+
+    if (!['Approved', 'Rejected'].includes(status)) {
+      return res.status(400).send('A valid status (Approved/Rejected) is required.');
+    }
+
+    if (status === 'Approved' && (quantity === null || quantity === undefined || quantity <= 0)) {
+      return res.status(400).send('A positive quantity is required when approving a purchase.');
+    }
+
+    const requestorRole = req.user?.role;
+    if (!['Owner', 'Administrator'].includes(requestorRole)) {
+      return res.status(403).send('You are not authorized to approve or reject purchases.');
+    }
+
+    try {
+      const purchaseObjectId = new mongoose.Types.ObjectId(purchaseId);
+      const tool = await BuildingTool.findOne({ 'purchaseRecord._id': purchaseObjectId });
+
+      if (!tool) {
+        return res.status(404).send('Purchase not found.');
+      }
+
+      const purchaseRecord = tool.purchaseRecord.find(
+        (record) => record._id.toString() === purchaseId,
+      );
+
+      if (!purchaseRecord) {
+        return res.status(404).send('Purchase record not found.');
+      }
+
+      if (purchaseRecord.status !== 'Pending') {
+        return res
+          .status(400)
+          .send(
+            `Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`,
+          );
+      }
+
+      const setUpdates = { 'purchaseRecord.$.status': status };
+      if (status === 'Approved') {
+        setUpdates.purchaseStatus = 'Purchased';
+      }
+
+      const updatedTool = await BuildingTool.findOneAndUpdate(
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: purchaseObjectId,
+              status: 'Pending',
+            },
+          },
+        },
+        { $set: setUpdates },
+        { new: true },
+      );
+
+      if (!updatedTool) {
+        return res
+          .status(400)
+          .send('Purchase status can only be updated from \'Pending\'. The record may have already been updated.');
+      }
+
+      return res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
+    } catch (error) {
+      return res.status(500).send(error);
+    }
+  };
+
   const bmLogTools = async function (req, res) {
     const requestor = req.body.requestor.requestorId;
     const { typesArray, action, date } = req.body;
@@ -328,6 +402,7 @@ const bmToolController = (BuildingTool, ToolType) => {
     fetchAllTools,
     fetchSingleTool,
     bmPurchaseTools,
+    bmUpdateToolPurchaseStatus,
     bmLogTools,
     updateToolById,
   };
