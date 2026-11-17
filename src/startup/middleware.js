@@ -43,7 +43,6 @@ module.exports = function (app) {
       '/pinterest/auth', // add this
       '/pinterest/auth/callback', // add this
     ];
-    const openPaths = ['/api/lb/myWebhooks'];
 
     if (req.originalUrl === '/') {
       res.status(200).send('This is the homepage for rest services');
