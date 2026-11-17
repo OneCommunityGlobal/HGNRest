@@ -1,6 +1,5 @@
 const { ObjectId } = require('mongoose').Types;
 const { endOfDay } = require('date-fns');
-const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const logger = require('../../startup/logger');
 const { getUniqueProjectsWithNames } = require('../../utilities/bmProjectAggregation');
 
@@ -10,45 +9,16 @@ const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality 
 
 const MIN_YEAR = 1000;
 const MAX_YEAR = 9999;
-
-const MAX_ISSUE_TITLE_LENGTH = 50;
-const MAX_ISSUE_TEXT_LENGTH = 500;
-const MAX_IMAGE_URL_LENGTH = 2048;
-const MAX_PERSON_FIELD_LENGTH = 200;
-
-const toSanitizedStringArray = (value, maxLen) => {
-  if (!Array.isArray(value) || value.length === 0) return null;
-  const out = value
-    .filter((item) => item !== null && item !== undefined)
-    .map((item) => String(item).slice(0, maxLen));
-  return out.length > 0 ? out : null;
-};
+const DEC_MONTH_INDEX = 11;
+const DEC_LAST_DAY = 31;
+const END_OF_DAY_HOUR = 23;
+const END_OF_DAY_MINUTE = 59;
+const END_OF_DAY_SECOND = 59;
+const END_OF_DAY_MS = 999;
+const MS_PER_DAY = 86400000;
+const TOP_ISSUES_LIMIT = 5;
 
 const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
-
-const getProjectFilterIds = (projectsParam) =>
-  projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
-
-const filterProjectIdsByDates = async (datesParam, currentProjectIds) => {
-  if (!datesParam) {
-    return currentProjectIds;
-  }
-
-  const [start, end] = datesParam.split(',').map((d) => d.trim());
-  const matchingProjects = await BuildingProject.find({
-    dateCreated: { $gte: new Date(start), $lte: new Date(end) },
-    isActive: true,
-  })
-    .select('_id')
-    .lean();
-
-  const dateIds = matchingProjects.map((p) => p._id.toString());
-  if (currentProjectIds.length === 0) {
-    return dateIds;
-  }
-
-  return currentProjectIds.filter((id) => dateIds.includes(id));
-};
 
 const omitUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
@@ -211,6 +181,33 @@ function validatePostBody(body) {
   return null;
 }
 
+function buildIssueFilterQuery(reqQuery, dateField, baseQuery) {
+  const { projectIds, projects, startDate, endDate, dates } = reqQuery;
+  const query = { ...baseQuery };
+  const rawProjects = projectIds || projects;
+
+  if (rawProjects) {
+    const ids = rawProjects
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (ids.length > 0) query.projectId = { $in: ids };
+  }
+
+  const [parsedStart, parsedEnd] = dates
+    ? dates.split(',').map((d) => d.trim())
+    : [startDate, endDate];
+
+  if (parsedStart || parsedEnd) {
+    query[dateField] = {};
+    if (parsedStart) query[dateField].$gte = new Date(parsedStart);
+    if (parsedEnd) query[dateField].$lte = new Date(parsedEnd);
+  }
+
+  return query;
+}
+
+/* eslint-disable-next-line max-lines-per-function */
 const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- GET ALL ISSUES -------------------- */
   const bmGetIssue = async (req, res) => {
@@ -334,7 +331,17 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
           return res.status(400).json({ error: 'Invalid year. Must be a 4-digit integer.' });
         }
         const startOfYear = new Date(Date.UTC(yearNum, 0, 1));
-        const endOfYear = new Date(Date.UTC(yearNum, 11, 31, 23, 59, 59, 999));
+        const endOfYear = new Date(
+          Date.UTC(
+            yearNum,
+            DEC_MONTH_INDEX,
+            DEC_LAST_DAY,
+            END_OF_DAY_HOUR,
+            END_OF_DAY_MINUTE,
+            END_OF_DAY_SECOND,
+            END_OF_DAY_MS,
+          ),
+        );
         match.issueDate = { $gte: startOfYear, $lte: endOfYear };
       }
 
@@ -450,23 +457,7 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- LONGEST OPEN ISSUES -------------------- */
   const getLongestOpenIssues = async (req, res) => {
     try {
-      const { projectIds, startDate, endDate } = req.query;
-      const query = { status: 'open' };
-
-      if (projectIds) {
-        const ids = projectIds
-          .split(',')
-          .map((id) => id.trim())
-          .filter(Boolean);
-        if (ids.length > 0) query.projectId = { $in: ids };
-      }
-
-      if (startDate || endDate) {
-        query.issueDate = {};
-        if (startDate) query.issueDate.$gte = new Date(startDate);
-        if (endDate) query.issueDate.$lte = new Date(endDate);
-      }
-
+      const query = buildIssueFilterQuery(req.query, 'issueDate', { status: 'open' });
       const today = new Date();
       const issues = await BuildingIssue.find(query).select('issueTitle issueDate').lean();
 
@@ -474,14 +465,14 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         .map((issue) => ({
           issueId: issue._id,
           title: Array.isArray(issue.issueTitle) ? issue.issueTitle[0] : issue.issueTitle,
-          daysOpen: Math.floor((today - new Date(issue.issueDate)) / (1000 * 60 * 60 * 24)),
+          daysOpen: Math.floor((today - new Date(issue.issueDate)) / MS_PER_DAY),
         }))
         .sort((a, b) => b.daysOpen - a.daysOpen)
-        .slice(0, 5);
+        .slice(0, TOP_ISSUES_LIMIT);
 
       return res.json({ data: result });
     } catch (error) {
-      console.error('Error fetching longest open issues:', error);
+      logger.logException(error, { context: 'getLongestOpenIssues' });
       return res.status(500).json({ message: 'Error fetching longest open issues' });
     }
   };
@@ -489,40 +480,26 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
   /* -------------------- MOST EXPENSIVE ISSUES -------------------- */
   const getMostExpensiveIssues = async (req, res) => {
     try {
-      const { projectIds, startDate, endDate } = req.query;
-      const query = {};
-
-      if (projectIds) {
-        const ids = projectIds
-          .split(',')
-          .map((id) => id.trim())
-          .filter(Boolean);
-        if (ids.length > 0) query.projectId = { $in: ids };
-      }
-
-      if (startDate || endDate) {
-        query.openDate = {};
-        if (startDate) query.openDate.$gte = new Date(startDate);
-        if (endDate) query.openDate.$lte = new Date(endDate);
-      }
-
+      const query = buildIssueFilterQuery(req.query, 'openDate', {});
       const today = new Date();
       const issues = await injuryIssue.find(query).select('name openDate totalCost').lean();
 
       const result = issues
-        .filter((issue) => issue.totalCost != null)
+        .filter((issue) => issue.totalCost !== null && issue.totalCost !== undefined)
         .map((issue) => ({
           issueId: issue._id,
           title: issue.name,
+          issueName: issue.name,
           totalCost: issue.totalCost,
-          daysOpen: Math.floor((today - new Date(issue.openDate)) / (1000 * 60 * 60 * 24)),
+          cost: issue.totalCost,
+          daysOpen: Math.floor((today - new Date(issue.openDate)) / MS_PER_DAY),
         }))
         .sort((a, b) => b.totalCost - a.totalCost)
-        .slice(0, 5);
+        .slice(0, TOP_ISSUES_LIMIT);
 
       return res.json({ data: result });
     } catch (error) {
-      console.error('Error fetching most expensive issues:', error);
+      logger.logException(error, { context: 'getMostExpensiveIssues' });
       return res.status(500).json({ message: 'Error fetching most expensive issues' });
     }
   };

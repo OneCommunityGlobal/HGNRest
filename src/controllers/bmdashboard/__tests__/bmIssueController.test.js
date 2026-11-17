@@ -820,6 +820,20 @@ describe('Building Issue Controller', () => {
       expect(callArgs.issueDate.$lte).toEqual(new Date('2024-12-31'));
     });
 
+    it('should filter by projects and dates query params when provided', async () => {
+      req.query = { projects: `${TEST_ISSUE_ID}, `, dates: '2022-01-01,2024-12-31' };
+      await controller.getLongestOpenIssues(req, res);
+
+      expect(mockBuildingIssue.find).toHaveBeenCalledWith({
+        status: 'open',
+        projectId: { $in: [TEST_ISSUE_ID] },
+        issueDate: {
+          $gte: new Date('2022-01-01'),
+          $lte: new Date('2024-12-31'),
+        },
+      });
+    });
+
     it('should return top 5 issues sorted by daysOpen', async () => {
       const mockIssues = Array.from({ length: 10 }, (_, i) => ({
         _id: `50000000000000000000000${i}`,
@@ -909,6 +923,19 @@ describe('Building Issue Controller', () => {
       const callArgs = mockInjuryIssue.find.mock.calls[0][0];
       expect(callArgs.openDate.$gte).toEqual(new Date('2022-01-01'));
       expect(callArgs.openDate.$lte).toEqual(new Date('2024-12-31'));
+    });
+
+    it('should support projects and dates aliases for most expensive issues', async () => {
+      req.query = { projects: TEST_ISSUE_ID, dates: '2023-03-01,2023-09-01' };
+      await controller.getMostExpensiveIssues(req, res);
+
+      expect(mockInjuryIssue.find).toHaveBeenCalledWith({
+        projectId: { $in: [TEST_ISSUE_ID] },
+        openDate: {
+          $gte: new Date('2023-03-01'),
+          $lte: new Date('2023-09-01'),
+        },
+      });
     });
 
     it('should exclude issues with null or undefined totalCost', async () => {
