@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const os = require('os');
 const cron = require('node-cron');
 const axios = require('axios');
 const MastodonSchedule = require('../models/mastodonSchedule');
@@ -6,14 +8,38 @@ const { uploadMedia } = require('../controllers/mastodonPostController');
 const MASTODON_ENDPOINT = process.env.MASTODON_ENDPOINT || 'https://mastodon.social';
 const ACCESS_TOKEN = process.env.MASTODON_ACCESS_TOKEN;
 
+// How long a worker owns a claimed post. Must be longer than one publish
+// attempt (media upload plus the status request).
+const LEASE_MS = 10 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 30 * 1000;
+const MAX_ATTEMPTS = 3;
+const MAX_POSTS_PER_RUN = 20;
+
+// Records saved before delivery state existed have no status field
+const PENDING = { $in: ['pending', null] };
+const CLEAR_LOCK = { lockOwner: '', lockedUntil: '' };
+
+const WORKER_ID = `${os.hostname()}:${process.pid}:${crypto.randomUUID()}`;
+
+// Thrown when a worker no longer owns a post it was about to publish
+class ClaimLostError extends Error {}
+
 function getAuthHeaders() {
   if (!ACCESS_TOKEN) throw new Error('MASTODON_ACCESS_TOKEN not set');
   return { Authorization: `Bearer ${ACCESS_TOKEN}` };
 }
 
-async function postToMastodon(postData) {
+// Same key for every attempt at the same scheduled post, so Mastodon
+// drops a repeat it has already accepted (it keeps keys for one hour)
+function getIdempotencyKey(postId) {
+  return `hgn-mastodon-schedule-${postId}`;
+}
+
+// beforePublish runs right before the status request, after any slow
+// media upload, so a post whose claim has expired is never sent
+async function postToMastodon(postData, idempotencyKey, beforePublish = async () => {}) {
   const url = `${MASTODON_ENDPOINT}/api/v1/statuses`;
-  const headers = getAuthHeaders();
+  const headers = { ...getAuthHeaders(), 'Idempotency-Key': idempotencyKey };
 
   // Parse if string
   const data = typeof postData === 'string' ? JSON.parse(postData) : postData;
@@ -32,7 +58,9 @@ async function postToMastodon(postData) {
       // eslint-disable-next-line camelcase
       const altText = data.mediaAltText || null;
       // eslint-disable-next-line camelcase
-      const mediaId = await uploadMedia(data.local_media_base64, altText);
+      const mediaId = await uploadMedia(data.local_media_base64, altText, {
+        timeout: REQUEST_TIMEOUT_MS,
+      });
       console.log('Image uploaded, media ID:', mediaId);
       // eslint-disable-next-line camelcase
       mastodonData.media_ids = [mediaId];
@@ -42,40 +70,161 @@ async function postToMastodon(postData) {
     }
   }
 
+  await beforePublish();
+
   console.log('Posting to Mastodon:', `${mastodonData.status.substring(0, 50)}...`);
 
-  return axios.post(url, mastodonData, { headers, responseType: 'json' });
+  return axios.post(url, mastodonData, {
+    headers,
+    responseType: 'json',
+    timeout: REQUEST_TIMEOUT_MS,
+  });
 }
 
-async function processScheduledPosts() {
+// A post still "publishing" after its lease may already be live on
+// Mastodon, so it is marked failed instead of being sent again
+async function failExpiredClaims(now) {
+  const result = await MastodonSchedule.updateMany(
+    { status: 'publishing', lockedUntil: { $lt: now } },
+    {
+      $set: {
+        status: 'failed',
+        lastError: 'Delivery was not confirmed before the claim expired; not retried',
+      },
+      $unset: CLEAR_LOCK,
+    },
+  );
+  if (result?.nModified || result?.modifiedCount) {
+    console.error('Marked unconfirmed scheduled Mastodon posts as failed:', result);
+  }
+}
+
+// Atomically move one due post from pending to publishing. Only one
+// callback or server instance can win a given post.
+// Posts already tried in this run are skipped, so a retry waits for the
+// next run instead of repeating straight away.
+function claimNextDuePost(workerId, dueBefore, triedIds) {
+  return MastodonSchedule.findOneAndUpdate(
+    { _id: { $nin: triedIds }, status: PENDING, scheduledTime: { $lte: dueBefore } },
+    {
+      $set: {
+        status: 'publishing',
+        lockOwner: workerId,
+        lockedUntil: new Date(Date.now() + LEASE_MS),
+      },
+      $inc: { attempts: 1 },
+    },
+    { new: true, sort: { scheduledTime: 1 } },
+  );
+}
+
+// Renew the claim right before publishing. Fails if the claim expired
+// (for example during a slow media upload) and was marked failed, which
+// also means the post may since have been deleted.
+async function confirmClaim(post, workerId) {
+  const now = new Date();
+  const renewed = await MastodonSchedule.findOneAndUpdate(
+    { _id: post._id, status: 'publishing', lockOwner: workerId, lockedUntil: { $gt: now } },
+    { $set: { lockedUntil: new Date(now.getTime() + LEASE_MS) } },
+    { new: true },
+  );
+  if (!renewed) throw new ClaimLostError('Claim expired before publishing');
+}
+
+// Only a 429 is retried: Mastodon rate-limited the request, so nothing
+// was posted. A server or gateway error (5xx) may come back after the
+// post was accepted, and Mastodon keeps the Idempotency-Key for at most
+// an hour, so a later retry could publish it twice. Those posts, like
+// timeouts and lost connections, are marked failed for the user to
+// reschedule.
+function isRetryable(post, err) {
+  return err.response?.status === 429 && (post.attempts || 0) < MAX_ATTEMPTS;
+}
+
+async function releaseFailedClaim(post, workerId, err) {
+  const retry = isRetryable(post, err);
+  const message = err.response?.data?.error || err.message;
+  console.error(`❌ Failed to post scheduled Mastodon post ${post._id}:`, message);
+
+  const update = { status: retry ? 'pending' : 'failed', lastError: message };
+
   try {
-    const now = new Date();
-    const scheduled = await MastodonSchedule.find({
-      scheduledTime: { $lte: now },
-    });
+    await MastodonSchedule.updateOne(
+      { _id: post._id, status: 'publishing', lockOwner: workerId },
+      { $set: update, $unset: CLEAR_LOCK },
+    );
+  } catch (updateErr) {
+    // The claim stays in place and expires to failed, so nothing is resent
+    console.error(`Could not release scheduled Mastodon post ${post._id}:`, updateErr.message);
+  }
+}
 
-    if (scheduled.length > 0) {
-      console.log(`Found ${scheduled.length} scheduled posts to process`);
-    }
+async function recordDelivery(post, workerId, response) {
+  const delivered = { status: 'posted', postedAt: new Date() };
+  if (response?.data?.id) delivered.remoteStatusId = String(response.data.id);
 
-    // Use Promise.all with map instead of for-of loop
-    await Promise.all(
-      scheduled.map(async (post) => {
-        try {
-          console.log(`Processing scheduled post ${post._id}`);
-          await postToMastodon(post.postData);
-          await MastodonSchedule.deleteOne({ _id: post._id });
-          console.log(`✅ Posted scheduled Mastodon post: ${post._id}`);
-        } catch (err) {
-          console.error(`❌ Failed to post scheduled Mastodon post ${post._id}:`, err.message);
-          if (err.response?.data) {
-            console.error('Mastodon API error:', err.response.data);
-          }
-        }
-      }),
+  try {
+    await MastodonSchedule.updateOne(
+      { _id: post._id, status: 'publishing', lockOwner: workerId },
+      { $set: delivered, $unset: { ...CLEAR_LOCK, lastError: '' } },
+    );
+    console.log(`✅ Posted scheduled Mastodon post: ${post._id}`);
+  } catch (err) {
+    // The claim stays in place and expires to failed, so the post is not
+    // published a second time
+    console.error(
+      `Posted scheduled Mastodon post ${post._id} but could not record it:`,
+      err.message,
+    );
+  }
+}
+
+async function publishClaimedPost(post, workerId) {
+  console.log(`Processing scheduled post ${post._id}`);
+  let response;
+  try {
+    response = await postToMastodon(post.postData, getIdempotencyKey(post._id), () =>
+      confirmClaim(post, workerId),
     );
   } catch (err) {
-    console.error('Error processing scheduled Mastodon posts:', err.message);
+    if (err instanceof ClaimLostError) {
+      // Another run already marked this post failed; leave it as it is
+      console.error(`Skipped scheduled Mastodon post ${post._id}:`, err.message);
+      return;
+    }
+    await releaseFailedClaim(post, workerId, err);
+    return;
+  }
+  await recordDelivery(post, workerId, response);
+}
+
+// node-cron passes the run time as the first argument, so options are
+// read defensively
+async function processScheduledPosts(options) {
+  const workerId = options?.workerId || WORKER_ID;
+  const runStartedAt = new Date();
+  const triedIds = [];
+
+  try {
+    await failExpiredClaims(runStartedAt);
+  } catch (err) {
+    console.error('Error expiring scheduled Mastodon claims:', err.message);
+  }
+
+  // Posts are claimed and sent one at a time
+  for (let i = 0; i < MAX_POSTS_PER_RUN; i += 1) {
+    let post;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      post = await claimNextDuePost(workerId, runStartedAt, triedIds);
+    } catch (err) {
+      console.error('Error claiming scheduled Mastodon posts:', err.message);
+      return;
+    }
+    if (!post) return;
+    triedIds.push(post._id);
+    // eslint-disable-next-line no-await-in-loop
+    await publishClaimedPost(post, workerId);
   }
 }
 

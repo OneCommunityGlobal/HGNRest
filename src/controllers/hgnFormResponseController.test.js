@@ -4,10 +4,14 @@ jest.mock('../models/userProfile');
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
+jest.mock('../helpers/questionnaireAccessHelper', () => ({
+  getQuestionnaireAccess: jest.fn(),
+}));
 
 const FormResponse = require('../models/hgnFormResponse');
 const UserProfile = require('../models/userProfile');
 const { hasPermission } = require('../utilities/permissions');
+const { getQuestionnaireAccess } = require('../helpers/questionnaireAccessHelper');
 const hgnFormController = require('./hgnFormResponseController');
 
 describe('HgnFormResponseController', () => {
@@ -31,6 +35,7 @@ describe('HgnFormResponseController', () => {
 
     controller = hgnFormController();
     hasPermission.mockResolvedValue(true);
+    getQuestionnaireAccess.mockResolvedValue({ eligible: true, reason: null });
   });
 
   describe('submitFormResponse', () => {
@@ -42,6 +47,7 @@ describe('HgnFormResponseController', () => {
         backend: {},
         followUp: {},
         user_id: '123',
+        requestor: { requestorId: '123', role: 'Volunteer' },
       };
 
       const saveMock = jest.fn().mockResolvedValue(true);
@@ -75,6 +81,57 @@ describe('HgnFormResponseController', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         error: 'All fields (userInfo, general, frontend, backend, followUp, user_id) are required',
       });
+    });
+
+    const validBody = (requestor) => ({
+      userInfo: { name: 'John' },
+      general: {},
+      frontend: {},
+      backend: {},
+      followUp: {},
+      user_id: '123',
+      requestor,
+    });
+
+    it('should return 403 if the requestor was not invited through the Dropbox process', async () => {
+      getQuestionnaireAccess.mockResolvedValue({ eligible: false, reason: 'NOT_INVITED' });
+      mockReq.body = validBody({ requestorId: '123', role: 'Volunteer' });
+
+      await controller.submitFormResponse(mockReq, mockRes);
+
+      expect(FormResponse).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Not authorized', reason: 'NOT_INVITED' });
+    });
+
+    it("should return 403 when submitting someone else's questionnaire", async () => {
+      mockReq.body = validBody({ requestorId: '456', role: 'Volunteer' });
+
+      await controller.submitFormResponse(mockReq, mockRes);
+
+      expect(FormResponse).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('getAccess', () => {
+    it('should return the questionnaire access result for the requestor', async () => {
+      const access = { eligible: false, reason: 'NOT_INVITED' };
+      getQuestionnaireAccess.mockResolvedValue(access);
+
+      await controller.getAccess(mockReq, mockRes);
+
+      expect(getQuestionnaireAccess).toHaveBeenCalledWith(mockReq.body.requestor);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(access);
+    });
+
+    it('should return 500 if the access check fails', async () => {
+      getQuestionnaireAccess.mockRejectedValue(new Error('DB failed'));
+
+      await controller.getAccess(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
   });
 
@@ -171,8 +228,106 @@ describe('HgnFormResponseController', () => {
 
       expect(FormResponse.find).toHaveBeenCalled();
       expect(result[0]._id).toBe('2'); // Jane should be ranked higher
+      expect(result[0].userId).toBe('456');
       expect(result[0].topSkills).toEqual(expect.arrayContaining(['React']));
       expect(result[1]._id).toBe('1');
+    });
+
+    it('topSkills should include every selected skill the matched user has, even if it is not their highest-scoring skill', async () => {
+      // EnvironmentSetup is the user's lowest-scoring backend skill, so the old
+      // "top 4 of the matched section" logic dropped it from topSkills even
+      // though it was one of the filters that matched this user.
+      mockReq.query = { skills: 'EnvironmentSetup,AdvancedCoding,AgileDevelopment' };
+      UserProfile.find = jest.fn().mockResolvedValue([{ _id: '123', isActive: true }]);
+
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: '1',
+          user_id: '123',
+          userInfo: { name: 'John' },
+          frontend: {},
+          backend: {
+            EnvironmentSetup: '3',
+            AdvancedCoding: '9',
+            AgileDevelopment: '8',
+            MongoDB: '9',
+            Database: '9',
+          },
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      const result = mockRes.json.mock.calls[0][0];
+      expect(result[0].topSkills).toEqual(
+        expect.arrayContaining(['EnvironmentSetup', 'AdvancedCoding', 'AgileDevelopment']),
+      );
+    });
+
+    it('skills filter excludes users who only have the selected skill at a low score', async () => {
+      // Every form response stores a score for every skill, so "has the skill"
+      // must not be enough to match. Low ranks EnvironmentSetup last in backend
+      // (1/10), High ranks it in their top 4, so only High should be returned.
+      mockReq.query = { skills: 'EnvironmentSetup' };
+      UserProfile.find = jest.fn().mockResolvedValue([
+        { _id: 'u1', isActive: true },
+        { _id: 'u2', isActive: true },
+      ]);
+      const backend = (env) => ({
+        EnvironmentSetup: env,
+        AdvancedCoding: '8',
+        MongoDB: '8',
+        Database: '8',
+        AgileDevelopment: '8',
+      });
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: 'low',
+          user_id: 'u1',
+          userInfo: { name: 'Low' },
+          frontend: {},
+          backend: backend('1'),
+          general: {},
+        },
+        {
+          _id: 'high',
+          user_id: 'u2',
+          userInfo: { name: 'High' },
+          frontend: {},
+          backend: backend('9'),
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      const result = mockRes.json.mock.calls[0][0];
+      expect(result.map((u) => u._id)).toEqual(['high']);
+      expect(result[0].topSkills[0]).toBe('EnvironmentSetup');
+      // internal flag must not leak into the API response
+      expect(result[0]).not.toHaveProperty('matchesSkills');
+    });
+
+    it('uses the linked profile name when the form response name is empty', async () => {
+      mockReq.query = {};
+      UserProfile.find = jest
+        .fn()
+        .mockResolvedValue([{ _id: 'u1', isActive: true, firstName: 'Ada', lastName: 'Lovelace' }]);
+      FormResponse.find = jest.fn().mockResolvedValue([
+        {
+          _id: 'r1',
+          user_id: 'u1',
+          userInfo: { name: '' },
+          frontend: {},
+          backend: {},
+          general: {},
+        },
+      ]);
+
+      await controller.getRankedResponses(mockReq, mockRes);
+
+      expect(mockRes.json.mock.calls[0][0][0].name).toBe('Ada Lovelace');
     });
 
     it('should return all users if no query params are provided', async () => {
@@ -207,7 +362,7 @@ describe('HgnFormResponseController', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ _id: '1' }),
-          expect.objectContaining({ _id: '2' }),
+          expect.objectContaining({ _id: '2', userId: '456' }),
         ]),
       );
     });

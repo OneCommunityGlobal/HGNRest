@@ -42,6 +42,20 @@ const userProfileSchema = new Schema({
   },
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
+  notRehireableReason: { type: String, default: '' },
+  notRehireableReasonHistory: [
+    {
+      action: { type: String, enum: ['submitted', 'edited'], required: true },
+      reason: { type: String, required: true },
+      changedAt: { type: Date, required: true },
+      changedBy: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
+        username: { type: String, required: true },
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+      },
+    },
+  ],
   isSet: { type: Boolean, required: true, default: false },
   finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
@@ -76,7 +90,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  copiedAiPrompt: { type: Date, default: Date.now() },
+  copiedAiPrompt: { type: Date, default: Date.now },
   emailSubscriptions: {
     type: Boolean,
     default: false,
@@ -351,6 +365,12 @@ const userProfileSchema = new Schema({
   ],
   // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
   actualEmail: { type: String },
+  productionUserId: { type: String, index: true },
+  linkedProdEmail: { type: String, index: true },
+  identityLocked: { type: Boolean, default: false },
+  identityVerifiedAt: { type: Date },
+  deactivatedByProductionSync: { type: Boolean, default: false, index: true },
+  productionDeactivatedAt: { type: Date },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
@@ -369,7 +389,6 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
-
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -412,6 +431,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [
@@ -427,7 +449,7 @@ const userProfileSchema = new Schema({
       assignedStudents: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },
@@ -452,7 +474,7 @@ const userProfileSchema = new Schema({
       assignedTeachers: [
         {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'UserProfile',
+          ref: 'User',
         },
       ],
     },

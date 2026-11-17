@@ -157,6 +157,73 @@ const KIInventoryController = () => {
       res.status(400).json({ message: err.message });
     }
   };
+  const updateItem = async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const item = await KIInventoryItem.findById(itemId);
+
+      if (!item) {
+        return res.status(404).json({ message: 'Item not found.' });
+      }
+
+      const allowedFields = [
+        'name',
+        'type',
+        'unit',
+        'location',
+        'category',
+        'onsite',
+        'presentQuantity',
+        'storedQuantity',
+        'reorderAt',
+        'monthlyUsage',
+        'expiryDate',
+        'lastHarvestDate',
+        'nextHarvestDate',
+        'nextHarvestQuantity',
+      ];
+
+      allowedFields.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+          item[field] = req.body[field] === '' ? undefined : req.body[field];
+        }
+      });
+
+      if (item.storedQuantity < item.presentQuantity) {
+        return res.status(400).json({
+          message: 'Stored quantity must be greater than or equal to current stock.',
+        });
+      }
+
+      item.updatedAt = new Date();
+
+      const savedItem = await item.save();
+
+      return res.status(200).json({
+        message: 'Inventory item updated successfully.',
+        data: savedItem,
+      });
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  };
+  const deleteItem = async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const deletedItem = await KIInventoryItem.findByIdAndDelete(itemId);
+
+      if (!deletedItem) {
+        return res.status(404).json({ message: 'Item not found.' });
+      }
+
+      return res.status(200).json({
+        message: 'Inventory item deleted successfully.',
+        data: deletedItem,
+      });
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  };
   const getInventoryStats = async (req, res) => {
     try {
       // Only fetch the fields needed for stats — avoids sending full item payloads
@@ -198,6 +265,8 @@ const KIInventoryController = () => {
     updateOnUsage,
     updateStoredQuantity,
     updateNextHarvest,
+    updateItem,
+    deleteItem,
     getInventoryStats,
   };
 };

@@ -17,14 +17,17 @@ module.exports = {
     '!src/test/**',
     '!src/__tests__/**',
     // Exclude WebSocket files (difficult to test)
-    '!src/websockets/**/*.js',
+    '!src/websockets/index.js',
+    '!src/websockets/webSocketRouter.js',
+    '!src/websockets/lbMessaging/**',
+    '!src/websockets/TimerService/connectionsHandler.js',
   ],
   // Coverage thresholds - Adjusted to match current coverage levels
   coverageThreshold: {
     global: {
       branches: 9,
-      functions: 21,
-      lines: 20,
+      functions: 20,
+      lines: 19,
       statements: 19, // Adjusted to match current coverage (websocket files with ES6 exports)
     },
   },

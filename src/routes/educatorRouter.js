@@ -8,5 +8,6 @@ const controller = educatorController();
 
 // Routes
 router.post('/assign-atoms', controller.assignAtoms);
+router.post('/evaluation-results/publish', controller.publishEvaluationResults);
 
 module.exports = router;
