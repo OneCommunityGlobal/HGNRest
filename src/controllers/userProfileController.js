@@ -9,7 +9,6 @@ const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 // eslint-disable-next-line import/no-extraneous-dependencies
-const fetch = require('node-fetch');
 const moment_ = require('moment');
 const jwt = require('jsonwebtoken');
 const userHelper = require('../helpers/userHelper')();
@@ -46,8 +45,6 @@ const reportsController = require('./reportsController')();
 const SEARCH_RESULT_LIMIT = 10;
 const MAX_WEEKS_FOR_CACHE_INVALIDATION = 3;
 const MAX_WEEKS_FOR_CACHE_CLEAR = 10;
-const HOURS_TO_ADD_FOR_END_DATE = 7;
-const WEEKS_BEFORE_END_DATE_FOR_EMAIL = 3;
 const MAX_WEEKLY_SUMMARIES = 4;
 
 const getCurrentWeekSummaryTemplate = () => ({
@@ -1473,13 +1470,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(updateResult.status).send(updateResult.error);
       }
 
-      const {
-        originalRecord,
-        originalinfringements,
-        isUserInCache,
-        allUserData: allUserDataFromUpdate,
-        updatedDiff,
-      } = updateResult || {};
+      const { originalRecord, originalinfringements, updatedDiff } = updateResult || {};
 
       const results = await record.save();
 
@@ -2867,12 +2858,10 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       // find userData in cache
       const isUserInCache = cache.hasCache('allusers');
       let allUserData;
-      let userData;
       let userIdx;
       if (isUserInCache) {
         allUserData = JSON.parse(cache.getCache('allusers'));
         userIdx = allUserData.findIndex((users) => users._id === userid);
-        userData = allUserData[userIdx];
       }
 
       const originalinfringements = record?.infringements ?? [];

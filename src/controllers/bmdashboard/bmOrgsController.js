@@ -1,5 +1,3 @@
-const mongoose = require('mongoose');
-
 const bmOrgsController = function () {
   const Organizations = require('../../models/bmdashboard/orgLocation');
   const getAllOrgs = async (req, res) => {

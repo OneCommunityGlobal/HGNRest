@@ -5,7 +5,7 @@ const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
 const StudentGroup = require('../models/studentGroup');
 const StudentGroupMember = require('../models/studentGroupMember');
-const IntermediateTask = require('../models/intermediateTask');
+require('../models/intermediateTask');
 
 const toObjectId = (value) => {
   if (typeof value !== 'string') return null;
