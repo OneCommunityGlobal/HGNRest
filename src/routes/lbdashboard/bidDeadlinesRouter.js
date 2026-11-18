@@ -6,6 +6,9 @@ const bidDeadlinesController = require('../../controllers/lbdashboard/bidDeadlin
 
 const bidDeadlinesRouter = express.Router();
 bidDeadlinesRouter
+  .route('/bidDeadlines/winningVsAverage')
+  .get(bidDeadlinesController.getWinningVsAverageBids);
+bidDeadlinesRouter
   .route('/bidDeadlines')
   .get(bidDeadlinesController.getBidDeadlines)
   .post(bidDeadlinesController.postBidDeadlines);
