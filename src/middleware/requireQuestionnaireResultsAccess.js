@@ -1,6 +1,6 @@
 const FormResponse = require('../models/hgnFormResponse');
 
-const ADMIN_ROLES = ['Administrator', 'Owner'];
+const ADMIN_ROLES = new Set(['Administrator', 'Owner']);
 
 const requireQuestionnaireResultsAccess = async (req, res, next) => {
   try {
@@ -12,7 +12,7 @@ const requireQuestionnaireResultsAccess = async (req, res, next) => {
       });
     }
 
-    if (ADMIN_ROLES.includes(role)) {
+    if (ADMIN_ROLES.has(role)) {
       return next();
     }
 
