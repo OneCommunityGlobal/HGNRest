@@ -6,8 +6,7 @@ const { hasPermission } = require('../../utilities/permissions');
 const MILLISECONDS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const MINUTES_PER_HOUR = 60;
-const HOURS_IN_MILLISECOND =
-  MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
+const HOURS_IN_MILLISECOND = MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
 const PERCENTAGE_MULTIPLIER = 100;
 
 function isValidCalendarDate(dateString) {
@@ -15,9 +14,7 @@ function isValidCalendarDate(dateString) {
   const [year, month, day] = dateString.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 }
 
@@ -33,7 +30,8 @@ function validateParams(query) {
   if (invalidEndDate) errors.push('Invalid end_date. Please use a valid YYYY-MM-DD date');
   const reversedRange =
     startDate && endDate && !invalidStartDate && !invalidEndDate && startDate > endDate;
-  if (reversedRange) errors.push('Invalid date range: start_date must be before or equal to end_date');
+  if (reversedRange)
+    errors.push('Invalid date range: start_date must be before or equal to end_date');
 
   [
     ['project', project],
@@ -65,9 +63,7 @@ function formatDistribution(rows) {
       task: row.task,
       hours: Number(row.hours.toFixed(2)),
       percentage:
-        totalHours > 0
-          ? Number(((row.hours / totalHours) * PERCENTAGE_MULTIPLIER).toFixed(2))
-          : 0,
+        totalHours > 0 ? Number(((row.hours / totalHours) * PERCENTAGE_MULTIPLIER).toFixed(2)) : 0,
     })),
   };
 }

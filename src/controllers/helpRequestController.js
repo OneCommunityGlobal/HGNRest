@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const HelpRequest = require('../models/helpRequest');
 const HelpFeedback = require('../models/helpFeedback');
 const { getHelpRequestEligibility } = require('../helpers/helpRequestEligibility');

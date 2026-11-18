@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const userProfile = require('../models/userProfile');
-const ProductionVerificationLog = require('../models/productionVerificationLog');
+require('../models/productionVerificationLog');
 const { productionIdentityConfig } = require('../config/productionIdentityConfig');
 const { buildSignature } = require('../services/productionWebhookEmitter');
 const { logVerificationAttempt } = require('./productionIdentityController');
