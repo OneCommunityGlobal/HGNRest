@@ -8,11 +8,14 @@ const express = require('express');
  * @returns {Object} Express router
  */
 const routes = function (UserProfile) {
+  const requireQuestionnaireResultsAccess = require('../middleware/requireQuestionnaireResultsAccess');
   const controller = require('../controllers/userSkillsProfileController')(UserProfile);
   const userSkillsProfileRouter = express.Router();
 
   // Get comprehensive user profile with skills data
-  userSkillsProfileRouter.route('/skills/profile/:userId').get(controller.getUserSkillsProfile);
+  userSkillsProfileRouter
+    .route('/skills/profile/:userId')
+    .get(requireQuestionnaireResultsAccess, controller.getUserSkillsProfile);
 
   // Update followup details of user profile skills
   userSkillsProfileRouter
