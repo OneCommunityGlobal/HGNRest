@@ -35,6 +35,7 @@ describe('weekly grading soft removal integration', () => {
   const grading = (reviewer, date = week, teamCode = query.team) => ({
     reviewer,
     date: new Date(date),
+    teamName: teamCode,
     teamCode,
     prsNeeded: 5,
     prsReviewed: 1,
