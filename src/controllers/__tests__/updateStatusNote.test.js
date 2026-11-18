@@ -12,7 +12,15 @@ jest.mock('../../utilities/nodeCache', () =>
   })),
 );
 
+jest.mock('../../utilities/constants', () => ({
+  ...jest.requireActual('../../utilities/constants'),
+  PROTECTED_EMAIL_ACCOUNT: ['protected@example.org'],
+}));
+
 const { hasPermission, canRequestorUpdateUser } = require('../../utilities/permissions');
+const cacheClosure = require('../../utilities/nodeCache');
+const logger = require('../../startup/logger');
+const userService = require('../../services/userService');
 const userProfileController = require('../userProfileController');
 
 const userId = '64a000000000000000000001';
@@ -205,5 +213,109 @@ describe('updateStatusNote', () => {
     await updateStatusNote(makeRequest('Note'), res);
 
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  // The controller's cache is the last one the mocked nodeCache made
+  const latestCache = () => cacheClosure.mock.results.at(-1).value;
+
+  it('updates the user in the cached user list after a save', async () => {
+    const { updateStatusNote } = makeSubject({ _id: userId, statusNoteHistory: [] });
+    const cache = latestCache();
+    cache.hasCache.mockReturnValue(true);
+    cache.getCache.mockReturnValue(
+      JSON.stringify([{ _id: userId, firstName: 'Sam' }, { _id: 'someone-else' }]),
+    );
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest('Cached note'), res);
+
+    expect(cache.removeCache).toHaveBeenCalledWith(`user-${userId}`);
+    const saved = JSON.parse(cache.setCache.mock.calls[0][1]);
+    expect(cache.setCache.mock.calls[0][0]).toBe('allusers');
+    expect(saved[0]).toMatchObject({ _id: userId, firstName: 'Sam', statusNote: 'Cached note' });
+    expect(saved[0].statusNoteHistory).toHaveLength(1);
+    expect(saved[1]).toEqual({ _id: 'someone-else' });
+  });
+
+  it('leaves the cached user list alone when the user is not in it', async () => {
+    const { updateStatusNote } = makeSubject({ _id: userId, statusNoteHistory: [] });
+    const cache = latestCache();
+    cache.hasCache.mockReturnValue(true);
+    cache.getCache.mockReturnValue(JSON.stringify([{ _id: 'someone-else' }]));
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest('Note'), res);
+
+    expect(cache.setCache).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('returns 404 when the requestor does not exist', async () => {
+    const { model, updateStatusNote } = makeSubject({ _id: userId, statusNoteHistory: [] });
+    model.findById.mockImplementation((id) => ({
+      select: jest.fn().mockResolvedValue(id === userId ? { _id: userId } : null),
+    }));
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest('Note'), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ error: 'Requestor not found' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the user is gone by the time the note is saved', async () => {
+    const { model, updateStatusNote } = makeSubject({ _id: userId, statusNoteHistory: [] });
+    model.findByIdAndUpdate.mockResolvedValue(null);
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest('Note'), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ error: 'User not found' });
+  });
+
+  it('still saves the note and logs the error when the protected account audit fails', async () => {
+    const { model, updateStatusNote } = makeSubject({
+      _id: userId,
+      email: 'protected@example.org',
+      statusNoteHistory: [],
+    });
+    const auditError = new Error('audit lookup failed');
+    jest.spyOn(userService, 'getUserFullNameAndEmailById').mockRejectedValue(auditError);
+    const logSpy = jest.spyOn(logger, 'logException').mockImplementation(() => {});
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest('Note'), res);
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    expect(model.findByIdAndUpdate).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(logSpy).toHaveBeenCalledWith(auditError);
+    logSpy.mockRestore();
+  });
+
+  it('refuses a request without a requestor', async () => {
+    const { model, updateStatusNote } = makeSubject({ _id: userId });
+    const res = makeResponse();
+
+    await updateStatusNote({ params: { userId }, body: { statusNote: 'Note' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(hasPermission).not.toHaveBeenCalled();
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty history for an unchanged note with no history yet', async () => {
+    const { updateStatusNote } = makeSubject({ _id: userId });
+    const res = makeResponse();
+
+    await updateStatusNote(makeRequest(''), res);
+
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Note unchanged', statusNote: '', statusNoteHistory: [] }),
+    );
   });
 });
