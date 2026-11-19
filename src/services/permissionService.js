@@ -89,18 +89,8 @@ class PermissionService {
 
   updateUserCache(userId) {
     this.cache.removeCache(`user-${userId}`);
-
-    const isUserInCache = this.cache.hasCache('allusers');
-    if (isUserInCache) {
-      const allUserData = JSON.parse(this.cache.getCache('allusers'));
-      const userIdx = allUserData.findIndex((users) => users._id === userId);
-
-      if (userIdx !== -1) {
-        const userData = allUserData[userIdx];
-        allUserData.splice(userIdx, 1, userData);
-        this.cache.setCache('allusers', JSON.stringify(allUserData));
-      }
-    }
+    // Let the next read rebuild the list with the saved permissions.
+    this.cache.removeCache('allusers');
   }
 
   static async notifyInfringements(originalInfringements, results) {
@@ -133,9 +123,12 @@ class PermissionService {
   }
 
   async handlePostSaveOperations(req, user, originalInfringements, results) {
-    await PermissionService.notifyInfringements(originalInfringements, results);
-    await logUserPermissionChangeByAccount(req, user);
-    this.updateUserCache(user._id.toString());
+    try {
+      await PermissionService.notifyInfringements(originalInfringements, results);
+      await logUserPermissionChangeByAccount(req, user);
+    } finally {
+      this.updateUserCache(user._id.toString());
+    }
   }
 
   async updatePermissions(userId, permissions, req) {
