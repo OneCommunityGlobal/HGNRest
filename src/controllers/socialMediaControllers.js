@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('node:fs');
 const axios = require('axios');
 const pinterestSchedule = require('../models/pinterestSchedule');
 
@@ -30,7 +30,7 @@ async function getPinterestAccessToken(authorizationCode) {
   });
 
   const { access_token, refresh_token, expires_in } = response.data;
-  const expireTime = new Date().getTime() + expires_in * 1000;
+  const expireTime = Date.now() + expires_in * 1000;
 
   const jsonToken = { accessToken: access_token, refreshToken: refresh_token, expireTime };
   fs.writeFileSync(ACCESS_TOKEN_FILE, JSON.stringify(jsonToken));
@@ -54,7 +54,7 @@ async function refreshPinterestAccessToken() {
   });
 
   const { access_token, expires_in } = response.data;
-  const expireTime = new Date().getTime() + expires_in * 1000;
+  const expireTime = Date.now() + expires_in * 1000;
 
   const updated = { ...tokenData, accessToken: access_token, expireTime };
   fs.writeFileSync(ACCESS_TOKEN_FILE, JSON.stringify(updated));
@@ -221,16 +221,17 @@ async function schedulePin(req, res) {
     await scheduledPin.save();
     res.status(200).send();
   } catch (err) {
+    console.error('Error scheduling Pinterest pin:', err);
     res.status(500).send();
   }
 }
 
 async function fetchScheduledPin(_req, res) {
   try {
-    // TODO: add pagination
     const scheduledPinList = await pinterestSchedule.find();
     res.status(200).json(scheduledPinList);
   } catch (err) {
+    console.error('Error fetching scheduled pins:', err);
     res.status(500).send('Failed to fetch scheduled pins');
   }
 }
@@ -240,6 +241,7 @@ async function deletedScheduledPin(req, res) {
     await pinterestSchedule.deleteOne({ _id: req.params.id });
     res.status(200).send('Scheduled pin post deleted successfully!');
   } catch (err) {
+    console.error('Error deleting scheduled pin:', err);
     res.status(500).send('Failed to deleted scheduled pin post!');
   }
 }
