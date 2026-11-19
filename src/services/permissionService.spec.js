@@ -327,6 +327,8 @@ describe('PermissionService', () => {
         _id: userId,
       });
       expect(user.save).toHaveBeenCalledTimes(1);
+      expect(cache.removeCache).toHaveBeenCalledWith(`user-${userId}`);
+      expect(cache.removeCache).toHaveBeenCalledWith('allusers');
       expect(logger.logException).toHaveBeenCalledWith(
         error,
         'Post-save operations failed after permission update',
@@ -354,21 +356,47 @@ describe('PermissionService', () => {
       expect(cache.setCache).not.toHaveBeenCalled();
     });
 
-    test('leaves a cached list without the target unchanged', () => {
+    test('invalidates the all-users list even when it does not contain the target', () => {
       cache.hasCache.mockReturnValue(true);
       cache.getCache.mockReturnValue(JSON.stringify([{ _id: 'other-user' }]));
       service.updateUserCache(userId);
       expect(cache.setCache).not.toHaveBeenCalled();
       expect(cache.removeCache).toHaveBeenCalledWith(`user-${userId}`);
+      expect(cache.removeCache).toHaveBeenCalledWith('allusers');
     });
 
-    test('retains other users and list ordering when the target is cached', () => {
-      const users = [{ _id: 'first' }, { _id: userId }, { _id: 'last' }];
-      cache.hasCache.mockReturnValue(true);
-      cache.getCache.mockReturnValue(JSON.stringify(users));
-      service.updateUserCache(userId);
-      expect(cache.setCache).toHaveBeenCalledWith('allusers', JSON.stringify(users));
-      expect(cache.removeCache).toHaveBeenCalledWith(`user-${userId}`);
-    });
+    test.each([false, true])(
+      'removes stale permissions from both caches after saving (audit fails: %s)',
+      async (auditFails) => {
+        const oldPermissions = { ...user.permissions };
+        const unrelatedUser = { _id: 'other-user', permissions: { backPermissions: ['read'] } };
+        const cachedValues = new Map([
+          [`user-${userId}`, JSON.stringify({ _id: userId, permissions: oldPermissions })],
+          [
+            'allusers',
+            JSON.stringify([{ _id: userId, permissions: oldPermissions }, unrelatedUser]),
+          ],
+          ['user-other-user', JSON.stringify(unrelatedUser)],
+        ]);
+        cache.removeCache.mockImplementation((key) => cachedValues.delete(key));
+        cache.hasCache.mockImplementation((key) => cachedValues.has(key));
+        cache.getCache.mockImplementation((key) => cachedValues.get(key));
+        cache.setCache.mockImplementation((key, value) => cachedValues.set(key, value));
+        if (auditFails) logPermissionChange.mockRejectedValue(new Error('Audit unavailable'));
+
+        const changes = { backPermissions: ['getReports'], removedDefaultPermissions: [] };
+        const result = await service.updatePermissions(userId, changes, req);
+
+        expect(result.permissions.backPermissions).toEqual(changes.backPermissions);
+        expect(user.save).toHaveBeenCalledTimes(1);
+        expect(cachedValues.has(`user-${userId}`)).toBe(false);
+        expect(cachedValues.has('allusers')).toBe(false);
+        expect(JSON.parse(cachedValues.get('user-other-user'))).toEqual(unrelatedUser);
+        expect(cache.setCache).not.toHaveBeenCalled();
+        expect(user.save.mock.invocationCallOrder[0]).toBeLessThan(
+          cache.removeCache.mock.invocationCallOrder[0],
+        );
+      },
+    );
   });
 });
