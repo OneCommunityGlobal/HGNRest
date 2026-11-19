@@ -1,5 +1,6 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
+const jobApplicationAnalyticsController = require('../controllers/jobApplicationAnalyticsController');
 const { jobApplicationUploadMiddleware } = require('../middleware/jobApplicationUploadMiddleware');
 const {
   jobApplicationIpLimiter,
@@ -13,6 +14,13 @@ const router = express.Router();
 router.post('/jobforms', formController.createForm);
 
 router.get('/jobforms/all', formController.getAllFormsFormat);
+
+// CRM analytics — must be registered before /jobforms/:formId
+router.get(
+  '/jobforms/applications/summary',
+  jobApplicationAnalyticsController.getJobApplicationsSummary,
+);
+router.get('/jobforms/applications', jobApplicationAnalyticsController.listJobApplications);
 
 // Update a form's format
 router.put('/jobforms', formController.updateFormFormat);
