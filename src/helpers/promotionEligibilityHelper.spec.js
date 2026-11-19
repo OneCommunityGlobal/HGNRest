@@ -4,6 +4,7 @@ const {
   mongoWeekOf,
   weekMeetsRequirement,
   summariseWeeks,
+  mergeWeeklyCounts,
   SUCCESSFUL_WEEKS_REQUIRED,
 } = require('./promotionEligibilityHelper');
 
@@ -280,5 +281,54 @@ describe('summariseWeeks', () => {
     expect(summariseWeeks({ weeklyCounts: undefined, prsNeeded: 7, currentWeek: CURRENT })).toEqual(
       { successfulWeeks: 0, remainingWeeks: 2, weeklyRequirementsMet: false },
     );
+  });
+});
+
+describe('mergeWeeklyCounts', () => {
+  test('sums the review count for a week that appears in both lists', () => {
+    const result = mergeWeeklyCounts(
+      [{ year: 2026, week: 32, reviewCount: 3 }],
+      [{ year: 2026, week: 32, reviewCount: 4 }],
+    );
+
+    expect(result).toEqual([{ year: 2026, week: 32, reviewCount: 7 }]);
+  });
+
+  test('keeps a week that only appears in one list', () => {
+    const result = mergeWeeklyCounts(
+      [{ year: 2026, week: 32, reviewCount: 3 }],
+      [{ year: 2026, week: 31, reviewCount: 4 }],
+    );
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { year: 2026, week: 32, reviewCount: 3 },
+        { year: 2026, week: 31, reviewCount: 4 },
+      ]),
+    );
+  });
+
+  test('sorts the merged result newest first, matching the aggregation pipelines it replaces', () => {
+    const result = mergeWeeklyCounts(
+      [{ year: 2026, week: 10, reviewCount: 1 }],
+      [
+        { year: 2026, week: 32, reviewCount: 1 },
+        { year: 2025, week: 50, reviewCount: 1 },
+      ],
+    );
+
+    expect(result).toEqual([
+      { year: 2026, week: 32, reviewCount: 1 },
+      { year: 2026, week: 10, reviewCount: 1 },
+      { year: 2025, week: 50, reviewCount: 1 },
+    ]);
+  });
+
+  test('treats a missing or empty list as contributing nothing', () => {
+    expect(mergeWeeklyCounts(undefined, [{ year: 2026, week: 32, reviewCount: 5 }])).toEqual([
+      { year: 2026, week: 32, reviewCount: 5 },
+    ]);
+    expect(mergeWeeklyCounts([], [])).toEqual([]);
+    expect(mergeWeeklyCounts()).toEqual([]);
   });
 });

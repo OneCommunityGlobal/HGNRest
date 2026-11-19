@@ -8,11 +8,13 @@ const {
   resolvePrsNeeded,
   summariseWeeks,
   mongoWeekOf,
+  mergeWeeklyCounts,
 } = require('../helpers/promotionEligibilityHelper');
 const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/reviewerGroupHelper');
 const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
 const {
   PR_RATINGS,
+  QUALIFYING_REVIEW_RATINGS,
   normalisePrNumber,
   extractPrNumbersFromSummary,
   isValidRating,
@@ -165,6 +167,174 @@ const promotionEligibilityController = function (
   };
 
   /**
+   * Per-reviewer, per-week counts of PR Grading entries that count as a
+   * completed review (see `QUALIFYING_REVIEW_RATINGS`), for the reviewers in
+   * `userIds`. Batched the same way `weeklyReviewCountsByUserIds` is, and for
+   * the same reason: one aggregation for the whole table instead of one per
+   * reviewer.
+   *
+   * The PR Grading screen writes to `PromotionPrEntry`, keyed by the real
+   * reviewer `_id`, which `weeklyReviewCounts`/`weeklyReviewCountsByUserIds`
+   * above never read: those only look at the older Task/TimeEntry review-task
+   * proxy. Callers add this map's counts to that one (see
+   * `mergeWeeklyCounts`) rather than choosing between them, so a reviewer who
+   * already had task-based history keeps it after they start using PR
+   * Grading, and vice versa.
+   *
+   * Returns an empty map when `PromotionPrEntry` is not wired up for this
+   * deployment, so the caller's counts degrade to task-only rather than
+   * throwing, the same way `ReviewerGroup` being absent degrades group
+   * filtering elsewhere in this file.
+   *
+   * @param {Array<mongoose.Types.ObjectId|string>} userIds
+   * @returns {Promise<Map<string, Array<{year: number, week: number, reviewCount: number}>>>}
+   */
+  const qualifyingPrEntryWeeklyCountsByUserIds = async (userIds) => {
+    const countsByUserId = new Map();
+    if (!PromotionPrEntry) {
+      return countsByUserId;
+    }
+
+    const objectIds = (userIds || [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => mongoose.Types.ObjectId(id));
+    if (!objectIds.length) {
+      return countsByUserId;
+    }
+
+    const rows = await PromotionPrEntry.aggregate([
+      {
+        $match: {
+          reviewerId: { $in: objectIds },
+          rating: { $in: QUALIFYING_REVIEW_RATINGS },
+        },
+      },
+      {
+        $group: {
+          _id: { reviewerId: '$reviewerId', year: '$year', week: '$week' },
+          reviewCount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          reviewerId: '$_id.reviewerId',
+          year: '$_id.year',
+          week: '$_id.week',
+          reviewCount: 1,
+        },
+      },
+      { $sort: { reviewerId: 1, year: -1, week: -1 } },
+    ]);
+
+    rows.forEach((row) => {
+      const key = String(row.reviewerId);
+      const list = countsByUserId.get(key) || [];
+      list.push({ year: row.year, week: row.week, reviewCount: row.reviewCount });
+      countsByUserId.set(key, list);
+    });
+
+    return countsByUserId;
+  };
+
+  /**
+   * Per-reviewer lifetime count of PR Grading entries that count as a
+   * completed review, for the reviewers in `userIds`. The `PromotionPrEntry`
+   * counterpart to the `Task.countDocuments` lifetime total in
+   * `getPromotionEligibilityData`, added to it rather than replacing it, for
+   * the same reason `qualifyingPrEntryWeeklyCountsByUserIds` is added to the
+   * task-based weekly counts.
+   *
+   * @param {Array<mongoose.Types.ObjectId|string>} userIds
+   * @returns {Promise<Map<string, number>>}
+   */
+  const qualifyingPrEntryTotalCountsByUserIds = async (userIds) => {
+    const totalsByUserId = new Map();
+    if (!PromotionPrEntry) {
+      return totalsByUserId;
+    }
+
+    const objectIds = (userIds || [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => mongoose.Types.ObjectId(id));
+    if (!objectIds.length) {
+      return totalsByUserId;
+    }
+
+    const rows = await PromotionPrEntry.aggregate([
+      {
+        $match: {
+          reviewerId: { $in: objectIds },
+          rating: { $in: QUALIFYING_REVIEW_RATINGS },
+        },
+      },
+      { $group: { _id: '$reviewerId', totalReviews: { $sum: 1 } } },
+    ]);
+
+    rows.forEach((row) => {
+      totalsByUserId.set(String(row._id), row.totalReviews);
+    });
+
+    return totalsByUserId;
+  };
+
+  /**
+   * Per-reviewer weekly review counts, Task-based proxy and PR Grading added
+   * together, for every id in `userIds`. The batched-and-merged counterpart
+   * to `reviewCountsForUser` below, for callers (`getPromotionPending`) that
+   * already fetch both sides in bulk rather than per reviewer.
+   *
+   * @param {Array<mongoose.Types.ObjectId|string>} userIds
+   * @returns {Promise<Map<string, Array<{year: number, week: number, reviewCount: number}>>>}
+   */
+  const mergedWeeklyCountsByUserIds = async (userIds) => {
+    const taskCounts = await weeklyReviewCountsByUserIds(userIds);
+    const prEntryCounts = await qualifyingPrEntryWeeklyCountsByUserIds(userIds);
+
+    const merged = new Map();
+    userIds.forEach((userId) => {
+      const key = userId.toString();
+      merged.set(key, mergeWeeklyCounts(taskCounts.get(key) || [], prEntryCounts.get(key) || []));
+    });
+
+    return merged;
+  };
+
+  /**
+   * One reviewer's total and per-week review counts: the Task-based proxy
+   * plus the PR Grading contribution, added together. Pulled out of
+   * `getPromotionEligibilityData`'s per-reviewer loop purely to keep that
+   * loop short; the two batched maps it reads were already fetched once for
+   * the whole scoped table.
+   *
+   * @param {object} user a scoped UserProfile, needs only `_id`
+   * @param {Map<string, number>} prEntryTotalCountsByUserId
+   * @param {Map<string, Array<{year: number, week: number, reviewCount: number}>>} prEntryWeeklyCountsByUserId
+   * @returns {Promise<{totalReviews: number, weeklyCounts: Array<{year: number, week: number, reviewCount: number}>}>}
+   */
+  const reviewCountsForUser = async (
+    user,
+    prEntryTotalCountsByUserId,
+    prEntryWeeklyCountsByUserId,
+  ) => {
+    const userId = user._id.toString();
+
+    const taskTotalReviews = await Task.countDocuments({
+      resources: { $elemMatch: { userID: user._id, completedTask: true } },
+      taskName: { $regex: /review|pr/i },
+    });
+    const totalReviews = taskTotalReviews + (prEntryTotalCountsByUserId.get(userId) || 0);
+
+    const taskWeeklyCounts = await weeklyReviewCounts(user._id);
+    const weeklyCounts = mergeWeeklyCounts(
+      taskWeeklyCounts,
+      prEntryWeeklyCountsByUserId.get(userId) || [],
+    );
+
+    return { totalReviews, weeklyCounts };
+  };
+
+  /**
    * Resolve the "Review for This Week" group the caller asked to see.
    *
    * Returns null when the whole table is wanted, which is both the default and
@@ -243,20 +413,29 @@ const promotionEligibilityController = function (
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
+      // Batched once for the whole scoped table rather than per reviewer, same
+      // reasoning as `existingRecords` above. This is the PR Grading side of
+      // the review count; see `qualifyingPrEntryWeeklyCountsByUserIds` for why
+      // it is added to the Task-based count below instead of replacing it.
+      const scopedUserIds = scopedUsers.map((user) => user._id);
+      const prEntryWeeklyCountsByUserId =
+        await qualifyingPrEntryWeeklyCountsByUserIds(scopedUserIds);
+      const prEntryTotalCountsByUserId = await qualifyingPrEntryTotalCountsByUserIds(scopedUserIds);
+
       // Refactor: Use map and Promise.all for concurrent processing
       const eligibilityPromises = scopedUsers.map(async (user) => {
+        const userId = user._id.toString();
         const pledgedHours = user.weeklycommittedHours || 0;
         const { prsNeeded, prsNeededSource, committedHoursChanged } = resolvePrsNeeded({
           committedHours: pledgedHours,
-          existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
+          existingRecord: recordsByReviewerId.get(userId) || null,
         });
 
-        const totalReviews = await Task.countDocuments({
-          resources: { $elemMatch: { userID: user._id, completedTask: true } },
-          taskName: { $regex: /review|pr/i },
-        });
-
-        const weeklyCounts = await weeklyReviewCounts(user._id);
+        const { totalReviews, weeklyCounts } = await reviewCountsForUser(
+          user,
+          prEntryTotalCountsByUserId,
+          prEntryWeeklyCountsByUserId,
+        );
         const currentWeek = mongoWeekOf(now);
 
         const { successfulWeeks, remainingWeeks, weeklyRequirementsMet } = summariseWeeks({
@@ -901,7 +1080,8 @@ const promotionEligibilityController = function (
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
-      const weeklyCountsByUserId = await weeklyReviewCountsByUserIds(users.map((user) => user._id));
+      const userIds = users.map((user) => user._id);
+      const weeklyCountsByUserId = await mergedWeeklyCountsByUserIds(userIds);
 
       const pendingUsers = users
         .map((user) => {

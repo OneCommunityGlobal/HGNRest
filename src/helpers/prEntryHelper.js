@@ -34,6 +34,18 @@ const PR_RATINGS = [
 
 const RATING_VALUES = PR_RATINGS.map((rating) => rating.value);
 
+/**
+ * Ratings that count as "this PR was reviewed" toward a reviewer's weekly and
+ * total review counts on the Promotion Eligibility dashboard.
+ *
+ * 'Did not review' is excluded because it says outright that no review
+ * happened. 'No Image' is excluded too: it means the reviewer could not even
+ * find or open the PR, so there was nothing to review, not a review that went
+ * badly. An entry with `rating: null` (not yet rated) is excluded by every
+ * caller of this list simply because it is not in it.
+ */
+const QUALIFYING_REVIEW_RATINGS = ['Needs more details', 'Good', 'Exceptional'];
+
 /** Where an entry came from. Kept so a parsed entry can be told from a typed one. */
 const PR_ENTRY_SOURCES = ['manual', 'weeklySummary'];
 
@@ -199,6 +211,7 @@ function groupEntriesByWeek(entries) {
 module.exports = {
   PR_RATINGS,
   RATING_VALUES,
+  QUALIFYING_REVIEW_RATINGS,
   PR_ENTRY_SOURCES,
   normalisePrNumber,
   extractPrNumbersFromSummary,
