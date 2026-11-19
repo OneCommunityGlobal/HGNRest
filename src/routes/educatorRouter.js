@@ -13,6 +13,39 @@ const EducationTask = require('../models/educationTask');
 const UserProfile = require('../models/userProfile');
 const LessonPlanLog = require('../models/lessonPlanLog');
 
+const lessonPlanController = require('../controllers/lessonPlanController');
+
+const lessonPlans = lessonPlanController();
+// Global JWT middleware supplies requestor; the controller enforces roles and ownership.
+router.post('/lesson-plans', lessonPlans.createLessonPlan);
+router.patch('/lesson-plans/:id', lessonPlans.updateLessonPlan);
+
+// A concurrent upsert can lose the unique-index race. Only accept that outcome
+// after verifying the exact assignment exists; other database failures still fail.
+const DUPLICATE_KEY_CODE = 11000;
+const upsertAssignments = async (operations) => {
+  try {
+    return await EducationTask.bulkWrite(operations, { ordered: false });
+  } catch (error) {
+    const failures = error.writeErrors;
+    if (
+      !failures?.length ||
+      !error.result ||
+      error.result.getWriteConcernError?.() ||
+      failures.some((failure) => failure.code !== DUPLICATE_KEY_CODE)
+    )
+      throw error;
+    const existing = await Promise.all(
+      failures.map((failure) => {
+        const operation = operations[failure.index];
+        return operation ? EducationTask.exists(operation.updateOne.filter) : false;
+      }),
+    );
+    if (existing.some((found) => !found)) throw error;
+    return error.result;
+  }
+};
+
 /**
  * @route   POST /api/educator/assign-tasks
  * @desc    Assigns all tasks from a lesson plan to eligible students.
@@ -20,6 +53,19 @@ const LessonPlanLog = require('../models/lessonPlanLog');
  */
 router.post('/assign-tasks', async (req, res) => {
   const { lessonPlanId, assignmentDate, isAutoAssigned } = req.body;
+  // Global JWT middleware supplies this identity, matching lesson-plan save authorization.
+  const { requestor } = req.body;
+  if (
+    !requestor ||
+    typeof requestor.requestorId !== 'string' ||
+    !/^[a-f\d]{24}$/i.test(requestor.requestorId) ||
+    !requestor.role
+  ) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  if (!['Educator', 'Administrator', 'Owner'].includes(requestor.role)) {
+    return res.status(403).json({ message: 'Educator or administrator access required' });
+  }
 
   if (!lessonPlanId) {
     return res.status(400).json({ message: 'Request is missing lesson_plan_id.' });
@@ -27,6 +73,15 @@ router.post('/assign-tasks', async (req, res) => {
 
   try {
     const lessonPlan = await LessonPlan.findById(lessonPlanId);
+
+    // Educators can assign only their own plans; administrators and owners retain access.
+    if (
+      lessonPlan &&
+      requestor.role === 'Educator' &&
+      String(lessonPlan.createdBy) !== requestor.requestorId
+    ) {
+      return res.status(403).json({ message: 'You may only assign your own lesson plans' });
+    }
 
     if (!lessonPlan?.subTasks?.length) {
       return res
@@ -43,11 +98,12 @@ router.post('/assign-tasks', async (req, res) => {
       return res.status(404).json({ message: 'No eligible students found to assign tasks to.' });
     }
 
+    let assignedStudentCount = 0;
     let assignedCount = 0;
     let skippedCount = 0;
     const tasksToCreate = [];
 
-    const assignerId = req.body.requestor.requestorId;
+    const assignerId = requestor.requestorId;
 
     eligibleStudents.forEach((student) => {
       const meetsPrerequisites = true;
@@ -81,6 +137,7 @@ router.post('/assign-tasks', async (req, res) => {
             tasksToCreate.push({
               studentId: student._id,
               lessonPlanId,
+              subTaskId: subTask._id,
               title: subTask.name,
               assignedDate: assignmentDate,
               dueDate: subTask.dueDate,
@@ -93,7 +150,6 @@ router.post('/assign-tasks', async (req, res) => {
             //   console.warn(`Skipping subTask for student ${student._id} due to missing name in lesson plan ${lessonPlanId}`);
             // }
           });
-          assignedCount++;
         } else {
           console.warn(`Lesson plan ${lessonPlanId} has no subTasks for student ${student._id}.`);
           skippedCount++;
@@ -104,14 +160,38 @@ router.post('/assign-tasks', async (req, res) => {
     });
 
     if (tasksToCreate.length > 0) {
-      await EducationTask.insertMany(tasksToCreate);
+      // Reject missing identity rather than inserting unprotected legacy-style records.
+      if (tasksToCreate.some((task) => !/^[a-f\d]{24}$/i.test(String(task.subTaskId)))) {
+        throw new Error('Lesson plan contains a subtask without a valid ID.');
+      }
+      const now = new Date();
+      const operations = tasksToCreate.map((task) => ({
+        updateOne: {
+          filter: {
+            lessonPlanId: task.lessonPlanId,
+            studentId: task.studentId,
+            subTaskId: task.subTaskId,
+          },
+          // Disable automatic updatedAt writes: repeat requests must not change existing tasks.
+          update: { $setOnInsert: { ...task, createdAt: now, updatedAt: now } },
+          upsert: true,
+          timestamps: false,
+          setDefaultsOnInsert: true,
+        },
+      }));
+      const result = await upsertAssignments(operations);
+      const inserted = result.getUpsertedIds();
+      assignedCount = inserted.length;
+      assignedStudentCount = new Set(
+        inserted.map(({ index }) => String(tasksToCreate[index].studentId)),
+      ).size;
     }
 
     await LessonPlanLog.create({
       lessonPlanId,
       editorId: assignerId,
       action: isAutoAssigned ? 'Auto-Assigned (On Save)' : 'Manual Assignment',
-      details: `Assigned to ${assignedCount} students. Skipped ${skippedCount}.`,
+      details: `Assigned to ${assignedStudentCount} students. Skipped ${skippedCount}.`,
     });
 
     res.status(200).json({

@@ -1,7 +1,117 @@
-// const mongoose = require('mongoose');
 const LessonPlan = require('../models/lessonPlan');
 const Activity = require('../models/activity');
-const UserProfile = require('../models/userProfile');
+
+const editableFields = ['title', 'theme', 'description', 'startDate', 'endDate', 'subTasks'];
+const isObjectId = (value) => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
+
+// Authentication middleware overwrites requestor using the verified JWT, not client identity.
+const authorizeEditor = (req, res) => {
+  const requestor = req.body.requestor || {};
+  if (!isObjectId(requestor.requestorId)) {
+    res.status(401).json({ error: 'Authentication required' });
+    return null;
+  }
+  if (!['Educator', 'Administrator', 'Owner'].includes(requestor.role)) {
+    res.status(403).json({ error: 'Educator or administrator access required' });
+    return null;
+  }
+  return requestor;
+};
+
+// API dates use calendar-date strings; existing documents contain Mongoose Date values.
+const validDate = (value) => {
+  if (value instanceof Date) return Number.isFinite(value.getTime());
+  return (
+    typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().startsWith(value)
+  );
+};
+
+// Match the builder's existing percentage and fraction formats, including decimal values.
+const validWeight = (value) => {
+  if (typeof value !== 'string') return false;
+  const weight = value.trim();
+  return /^(?:\d+(?:\.\d+)?|\.\d+)%?$/.test(weight) && Number(weight.replace('%', '')) <= 100;
+};
+const validPassMark = (value) => {
+  if (typeof value !== 'string') return false;
+  const fraction = value.trim().match(/^(\d+(?:\.\d+)?|\.\d+)\s*\/\s*(\d+(?:\.\d+)?|\.\d+)$/);
+  if (!fraction) return false;
+  const numerator = Number(fraction[1]);
+  const denominator = Number(fraction[2]);
+  return (
+    Number.isFinite(numerator) &&
+    Number.isFinite(denominator) &&
+    denominator > 0 &&
+    numerator <= denominator
+  );
+};
+const validateSubTask = (task) => {
+  if (!task || typeof task !== 'object' || Array.isArray(task)) return 'Subtask must be an object';
+  if (typeof task.name !== 'string' || !task.name.trim()) return 'Subtask name is required';
+  if (!['Write-only', 'Read-only', 'Offline entry'].includes(task.type))
+    return 'Invalid subtask type';
+  if (!validDate(task.dueDate)) return 'Subtask dueDate must be a valid YYYY-MM-DD date';
+  if (!validWeight(task.weight))
+    return 'Subtask weight must be between 0 and 100, optionally followed by %';
+  if (!validPassMark(task.passMark))
+    return 'Subtask passMark must be a fraction with 0 <= numerator <= positive denominator';
+  if (task._id !== undefined && !isObjectId(String(task._id))) return 'Invalid subtask ID';
+  return null;
+};
+
+const validatePlan = (plan) => {
+  if (typeof plan.title !== 'string' || !plan.title.trim()) return 'Title is required';
+  if (
+    ['theme', 'description'].some(
+      (field) => plan[field] !== undefined && typeof plan[field] !== 'string',
+    )
+  ) {
+    return 'Theme and description must be strings';
+  }
+  if (!validDate(plan.startDate) || !validDate(plan.endDate))
+    return 'Start and end dates must be valid YYYY-MM-DD dates';
+  if (new Date(plan.startDate) > new Date(plan.endDate))
+    return 'End date must be on or after start date';
+  if (!Array.isArray(plan.subTasks) || !plan.subTasks.length)
+    return 'At least one subtask is required';
+  const subTaskError = plan.subTasks.map(validateSubTask).find(Boolean);
+  if (subTaskError) return subTaskError;
+  // Compare persisted ObjectIds and hexadecimal strings alike; ID-less new rows
+  // remain independent and receive their identities from Mongoose on persistence.
+  const ids = plan.subTasks
+    .filter((task) => task._id !== undefined)
+    .map((task) => String(task._id).toLowerCase());
+  if (new Set(ids).size !== ids.length) return 'Subtask IDs must be unique within a lesson plan';
+  return null;
+};
+
+// Only editable fields reach the model; creator, editor, activities and operators are excluded.
+const editableValues = (body) =>
+  Object.fromEntries(
+    editableFields
+      .filter((field) => Object.prototype.hasOwnProperty.call(body, field))
+      .map((field) => [field, body[field]]),
+  );
+const cleanSubTasks = (tasks) =>
+  tasks.map((task) =>
+    Object.fromEntries(
+      ['_id', 'name', 'type', 'dueDate', 'passMark', 'weight']
+        .filter((field) => task[field] !== undefined)
+        .map((field) => [field, task[field]]),
+    ),
+  );
+const saveError = (res, error) =>
+  res
+    .status(['ValidationError', 'CastError'].includes(error.name) ? 400 : 500)
+    .json({
+      error:
+        error.name === 'ValidationError' || error.name === 'CastError'
+          ? 'Invalid lesson plan data'
+          : 'Unable to save lesson plan',
+    });
 
 const lessonPlanController = function () {
   // Get all lesson plans
@@ -55,71 +165,66 @@ const lessonPlanController = function () {
     }
   };
 
-  // Create new lesson plan
+  // Saving deliberately does not assign tasks. The caller assigns only after this succeeds.
   const createLessonPlan = async (req, res) => {
+    const requestor = authorizeEditor(req, res);
+    if (!requestor) return;
     try {
-      const { title, theme, description, startDate, endDate, createdBy } = req.body;
-
-      // Validate creator exists
-      const creator = await UserProfile.findById(createdBy);
-      if (!creator) {
-        return res.status(404).json({ error: 'Creator not found' });
-      }
-
-      // Validate dates
-      if (new Date(startDate) >= new Date(endDate)) {
-        return res.status(400).json({ error: 'End date must be after start date' });
-      }
-
+      const values = editableValues(req.body);
+      const error = validatePlan(values);
+      if (error) return res.status(400).json({ error });
       const lessonPlan = new LessonPlan({
-        title,
-        theme,
-        description,
-        startDate,
-        endDate,
-        createdBy,
+        ...values,
+        subTasks: cleanSubTasks(values.subTasks),
+        createdBy: requestor.requestorId,
+        lastEditedBy: requestor.requestorId,
         activities: [],
       });
-
-      const savedLessonPlan = await lessonPlan.save();
-      const populatedLessonPlan = await LessonPlan.findById(savedLessonPlan._id).populate(
-        'createdBy',
-        'firstName lastName email',
-      );
-
-      res.status(201).json(populatedLessonPlan);
+      res.status(201).json(await lessonPlan.save());
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      saveError(res, error);
     }
   };
 
-  // Update lesson plan
   const updateLessonPlan = async (req, res) => {
+    const requestor = authorizeEditor(req, res);
+    if (!requestor) return;
+    const { id } = req.params;
+    if (!isObjectId(id)) return res.status(400).json({ error: 'Invalid lesson plan ID' });
     try {
-      const { id } = req.params;
-      const { title, theme, description, startDate, endDate } = req.body;
-
       const lessonPlan = await LessonPlan.findById(id);
-      if (!lessonPlan) {
-        return res.status(404).json({ error: 'Lesson plan not found' });
+      if (!lessonPlan) return res.status(404).json({ error: 'Lesson plan not found' });
+      const isEducator = requestor.role === 'Educator';
+      if (isEducator && String(lessonPlan.createdBy) !== requestor.requestorId) {
+        return res.status(403).json({ error: 'You may only update your own lesson plans' });
       }
-
-      // Validate dates if both are provided
-      if (startDate && endDate && new Date(startDate) >= new Date(endDate)) {
-        return res.status(400).json({ error: 'End date must be after start date' });
-      }
-
-      const updatedLessonPlan = await LessonPlan.findByIdAndUpdate(
-        id,
-        { title, theme, description, startDate, endDate },
+      const values = editableValues(req.body);
+      if (!Object.keys(values).length)
+        return res.status(400).json({ error: 'No editable fields provided' });
+      // Validate the merged plan so a partial date update cannot bypass date ordering.
+      const error = validatePlan({ ...lessonPlan.toObject(), ...values });
+      if (error) return res.status(400).json({ error });
+      if (values.subTasks) values.subTasks = cleanSubTasks(values.subTasks);
+      // Repeat ownership in the write filter to avoid a read/write authorization race.
+      // Compare and increment Mongoose's version key atomically so validation
+      // cannot be applied to a document changed since the read (including legacy plans).
+      const filter = {
+        _id: id,
+        __v: lessonPlan.__v === undefined ? { $exists: false } : lessonPlan.__v,
+        ...(isEducator ? { createdBy: requestor.requestorId } : {}),
+      };
+      const savedPlan = await LessonPlan.findOneAndUpdate(
+        filter,
+        { $set: { ...values, lastEditedBy: requestor.requestorId }, $inc: { __v: 1 } },
         { new: true, runValidators: true },
-      )
-        .populate('createdBy', 'firstName lastName email')
-        .populate('activities', 'title description');
-
-      res.status(200).json(updatedLessonPlan);
+      );
+      if (!savedPlan)
+        return res
+          .status(409)
+          .json({ error: 'Lesson plan changed during this update. Reload it and try again.' });
+      res.status(200).json(savedPlan);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      saveError(res, error);
     }
   };
 

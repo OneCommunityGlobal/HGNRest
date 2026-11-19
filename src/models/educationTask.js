@@ -7,6 +7,10 @@ const educationTaskSchema = new mongoose.Schema(
       ref: 'LessonPlan',
       required: true,
     },
+    // Embedded LessonPlan.subTasks._id; absent for legacy and atom assignments.
+    subTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
@@ -80,6 +84,12 @@ const educationTaskSchema = new mongoose.Schema(
   {
     timestamps: true,
   },
+);
+
+// Only identified subtask assignments participate; legacy/atom records are untouched.
+educationTaskSchema.index(
+  { lessonPlanId: 1, studentId: 1, subTaskId: 1 },
+  { unique: true, partialFilterExpression: { subTaskId: { $type: 'objectId' } } },
 );
 
 module.exports = mongoose.model('EducationTask', educationTaskSchema);
