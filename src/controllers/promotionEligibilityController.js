@@ -279,6 +279,62 @@ const promotionEligibilityController = function (
   };
 
   /**
+   * Per-reviewer weekly review counts, Task-based proxy and PR Grading added
+   * together, for every id in `userIds`. The batched-and-merged counterpart
+   * to `reviewCountsForUser` below, for callers (`getPromotionPending`) that
+   * already fetch both sides in bulk rather than per reviewer.
+   *
+   * @param {Array<mongoose.Types.ObjectId|string>} userIds
+   * @returns {Promise<Map<string, Array<{year: number, week: number, reviewCount: number}>>>}
+   */
+  const mergedWeeklyCountsByUserIds = async (userIds) => {
+    const taskCounts = await weeklyReviewCountsByUserIds(userIds);
+    const prEntryCounts = await qualifyingPrEntryWeeklyCountsByUserIds(userIds);
+
+    const merged = new Map();
+    userIds.forEach((userId) => {
+      const key = String(userId);
+      merged.set(key, mergeWeeklyCounts(taskCounts.get(key) || [], prEntryCounts.get(key) || []));
+    });
+
+    return merged;
+  };
+
+  /**
+   * One reviewer's total and per-week review counts: the Task-based proxy
+   * plus the PR Grading contribution, added together. Pulled out of
+   * `getPromotionEligibilityData`'s per-reviewer loop purely to keep that
+   * loop short; the two batched maps it reads were already fetched once for
+   * the whole scoped table.
+   *
+   * @param {object} user a scoped UserProfile, needs only `_id`
+   * @param {Map<string, number>} prEntryTotalCountsByUserId
+   * @param {Map<string, Array<{year: number, week: number, reviewCount: number}>>} prEntryWeeklyCountsByUserId
+   * @returns {Promise<{totalReviews: number, weeklyCounts: Array<{year: number, week: number, reviewCount: number}>}>}
+   */
+  const reviewCountsForUser = async (
+    user,
+    prEntryTotalCountsByUserId,
+    prEntryWeeklyCountsByUserId,
+  ) => {
+    const userId = user._id.toString();
+
+    const taskTotalReviews = await Task.countDocuments({
+      resources: { $elemMatch: { userID: user._id, completedTask: true } },
+      taskName: { $regex: /review|pr/i },
+    });
+    const totalReviews = taskTotalReviews + (prEntryTotalCountsByUserId.get(userId) || 0);
+
+    const taskWeeklyCounts = await weeklyReviewCounts(user._id);
+    const weeklyCounts = mergeWeeklyCounts(
+      taskWeeklyCounts,
+      prEntryWeeklyCountsByUserId.get(userId) || [],
+    );
+
+    return { totalReviews, weeklyCounts };
+  };
+
+  /**
    * Resolve the "Review for This Week" group the caller asked to see.
    *
    * Returns null when the whole table is wanted, which is both the default and
@@ -375,16 +431,10 @@ const promotionEligibilityController = function (
           existingRecord: recordsByReviewerId.get(userId) || null,
         });
 
-        const taskTotalReviews = await Task.countDocuments({
-          resources: { $elemMatch: { userID: user._id, completedTask: true } },
-          taskName: { $regex: /review|pr/i },
-        });
-        const totalReviews = taskTotalReviews + (prEntryTotalCountsByUserId.get(userId) || 0);
-
-        const taskWeeklyCounts = await weeklyReviewCounts(user._id);
-        const weeklyCounts = mergeWeeklyCounts(
-          taskWeeklyCounts,
-          prEntryWeeklyCountsByUserId.get(userId) || [],
+        const { totalReviews, weeklyCounts } = await reviewCountsForUser(
+          user,
+          prEntryTotalCountsByUserId,
+          prEntryWeeklyCountsByUserId,
         );
         const currentWeek = mongoWeekOf(now);
 
@@ -1031,10 +1081,7 @@ const promotionEligibilityController = function (
       );
 
       const userIds = users.map((user) => user._id);
-      const weeklyCountsByUserId = await weeklyReviewCountsByUserIds(userIds);
-      // PR Grading side of the count, added to the task-based counts above
-      // rather than replacing them; see `qualifyingPrEntryWeeklyCountsByUserIds`.
-      const prEntryWeeklyCountsByUserId = await qualifyingPrEntryWeeklyCountsByUserIds(userIds);
+      const weeklyCountsByUserId = await mergedWeeklyCountsByUserIds(userIds);
 
       const pendingUsers = users
         .map((user) => {
@@ -1043,10 +1090,7 @@ const promotionEligibilityController = function (
             committedHours: pledgedHours,
             existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
           });
-          const weeklyCounts = mergeWeeklyCounts(
-            weeklyCountsByUserId.get(user._id.toString()) || [],
-            prEntryWeeklyCountsByUserId.get(user._id.toString()) || [],
-          );
+          const weeklyCounts = weeklyCountsByUserId.get(user._id.toString()) || [];
           const { remainingWeeks } = summariseWeeks({
             weeklyCounts,
             prsNeeded,
