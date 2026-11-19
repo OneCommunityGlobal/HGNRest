@@ -95,6 +95,93 @@ describe('jobApplicationAnalyticsController', () => {
         expect.objectContaining({ page: 2, limit: 100, total: 0, items: [] }),
       );
     });
+
+    it('filters by from/to submittedAt range and ignores invalid dates', async () => {
+      Response.countDocuments = jest.fn().mockResolvedValue(0);
+      Response.aggregate = jest.fn().mockResolvedValue([]);
+
+      await listJobApplications(
+        {
+          query: {
+            from: '2026-01-01T00:00:00.000Z',
+            to: '2026-01-31T23:59:59.000Z',
+          },
+          body: { requestor: { role: 'Owner' } },
+        },
+        res,
+      );
+
+      const rangeMatch = Response.countDocuments.mock.calls[0][0];
+      expect(rangeMatch.submittedAt.$gte).toEqual(new Date('2026-01-01T00:00:00.000Z'));
+      expect(rangeMatch.submittedAt.$lte).toEqual(new Date('2026-01-31T23:59:59.000Z'));
+
+      await listJobApplications(
+        {
+          query: { from: 'not-a-date', to: 'also-bad' },
+          user: { role: 'Owner' },
+        },
+        res,
+      );
+
+      const invalidMatch = Response.countDocuments.mock.calls[1][0];
+      expect(invalidMatch.submittedAt).toBeUndefined();
+    });
+
+    it('supports from-only and to-only filters and falls back to req.user', async () => {
+      Response.countDocuments = jest.fn().mockResolvedValue(0);
+      Response.aggregate = jest.fn().mockResolvedValue([]);
+
+      await listJobApplications(
+        {
+          query: { from: '2026-02-01T00:00:00.000Z' },
+          user: { role: 'Administrator' },
+        },
+        res,
+      );
+      expect(Response.countDocuments.mock.calls[0][0].submittedAt).toEqual({
+        $gte: new Date('2026-02-01T00:00:00.000Z'),
+      });
+
+      await listJobApplications(
+        {
+          query: { to: '2026-02-28T00:00:00.000Z', page: '0', limit: 'abc' },
+          user: { role: 'Owner' },
+        },
+        res,
+      );
+      expect(Response.countDocuments.mock.calls[1][0].submittedAt).toEqual({
+        $lte: new Date('2026-02-28T00:00:00.000Z'),
+      });
+      expect(res.json).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 25 }));
+    });
+
+    it('ignores invalid formId and escapes regex metacharacters in q', async () => {
+      Response.countDocuments = jest.fn().mockResolvedValue(0);
+      Response.aggregate = jest.fn().mockResolvedValue([]);
+
+      await listJobApplications(
+        {
+          query: { formId: 'not-an-object-id', q: 'a+b*c?' },
+          body: { requestor: { role: 'Owner' } },
+        },
+        res,
+      );
+
+      const matchArg = Response.countDocuments.mock.calls[0][0];
+      expect(matchArg.formId).toBeUndefined();
+      expect(matchArg.$or[0].email.$regex).toBe('a\\+b\\*c\\?');
+    });
+
+    it('returns 500 when listing fails', async () => {
+      Response.countDocuments = jest.fn().mockRejectedValue(new Error('db down'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await listJobApplications({ query: {}, body: { requestor: { role: 'Owner' } } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching job applications.' });
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('getJobApplicationsSummary', () => {
@@ -129,6 +216,36 @@ describe('jobApplicationAnalyticsController', () => {
         formsWithSubmissions: 2,
         topForms: [{ formId: 'f1', formTitle: 'Software', count: 10 }],
       });
+    });
+
+    it('defaults uniqueApplicants to 0 when aggregate is empty and uses req.user', async () => {
+      Response.countDocuments = jest.fn().mockResolvedValue(0);
+      Response.aggregate = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      Response.distinct = jest.fn().mockResolvedValue([null, 'f1']);
+      Form.countDocuments = jest.fn().mockResolvedValue(1);
+
+      await getJobApplicationsSummary({ user: { role: 'Owner' } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          uniqueApplicants: 0,
+          formsWithSubmissions: 1,
+        }),
+      );
+    });
+
+    it('returns 500 when summary fails', async () => {
+      Response.countDocuments = jest.fn().mockRejectedValue(new Error('summary boom'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await getJobApplicationsSummary({ body: { requestor: { role: 'Owner' } } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error fetching job application summary.',
+      });
+      consoleSpy.mockRestore();
     });
   });
 });
