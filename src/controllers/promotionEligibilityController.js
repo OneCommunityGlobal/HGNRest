@@ -293,7 +293,7 @@ const promotionEligibilityController = function (
 
     const merged = new Map();
     userIds.forEach((userId) => {
-      const key = String(userId);
+      const key = userId.toString();
       merged.set(key, mergeWeeklyCounts(taskCounts.get(key) || [], prEntryCounts.get(key) || []));
     });
 
