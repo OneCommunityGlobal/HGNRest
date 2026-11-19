@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const Project = require('../../../models/project');
+const Project = require('../../../models/bmdashboard/buildingProject');
+const BuildingMaterial = require('../../../models/bmdashboard/buildingMaterial');
 const SupplierPerformance = require('../../../models/summaryDashboard/supplierPerformance');
 const logger = require('../../../startup/logger');
 const supplierPerformanceController = require('../supplierPerformance');
@@ -19,8 +20,8 @@ describe('Supplier Performance Controller', () => {
     jest.restoreAllMocks();
     jest.clearAllMocks();
 
-    jest.spyOn(SupplierPerformance, 'aggregate');
-    jest.spyOn(SupplierPerformance, 'distinct');
+    jest.spyOn(BuildingMaterial, 'aggregate').mockResolvedValue([]);
+    jest.spyOn(BuildingMaterial, 'distinct').mockResolvedValue([]);
     jest.spyOn(Project, 'find');
     jest.spyOn(logger, 'logException').mockImplementation(() => {});
 
@@ -41,7 +42,7 @@ describe('Supplier Performance Controller', () => {
       expect(res.send).toHaveBeenCalledWith(
         'Missing required query parameters: startDate, endDate',
       );
-      expect(SupplierPerformance.aggregate).not.toHaveBeenCalled();
+      expect(BuildingMaterial.aggregate).not.toHaveBeenCalled();
     });
 
     it('returns 400 for an invalid project ID', async () => {
@@ -60,7 +61,7 @@ describe('Supplier Performance Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.send).toHaveBeenCalledWith('Invalid projectId.');
-      expect(SupplierPerformance.aggregate).not.toHaveBeenCalled();
+      expect(BuildingMaterial.aggregate).not.toHaveBeenCalled();
     });
 
     it('returns aggregated supplier data for all projects', async () => {
@@ -71,7 +72,7 @@ describe('Supplier Performance Controller', () => {
         },
       ];
 
-      SupplierPerformance.aggregate.mockResolvedValue(data);
+      BuildingMaterial.aggregate.mockResolvedValue(data);
 
       const res = makeResponse();
 
@@ -86,11 +87,22 @@ describe('Supplier Performance Controller', () => {
         res,
       );
 
-      const pipeline = SupplierPerformance.aggregate.mock.calls[0][0];
+      const pipeline = BuildingMaterial.aggregate.mock.calls[0][0];
 
-      expect(pipeline[0].$match).toEqual({
-        startDate: { $lte: new Date('2026-01-31') },
-        endDate: { $gte: new Date('2026-01-01') },
+      expect(pipeline[0].$match).toEqual({});
+
+      expect(pipeline[1]).toEqual({
+        $unwind: '$purchaseRecord',
+      });
+
+      expect(pipeline[2].$match).toEqual({
+        'purchaseRecord.status': 'Received',
+        'purchaseRecord.supplier': { $type: 'objectId' },
+        'purchaseRecord.expectedDeliveryDate': { $type: 'date' },
+        'purchaseRecord.actualDeliveryDate': {
+          $gte: new Date('2026-01-01T00:00:00.000Z'),
+          $lte: new Date('2026-01-31T23:59:59.999Z'),
+        },
       });
 
       expect(res.status).toHaveBeenCalledWith(200);
@@ -98,7 +110,7 @@ describe('Supplier Performance Controller', () => {
     });
 
     it('filters supplier data by a specific project ID', async () => {
-      SupplierPerformance.aggregate.mockResolvedValue([]);
+      BuildingMaterial.aggregate.mockResolvedValue([]);
 
       const res = makeResponse();
 
@@ -113,15 +125,15 @@ describe('Supplier Performance Controller', () => {
         res,
       );
 
-      const pipeline = SupplierPerformance.aggregate.mock.calls[0][0];
+      const pipeline = BuildingMaterial.aggregate.mock.calls[0][0];
 
-      expect(String(pipeline[0].$match.projectId)).toBe(projectId);
+      expect(String(pipeline[0].$match.project)).toBe(projectId);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith([]);
     });
 
     it('handles aggregation failures', async () => {
-      SupplierPerformance.aggregate.mockRejectedValue(new Error('Aggregation failed'));
+      BuildingMaterial.aggregate.mockRejectedValue(new Error('Aggregation failed'));
 
       const res = makeResponse();
 
@@ -145,18 +157,15 @@ describe('Supplier Performance Controller', () => {
   });
 
   describe('getProjectsWithSupplierData', () => {
-    it('returns resolved project names and preserves missing IDs', async () => {
-      SupplierPerformance.distinct.mockResolvedValue([
-        new mongoose.Types.ObjectId(projectId),
-        new mongoose.Types.ObjectId(missingProjectId),
-      ]);
+    it('returns building project names for projects with supplier deliveries', async () => {
+      BuildingMaterial.distinct.mockResolvedValue([new mongoose.Types.ObjectId(projectId)]);
 
       const query = {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockResolvedValue([
           {
             _id: new mongoose.Types.ObjectId(projectId),
-            projectName: 'SiddharthTest',
+            name: 'Building 3',
           },
         ]),
       };
@@ -167,52 +176,80 @@ describe('Supplier Performance Controller', () => {
 
       await controller.getProjectsWithSupplierData({}, res);
 
+      expect(BuildingMaterial.distinct).toHaveBeenCalledWith('project', {
+        purchaseRecord: {
+          $elemMatch: {
+            status: 'Received',
+            supplier: { $type: 'objectId' },
+            expectedDeliveryDate: { $type: 'date' },
+            actualDeliveryDate: { $type: 'date' },
+          },
+        },
+      });
+
+      expect(Project.find).toHaveBeenCalledWith({
+        _id: { $in: [new mongoose.Types.ObjectId(projectId)] },
+      });
+
       expect(res.status).toHaveBeenCalledWith(200);
-
-      const results = res.send.mock.calls[0][0];
-
-      expect(results).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            _id: new mongoose.Types.ObjectId(projectId),
-            projectName: 'SiddharthTest',
-          }),
-          expect.objectContaining({
-            _id: new mongoose.Types.ObjectId(missingProjectId),
-            projectName: 'Unknown project (…9011)',
-          }),
-        ]),
-      );
-
-      expect(results).toHaveLength(2);
+      expect(res.send).toHaveBeenCalledWith([
+        {
+          _id: new mongoose.Types.ObjectId(projectId),
+          projectName: 'Building 3',
+        },
+      ]);
     });
 
     it('returns an empty array when there are no project IDs', async () => {
-      SupplierPerformance.distinct.mockResolvedValue([]);
+      BuildingMaterial.distinct.mockResolvedValue([]);
+
+      Project.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
 
       const res = makeResponse();
 
       await controller.getProjectsWithSupplierData({}, res);
 
+      expect(Project.find).toHaveBeenCalledWith({
+        _id: { $in: [] },
+      });
+
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith([]);
-      expect(Project.find).not.toHaveBeenCalled();
     });
 
-    it('ignores malformed project IDs', async () => {
-      SupplierPerformance.distinct.mockResolvedValue(['invalid-id']);
+    it('uses a fallback name for unnamed building projects', async () => {
+      const buildingProjectId = new mongoose.Types.ObjectId(projectId);
+
+      BuildingMaterial.distinct.mockResolvedValue([buildingProjectId]);
+
+      Project.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([
+          {
+            _id: buildingProjectId,
+            name: '',
+          },
+        ]),
+      });
 
       const res = makeResponse();
 
       await controller.getProjectsWithSupplierData({}, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.send).toHaveBeenCalledWith([]);
-      expect(Project.find).not.toHaveBeenCalled();
+      expect(res.send).toHaveBeenCalledWith([
+        {
+          _id: buildingProjectId,
+          projectName: 'Unnamed Project',
+        },
+      ]);
     });
 
     it('handles project lookup failures', async () => {
-      SupplierPerformance.distinct.mockRejectedValue(new Error('Lookup failed'));
+      BuildingMaterial.distinct.mockRejectedValue(new Error('Lookup failed'));
 
       const res = makeResponse();
 

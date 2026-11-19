@@ -89,10 +89,16 @@ describe('bmMaterialsController', () => {
         },
         {
           path: 'purchaseRecord',
-          populate: {
-            path: 'requestedBy',
-            select: '_id firstName lastName email',
-          },
+          populate: [
+            {
+              path: 'requestedBy',
+              select: '_id firstName lastName email',
+            },
+            {
+              path: 'supplier',
+              select: '_id name',
+            },
+          ],
         },
       ]);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -379,9 +385,9 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.send).toHaveBeenCalledWith(
-        "Purchase status can only be updated from 'Pending'. Current status is 'Approved'.",
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Purchase status can only be updated from Pending. Current status is Approved.',
+      });
     });
   });
 });
