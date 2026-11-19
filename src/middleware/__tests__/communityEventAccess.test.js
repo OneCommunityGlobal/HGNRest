@@ -164,3 +164,69 @@ describe('self-service registration ownership', () => {
     expect(controllers.registerForEvent).not.toHaveBeenCalled();
   });
 });
+
+describe.each([
+  ['post', 'joinWaitlist'],
+  ['delete', 'leaveWaitlist'],
+])('self-service waitlist ownership: %s', (method, handler) => {
+  test.each([other, undefined, null, '', [self], { userId: self }, 1])(
+    'rejects a foreign or malformed identity before the controller runs: %p',
+    async (userId) => {
+      const response = await request(app())
+        [method]('/api/events/event-id/waitlist')
+        .set('Authorization', token())
+        .send({ userId });
+      expect(response.status).toBe(403);
+      expect(controllers[handler]).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each(['Volunteer', 'Owner'])(
+    'allows %s to change only their own membership',
+    async (role) => {
+      const response = await request(app())
+        [method]('/api/events/event-id/waitlist')
+        .set('Authorization', `Bearer ${token({ role })}`)
+        .send({ userId: self });
+      expect(response.status).toBe(200);
+      expect(controllers[handler]).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test.each(['Volunteer', 'Owner'])(
+    'does not accept a forged identity or an Owner override from %s',
+    async (role) => {
+      const response = await request(app())
+        [method]('/api/events/event-id/waitlist')
+        .set('Authorization', token({ role }))
+        .send({
+          userId: other,
+          requestor: { role: 'Owner', requestorId: other },
+          communityPortalUserId: other,
+          access: { canAccessBMPortal: true },
+        });
+      expect(response.status).toBe(403);
+      expect(controllers[handler]).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    ['missing', null],
+    ['invalid signature', jwt.sign({ userid: self }, 'wrong-secret')],
+    ['expired', token({ expiryTimestamp: new Date(0).toISOString() })],
+  ])('rejects %s authentication before the controller runs', async (_label, authorization) => {
+    let call = request(app())[method]('/api/events/event-id/waitlist');
+    if (authorization) call = call.set('Authorization', authorization);
+    const response = await call.send({ userId: self });
+    expect(response.status).toBe(401);
+    expect(controllers[handler]).not.toHaveBeenCalled();
+  });
+
+  test('rejects a request with no JSON body', async () => {
+    const response = await request(app())
+      [method]('/api/events/event-id/waitlist')
+      .set('Authorization', token());
+    expect(response.status).toBe(403);
+    expect(controllers[handler]).not.toHaveBeenCalled();
+  });
+});

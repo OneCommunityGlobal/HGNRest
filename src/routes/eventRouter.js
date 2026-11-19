@@ -33,11 +33,13 @@ eventRouter.delete(
 eventRouter.post(
   '/events/:eventId/waitlist',
   requireCommunityEventAccess,
+  requireOwnEventRegistration,
   eventsController.joinWaitlist,
 );
 eventRouter.delete(
   '/events/:eventId/waitlist',
   requireCommunityEventAccess,
+  requireOwnEventRegistration,
   eventsController.leaveWaitlist,
 );
 eventRouter.post(
