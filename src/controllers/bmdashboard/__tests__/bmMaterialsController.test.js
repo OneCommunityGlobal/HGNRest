@@ -1,47 +1,27 @@
 // Mock utilities BEFORE requiring the controller
 // Note: Paths are relative to the controller file, not the test file
-jest.mock(
-  '../../../utilities/queryParamParser',
-  () => ({
-    parseMultiSelectQueryParam: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../utilities/materialCostCorrelationDateUtils',
-  () => ({
-    parseAndNormalizeDateRangeUTC: jest.fn(),
-    normalizeStartDate: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../utilities/materialCostCorrelationHelpers',
-  () => ({
-    getEarliestRelevantMaterialDate: jest.fn(),
-    aggregateMaterialUsage: jest.fn(),
-    aggregateMaterialCost: jest.fn(),
-    buildCostCorrelationResponse: jest.fn(),
-    resolveProjectNamesToIds: jest.fn().mockResolvedValue([]),
-    resolveMaterialNamesToIds: jest.fn().mockResolvedValue([]),
-  }),
-  { virtual: true },
-);
-jest.mock(
-  '../../../startup/logger',
-  () => ({
-    logException: jest.fn(),
-  }),
-  { virtual: true },
-);
-jest.mock('../../../models/bmdashboard/buildingProject', () => ({}), { virtual: true });
-jest.mock(
-  '../../../models/bmdashboard/buildingInventoryType',
-  () => ({
-    invTypeBase: {},
-  }),
-  { virtual: true },
-);
+jest.mock('../../../utilities/queryParamParser', () => ({
+  parseMultiSelectQueryParam: jest.fn(),
+}));
+jest.mock('../../../utilities/materialCostCorrelationDateUtils', () => ({
+  parseAndNormalizeDateRangeUTC: jest.fn(),
+  normalizeStartDate: jest.fn(),
+}));
+jest.mock('../../../utilities/materialCostCorrelationHelpers', () => ({
+  getEarliestRelevantMaterialDate: jest.fn(),
+  aggregateMaterialUsage: jest.fn(),
+  aggregateMaterialCost: jest.fn(),
+  buildCostCorrelationResponse: jest.fn(),
+  resolveProjectNamesToIds: jest.fn().mockResolvedValue([]),
+  resolveMaterialNamesToIds: jest.fn().mockResolvedValue([]),
+}));
+jest.mock('../../../startup/logger', () => ({
+  logException: jest.fn(),
+}));
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({}));
+jest.mock('../../../models/bmdashboard/buildingInventoryType', () => ({
+  invTypeBase: {},
+}));
 
 const mongoose = require('mongoose');
 const bmMaterialsController = require('../bmMaterialsController');
@@ -904,14 +884,15 @@ describe('bmMaterialsController', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
+        json: jest.fn(),
       };
 
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.send).toHaveBeenCalledWith(
-        expect.stringContaining("can only be updated from 'Pending'"),
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Purchase status can only be updated from Pending. Current status is Approved.',
+      });
     });
 
     it('should return 404 if the purchase record is missing from the material', async () => {
@@ -942,7 +923,7 @@ describe('bmMaterialsController', () => {
     it('should approve a purchase, increment stockBought, and return 200', async () => {
       const validPurchaseId = '507f1f77bcf86cd799439abd';
       const mockMaterial = {
-        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
+        purchaseRecord: [{ _id: validPurchaseId, status: 'Pending', quantity: 30 }],
       };
       mockFindOne.mockResolvedValue(mockMaterial);
       mockFindOneAndUpdate.mockResolvedValue({ status: 'Approved' });
@@ -962,7 +943,14 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
         {
           $set: { 'purchaseRecord.$.status': 'Approved' },
           $inc: { stockBought: 30 },
@@ -996,15 +984,24 @@ describe('bmMaterialsController', () => {
       await controller.bmupdatePurchaseStatus(req, res);
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-        { 'purchaseRecord._id': expect.any(mongoose.Types.ObjectId) },
-        { $set: { 'purchaseRecord.$.status': 'Rejected' } },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: expect.any(mongoose.Types.ObjectId),
+              status: 'Pending',
+            },
+          },
+        },
+        {
+          $set: { 'purchaseRecord.$.status': 'Rejected' },
+        },
         { new: true },
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith('Purchase rejected successfully');
     });
 
-    it('should return 500 when findOneAndUpdate fails to apply the update', async () => {
+    it('should return 409 when the purchase status changes before the update', async () => {
       const validPurchaseId = '507f1f77bcf86cd799439abf';
       const mockMaterial = {
         purchaseRecord: [{ _id: validPurchaseId, status: 'Pending' }],
@@ -1022,12 +1019,15 @@ describe('bmMaterialsController', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         send: jest.fn(),
+        json: jest.fn(),
       };
 
       await controller.bmupdatePurchaseStatus(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.send).toHaveBeenCalledWith('Failed to apply purchase status update to material.');
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Purchase status has changed. Please refresh and try again.',
+      });
     });
 
     it('should return 500 on an unexpected error', async () => {
@@ -1086,7 +1086,7 @@ describe('bmMaterialsController', () => {
         return [];
       });
 
-      mockParseAndNormalizeDateRangeUTC.mockResolvedValue({
+      mockParseAndNormalizeDateRangeUTC.mockReturnValue({
         effectiveStart: new Date('2024-01-01T00:00:00.000Z'),
         effectiveEnd: new Date('2024-01-31T23:59:59.999Z'),
         defaultsApplied: { startDate: false, endDate: false },
