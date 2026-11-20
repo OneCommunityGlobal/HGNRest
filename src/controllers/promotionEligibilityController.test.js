@@ -483,7 +483,9 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
     const [match, group] = entries.aggregate.mock.calls[0][0];
     expect(match.$match.$or).toContainEqual({ year: 2026, week: { $lte: 33 } });
     expect(group.$group.reviewCount.$sum.$cond).toEqual([
-      { $in: ['$rating', ['Good', 'Exceptional']] }, 1, 0,
+      { $in: ['$rating', ['Needs more details', 'Good', 'Exceptional', 'No Image']] },
+      1,
+      0,
     ]);
     expect(Task.countDocuments).not.toHaveBeenCalled();
     expect(TimeEntry.aggregate).not.toHaveBeenCalled();

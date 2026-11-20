@@ -13,6 +13,7 @@ const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/revie
 const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
 const {
   PR_RATINGS,
+  RATING_VALUES,
   normalisePrNumber,
   extractPrNumbersFromSummary,
   isValidRating,
@@ -28,6 +29,7 @@ const PromotionDetail = require('../models/promotionDetail');
 const FormResponse = require('../models/hgnFormResponse');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const COMPLETED_REVIEW_RATINGS = RATING_VALUES.filter((value) => value !== 'Did not review');
 
 const PROMOTED_ROLE = 'Promoted Reviewer';
 
@@ -181,7 +183,7 @@ const promotionEligibilityController = function (
         $group: {
           _id: { reviewerId: '$reviewerId', year: '$year', week: '$week' },
           reviewCount: {
-            $sum: { $cond: [{ $in: ['$rating', ['Good', 'Exceptional']] }, 1, 0] },
+            $sum: { $cond: [{ $in: ['$rating', COMPLETED_REVIEW_RATINGS] }, 1, 0] },
           },
         },
       },
