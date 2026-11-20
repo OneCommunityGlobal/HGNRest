@@ -6,6 +6,8 @@ const { canManageJobForms } = require('../utilities/jobFormPermissions');
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
@@ -41,6 +43,46 @@ function buildListMatch(query = {}) {
   }
 
   return match;
+}
+
+function fillWeekdayCounts(rows = []) {
+  const byDay = new Map(rows.map((row) => [Number(row._id), row.count]));
+  // Mongo $dayOfWeek: 1=Sun … 7=Sat
+  return WEEKDAY_LABELS.map((label, index) => ({
+    label,
+    count: byDay.get(index + 1) || 0,
+  }));
+}
+
+function fillHourCounts(rows = []) {
+  const byHour = new Map(rows.map((row) => [Number(row._id), row.count]));
+  return Array.from({ length: 24 }, (_, hour) => ({
+    label: `${String(hour).padStart(2, '0')}:00`,
+    count: byHour.get(hour) || 0,
+  }));
+}
+
+function bucketHours(value) {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value < 10) return '< 10 hrs/week';
+  if (value < 20) return '10–19 hrs/week';
+  if (value < 30) return '20–29 hrs/week';
+  return '30+ hrs/week';
+}
+
+function bucketCommitment(value) {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value < 2) return '< 2 months';
+  if (value < 3) return '2–3 months';
+  if (value < 6) return '3–6 months';
+  return '6+ months';
+}
+
+function normalizeBucketRows(rows = []) {
+  return rows
+    .filter((row) => row && row.label)
+    .map((row) => ({ label: row.label, count: row.count || 0 }))
+    .sort((a, b) => b.count - a.count);
 }
 
 /**
@@ -103,7 +145,7 @@ exports.listJobApplications = async (req, res) => {
 
 /**
  * GET /api/jobforms/applications/summary
- * Live CRM summary cards from JobApplications + JobForms.
+ * Live CRM summary cards + deeper breakdowns from JobApplications + JobForms.
  */
 exports.getJobApplicationsSummary = async (req, res) => {
   try {
@@ -126,6 +168,12 @@ exports.getJobApplicationsSummary = async (req, res) => {
       activeForms,
       formsWithSubmissions,
       topForms,
+      weekdayRows,
+      hourRows,
+      dailyTrendRows,
+      hoursBucketRows,
+      commitmentBucketRows,
+      joiningExpectationRows,
     ] = await Promise.all([
       Response.countDocuments({}),
       Response.countDocuments({ submittedAt: { $gte: sevenDaysAgo } }),
@@ -166,6 +214,169 @@ exports.getJobApplicationsSummary = async (req, res) => {
           },
         },
       ]),
+      Response.aggregate([
+        { $match: { submittedAt: { $exists: true, $ne: null } } },
+        { $group: { _id: { $dayOfWeek: '$submittedAt' }, count: { $sum: 1 } } },
+      ]),
+      Response.aggregate([
+        { $match: { submittedAt: { $exists: true, $ne: null } } },
+        { $group: { _id: { $hour: '$submittedAt' }, count: { $sum: 1 } } },
+      ]),
+      Response.aggregate([
+        { $match: { submittedAt: { $gte: thirtyDaysAgo } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$submittedAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        {
+          $project: {
+            label: '$_id',
+            count: 1,
+            _id: 0,
+          },
+        },
+      ]),
+      Response.aggregate([
+        { $unwind: '$answers' },
+        { $match: { 'answers.answer.type': 'applicantProfile' } },
+        {
+          $project: {
+            hours: {
+              $convert: {
+                input: '$answers.answer.hoursPerWeek',
+                to: 'double',
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        { $match: { hours: { $ne: null } } },
+        {
+          $group: {
+            _id: {
+              $switch: {
+                branches: [
+                  { case: { $lt: ['$hours', 10] }, then: '< 10 hrs/week' },
+                  { case: { $lt: ['$hours', 20] }, then: '10–19 hrs/week' },
+                  { case: { $lt: ['$hours', 30] }, then: '20–29 hrs/week' },
+                ],
+                default: '30+ hrs/week',
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $project: { label: '$_id', count: 1, _id: 0 } },
+        { $sort: { count: -1 } },
+      ]),
+      Response.aggregate([
+        { $unwind: '$answers' },
+        { $match: { 'answers.answer.type': 'applicantProfile' } },
+        {
+          $project: {
+            months: {
+              $convert: {
+                input: '$answers.answer.monthsVolunteer',
+                to: 'double',
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        { $match: { months: { $ne: null } } },
+        {
+          $group: {
+            _id: {
+              $switch: {
+                branches: [
+                  { case: { $lt: ['$months', 2] }, then: '< 2 months' },
+                  { case: { $lt: ['$months', 3] }, then: '2–3 months' },
+                  { case: { $lt: ['$months', 6] }, then: '3–6 months' },
+                ],
+                default: '6+ months',
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $project: { label: '$_id', count: 1, _id: 0 } },
+        { $sort: { count: -1 } },
+      ]),
+      Response.aggregate([
+        { $unwind: '$answers' },
+        {
+          $lookup: {
+            from: Form.collection.name,
+            localField: 'formId',
+            foreignField: '_id',
+            as: 'form',
+          },
+        },
+        { $unwind: { path: '$form', preserveNullAndEmptyArrays: false } },
+        {
+          $addFields: {
+            matchedQuestion: {
+              $first: {
+                $filter: {
+                  input: { $ifNull: ['$form.questions', []] },
+                  as: 'q',
+                  cond: { $eq: ['$$q._id', '$answers.questionId'] },
+                },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            matchedQuestion: { $ne: null },
+            $or: [
+              { 'matchedQuestion.questionType': 'date' },
+              {
+                'matchedQuestion.questionText': {
+                  $regex: 'start|join|available|begin|commence',
+                  $options: 'i',
+                },
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            label: {
+              $trim: {
+                input: {
+                  $cond: [
+                    { $eq: [{ $type: '$answers.answer' }, 'date'] },
+                    {
+                      $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: '$answers.answer',
+                      },
+                    },
+                    { $toString: '$answers.answer' },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            label: { $nin: [null, '', 'null', 'undefined'] },
+          },
+        },
+        { $group: { _id: '$label', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 8 },
+        { $project: { label: '$_id', count: 1, _id: 0 } },
+      ]),
     ]);
 
     return res.status(200).json({
@@ -176,9 +387,24 @@ exports.getJobApplicationsSummary = async (req, res) => {
       activeForms,
       formsWithSubmissions,
       topForms,
+      applicationsByWeekday: fillWeekdayCounts(weekdayRows),
+      applicationsByHour: fillHourCounts(hourRows),
+      applicationsTrend30Days: dailyTrendRows,
+      hoursPerWeekBreakdown: normalizeBucketRows(hoursBucketRows),
+      commitmentBreakdown: normalizeBucketRows(commitmentBucketRows),
+      joiningExpectations: normalizeBucketRows(joiningExpectationRows),
     });
   } catch (error) {
     console.error('getJobApplicationsSummary failed:', error);
     return res.status(500).json({ message: 'Error fetching job application summary.' });
   }
+};
+
+// Exported for unit tests
+exports._test = {
+  fillWeekdayCounts,
+  fillHourCounts,
+  bucketHours,
+  bucketCommitment,
+  normalizeBucketRows,
 };

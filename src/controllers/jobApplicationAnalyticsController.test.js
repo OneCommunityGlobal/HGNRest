@@ -199,28 +199,43 @@ describe('jobApplicationAnalyticsController', () => {
         .mockResolvedValueOnce(12);
       Response.aggregate = jest
         .fn()
-        .mockResolvedValueOnce([{ count: 30 }])
-        .mockResolvedValueOnce([{ formId: 'f1', formTitle: 'Software', count: 10 }]);
+        .mockResolvedValueOnce([{ count: 30 }]) // unique applicants
+        .mockResolvedValueOnce([{ formId: 'f1', formTitle: 'Software', count: 10 }]) // top forms
+        .mockResolvedValueOnce([{ _id: 2, count: 4 }]) // weekday
+        .mockResolvedValueOnce([{ _id: 14, count: 3 }]) // hour
+        .mockResolvedValueOnce([{ label: '2026-01-02', count: 2 }]) // trend
+        .mockResolvedValueOnce([{ label: '10–19 hrs/week', count: 5 }]) // hours
+        .mockResolvedValueOnce([{ label: '3–6 months', count: 4 }]) // commitment
+        .mockResolvedValueOnce([{ label: '2026-03-01', count: 2 }]); // joining
       Response.distinct = jest.fn().mockResolvedValue(['f1', 'f2']);
       Form.countDocuments = jest.fn().mockResolvedValue(8);
 
       await getJobApplicationsSummary({ body: { requestor: { role: 'Owner' } } }, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        totalApplications: 40,
-        applicationsLast7Days: 5,
-        applicationsLast30Days: 12,
-        uniqueApplicants: 30,
-        activeForms: 8,
-        formsWithSubmissions: 2,
-        topForms: [{ formId: 'f1', formTitle: 'Software', count: 10 }],
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          totalApplications: 40,
+          applicationsLast7Days: 5,
+          applicationsLast30Days: 12,
+          uniqueApplicants: 30,
+          activeForms: 8,
+          formsWithSubmissions: 2,
+          topForms: [{ formId: 'f1', formTitle: 'Software', count: 10 }],
+          hoursPerWeekBreakdown: [{ label: '10–19 hrs/week', count: 5 }],
+          commitmentBreakdown: [{ label: '3–6 months', count: 4 }],
+          joiningExpectations: [{ label: '2026-03-01', count: 2 }],
+        }),
+      );
+      const payload = res.json.mock.calls[0][0];
+      expect(payload.applicationsByWeekday).toHaveLength(7);
+      expect(payload.applicationsByHour).toHaveLength(24);
+      expect(payload.applicationsByWeekday.find((d) => d.label === 'Mon').count).toBe(4);
     });
 
     it('defaults uniqueApplicants to 0 when aggregate is empty and uses req.user', async () => {
       Response.countDocuments = jest.fn().mockResolvedValue(0);
-      Response.aggregate = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      Response.aggregate = jest.fn().mockResolvedValue([]);
       Response.distinct = jest.fn().mockResolvedValue([null, 'f1']);
       Form.countDocuments = jest.fn().mockResolvedValue(1);
 
@@ -231,6 +246,9 @@ describe('jobApplicationAnalyticsController', () => {
         expect.objectContaining({
           uniqueApplicants: 0,
           formsWithSubmissions: 1,
+          hoursPerWeekBreakdown: [],
+          commitmentBreakdown: [],
+          joiningExpectations: [],
         }),
       );
     });
