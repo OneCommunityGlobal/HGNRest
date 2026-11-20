@@ -8,6 +8,7 @@ const routes = function (buildingNewLesson) {
 
   // having GET request just for testing:
   NewLessonRouter.route('/lessons').get(controller.bmGetLessonList);
+  NewLessonRouter.route('/lessons/tags/frequent').get(controller.getFrequentLessonTags);
   NewLessonRouter.route('/lesson/:lessonId')
     .get(controller.bmGetSingleLesson)
     .put(controller.bmEditSingleLesson)

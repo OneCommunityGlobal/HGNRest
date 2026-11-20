@@ -2,6 +2,9 @@
 const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
 
+const DEFAULT_TAG_LIMIT = 8;
+const MAX_TAG_LIMIT = 50;
+
 /** Builds a MongoDB filter fragment for projectId. Returns {} for 'ALL' or absent value. */
 const buildProjectIdFilter = (projectId) => {
   if (!projectId || projectId === 'ALL') return {};
@@ -238,6 +241,38 @@ const bmNewLessonController = function (BuildingNewLesson) {
       res.status(500).json({ error: 'Error fetching tags' });
     }
   };
+
+  // Most frequent lesson tags for one BM project (used by the Most Frequent Keywords chart)
+  const getFrequentLessonTags = async (req, res) => {
+    const { projectId, startDate, endDate, limit } = req.query;
+    if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'A valid projectId is required' });
+    }
+    const limitNumber = Math.max(
+      1,
+      Math.min(MAX_TAG_LIMIT, Number.parseInt(limit, 10) || DEFAULT_TAG_LIMIT),
+    );
+    const match = { relatedProject: new mongoose.Types.ObjectId(projectId) };
+    if (startDate || endDate) {
+      match.date = {};
+      if (startDate) match.date.$gte = new Date(startDate);
+      if (endDate) match.date.$lte = new Date(endDate);
+    }
+    try {
+      const tags = await BuildingNewLesson.aggregate([
+        { $match: match },
+        { $unwind: '$tags' },
+        { $group: { _id: '$tags', count: { $sum: 1 }, date: { $max: '$date' } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: limitNumber },
+        { $project: { _id: 0, tag: '$_id', count: 1, date: 1 } },
+      ]);
+      return res.status(200).json({ data: tags });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).json({ error: 'Error fetching frequent lesson tags' });
+    }
+  };
   const getLessonsLearnt = async (req, res) => {
     try {
       const { projectId, startDate, endDate } = req.query;
@@ -342,6 +377,7 @@ const bmNewLessonController = function (BuildingNewLesson) {
     bmEditSingleLesson,
     likeLesson,
     getLessonTags,
+    getFrequentLessonTags,
     addNewTag,
     deleteTag,
     getLessonsLearnt,
