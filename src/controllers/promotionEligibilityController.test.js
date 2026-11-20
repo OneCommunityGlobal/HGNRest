@@ -458,6 +458,39 @@ describe('getPromotionEligibilityData, weekly requirements and remaining weeks',
     expect(entry.remainingWeeks).toBe(0);
   });
 
+  it.each([
+    [6, false],
+    [7, true],
+  ])('uses %i saved qualifying reviews for the current weekly quota', async (count, met) => {
+    const reviewerId = REVIEWER._id;
+    const entries = {
+      aggregate: jest.fn().mockResolvedValue([
+        { _id: { reviewerId, ...CURRENT_WEEK }, reviewCount: count },
+        { _id: { reviewerId, year: 2026, week: 32 }, reviewCount: 7 },
+      ]),
+    };
+    const gradingController = promotionEligibilityController(
+      UserProfile, TimeEntry, Task, PromotionEligibility, null, null, null, entries,
+    );
+
+    await gradingController.getPromotionEligibilityData(request(), mockRes);
+
+    expect(entryReturned()).toMatchObject({
+      totalReviews: count + 7,
+      weeklyRequirementsMet: met,
+      remainingWeeks: 1,
+    });
+    const [match, group] = entries.aggregate.mock.calls[0][0];
+    expect(match.$match.$or).toContainEqual({ year: 2026, week: { $lte: 33 } });
+    expect(group.$group.reviewCount.$sum.$cond).toEqual([
+      { $in: ['$rating', ['Needs more details', 'Good', 'Exceptional', 'No Image']] },
+      1,
+      0,
+    ]);
+    expect(Task.countDocuments).not.toHaveBeenCalled();
+    expect(TimeEntry.aggregate).not.toHaveBeenCalled();
+  });
+
   it('never counts a week for a reviewer whose committed hours require nothing', async () => {
     UserProfile.find = jest.fn(() => ({
       lean: () => Promise.resolve([{ ...REVIEWER, weeklycommittedHours: 0 }]),

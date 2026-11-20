@@ -13,6 +13,7 @@ const { DEFAULT_REVIEWER_GROUPS, isReviewerInGroup } = require('../helpers/revie
 const { placeReviewer, isPlaceableTeam } = require('../helpers/teamPlacementHelper');
 const {
   PR_RATINGS,
+  RATING_VALUES,
   normalisePrNumber,
   extractPrNumbersFromSummary,
   isValidRating,
@@ -28,6 +29,7 @@ const PromotionDetail = require('../models/promotionDetail');
 const FormResponse = require('../models/hgnFormResponse');
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const COMPLETED_REVIEW_RATINGS = RATING_VALUES.filter((value) => value !== 'Did not review');
 
 const PROMOTED_ROLE = 'Promoted Reviewer';
 
@@ -164,6 +166,39 @@ const promotionEligibilityController = function (
     return countsByUserId;
   };
 
+  const gradedReviewCountsByUserIds = async (userIds, currentWeek) => {
+    if (!userIds.length) return new Map();
+
+    const rows = await PromotionPrEntry.aggregate([
+      {
+        $match: {
+          reviewerId: { $in: userIds.map((id) => mongoose.Types.ObjectId(id)) },
+          $or: [
+            { year: { $lt: currentWeek.year } },
+            { year: currentWeek.year, week: { $lte: currentWeek.week } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { reviewerId: '$reviewerId', year: '$year', week: '$week' },
+          reviewCount: {
+            $sum: { $cond: [{ $in: ['$rating', COMPLETED_REVIEW_RATINGS] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    const counts = new Map();
+    rows.forEach(({ _id: { reviewerId, year, week }, reviewCount }) => {
+      const key = String(reviewerId);
+      if (!counts.has(key)) counts.set(key, []);
+      counts.get(key).push({ year, week, reviewCount });
+    });
+    counts.forEach((weeks) => weeks.sort((a, b) => b.year - a.year || b.week - a.week));
+    return counts;
+  };
+
   /**
    * Resolve the "Review for This Week" group the caller asked to see.
    *
@@ -243,6 +278,11 @@ const promotionEligibilityController = function (
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
+      const currentWeek = mongoWeekOf(now);
+      const gradedCounts = PromotionPrEntry
+        ? await gradedReviewCountsByUserIds(scopedUsers.map((user) => user._id), currentWeek)
+        : null;
+
       // Refactor: Use map and Promise.all for concurrent processing
       const eligibilityPromises = scopedUsers.map(async (user) => {
         const pledgedHours = user.weeklycommittedHours || 0;
@@ -251,13 +291,15 @@ const promotionEligibilityController = function (
           existingRecord: recordsByReviewerId.get(user._id.toString()) || null,
         });
 
-        const totalReviews = await Task.countDocuments({
-          resources: { $elemMatch: { userID: user._id, completedTask: true } },
-          taskName: { $regex: /review|pr/i },
-        });
-
-        const weeklyCounts = await weeklyReviewCounts(user._id);
-        const currentWeek = mongoWeekOf(now);
+        const weeklyCounts = gradedCounts
+          ? gradedCounts.get(String(user._id)) || []
+          : await weeklyReviewCounts(user._id);
+        const totalReviews = gradedCounts
+          ? weeklyCounts.reduce((sum, week) => sum + week.reviewCount, 0)
+          : await Task.countDocuments({
+              resources: { $elemMatch: { userID: user._id, completedTask: true } },
+              taskName: { $regex: /review|pr/i },
+            });
 
         const { successfulWeeks, remainingWeeks, weeklyRequirementsMet } = summariseWeeks({
           weeklyCounts,
@@ -618,7 +660,7 @@ const promotionEligibilityController = function (
         reviewers[id] = { weeks: groupEntriesByWeek(reviewerEntries) };
       });
 
-      return res.status(200).json({ reviewers });
+      return res.status(200).json({ reviewers, currentWeek: mongoWeekOf(new Date()) });
     } catch (error) {
       logger.logException(error, {
         endpoint: 'getPrEntriesForReviewers',
@@ -901,7 +943,10 @@ const promotionEligibilityController = function (
         existingRecords.map((record) => [record.reviewerId.toString(), record]),
       );
 
-      const weeklyCountsByUserId = await weeklyReviewCountsByUserIds(users.map((user) => user._id));
+      const userIds = users.map((user) => user._id);
+      const weeklyCountsByUserId = PromotionPrEntry
+        ? await gradedReviewCountsByUserIds(userIds, currentWeek)
+        : await weeklyReviewCountsByUserIds(userIds);
 
       const pendingUsers = users
         .map((user) => {
