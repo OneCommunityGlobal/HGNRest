@@ -6,7 +6,7 @@ const MAX_ATTEMPTS = 3;
 
 async function processDuePins() {
   const now = new Date();
-
+  /* eslint-disable no-await-in-loop -- pins are claimed and posted sequentially on purpose */
   while (true) {
     // Atomically claim one due pin so no other run/instance can grab it
     const scheduledPin = await pinterestSchedule.findOneAndUpdate(
