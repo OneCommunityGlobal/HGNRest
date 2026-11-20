@@ -1,4 +1,7 @@
-const bmMaterialsController = require('./bmMaterialsController');
+jest.mock('../../models/bmdashboard/buildingProject', () => ({ findById: jest.fn() }), { virtual: true });
+jest.mock('../../models/bmdashboard/buildingInventoryType', () => ({
+  invTypeBase: { findById: jest.fn() },
+}), { virtual: true });
 
 jest.mock('mongoose', () => {
   const mockObjectId = jest.fn((id) => id);
@@ -10,6 +13,10 @@ jest.mock('mongoose', () => {
   };
 });
 
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
+const bmMaterialsController = require('./bmMaterialsController');
+
 describe('bmMaterialsController', () => {
   let BuildingMaterialMock;
   let controller;
@@ -18,6 +25,13 @@ describe('bmMaterialsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const query = (value) => ({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(value),
+    });
+    BuildingProject.findById.mockReturnValue(query({ name: 'Building 1' }));
+    invTypeBase.findById.mockReturnValue(query({ name: 'Sand', unit: 'kg', __t: 'material_type' }));
     BuildingMaterialMock = {
       find: jest.fn().mockReturnThis(),
       findOne: jest.fn(),

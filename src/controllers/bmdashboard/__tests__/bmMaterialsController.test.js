@@ -34,16 +34,20 @@ jest.mock(
   }),
   { virtual: true },
 );
-jest.mock('../../../models/bmdashboard/buildingProject', () => ({}), { virtual: true });
+jest.mock('../../../models/bmdashboard/buildingProject', () => ({ findById: jest.fn() }), {
+  virtual: true,
+});
 jest.mock(
   '../../../models/bmdashboard/buildingInventoryType',
   () => ({
-    invTypeBase: {},
+    invTypeBase: { findById: jest.fn() },
   }),
   { virtual: true },
 );
 
 const mongoose = require('mongoose');
+const BuildingProject = require('../../../models/bmdashboard/buildingProject');
+const { invTypeBase } = require('../../../models/bmdashboard/buildingInventoryType');
 const bmMaterialsController = require('../bmMaterialsController');
 // Get mocked functions - use paths relative to controller
 const {
@@ -98,6 +102,18 @@ const BuildingMaterial = {
 // Reset all mocks before each test
 beforeEach(() => {
   jest.clearAllMocks();
+  // The list error scenario replaces this implementation; do not leak it into later cases.
+  mockThen.mockImplementation((callback) => {
+    callback();
+    return { catch: jest.fn() };
+  });
+  const query = (value) => ({
+    select: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(value),
+  });
+  BuildingProject.findById.mockReturnValue(query({ name: 'Building 1' }));
+  invTypeBase.findById.mockReturnValue(query({ name: 'Sand', unit: 'kg', __t: 'material_type' }));
   mockExec.mockReturnValue({ then: mockThen });
   mockFind.mockReturnThis();
   mockPopulate.mockReturnThis();

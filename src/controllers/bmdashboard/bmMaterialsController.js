@@ -313,6 +313,29 @@ const bmMaterialsController = function (BuildingMaterial) {
           .status(validation.status)
           .json({ message: validation.message, field: validation.field });
       }
+      const [project, materialType] = await Promise.all([
+        BuildingProject.findById(body.primaryId).select('name').lean().exec(),
+        invTypeBase.findById(body.secondaryId).select('name unit __t').lean().exec(),
+      ]);
+      if (!project || typeof project.name !== 'string' || !project.name.trim()) {
+        return res.status(400).json({
+          message: 'Select an existing project with a name.',
+          field: 'projectId',
+        });
+      }
+      if (
+        !materialType ||
+        materialType.__t !== 'material_type' ||
+        typeof materialType.name !== 'string' ||
+        !materialType.name.trim() ||
+        typeof materialType.unit !== 'string' ||
+        !materialType.unit.trim()
+      ) {
+        return res.status(400).json({
+          message: 'Select an existing material with a name and unit.',
+          field: 'matTypeId',
+        });
+      }
       const quantityNum = Number(body.quantity);
       await performMaterialPurchase(body, quantityNum, res);
     } catch (error) {

@@ -1,6 +1,7 @@
 const STOCK_PRECISION = 4;
 const STOCK_TOLERANCE = 0.0001;
 const HTTP_CONFLICT = 409;
+const FLOATING_POINT_MARGIN = 4;
 const roundQuantity = (value) => Number(value.toFixed(STOCK_PRECISION));
 
 const stockError = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -45,6 +46,15 @@ const buildMaterialUpdate = (material, payload, metadata) => {
   }
   const stockUsed = roundQuantity(material.stockUsed + quantityUsed);
   const stockWasted = roundQuantity(material.stockWasted + quantityWasted);
+  const remaining = material.stockBought - stockUsed - stockWasted;
+  // Permit binary floating point noise, but never a real overspend introduced by rounding.
+  const floatingPointTolerance =
+    Number.EPSILON * Math.max(1, material.stockBought) * FLOATING_POINT_MARGIN;
+  if (remaining < -floatingPointTolerance) {
+    throw stockError(
+      'Used + Wasted exceeds Bought after rounding. Reduce the submitted quantities.',
+    );
+  }
   return {
     // Compare-and-set prevents concurrent requests from overwriting newer totals.
     filter: Object.fromEntries(['_id', ...keys].map((key) => [key, material[key]])),
@@ -52,7 +62,7 @@ const buildMaterialUpdate = (material, payload, metadata) => {
       $set: {
         stockUsed,
         stockWasted,
-        stockAvailable: roundQuantity(material.stockBought - stockUsed - stockWasted),
+        stockAvailable: roundQuantity(Math.max(0, remaining)),
       },
       $push: { updateRecord: { ...metadata, quantityUsed, quantityWasted } },
     },
