@@ -1,4 +1,9 @@
+const BuildingSupplier = require('../../models/bmdashboard/buildingSupplier');
 const bmMaterialsController = require('./bmMaterialsController');
+
+jest.mock('../../models/bmdashboard/buildingSupplier', () => ({
+  exists: jest.fn(),
+}));
 
 jest.mock('mongoose', () => {
   const mockObjectId = jest.fn((id) => id);
@@ -42,6 +47,112 @@ describe('bmMaterialsController', () => {
       send: jest.fn(),
       json: jest.fn(),
     };
+  });
+
+  describe('bmPurchaseMaterials - Supplier Validation', () => {
+    it('should reject an invalid supplier ID', async () => {
+      req.body = {
+        primaryId: '507f1f77bcf86cd799439011',
+        secondaryId: '507f1f77bcf86cd799439012',
+        quantity: 5,
+        priority: 'High',
+        supplier: 'invalid-supplier-id',
+        requestor: {
+          requestorId: '507f1f77bcf86cd799439013',
+        },
+      };
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid supplier ID format',
+        field: 'supplier',
+      });
+      expect(BuildingMaterialMock.create).not.toHaveBeenCalled();
+    });
+
+    it('should reject an invalid expected delivery date', async () => {
+      req.body = {
+        primaryId: '507f1f77bcf86cd799439011',
+        secondaryId: '507f1f77bcf86cd799439012',
+        quantity: 5,
+        priority: 'High',
+        expectedDeliveryDate: 'invalid-date',
+        requestor: {
+          requestorId: '507f1f77bcf86cd799439013',
+        },
+      };
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid expected delivery date',
+        field: 'expectedDeliveryDate',
+      });
+      expect(BuildingMaterialMock.create).not.toHaveBeenCalled();
+    });
+
+    it('should reject a supplier that does not exist', async () => {
+      req.body = {
+        primaryId: '507f1f77bcf86cd799439011',
+        secondaryId: '507f1f77bcf86cd799439012',
+        quantity: 5,
+        priority: 'High',
+        supplier: '507f1f77bcf86cd799439014',
+        requestor: {
+          requestorId: '507f1f77bcf86cd799439013',
+        },
+      };
+
+      jest.spyOn(BuildingSupplier, 'exists').mockResolvedValueOnce(null);
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Selected supplier does not exist',
+        field: 'supplier',
+      });
+      expect(BuildingMaterialMock.create).not.toHaveBeenCalled();
+    });
+
+    it('should create a purchase with supplier and expected delivery date', async () => {
+      const supplierId = '507f1f77bcf86cd799439014';
+      const expectedDeliveryDate = '2026-12-01';
+
+      req.body = {
+        primaryId: '507f1f77bcf86cd799439011',
+        secondaryId: '507f1f77bcf86cd799439012',
+        quantity: 5,
+        priority: 'High',
+        supplier: supplierId,
+        expectedDeliveryDate,
+        requestor: {
+          requestorId: '507f1f77bcf86cd799439013',
+        },
+      };
+
+      jest.spyOn(BuildingSupplier, 'exists').mockResolvedValueOnce(true);
+      BuildingMaterialMock.findOne.mockResolvedValue(null);
+      BuildingMaterialMock.create.mockResolvedValue({});
+
+      await controller.bmPurchaseMaterials(req, res);
+
+      expect(BuildingMaterialMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          purchaseRecord: [
+            expect.objectContaining({
+              supplier: supplierId,
+              expectedDeliveryDate: new Date(expectedDeliveryDate),
+            }),
+          ],
+        }),
+      );
+
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 
   describe('bmMaterialsList', () => {

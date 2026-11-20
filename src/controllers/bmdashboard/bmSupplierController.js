@@ -21,8 +21,10 @@ const createSupplier = async (req, res) => {
       return res.status(400).json({ message: 'Supplier name is required' });
     }
 
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     const existingSupplier = await BuildingSupplier.findOne({
-      name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}$`, 'i'),
+      name: new RegExp(`^${escapedName}$`, 'i'),
     });
 
     if (existingSupplier) {
