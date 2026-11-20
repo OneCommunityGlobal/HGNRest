@@ -1,4 +1,5 @@
 const BuildingSupplier = require('../../models/bmdashboard/buildingSupplier');
+const logger = require('../../startup/logger');
 
 const HTTP_STATUS_CONFLICT = 409;
 
@@ -7,6 +8,7 @@ const getSuppliers = async (req, res) => {
     const suppliers = await BuildingSupplier.find().sort({ name: 1 });
     return res.status(200).json(suppliers);
   } catch (error) {
+    logger.logException(error);
     return res.status(500).json({ message: 'Failed to fetch suppliers' });
   }
 };
@@ -20,7 +22,7 @@ const createSupplier = async (req, res) => {
     }
 
     const existingSupplier = await BuildingSupplier.findOne({
-      name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}$`, 'i'),
     });
 
     if (existingSupplier) {
@@ -30,6 +32,7 @@ const createSupplier = async (req, res) => {
     const supplier = await BuildingSupplier.create({ name });
     return res.status(201).json(supplier);
   } catch (error) {
+    logger.logException(error);
     return res.status(500).json({ message: 'Failed to create supplier' });
   }
 };

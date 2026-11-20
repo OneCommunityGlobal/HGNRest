@@ -339,7 +339,8 @@ const bmMaterialsController = function (BuildingMaterial) {
 
   const performMaterialPurchase = async function (body, quantityNum, res) {
     if (body.supplier) {
-      const supplierExists = await BuildingSupplier.exists({ _id: body.supplier });
+      const supplierObjectId = new mongoose.Types.ObjectId(body.supplier);
+      const supplierExists = await BuildingSupplier.exists({ _id: supplierObjectId });
 
       if (!supplierExists) {
         return res.status(HTTP_STATUS_BAD_REQUEST).json({

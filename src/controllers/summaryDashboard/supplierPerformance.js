@@ -132,8 +132,12 @@ const supplierPerformanceController = function () {
         },
       });
 
+      const validProjectIds = projectIds
+        .filter((id) => mongoose.isValidObjectId(id))
+        .map((id) => new mongoose.Types.ObjectId(id.toString()));
+
       const projects = await Project.find({
-        _id: { $in: projectIds },
+        _id: { $in: validProjectIds },
       })
         .select('_id name')
         .lean();
