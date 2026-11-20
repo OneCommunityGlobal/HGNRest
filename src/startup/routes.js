@@ -151,7 +151,7 @@ const jobsRouter = require('../routes/jobsRouter');
 const laborCostRouter = require('../routes/laborCostRouter');
 const jobAnalyticsRouter = require('../routes/jobAnalyticsRouter');
 const liveJournalPost = require('../models/liveJournalPost');
-
+const socialMediaRouter = require('../routes/socialMediaRouter');
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
 // const actionItemRouter = require('../routes/actionItemRouter')(actionItem);
@@ -766,6 +766,9 @@ module.exports = function (app) {
 
   app.use('/api/analytics', analyticsRouter);
 
+  //social media routes
+  app.use('/api/social', socialMediaRouter); // keep existing
+  app.use('/social', socialMediaRouter); // add this for Vite proxy
   // Kitchen and Inventory - Garden Management
   app.use('/api/kitchenandinventory/gardenmanagement/calendar', gardenCalendarRouter);
   app.use('/api/kitchenandinventory/gardenmanagement/seeds', seedInventoryRouter);
