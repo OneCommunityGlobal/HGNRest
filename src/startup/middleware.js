@@ -92,10 +92,13 @@ module.exports = function (app) {
     // Public job-application apply flow (no login):
     // - GET form schemas so anonymous applicants can render the form
     // - POST responses so anyone can submit an application
-    // NOT public: GET /api/jobforms/:formId/responses (applicant PII — JWT + manageJobForms)
+    // NOT public:
+    // - GET /api/jobforms/:formId/responses (applicant PII — JWT + manageJobForms)
+    // - GET /api/jobforms/applications(+ /summary) (Owner/Admin CRM)
     if (
       req.method === 'GET' &&
-      (pathOnly === '/api/jobforms/all' || /^\/api\/jobforms\/[^/]+$/.test(pathOnly))
+      (pathOnly === '/api/jobforms/all' ||
+        (/^\/api\/jobforms\/[^/]+$/.test(pathOnly) && pathOnly !== '/api/jobforms/applications'))
     ) {
       next();
       return;
