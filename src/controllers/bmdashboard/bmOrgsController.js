@@ -2,88 +2,227 @@ const mongoose = require('mongoose');
 
 const bmOrgsController = function () {
   const Organizations = require('../../models/bmdashboard/orgLocation');
+
+  // GET all organizations
   const getAllOrgs = async (req, res) => {
     try {
-      // query parameters
       const { startDate, endDate } = req.query;
       const query = {};
 
-      // build query if date filters provided
       if (startDate || endDate) {
-        if (startDate) query.startDate = { $gte: new Date(startDate) };
-        if (endDate) query.endDate = { $lte: new Date(endDate) };
+        query.startDate = {};
+
+        if (startDate) query.startDate.$gte = new Date(startDate);
+        if (endDate) query.startDate.$lte = new Date(endDate);
       }
 
-      // execute query and find org
       const orgs = await Organizations.find(query)
-        .select('orgId name location status startDate country')
-        .lean()
-        .exec();
+        .select('orgId name description location status startDate endDate country')
+        .lean();
 
-      // transform data
       const transformedOrgs = orgs
-        .filter(
-          (org) =>
-            org.location && org.location.coordinates && org.location.coordinates.length === 2,
-        )
+        .filter((org) => org.location?.coordinates?.length === 2)
         .map((org) => ({
           orgId: org.orgId,
           name: org.name,
+          description: org.description,
           latitude: org.location.coordinates[1],
           longitude: org.location.coordinates[0],
           status: org.status,
           startDate: org.startDate,
+          endDate: org.endDate,
           country: org.country,
         }));
 
-      // send response
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         count: transformedOrgs.length,
         data: transformedOrgs,
       });
     } catch (err) {
       console.error('Error in getAllOrgs:', err);
-      res.status(500).json({
+      return res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  };
+
+  // GET one organization
+  const getOrgById = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const org = await Organizations.findOne({ orgId: id })
+        .select('orgId name description location status startDate endDate country')
+        .lean();
+
+      if (!org) {
+        return res.status(404).json({
+          success: false,
+          error: 'Organization not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          orgId: org.orgId,
+          name: org.name,
+          description: org.description,
+          latitude: org.location.coordinates[1],
+          longitude: org.location.coordinates[0],
+          status: org.status,
+          startDate: org.startDate,
+          endDate: org.endDate,
+          country: org.country,
+        },
+      });
+    } catch (err) {
+      console.error('Error in getOrgById:', err);
+
+      return res.status(500).json({
         success: false,
         error: `Server error ${err.message}`,
       });
     }
   };
 
-  const getOrgById = async (req, res) => {
+  // POST create organization
+  const createOrg = async (req, res) => {
+    try {
+      const { orgId, name, description, status, latitude, longitude, country, startDate, endDate } =
+        req.body;
+
+      if (
+        !orgId ||
+        !name ||
+        !description ||
+        !status ||
+        latitude == null ||
+        longitude == null ||
+        !country ||
+        !startDate ||
+        !endDate
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'All organization fields are required.',
+        });
+      }
+
+      const existingOrg = await Organizations.findOne({ orgId });
+
+      if (existingOrg) {
+        return res.status(409).json({
+          success: false,
+          error: 'Organization ID already exists.',
+        });
+      }
+
+      const org = await Organizations.create({
+        orgId,
+        name,
+        description,
+        status,
+        location: {
+          type: 'Point',
+          coordinates: [Number(longitude), Number(latitude)],
+        },
+        country,
+        startDate,
+        endDate,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Organization created successfully.',
+        data: org,
+      });
+    } catch (err) {
+      console.error('Error creating organization:', err);
+      return res.status(400).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  };
+
+  // PUT update organization
+  const updateOrg = async (req, res) => {
     try {
       const { id } = req.params;
-      Organizations.findOne({ orgId: id })
-        .select('orgId name location status startDate')
-        .then((org) => {
-          if (!org) {
-            return res.status(404).json({
-              success: false,
-              error: 'Organization not found',
-            });
-          }
+      const { name, description, status, latitude, longitude, country, startDate, endDate } =
+        req.body;
 
-          // transformed org
-          const transformedOrg = {
-            orgId: org.orgId,
-            name: org.name,
-            latitude: org.location.coordinates[1],
-            longitude: org.location.coordinates[0],
-            status: org.status,
-            startDate: org.startDate,
-          };
+      const org = await Organizations.findOne({ orgId: id });
 
-          res.status(200).json({
-            success: true,
-            data: transformedOrg,
-          });
+      if (!org) {
+        return res.status(404).json({
+          success: false,
+          error: 'Organization not found.',
         });
+      }
+
+      if (name !== undefined) org.name = name;
+      if (description !== undefined) org.description = description;
+      if (status !== undefined) org.status = status;
+      if (country !== undefined) org.country = country;
+      if (startDate !== undefined) org.startDate = startDate;
+      if (endDate !== undefined) org.endDate = endDate;
+
+      if (latitude !== undefined || longitude !== undefined) {
+        const { coordinates } = org.location;
+
+        const newLongitude = longitude !== undefined ? Number(longitude) : coordinates[0];
+
+        const newLatitude = latitude !== undefined ? Number(latitude) : coordinates[1];
+
+        org.location = {
+          type: 'Point',
+          coordinates: [newLongitude, newLatitude],
+        };
+      }
+
+      await org.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Organization updated successfully.',
+        data: org,
+      });
     } catch (err) {
-      console.error('Error in getOrgById:', err);
-      res.status(500).json({
+      console.error('Error updating organization:', err);
+      return res.status(400).json({
         success: false,
-        error: `Server error ${err.message}`,
+        error: err.message,
+      });
+    }
+  };
+
+  // DELETE organization
+  const deleteOrg = async (req, res) => {
+    try {
+      const org = await Organizations.findOneAndDelete({
+        orgId: req.params.id,
+      });
+
+      if (!org) {
+        return res.status(404).json({
+          success: false,
+          error: 'Organization not found.',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Organization deleted successfully.',
+      });
+    } catch (err) {
+      console.error('Error deleting organization:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message,
       });
     }
   };
@@ -91,6 +230,9 @@ const bmOrgsController = function () {
   return {
     getAllOrgs,
     getOrgById,
+    createOrg,
+    updateOrg,
+    deleteOrg,
   };
 };
 
