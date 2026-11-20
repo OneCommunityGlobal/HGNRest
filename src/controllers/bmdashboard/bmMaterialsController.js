@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
+const materialCostCache = require('../../utilities/cache');
+const costBreakdownCache = require('../../utilities/nodeCache')();
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
 const { parseMultiSelectQueryParam } = require('../../utilities/queryParamParser');
@@ -512,6 +514,11 @@ const bmMaterialsController = function (BuildingMaterial) {
         return res.status(500).send('Failed to apply purchase status update to material.');
       }
 
+      if (status === 'Approved') {
+        // New purchases change both material cost charts, so drop their cached totals
+        materialCostCache.delByPrefix('materialCost');
+        costBreakdownCache.clearByPrefix('cost_breakdown:');
+      }
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);
     } catch (error) {
       res.status(500).send(error);

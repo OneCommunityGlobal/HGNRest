@@ -135,6 +135,7 @@ function bmInventoryTypeController(
     const { name, description, requestor } = req.body;
     const requestorId = requestor?.requestorId;
     const unit = req.body.unit || req.body.customUnit;
+    const unitPrice = Number(req.body.unitPrice);
     try {
       const result = await MatType.find({ name });
       if (result.length) return res.status(409).send('Oops!! Material already exists!');
@@ -143,6 +144,8 @@ function bmInventoryTypeController(
         name,
         description,
         unit,
+        // Store the unit price so material purchases can be costed
+        ...(Number.isFinite(unitPrice) && unitPrice >= 0 ? { unitPrice } : {}),
         createdBy: requestorId,
       });
       res.status(201).send(results);

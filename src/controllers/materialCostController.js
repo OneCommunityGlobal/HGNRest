@@ -1,7 +1,9 @@
-const mongoose = require('mongoose');
-// const NodeCache = require('node-cache');
-const BuildingMaterial = require('../models/bmdashboard/buildingMaterial');
 const cache = require('../utilities/cache');
+const {
+  getMaterialPurchaseCostByProject,
+} = require('../services/bmdashboard/materialPurchaseCostService');
+
+const COST_IN_THOUSANDS = 1000;
 
 module.exports = () => ({
   getMaterialCosts: async (req, res) => {
@@ -20,38 +22,13 @@ module.exports = () => ({
         return res.json(cachedData);
       }
 
-      const matchStage = {
-        'purchaseRecord.status': 'Approved',
-      };
-
-      if (projectId) {
-        const projectIdsObject = normalizedIds
-          .split(',')
-          .map((id) => new mongoose.Types.ObjectId(id));
-        matchStage.project = { $in: projectIdsObject };
-      }
-
-      const data = await BuildingMaterial.aggregate([
-        { $unwind: '$purchaseRecord' },
-        { $match: matchStage },
-        {
-          $group: {
-            _id: '$project',
-            totalCost: {
-              $sum: {
-                $multiply: ['$purchaseRecord.unitPrice', '$purchaseRecord.quantity'],
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            project: '$_id',
-            totalCostK: { $divide: ['$totalCost', 1000] },
-          },
-        },
-      ]);
+      const costs = await getMaterialPurchaseCostByProject({
+        projectIds: projectId ? normalizedIds.split(',') : undefined,
+      });
+      const data = costs.map(({ project, totalCost }) => ({
+        project,
+        totalCostK: totalCost / COST_IN_THOUSANDS,
+      }));
       cache.set(cacheKey, data);
       res.status(200).json(data);
     } catch (err) {

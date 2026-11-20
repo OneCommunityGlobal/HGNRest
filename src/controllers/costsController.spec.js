@@ -31,11 +31,17 @@ jest.mock('../startup/logger', () => ({
 jest.mock('../services/bmdashboard/costAggregationService', () => ({
   runCostAggregation: jest.fn(),
 }));
+jest.mock('../services/bmdashboard/materialPurchaseCostService', () => ({
+  getMaterialPurchaseCostByProject: jest.fn().mockResolvedValue([]),
+}));
 
 const Cost = require('../models/costs');
 const BuildingProject = require('../models/bmdashboard/buildingProject');
 const logger = require('../startup/logger');
 const { runCostAggregation } = require('../services/bmdashboard/costAggregationService');
+const {
+  getMaterialPurchaseCostByProject,
+} = require('../services/bmdashboard/materialPurchaseCostService');
 const costsController = require('./costsController');
 
 const cache = mockCache;
@@ -175,6 +181,10 @@ describe('costsController', () => {
       setupBreakdownNoCache([
         { category: 'Total Cost of Labor', amount: 500 },
         { category: 'Total Cost of Materials', amount: 300 },
+      ]);
+      // Materials now comes from approved purchases instead of cost entries
+      getMaterialPurchaseCostByProject.mockResolvedValueOnce([
+        { project: VALID_OID, totalCost: 300 },
       ]);
       const { res } = await callController(controller.getCostBreakdown, { query: {} });
       expect(res.status).toHaveBeenCalledWith(200);
