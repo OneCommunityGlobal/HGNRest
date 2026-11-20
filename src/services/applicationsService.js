@@ -169,12 +169,11 @@ async function getComparisonData(currentRange, previousRange, roles) {
   const comparisonData = {};
 
   let currentTotal = 0;
-  let previousTotal = 0;
+  const previousTotal = previous.reduce((total, { count }) => total + count, 0);
 
   current.forEach(({ country, count, countryName }) => {
     currentTotal += count;
     const prevCount = prevMap.get(country) || 0;
-    previousTotal += prevCount;
 
     let percentageChange;
     if (prevCount === 0) {
