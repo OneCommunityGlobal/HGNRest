@@ -1,4 +1,6 @@
 /* eslint-disable no-plusplus */
+const { getProjectBudget, budgetTotal } = require('../../utilities/projectBudgetHelper');
+
 const projectCostTrackingController = function (ProjectCostTracking) {
   // Simple linear regression class compatible with older Node.js versions
   class SimpleLinearRegression {
@@ -43,14 +45,19 @@ const projectCostTrackingController = function (ProjectCostTracking) {
         if (toDate) query.date.$lte = new Date(toDate);
       }
 
-      // Get actual cost data
-      const costData = await ProjectCostTracking.find(query).sort({ date: 1 });
+      // Get actual cost data and the project's planned budget
+      const [costData, budget] = await Promise.all([
+        ProjectCostTracking.find(query).sort({ date: 1 }),
+        getProjectBudget(id),
+      ]);
 
       // Process data for response
       const result = {
         actual: {},
         predicted: {},
-        plannedBudget: 10000, // This would typically come from project data
+        // Budget set on the Project Dashboard; null when none is set
+        plannedBudget: budget ? budgetTotal(budget) : null,
+        hasBudget: Boolean(budget),
       };
 
       // Group by category
