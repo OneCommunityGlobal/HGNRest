@@ -29,9 +29,6 @@ const MATERIAL_AVAILABLE_CURRENT_ONLY_REASON =
 const PROJECT_STATUS_CURRENT_ONLY_REASON =
   'ProjectStatus stores current status only; historical Active/Delayed state cannot be reconstructed.';
 
-const OPEN_ISSUES_CURRENT_ONLY_REASON =
-  'Issues store their current open/closed status only; the number open on an earlier date cannot be reconstructed.';
-
 const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
   'Historical snapshots are not available for the selected period.';
 
@@ -156,9 +153,14 @@ async function getCurrentProjectStatusMetrics(project) {
   };
 }
 
-// Same issues as Issues Breakdown and Issue Tracking (buildingIssues), counted by current status.
-async function getOpenIssuesCount(project) {
-  const match = { status: 'open' };
+// Same issues as Issues Breakdown and Issue Tracking (buildingIssues). An issue counts as open at the
+// end of the period if it was raised by then and is still open or was closed after the period ended.
+async function getOpenIssuesCount(project, startDate, endDate) {
+  const { end } = toDateRange(startDate, endDate);
+  const match = {
+    issueDate: { $lte: end },
+    $or: [{ status: 'open' }, { closedDate: { $gt: end } }],
+  };
   if (project) match.projectId = project._id;
   return BuildingIssue.countDocuments(match);
 }
@@ -381,7 +383,7 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       getCompletedProjectStats(project, startDate, endDate),
       getMaterialStats(project, startDate, endDate),
       getLaborCost(project, startDate, endDate),
-      getOpenIssuesCount(project),
+      getOpenIssuesCount(project, startDate, endDate),
     ]);
 
   return {
@@ -412,7 +414,7 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
     materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
-    openIssues: currentSnapshotMetric(openIssues, includesToday, OPEN_ISSUES_CURRENT_ONLY_REASON),
+    openIssues: comparableOrUnavailableMetric(openIssues),
   };
 }
 
