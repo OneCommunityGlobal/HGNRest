@@ -3,6 +3,7 @@ const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingTool = require('../../models/bmdashboard/buildingTool');
 const Issue = require('../../models/bmdashboard/Issues');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const LaborCost = require('../../models/laborCost');
 const ProjectStatus = require('../../models/projectStatus');
@@ -27,6 +28,9 @@ const MATERIAL_AVAILABLE_CURRENT_ONLY_REASON =
 
 const PROJECT_STATUS_CURRENT_ONLY_REASON =
   'ProjectStatus stores current status only; historical Active/Delayed state cannot be reconstructed.';
+
+const OPEN_ISSUES_CURRENT_ONLY_REASON =
+  'Issues store their current open/closed status only; the number open on an earlier date cannot be reconstructed.';
 
 const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
   'Historical snapshots are not available for the selected period.';
@@ -150,6 +154,13 @@ async function getCurrentProjectStatusMetrics(project) {
     activeProjects: counts.activeProjects,
     delayedProjects: counts.delayedProjects,
   };
+}
+
+// Same issues as Issues Breakdown and Issue Tracking (buildingIssues), counted by current status.
+async function getOpenIssuesCount(project) {
+  const match = { status: 'open' };
+  if (project) match.projectId = project._id;
+  return BuildingIssue.countDocuments(match);
 }
 
 async function getCompletedProjectStats(project, startDate, endDate) {
@@ -364,12 +375,14 @@ function comparableOrUnavailableMetric(value, unit) {
 
 async function calculatePeriodMetrics({ project, startDate, endDate }) {
   const includesToday = dateRangeIncludesToday(startDate, endDate);
-  const [currentProjectStatus, completedStats, materialStats, totalLaborCost] = await Promise.all([
-    getCurrentProjectStatusMetrics(project),
-    getCompletedProjectStats(project, startDate, endDate),
-    getMaterialStats(project, startDate, endDate),
-    getLaborCost(project, startDate, endDate),
-  ]);
+  const [currentProjectStatus, completedStats, materialStats, totalLaborCost, openIssues] =
+    await Promise.all([
+      getCurrentProjectStatusMetrics(project),
+      getCompletedProjectStats(project, startDate, endDate),
+      getMaterialStats(project, startDate, endDate),
+      getLaborCost(project, startDate, endDate),
+      getOpenIssuesCount(project),
+    ]);
 
   return {
     totalProjects: currentSnapshotMetric(
@@ -399,6 +412,7 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
     materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
+    openIssues: currentSnapshotMetric(openIssues, includesToday, OPEN_ISSUES_CURRENT_ONLY_REASON),
   };
 }
 

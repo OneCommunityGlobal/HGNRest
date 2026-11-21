@@ -13,6 +13,7 @@ const SNAPSHOT_METRICS = [
   'activeProjects',
   'delayedProjects',
   'materialAvailable',
+  'openIssues',
 ];
 
 jest.mock('../../models/bmdashboard/buildingMaterial', () => ({
@@ -27,11 +28,15 @@ jest.mock('../../models/laborCost', () => ({
 jest.mock('../../models/projectStatus', () => ({
   aggregate: jest.fn(),
 }));
+jest.mock('../../models/bmdashboard/buildingIssue', () => ({
+  countDocuments: jest.fn(),
+}));
 
 const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const LaborCost = require('../../models/laborCost');
 const ProjectStatus = require('../../models/projectStatus');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const {
   COMPARISON_TYPES,
   calculatePercentageChange,
@@ -57,6 +62,7 @@ function mockAggregates({
   purchaseRows = [{ totalMaterialCost: 100 }],
   availableRows = [{ materialAvailable: 50 }],
   laborRows = [{ totalLaborCost: 75 }],
+  openIssues = 3,
 } = {}) {
   ProjectStatus.aggregate.mockResolvedValueOnce(statusRows).mockResolvedValueOnce(completedRows);
   BuildingMaterial.aggregate
@@ -64,6 +70,7 @@ function mockAggregates({
     .mockResolvedValueOnce(purchaseRows)
     .mockResolvedValueOnce(availableRows);
   LaborCost.aggregate.mockResolvedValueOnce(laborRows);
+  BuildingIssue.countDocuments.mockResolvedValueOnce(openIssues);
 }
 
 describe('weeklyProjectSummaryService', () => {
@@ -102,6 +109,12 @@ describe('weeklyProjectSummaryService', () => {
     expect(result.current.metrics.totalMaterialCost.value).toBe(100);
     expect(result.current.metrics.totalMaterialUsed.value).toBe(20);
     expect(result.current.metrics.materialWasted.value).toBe(5);
+    expect(result.current.metrics.openIssues).toMatchObject({
+      value: 3,
+      comparisonType: COMPARISON_TYPES.CURRENT_ONLY,
+      percentageChange: null,
+    });
+    expect(BuildingIssue.countDocuments).toHaveBeenCalledWith({ status: 'open' });
     expect(result.current.metrics.totalLaborCost.value).toBe(75);
     expect(result.current.metrics.totalLaborHoursInvested).toMatchObject({
       value: null,
@@ -110,6 +123,23 @@ describe('weeklyProjectSummaryService', () => {
     expect(JSON.stringify(result)).not.toContain('426');
     expect(JSON.stringify(result)).not.toContain('27.6');
     expect(JSON.stringify(result)).not.toContain('18.4');
+  });
+
+  test('counts open issues only for the selected project', async () => {
+    mockProject();
+    mockAggregates({ openIssues: 2 });
+
+    const result = await getWeeklyProjectSummaryProjectStatus({
+      projectId: VALID_PROJECT_ID,
+      startDate: CURRENT_START,
+      endDate: CURRENT_END,
+    });
+
+    expect(result.current.metrics.openIssues.value).toBe(2);
+    expect(BuildingIssue.countDocuments).toHaveBeenCalledWith({
+      status: 'open',
+      projectId: VALID_PROJECT_ID,
+    });
   });
 
   test('returns current and comparison metrics with percentage changes only for period-comparable metrics', async () => {
