@@ -111,7 +111,18 @@ const bmOrgsController = function () {
         });
       }
 
-      const existingOrg = await Organizations.findOne({ orgId });
+      if (typeof orgId !== 'string' || !orgId.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid organization ID.',
+        });
+      }
+
+      const sanitizedOrgId = orgId.trim();
+
+      const existingOrg = await Organizations.findOne({
+        orgId: sanitizedOrgId,
+      });
 
       if (existingOrg) {
         return res.status(409).json({
@@ -121,7 +132,7 @@ const bmOrgsController = function () {
       }
 
       const org = await Organizations.create({
-        orgId,
+        orgId: sanitizedOrgId,
         name,
         description,
         status,
