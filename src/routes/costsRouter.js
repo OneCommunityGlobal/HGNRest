@@ -7,6 +7,8 @@ const routes = () => {
   // Static routes MUST come before parameterized routes
   costsRouter.route('/breakdown').get(controller.getCostBreakdown);
 
+  costsRouter.route('/projects').get(controller.getCostProjects);
+
   costsRouter.route('/refresh').post(controller.refreshCosts);
 
   costsRouter.route('/').post(controller.addCostEntry);

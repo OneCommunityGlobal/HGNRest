@@ -13,6 +13,7 @@ jest.mock('../models/costs', () => {
   mock.deleteOne = jest.fn();
   mock.find = jest.fn();
   mock.countDocuments = jest.fn();
+  mock.distinct = jest.fn();
   mock.COST_CATEGORIES = [
     'Total Cost of Labor',
     'Total Cost of Materials',
@@ -107,9 +108,22 @@ async function expectError(method, overrides, status, body) {
   expectStatusAndJson(res, status, body);
 }
 
-function setupBreakdownNoCache(aggregateResult = []) {
+function mockProjectNames(projects = []) {
+  const query = {
+    select: jest.fn(),
+    sort: jest.fn(),
+    lean: jest.fn().mockResolvedValue(projects),
+  };
+  query.select.mockReturnValue(query);
+  query.sort.mockReturnValue(query);
+  BuildingProject.find = jest.fn().mockReturnValue(query);
+  return query;
+}
+
+function setupBreakdownNoCache(aggregateResult = [], projects = []) {
   cache.hasCache.mockReturnValue(false);
   Cost.aggregate = jest.fn().mockResolvedValue(aggregateResult);
+  mockProjectNames(projects);
 }
 
 describe('costsController', () => {
@@ -196,13 +210,15 @@ describe('costsController', () => {
     });
 
     test('A.9 — returns 200 with projectBreakdown when categoryDetail=true', async () => {
-      setupBreakdownNoCache([
-        {
-          _id: { category: 'Total Cost of Labor', projectId: VALID_OID },
-          amount: 500,
-          projectName: 'Project A',
-        },
-      ]);
+      setupBreakdownNoCache(
+        [
+          {
+            _id: { category: 'Total Cost of Labor', projectId: VALID_OID },
+            amount: 500,
+          },
+        ],
+        [{ _id: VALID_OID, name: 'Project A' }],
+      );
       const { res } = await callController(controller.getCostBreakdown, {
         query: { categoryDetail: 'true' },
       });
@@ -269,6 +285,53 @@ describe('costsController', () => {
       expect(res.json.mock.calls[0][0].totalCost).toBe(0);
     });
 
+    test('A.extra — detail names come from buildingProjects and orphans are merged', async () => {
+      const ORPHAN_OID = '5a849085592ca46b43db272a';
+      setupBreakdownNoCache(
+        [
+          { _id: { category: 'Total Cost of Labor', projectId: VALID_OID }, amount: 600 },
+          { _id: { category: 'Total Cost of Labor', projectId: ORPHAN_OID }, amount: 300 },
+          { _id: { category: 'Total Cost of Labor', projectId: '1' }, amount: 100 },
+        ],
+        [{ _id: VALID_OID, name: 'Building 1' }],
+      );
+      const { res } = await callController(controller.getCostBreakdown, {
+        query: { categoryDetail: 'true' },
+      });
+
+      expect(BuildingProject.find).toHaveBeenCalledWith({ _id: { $in: [VALID_OID, ORPHAN_OID] } });
+      const response = res.json.mock.calls[0][0];
+      expect(response.totalCost).toBe(1000);
+      const labor = response.breakdown.find((b) => b.category === 'Total Cost of Labor');
+      expect(labor.projectBreakdown).toEqual([
+        { projectId: VALID_OID, projectName: 'Building 1', amount: 600, percentage: 60 },
+        { projectId: null, projectName: 'Unassigned project', amount: 400, percentage: 40 },
+      ]);
+    });
+
+    test('A.extra — a project stored as text and as an id is listed once', async () => {
+      setupBreakdownNoCache(
+        [
+          { _id: { category: 'Total Cost of Materials', projectId: VALID_OID }, amount: 50 },
+          {
+            _id: { category: 'Total Cost of Materials', projectId: { toString: () => VALID_OID } },
+            amount: 25,
+          },
+        ],
+        [{ _id: VALID_OID, name: 'Building 3' }],
+      );
+      const { res } = await callController(controller.getCostBreakdown, {
+        query: { categoryDetail: 'true' },
+      });
+
+      const materials = res.json.mock.calls[0][0].breakdown.find(
+        (b) => b.category === 'Total Cost of Materials',
+      );
+      expect(materials.projectBreakdown).toEqual([
+        { projectId: VALID_OID, projectName: 'Building 3', amount: 75, percentage: 100 },
+      ]);
+    });
+
     test('A.extra — project findById returns null uses All Projects for label', async () => {
       setupBreakdownNoCache([]);
       BuildingProject.findById = jest.fn().mockReturnValue({
@@ -280,6 +343,65 @@ describe('costsController', () => {
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json.mock.calls[0][0].project).toBe('All Projects');
+    });
+  });
+
+  // ========================
+  // getCostProjects
+  // ========================
+  describe('getCostProjects', () => {
+    test('lists existing projects with cost data, active or not, by name', async () => {
+      cache.hasCache.mockReturnValue(false);
+      Cost.distinct = jest.fn().mockResolvedValue([VALID_OID, '1', null, VALID_OID_2]);
+      const query = mockProjectNames([
+        { _id: VALID_OID_2, name: 'Building 1' },
+        { _id: VALID_OID, name: 'Completed Project' },
+      ]);
+
+      const { res } = await callController(controller.getCostProjects);
+
+      expect(Cost.distinct).toHaveBeenCalledWith('projectId');
+      expect(BuildingProject.find).toHaveBeenCalledWith({
+        _id: { $in: [VALID_OID, VALID_OID_2] },
+      });
+      expect(query.sort).toHaveBeenCalledWith({ name: 1 });
+      expectStatusAndJson(res, 200, [
+        { projectId: VALID_OID_2, projectName: 'Building 1' },
+        { projectId: VALID_OID, projectName: 'Completed Project' },
+      ]);
+      expect(cache.setCache).toHaveBeenCalledWith('cost_breakdown:projects', expect.any(Array));
+    });
+
+    test('returns an empty list without querying projects when no ids are valid', async () => {
+      cache.hasCache.mockReturnValue(false);
+      Cost.distinct = jest.fn().mockResolvedValue(['1']);
+      mockProjectNames();
+
+      const { res } = await callController(controller.getCostProjects);
+
+      expect(BuildingProject.find).not.toHaveBeenCalled();
+      expectStatusAndJson(res, 200, []);
+    });
+
+    test('returns the cached list on a cache hit', async () => {
+      const cached = [{ projectId: VALID_OID, projectName: 'Building 1' }];
+      cache.hasCache.mockReturnValue(true);
+      cache.getCache.mockReturnValue(cached);
+
+      const { res } = await callController(controller.getCostProjects);
+
+      expect(Cost.distinct).not.toHaveBeenCalled();
+      expectStatusAndJson(res, 200, cached);
+    });
+
+    test('returns 500 when the query fails', async () => {
+      cache.hasCache.mockReturnValue(false);
+      Cost.distinct = jest.fn().mockRejectedValue(new Error('DB error'));
+
+      await expectError(controller.getCostProjects, {}, 500, {
+        error: 'Failed to fetch cost projects',
+      });
+      expect(logger.logException).toHaveBeenCalled();
     });
   });
 

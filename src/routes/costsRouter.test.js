@@ -3,6 +3,7 @@ const request = require('supertest');
 
 const mockController = {
   getCostBreakdown: jest.fn((req, res) => res.status(200).json({ ok: true })),
+  getCostProjects: jest.fn((req, res) => res.status(200).json({ ok: true })),
   refreshCosts: jest.fn((req, res) => res.status(200).json({ ok: true })),
   addCostEntry: jest.fn((req, res) => res.status(201).json({ ok: true })),
   updateCostEntry: jest.fn((req, res) => res.status(200).json({ ok: true })),
@@ -37,6 +38,13 @@ describe('costsRouter', () => {
 
     expect(res.status).toBe(200);
     expect(mockController.getCostBreakdown).toHaveBeenCalled();
+  });
+
+  test('C.1b — GET /api/costs/projects routes to getCostProjects', async () => {
+    const res = await request(app).get('/api/costs/projects');
+
+    expect(res.status).toBe(200);
+    expect(mockController.getCostProjects).toHaveBeenCalled();
   });
 
   test('C.2 — POST /api/costs/refresh routes to refreshCosts', async () => {
