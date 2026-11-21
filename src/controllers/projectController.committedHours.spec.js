@@ -78,6 +78,16 @@ describe('project volunteer hours route', () => {
     expect(timeEntry.aggregate).not.toHaveBeenCalled();
   });
 
+  test('applies the same query date validation to HEAD as to GET', async () => {
+    const valid = await request(app).head(url).query(dates);
+    const invalid = await request(app).head(url).query({ fromDate: dates.fromDate });
+
+    expect(valid.status).toBe(200);
+    expect(valid.text).toBeUndefined();
+    expect(invalid.status).toBe(400);
+    expect(timeEntry.aggregate).toHaveBeenCalledTimes(1);
+  });
+
   test('requires report permission', async () => {
     hasPermission.mockResolvedValue(false);
 

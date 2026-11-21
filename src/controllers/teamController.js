@@ -133,7 +133,7 @@ const teamcontroller = function (Team) {
       if (!(await hasPermission(req.body.requestor, 'getReports'))) {
         return res.status(403).json('You are not authorized to view volunteer hours reports.');
       }
-      const { fromDate, toDate } = req.method === 'GET' ? req.query : req.body;
+      const { fromDate, toDate } = ['GET', 'HEAD'].includes(req.method) ? req.query : req.body;
       const timezone = 'America/Los_Angeles';
 
       const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
