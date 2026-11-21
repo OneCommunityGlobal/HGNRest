@@ -1,10 +1,13 @@
+// v1.2.0
 jest.mock('../../models/bmdashboard/projectRiskProfile');
 jest.mock('../../models/bmdashboard/buildingProject');
 jest.mock('../../models/bmdashboard/buildingIssue');
+jest.mock('../../models/bmdashboard/projectRiskObservation');
 
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
+const Observation = require('../../models/bmdashboard/projectRiskObservation');
 const controller = require('./projectRiskProfileController');
 
 const mockRes = () => {
@@ -15,6 +18,14 @@ const mockRes = () => {
 };
 
 const projectId = '507f1f77bcf86cd799439011';
+const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
+const baseProfile = (overrides = {}) => ({
+  _id: projectId,
+  projectId,
+  initialCostEstimate: 100,
+  currentCostIncurred: 50,
+  ...overrides,
+});
 const project = { _id: projectId, name: 'Earthbag Village', isActive: true };
 
 function mockProjectQuery(projects = [project]) {
@@ -36,6 +47,7 @@ function mockIssueQuery(issues = []) {
 describe('projectRiskProfileController.getRiskProfileSummary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Observation.find.mockReturnValue({ sort: () => leanResult([]) });
     mockProjectQuery();
     mockProfileQuery();
     mockIssueQuery();
@@ -110,5 +122,37 @@ describe('projectRiskProfileController.getRiskProfileSummary', () => {
     await controller.getRiskProfileSummary({ query: {} }, res);
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'db down' });
+  });
+
+  test('forecasts on-budget spending at half of planned duration', async () => {
+    const now = Date.now();
+    ProjectRiskProfile.find.mockReturnValue(
+      leanResult([
+        baseProfile({
+          status: 'active',
+          startDate: new Date(now - 50 * 86400000),
+          endDate: new Date(now + 50 * 86400000),
+        }),
+      ]),
+    );
+    const res = mockRes();
+    await controller.getRiskProfileSummary({ query: {} }, res);
+    expect(res.json.mock.calls[0][0][0].predictedCostOverrun).toBeCloseTo(0, 2);
+  });
+
+  test('active overdue projects continue to accrue delay', async () => {
+    const now = Date.now();
+    ProjectRiskProfile.find.mockReturnValue(
+      leanResult([
+        baseProfile({
+          status: 'active',
+          startDate: new Date(now - 120 * 86400000),
+          endDate: new Date(now - 20 * 86400000),
+        }),
+      ]),
+    );
+    const res = mockRes();
+    await controller.getRiskProfileSummary({ query: {} }, res);
+    expect(res.json.mock.calls[0][0][0].predictedTimeDelay).toBeCloseTo(120, 2);
   });
 });
