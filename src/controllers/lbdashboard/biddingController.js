@@ -91,10 +91,10 @@ const biddingController = (Bidding) => {
   const getBidListingById = async (req, res) => {
     try {
       const { id } = req.headers;
-      if (!id)
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-          return res.status(400).json({ error: 'Invalid listing id' });
-        }
+      if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: 'Invalid listing id' });
+      }
 
       const listing = await Bidding.findById(id)
         .populate([
