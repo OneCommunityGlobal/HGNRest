@@ -1,6 +1,9 @@
 const dayjs = require('dayjs');
 const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingTool = require('../../models/bmdashboard/buildingTool');
+const Issue = require('../../models/bmdashboard/Issues');
+const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const LaborCost = require('../../models/laborCost');
 const ProjectStatus = require('../../models/projectStatus');
 
@@ -29,6 +32,12 @@ const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
   'Historical snapshots are not available for the selected period.';
 
 const NO_PERIOD_DATA_REASON = 'No data exists for the selected period.';
+
+const PROJECTION_CURRENT_ONLY_REASON =
+  'Projections use the latest cost incurred, so there is no earlier projection to compare with.';
+
+const NO_RISK_PROFILE_REASON =
+  'No project with a cost estimate and cost incurred runs through the selected dates.';
 
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
@@ -264,6 +273,88 @@ async function getLaborCost(project, startDate, endDate) {
   return rows.length === 0 ? null : roundToTwoDecimals(rows[0].totalLaborCost ?? 0);
 }
 
+async function getApprovedPurchaseCost(Model, project, startDate, endDate) {
+  const { start, end } = toDateRange(startDate, endDate);
+  const rows = await Model.aggregate([
+    { $match: project ? { project: project._id } : {} },
+    { $unwind: '$purchaseRecord' },
+    {
+      $match: {
+        'purchaseRecord.date': { $gte: start, $lte: end },
+        'purchaseRecord.status': 'Approved',
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        cost: { $sum: { $multiply: ['$purchaseRecord.quantity', '$purchaseRecord.unitPrice'] } },
+      },
+    },
+  ]);
+
+  // Same rule as the other costs: no approved purchases in the period is unavailable, not $0.
+  return rows.length === 0 ? null : roundToTwoDecimals(rows[0].cost ?? 0);
+}
+
+// Risk profiles link to an Issue record (projectId is the Issue _id), and the Issue links to the BM project.
+async function getRiskProfileFilter(project, start, end) {
+  // Only projects that run through the whole selected range, as in the risk profile spec.
+  const filter = { startDate: { $lte: start }, endDate: { $gte: end } };
+  if (project) {
+    const issues = await Issue.find({ projectId: project._id }).select('_id').lean();
+    filter.projectId = { $in: issues.map((issue) => issue._id) };
+  }
+  return filter;
+}
+
+// Projected cost = cost so far / share of the project's time that has passed
+// (the risk profile spec's currentCostIncurred x (100 / % time elapsed)); overrun = projected - estimate.
+async function getCostProjection(project, startDate, endDate, now = new Date()) {
+  const { start, end } = toDateRange(startDate, endDate);
+  const profiles = await ProjectRiskProfile.find(await getRiskProfileFilter(project, start, end))
+    .select('startDate endDate initialCostEstimate currentCostIncurred')
+    .lean();
+
+  const totals = profiles.reduce(
+    (sum, profile) => {
+      const duration = new Date(profile.endDate) - new Date(profile.startDate);
+      const elapsedShare = Math.min(1, (now - new Date(profile.startDate)) / duration);
+      const hasCosts =
+        typeof profile.currentCostIncurred === 'number' && profile.initialCostEstimate > 0;
+      const canProject = hasCosts && duration > 0 && elapsedShare > 0;
+      if (!canProject) return sum;
+
+      const projected = profile.currentCostIncurred / elapsedShare;
+      return {
+        projected: sum.projected + projected,
+        overrun: sum.overrun + (projected - profile.initialCostEstimate),
+        count: sum.count + 1,
+      };
+    },
+    { projected: 0, overrun: 0, count: 0 },
+  );
+
+  return totals.count === 0
+    ? null
+    : {
+        // Whole dollars: cents would suggest more precision than an estimate has.
+        totalProjectedCost: Math.round(totals.projected),
+        predictedCostOverrun: Math.round(totals.overrun),
+      };
+}
+
+// A projected final cost is forward-looking, so it uses the latest numbers for any selected range.
+function projectionMetric(projection, metricName) {
+  return projection === null
+    ? unavailableMetric(NO_RISK_PROFILE_REASON, 'USD')
+    : currentOnlyMetric(projection[metricName], PROJECTION_CURRENT_ONLY_REASON, 'USD');
+}
+
+function sumKnownCosts(costs) {
+  const known = costs.filter((cost) => cost !== null);
+  return known.length === 0 ? null : roundToTwoDecimals(known.reduce((sum, cost) => sum + cost, 0));
+}
+
 function comparableOrUnavailableMetric(value, unit) {
   // Reuse the existing UNAVAILABLE/null contract so the frontend can render N/A consistently.
   return value === null
@@ -311,6 +402,27 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
   };
 }
 
+async function calculateFinancialMetrics({ project, startDate, endDate }) {
+  const [totalMaterialCost, totalLaborCost, totalEquipmentCost, projection] = await Promise.all([
+    getApprovedPurchaseCost(BuildingMaterial, project, startDate, endDate),
+    getLaborCost(project, startDate, endDate),
+    getApprovedPurchaseCost(BuildingTool, project, startDate, endDate),
+    getCostProjection(project, startDate, endDate),
+  ]);
+
+  return {
+    totalProjectedCost: projectionMetric(projection, 'totalProjectedCost'),
+    predictedCostOverrun: projectionMetric(projection, 'predictedCostOverrun'),
+    totalProjectCost: comparableOrUnavailableMetric(
+      sumKnownCosts([totalMaterialCost, totalLaborCost, totalEquipmentCost]),
+      'USD',
+    ),
+    totalMaterialCost: comparableOrUnavailableMetric(totalMaterialCost, 'USD'),
+    totalLaborCost: comparableOrUnavailableMetric(totalLaborCost, 'USD'),
+    totalEquipmentCost: comparableOrUnavailableMetric(totalEquipmentCost, 'USD'),
+  };
+}
+
 function attachComparison(currentMetrics, comparisonMetrics) {
   return Object.fromEntries(
     Object.entries(currentMetrics).map(([metricName, metric]) => {
@@ -339,15 +451,13 @@ function attachComparison(currentMetrics, comparisonMetrics) {
   );
 }
 
-async function getWeeklyProjectSummaryProjectStatus({
-  projectId,
-  startDate,
-  endDate,
-  comparisonStartDate,
-  comparisonEndDate,
-}) {
+// Shared by Project Status and Financials: Overview, which only differ in the metrics they calculate.
+async function buildPeriodSummary(
+  calculateMetrics,
+  { projectId, startDate, endDate, comparisonStartDate, comparisonEndDate },
+) {
   const { projectId: resolvedProjectId, project } = await resolveProject(projectId);
-  const currentMetrics = await calculatePeriodMetrics({ project, startDate, endDate });
+  const currentMetrics = await calculateMetrics({ project, startDate, endDate });
 
   if (!comparisonStartDate && !comparisonEndDate) {
     return {
@@ -357,7 +467,7 @@ async function getWeeklyProjectSummaryProjectStatus({
     };
   }
 
-  const comparisonMetrics = await calculatePeriodMetrics({
+  const comparisonMetrics = await calculateMetrics({
     project,
     startDate: comparisonStartDate,
     endDate: comparisonEndDate,
@@ -378,13 +488,26 @@ async function getWeeklyProjectSummaryProjectStatus({
   };
 }
 
+function getWeeklyProjectSummaryProjectStatus(query) {
+  return buildPeriodSummary(calculatePeriodMetrics, query);
+}
+
+function getWeeklyProjectSummaryFinancialOverview(query) {
+  return buildPeriodSummary(calculateFinancialMetrics, query);
+}
+
 module.exports = {
   COMPARISON_TYPES,
   calculatePercentageChange,
   getWeeklyProjectSummaryProjectStatus,
+  getWeeklyProjectSummaryFinancialOverview,
   testExports: {
     attachComparison,
+    calculateFinancialMetrics,
     calculatePeriodMetrics,
+    getApprovedPurchaseCost,
+    getCostProjection,
     getMaterialStats,
+    sumKnownCosts,
   },
 };

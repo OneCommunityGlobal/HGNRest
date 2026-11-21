@@ -1,11 +1,11 @@
-// v1.0.0
+// v1.1.0
 const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 const finiteNumber = (value) => value == null || Number.isFinite(value);
 
 const projectRiskProfile = new Schema({
-  projectId: { type: mongoose.SchemaTypes.ObjectId, required: true },
+  projectId: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject', required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   initialCostEstimate: {
@@ -15,7 +15,7 @@ const projectRiskProfile = new Schema({
     validate: finiteNumber,
   },
   currentCostIncurred: { type: Number, required: false, min: 0, validate: finiteNumber },
-  issues: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'Issue' }],
+  issues: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'buildingIssue' }],
   plannedTime: { type: Number, min: Number.MIN_VALUE, validate: finiteNumber },
   actualTimeElapsed: { type: Number, min: 0, validate: finiteNumber },
   status: { type: String, enum: ['active', 'completed', 'unknown'], default: 'unknown' },

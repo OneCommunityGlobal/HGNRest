@@ -1,13 +1,15 @@
-// v1.0.0
+// v1.1.0
 const { createHash } = require('crypto');
 const mongoose = require('mongoose');
 const Profile = require('../models/bmdashboard/projectRiskProfile');
 const Observation = require('../models/bmdashboard/projectRiskObservation');
-const Issue = require('../models/bmdashboard/Issues');
+const BuildingProject = require('../models/bmdashboard/buildingProject');
+const BuildingIssue = require('../models/bmdashboard/buildingIssue');
 const { calculateRiskMetrics } = require('./projectRiskMetrics');
 
 const DAY = 86400000;
-const DATASET = 'project-risk-demo-v1';
+// A new fixture namespace preserves existing legacy demo records without mapping them.
+const DATASET = 'project-risk-demo-v2';
 const demoId = (key) =>
   mongoose.Types.ObjectId(
     createHash('sha256').update(`${DATASET}:${key}`).digest('hex').slice(0, 24),
@@ -27,22 +29,36 @@ async function seedProjectRisk(now = new Date()) {
   await Observation.init();
   await Promise.all(
     scenarios.map(async (scenario) => {
-      const projectId = demoId(`issue:${scenario.name}`);
+      const projectId = demoId(`project:${scenario.name}`);
       const profileId = demoId(`profile:${scenario.name}`);
       const name = `[Risk Demo] ${scenario.name}`;
       // These filters deliberately refuse to overwrite an ordinary record with a colliding ID.
-      await Issue.updateOne(
-        { _id: projectId, projectName: name },
-        {
-          $set: {
-            projectId,
-            projectName: name,
-            equipmentIssues: scenario.issues,
-            laborIssues: 0,
-            materialIssues: 0,
-          },
-        },
+      await BuildingProject.updateOne(
+        { _id: projectId, name },
+        { $set: { name, isActive: true } },
         { upsert: true, runValidators: true },
+      );
+      const issueIds = await Promise.all(
+        Array.from({ length: scenario.issues }, async (_, index) => {
+          const issueId = demoId(`issue:${scenario.name}:${index}`);
+          const issueTitle = `${name} ${index + 1}`;
+          await BuildingIssue.updateOne(
+            { _id: issueId, projectId, issueTitle: [issueTitle] },
+            {
+              $set: {
+                projectId,
+                issueTitle: [issueTitle],
+                issueText: ['Development risk demo fixture'],
+                issueType: 'Equipment',
+                issueDate: today,
+                createdBy: demoId('creator'),
+                status: 'open',
+              },
+            },
+            { upsert: true, runValidators: true },
+          );
+          return issueId;
+        }),
       );
       const profile = {
         projectId,
@@ -58,7 +74,7 @@ async function seedProjectRisk(now = new Date()) {
             : 100000 *
               (1 + scenario.variance / 100) *
               (scenario.completed ? 1 : Math.min(240 / scenario.planned, 1)),
-        issues: [projectId],
+        issues: issueIds,
         demoDataset: DATASET,
       };
       await Profile.updateOne(

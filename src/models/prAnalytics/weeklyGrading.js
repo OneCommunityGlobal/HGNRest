@@ -4,11 +4,20 @@ const { Schema } = mongoose;
 
 const WeeklyGradingSchema = new Schema(
   {
-    teamCode: { type: String, required: true, index: true },
+    teamName: { type: String, required: true, index: true },
+
+    // Legacy field retained temporarily for compatibility with the existing
+    // teamCode/date/reviewer MongoDB index until the production migration runs.
+    teamCode: { type: String },
+
     date: { type: Date, required: true, index: true },
     reviewer: { type: String, required: true, index: true },
     prsNeeded: { type: Number, required: true },
     prsReviewed: { type: Number, required: true },
+    // Removal only affects the grading list; retain grades for history/analytics.
+    isRemoved: { type: Boolean, default: false },
+    removedAt: { type: Date, default: null },
+    removedBy: { type: Schema.Types.ObjectId, ref: 'userProfile', default: null },
     version: { type: Number, default: 1, required: true },
     gradedPrs: [
       {
@@ -45,6 +54,6 @@ const WeeklyGradingSchema = new Schema(
 );
 
 // Compound unique index to prevent duplicates
-WeeklyGradingSchema.index({ teamCode: 1, date: 1, reviewer: 1 }, { unique: true });
+WeeklyGradingSchema.index({ teamName: 1, date: 1, reviewer: 1 }, { unique: true });
 
 module.exports = mongoose.model('WeeklyGrading', WeeklyGradingSchema, 'weeklyGradings');

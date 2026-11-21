@@ -1,10 +1,11 @@
-// v1.1.1
+// v1.2.0
 const mongoose = require('mongoose');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
-const Issue = require('../../models/bmdashboard/Issues');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const Observation = require('../../models/bmdashboard/projectRiskObservation');
 const { calculateRiskMetrics } = require('../../utilities/projectRiskMetrics');
-const { issueCount, recordObservation } = require('../../services/projectRiskHistory');
+const { recordObservation } = require('../../services/projectRiskHistory');
 const logger = require('../../startup/logger');
 
 function parseProjectId(value) {
@@ -14,14 +15,15 @@ function parseProjectId(value) {
   return mongoose.Types.ObjectId(value);
 }
 
-async function validateIssueReferences(projectId, issues = []) {
+async function validateProfileReferences(projectId, issues = []) {
   if (!Array.isArray(issues)) throw new Error('Issues must be an array of issue IDs');
-  const ids = [...new Set([String(projectId), ...issues.map(String)])];
-  if (ids.some((id) => !/^[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid project or issue ID');
-  const found = await Issue.find({ _id: { $in: ids } })
-    .select('_id')
-    .lean();
-  if (found.length !== ids.length) throw new Error('Project or issue record not found');
+  const ids = [...new Set(issues.map(String))];
+  if (ids.some((id) => !/^[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid issue ID');
+  if (!(await BuildingProject.exists({ _id: projectId }))) {
+    throw new Error('Building project not found');
+  }
+  const found = await BuildingIssue.countDocuments({ _id: { $in: ids }, projectId });
+  if (found !== ids.length) throw new Error('Issue record not found for this building project');
 }
 
 // A failed history write must not report an already-saved profile as a failed mutation.
@@ -46,7 +48,7 @@ const profileInput = (body) =>
     PROFILE_FIELDS.filter((key) => body[key] !== undefined).map((key) => [key, body[key]]),
   );
 
-// Build a createdAt filter from optional YYYY-MM-DD start/end query params.
+// Build an issueDate filter from optional YYYY-MM-DD start/end query params.
 function buildCreatedAtRange(start, end) {
   const range = {};
   const startDate = start ? new Date(start) : null;
@@ -91,7 +93,7 @@ const projectRiskProfileController = {
   createRiskProfile: async (req, res) => {
     try {
       const projectId = parseProjectId(req.body.projectId);
-      await validateIssueReferences(projectId, req.body.issues);
+      await validateProfileReferences(projectId, req.body.issues);
       if (await ProjectRiskProfile.exists({ projectId })) {
         return res.status(409).json({ message: 'Risk profile already exists for this project' });
       }
@@ -121,7 +123,7 @@ const projectRiskProfileController = {
       const changes = profileInput(req.body);
       delete changes.projectId;
       updatedRiskProfile.set(changes);
-      await validateIssueReferences(updatedRiskProfile.projectId, updatedRiskProfile.issues);
+      await validateProfileReferences(updatedRiskProfile.projectId, updatedRiskProfile.issues);
       await updatedRiskProfile.save();
       await recordChange(updatedRiskProfile);
 
@@ -195,20 +197,38 @@ const projectRiskProfileController = {
     try {
       const { dates, projects, startDate: rangeStart, endDate: rangeEnd } = req.query;
       const createdAtRange = buildCreatedAtRange(rangeStart, rangeEnd);
-      const filter = {};
+      const projectFilter = { isActive: { $ne: false } };
       if (projects) {
-        // projects can be a comma-separated list of Issue IDs
-        const projectIds = projects.split(',').map((id) => id.trim());
-        filter.projectId = { $in: projectIds };
+        const projectIds = projects
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => mongoose.Types.ObjectId.isValid(id));
+        projectFilter._id = { $in: projectIds };
       }
+
+      const buildingProjects = await BuildingProject.find(projectFilter).sort({ name: 1 }).lean();
+      const buildingProjectIds = buildingProjects.map((project) => project._id);
+      const profileFilter = { projectId: { $in: buildingProjectIds } };
       if (dates) {
-        // dates can be a comma-separated pair: start,end
         const [start, end] = dates.split(',');
-        filter.startDate = { $gte: new Date(start) };
-        filter.endDate = { $lte: new Date(end) };
+        profileFilter.startDate = { $gte: new Date(start) };
+        profileFilter.endDate = { $lte: new Date(end) };
       }
-      // No population needed; projectId is the Issue _id
-      const riskProfiles = await ProjectRiskProfile.find(filter).lean();
+
+      const issueFilter = { projectId: { $in: buildingProjectIds }, status: { $ne: 'closed' } };
+      if (createdAtRange) issueFilter.issueDate = createdAtRange;
+      const [riskProfiles, openIssues] = await Promise.all([
+        ProjectRiskProfile.find(profileFilter).lean(),
+        BuildingIssue.find(issueFilter).select('projectId').lean(),
+      ]);
+      const profileByProject = new Map(
+        riskProfiles.map((profile) => [String(profile.projectId), profile]),
+      );
+      const issueCountByProject = openIssues.reduce((counts, issue) => {
+        const projectId = String(issue.projectId);
+        counts.set(projectId, (counts.get(projectId) || 0) + 1);
+        return counts;
+      }, new Map());
       const now = new Date();
       const historyStart = new Date(now.getTime() - 365 * 86400000);
       historyStart.setUTCHours(0, 0, 0, 0);
@@ -224,27 +244,26 @@ const projectRiskProfileController = {
         if (!histories.has(key)) histories.set(key, []);
         histories.get(key).push(observation);
       });
-      const results = await Promise.all(
-        riskProfiles.map(async (profile) => {
-          const metrics = calculateRiskMetrics(profile, now);
-          const issueDoc = await Issue.findById(profile.projectId).lean();
-          const totalOpenIssues = await issueCount(profile, createdAtRange);
-          return {
-            _id: profile._id,
-            projectId: profile.projectId,
-            status: profile.status || 'unknown',
-            asOf: now.toISOString(),
-            history: histories.get(String(profile._id)) || [],
-            projectName: issueDoc ? issueDoc.projectName : '',
-            ...metrics,
-            totalOpenIssues,
-            dates: [
-              profile.startDate ? new Date(profile.startDate).toISOString().slice(0, 10) : null,
-              profile.endDate ? new Date(profile.endDate).toISOString().slice(0, 10) : null,
-            ].filter(Boolean),
-          };
-        }),
-      );
+      const results = buildingProjects.map((project) => {
+        const profile = profileByProject.get(String(project._id));
+        return {
+          _id: profile ? profile._id : project._id,
+          projectId: project._id,
+          projectName: project.name,
+          status: profile?.status || 'unknown',
+          asOf: now.toISOString(),
+          history: profile ? histories.get(String(profile._id)) || [] : [],
+          ...(profile
+            ? calculateRiskMetrics(profile, now)
+            : { predictedCostOverrun: null, predictedTimeDelay: null }),
+          totalOpenIssues: issueCountByProject.get(String(project._id)) || 0,
+          dates: profile
+            ? [profile.startDate, profile.endDate]
+                .filter(Boolean)
+                .map((date) => new Date(date).toISOString().slice(0, 10))
+            : [],
+        };
+      });
       res.status(200).json(results);
     } catch (error) {
       res.status(500).json({ message: error.message });

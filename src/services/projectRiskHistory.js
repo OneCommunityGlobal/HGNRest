@@ -1,26 +1,21 @@
-// v1.0.0
+// v1.1.0
 const Profile = require('../models/bmdashboard/projectRiskProfile');
 const Observation = require('../models/bmdashboard/projectRiskObservation');
-const Issue = require('../models/bmdashboard/Issues');
+const BuildingProject = require('../models/bmdashboard/buildingProject');
+const BuildingIssue = require('../models/bmdashboard/buildingIssue');
 const { calculateRiskMetrics } = require('../utilities/projectRiskMetrics');
 
 async function issueCount(profile, createdAtRange) {
-  const ids = profile.issues?.length ? profile.issues : [profile.projectId];
-  const query = { _id: { $in: ids } };
-  if (createdAtRange) query.createdAt = createdAtRange;
-  const issues = await Issue.find(query).lean();
-  if (!createdAtRange && issues.length !== new Set(ids.map(String)).size) return null;
-  const counts = issues.flatMap((issue) => [
-    issue.equipmentIssues ?? 0,
-    issue.laborIssues ?? 0,
-    issue.materialIssues ?? 0,
-  ]);
-  return counts.every((n) => Number.isInteger(n) && n >= 0)
-    ? counts.reduce((sum, n) => sum + n, 0)
-    : null;
+  if (!(await BuildingProject.exists({ _id: profile.projectId }))) return null;
+  const query = { projectId: profile.projectId, status: { $ne: 'closed' } };
+  if (createdAtRange) query.issueDate = createdAtRange;
+  return BuildingIssue.countDocuments(query);
 }
 
 async function recordObservation(profile, now = new Date()) {
+  const totalOpenIssues = await issueCount(profile);
+  // Unmatched legacy profiles and their saved history remain untouched.
+  if (totalOpenIssues === null) return;
   const date = new Date(now);
   date.setUTCHours(0, 0, 0, 0);
   const observation = {
@@ -28,7 +23,7 @@ async function recordObservation(profile, now = new Date()) {
     date,
     recordedAt: now,
     ...calculateRiskMetrics(profile, now),
-    totalOpenIssues: await issueCount(profile),
+    totalOpenIssues,
   };
   const key = { profileId: profile._id, date };
   const currentOrOlder = {
