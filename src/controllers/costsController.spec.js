@@ -279,6 +279,35 @@ describe('costsController', () => {
       expect(res.json.mock.calls[0][0].totalCost).toBe(0);
     });
 
+    test('A.extra — Materials detail lists each project from approved purchases', async () => {
+      setupBreakdownNoCache([]);
+      getMaterialPurchaseCostByProject.mockResolvedValueOnce([
+        { project: VALID_OID, totalCost: 300 },
+        { project: VALID_OID_2, totalCost: 100 },
+      ]);
+      BuildingProject.find.mockReturnValueOnce({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([
+              { _id: VALID_OID, name: 'Project Alpha' },
+              { _id: VALID_OID_2, name: 'Project Beta' },
+            ]),
+        }),
+      });
+      const { res } = await callController(controller.getCostBreakdown, {
+        query: { categoryDetail: 'true' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      const materials = res.json.mock.calls[0][0].breakdown.find(
+        (b) => b.category === 'Total Cost of Materials',
+      );
+      expect(materials.amount).toBe(400);
+      expect(materials.projectBreakdown).toEqual([
+        { projectId: VALID_OID, projectName: 'Project Alpha', amount: 300, percentage: 75 },
+        { projectId: VALID_OID_2, projectName: 'Project Beta', amount: 100, percentage: 25 },
+      ]);
+    });
+
     test('A.extra — project findById returns null uses All Projects for label', async () => {
       setupBreakdownNoCache([]);
       BuildingProject.findById = jest.fn().mockReturnValue({
