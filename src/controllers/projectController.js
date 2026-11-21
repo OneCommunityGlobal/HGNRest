@@ -10,6 +10,10 @@ const helper = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const logger = require('../startup/logger');
 const cache = require('../utilities/nodeCache')();
+const followUp = require('../models/followUp');
+const taskEditSuggestion = require('../models/taskEditSuggestion');
+const inventoryItem = require('../models/inventoryItem');
+const title = require('../models/title');
 
 // Shit code included.
 
@@ -41,50 +45,81 @@ const projectController = function (Project) {
   };
 
   const deleteProject = async function (req, res) {
-    if (!(await helper.hasPermission(req.body.requestor, 'deleteProject'))) {
+    if (!(await helper.hasPermission(req.body.requestor, 'deleteArchivedProject'))) {
       res.status(403).send({ error: 'You are not authorized to delete projects.' });
       return;
     }
     const { projectId } = req.params;
-    Project.findById(projectId, (error, record) => {
-      if (error || !record || record === null || record.length === 0) {
-        res.status(400).send({ error: 'No valid records found' });
-        return;
+    const refuse = (error) => res.status(400).send({ error });
+    try {
+      const record = mongoose.Types.ObjectId.isValid(projectId)
+        ? await Project.findById(projectId)
+        : null;
+      if (!record) return refuse('No valid records found');
+      if (!record.isArchived) return refuse('Only archived projects can be deleted.');
+
+      // No isActive filter, so inactive WBSs, tasks and time entries count too
+      const wbsIds = (await wbs.find({ projectId: record._id }, '_id')).map((w) => w._id);
+      const tasks = await task.find({ wbsId: { $in: wbsIds } }, '_id hoursLogged');
+      const taskIds = tasks.map((t) => t._id);
+      const timeFilter = {
+        $or: [
+          { projectId: record._id },
+          { projectId: { $in: taskIds } }, // old entries store the task id here
+          { wbsId: { $in: wbsIds } },
+          { taskId: { $in: taskIds } },
+        ],
+      };
+      if (await timeentry.exists(timeFilter)) {
+        return refuse('This project has associated time entries and cannot be deleted.');
       }
-      // find if project has any time entries associated with it
+      // Ignore float leftovers that round to 0.00 h
+      if (tasks.some((t) => Math.round(t.hoursLogged * 100) > 0)) {
+        return refuse('This project has tasks with logged hours and cannot be deleted.');
+      }
+      if (await inventoryItem.exists({ project: record._id })) {
+        return refuse('This project has inventory items and cannot be deleted.');
+      }
+      // Titles store the project id as a string
+      const titles = await title.find({ 'projectAssigned._id': String(record._id) }, 'titleName');
+      if (titles.length > 0) {
+        const names = titles.map((t) => t.titleName).join(', ');
+        return refuse(
+          `This project is used by these Quick Setup titles and cannot be deleted: ${names}.`,
+        );
+      }
 
-      timeentry
-        .find({ projectId: record._id }, '_id')
-        .then((timeentries) => {
-          if (timeentries.length > 0) {
-            res.status(400).send({
-              error:
-                'This project has associated time entries and cannot be deleted. Consider inactivaing it instead.',
-            });
-          } else {
-            const removeprojectfromprofile = userProfile
-              .updateMany({}, { $pull: { projects: record._id } })
-              .exec();
-            const removeproject = record.remove();
+      // Children first, so a failed run can simply be repeated
+      const deleteByIds = async (Model, field, ids) =>
+        ids.length ? (await Model.deleteMany({ [field]: { $in: ids } })).deletedCount : 0;
+      const followUpCount = await deleteByIds(followUp, 'taskId', taskIds);
+      const suggestionCount = await deleteByIds(taskEditSuggestion, 'taskId', taskIds);
+      const taskCount = await deleteByIds(task, '_id', taskIds);
+      const wbsCount = await deleteByIds(wbs, '_id', wbsIds);
+      const { nModified: profileCount } = await userProfile.updateMany(
+        { $or: [{ projects: record._id }, { projectHistory: record._id }] },
+        { $pull: { projects: record._id, projectHistory: record._id } },
+      );
+      const removed = `WBS ${wbsCount}, tasks ${taskCount}, follow-ups ${followUpCount}, edit suggestions ${suggestionCount}, profiles updated ${profileCount}`;
 
-            Promise.all([removeprojectfromprofile, removeproject])
-              .then(() => {
-                res.status(200).send({
-                  message: 'Project successfully deleted and user profiles updated.',
-                });
-              })
-              .catch((errors) => {
-                res.status(400).send(errors);
-              });
-          }
-        })
-        .catch((errors) => {
-          res.status(400).send(errors);
-        });
-    });
-    // .catch((errors) => {
-    //   res.status(400).send(errors);
-    // });
+      // Refuse if time or a WBS was added meanwhile
+      if ((await timeentry.exists(timeFilter)) || (await wbs.exists({ projectId: record._id }))) {
+        logger.logInfo(
+          `Stopped deleting archived project "${record.projectName}" (${record._id}) by ${req.body.requestor.requestorId}: time or a WBS was added meanwhile, project kept. Already removed: ${removed}`,
+        );
+        return refuse(
+          'Time or a WBS was added to this project during the delete, so the project was kept, but its earlier WBSs and tasks were removed.',
+        );
+      }
+      await Project.deleteOne({ _id: record._id });
+      logger.logInfo(
+        `Deleted archived project "${record.projectName}" (${record._id}) by ${req.body.requestor.requestorId}: ${removed}`,
+      );
+      res.status(200).send({ message: 'Project successfully deleted and user profiles updated.' });
+    } catch (error) {
+      logger.logException(error, 'projectController.deleteProject', { projectId });
+      res.status(500).send({ error: 'Error deleting project. Please try again.' });
+    }
   };
 
   const postProject = async function (req, res) {
