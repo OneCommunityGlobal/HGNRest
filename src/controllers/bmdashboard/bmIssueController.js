@@ -431,6 +431,11 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
         { name: newName },
         { new: true, runValidators: true },
       );
+      if (!updatedInjury && newName.length > MAX_ISSUE_TITLE_LENGTH) {
+        return res
+          .status(400)
+          .json({ message: `Issue name must be ${MAX_ISSUE_TITLE_LENGTH} characters or fewer` });
+      }
       const updated =
         updatedInjury ||
         (await BuildingIssue.findByIdAndUpdate(
@@ -443,6 +448,9 @@ const bmIssueController = function (BuildingIssue, injuryIssue) {
       }
       return res.status(200).json({ message: 'Renamed successfully', updated });
     } catch (err) {
+      if (err.name === 'ValidationError') {
+        return res.status(400).json({ message: err.message });
+      }
       return res.status(500).json({ error: err.message });
     }
   };

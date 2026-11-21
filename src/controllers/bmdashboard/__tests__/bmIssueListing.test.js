@@ -75,6 +75,21 @@ describe('Logged issues in the issue dashboard', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
+  it('rejects building issue names over 50 characters with a 400', async () => {
+    const findByIdAndUpdate = jest.fn();
+    const controller = controllerFactory(
+      { findByIdAndUpdate },
+      { findByIdAndUpdate: jest.fn().mockResolvedValue(null) },
+    );
+    const res = response();
+    await controller.bmRenameInjuryIssue(
+      { params: { id }, body: { newName: 'x'.repeat(51) } },
+      res,
+    );
+    expect(findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
   it('deletes building issues through the dashboard route', async () => {
     const findByIdAndDelete = jest.fn().mockResolvedValue({ _id: id });
     const controller = controllerFactory(
