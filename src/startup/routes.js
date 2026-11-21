@@ -359,7 +359,7 @@ const liveJournalRoutes = require('../routes/liveJournalRoutes');
 const bidPropertyRouter = require('../routes/lbdashboard/bidPropertyRouter')(bidoverview_Listing);
 const userBidRouter = require('../routes/lbdashboard/userBidNotificationRouter')(
   bidoverview_Bid,
-  bidoverview_Listing,
+  biddingHome,
   bidoverview_User,
   bidoverview_Notification,
 );
