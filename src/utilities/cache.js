@@ -21,6 +21,8 @@ module.exports = {
   // General cache for most operations
   get: (k) => generalCache.get(k),
   set: (k, v) => generalCache.set(k, v),
+  delByPrefix: (prefix) =>
+    generalCache.del(generalCache.keys().filter((key) => key.startsWith(prefix))),
 
   // Analytics-specific cache with longer TTL
   analytics: {

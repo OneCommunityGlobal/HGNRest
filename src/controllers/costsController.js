@@ -5,7 +5,50 @@ const BuildingProject = require('../models/bmdashboard/buildingProject');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
 const { runCostAggregation } = require('../services/bmdashboard/costAggregationService');
+const {
+  getMaterialPurchaseCostByProject,
+} = require('../services/bmdashboard/materialPurchaseCostService');
 
+const MATERIALS_CATEGORY = 'Total Cost of Materials';
+const PERCENT = 100;
+const PERCENT_DECIMALS = 2;
+
+/**
+ * Replaces the Materials category with the cost of approved material purchases,
+ * the same calculation Total Material Cost Per Project uses.
+ */
+async function withMaterialPurchaseCost(breakdown, { projectId, startDate, endDate }, wantDetail) {
+  const rows = await getMaterialPurchaseCostByProject({
+    projectIds: projectId ? [projectId] : undefined,
+    startDate,
+    endDate,
+  });
+  const amount = rows.reduce((sum, row) => sum + row.totalCost, 0);
+  const materials = { category: MATERIALS_CATEGORY, amount };
+
+  if (wantDetail) {
+    const projects =
+      rows.length > 0
+        ? await BuildingProject.find({ _id: { $in: rows.map((row) => row.project) } })
+            .select('name')
+            .lean()
+        : [];
+    const nameById = new Map(projects.map((p) => [p._id.toString(), p.name]));
+    materials.projectBreakdown = rows.map((row) => ({
+      projectId: row.project.toString(),
+      projectName: nameById.get(row.project.toString()) || 'Unknown',
+      amount: row.totalCost,
+      percentage:
+        amount > 0
+          ? Number.parseFloat(((row.totalCost / amount) * PERCENT).toFixed(PERCENT_DECIMALS))
+          : 0,
+    }));
+  }
+
+  return [...breakdown.filter((item) => item.category !== MATERIALS_CATEGORY), materials].sort(
+    (a, b) => b.amount - a.amount,
+  );
+}
 const CACHE_PREFIX = 'cost_breakdown:';
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
@@ -164,9 +207,14 @@ async function getCostBreakdown(req, res) {
     }
 
     const wantDetail = categoryDetail === 'true' || categoryDetail === true;
-    const breakdown = wantDetail
+    const categoryBreakdown = wantDetail
       ? await aggregateWithDetail(matchStage)
       : await aggregateSimple(matchStage);
+    const breakdown = await withMaterialPurchaseCost(
+      categoryBreakdown,
+      { projectId, startDate, endDate },
+      wantDetail,
+    );
 
     const totalCost = breakdown.reduce((sum, item) => sum + item.amount, 0);
 
