@@ -643,7 +643,9 @@ describe('Unit Tests: timeEntryController', () => {
 
     test('returns rounded totals; logs on error', async () => {
       const ids = [new mongoose.Types.ObjectId().toString()];
-      const req = { body: { userIds: ids, fromDate: '2025-01-01', toDate: '2025-01-31' } };
+      const req = {
+        body: { userIds: ids, fromDate: '2025-01-01', toDate: '2025-01-31T23:59:59' },
+      };
       TimeEntry.aggregate.mockResolvedValue([{ _id: ids[0], totalHours: 3.3333 }]);
 
       const res = mockRes;
@@ -652,6 +654,14 @@ describe('Unit Tests: timeEntryController', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith([{ userId: ids[0], totalHours: 3.3 }]);
+      expect(TimeEntry.aggregate).toHaveBeenCalledWith([
+        expect.objectContaining({
+          $match: expect.objectContaining({
+            dateOfWork: { $gte: '2025-01-01', $lte: '2025-01-31' },
+          }),
+        }),
+        expect.objectContaining({ $group: expect.any(Object) }),
+      ]);
     });
   });
 

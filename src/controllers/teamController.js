@@ -133,13 +133,19 @@ const teamcontroller = function (Team) {
       if (!(await hasPermission(req.body.requestor, 'getReports'))) {
         return res.status(403).json('You are not authorized to view volunteer hours reports.');
       }
-      const { fromDate, toDate } = req.body || {};
+      const { fromDate, toDate } = req.method === 'GET' ? req.query : req.body;
       const timezone = 'America/Los_Angeles';
 
       const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
       const end = moment.tz(toDate, 'YYYY-MM-DD', true, timezone);
 
-      if (!start.isValid() || !end.isValid() || end.isBefore(start, 'day')) {
+      if (
+        typeof fromDate !== 'string' ||
+        typeof toDate !== 'string' ||
+        !start.isValid() ||
+        !end.isValid() ||
+        end.isBefore(start, 'day')
+      ) {
         return res.status(400).json({
           error:
             'Valid fromDate and toDate are required. Dates must use YYYY-MM-DD, and toDate cannot precede fromDate.',

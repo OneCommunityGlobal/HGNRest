@@ -6,7 +6,10 @@ const routes = function (project) {
 
   projectRouter.route('/projects').get(controller.getAllProjects).post(controller.postProject);
 
-  projectRouter.route('/projects/committed-hours').post(controller.getProjectsCommittedHours);
+  projectRouter
+    .route('/projects/committed-hours')
+    .get(controller.getProjectsCommittedHours)
+    .post(controller.getProjectsCommittedHours);
 
   projectRouter.route('/archivedProjects').get(controller.getArchivedProjects);
   projectRouter

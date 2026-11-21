@@ -13,10 +13,13 @@ jest.mock('../utilities/permissions', () => ({
 }));
 
 const mongoose = require('mongoose');
+const express = require('express');
+const request = require('supertest');
 const TimeEntry = require('../models/timeentry');
 const Logger = require('../startup/logger');
 const { hasPermission } = require('../utilities/permissions');
 const teamController = require('./teamController');
+const teamRouter = require('../routes/teamRouter');
 
 describe('getTeamsCommittedHours', () => {
   let Team;
@@ -78,6 +81,27 @@ describe('getTeamsCommittedHours', () => {
     expect(Team.find).not.toHaveBeenCalled();
     expect(TimeEntry.aggregate).not.toHaveBeenCalled();
   });
+
+  test.each(['/team/committed-hours', '/teams/committed-hours'])(
+    'serves GET %s with query dates',
+    async (path) => {
+      setTeams([]);
+      const app = express();
+      app.use((incoming, outgoing, next) => {
+        incoming.body = { requestor: req.body.requestor };
+        next();
+      });
+      app.use('/api', teamRouter(Team));
+
+      const result = await request(app)
+        .get(`/api${path}`)
+        .query({ fromDate: '2026-01-01', toDate: '2026-01-01' });
+
+      expect(result.status).toBe(200);
+      expect(result.body).toEqual([]);
+      expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'getReports');
+    },
+  );
 
   test('returns actual logged hours and individual member hours for each team', async () => {
     setTeams([

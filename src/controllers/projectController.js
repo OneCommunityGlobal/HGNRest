@@ -34,17 +34,17 @@ const projectController = function (Project) {
         return res.status(403).send('You are not authorized to view volunteer hours reports.');
       }
 
-      const { fromDate, toDate } = req.body || {};
+      const { fromDate, toDate } = req.method === 'GET' ? req.query : req.body;
       const timezone = 'America/Los_Angeles';
 
       const start = moment.tz(fromDate, 'YYYY-MM-DD', true, timezone);
       const end = moment.tz(toDate, 'YYYY-MM-DD', true, timezone);
 
       if (
+        typeof fromDate !== 'string' ||
+        typeof toDate !== 'string' ||
         !start.isValid() ||
         !end.isValid() ||
-        !start.isSame(start.clone().startOf('day')) ||
-        !end.isSame(end.clone().startOf('day')) ||
         end.isBefore(start, 'day')
       ) {
         return res.status(400).send({
@@ -58,57 +58,32 @@ const projectController = function (Project) {
 
       logger.logInfo(`Fetching project logged hours between ${startDate} and ${endDate}`);
 
-      const result = await Project.aggregate([
-        {
-          $match: {
-            isArchived: { $ne: true },
-          },
-        },
-        {
-          $lookup: {
-            from: 'timeEntries',
-            let: { projectId: '$_id' },
-            pipeline: [
-              {
-                $match: {
-                  entryType: { $in: ['default', 'person', null] },
-                  dateOfWork: {
-                    $gte: startDate,
-                    $lte: endDate,
-                  },
-                  $expr: {
-                    $eq: ['$projectId', '$$projectId'],
-                  },
-                },
-              },
-              {
-                $group: {
-                  _id: null,
-                  totalSeconds: {
-                    $sum: { $ifNull: ['$totalSeconds', 0] },
-                  },
-                },
-              },
-            ],
-            as: 'hoursSummary',
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            projectId: '$_id',
-            projectName: 1,
-            totalSeconds: {
-              $ifNull: [{ $arrayElemAt: ['$hoursSummary.totalSeconds', 0] }, 0],
+      const [projects, hoursSummary] = await Promise.all([
+        Project.find({ isArchived: { $ne: true } }, 'projectName').lean(),
+        timeentry.aggregate([
+          {
+            $match: {
+              projectId: { $ne: null },
+              entryType: { $in: ['default', 'person', null] },
+              dateOfWork: { $gte: startDate, $lte: endDate },
             },
           },
-        },
+          { $group: { _id: '$projectId', totalSeconds: { $sum: '$totalSeconds' } } },
+        ]),
       ]);
-      const TOTAL_HOURS = 10;
-      const response = result.map((project) => ({
-        projectId: project.projectId,
+      const secondsByProject = new Map(
+        hoursSummary.map((entry) => [String(entry._id), entry.totalSeconds]),
+      );
+      const SECONDS_PER_HOUR = 3600;
+      const HOURS_DECIMAL_PRECISION = 10;
+      const response = projects.map((project) => ({
+        projectId: project._id,
         projectName: project.projectName,
-        loggedHours: Math.round((project.totalSeconds / 3600) * TOTAL_HOURS) / TOTAL_HOURS,
+        loggedHours:
+          Math.round(
+            ((secondsByProject.get(String(project._id)) || 0) / SECONDS_PER_HOUR) *
+              HOURS_DECIMAL_PRECISION,
+          ) / HOURS_DECIMAL_PRECISION,
       }));
 
       return res.status(200).send(response);

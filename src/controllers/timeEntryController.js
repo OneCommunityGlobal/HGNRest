@@ -1022,9 +1022,15 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session, {
-              exact: Boolean(timeEntry.splitBatchId),
-            });
+            await updateTaskLoggedHours(
+              taskId,
+              totalSeconds,
+              null,
+              null,
+              userprofile,
+              session,
+              { exact: Boolean(timeEntry.splitBatchId) },
+            );
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(
@@ -1125,19 +1131,23 @@ const timeEntrycontroller = function (TimeEntry) {
    */
   const getUsersTotalHoursForSpecifiedPeriod = async function (req, res) {
     const { userIds, fromDate, toDate } = req.body;
+    const timezone = 'America/Los_Angeles';
+    const start = moment.tz(fromDate, moment.ISO_8601, true, timezone);
+    const end = moment.tz(toDate, moment.ISO_8601, true, timezone);
 
     if (
       !fromDate ||
       !toDate ||
-      !userIds ||
-      !moment(fromDate).isValid() ||
-      !moment(toDate).isValid()
+      !Array.isArray(userIds) ||
+      !start.isValid() ||
+      !end.isValid() ||
+      end.isBefore(start, 'day')
     ) {
       return res.status(400).send({ error: 'Invalid request' });
     }
 
-    const startDate = moment(fromDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
-    const endDate = moment(toDate).tz('America/Los_Angeles').format('YYYY-MM-DD');
+    const startDate = start.format('YYYY-MM-DD');
+    const endDate = end.format('YYYY-MM-DD');
 
     try {
       // g total hours
