@@ -5,9 +5,9 @@ const mongoose = require('mongoose');
 const biddingController = (Bidding) => {
   const getBidListings = async (req, res) => {
     try {
-      const page = req.headers.page || 1;
-      const size = req.headers.size || 10;
-      const { village } = req.headers;
+      const page = req.query.page || 1;
+      const size = req.query.size || 10;
+      const { village } = req.query;
 
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
@@ -37,7 +37,7 @@ const biddingController = (Bidding) => {
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
           { path: 'updatedBy', select: '_id firstName lastName' },
-          { path: 'villages' },
+          { path: 'village', select: '_id name' },
         ])
         .sort({ updatedOn: -1 })
         .skip(skip)
@@ -96,7 +96,7 @@ const biddingController = (Bidding) => {
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
           { path: 'updatedBy', select: '_id firstName lastName' },
-          { path: 'villages' },
+          { path: 'village', select: '_id name' },
         ])
         .lean();
       if (!listing) {
