@@ -1,3 +1,4 @@
+// Version 1.0.0
 const mongoose = require('mongoose');
 
 const bmToolsReturnedLateController = function () {
@@ -27,7 +28,11 @@ const bmToolsReturnedLateController = function () {
       .filter(Boolean);
   };
 
-  const getProjectNameMap = async (projectIds) => {
+  const getProjectNameMap = async () => {
+    // Use the complete, stable ID order so filters never rename orphaned projects.
+    const projectIds = (await ToolReturn.distinct('projectId'))
+      .map((projectId) => projectId.toString())
+      .sort();
     const projectDocs = await Project.find({ _id: { $in: projectIds } }, '_id projectName').lean();
     const projectNameById = projectDocs.reduce((acc, project) => {
       acc[project._id.toString()] = project.projectName;
@@ -146,10 +151,7 @@ const bmToolsReturnedLateController = function () {
         });
       }
 
-      const projectIds = [
-        ...new Set(toolData.map((record) => record.projectId?.toString()).filter(Boolean)),
-      ];
-      const projectNameById = await getProjectNameMap(projectIds);
+      const projectNameById = await getProjectNameMap();
       const results = buildToolStats(toolData, projectNameById);
       res.status(200).json({
         success: true,
@@ -167,24 +169,12 @@ const bmToolsReturnedLateController = function () {
 
   const getAvailableProjects = async (req, res) => {
     try {
-      const projectIds = await ToolReturn.distinct('projectId');
-      const projects = await Project.find({ _id: { $in: projectIds } }, '_id projectName')
-        .sort({ projectName: 1 })
-        .lean();
-      const knownProjectIds = new Set(projects.map((project) => project._id.toString()));
-      const fallbackProjects = projectIds
-        .filter((projectId) => !knownProjectIds.has(projectId.toString()))
-        .map((projectId, index) => ({
-          _id: projectId,
-          projectName: `Project ${index + 1}`,
-        }));
-      const allProjects = [...projects, ...fallbackProjects];
+      const projectNameById = await getProjectNameMap();
       res.status(200).json({
         success: true,
-        data: allProjects.map((project) => ({
-          projectId: project._id.toString(),
-          projectName: project.projectName,
-        })),
+        data: Object.entries(projectNameById)
+          .map(([projectId, projectName]) => ({ projectId, projectName }))
+          .sort((a, b) => a.projectName.localeCompare(b.projectName)),
       });
     } catch (err) {
       res.status(500).json({ success: false, error: `Server error ${err.message}` });
