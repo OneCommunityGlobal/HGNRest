@@ -281,6 +281,36 @@ describe('getTeamsCommittedHours', () => {
     expect(res.json).toHaveBeenCalledWith([]);
   });
 
+  test('counts duplicate membership records for the same team only once', async () => {
+    const objectId = new mongoose.Types.ObjectId(memberId1);
+    setTeams([
+      {
+        _id: 'team-1',
+        teamName: 'Team Alpha',
+        members: [{ userId: objectId }, { userId: memberId1 }, null, {}, { userId: memberId2 }],
+      },
+    ]);
+    TimeEntry.aggregate.mockResolvedValue([
+      { _id: objectId, totalSeconds: 7200 },
+      { _id: new mongoose.Types.ObjectId(memberId2), totalSeconds: 3600 },
+    ]);
+
+    await getTeamsCommittedHours(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith([
+      {
+        teamId: 'team-1',
+        teamName: 'Team Alpha',
+        loggedHours: 3,
+        membersHours: [
+          { userId: memberId1, totalHours: 2 },
+          { userId: memberId2, totalHours: 1 },
+        ],
+      },
+    ]);
+  });
+
   test('returns zero logged hours when a team has no members', async () => {
     setTeams([
       {

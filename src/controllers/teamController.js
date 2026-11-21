@@ -157,16 +157,19 @@ const teamcontroller = function (Team) {
 
       const teams = await Team.find({ isActive: true }).select('_id teamName members').lean();
 
-      const memberIds = [
-        ...new Set(
-          teams.flatMap((teamData) =>
-            (teamData.members || [])
-              .map((member) => member.userId)
+      const teamsWithMemberIds = teams.map(({ _id, teamName, members }) => ({
+        teamId: _id,
+        teamName,
+        memberIds: [
+          ...new Set(
+            (members || [])
+              .map((member) => member?.userId)
               .filter(Boolean)
               .map(String),
           ),
-        ),
-      ];
+        ],
+      }));
+      const memberIds = [...new Set(teamsWithMemberIds.flatMap((teamData) => teamData.memberIds))];
 
       let hoursSummary = [];
 
@@ -199,27 +202,26 @@ const teamcontroller = function (Team) {
         hoursSummary.map((entry) => [String(entry._id), entry.totalSeconds / TOTAL_HOURS]),
       );
 
-      const result = teams.map((teamData) => {
-        const membersHours = (teamData.members || [])
-          .filter((member) => member.userId)
-          .map((member) => {
-            const totalHours = hoursByUser.get(String(member.userId)) || 0;
+      const result = teamsWithMemberIds.map(({ teamId, teamName, memberIds: teamMemberIds }) => {
+        const membersHours = teamMemberIds
+          .map((userId) => {
+            const totalHours = hoursByUser.get(userId) || 0;
 
             return {
-              userId: member.userId,
+              userId,
               totalHours:
                 Math.round(totalHours * HOURS_DECIMAL_PRECISION) / HOURS_DECIMAL_PRECISION,
             };
           })
           .filter((member) => member.totalHours > 0);
 
-        const totalHours = (teamData.members || []).reduce((total, member) => {
-          if (!member.userId) return total;
-          return total + (hoursByUser.get(String(member.userId)) || 0);
-        }, 0);
+        const totalHours = teamMemberIds.reduce(
+          (total, userId) => total + (hoursByUser.get(userId) || 0),
+          0,
+        );
         return {
-          teamId: teamData._id,
-          teamName: teamData.teamName,
+          teamId,
+          teamName,
           loggedHours: Math.round(totalHours * HOURS_DECIMAL_PRECISION) / HOURS_DECIMAL_PRECISION,
           membersHours,
         };
