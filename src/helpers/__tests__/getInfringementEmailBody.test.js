@@ -124,6 +124,117 @@ describe('getInfringementEmailBody', () => {
     expect(result).toContain('<p><b>Name:</b> John Doe</p>');
   });
 
+  it('adds a red (Closing Out) label to the left of the name when isClosingOut is true', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Sagar',
+      'Chavan',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      { ...baseAdministrativeContent, isClosingOut: true },
+    );
+
+    expect(result).toContain(
+      '<p><b>Name:</b> <span style="color: red;"><b>(Closing Out)</b></span> Sagar Chavan</p>',
+    );
+  });
+
+  it('does not show (Closing Out) when isClosingOut is false', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Sagar',
+      'Chavan',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      { ...baseAdministrativeContent, isClosingOut: false },
+    );
+
+    expect(result).not.toContain('(Closing Out)');
+    expect(result).toContain('<p><b>Name:</b> Sagar Chavan</p>');
+  });
+
+  it('does not show (Closing Out) when isClosingOut is not provided', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Sagar',
+      'Chavan',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      baseAdministrativeContent,
+    );
+
+    expect(result).not.toContain('(Closing Out)');
+  });
+
+  it('shows (Closing Out) in the Administrative Details section only, not in the greeting', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Sagar',
+      'Chavan',
+      infringement,
+      1,
+      undefined,
+      null,
+      null,
+      { ...baseAdministrativeContent, isClosingOut: true },
+    );
+
+    const [beforeAdminDetails, adminDetails] = result.split(
+      '<p><b>ADMINISTRATIVE DETAILS:</b></p>',
+    );
+
+    expect(beforeAdminDetails).not.toContain('(Closing Out)');
+    expect(adminDetails).toContain('(Closing Out)');
+    expect(result).toContain('Dear <b>Sagar</b>,');
+  });
+
+  it('shows (Closing Out) for the time-remaining (Core Team) email variant too', () => {
+    const infringement = {
+      date: '2026-09-10',
+      description: 'Missed weekly time commitment.',
+    };
+
+    const result = getInfringementEmailBody(
+      'Sagar',
+      'Chavan',
+      infringement,
+      6,
+      4,
+      1,
+      undefined,
+      { ...baseAdministrativeContent, isClosingOut: true },
+      10,
+    );
+
+    expect(result).toContain('(Closing Out)');
+    expect(result).toContain('Sagar Chavan');
+  });
+
   it('uses a neutral "Dear" greeting instead of a time-of-day greeting', () => {
     const infringement = {
       date: '2025-05-12',
