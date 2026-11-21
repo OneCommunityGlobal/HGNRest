@@ -22,7 +22,7 @@ const bidListingSchema = new Schema(
     currentPrice: { type: Number, required: true },
     finalPrice: { type: Number, required: true },
     status: { type: String, required: true, enum: ['draft', 'complete'], default: 'draft' },
-    village: { type: mongoose.SchemaTypes.ObjectId, ref: 'village', required: true },
+    village: { type: mongoose.SchemaTypes.ObjectId, ref: 'Village', required: true },
     location: { type: String, required: true, trim: true },
   },
   { timestamps: { createdAt: 'createdOn', updatedAt: 'updatedOn' } },
