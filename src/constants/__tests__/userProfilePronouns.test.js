@@ -3,11 +3,24 @@ jest.mock('../../utilities/permissions', () => ({
   hasPermission: jest.fn(),
   canRequestorUpdateUser: jest.fn(),
 }));
+jest.mock('../../startup/logger', () => ({
+  logException: jest.fn(),
+  logInfo: jest.fn(),
+}));
 
 const mongoose = require('mongoose');
 const { PRONOUN_OPTIONS, normalizePronouns } = require('../userProfile');
-const { canRequestorUpdateUser } = require('../../utilities/permissions');
+const { canRequestorUpdateUser, hasPermission } = require('../../utilities/permissions');
 const userProfileController = require('../../controllers/userProfileController');
+const profileInitialSetupController = require('../../controllers/profileInitialSetupController');
+const cache = require('../../utilities/nodeCache')();
+
+const makeRes = () => {
+  const res = {};
+  res.status = jest.fn(() => res);
+  res.send = jest.fn(() => res);
+  return res;
+};
 
 describe('normalizePronouns', () => {
   it('accepts each allowed option', () => {
@@ -37,13 +50,6 @@ describe('normalizePronouns', () => {
 describe('updatePronouns', () => {
   const userId = new mongoose.Types.ObjectId().toString();
   const otherId = new mongoose.Types.ObjectId().toString();
-
-  const makeRes = () => {
-    const res = {};
-    res.status = jest.fn(() => res);
-    res.send = jest.fn(() => res);
-    return res;
-  };
 
   const makeSut = (updatedDoc = { _id: userId, pronouns: 'They/Them' }) => {
     const UserProfile = { findByIdAndUpdate: jest.fn().mockResolvedValue(updatedDoc) };
@@ -141,5 +147,87 @@ describe('updatePronouns', () => {
       res,
     );
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('rejects an invalid user id', async () => {
+    const { updatePronouns, UserProfile } = makeSut();
+    const res = makeRes();
+    await updatePronouns(
+      {
+        params: { userId: 'not-an-id' },
+        body: { pronouns: 'She/Her', requestor: { requestorId: 'not-an-id', role: 'Volunteer' } },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(UserProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('updates the cached user list with the new pronouns', async () => {
+    cache.setCache('allusers', JSON.stringify([{ _id: userId, pronouns: '' }, { _id: otherId }]));
+    const { updatePronouns } = makeSut({ _id: userId, pronouns: 'She/Her' });
+    const res = makeRes();
+    await updatePronouns(
+      {
+        params: { userId },
+        body: { pronouns: 'She/Her', requestor: { requestorId: userId, role: 'Volunteer' } },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const cached = JSON.parse(cache.getCache('allusers'));
+    expect(cached.find((u) => u._id === userId).pronouns).toBe('She/Her');
+    cache.removeCache('allusers');
+  });
+
+  it('returns 500 when the update fails', async () => {
+    const UserProfile = { findByIdAndUpdate: jest.fn().mockRejectedValue(new Error('db down')) };
+    const { updatePronouns } = userProfileController(UserProfile, {});
+    const res = makeRes();
+    await updatePronouns(
+      {
+        params: { userId },
+        body: { pronouns: 'She/Her', requestor: { requestorId: userId, role: 'Volunteer' } },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('pronouns validation on user creation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('rejects Create User with an invalid pronouns value', async () => {
+    hasPermission.mockResolvedValue(true);
+    const UserProfile = { findOne: jest.fn() };
+    const { postUserProfile } = userProfileController(UserProfile, {});
+    const res = makeRes();
+    await postUserProfile(
+      {
+        body: {
+          role: 'Volunteer',
+          email: 'new.user@example.com',
+          pronouns: 'Xe/Xem',
+          requestor: { requestorId: new mongoose.Types.ObjectId().toString(), role: 'Owner' },
+        },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith({ error: 'Invalid pronouns value' });
+    expect(UserProfile.findOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects the setup link form with an invalid pronouns value', async () => {
+    const ProfileInitialSetupToken = { findOne: jest.fn() };
+    const { setUpNewUser } = profileInitialSetupController(ProfileInitialSetupToken, {}, {}, {});
+    const res = makeRes();
+    await setUpNewUser({ body: { token: 'abc', pronouns: 'Xe/Xem' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('Invalid pronouns value');
+    expect(ProfileInitialSetupToken.findOne).not.toHaveBeenCalled();
   });
 });
