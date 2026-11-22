@@ -1,4 +1,6 @@
+const BuildingProject = require('../models/bmdashboard/buildingProject');
 const ProjectGlobalDistribution = require('../models/projectGlobalDistribution');
+const { getProjectRegion } = require('../utilities/projectRegion');
 
 const getProjectsGlobalDistribution = async (req, res) => {
   try {
@@ -7,25 +9,40 @@ const getProjectsGlobalDistribution = async (req, res) => {
     // const startDate = '2024-01-01';
     // const endDate = '2024-12-31';
     // const status = 'Active';
-    const filter = {};
+    const buildingFilter = {};
+    const legacyFilter = {};
 
     if (startDate && endDate) {
-      filter.date = {
+      legacyFilter.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+      buildingFilter.startDate = {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       };
     }
 
     if (statusFilter) {
-      filter.status = statusFilter;
+      legacyFilter.status = statusFilter;
+      buildingFilter.status = String(statusFilter).toLowerCase();
     }
 
-    const projects = await ProjectGlobalDistribution.find(filter);
+    const projects = await BuildingProject.find(buildingFilter)
+      .select('country region status')
+      .lean();
+    const legacyProjects = projects.length
+      ? []
+      : await ProjectGlobalDistribution.find(legacyFilter).select('region').lean();
 
     const regionCounts = {};
-    const total = projects.length;
+    const total = projects.length + legacyProjects.length;
 
     projects.forEach((project) => {
+      const region = project.region || getProjectRegion(project.country);
+      regionCounts[region] = (regionCounts[region] || 0) + 1;
+    });
+    legacyProjects.forEach((project) => {
       regionCounts[project.region] = (regionCounts[project.region] || 0) + 1;
     });
 

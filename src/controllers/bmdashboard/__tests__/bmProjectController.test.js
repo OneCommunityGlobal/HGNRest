@@ -1,11 +1,16 @@
 /* eslint-disable arrow-body-style */
 // Mock the BuildingProject model
 const mockAggregate = jest.fn();
+const mockCostAggregate = jest.fn();
 const mockFindById = jest.fn();
 
 jest.mock('../../../models/bmdashboard/buildingProject', () => ({
   aggregate: mockAggregate,
   findById: mockFindById,
+}));
+
+jest.mock('../../../models/costs', () => ({
+  aggregate: mockCostAggregate,
 }));
 
 // const mongoose = require('mongoose');
@@ -20,6 +25,7 @@ describe('Building Manager Project Controller', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
+    mockCostAggregate.mockResolvedValue([]);
 
     // Setup request and response objects
     req = {
@@ -80,19 +86,7 @@ describe('Building Manager Project Controller', () => {
     ];
 
     it('should return a list of all active projects with additional calculated fields', async () => {
-      // Mock the then/catch chaining structure exactly as used in the controller
-      const catchMock = jest.fn();
-      const thenMock = jest.fn((callback) => {
-        // This actually calls the callback with our test data
-        // which matches what the controller expects
-        callback(mockProjects);
-        return { catch: catchMock };
-      });
-
-      // Set up the aggregate mock to return an object with then/catch chains
-      mockAggregate.mockReturnValue({
-        then: thenMock,
-      });
+      mockAggregate.mockResolvedValue(mockProjects);
 
       // Call the controller function
       await controller.fetchAllProjects(req, res);
@@ -108,20 +102,36 @@ describe('Building Manager Project Controller', () => {
       expect(res.send).toHaveBeenCalled();
     });
 
+    it('uses only project-scoped cost records and leaves missing costs empty', async () => {
+      const firstProjectId = '507f1f77bcf86cd799439011';
+      const secondProjectId = '507f1f77bcf86cd799439012';
+      mockAggregate.mockResolvedValue([
+        { _id: firstProjectId, materials: [], members: [] },
+        { _id: secondProjectId, materials: [], members: [] },
+      ]);
+      mockCostAggregate.mockResolvedValue([
+        {
+          _id: { projectId: firstProjectId, category: 'Total Cost of Materials' },
+          amount: 125,
+        },
+      ]);
+
+      await controller.fetchAllProjects(req, res);
+
+      const [firstProject, secondProject] = res.send.mock.calls[0][0];
+      expect(firstProject.totalMaterialsCost).toBe(125);
+      expect(firstProject.totalEquipmentCost).toBeNull();
+      expect(secondProject.totalMaterialsCost).toBeNull();
+      expect(secondProject.totalEquipmentCost).toBeNull();
+      expect(firstProject.rentalSummary).toBeNull();
+      expect(secondProject.rentalSummary).toBeNull();
+    });
+
     it('should handle errors in the aggregation pipeline', async () => {
       // Setup mock error
       const mockError = new Error('Database error');
 
-      // Mock the then/catch chaining structure with error
-      const catchMock = jest.fn((errorCallback) => {
-        errorCallback(mockError);
-      });
-
-      const thenMock = jest.fn(() => ({ catch: catchMock }));
-
-      mockAggregate.mockReturnValue({
-        then: thenMock,
-      });
+      mockAggregate.mockRejectedValue(mockError);
 
       // Call the controller function
       await controller.fetchAllProjects(req, res);
@@ -135,9 +145,7 @@ describe('Building Manager Project Controller', () => {
     it('should handle errors thrown during execution', async () => {
       // Setup a thrown error
       const mockError = new Error('Unexpected error');
-      mockAggregate.mockImplementation(() => {
-        throw mockError;
-      });
+      mockAggregate.mockRejectedValue(mockError);
 
       // Call the controller function
       await controller.fetchAllProjects(req, res);
