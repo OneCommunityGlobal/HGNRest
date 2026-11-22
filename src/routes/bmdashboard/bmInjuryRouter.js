@@ -1,12 +1,32 @@
 const express = require('express');
 
+const requireInjuryManager = (req, res, next) => {
+  const allowedRoles = ['Owner', 'Administrator'];
+
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required.',
+    });
+  }
+
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      error: 'Access denied. Insufficient permissions.',
+    });
+  }
+
+  return next();
+};
+
 const routes = function (injurySeverity) {
-  const InjuryRouter = express.Router();
+  const injuryRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmInjuryController')(injurySeverity);
 
-  InjuryRouter.route('/injuries').post(controller.postInjury);
-  InjuryRouter.route('/injuries/severity-by-project').get(controller.getInjuries);
+  injuryRouter.post('/injuries', requireInjuryManager, controller.postInjury);
 
-  return InjuryRouter;
+  injuryRouter.get('/injuries/severity-by-project', controller.getInjuries);
+
+  return injuryRouter;
 };
+
 module.exports = routes;
