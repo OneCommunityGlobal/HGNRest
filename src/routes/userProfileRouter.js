@@ -126,6 +126,7 @@ const routes = function (userProfile, project) {
   userProfileRouter.route('/userProfile/reportees/:userId').get(controller.getreportees);
   userProfileRouter.route('/userProfile/teammembers/:userId').get(controller.getTeamMembersofUser);
   userProfileRouter.route('/userProfile/:userId/property').patch(controller.updateOneProperty);
+  userProfileRouter.route('/userProfile/:userId/pronouns').patch(controller.updatePronouns);
   userProfileRouter.route('/AllTeamCodeChanges').patch(controller.updateAllMembersTeamCode);
   userProfileRouter.route('/userProfile/:userId/updatePassword').patch(controller.updatepassword);
   userProfileRouter.route('/userProfile/:userId/resetPassword').patch(controller.resetPassword);

@@ -12,6 +12,7 @@ const emailSender = require('../utilities/emailSender');
 const config = require('../config');
 const cache = require('../utilities/nodeCache')();
 const LOGGER = require('../startup/logger');
+const { normalizePronouns } = require('../constants/userProfile');
 
 const TOKEN_HAS_SETUP_MESSAGE = 'SETUP_ALREADY_COMPLETED';
 const TOKEN_CANCEL_MESSAGE = 'CANCELLED';
@@ -247,6 +248,10 @@ const profileInitialSetupController = function (
 */
   const setUpNewUser = async (req, res) => {
     const { token } = req.body;
+    const pronouns = normalizePronouns(req.body.pronouns);
+    if (pronouns === null) {
+      return res.status(400).send('Invalid pronouns value');
+    }
     const currentMoment = moment.now(); // use UTC for comparison
     try {
       const foundToken = await ProfileInitialSetupToken.findOne({ token });
@@ -277,6 +282,7 @@ const profileInitialSetupController = function (
           newUser.firstName = req.body.firstName;
           newUser.lastName = req.body.lastName;
           newUser.jobTitle = req.body.jobTitle;
+          newUser.pronouns = pronouns;
           newUser.phoneNumber = req.body.phoneNumber;
           newUser.bio = '';
           newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
@@ -357,6 +363,7 @@ const profileInitialSetupController = function (
             firstName: savedUser.firstName,
             lastName: savedUser.lastName,
             email: savedUser.email,
+            pronouns: savedUser.pronouns,
           };
 
           const allUserCache = JSON.parse(cache.getCache('allusers'));
@@ -390,6 +397,7 @@ const profileInitialSetupController = function (
       newUser.firstName = req.body.firstName;
       newUser.lastName = req.body.lastName;
       newUser.jobTitle = req.body.jobTitle;
+      newUser.pronouns = pronouns;
       newUser.phoneNumber = req.body.phoneNumber;
       newUser.bio = '';
       newUser.weeklycommittedHours = foundToken.weeklyCommittedHours;
