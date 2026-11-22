@@ -3,10 +3,12 @@
 const mockAggregate = jest.fn();
 const mockCostAggregate = jest.fn();
 const mockFindById = jest.fn();
+const mockFind = jest.fn();
 
 jest.mock('../../../models/bmdashboard/buildingProject', () => ({
   aggregate: mockAggregate,
   findById: mockFindById,
+  find: mockFind,
 }));
 
 jest.mock('../../../models/costs', () => ({
@@ -257,6 +259,93 @@ describe('Building Manager Project Controller', () => {
       // Assertions
       expect(BuildingProject.findById).toHaveBeenCalledWith('project1');
       expect(res.json).toHaveBeenCalledWith(mockError);
+    });
+  });
+
+  describe('fetchProjectsWithLocation', () => {
+    const project = {
+      _id: 'project1',
+      name: 'Test Project 1',
+      city: 'San Diego',
+      country: 'United States',
+      latitude: 32.7157,
+      longitude: -117.1611,
+      status: 'active',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+    };
+
+    const configureFind = (projects) => {
+      const lean = jest.fn().mockResolvedValue(projects);
+      const select = jest.fn().mockReturnValue({ lean });
+      mockFind.mockReturnValue({ select });
+      return { lean, select };
+    };
+
+    it('returns location projects using validated filters', async () => {
+      const { select } = configureFind([project]);
+      req.query = {
+        status: 'Active',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      };
+
+      await controller.fetchProjectsWithLocation(req, res);
+
+      expect(mockFind).toHaveBeenCalledWith({
+        latitude: { $type: 'number' },
+        longitude: { $type: 'number' },
+        status: 'active',
+        startDate: {
+          $gte: new Date('2026-01-01'),
+          $lte: new Date('2026-12-31'),
+        },
+      });
+      expect(select).toHaveBeenCalledWith(
+        '_id name address city country latitude longitude status startDate endDate',
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 1,
+        data: [expect.objectContaining({ orgId: 'project1', name: 'Test Project 1' })],
+      });
+    });
+
+    it('rejects an invalid status before querying', async () => {
+      req.query = { status: { $ne: 'active' } };
+
+      await controller.fetchProjectsWithLocation(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid project status' });
+      expect(mockFind).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [{ startDate: 'not-a-date' }, 'Dates must be valid ISO dates'],
+      [{ startDate: '2026-02-01', endDate: '2026-01-01' }, 'End date cannot be before start date'],
+    ])('rejects invalid date filters', async (query, message) => {
+      req.query = query;
+
+      await controller.fetchProjectsWithLocation(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message });
+      expect(mockFind).not.toHaveBeenCalled();
+    });
+
+    it('returns a server error when the location query fails', async () => {
+      mockFind.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      await controller.fetchProjectsWithLocation(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Failed to retrieve projects with location',
+      });
     });
   });
 });

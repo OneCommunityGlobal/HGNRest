@@ -2,6 +2,17 @@ const BuildingProject = require('../models/bmdashboard/buildingProject');
 const ProjectGlobalDistribution = require('../models/projectGlobalDistribution');
 const { getProjectRegion } = require('../utilities/projectRegion');
 
+const LEGACY_STATUS_BY_NORMALIZED_STATUS = {
+  active: 'Active',
+  delayed: 'Delayed',
+  completed: 'Completed',
+};
+
+const normalizeStatusFilter = (statusFilter) => {
+  const normalizedStatus = String(statusFilter || '').trim().toLowerCase();
+  return LEGACY_STATUS_BY_NORMALIZED_STATUS[normalizedStatus] || null;
+};
+
 const getProjectsGlobalDistribution = async (req, res) => {
   try {
     const { startDate, endDate, statusFilter } = req.query;
@@ -24,8 +35,12 @@ const getProjectsGlobalDistribution = async (req, res) => {
     }
 
     if (statusFilter) {
-      legacyFilter.status = statusFilter;
-      buildingFilter.status = String(statusFilter).toLowerCase();
+      const normalizedStatus = normalizeStatusFilter(statusFilter);
+      if (!normalizedStatus) {
+        return res.status(400).json({ message: 'Invalid project status' });
+      }
+      legacyFilter.status = normalizedStatus;
+      buildingFilter.status = normalizedStatus.toLowerCase();
     }
 
     const projects = await BuildingProject.find(buildingFilter)

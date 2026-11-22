@@ -31,6 +31,48 @@ const parseDate = (value) => {
   return parsed;
 };
 
+const buildProjectLocationFilter = ({ startDate, endDate, status } = {}) => {
+  const filter = {
+    latitude: { $type: 'number' },
+    longitude: { $type: 'number' },
+  };
+
+  if (status) {
+    const normalizedStatus = normalizeStatus(status);
+    if (!normalizedStatus) return { error: 'Invalid project status' };
+    filter.status = normalizedStatus;
+  }
+
+  if (startDate || endDate) {
+    const parsedStartDate = parseDate(startDate);
+    const parsedEndDate = parseDate(endDate);
+    if ((startDate && !parsedStartDate) || (endDate && !parsedEndDate)) {
+      return { error: 'Dates must be valid ISO dates' };
+    }
+    if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+      return { error: 'End date cannot be before start date' };
+    }
+    filter.startDate = {};
+    if (parsedStartDate) filter.startDate.$gte = parsedStartDate;
+    if (parsedEndDate) filter.startDate.$lte = parsedEndDate;
+  }
+
+  return { filter };
+};
+
+const mapProjectLocation = (project) => ({
+  orgId: project._id,
+  name: project.name,
+  address: project.address,
+  city: project.city,
+  country: project.country,
+  latitude: project.latitude,
+  longitude: project.longitude,
+  status: project.status,
+  startDate: project.startDate,
+  endDate: project.endDate,
+});
+
 const validateProjectPayload = (body = {}) => {
   const name = String(body.name || '').trim();
   const address = String(body.address || '').trim();
@@ -302,33 +344,8 @@ const bmMProjectController = function () {
 
   const fetchProjectsWithLocation = async (req, res) => {
     try {
-      const { startDate, endDate, status } = req.query;
-      const filter = {
-        latitude: { $type: 'number' },
-        longitude: { $type: 'number' },
-      };
-
-      if (status) {
-        const normalizedStatus = normalizeStatus(status);
-        if (!normalizedStatus) {
-          return res.status(400).json({ message: 'Invalid project status' });
-        }
-        filter.status = normalizedStatus;
-      }
-
-      if (startDate || endDate) {
-        const parsedStartDate = parseDate(startDate);
-        const parsedEndDate = parseDate(endDate);
-        if ((startDate && !parsedStartDate) || (endDate && !parsedEndDate)) {
-          return res.status(400).json({ message: 'Dates must be valid ISO dates' });
-        }
-        if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
-          return res.status(400).json({ message: 'End date cannot be before start date' });
-        }
-        filter.startDate = {};
-        if (parsedStartDate) filter.startDate.$gte = parsedStartDate;
-        if (parsedEndDate) filter.startDate.$lte = parsedEndDate;
-      }
+      const { filter, error } = buildProjectLocationFilter(req.query);
+      if (error) return res.status(400).json({ message: error });
 
       const projects = await BuildingProject.find(filter)
         .select('_id name address city country latitude longitude status startDate endDate')
@@ -337,18 +354,7 @@ const bmMProjectController = function () {
       return res.status(200).json({
         success: true,
         count: projects.length,
-        data: projects.map((project) => ({
-          orgId: project._id,
-          name: project.name,
-          address: project.address,
-          city: project.city,
-          country: project.country,
-          latitude: project.latitude,
-          longitude: project.longitude,
-          status: project.status,
-          startDate: project.startDate,
-          endDate: project.endDate,
-        })),
+        data: projects.map(mapProjectLocation),
       });
     } catch (error) {
       return res.status(500).json({ message: 'Failed to retrieve projects with location' });
