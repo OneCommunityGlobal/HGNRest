@@ -671,52 +671,56 @@ const taskController = function (Task) {
   };
 
   const moveTask = async (req, res) => {
-    if (!req.body.fromNum || !req.body.toNum) {
-      return res.status(400).send({ error: 'wbsId, fromNum, toNum are mandatory fields' });
+    const { taskId, fromNum, toNum } = req.body;
+    const { wbsId } = req.params;
+
+    if (!taskId || !fromNum || !toNum) {
+      return res.status(400).send({
+        error: 'taskId, fromNum and toNum are mandatory fields',
+      });
     }
 
     try {
-      const tasks = await Task.find({ wbsId: { $in: req.params.wbsId } });
-      const fromNumArr = req.body.fromNum.replace(/\.0/g, '').split('.');
-      const toNumArr = req.body.toNum.replace(/\.0/g, '').split('.');
+      const tasks = await Task.find({ wbsId });
 
-      const changedLvl = fromNumArr.length;
+      const movedTask = tasks.find((task) => String(task._id) === String(taskId));
 
-      const fromLastLvl = parseInt(fromNumArr.pop(), 10);
-      const toLastLvl = parseInt(toNumArr.pop(), 10);
-
-      const leadingLvls = fromNumArr.length ? fromNumArr.join('.').concat('.') : '';
-
-      const changingNums = [];
-      for (
-        let i = Math.min(fromLastLvl, toLastLvl);
-        i <= Math.max(fromLastLvl, toLastLvl);
-        i += 1
-      ) {
-        changingNums.push(leadingLvls.concat(`${i}`));
+      if (!movedTask) {
+        return res.status(404).send({ error: 'Task not found' });
       }
-      const changingNumTasks = tasks.filter((task) => {
-        const taskLeadingNum = task.num.split('.').slice(0, changedLvl).join('.');
-        return changingNums.includes(taskLeadingNum);
-      });
 
-      const queries = [];
+      const originalNum = movedTask.num;
+      const destinationNum = toNum.replace(/(?:\.0)+$/, '');
 
-      changingNumTasks.forEach((task) => {
-        const taskNumArr = task.num.split('.');
-        const taskChanedLvlNum = parseInt(taskNumArr[changedLvl - 1], 10);
-        let newTaskLastLvl;
-        if (fromLastLvl > toLastLvl) {
-          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum + 1;
-        } else {
-          newTaskLastLvl = taskChanedLvlNum === fromLastLvl ? toLastLvl : taskChanedLvlNum - 1;
-        }
-        taskNumArr[changedLvl - 1] = String(newTaskLastLvl);
-        task.num = taskNumArr.join('.');
-        queries.push(task.save());
-      });
+      const originalParts = originalNum.split('.');
+      const destinationParts = destinationNum.split('.');
 
-      await Promise.all(queries);
+      if (
+        originalParts.length !== destinationParts.length ||
+        originalParts.slice(0, -1).join('.') !== destinationParts.slice(0, -1).join('.') ||
+        !/^[1-9]\d*(\.[1-9]\d*)*$/.test(destinationNum)
+      ) {
+        return res.status(400).send({
+          error: 'Invalid task destination',
+        });
+      }
+
+      const affectedTasks = tasks.filter((task) =>
+        [task._id, task.parentId1, task.parentId2, task.parentId3, task.mother].some(
+          (id) => String(id) === String(taskId),
+        ),
+      );
+
+      await Promise.all(
+        affectedTasks.map((task) => {
+          const suffix = task.num.split('.').slice(originalParts.length);
+
+          task.num = [destinationNum, ...suffix].join('.');
+
+          return task.save();
+        }),
+      );
+
       return res.status(200).send('Success!');
     } catch (error) {
       return res.status(400).send(error);

@@ -727,7 +727,7 @@ describe('Unit Tests for taskController.js', () => {
     test('Return 400 if either `fromNum` or `toNum` is missing in request body', async () => {
       const { moveTask } = makeSut();
 
-      const error = { error: 'wbsId, fromNum, toNum are mandatory fields' };
+      const error = { error: 'taskId, fromNum and toNum are mandatory fields' };
       mockReq.body.fromNum = null;
 
       const response = await moveTask(mockReq, mockRes);
@@ -741,6 +741,7 @@ describe('Unit Tests for taskController.js', () => {
 
       const requestData = {
         body: {
+          taskId: 'task1',
           fromNum: '1.0',
           toNum: '2.0',
         },
@@ -752,8 +753,8 @@ describe('Unit Tests for taskController.js', () => {
       };
 
       const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([
-        { num: '1.0', save: jest.fn().mockResolvedValue({}) },
-        { num: '1.1', save: jest.fn().mockResolvedValue({}) },
+        { _id: 'task1', num: '1', save: jest.fn().mockResolvedValue({}) },
+        { _id: 'task2', num: '2', save: jest.fn().mockResolvedValue({}) },
       ]);
 
       mockReq.params.wbsId = 'someWbsId';
@@ -763,15 +764,66 @@ describe('Unit Tests for taskController.js', () => {
 
       assertResMock(200, 'Success!', response, mockRes);
       expect(taskFindSpy).toBeCalled();
-    });
+      const [movedTask, unchangedTask] = await taskFindSpy.mock.results[0].value;
 
+      expect(movedTask.num).toBe('2');
+      expect(movedTask.save).toHaveBeenCalledTimes(1);
+
+      expect(unchangedTask.num).toBe('2');
+      expect(unchangedTask.save).not.toHaveBeenCalled();
+    });
+    test('Moves a parent and its children without renumbering unrelated tasks', async () => {
+      const { moveTask } = makeSut();
+
+      mockReq.body = {
+        taskId: 'parent1',
+        fromNum: '3',
+        toNum: '1',
+      };
+      mockReq.params.wbsId = 'someWbsId';
+
+      const parent = {
+        _id: 'parent1',
+        num: '3',
+        save: jest.fn().mockResolvedValue({}),
+      };
+
+      const child = {
+        _id: 'child1',
+        num: '3.1',
+        mother: 'parent1',
+        parentId1: 'parent1',
+        save: jest.fn().mockResolvedValue({}),
+      };
+
+      const unrelatedTask = {
+        _id: 'parent2',
+        num: '3',
+        save: jest.fn().mockResolvedValue({}),
+      };
+
+      jest.spyOn(Task, 'find').mockResolvedValue([parent, child, unrelatedTask]);
+
+      const response = await moveTask(mockReq, mockRes);
+
+      assertResMock(200, 'Success!', response, mockRes);
+
+      expect(parent.num).toBe('1');
+      expect(child.num).toBe('1.1');
+      expect(unrelatedTask.num).toBe('3');
+
+      expect(parent.save).toHaveBeenCalledTimes(1);
+      expect(child.save).toHaveBeenCalledTimes(1);
+      expect(unrelatedTask.save).not.toHaveBeenCalled();
+    });
     test('Return 400 on some error', async () => {
       const { moveTask } = makeSut();
 
       const requestData = {
         body: {
-          fromNum: '1.0',
-          toNum: '2.0',
+          taskId: 'task1',
+          fromNum: '1',
+          toNum: '2',
         },
       };
 
@@ -782,8 +834,16 @@ describe('Unit Tests for taskController.js', () => {
 
       const error = new Error({ error: 'some error' });
       const taskFindSpy = jest.spyOn(Task, 'find').mockResolvedValue([
-        { num: '1.0', save: jest.fn().mockResolvedValue({}) },
-        { num: '1.1', save: jest.fn().mockRejectedValueOnce(error) },
+        {
+          _id: 'task1',
+          num: '1',
+          save: jest.fn().mockRejectedValueOnce(error),
+        },
+        {
+          _id: 'task2',
+          num: '2',
+          save: jest.fn().mockResolvedValue({}),
+        },
       ]);
 
       mockReq.params.wbsId = 'someWbsId';
