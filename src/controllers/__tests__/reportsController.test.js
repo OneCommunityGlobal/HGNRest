@@ -137,6 +137,28 @@ describe('reportsController.getBlueSquareStats', () => {
     });
   });
 
+  it('returns a safe zero payload when helper data is null', async () => {
+    getBlueSquareStatsMock.mockResolvedValue(null);
+
+    await controller.getBlueSquareStats(
+      {
+        query: {
+          startDate: '2026-08-01',
+          endDate: '2026-08-07',
+        },
+      },
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      msg: {
+        blueSquareCount: 0,
+        chartData: {},
+      },
+    });
+  });
+
   it('passes comparison date boundaries to helper when provided', async () => {
     getBlueSquareStatsMock.mockResolvedValue({
       totalBlueSquares: { count: 0 },

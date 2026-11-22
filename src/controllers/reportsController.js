@@ -639,12 +639,16 @@ const reportsController = function () {
         }
       }
 
-      const blueSquareStats = await overviewReportHelper.getBlueSquareStats(
+      const blueSquareStatsResult = await overviewReportHelper.getBlueSquareStats(
         isoStartDate.toDate(),
         isoEndDate.toDate(),
         isoComparisonStartDate,
         isoComparisonEndDate,
       );
+      const blueSquareStats =
+        blueSquareStatsResult && typeof blueSquareStatsResult === 'object'
+          ? blueSquareStatsResult
+          : {};
       const blueSquareCount = blueSquareStats.totalBlueSquares?.count || 0;
       const chartData = Object.entries(blueSquareStats)
         .filter(([, value]) => value?.count > 0)
