@@ -10,7 +10,15 @@ const SUMMARY_STATUS_VIEW_PERMISSION = 'accessHgnSkillsDashboard';
 const SUMMARY_TIMEZONE = 'America/Los_Angeles';
 
 // Only the current week's entry (weeklySummaries[0]) is needed to compute status.
-const SUMMARY_STATUS_PROJECTION = { weeklySummaryNotReq: 1, weeklySummaries: { $slice: 1 } };
+const SUMMARY_STATUS_PROJECTION = {
+  isActive: 1,
+  weeklySummaryNotReq: 1,
+  weeklySummaries: { $slice: 1 },
+};
+
+// The reporting week runs Sunday–Saturday (moment's day(): 0 = Sunday, 6 = Saturday).
+const WEEK_FIRST_DAY = 0;
+const WEEK_LAST_DAY = 6;
 
 const WEEKLY_SUMMARY_STATUS = {
   COMPLETED: 'completed',
@@ -22,14 +30,17 @@ const WEEKLY_SUMMARY_STATUS = {
  * Weekly summary completion for the current reporting week (Pacific time).
  * weeklySummaries[0] is the current week's entry; it only counts if its due date falls in the
  * current week and it has non-empty text.
+ * Inactive users are not expected to submit summaries, so they get no status (null).
  */
 const getWeeklySummaryStatus = (profile, now = new Date()) => {
-  if (!profile) return null;
+  if (!profile || profile.isActive === false) return null;
   if (profile.weeklySummaryNotReq) return WEEKLY_SUMMARY_STATUS.NOT_REQUIRED;
 
   const current = Array.isArray(profile.weeklySummaries) ? profile.weeklySummaries[0] : null;
-  const weekStart = moment(now).tz(SUMMARY_TIMEZONE).startOf('week');
-  const weekEnd = moment(now).tz(SUMMARY_TIMEZONE).endOf('week');
+  // day() is locale-independent, unlike startOf('week'), which follows moment's global locale.
+  const localNow = moment(now).tz(SUMMARY_TIMEZONE);
+  const weekStart = localNow.clone().day(WEEK_FIRST_DAY).startOf('day');
+  const weekEnd = localNow.clone().day(WEEK_LAST_DAY).endOf('day');
   const dueDate = current?.dueDate ? moment(current.dueDate) : null;
   const isCurrentWeek = dueDate?.isValid() && dueDate.isBetween(weekStart, weekEnd, null, '[]');
   const hasText = typeof current?.summary === 'string' && current.summary.trim() !== '';

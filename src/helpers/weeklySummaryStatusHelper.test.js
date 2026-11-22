@@ -7,6 +7,7 @@ const {
   getWeeklySummaryStatus,
   getWeeklySummaryStatusMap,
   WEEKLY_SUMMARY_STATUS,
+  SUMMARY_STATUS_PROJECTION,
 } = require('./weeklySummaryStatusHelper');
 
 describe('weeklySummaryStatusHelper', () => {
@@ -51,6 +52,25 @@ describe('weeklySummaryStatusHelper', () => {
     it('returns null when there is no profile', () => {
       expect(getWeeklySummaryStatus(null, now)).toBeNull();
     });
+
+    it('returns null for inactive users so they never show as incomplete', () => {
+      const profile = { isActive: false, weeklySummaries: [] };
+      expect(getWeeklySummaryStatus(profile, now)).toBeNull();
+    });
+
+    it('uses a Sunday–Saturday week regardless of the global moment locale', () => {
+      const moment = require('moment-timezone');
+      const previousLocale = moment.locale();
+      moment.locale('en-gb'); // en-gb weeks start on Monday
+      try {
+        // Sunday Oct 25 2026, 10:00 Pacific: still the week ending Sat Oct 31.
+        const sunday = new Date('2026-10-25T17:00:00Z');
+        const profile = { weeklySummaries: [{ dueDate: thisWeekDue, summary: 'Did things' }] };
+        expect(getWeeklySummaryStatus(profile, sunday)).toBe(WEEKLY_SUMMARY_STATUS.COMPLETED);
+      } finally {
+        moment.locale(previousLocale);
+      }
+    });
   });
 
   describe('getWeeklySummaryStatusMap', () => {
@@ -82,7 +102,7 @@ describe('weeklySummaryStatusHelper', () => {
       expect(UserProfile.find).toHaveBeenCalledTimes(1);
       expect(UserProfile.find).toHaveBeenCalledWith(
         { _id: { $in: [idA, idB] } },
-        { weeklySummaryNotReq: 1, weeklySummaries: { $slice: 1 } },
+        SUMMARY_STATUS_PROJECTION,
       );
     });
 
