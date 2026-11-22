@@ -1,4 +1,6 @@
+// Version 1.0.0
 const mockToolReturnFind = jest.fn();
+const mockToolReturnDistinct = jest.fn();
 const mockProjectFind = jest.fn();
 
 jest.mock('mongoose', () => {
@@ -6,6 +8,7 @@ jest.mock('mongoose', () => {
   ObjectId.isValid = jest.fn();
 
   return {
+    disconnect: jest.fn().mockResolvedValue(undefined),
     Types: {
       ObjectId,
     },
@@ -14,6 +17,7 @@ jest.mock('mongoose', () => {
 
 jest.mock('../../../models/bmdashboard/toolReturn', () => ({
   find: mockToolReturnFind,
+  distinct: mockToolReturnDistinct,
 }));
 
 jest.mock('../../../models/project', () => ({
@@ -30,6 +34,7 @@ describe('bmToolsReturnedLateController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockToolReturnDistinct.mockResolvedValue([]);
     controller = bmToolsReturnedLateController();
     req = { query: {} };
     res = {
@@ -123,5 +128,42 @@ describe('bmToolsReturnedLateController', () => {
       ],
       message: 'Found 1 tools with rental data',
     });
+  });
+  it('keeps orphan project names and rates consistent across project, date and tool filters', async () => {
+    const ids = ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'];
+    const records = ids.map((projectId, i) => ({
+      projectId,
+      toolName: 'Drill',
+      totalReturns: 10,
+      returnedLate: i + 1,
+    }));
+    mockToolReturnDistinct.mockResolvedValue([...ids].reverse());
+    mockProjectFind.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
+    mongoose.Types.ObjectId.isValid.mockReturnValue(true);
+    mockToolReturnFind.mockReturnValue({ lean: jest.fn().mockResolvedValue(records) });
+    await controller.getToolsReturnedLate(req, res);
+    const all = res.json.mock.calls[0][0].data;
+    res.json.mockClear();
+    await controller.getAvailableProjects(req, res);
+    const projects = res.json.mock.calls[0][0].data;
+    for (const projectId of ids) {
+      res.json.mockClear();
+      req.query = { projectId, tools: 'Drill', startDate: '2026-01-01' };
+      mockToolReturnFind.mockReturnValue({
+        lean: jest
+          .fn()
+          .mockResolvedValue(records.filter((record) => record.projectId === projectId)),
+      });
+      await controller.getToolsReturnedLate(req, res);
+      const selected = res.json.mock.calls[0][0].data[0];
+      expect(selected).toEqual(all.find((record) => record.projectId === projectId));
+      expect(selected.projectName).toBe(
+        projects.find((project) => project.projectId === projectId).projectName,
+      );
+    }
+    expect(projects.map((project) => project.projectName)).toEqual(['Project 1', 'Project 2']);
   });
 });
