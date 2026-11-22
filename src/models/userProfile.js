@@ -42,6 +42,20 @@ const userProfileSchema = new Schema({
   },
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
+  notRehireableReason: { type: String, default: '' },
+  notRehireableReasonHistory: [
+    {
+      action: { type: String, enum: ['submitted', 'edited'], required: true },
+      reason: { type: String, required: true },
+      changedAt: { type: Date, required: true },
+      changedBy: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
+        username: { type: String, required: true },
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+      },
+    },
+  ],
   isSet: { type: Boolean, required: true, default: false },
   finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
