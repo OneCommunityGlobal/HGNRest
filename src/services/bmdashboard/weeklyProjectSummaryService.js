@@ -31,6 +31,15 @@ const PROJECT_STATUS_CURRENT_ONLY_REASON =
 const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
   'Historical snapshots are not available for the selected period.';
 
+async function aggregateProjectStatus(buildingPipeline, legacyPipeline) {
+  if (typeof BuildingProject.aggregate === 'function') {
+    const rows = await BuildingProject.aggregate(buildingPipeline);
+    if (rows.length > 0 || typeof ProjectStatus.aggregate !== 'function') return rows;
+  }
+  const legacyRows = await ProjectStatus.aggregate(legacyPipeline);
+  return legacyRows || [];
+}
+
 const NO_PERIOD_DATA_REASON = 'No data exists for the selected period.';
 
 const PROJECTION_CURRENT_ONLY_REASON =
@@ -122,17 +131,24 @@ async function resolveProject(projectId) {
 }
 
 async function getCurrentProjectStatusMetrics(project) {
-  const match = {};
+  const buildingMatch = {};
+  const legacyMatch = {};
 
   if (project) {
-    // ProjectStatus has no buildingProject ObjectId; exact name match is the only current mapping.
-    match.name = project.name;
+    buildingMatch._id = project._id;
+    legacyMatch.name = project.name;
   }
 
-  const rows = await ProjectStatus.aggregate([
-    ...(Object.keys(match).length ? [{ $match: match }] : []),
-    { $group: { _id: '$status', count: { $sum: 1 } } },
-  ]);
+  const rows = await aggregateProjectStatus(
+    [
+      ...(Object.keys(buildingMatch).length ? [{ $match: buildingMatch }] : []),
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ],
+    [
+      ...(Object.keys(legacyMatch).length ? [{ $match: legacyMatch }] : []),
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ],
+  );
 
   const counts = {
     activeProjects: 0,
@@ -141,7 +157,10 @@ async function getCurrentProjectStatusMetrics(project) {
   };
 
   rows.forEach((row) => {
-    const key = STATUS_KEYS[row._id];
+    const normalizedStatus = String(row._id || '').toLowerCase();
+    const key =
+      STATUS_KEYS[row._id] ||
+      STATUS_KEYS[normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)];
     if (key) counts[key] = row.count;
   });
 
@@ -154,32 +173,48 @@ async function getCurrentProjectStatusMetrics(project) {
 
 async function getCompletedProjectStats(project, startDate, endDate) {
   const { start, end } = toDateRange(startDate, endDate);
-  const match = {
+  const buildingMatch = {
+    status: 'completed',
+    endDate: { $gte: start, $lte: end },
+    startDate: { $exists: true },
+  };
+  const legacyMatch = {
     status: 'Completed',
     completionDate: { $gte: start, $lte: end },
     startDate: { $exists: true },
   };
 
   if (project) {
-    // ProjectStatus has no buildingProject ObjectId; exact name match is the only current mapping.
-    match.name = project.name;
+    buildingMatch._id = project._id;
+    legacyMatch.name = project.name;
   }
 
-  const rows = await ProjectStatus.aggregate([
-    { $match: match },
-    {
-      $project: {
-        durationMs: { $subtract: ['$completionDate', '$startDate'] },
+  const projectRows = await aggregateProjectStatus(
+    [
+      { $match: buildingMatch },
+      { $project: { durationMs: { $subtract: ['$endDate', '$startDate'] } } },
+      {
+        $group: {
+          _id: null,
+          completedProjects: { $sum: 1 },
+          avgDurationMs: { $avg: '$durationMs' },
+        },
       },
-    },
-    {
-      $group: {
-        _id: null,
-        completedProjects: { $sum: 1 },
-        avgDurationMs: { $avg: '$durationMs' },
+    ],
+    [
+      { $match: legacyMatch },
+      { $project: { durationMs: { $subtract: ['$completionDate', '$startDate'] } } },
+      {
+        $group: {
+          _id: null,
+          completedProjects: { $sum: 1 },
+          avgDurationMs: { $avg: '$durationMs' },
+        },
       },
-    },
-  ]);
+    ],
+  );
+
+  const rows = projectRows;
 
   // No aggregate row means no completed-project source data for this period, not a real zero.
   if (rows.length === 0) {

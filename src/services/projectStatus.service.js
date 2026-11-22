@@ -1,4 +1,5 @@
 const dayjs = require('dayjs');
+const BuildingProject = require('../models/bmdashboard/buildingProject');
 const ProjectStatus = require('../models/projectStatus');
 
 const calcPct = (count, total) => {
@@ -7,6 +8,22 @@ const calcPct = (count, total) => {
 };
 
 const STATUS_KEYS = { Active: 'active', Completed: 'completed', Delayed: 'delayed' };
+
+const getStatusKey = (value) => {
+  const normalized = String(value || '').toLowerCase();
+  return ['active', 'completed', 'delayed'].includes(normalized) ? normalized : null;
+};
+
+async function aggregateStatusRows({ buildingPipeline, legacyPipeline }) {
+  const buildingRows = await BuildingProject.aggregate(buildingPipeline);
+  if (buildingRows.length > 0 || typeof ProjectStatus.aggregate !== 'function') {
+    return buildingRows;
+  }
+
+  // Keep existing status records visible until legacy data is migrated into buildingProjects.
+  const legacyRows = await ProjectStatus.aggregate(legacyPipeline);
+  return legacyRows || [];
+}
 
 async function getProjectStatusSummary({ startDate, endDate }) {
   try {
@@ -18,16 +35,21 @@ async function getProjectStatusSummary({ startDate, endDate }) {
       if (endDate) match.startDate.$lte = dayjs(endDate).endOf('day').toDate();
     }
 
-    const pipeline = [
+    const buildingPipeline = [
       Object.keys(match).length ? { $match: match } : null,
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ].filter(Boolean);
 
-    const rows = await ProjectStatus.aggregate(pipeline);
+    const legacyPipeline = [
+      Object.keys(match).length ? { $match: match } : null,
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ].filter(Boolean);
+
+    const rows = await aggregateStatusRows({ buildingPipeline, legacyPipeline });
 
     const counts = { active: 0, completed: 0, delayed: 0 };
     rows.forEach((r) => {
-      const key = STATUS_KEYS[r._id];
+      const key = getStatusKey(r._id) || STATUS_KEYS[r._id];
       if (key) counts[key] = r.count;
     });
 
