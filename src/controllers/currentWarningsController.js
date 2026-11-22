@@ -40,6 +40,7 @@ const currentWarningsController = function (currentWarnings) {
         return res.status(400).send({ error: 'Description cannot exceed 500 characters' });
       const normalizedWarningTitle = normalizeWarningTitle(newWarning);
       const trimmedWarning = newWarning.trim();
+      const regexWarning = trimmedWarning.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
       const trimmedDescription = newWarningDescription.trim();
       const cleanedDescription = stripHtml(trimmedDescription);
@@ -51,8 +52,12 @@ const currentWarningsController = function (currentWarnings) {
       }
 
       // DB check
+      // Added regex to warningTitle for existence check fallback for warnings missing normalizedWarningTitle
       const warning = await currentWarnings.exists({
-        $or: [{ normalizedWarningTitle }, { warningTitle: trimmedWarning }],
+        $or: [
+          { normalizedWarningTitle },
+          { warningTitle: { $regex: `^${regexWarning}$`, $options: 'i' } },
+        ],
       });
 
       if (warning) {
