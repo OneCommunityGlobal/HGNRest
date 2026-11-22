@@ -1491,6 +1491,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         results.startDate,
         results.jobTitle?.[0],
         results.weeklycommittedHours,
+        undefined, // cc list
+        results.endDate,
       );
 
       console.log('✅ Saved filterColor in DB:', results.filterColor);
@@ -2771,6 +2773,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
           status.startDate,
           status.jobTitle[0],
           status.weeklycommittedHours,
+          undefined, // cc list
+          status.endDate,
         );
 
         res.status(200).json({
@@ -2853,6 +2857,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         status.startDate,
         status.jobTitle[0],
         status.weeklycommittedHours,
+        undefined, // cc list
+        status.endDate,
       );
 
       return res.status(200).json({
@@ -2919,6 +2925,8 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         updated.startDate,
         updated.jobTitle[0],
         updated.weeklycommittedHours,
+        undefined, // cc list
+        updated.endDate,
       );
 
       return res.status(200).json({
