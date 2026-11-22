@@ -9,10 +9,10 @@ const createHelpRequest = async (req, res) => {
     const userId = req.user?.requestorId;
 
     const { eligible } = await getHelpRequestEligibility(userId);
+
     if (!eligible) {
       return res.status(403).json({
-        message:
-          'You must complete the HGN questionnaire and belong to an eligible HGN team or role to submit a help request.',
+        message: 'Please complete the HGN Skills Questionnaire before submitting a help request.',
       });
     }
 
@@ -23,9 +23,10 @@ const createHelpRequest = async (req, res) => {
     });
 
     await helpRequest.save();
-    res.status(201).json(helpRequest);
+
+    return res.status(201).json(helpRequest);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
