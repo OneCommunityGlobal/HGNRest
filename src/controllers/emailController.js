@@ -12,7 +12,6 @@ const EmailService = require('../services/announcements/emails/emailService');
 const emailProcessor = require('../services/announcements/emails/emailProcessor');
 const { hasPermission } = require('../utilities/permissions');
 const { withTransaction } = require('../utilities/transactionHelper');
-const config = require('../config');
 // const logger = require('../startup/logger');
 
 const jwtSecret = process.env.JWT_SECRET;

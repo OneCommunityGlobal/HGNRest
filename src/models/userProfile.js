@@ -56,6 +56,21 @@ const userProfileSchema = new Schema({
       },
     },
   ],
+  // Optional note admins add from the status dot on the Profile and User Management pages
+  statusNote: { type: String, default: '' },
+  statusNoteHistory: [
+    {
+      action: { type: String, enum: ['added', 'edited', 'deleted'], required: true },
+      note: { type: String, required: true },
+      changedAt: { type: Date, required: true },
+      changedBy: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
+        username: { type: String, required: true },
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+      },
+    },
+  ],
   isSet: { type: Boolean, required: true, default: false },
   finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
