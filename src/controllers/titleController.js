@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Project = require('../models/project');
 const cacheClosure = require('../utilities/nodeCache');
 const userProfile = require('../models/userProfile');
@@ -5,13 +6,14 @@ const projectModel = require('../models/project');
 const userProfileController = require('./userProfileController');
 
 const controller = userProfileController(userProfile, projectModel);
+
 const { getAllTeamCodeHelper } = controller;
 
 const titlecontroller = function (Title) {
   const cache = cacheClosure();
 
   // Update: Confirmed with Jae. Team code is not related to the Team data model. But the team code field within the UserProfile data model.
-  async function checkTeamCodeExists(teamCode) {
+  /* async function checkTeamCodeExists(teamCode) {
     try {
       const normalizedCode = (teamCode || '').trim().toUpperCase();
       if (!normalizedCode) return false;
@@ -30,9 +32,9 @@ const titlecontroller = function (Title) {
       console.error('Error checking if team code exists:', error);
       throw error;
     }
-  }
+  } */
 
-  async function checkProjectExists(projectID) {
+  /* async function checkProjectExists(projectID) {
     try {
       const proj = await Project.findOne({ _id: projectID }).exec();
       return !!proj;
@@ -40,8 +42,42 @@ const titlecontroller = function (Title) {
       console.error('Error checking if project exists:', error);
       throw error;
     }
+  } */
+
+  async function checkTeamCodeExists(teamCode) {
+    try {
+      const normalizedTeamCode = teamCode?.trim().toLowerCase();
+
+      if (!normalizedTeamCode) {
+        return null;
+      }
+
+      const cached = cache.getCache('teamCodes');
+      const teamCodes = cached ? JSON.parse(cached) : await getAllTeamCodeHelper();
+
+      const matchingCode = teamCodes.find(
+        (code) => typeof code === 'string' && code.trim().toLowerCase() === normalizedTeamCode,
+      );
+
+      // Return the canonical stored code, not a boolean.
+      return matchingCode ? matchingCode.trim() : null;
+    } catch (error) {
+      console.error('Error checking if team code exists:', error);
+      throw error;
+    }
   }
 
+  async function checkProjectExists(projectID) {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(projectID)) return false;
+      const safeId = new mongoose.Types.ObjectId(String(projectID));
+      const Foundproject = await Project.findOne({ _id: safeId }).exec();
+      return !!Foundproject;
+    } catch (error) {
+      console.error('Error checking if project exists:', error);
+      throw error;
+    }
+  }
   const getAllTitles = function (req, res) {
     Title.find({})
       .sort('order')
@@ -65,11 +101,14 @@ const titlecontroller = function (Title) {
     title.projectAssigned = req.body.projectAssigned;
     title.mediaFolder = req.body.mediaFolder;
     title.teamAssiged = req.body.teamAssiged;
-
-    if (!title.titleCode || !title.titleCode.trim()) {
+    if (title.titleCode == null) {
       return res
         .status(400)
         .send({ message: 'Title Code must contain atleast one upper or lower case letters.' });
+    }
+
+    if (!title.teamCode || !title.teamCode.trim()) {
+      return res.status(400).send({ message: 'Please provide a team code.' });
     }
 
     const titleCodeRegex = /^(?=.*[a-zA-Z]).*$/;
@@ -101,16 +140,19 @@ const titlecontroller = function (Title) {
     title.shortName = shortname;
 
     // Validate team code by checking if it exists in the database
-    if (!title.teamCode) {
+    if (!title.teamCode || !title.teamCode.trim()) {
       res.status(400).send({ message: 'Please provide a team code.' });
       return;
     }
 
-    const teamCodeExists = await checkTeamCodeExists(title.teamCode);
-    if (!teamCodeExists) {
-      res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-      return;
+    const canonicalTeamCode = await checkTeamCodeExists(title.teamCode);
+    if (!canonicalTeamCode) {
+      return res
+        .status(400)
+        .send({ message: 'Invalid team code. Please provide a valid team code.' });
     }
+
+    title.teamCode = canonicalTeamCode;
 
     // validate if project exist
     const projectExist = await checkProjectExists(title.projectAssigned._id);
@@ -202,16 +244,21 @@ const titlecontroller = function (Title) {
       req.body.shortName = shortname;
 
       // Validate team code by checking if it exists in the database
-      if (!req.body.teamCode) {
+      if (!req.body.teamCode || !req.body.teamCode.trim()) {
         res.status(400).send({ message: 'Please provide a team code.' });
         return;
       }
 
-      const teamCodeExists = await checkTeamCodeExists(req.body.teamCode);
+      const canonicalTeamCode = await checkTeamCodeExists(req.body.teamCode);
 
-      if (!teamCodeExists) {
-        res.status(400).send({ message: 'Invalid team code. Please provide a valid team code.' });
-        return;
+      if (!canonicalTeamCode) {
+        return res
+          .status(400)
+          .send({ message: 'Invalid team code. Please provide a valid team code.' });
+      }
+
+      if (!req.body.teamCode || !req.body.teamCode.trim()) {
+        return res.status(400).send({ message: 'Please provide a team code.' });
       }
 
       // validate if project exist
@@ -230,7 +277,7 @@ const titlecontroller = function (Title) {
       const oldTeamCode = result.teamCode;
       result.titleName = req.body.titleName;
       result.titleCode = req.body.titleCode;
-      result.teamCode = req.body.teamCode;
+      result.teamCode = canonicalTeamCode;
       result.projectAssigned = req.body.projectAssigned;
       result.mediaFolder = req.body.mediaFolder;
       result.teamAssiged = req.body.teamAssiged;
@@ -238,7 +285,7 @@ const titlecontroller = function (Title) {
 
       await userProfile.updateMany(
         { teamCode: oldTeamCode },
-        { $set: { teamCode: req.body.teamCode } },
+        { $set: { teamCode: canonicalTeamCode } },
       );
 
       cache.removeCache('teamCodes');

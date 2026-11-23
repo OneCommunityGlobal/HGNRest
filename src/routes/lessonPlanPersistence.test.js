@@ -1,7 +1,11 @@
 /* eslint-disable import/order, import/newline-after-import */
 const express = require('express');
 const request = require('supertest');
-jest.mock('../controllers/educatorController', () => () => ({ assignTasks: jest.fn() }));
+jest.mock('../controllers/educatorController', () => () => ({
+  assignTasks: jest.fn(),
+  assignAtoms: jest.fn(),
+  publishEvaluationResults: jest.fn(),
+}));
 jest.mock('../models/lessonPlan', () => {
   const Model = jest.fn();
   Model.findById = jest.fn();

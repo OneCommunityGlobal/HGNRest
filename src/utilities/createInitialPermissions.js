@@ -31,7 +31,9 @@ const permissionsRoles = [
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewAndInteractWithTaskDeadlinesBoxes',
       'viewTaskExtensionCount', // to view task extension count
+      'seeNumberOfTimesTimeAdded',
       'updateNum',
       // Teams
       'postTeam',
@@ -107,7 +109,17 @@ const permissionsRoles = [
       'editTeamCode',
       'accessHgnSkillsDashboard',
       'manageFAQs',
+      // Meeting
+      'scheduleMeetings',
       'setFinalDay',
+      // Job Form Management (Permissions Management > Job Form Management)
+      // manageJobForms: full form/template management
+      // createFormQuestions | editFormQuestions | deleteFormQuestions: granular access
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
   {
@@ -165,6 +177,7 @@ const permissionsRoles = [
       'postInvType',
       'getTimeZoneAPIKey',
       'checkLeadTeamOfXplus',
+      'scheduleMeetings',
     ],
   },
   {
@@ -225,10 +238,12 @@ const permissionsRoles = [
       'importTask',
       'postTask',
       'viewTaskExtensionCount', // to view task extension count
+      'seeNumberOfTimesTimeAdded',
       'updateNum',
       'updateTask',
       'swapTask',
       'deleteTask',
+      'viewAndInteractWithTaskDeadlinesBoxes',
       'resolveTask',
       'suggestTask',
       'putReviewStatus',
@@ -277,6 +292,7 @@ const permissionsRoles = [
       'checkLeadTeamOfXplus',
       'editTeamCode',
       'totalValidWeeklySummaries',
+      'scheduleMeetings',
       'requestBio',
 
       // Title
@@ -297,6 +313,12 @@ const permissionsRoles = [
       'manageHGNAccessSetup',
       'setFinalDay',
       'resendBlueSquareAndSummaryEmails',
+      // Job Form Management (Permissions Management > Job Form Management)
+      'createFormQuestions',
+      'editFormQuestions',
+      'deleteFormQuestions',
+      'manageJobForms',
+      'interactWithPauseUserButton',
     ],
   },
 ];
@@ -335,21 +357,25 @@ const createInitialPermissions = async () => {
         const role = new Role();
         role.roleName = roleName;
         role.permissions = permissions;
-        role.save();
+        promises.push(role.save());
 
         // If role exists in db and does not have every permission, add the missing permissions
       } else if (!permissions.every((perm) => roleDataBase.permissions.includes(perm))) {
         const roleId = roleDataBase._id;
 
         promises.push(
-          Role.findById(roleId, (_, record) => {
+          (async () => {
+            const record = await Role.findById(roleId);
+            if (!record) {
+              throw new Error(`Role ${roleName} was not found while updating permissions.`);
+            }
             permissions.forEach((perm) => {
               if (!record.permissions.includes(perm)) {
                 record.permissions.push(perm);
               }
             });
-            record.save();
-          }),
+            return record.save();
+          })(),
         );
       }
     }
@@ -367,7 +393,7 @@ const createInitialPermissions = async () => {
       defaultPreset.roleName = roleName;
       defaultPreset.presetName = defaultName;
       defaultPreset.permissions = permissions;
-      defaultPreset.save();
+      promises.push(defaultPreset.save());
 
       // If role exists in db and is not updated, update default
     } else if (
@@ -377,10 +403,16 @@ const createInitialPermissions = async () => {
       const presetId = presetDataBase._id;
 
       promises.push(
-        RolePreset.findById(presetId, (_, record) => {
+        (async () => {
+          const record = await RolePreset.findById(presetId);
+          if (!record) {
+            throw new Error(
+              `Default preset for role ${roleName} was not found while updating permissions.`,
+            );
+          }
           record.permissions = permissions;
-          record.save();
-        }),
+          return record.save();
+        })(),
       );
     }
   }

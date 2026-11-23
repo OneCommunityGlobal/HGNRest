@@ -80,7 +80,13 @@ const bidsController = function (Bids) {
 
       const paypalCheckoutNowLink = ordDetails?.links.find((u) => u.href.includes('checkoutnow'));
       const newBidsData = {
-        ...req.body,
+        listingId: req.body.listingId,
+        termsAgreed: req.body.termsAgreed,
+        email: req.body.email,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        biddingHistory: req.body.biddingHistory,
+        phone: req.body.phone,
         userId: userExists._id,
         paypalOrderId: ordDetails?.id,
         paypalCheckoutNowLink: paypalCheckoutNowLink?.href,

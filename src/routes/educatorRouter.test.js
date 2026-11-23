@@ -1,7 +1,11 @@
 /* eslint-disable import/order, import/newline-after-import */
 const express = require('express');
 const request = require('supertest');
-jest.mock('../controllers/educatorController', () => () => ({ assignTasks: jest.fn() }));
+jest.mock('../controllers/educatorController', () => () => ({
+  assignTasks: jest.fn(),
+  assignAtoms: jest.fn(),
+  publishEvaluationResults: jest.fn(),
+}));
 jest.mock('../models/lessonPlan', () => ({ findById: jest.fn() }));
 jest.mock('../models/educationTask', () => ({ bulkWrite: jest.fn(), exists: jest.fn() }));
 jest.mock('../models/userProfile', () => ({ find: jest.fn() }));
@@ -234,7 +238,12 @@ test('the unique index covers only ObjectId subtask assignments, preserving atom
       partialFilterExpression: { subTaskId: { $type: 'objectId' } },
     }),
   ]);
-  const legacy = new Model({ lessonPlanId: taskId, studentId: secondId, atomIds: [thirdId] });
+  const legacy = new Model({
+    name: 'Legacy Task',
+    lessonPlanId: taskId,
+    studentId: secondId,
+    atomIds: [thirdId],
+  });
   expect(legacy.validateSync()).toBeUndefined();
   expect(legacy.subTaskId).toBeUndefined();
 });

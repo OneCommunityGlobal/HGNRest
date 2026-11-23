@@ -8,6 +8,7 @@ const routes = function (
   toolType,
   equipType,
   invTypeHistory,
+  invUnit,
 ) {
   const inventoryTypeRouter = express.Router();
   const controller = require('../../controllers/bmdashboard/bmInventoryTypeController')(
@@ -18,6 +19,7 @@ const routes = function (
     toolType,
     equipType,
     invTypeHistory,
+    invUnit,
   );
 
   // Route for fetching all material types
@@ -45,19 +47,23 @@ const routes = function (
 
   // Combined routes for getting a single inventory type and updating its name and unit of measurement
   inventoryTypeRouter
-    .route('/invtypes/material/:invtypeId')
-    .get(controller.fetchSingleInventoryType)
-    .put(controller.updateNameAndUnit);
+    .route('/invtypes/materials/:invtypeId')
+    .get(controller.fetchSingleInventoryType);
 
-  // Routes for updating and deleting other inventory types
   inventoryTypeRouter
     .route('/invtypes/:type/:invtypeId')
-    .put(controller.updateSingleInvType)
-    .delete(controller.deleteSingleInvType);
+    .delete(controller.deleteSingleInvType)
+    .put(controller.updateSingleInvType);
+
+  // Routes used by inventory type list edit and delete actions
+  inventoryTypeRouter
+    .route('/invtypes/:id')
+    .put(controller.updateInvType)
+    .delete(controller.deleteInvType);
 
   inventoryTypeRouter
     .route('/inventoryUnits')
-    .get(controller.fetchInvUnitsFromJson)
+    .get(controller.fetchInvUnits)
     .post(controller.addInvUnit)
     .delete(controller.deleteInvUnit);
 

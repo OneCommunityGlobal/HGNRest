@@ -1,10 +1,10 @@
 const express = require('express');
+const ToolAvailability = require('../../models/bmdashboard/toolAvailability');
+const toolAvailabilityController = require('../../controllers/bmdashboard/toolAvailabilityController');
 
-const routes = function (ToolAvailability) {
+const routes = function () {
   const toolAvailabilityRouter = express.Router();
-  const controller = require('../../controllers/bmdashboard/toolAvailabilityController')(
-    ToolAvailability,
-  );
+  const controller = toolAvailabilityController(ToolAvailability);
 
   // GET /api/bm/projects/:id/tools-availability
   toolAvailabilityRouter

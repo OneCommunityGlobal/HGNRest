@@ -23,10 +23,11 @@ router.get('/', async (req, res) => {
       if (list.length) match.role = { $in: list };
     }
 
-    const hasDateWindow = Boolean(startDate && endDate);
-
     // -------- Totals path --------
-    if (!hasDateWindow || !granularity) {
+    // The granular path below finds each role's latest bucket within
+    // whatever `match` scope applies, so it works with or without an
+    // explicit date window — it just needs a granularity to bucket by.
+    if (!granularity) {
       const docs = await JobApplications.find(match).lean();
 
       const byRole = {};

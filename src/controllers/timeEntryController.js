@@ -14,6 +14,10 @@ const { COMPANY_TZ } = require('../constants/company');
 
 const cacheUtil = cacheModule();
 
+const MS_PER_DAY = 86400000;
+const DUPLICATE_WINDOW_DAYS = 7;
+const HTTP_CONFLICT = 409;
+
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -114,7 +118,7 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
       <p><b>Hours Logged : ${hoursLogged.toFixed(2)}</b></p>
       <p><b>Please connect with your manager to explain what happened and submit a new hours estimation for completion.</b></p>
       <p>Thank you,</p>
-      <p>One Community</p>`;
+      <p>One Community Admin Team</p>`;
     emailSender(
       userProfile.email,
       'Logged more hours than estimated for a task',
@@ -141,6 +145,11 @@ const notifyTaskOvertimeEmailBody = async (userProfile, task) => {
  * @param {*} pendingEmailCollection The collection of email functions to be executed after the transaction
  * @returns {Void}
  */
+// Split entries keep minute precision through later edits and deletions.
+// Existing entries retain their original two-decimal accounting behavior.
+const counterHours = (seconds, exact = false) =>
+  exact ? seconds / 3600 : Number((seconds / 3600).toFixed(2));
+
 const updateTaskLoggedHours = async (
   fromTaskId,
   secondsToBeRemoved,
@@ -148,13 +157,13 @@ const updateTaskLoggedHours = async (
   secondsToBeAdded,
   userprofile,
   session,
-  pendingEmailCollection = null,
+  { pendingEmailCollection = null, exact = false } = {},
 ) => {
   // if both fromTaskId and toTaskId are null, then there is no need to update task hoursLogged
   if (!fromTaskId && !toTaskId) return;
 
-  const hoursToBeRemoved = secondsToBeRemoved ? Number((secondsToBeRemoved / 3600).toFixed(2)) : 0;
-  const hoursToBeAdded = secondsToBeAdded ? Number((secondsToBeAdded / 3600).toFixed(2)) : 0;
+  const hoursToBeRemoved = secondsToBeRemoved ? counterHours(secondsToBeRemoved, exact) : 0;
+  const hoursToBeAdded = secondsToBeAdded ? counterHours(secondsToBeAdded, exact) : 0;
   if (fromTaskId && toTaskId && fromTaskId !== toTaskId) {
     // update from one task to another
     try {
@@ -234,10 +243,11 @@ const updateUserprofileCategoryHrs = async (
   toProjectId,
   secondsToBeAdded,
   userprofile,
+  exact = false,
 ) => {
   if (fromProjectId) {
     const fromProject = await Project.findById(fromProjectId);
-    const hoursToBeRemoved = Number((secondsToBeRemoved / 3600).toFixed(2));
+    const hoursToBeRemoved = counterHours(secondsToBeRemoved, exact);
     if (fromProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[fromProject.category.toLowerCase()] -= hoursToBeRemoved;
     } else {
@@ -246,7 +256,7 @@ const updateUserprofileCategoryHrs = async (
   }
   if (toProjectId) {
     const toProject = await Project.findById(toProjectId);
-    const hoursToBeAdded = Number((secondsToBeAdded / 3600).toFixed(2));
+    const hoursToBeAdded = counterHours(secondsToBeAdded, exact);
     if (toProject.category.toLowerCase() in userprofile.hoursByCategory) {
       userprofile.hoursByCategory[toProject.category.toLowerCase()] += hoursToBeAdded;
     } else {
@@ -266,9 +276,10 @@ const updateUserprofileTangibleIntangibleHrs = (
   tangibleSecondsChanged,
   intangibleSecondsChanged,
   userprofile,
+  exact = false,
 ) => {
-  const tangibleHoursChanged = Number((tangibleSecondsChanged / 3600).toFixed(2));
-  const intangibleHoursChanged = Number((intangibleSecondsChanged / 3600).toFixed(2));
+  const tangibleHoursChanged = counterHours(tangibleSecondsChanged, exact);
+  const intangibleHoursChanged = counterHours(intangibleSecondsChanged, exact);
   userprofile.totalIntangibleHrs += intangibleHoursChanged;
   userprofile.totalTangibleHrs += tangibleHoursChanged;
 };
@@ -420,12 +431,13 @@ const addEditHistory = async (
           .localeData()
           .ordinal(recentInfringements.length)}</b> blue square of 5.</p>
         <p>Thank you,<p>
-        <p>One Community</p>
+        <p>One Community Admin Team</p>
         <!-- Adding multiple non-breaking spaces -->
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${moment(userprofile.startDate).utc().format('M-D-YYYY')}</p>
+        <p><b>Name:</b> ${userprofile.firstName} ${userprofile.lastName}</p>
         <p><b>Role:</b> ${userprofile.role}</p>
         <p><b>Title:</b> ${userprofile.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -524,13 +536,14 @@ const timeEntrycontroller = function (TimeEntry) {
 
     switch (req.body.entryType) {
       case 'person':
-        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) return returnErr(res);
         break;
       case 'project':
-        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid)
+          return returnErr(res);
         break;
       case 'team':
-        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) return returnErr(res);
         break;
       default:
         if (
@@ -538,7 +551,44 @@ const timeEntrycontroller = function (TimeEntry) {
           !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
           isInvalid
         )
-          returnErr(res);
+          return returnErr(res);
+    }
+
+    // Only new default entries are checked. The request body is untrusted, so the lookup values are
+    // rebuilt from validated primitives and matched with explicit $eq, which Mongo never treats as an operator.
+    const isNewDefaultEntry = req.body.entryType === undefined || req.body.entryType === 'default';
+    // Mongoose casts number and boolean notes to strings on save, so compare their persisted form.
+    const notesType = typeof req.body.notes;
+    const duplicateNotes =
+      notesType === 'string' || notesType === 'number' || notesType === 'boolean'
+        ? String(req.body.notes)
+        : null;
+    const duplicatePersonId =
+      typeof req.body.personId === 'string' && mongoose.Types.ObjectId.isValid(req.body.personId)
+        ? new mongoose.Types.ObjectId(req.body.personId)
+        : null;
+    if (
+      isNewDefaultEntry &&
+      req.body.allowDuplicate !== true &&
+      duplicateNotes !== null &&
+      duplicatePersonId !== null
+    ) {
+      try {
+        const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_DAYS * MS_PER_DAY);
+        const isDuplicate = await TimeEntry.exists({
+          personId: { $eq: duplicatePersonId },
+          notes: { $eq: duplicateNotes },
+          createdDateTime: { $gte: windowStart },
+        });
+        if (isDuplicate) {
+          return res
+            .status(HTTP_CONFLICT)
+            .send({ error: 'Duplicate time entry', code: 'DUPLICATE_TIME_ENTRY' });
+        }
+      } catch (err) {
+        logger.logException(err);
+        return res.status(500).send({ error: err.toString() });
+      }
     }
 
     const session = await mongoose.startSession();
@@ -563,25 +613,28 @@ const timeEntrycontroller = function (TimeEntry) {
       timeEntry.lastModifiedDateTime = now;
       timeEntry.entryType = req.body.entryType;
 
-      const userprofile = await UserProfile.findById(timeEntry.personId);
+      // Project and team lost-time entries have no associated personId, so there is
+      // no user profile to look up or update for them.
+      const entryHasPerson = timeEntry.entryType !== 'project' && timeEntry.entryType !== 'team';
+      const userprofile = entryHasPerson ? await UserProfile.findById(timeEntry.personId) : null;
 
-      if (!userprofile) {
+      if (entryHasPerson && !userprofile) {
         await session.abortTransaction();
         return res.status(404).send({ error: 'User not found' });
       }
 
-      if (!userprofile.isActive && userprofile.deactivatedAt) {
-        const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
-
-        if (moment().isAfter(cutoff)) {
-          await session.abortTransaction();
-          return res.status(403).send({
-            error: 'User is deactivated and can no longer log time',
-          });
-        }
-      }
-
       if (userprofile) {
+        if (!userprofile.isActive && userprofile.deactivatedAt) {
+          const cutoff = moment(userprofile.deactivatedAt).tz(COMPANY_TZ).endOf('day');
+
+          if (moment().isAfter(cutoff)) {
+            await session.abortTransaction();
+            return res.status(403).send({
+              error: 'User is deactivated and can no longer log time',
+            });
+          }
+        }
+
         // if the time entry is tangible, update the tangible hours in the user profile
         if (timeEntry.isTangible) {
           // update the total tangible hours in the user profile and the hours by category
@@ -602,23 +655,23 @@ const timeEntrycontroller = function (TimeEntry) {
               timeEntry.totalSeconds,
               userprofile,
               session,
-              pendingEmailCollection,
+              { pendingEmailCollection },
             );
           }
         } else {
           // if the time entry is intangible, just update the intangible hours in the userprofile
           updateUserprofileTangibleIntangibleHrs(0, timeEntry.totalSeconds, userprofile);
         }
-      }
 
-      // Replace the isFirstTimelog checking logic from the frontend to the backend
-      // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
-      const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
-      if (isFirstTimeEntry) {
-        userprofile.isFirstTimelog = false;
-        userprofile.startDate = now;
+        // Replace the isFirstTimelog checking logic from the frontend to the backend
+        // Update the user start date to current date if this is the first time entry (Weekly blue square assignment related)
+        const isFirstTimeEntry = await checkIsUserFirstTimeEntry(timeEntry.personId);
+        if (isFirstTimeEntry) {
+          userprofile.isFirstTimelog = false;
+          userprofile.startDate = now;
+        }
+        userprofile.lastActivityAt = new Date();
       }
-      userprofile.lastActivityAt = new Date();
 
       await timeEntry.save({ session });
       if (userprofile) {
@@ -640,6 +693,11 @@ const timeEntrycontroller = function (TimeEntry) {
           // Call the invalidation function
           invalidateWeeklySummariesCache(weekIndex);
         }
+      }
+
+      if (timeEntry.entryType === 'team') {
+        const lostteamentryCache = cacheClosure();
+        lostteamentryCache.clearByPrefix('LostTeamEntry_');
       }
 
       await session.commitTransaction();
@@ -809,13 +867,14 @@ const timeEntrycontroller = function (TimeEntry) {
               null,
               userprofile,
               session,
-              pendingEmailCollection,
+              { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
             );
             // subtract initial logged hours from userprofile totalTangibleHrs and add new logged hours to userprofile totalIntangibleHrs
             updateUserprofileTangibleIntangibleHrs(
               -initialTotalSeconds,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
 
             // when changing from tangible to intangible, the original time needs to be removed from hoursByCategory
@@ -825,6 +884,7 @@ const timeEntrycontroller = function (TimeEntry) {
               null,
               null,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
           } else {
             // from intangible to tangible
@@ -835,12 +895,13 @@ const timeEntrycontroller = function (TimeEntry) {
               newTotalSeconds,
               userprofile,
               session,
-              pendingEmailCollection,
+              { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
             );
             updateUserprofileTangibleIntangibleHrs(
               newTotalSeconds,
               -initialTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
             await updateUserprofileCategoryHrs(
               null,
@@ -848,6 +909,7 @@ const timeEntrycontroller = function (TimeEntry) {
               newProjectId,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
           }
           // make sure all hours are positive
@@ -864,7 +926,7 @@ const timeEntrycontroller = function (TimeEntry) {
             newTotalSeconds,
             userprofile,
             session,
-            pendingEmailCollection,
+            { pendingEmailCollection, exact: Boolean(timeEntry.splitBatchId) },
           );
           // when project is also changed
           if (projectChanged || timeChanged) {
@@ -874,13 +936,19 @@ const timeEntrycontroller = function (TimeEntry) {
               newProjectId,
               newTotalSeconds,
               userprofile,
+              Boolean(timeEntry.splitBatchId),
             );
             validateUserprofileHours(userprofile);
           }
           // if time or dateOfWork is changed
           if (timeChanged || dateOfWorkChanged) {
             const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-            updateUserprofileTangibleIntangibleHrs(timeDiffInSeconds, 0, userprofile);
+            updateUserprofileTangibleIntangibleHrs(
+              timeDiffInSeconds,
+              0,
+              userprofile,
+              Boolean(timeEntry.splitBatchId),
+            );
             notifyEditByEmail(
               userprofile,
               req.body.requestor.requestorId,
@@ -906,7 +974,12 @@ const timeEntrycontroller = function (TimeEntry) {
           // just update timeEntry and the intangible hours in userprofile,
           // no need to update task/userprofile
           const timeDiffInSeconds = newTotalSeconds - initialTotalSeconds;
-          updateUserprofileTangibleIntangibleHrs(0, timeDiffInSeconds, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            0,
+            timeDiffInSeconds,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
         }
       }
       await timeEntry.save({ session });
@@ -975,14 +1048,33 @@ const timeEntrycontroller = function (TimeEntry) {
       if (userprofile) {
         // Revert this tangible timeEntry of related task's hoursLogged
         if (isTangible) {
-          updateUserprofileTangibleIntangibleHrs(-totalSeconds, 0, userprofile);
-          await updateUserprofileCategoryHrs(projectId, totalSeconds, null, null, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            -totalSeconds,
+            0,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
+          await updateUserprofileCategoryHrs(
+            projectId,
+            totalSeconds,
+            null,
+            null,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session);
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session, {
+              exact: Boolean(timeEntry.splitBatchId),
+            });
           }
         } else {
-          updateUserprofileTangibleIntangibleHrs(0, -totalSeconds, userprofile);
+          updateUserprofileTangibleIntangibleHrs(
+            0,
+            -totalSeconds,
+            userprofile,
+            Boolean(timeEntry.splitBatchId),
+          );
         }
       }
 
@@ -1680,7 +1772,16 @@ const timeEntrycontroller = function (TimeEntry) {
     }
   };
 
+  const { postSplitTimeEntries, getSplitTimeEntryReceipt } = require('./splitTimeEntryController')({
+    TimeEntry,
+    notifyTaskOvertimeEmailBody,
+    removeOutdatedUserprofileCache,
+    invalidateWeeklySummariesCache,
+  });
+
   return {
+    postSplitTimeEntries,
+    getSplitTimeEntryReceipt,
     postTimeEntry,
     editTimeEntry,
     deleteTimeEntry,

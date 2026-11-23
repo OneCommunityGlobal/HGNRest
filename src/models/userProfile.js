@@ -42,6 +42,35 @@ const userProfileSchema = new Schema({
   },
   isActive: { type: Boolean, required: true, default: true },
   isRehireable: { type: Boolean, default: true },
+  notRehireableReason: { type: String, default: '' },
+  notRehireableReasonHistory: [
+    {
+      action: { type: String, enum: ['submitted', 'edited'], required: true },
+      reason: { type: String, required: true },
+      changedAt: { type: Date, required: true },
+      changedBy: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
+        username: { type: String, required: true },
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+      },
+    },
+  ],
+  // Optional note admins add from the status dot on the Profile and User Management pages
+  statusNote: { type: String, default: '' },
+  statusNoteHistory: [
+    {
+      action: { type: String, enum: ['added', 'edited', 'deleted'], required: true },
+      note: { type: String, required: true },
+      changedAt: { type: Date, required: true },
+      changedBy: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile', required: true },
+        username: { type: String, required: true },
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+      },
+    },
+  ],
   isSet: { type: Boolean, required: true, default: false },
   finalEmailThreeWeeksSent: { type: Boolean, required: true, default: false },
   role: {
@@ -76,7 +105,7 @@ const userProfileSchema = new Schema({
     unique: true,
     validate: [validate({ validator: 'isEmail', message: 'Email address is invalid' })],
   },
-  copiedAiPrompt: { type: Date, default: Date.now() },
+  copiedAiPrompt: { type: Date, default: Date.now },
   emailSubscriptions: {
     type: Boolean,
     default: false,
@@ -104,6 +133,7 @@ const userProfileSchema = new Schema({
   personalLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: { type: String } }],
   adminLinks: [{ _id: Schema.Types.ObjectId, Name: String, Link: String }],
   teams: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'team' }],
+  projectHistory: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   projects: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'project' }],
   badgeCollection: [
     {
@@ -158,12 +188,12 @@ const userProfileSchema = new Schema({
         enum: ['time not met', 'missing summary', 'missed video call', 'late reporting', 'other'],
       },
       // Track if blue square was manually assigned (true) or by CRON job (false/undefined)
-      manullyAssigned: {
+      manuallyAssigned: {
         type: Boolean,
         default: false,
       },
       // Track who manually assigned the blue square
-      manullyAssignedBy: {
+      manuallyAssignedBy: {
         firstName: { type: String },
         lastName: { type: String },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'userProfile' },
@@ -194,6 +224,7 @@ const userProfileSchema = new Schema({
         default: 'white',
       },
       iconId: { type: String, required: false },
+      warningId: { type: String, default: null },
     },
   ],
   location: {
@@ -349,6 +380,12 @@ const userProfileSchema = new Schema({
   ],
   // actualEmail field represents the actual email associated with a real volunteer in the main HGN app. actualEmail is required for Administrator and Owner accounts only in the dev environment.
   actualEmail: { type: String },
+  productionUserId: { type: String, index: true },
+  linkedProdEmail: { type: String, index: true },
+  identityLocked: { type: Boolean, default: false },
+  identityVerifiedAt: { type: Date },
+  deactivatedByProductionSync: { type: Boolean, default: false, index: true },
+  productionDeactivatedAt: { type: Date },
   timeOffFrom: { type: Date, default: undefined },
   timeOffTill: { type: Date, default: undefined },
   getWeeklyReport: { type: Boolean },
@@ -367,7 +404,6 @@ const userProfileSchema = new Schema({
     daterequestedFeedback: { type: Date, default: Date.now },
     foundHelpSomeWhereClosePermanently: { type: Boolean, default: false },
   },
-
   infringementCCList: [
     {
       email: { type: String, required: true },
@@ -410,6 +446,9 @@ const userProfileSchema = new Schema({
           ref: 'BrowsableLessonPlan',
         },
       ],
+      lastEvaluationResultsViewedAt: {
+        type: Date,
+      },
     },
     teacher: {
       subjects: [
@@ -514,3 +553,4 @@ userProfileSchema.index({ totalTangibleHrs: 1 });
 userProfileSchema.index({ bioPosted: 1 });
 
 module.exports = mongoose.model('userProfile', userProfileSchema, 'userProfiles');
+mongoose.model('User', userProfileSchema, 'userProfiles');

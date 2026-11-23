@@ -39,21 +39,28 @@ const lessonPlanSchema = new Schema(
       required: true,
     },
     subTasks: [subTaskSchema], // The array of sub-tasks needed for assignments
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+      required: true,
+    },
     activities: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Activity',
       },
     ],
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'userProfile',
-      required: true, // Kept strict requirement from incoming
-    },
     lastEditedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
     },
+
+    atomTasks: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AtomTaskTemplate',
+      },
+    ],
   },
   {
     timestamps: true, // This will automatically manage createdAt and updatedAt fields

@@ -48,6 +48,7 @@ const KIInventoryController = () => {
       const items = await KIInventoryItem.find(null, { __v: 0 }).lean().sort({ createdAt: -1 });
       res.status(200).json({ message: 'All Items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res.status(400).json({ message: 'Something went wrong while fetching items.' });
     }
   };
@@ -59,6 +60,7 @@ const KIInventoryController = () => {
         .sort({ createdAt: -1 });
       res.status(200).json({ message: 'Items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res.status(400).json({ message: 'Something went wrong while fetching items.' });
     }
   };
@@ -74,6 +76,7 @@ const KIInventoryController = () => {
         .sort({ presentQuantity: -1 });
       res.status(200).json({ message: 'Preserved stock items fetched successfully.', data: items });
     } catch (err) {
+      console.error(err);
       res
         .status(400)
         .json({ message: 'Something went wrong while fetching preserved stock items.' });
@@ -154,6 +157,106 @@ const KIInventoryController = () => {
       res.status(400).json({ message: err.message });
     }
   };
+  const updateItem = async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const item = await KIInventoryItem.findById(itemId);
+
+      if (!item) {
+        return res.status(404).json({ message: 'Item not found.' });
+      }
+
+      const allowedFields = [
+        'name',
+        'type',
+        'unit',
+        'location',
+        'category',
+        'onsite',
+        'presentQuantity',
+        'storedQuantity',
+        'reorderAt',
+        'monthlyUsage',
+        'expiryDate',
+        'lastHarvestDate',
+        'nextHarvestDate',
+        'nextHarvestQuantity',
+      ];
+
+      allowedFields.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+          item[field] = req.body[field] === '' ? undefined : req.body[field];
+        }
+      });
+
+      if (item.storedQuantity < item.presentQuantity) {
+        return res.status(400).json({
+          message: 'Stored quantity must be greater than or equal to current stock.',
+        });
+      }
+
+      item.updatedAt = new Date();
+
+      const savedItem = await item.save();
+
+      return res.status(200).json({
+        message: 'Inventory item updated successfully.',
+        data: savedItem,
+      });
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  };
+  const deleteItem = async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const deletedItem = await KIInventoryItem.findByIdAndDelete(itemId);
+
+      if (!deletedItem) {
+        return res.status(404).json({ message: 'Item not found.' });
+      }
+
+      return res.status(200).json({
+        message: 'Inventory item deleted successfully.',
+        data: deletedItem,
+      });
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  };
+  const getInventoryStats = async (req, res) => {
+    try {
+      // Only fetch the fields needed for stats — avoids sending full item payloads
+      const items = await KIInventoryItem.find(
+        {},
+        { presentQuantity: 1, reorderAt: 1, category: 1, expiryDate: 1 },
+      ).lean();
+      const totalItems = items.length;
+      const criticalStock = items.filter((i) => i.presentQuantity <= i.reorderAt * 0.5).length;
+      const lowStock = items.filter(
+        (i) => i.presentQuantity <= i.reorderAt && i.presentQuantity > i.reorderAt * 0.5,
+      ).length;
+
+      const oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      const preserved = items.filter(
+        (i) => i.category === 'INGREDIENT' && new Date(i.expiryDate) >= oneYearFromNow,
+      ).length;
+
+      res.status(200).json({
+        message: 'Inventory stats fetched successfully.',
+        data: {
+          totalItems,
+          criticalStock,
+          lowStock,
+          preserved,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Something went wrong while fetching inventory stats.' });
+    }
+  };
   return {
     addItem,
     getItems,
@@ -162,6 +265,9 @@ const KIInventoryController = () => {
     updateOnUsage,
     updateStoredQuantity,
     updateNextHarvest,
+    updateItem,
+    deleteItem,
+    getInventoryStats,
   };
 };
 module.exports = KIInventoryController;

@@ -1,18 +1,14 @@
 const axios = require('axios');
 const FormData = require('form-data');
 const MastodonSchedule = require('../models/mastodonSchedule');
-
-const MASTODON_ENDPOINT = process.env.MASTODON_ENDPOINT || 'https://mastodon.social';
-const ACCESS_TOKEN = process.env.MASTODON_ACCESS_TOKEN;
-
-//  Simple: get bearer headers or throw if missing
-function getAuthHeaders() {
-  if (!ACCESS_TOKEN) throw new Error('MASTODON_ACCESS_TOKEN not set');
-  return { Authorization: `Bearer ${ACCESS_TOKEN}` };
-}
+const {
+  getMastodonCredentials,
+  publishingErrorStatus,
+  logPublishingError,
+} = require('../utilities/socialMediaCredentials');
 
 //  Upload image to Mastodon with optional alt text and get media ID
-async function uploadMedia(base64Image, altText = null) {
+async function uploadMedia(base64Image, altText = null, { timeout } = {}) {
   try {
     // Convert base64 to buffer
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
@@ -25,13 +21,18 @@ async function uploadMedia(base64Image, altText = null) {
       contentType: 'image/png',
     });
 
-    const uploadUrl = `${MASTODON_ENDPOINT}/api/v1/media`;
+    const { endpoint, headers: authHeaders } = getMastodonCredentials();
+    const uploadUrl = `${endpoint}/api/v1/media`;
     const uploadHeaders = {
-      ...getAuthHeaders(),
+      ...authHeaders,
       ...formData.getHeaders(),
     };
 
-    const uploadResponse = await axios.post(uploadUrl, formData, { headers: uploadHeaders });
+    const uploadResponse = await axios.post(uploadUrl, formData, {
+      headers: uploadHeaders,
+      timeout,
+      maxRedirects: 0,
+    });
     const mediaId = uploadResponse.data.id;
 
     console.log('Image uploaded, media ID:', mediaId);
@@ -39,9 +40,9 @@ async function uploadMedia(base64Image, altText = null) {
     // Step 2: Update the media with alt text if provided
     if (altText && altText.trim()) {
       console.log('Updating media with alt text...');
-      const updateUrl = `${MASTODON_ENDPOINT}/api/v1/media/${mediaId}`;
+      const updateUrl = `${endpoint}/api/v1/media/${mediaId}`;
       const updateHeaders = {
-        ...getAuthHeaders(),
+        ...authHeaders,
         'Content-Type': 'application/json',
       };
 
@@ -50,7 +51,7 @@ async function uploadMedia(base64Image, altText = null) {
         {
           description: altText.trim(),
         },
-        { headers: updateHeaders },
+        { headers: updateHeaders, timeout, maxRedirects: 0 },
       );
 
       console.log('Alt text updated successfully');
@@ -58,7 +59,7 @@ async function uploadMedia(base64Image, altText = null) {
 
     return mediaId;
   } catch (err) {
-    console.error('Media upload failed:', err.response?.data || err.message);
+    logPublishingError('Mastodon media upload failed:', err);
     throw new Error('Failed to upload image to Mastodon');
   }
 }
@@ -86,7 +87,7 @@ async function buildPostData({ title, description, imgType, mediaItems, mediaAlt
         postData.mediaAltText = mediaAltText;
       }
     } catch (err) {
-      console.error('Image upload failed, posting without image:', err.message);
+      logPublishingError('Mastodon image upload failed; posting without image:', err);
       // Continue without image rather than failing the entire post
     }
   } else if (imgType === 'URL' && mediaItems) {
@@ -100,14 +101,16 @@ async function buildPostData({ title, description, imgType, mediaItems, mediaAlt
 
 //  Post immediately to Mastodon
 async function postImmediately(postData) {
-  const url = `${MASTODON_ENDPOINT}/api/v1/statuses`;
-  const headers = getAuthHeaders();
+  const { endpoint, headers } = getMastodonCredentials();
+  const url = `${endpoint}/api/v1/statuses`;
 
   // Remove local_media fields and mediaAltText before sending to Mastodon
-  // eslint-disable-next-line camelcase
-  const { local_media_base64, local_media_url, mediaAltText, ...mastodonPostData } = postData;
+  const mastodonPostData = { ...postData };
+  delete mastodonPostData.local_media_base64;
+  delete mastodonPostData.local_media_url;
+  delete mastodonPostData.mediaAltText;
 
-  return axios.post(url, mastodonPostData, { headers, responseType: 'json' });
+  return axios.post(url, mastodonPostData, { headers, responseType: 'json', maxRedirects: 0 });
 }
 
 //  Express controller: immediate post
@@ -115,12 +118,10 @@ async function createStatus(req, res) {
   try {
     const postData = await buildPostData(req.body);
     const response = await postImmediately(postData);
-    res.status(200).json(response.data);
+    res.status(200).json({ id: response.data.id, url: response.data.url });
   } catch (err) {
-    console.error('Mastodon post failed:', err.response?.data || err.message);
-    const status = err.response?.status || 500;
-    const msg = err.response?.data?.message || err.message || 'Failed to create Mastodon status';
-    res.status(status).json({ error: msg });
+    logPublishingError('Mastodon post failed:', err);
+    res.status(publishingErrorStatus(err)).json({ error: 'Failed to create Mastodon status' });
   }
 }
 
@@ -130,7 +131,17 @@ async function scheduleStatus(req, res) {
     // Don't upload the image yet for scheduled posts
     // Just store the base64 data and alt text
     const text = req.body.description || req.body.title;
-    if (!text?.trim()) throw new Error("Post content can't be empty");
+    if (!text?.trim()) {
+      return res.status(400).json({ error: "Post content can't be empty" });
+    }
+
+    const scheduledTime = new Date(req.body.scheduledTime);
+    if (!req.body.scheduledTime || Number.isNaN(scheduledTime.getTime())) {
+      return res.status(400).json({ error: 'A valid scheduled date and time is required' });
+    }
+    if (scheduledTime <= new Date()) {
+      return res.status(400).json({ error: 'Scheduled time must be in the future' });
+    }
 
     const postData = {
       status: text.trim(),
@@ -149,23 +160,32 @@ async function scheduleStatus(req, res) {
       postData.local_media_url = req.body.mediaItems;
     }
 
-    const { scheduledTime } = req.body;
     await MastodonSchedule.create({
       postData: JSON.stringify(postData),
       scheduledTime,
     });
-    res.sendStatus(200);
+    return res.sendStatus(200);
   } catch (err) {
-    console.error('Schedule failed:', err.message);
-    res.status(500).json({ error: err.message });
+    logPublishingError('Mastodon schedule failed:', err);
+    return res.status(500).json({ error: 'Failed to schedule Mastodon post' });
   }
 }
 
 //  Fetch scheduled posts
 async function fetchScheduledStatus(_req, res) {
   try {
-    const scheduled = await MastodonSchedule.find();
-    res.json(scheduled);
+    // Posted records are kept as delivery history, not shown as scheduled
+    const scheduled = await MastodonSchedule.find({ status: { $ne: 'posted' } });
+    // Older records may contain raw provider error text; never return it to clients.
+    res.json(
+      scheduled.map((record) => {
+        const post = typeof record.toObject === 'function' ? record.toObject() : { ...record };
+        if (post.lastError)
+          post.lastError =
+            'Mastodon delivery failed; check publishing configuration and provider status';
+        return post;
+      }),
+    );
   } catch (err) {
     res.status(500).send('Failed to fetch scheduled pins');
   }
@@ -174,28 +194,36 @@ async function fetchScheduledStatus(_req, res) {
 //  Delete scheduled post
 async function deleteScheduledStatus(req, res) {
   try {
-    await MastodonSchedule.deleteOne({ _id: req.params.id });
-    res.send('Scheduled post deleted successfully');
+    // A post being published or already posted cannot be deleted
+    const result = await MastodonSchedule.deleteOne({
+      _id: req.params.id,
+      status: { $in: ['pending', null, 'failed'] },
+    });
+    if (!result?.deletedCount) {
+      return res.status(404).send('Scheduled post not found or already being published');
+    }
+    return res.send('Scheduled post deleted successfully');
   } catch {
-    res.status(500).send('Failed to delete scheduled post');
+    return res.status(500).send('Failed to delete scheduled post');
   }
 }
 
 //  Fetch post history from Mastodon
 async function fetchPostHistory(req, res) {
   try {
-    const headers = getAuthHeaders();
+    const { endpoint, headers } = getMastodonCredentials();
 
     // Get the account ID first
-    const accountUrl = `${MASTODON_ENDPOINT}/api/v1/accounts/verify_credentials`;
-    const accountResponse = await axios.get(accountUrl, { headers });
+    const accountUrl = `${endpoint}/api/v1/accounts/verify_credentials`;
+    const accountResponse = await axios.get(accountUrl, { headers, maxRedirects: 0 });
     const accountId = accountResponse.data.id;
 
     // Fetch statuses for this account (limit to last 20 posts)
     const limit = req.query.limit || 20;
-    const statusesUrl = `${MASTODON_ENDPOINT}/api/v1/accounts/${accountId}/statuses`;
+    const statusesUrl = `${endpoint}/api/v1/accounts/${accountId}/statuses`;
     const statusesResponse = await axios.get(statusesUrl, {
       headers,
+      maxRedirects: 0,
       params: {
         limit,
         exclude_replies: true,
@@ -220,10 +248,8 @@ async function fetchPostHistory(req, res) {
 
     res.json(posts);
   } catch (err) {
-    console.error('Failed to fetch post history:', err.response?.data || err.message);
-    const status = err.response?.status || 500;
-    const msg = err.response?.data?.error || err.message || 'Failed to fetch post history';
-    res.status(status).json({ error: msg });
+    logPublishingError('Failed to fetch Mastodon post history:', err);
+    res.status(publishingErrorStatus(err)).json({ error: 'Failed to fetch post history' });
   }
 }
 

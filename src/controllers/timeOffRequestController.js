@@ -12,12 +12,12 @@ const userNotificationEmail = (name, action = '') => {
     <p>We wanted to inform you that your scheduled time-off request has been deleted.</p>
     <p>No further action is needed on your part regarding this request.</p>
     <p>Thank you,</p>
-    <p>One Community</p>`
+    <p>One Community Admin Team</p>`
       : `<p>Hello,</p>
     <p>Thank you ${name} for scheduling your time off.</p> 
     <p>The Admin and your Managers have been notified of this request and no further action is needed on your part.</p>   
     <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 };
 
@@ -38,7 +38,7 @@ const adminsNotificationEmail = (
   <p>We wanted to update you that this time-off request has been canceled.</p>
   <p>If any schedule adjustments or plans were made, please take note to revert them accordingly.</p>
   <p>Thank you for your understanding,</p>
-  <p>One Community</p>`
+  <p>One Community Admin Team</p>`
       : `<p>Hello,</p>
     <p>${firstName} ${lastName} has requested the following week off: <b>${moment(startDate).format(
       'MM-DD-YYYY',
@@ -47,7 +47,7 @@ const adminsNotificationEmail = (
     <p>If you need to, please make a note of this in your schedule and make any necessary plans for their action item(s).<br>
      As an additional reminder, their name in the Leaderboard and Tasks list will also reflect their absence for the time they are off.</p>
      <p>Thank you,</p>
-    <p>One Community</p>`;
+    <p>One Community Admin Team</p>`;
   return message;
 };
 
@@ -140,12 +140,16 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
     }
   };
 
+  const isNewUserRestricted = async (userId) => {
+    const profile = await UserProfile.findById(userId).select('startDate');
+    if (!profile?.startDate) return false;
+    return moment().isBefore(moment(profile.startDate).add(2, 'months'));
+  };
+
   const setTimeOffRequest = async (req, res) => {
     try {
       const hasRolePermission = ['Owner', 'Administrator'].includes(req.body.requestor.role);
       const setOwnRequested = req.body.requestor.requestorId === req.body.requestFor;
-      console.log('Has role permission:', hasRolePermission);
-      console.log('Is setting own request:', setOwnRequested);
 
       if (
         !(await hasPermission(req.body.requestor, 'manageTimeOffRequests')) &&
@@ -156,14 +160,20 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         return;
       }
 
-      const { duration, startingDate, reason, requestFor } = req.body;
-
-      console.log('Duration:', duration);
-      console.log('Starting Date:', startingDate);
-      console.log('Reason:', reason);
-      console.log('Request For:', requestFor);
+      const { duration, startingDate, reason, reasonType, requestFor } = req.body;
       if (!duration || !startingDate || !reason || !requestFor) {
         res.status(400).send('bad request');
+        return;
+      }
+
+      if (
+        setOwnRequested &&
+        !hasRolePermission &&
+        (await isNewUserRestricted(req.body.requestor.requestorId))
+      ) {
+        res
+          .status(403)
+          .send('New users cannot schedule time off within 2 months of their start date.');
         return;
       }
 
@@ -174,6 +184,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
       const newTimeOffRequest = new TimeOffRequest();
       newTimeOffRequest.requestFor = mongoose.Types.ObjectId(requestFor);
       newTimeOffRequest.reason = reason;
+      newTimeOffRequest.reasonType = reasonType || 'vacationTime';
       newTimeOffRequest.startingDate = startDate.toDate();
       newTimeOffRequest.endingDate = endDate.toDate();
       newTimeOffRequest.duration = Number(duration);
@@ -258,9 +269,20 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
         res.status(403).send('You are not authorized to set time off requests.');
         return;
       }
-      const { duration, startingDate, reason } = req.body;
+      const { duration, startingDate, reason, reasonType } = req.body;
       if (!duration || !startingDate || !reason || !requestId) {
         res.status(400).send('bad request');
+        return;
+      }
+
+      if (
+        updateOwnRequest &&
+        !hasRolePermission &&
+        (await isNewUserRestricted(req.body.requestor.requestorId))
+      ) {
+        res
+          .status(403)
+          .send('New users cannot schedule time off within 2 months of their start date.');
         return;
       }
       moment.tz.setDefault('America/Los_Angeles');
@@ -270,6 +292,7 @@ const timeOffRequestController = function (TimeOffRequest, Team, UserProfile) {
 
       const updateData = {
         reason,
+        reasonType: reasonType || 'vacationTime',
         startingDate: startDate.toDate(),
         endingDate: endDate.toDate(),
         duration,
