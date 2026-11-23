@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const logger = require('../../startup/logger');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingSupplier = require('../../models/bmdashboard/buildingSupplier');
 const { invTypeBase } = require('../../models/bmdashboard/buildingInventoryType');
 const { parseMultiSelectQueryParam } = require('../../utilities/queryParamParser');
 const {
@@ -18,6 +19,7 @@ const {
 
 // HTTP status codes
 const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_CONFLICT = 409;
 const HTTP_STATUS_UNPROCESSABLE_ENTITY = 422;
 const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
 
@@ -28,6 +30,60 @@ const DECIMAL_PRECISION = 4;
 const DAYS_IN_WEEK = 7;
 const DAYS_IN_TWO_WEEKS = 14;
 
+const validateSupplierDelivery = (supplier, expectedDeliveryDate) => {
+  if (supplier && !mongoose.Types.ObjectId.isValid(supplier)) {
+    return {
+      status: HTTP_STATUS_BAD_REQUEST,
+      message: 'Invalid supplier ID format',
+      field: 'supplier',
+    };
+  }
+
+  if (expectedDeliveryDate && Number.isNaN(new Date(expectedDeliveryDate).getTime())) {
+    return {
+      status: HTTP_STATUS_BAD_REQUEST,
+      message: 'Invalid expected delivery date',
+      field: 'expectedDeliveryDate',
+    };
+  }
+
+  return null;
+};
+
+const validatePurchaseStatus = (purchaseRecord, status, actualDeliveryDate) => {
+  if (status === 'Received') {
+    if (purchaseRecord.status !== 'Approved') {
+      return { message: 'Only approved purchases can be marked as received' };
+    }
+
+    if (!actualDeliveryDate) {
+      return {
+        message: 'Actual delivery date is required',
+        field: 'actualDeliveryDate',
+      };
+    }
+
+    if (Number.isNaN(new Date(actualDeliveryDate).getTime())) {
+      return {
+        message: 'Invalid actual delivery date',
+        field: 'actualDeliveryDate',
+      };
+    }
+  } else {
+    if (!['Approved', 'Rejected'].includes(status)) {
+      return { message: 'Invalid purchase status' };
+    }
+
+    if (purchaseRecord.status !== 'Pending') {
+      return {
+        message: `Purchase status can only be updated from Pending. Current status is ${purchaseRecord.status}.`,
+      };
+    }
+  }
+
+  return null;
+};
+
 /** @returns {{ status: number, message: string, field: string }|null} Validation error or null if valid. */
 const validatePurchaseMaterialsBody = function (body) {
   const {
@@ -35,6 +91,8 @@ const validatePurchaseMaterialsBody = function (body) {
     secondaryId: matTypeId,
     quantity,
     priority,
+    supplier,
+    expectedDeliveryDate,
     requestor: { requestorId } = {},
   } = body || {};
   if (!projectId) return { status: 400, message: 'Project is required', field: 'projectId' };
@@ -56,13 +114,14 @@ const validatePurchaseMaterialsBody = function (body) {
   if (quantityNum <= 0)
     return { status: 400, message: 'Quantity must be greater than 0', field: 'quantity' };
   const validPriorities = ['Low', 'Medium', 'High'];
-  if (!validPriorities.includes(priority))
+  if (!validPriorities.includes(priority)) {
     return {
       status: 400,
       message: 'Priority must be one of: Low, Medium, High',
       field: 'priority',
     };
-  return null;
+  }
+  return validateSupplierDelivery(supplier, expectedDeliveryDate);
 };
 
 /**
@@ -258,10 +317,16 @@ const bmMaterialsController = function (BuildingMaterial) {
           },
           {
             path: 'purchaseRecord',
-            populate: {
-              path: 'requestedBy',
-              select: '_id firstName lastName email',
-            },
+            populate: [
+              {
+                path: 'requestedBy',
+                select: '_id firstName lastName email',
+              },
+              {
+                path: 'supplier',
+                select: '_id name',
+              },
+            ],
           },
         ])
         .exec()
@@ -273,6 +338,17 @@ const bmMaterialsController = function (BuildingMaterial) {
   };
 
   const performMaterialPurchase = async function (body, quantityNum, res) {
+    if (body.supplier) {
+      const supplierObjectId = new mongoose.Types.ObjectId(body.supplier);
+      const supplierExists = await BuildingSupplier.exists({ _id: supplierObjectId });
+
+      if (!supplierExists) {
+        return res.status(HTTP_STATUS_BAD_REQUEST).json({
+          message: 'Selected supplier does not exist',
+          field: 'supplier',
+        });
+      }
+    }
     const projectObjectId = new mongoose.Types.ObjectId(body.primaryId);
     const matTypeObjectId = new mongoose.Types.ObjectId(body.secondaryId);
     const newPurchaseRecord = {
@@ -280,6 +356,10 @@ const bmMaterialsController = function (BuildingMaterial) {
       priority: body.priority,
       brandPref: body.brand,
       requestedBy: body.requestor?.requestorId,
+      ...(body.supplier && { supplier: body.supplier }),
+      ...(body.expectedDeliveryDate && {
+        expectedDeliveryDate: new Date(body.expectedDeliveryDate),
+      }),
     };
     const doc = await BuildingMaterial.findOne({
       project: projectObjectId,
@@ -468,7 +548,7 @@ const bmMaterialsController = function (BuildingMaterial) {
   };
 
   const bmupdatePurchaseStatus = async function (req, res) {
-    const { purchaseId, status, quantity } = req.body;
+    const { purchaseId, status, actualDeliveryDate } = req.body;
     try {
       if (!purchaseId || !mongoose.Types.ObjectId.isValid(purchaseId)) {
         return res.status(400).json({ message: 'Invalid purchase ID format', field: 'purchaseId' });
@@ -488,28 +568,43 @@ const bmMaterialsController = function (BuildingMaterial) {
         return res.status(404).send('Purchase record not found');
       }
 
-      if (purchaseRecord.status !== 'Pending') {
-        return res
-          .status(400)
-          .send(
-            `Purchase status can only be updated from 'Pending'. Current status is '${purchaseRecord.status}'.`,
-          );
+      const validationError = validatePurchaseStatus(purchaseRecord, status, actualDeliveryDate);
+
+      if (validationError) {
+        return res.status(HTTP_STATUS_BAD_REQUEST).json(validationError);
       }
+
       const updateObject = {
         $set: { 'purchaseRecord.$.status': status },
       };
-      if (status === 'Approved') {
-        updateObject.$inc = { stockBought: quantity };
+
+      if (status === 'Received') {
+        updateObject.$set['purchaseRecord.$.actualDeliveryDate'] = new Date(actualDeliveryDate);
       }
 
+      if (status === 'Approved') {
+        updateObject.$inc = { stockBought: purchaseRecord.quantity };
+      }
+
+      const expectedStatus = status === 'Received' ? 'Approved' : 'Pending';
+
       const updatedMaterial = await BuildingMaterial.findOneAndUpdate(
-        { 'purchaseRecord._id': purchaseObjectId },
+        {
+          purchaseRecord: {
+            $elemMatch: {
+              _id: purchaseObjectId,
+              status: expectedStatus,
+            },
+          },
+        },
         updateObject,
         { new: true },
       );
 
       if (!updatedMaterial) {
-        return res.status(500).send('Failed to apply purchase status update to material.');
+        return res.status(HTTP_STATUS_CONFLICT).json({
+          message: 'Purchase status has changed. Please refresh and try again.',
+        });
       }
 
       res.status(200).send(`Purchase ${status.toLowerCase()} successfully`);

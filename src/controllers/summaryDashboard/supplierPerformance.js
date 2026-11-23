@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const Project = require('../../models/project');
+const Project = require('../../models/bmdashboard/buildingProject');
+const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const SupplierPerformance = require('../../models/summaryDashboard/supplierPerformance');
 const logger = require('../../startup/logger');
 
@@ -16,49 +17,94 @@ const supplierPerformanceController = function () {
         return res.status(400).send('Missing required query parameters: startDate, endDate');
       }
 
-      // Validate projectId before converting it to a MongoDB ObjectId.
-      // "all" is a valid special value used by the frontend.
       if (projectId && projectId !== 'all' && !mongoose.Types.ObjectId.isValid(projectId)) {
         return res.status(400).send('Invalid projectId.');
       }
 
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      const start = new Date(`${startDate}T00:00:00.000Z`);
+      const end = new Date(`${endDate}T23:59:59.999Z`);
 
-      const matchCriteria = {
-        startDate: { $lte: end },
-        endDate: { $gte: start },
-      };
-
-      if (projectId && projectId !== 'all') {
-        matchCriteria.projectId = mongoose.Types.ObjectId(projectId);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+        return res.status(400).send('Invalid date range.');
       }
 
-      const supplierData = await SupplierPerformance.aggregate([
+      const matchCriteria = {};
+
+      if (projectId && projectId !== 'all') {
+        matchCriteria.project = new mongoose.Types.ObjectId(projectId);
+      }
+
+      const supplierData = await BuildingMaterial.aggregate([
+        { $match: matchCriteria },
+        { $unwind: '$purchaseRecord' },
         {
-          $match: matchCriteria,
+          $match: {
+            'purchaseRecord.status': 'Received',
+            'purchaseRecord.supplier': { $type: 'objectId' },
+            'purchaseRecord.expectedDeliveryDate': { $type: 'date' },
+            'purchaseRecord.actualDeliveryDate': {
+              $gte: start,
+              $lte: end,
+            },
+          },
         },
         {
+          $lookup: {
+            from: 'buildingSuppliers',
+            localField: 'purchaseRecord.supplier',
+            foreignField: '_id',
+            as: 'supplierDetails',
+          },
+        },
+        { $unwind: '$supplierDetails' },
+        {
           $group: {
-            _id: '$supplierName',
-            onTimeDeliveryPercentage: {
-              $avg: '$onTimeDeliveryPercentage',
+            _id: '$purchaseRecord.supplier',
+            supplierName: { $first: '$supplierDetails.name' },
+            totalDeliveries: { $sum: 1 },
+            onTimeDeliveries: {
+              $sum: {
+                $cond: [
+                  {
+                    $lte: [
+                      {
+                        $dateTrunc: {
+                          date: '$purchaseRecord.actualDeliveryDate',
+                          unit: 'day',
+                          timezone: 'UTC',
+                        },
+                      },
+                      {
+                        $dateTrunc: {
+                          date: '$purchaseRecord.expectedDeliveryDate',
+                          unit: 'day',
+                          timezone: 'UTC',
+                        },
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
             },
           },
         },
         {
           $project: {
-            supplierName: '$_id',
+            _id: 0,
+            supplierName: 1,
             onTimeDeliveryPercentage: {
-              $round: ['$onTimeDeliveryPercentage', 2],
+              $round: [
+                {
+                  $multiply: [{ $divide: ['$onTimeDeliveries', '$totalDeliveries'] }, 100],
+                },
+                2,
+              ],
             },
           },
         },
-        {
-          $sort: {
-            onTimeDeliveryPercentage: -1,
-          },
-        },
+        { $sort: { onTimeDeliveryPercentage: -1, supplierName: 1 } },
       ]);
 
       return res.status(200).send(supplierData);
@@ -67,45 +113,41 @@ const supplierPerformanceController = function () {
       return res.status(500).send('Error fetching supplier performance data. Please try again.');
     }
   };
-
   /**
    * Get all unique projects that have supplier performance data.
    * Project names are returned along with their IDs so that the
    * frontend dropdown can display project names instead of raw IDs.
    */
+
   const getProjectsWithSupplierData = async function (req, res) {
     try {
-      const projectIds = await SupplierPerformance.distinct('projectId');
+      const projectIds = await BuildingMaterial.distinct('project', {
+        purchaseRecord: {
+          $elemMatch: {
+            status: 'Received',
+            supplier: { $type: 'objectId' },
+            expectedDeliveryDate: { $type: 'date' },
+            actualDeliveryDate: { $type: 'date' },
+          },
+        },
+      });
 
       const validProjectIds = projectIds
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(String(id)));
-
-      if (validProjectIds.length === 0) {
-        return res.status(200).send([]);
-      }
+        .filter((id) => mongoose.isValidObjectId(id))
+        .map((id) => new mongoose.Types.ObjectId(id.toString()));
 
       const projects = await Project.find({
         _id: { $in: validProjectIds },
       })
-        .select('_id projectName')
+        .select('_id name')
         .lean();
 
-      const projectNames = new Map(
-        projects.map((project) => [String(project._id), project.projectName]),
-      );
-
-      const results = validProjectIds.map((id) => {
-        const idString = String(id);
-        const projectName = projectNames.get(idString);
-
-        return {
-          _id: id,
-          projectName: projectName || `Unknown project (…${idString.slice(-4)})`,
-        };
-      });
-
-      results.sort((a, b) => a.projectName.localeCompare(b.projectName));
+      const results = projects
+        .map((project) => ({
+          _id: project._id,
+          projectName: project.name || 'Unnamed Project',
+        }))
+        .sort((a, b) => a.projectName.localeCompare(b.projectName));
 
       return res.status(200).send(results);
     } catch (error) {

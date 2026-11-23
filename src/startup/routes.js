@@ -241,6 +241,7 @@ const bmLoginRouter = require('../routes/bmdashboard/bmLoginRouter')();
 // NOT buildingMaterial (from buildingInventoryItem.js, queries 'buildingInventoryItems' collection)
 // See DEBUGGING_DOCUMENTATION.md for details on this fix
 const bmMaterialsRouter = require('../routes/bmdashboard/bmMaterialsRouter')(buildingMaterialModel);
+const bmSupplierRouter = require('../routes/bmdashboard/bmSupplierRouter');
 const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsightsRouter')(
   buildingMaterialModel,
 );
@@ -606,6 +607,7 @@ module.exports = function (app) {
   // bm dashboard
   app.use('/api/bm', bmLoginRouter);
   app.use('/api/bm', bmMaterialsRouter);
+  app.use('/api/bm', bmSupplierRouter);
   app.use('/api/bm', bmMaterialInsightsRouter);
   app.use('/api/bm', bmReusableRouter);
   app.use('/api/bm', bmProjectRouter);
