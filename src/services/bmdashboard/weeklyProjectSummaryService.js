@@ -1,6 +1,7 @@
 const dayjs = require('dayjs');
 const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BuildingTimeLog = require('../../models/bmdashboard/buildingTimeLogger');
 const BuildingTool = require('../../models/bmdashboard/buildingTool');
 const Issue = require('../../models/bmdashboard/Issues');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
@@ -13,23 +14,11 @@ const COMPARISON_TYPES = {
   UNAVAILABLE: 'UNAVAILABLE',
 };
 
-const STATUS_KEYS = {
-  Active: 'activeProjects',
-  Completed: 'completedProjects',
-  Delayed: 'delayedProjects',
-};
-
-const LABOR_HOURS_UNAVAILABLE_REASON =
-  'No reliable dated BM labor-hours source exists for arbitrary report periods.';
-
 const MATERIAL_AVAILABLE_CURRENT_ONLY_REASON =
-  'Material available is stored as current stockAvailable, not historical snapshots.';
+  'Shows current stock available; past stock levels are not stored.';
 
-const PROJECT_STATUS_CURRENT_ONLY_REASON =
-  'ProjectStatus stores current status only; historical Active/Delayed state cannot be reconstructed.';
-
-const HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON =
-  'Historical snapshots are not available for the selected period.';
+const ACTIVE_DELAYED_CURRENT_ONLY_REASON =
+  "Projects in progress at the end of the selected period, split by each project's current Active/Delayed status; past status is not stored.";
 
 const NO_PERIOD_DATA_REASON = 'No data exists for the selected period.';
 
@@ -49,14 +38,6 @@ function toDateRange(startDate, endDate) {
     start: dayjs(startDate).startOf('day').toDate(),
     end: dayjs(endDate).endOf('day').toDate(),
   };
-}
-
-function dateRangeIncludesToday(startDate, endDate) {
-  const startDay = dayjs(startDate).format('YYYY-MM-DD');
-  const endDay = dayjs(endDate).format('YYYY-MM-DD');
-  const today = dayjs().format('YYYY-MM-DD');
-
-  return startDay <= today && today <= endDay;
 }
 
 function roundToTwoDecimals(value) {
@@ -100,12 +81,6 @@ function unavailableMetric(reason, unit) {
   };
 }
 
-function currentSnapshotMetric(value, includesToday, reason, unit) {
-  return includesToday
-    ? currentOnlyMetric(value, reason, unit)
-    : unavailableMetric(HISTORICAL_SNAPSHOT_UNAVAILABLE_REASON, unit);
-}
-
 async function resolveProject(projectId) {
   if (!projectId || projectId === 'all') {
     return { projectId: 'all', project: null };
@@ -121,82 +96,63 @@ async function resolveProject(projectId) {
   return { projectId: project._id.toString(), project };
 }
 
-async function getCurrentProjectStatusMetrics(project) {
-  const match = {};
-
-  if (project) {
-    // ProjectStatus has no buildingProject ObjectId; exact name match is the only current mapping.
-    match.name = project.name;
-  }
+// Rebuilds project counts as of the end of the selected period from startDate/completionDate,
+// so past periods show values instead of N/A. Only the Active/Delayed split relies on current status.
+async function getProjectStatusAsOf(project, endDate) {
+  const { end } = toDateRange(endDate, endDate);
+  const started = { $lte: ['$startDate', end] };
+  const completedByEnd = {
+    $and: [
+      started,
+      { $eq: ['$status', 'Completed'] },
+      { $eq: [{ $type: '$completionDate' }, 'date'] },
+      { $lte: ['$completionDate', end] },
+    ],
+  };
+  const inProgressDelayed = {
+    $and: [started, { $not: [completedByEnd] }, { $eq: ['$status', 'Delayed'] }],
+  };
 
   const rows = await ProjectStatus.aggregate([
-    ...(Object.keys(match).length ? [{ $match: match }] : []),
-    { $group: { _id: '$status', count: { $sum: 1 } } },
-  ]);
-
-  const counts = {
-    activeProjects: 0,
-    completedProjects: 0,
-    delayedProjects: 0,
-  };
-
-  rows.forEach((row) => {
-    const key = STATUS_KEYS[row._id];
-    if (key) counts[key] = row.count;
-  });
-
-  return {
-    totalProjects: counts.activeProjects + counts.completedProjects + counts.delayedProjects,
-    activeProjects: counts.activeProjects,
-    delayedProjects: counts.delayedProjects,
-  };
-}
-
-async function getCompletedProjectStats(project, startDate, endDate) {
-  const { start, end } = toDateRange(startDate, endDate);
-  const match = {
-    status: 'Completed',
-    completionDate: { $gte: start, $lte: end },
-    startDate: { $exists: true },
-  };
-
-  if (project) {
     // ProjectStatus has no buildingProject ObjectId; exact name match is the only current mapping.
-    match.name = project.name;
-  }
-
-  const rows = await ProjectStatus.aggregate([
-    { $match: match },
-    {
-      $project: {
-        durationMs: { $subtract: ['$completionDate', '$startDate'] },
-      },
-    },
+    ...(project ? [{ $match: { name: project.name } }] : []),
     {
       $group: {
         _id: null,
-        completedProjects: { $sum: 1 },
-        avgDurationMs: { $avg: '$durationMs' },
+        totalProjects: { $sum: { $cond: [started, 1, 0] } },
+        completedProjects: { $sum: { $cond: [completedByEnd, 1, 0] } },
+        delayedProjects: { $sum: { $cond: [inProgressDelayed, 1, 0] } },
+        // $avg skips nulls, so only projects completed by the end date count toward duration.
+        avgDurationMs: {
+          $avg: {
+            $cond: [completedByEnd, { $subtract: ['$completionDate', '$startDate'] }, null],
+          },
+        },
       },
     },
   ]);
 
-  // No aggregate row means no completed-project source data for this period, not a real zero.
+  // No ProjectStatus records at all means there is no source data, not a real zero.
   if (rows.length === 0) {
     return {
+      totalProjects: null,
       completedProjects: null,
+      activeProjects: null,
+      delayedProjects: null,
       avgProjectDuration: null,
     };
   }
 
-  const stats = rows[0] || {};
-  // Empty aggregate arrays mean no dated records matched; rows containing 0 remain valid zeros.
+  const { totalProjects, completedProjects, delayedProjects, avgDurationMs } = rows[0];
   return {
-    completedProjects: stats.completedProjects ?? 0,
+    totalProjects,
+    completedProjects,
+    delayedProjects,
+    activeProjects: totalProjects - completedProjects - delayedProjects,
     avgProjectDuration:
-      stats.avgDurationMs === null || stats.avgDurationMs === undefined
+      avgDurationMs === null || avgDurationMs === undefined
         ? null
-        : Math.round(stats.avgDurationMs / HOUR_MS),
+        : Math.round(avgDurationMs / HOUR_MS),
   };
 }
 
@@ -271,6 +227,27 @@ async function getLaborCost(project, startDate, endDate) {
 
   // Preserve real zero costs while marking periods with no labor records as unavailable.
   return rows.length === 0 ? null : roundToTwoDecimals(rows[0].totalLaborCost ?? 0);
+}
+
+// Same source and filter as the Distribution of Labor Hours chart: completed BM time logs by createdAt.
+async function getLaborHours(project, startDate, endDate) {
+  const { start, end } = toDateRange(startDate, endDate);
+  const match = {
+    status: 'completed',
+    totalElapsedTime: { $gt: 0 },
+    createdAt: { $gte: start, $lte: end },
+  };
+
+  if (project) {
+    match.project = project._id;
+  }
+
+  const rows = await BuildingTimeLog.aggregate([
+    { $match: match },
+    { $group: { _id: null, totalElapsedTime: { $sum: '$totalElapsedTime' } } },
+  ]);
+
+  return rows.length === 0 ? null : roundToTwoDecimals((rows[0].totalElapsedTime ?? 0) / HOUR_MS);
 }
 
 async function getApprovedPurchaseCost(Model, project, startDate, endDate) {
@@ -362,40 +339,38 @@ function comparableOrUnavailableMetric(value, unit) {
     : comparableMetric(value, unit);
 }
 
+function currentOnlyOrUnavailableMetric(value, reason, unit) {
+  return value === null
+    ? unavailableMetric(NO_PERIOD_DATA_REASON, unit)
+    : currentOnlyMetric(value, reason, unit);
+}
+
 async function calculatePeriodMetrics({ project, startDate, endDate }) {
-  const includesToday = dateRangeIncludesToday(startDate, endDate);
-  const [currentProjectStatus, completedStats, materialStats, totalLaborCost] = await Promise.all([
-    getCurrentProjectStatusMetrics(project),
-    getCompletedProjectStats(project, startDate, endDate),
+  const [projectStatus, materialStats, totalLaborCost, totalLaborHours] = await Promise.all([
+    getProjectStatusAsOf(project, endDate),
     getMaterialStats(project, startDate, endDate),
     getLaborCost(project, startDate, endDate),
+    getLaborHours(project, startDate, endDate),
   ]);
 
   return {
-    totalProjects: currentSnapshotMetric(
-      currentProjectStatus.totalProjects,
-      includesToday,
-      PROJECT_STATUS_CURRENT_ONLY_REASON,
+    totalProjects: comparableOrUnavailableMetric(projectStatus.totalProjects),
+    completedProjects: comparableOrUnavailableMetric(projectStatus.completedProjects),
+    delayedProjects: currentOnlyOrUnavailableMetric(
+      projectStatus.delayedProjects,
+      ACTIVE_DELAYED_CURRENT_ONLY_REASON,
     ),
-    completedProjects: comparableOrUnavailableMetric(completedStats.completedProjects),
-    delayedProjects: currentSnapshotMetric(
-      currentProjectStatus.delayedProjects,
-      includesToday,
-      PROJECT_STATUS_CURRENT_ONLY_REASON,
+    activeProjects: currentOnlyOrUnavailableMetric(
+      projectStatus.activeProjects,
+      ACTIVE_DELAYED_CURRENT_ONLY_REASON,
     ),
-    activeProjects: currentSnapshotMetric(
-      currentProjectStatus.activeProjects,
-      includesToday,
-      PROJECT_STATUS_CURRENT_ONLY_REASON,
-    ),
-    avgProjectDuration: comparableOrUnavailableMetric(completedStats.avgProjectDuration, 'hrs'),
+    avgProjectDuration: comparableOrUnavailableMetric(projectStatus.avgProjectDuration, 'hrs'),
     totalMaterialCost: comparableOrUnavailableMetric(materialStats.totalMaterialCost, 'USD'),
     totalMaterialUsed: comparableOrUnavailableMetric(materialStats.totalMaterialUsed),
-    totalLaborHoursInvested: unavailableMetric(LABOR_HOURS_UNAVAILABLE_REASON, 'hrs'),
+    totalLaborHoursInvested: comparableOrUnavailableMetric(totalLaborHours, 'hrs'),
     totalLaborCost: comparableOrUnavailableMetric(totalLaborCost, 'USD'),
-    materialAvailable: currentSnapshotMetric(
+    materialAvailable: currentOnlyMetric(
       materialStats.materialAvailable,
-      includesToday,
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
     materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
@@ -507,7 +482,9 @@ module.exports = {
     calculatePeriodMetrics,
     getApprovedPurchaseCost,
     getCostProjection,
+    getLaborHours,
     getMaterialStats,
+    getProjectStatusAsOf,
     sumKnownCosts,
   },
 };
