@@ -48,6 +48,7 @@ const popularityTimelineRoutes = require('../routes/popularityTimeline');
 const pledgeAnalyticsRoutes = require('../routes/pledgeAnalytics');
 const injuryAnalyticsRoutes = require('../routes/injuryAnalytics');
 const popularityEnhancedRoutes = require('../routes/popularityEnhancedRoutes');
+const interactWithGPTRouter = require('../routes/interactWithGPTRouter');
 
 const PRReviewInsights = require('../models/prAnalytics/prReviewsInsights');
 const WeeklyGrading = require('../models/prAnalytics/weeklyGrading');
@@ -476,6 +477,7 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
 
 module.exports = function (app) {
   app.use('/api/project-status', projectStatusRouter);
+  app.use('/api', interactWithGPTRouter);
 
   app.use('/api/bm/summary-dashboard', summaryDashboardRouter);
   app.use('/api', forgotPwdRouter);
