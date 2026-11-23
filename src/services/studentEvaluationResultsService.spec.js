@@ -288,6 +288,23 @@ describe('evaluation results response contract', () => {
     expect(UserProfile.findById).toHaveBeenLastCalledWith(validTeacherId);
   });
 
+  test('returns graded for a graded task with insufficient submission timing dates', async () => {
+    StudentEvaluation.find.mockReturnValue(
+      query([category({ weightage: 100, completedItems: 1 })]),
+    );
+    EvaluationTask.find.mockReturnValue(
+      query([task({ status: 'graded', submissionDate: null, dueDate: null })]),
+    );
+
+    const result = await service.getStudentEvaluationResults(validStudentId);
+
+    expect(result.taskResults[0]).toMatchObject({
+      status: 'graded',
+      submissionStatus: 'graded',
+      dueDate: null,
+    });
+  });
+
   test('returns empty collections and unavailable scores for no evaluations', async () => {
     const result = await service.getStudentEvaluationResults(validStudentId);
     expect(result).toEqual({
@@ -519,6 +536,9 @@ describe('atomic evaluation publishing', () => {
     StudentEvaluation.findOneAndUpdate.mockResolvedValue({ _id: 'evaluation-1', category: 'Math' });
     EvaluationTask.deleteMany.mockResolvedValue({});
     EvaluationTask.insertMany.mockResolvedValue([]);
+    EvaluationTask.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([]),
+    });
     Notification.create.mockResolvedValue([]);
   });
 
@@ -576,22 +596,137 @@ describe('atomic evaluation publishing', () => {
       teacherId: validTeacherId,
       evaluations: [{ category: 'Math', tasks: [{ taskName: 'Ungraded' }] }],
     });
-    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).toMatchObject({
-      marks: null,
-      maxMarks: null,
-      percentage: null,
-      weightage: null,
-    });
+    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).not.toHaveProperty('marks');
+    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).not.toHaveProperty('maxMarks');
+    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).not.toHaveProperty(
+      'percentage',
+    );
+    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).not.toHaveProperty(
+      'weightage',
+    );
     expect(EvaluationTask.insertMany.mock.calls[0][0][0]).toMatchObject({
-      marks: null,
+      marks: 0,
       maxMarks: null,
-      percentage: null,
+      percentage: 0,
       type: null,
       status: 'pending',
     });
     expect(UserProfile.findByIdAndUpdate.mock.calls[0][1].$set).not.toHaveProperty(
       'educationProfiles.student.evaluationFeedback',
     );
+  });
+
+  test('allows explicit null category values to clear scores and explicit zero to remain zero', async () => {
+    await service.publishStudentEvaluationResults({
+      studentId: validStudentId,
+      teacherId: validTeacherId,
+      evaluations: [
+        {
+          category: 'Math',
+          weightage: 0,
+          marks: null,
+          maxMarks: null,
+          percentage: 0,
+          tasks: [],
+        },
+      ],
+    });
+
+    expect(StudentEvaluation.findOneAndUpdate.mock.calls[0][1].$set).toMatchObject({
+      weightage: 0,
+      marks: null,
+      maxMarks: null,
+      percentage: 0,
+    });
+  });
+
+  test('preserves existing task values for omitted fields and explicit null/zero values', async () => {
+    EvaluationTask.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'existing-task-id',
+          evaluationId: 'evaluation-1',
+          taskName: 'Essay',
+          weightage: 40,
+          marks: 85,
+          maxMarks: 100,
+          percentage: 85,
+          type: 'Essay',
+          status: 'graded',
+          feedback: 'Existing feedback',
+        },
+      ]),
+    });
+
+    await service.publishStudentEvaluationResults({
+      studentId: validStudentId,
+      teacherId: validTeacherId,
+      evaluations: [
+        {
+          category: 'Math',
+          tasks: [
+            {
+              taskName: 'Essay',
+              marks: null,
+              percentage: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(EvaluationTask.insertMany.mock.calls[0][0][0]).toMatchObject({
+      _id: 'existing-task-id',
+      taskName: 'Essay',
+      weightage: 40,
+      marks: null,
+      maxMarks: 100,
+      percentage: 0,
+      type: 'Essay',
+      status: 'graded',
+      feedback: 'Existing feedback',
+    });
+  });
+
+  test('merges supplied general feedback with existing feedback when fields are omitted', async () => {
+    UserProfile.findById.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          educationProfiles: {
+            student: {
+              lastEvaluationResultsViewedAt: null,
+              evaluationFeedback: {
+                overall: 'Existing overall',
+                strengths: ['Existing strength'],
+                improvements: ['Existing improvement'],
+                teacherTitle: 'Existing title',
+              },
+            },
+          },
+        }),
+      }),
+    });
+
+    await service.publishStudentEvaluationResults({
+      studentId: validStudentId,
+      teacherId: validTeacherId,
+      evaluations: [{ category: 'Math', tasks: [] }],
+      teacherFeedback: {
+        overall: 'Updated overall',
+      },
+    });
+
+    expect(
+      UserProfile.findByIdAndUpdate.mock.calls[0][1].$set[
+        'educationProfiles.student.evaluationFeedback'
+      ],
+    ).toMatchObject({
+      overall: 'Updated overall',
+      strengths: ['Existing strength'],
+      improvements: ['Existing improvement'],
+      teacherTitle: 'Existing title',
+      authorId: expect.any(mongoose.Types.ObjectId),
+    });
   });
 
   test.each([
@@ -840,6 +975,24 @@ describe('atomic evaluation publishing', () => {
     expect(session.commitTransaction).toHaveBeenCalledTimes(1);
     expect(StudentEvaluation.findOneAndUpdate).toHaveBeenCalledTimes(2);
     expect(Notification.create).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not write when MongoDB rejects transactions on a standalone server', async () => {
+    const standaloneError = new Error(
+      'Transaction numbers are only allowed on a replica set member or mongos',
+    );
+    session.startTransaction.mockImplementationOnce(() => {
+      throw standaloneError;
+    });
+
+    await expect(service.publishStudentEvaluationResults(payload())).rejects.toBe(standaloneError);
+    expect(StudentEvaluation.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(EvaluationTask.deleteMany).not.toHaveBeenCalled();
+    expect(EvaluationTask.insertMany).not.toHaveBeenCalled();
+    expect(UserProfile.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(Notification.create).not.toHaveBeenCalled();
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
   });
 
   test('cleans up after transaction startup fails without masking the error', async () => {

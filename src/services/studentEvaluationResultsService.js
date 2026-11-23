@@ -55,6 +55,9 @@ function getAggregatePerformanceLevel(percentage) {
 
 function getSubmissionStatus(task) {
   if (!task.submissionDate || !task.dueDate) {
+    if (String(task.status || '').toLowerCase() === 'graded') {
+      return 'graded';
+    }
     return 'pending';
   }
 
@@ -362,17 +365,52 @@ async function persistCategory(evaluation, studentId, teacherId, session) {
   );
   await EvaluationTask.deleteMany({ evaluationId: persisted._id }, { session });
   if (tasks.length) {
-    await EvaluationTask.insertMany(
-      tasks.map((item) => ({ ...item, evaluationId: persisted._id })),
-      { session },
+    const existingTasks = await EvaluationTask.find({ evaluationId: persisted._id }).lean();
+    const existingByName = new Map(
+      existingTasks.map((task) => [
+        String(task.taskName || '')
+          .trim()
+          .toLowerCase(),
+        task,
+      ]),
     );
+    const mergedTasks = tasks.map((incoming) => {
+      const existing = existingByName.get(String(incoming.taskName).trim().toLowerCase());
+      if (!existing) {
+        return {
+          weightage: 0,
+          marks: 0,
+          maxMarks: null,
+          percentage: 0,
+          type: null,
+          status: 'pending',
+          feedback: '',
+          ...incoming,
+          evaluationId: persisted._id,
+        };
+      }
+      const {
+        _id,
+        evaluationId: _evaluationId,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        ...existingFields
+      } = existing;
+      return {
+        ...existingFields,
+        ...incoming,
+        _id,
+        evaluationId: persisted._id,
+      };
+    });
+    await EvaluationTask.insertMany(mergedTasks, { session });
   }
   return persisted;
 }
 
 async function publishStudentEvaluationResults(payload) {
   const validated = validateEvaluationPublication(payload);
-  await getValidatedStudent(validated.studentObjectId);
+  const existingStudent = await getValidatedStudent(validated.studentObjectId);
   const session = await mongoose.startSession();
   let persistedEvaluations;
   try {
@@ -393,7 +431,10 @@ async function publishStudentEvaluationResults(payload) {
       }, Promise.resolve([]));
       const updates = { 'educationProfiles.student.lastEvaluationResultsViewedAt': null };
       if (validated.teacherFeedback !== undefined) {
+        const existingFeedback =
+          existingStudent.educationProfiles?.student?.evaluationFeedback || {};
         updates['educationProfiles.student.evaluationFeedback'] = {
+          ...existingFeedback,
           ...validated.teacherFeedback,
           authorId: validated.teacherObjectId,
           updatedAt: new Date(),
