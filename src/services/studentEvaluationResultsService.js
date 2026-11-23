@@ -389,13 +389,10 @@ async function persistCategory(evaluation, studentId, teacherId, session) {
           evaluationId: persisted._id,
         };
       }
-      const {
-        _id,
-        evaluationId: _evaluationId,
-        createdAt: _createdAt,
-        updatedAt: _updatedAt,
-        ...existingFields
-      } = existing;
+      const { _id, ...existingFields } = existing;
+      delete existingFields.evaluationId;
+      delete existingFields.createdAt;
+      delete existingFields.updatedAt;
       return {
         ...existingFields,
         ...incoming,
@@ -463,7 +460,7 @@ async function publishStudentEvaluationResults(payload) {
     return persistedEvaluations;
   } finally {
     try {
-      await session.endSession();
+      await Promise.resolve(session.endSession());
     } catch (cleanupError) {
       // Cleanup must not mask a transaction error or a successful publication.
     }

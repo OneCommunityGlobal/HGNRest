@@ -22,9 +22,9 @@ const number = (value, name, maximum = Infinity, integer = false) => {
     value > maximum ||
     (integer && !Number.isInteger(value))
   ) {
-    invalid(
-      `${name} must be a finite nonnegative ${integer ? 'integer' : 'number'}${maximum === Infinity ? '' : ` <= ${maximum}`}`,
-    );
+    const numberType = integer ? 'integer' : 'number';
+    const maximumDescription = maximum === Infinity ? '' : ` <= ${maximum}`;
+    invalid(`${name} must be a finite nonnegative ${numberType}${maximumDescription}`);
   }
   return value;
 };
@@ -43,7 +43,15 @@ const date = (value, name) => {
   }
   return new Date(value);
 };
-const statuses = ['pending', 'submitted', 'graded', 'completed', 'missing', 'on_time', 'late'];
+const statuses = new Set([
+  'pending',
+  'submitted',
+  'graded',
+  'completed',
+  'missing',
+  'on_time',
+  'late',
+]);
 
 function assessment(input, name) {
   const result = {};
@@ -80,13 +88,13 @@ function task(input) {
   ];
   optionalFields.forEach(([field, name]) => {
     const value = normalizedText(input, field, name);
-    if (value !== undefined) result[field] = field === 'status' ? value : value;
+    if (value !== undefined) result[field] = value;
   });
   if (hasField(input, 'dueDate')) result.dueDate = date(input.dueDate, 'dueDate');
   if (hasField(input, 'submissionDate')) {
     result.submissionDate = date(input.submissionDate, 'submissionDate');
   }
-  if (result.status !== undefined && !statuses.includes(result.status)) {
+  if (result.status !== undefined && !statuses.has(result.status)) {
     invalid('Invalid task status');
   }
   return result;
@@ -124,8 +132,8 @@ function category(input) {
 
 function generalFeedback(input) {
   if (!object(input)) invalid('teacherFeedback must be an object');
-  const allowed = ['overall', 'strengths', 'improvements', 'teacherTitle'];
-  if (Object.keys(input).some((key) => !allowed.includes(key)))
+  const allowed = new Set(['overall', 'strengths', 'improvements', 'teacherTitle']);
+  if (Object.keys(input).some((key) => !allowed.has(key)))
     invalid('Unsupported teacherFeedback field');
   const list = (value, name) => {
     if (!Array.isArray(value)) invalid(`${name} must be an array`);
@@ -147,7 +155,13 @@ function generalFeedback(input) {
 }
 
 // Validate and normalize the entire request before starting any database writes.
-module.exports = ({ studentId, teacherId, evaluations, message, teacherFeedback }) => {
+const validateEvaluationPublication = ({
+  studentId,
+  teacherId,
+  evaluations,
+  message,
+  teacherFeedback,
+}) => {
   const id = (value, name) => {
     if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value))
       invalid(`Invalid ${name} ID provided.`);
@@ -176,3 +190,5 @@ module.exports = ({ studentId, teacherId, evaluations, message, teacherFeedback 
     teacherFeedback: teacherFeedback === undefined ? undefined : generalFeedback(teacherFeedback),
   };
 };
+
+module.exports = validateEvaluationPublication;
