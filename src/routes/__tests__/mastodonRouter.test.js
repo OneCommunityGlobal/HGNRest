@@ -1,5 +1,6 @@
 const express = require('express');
 const request = require('supertest');
+
 jest.mock('../../utilities/permissions', () => ({ hasPermission: jest.fn() }));
 jest.mock('../../models/mastodonSchedule', () => ({
   create: jest.fn(),

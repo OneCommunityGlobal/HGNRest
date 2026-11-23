@@ -239,9 +239,7 @@ describe('submitFormResponse', () => {
     const html = emailSender.mock.calls[0][2];
     expect(html).not.toContain('<a href="https://evil.example"');
     expect(html).not.toContain('<script>');
-    expect(html).toContain(
-      'Dear &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,',
-    );
+    expect(html).toContain('Dear &lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;,');
     expect(html).toContain('Dev &lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('With Gratitude,');
     expect(html).toContain('Jae Sabol');

@@ -166,11 +166,14 @@ test('matches saved answers with their original question text', () => {
 
 describe('Jae applicant confirmation templates', () => {
   test('resolves software, administrative, and general templates', () => {
-    expect(resolveApplicantEmailTemplate({ title: 'MERN Stack Developer', category: 'Engineering' })).toBe(
-      'software',
-    );
     expect(
-      resolveApplicantEmailTemplate({ title: 'Seeking Administrative Assistant', category: 'Other' }),
+      resolveApplicantEmailTemplate({ title: 'MERN Stack Developer', category: 'Engineering' }),
+    ).toBe('software');
+    expect(
+      resolveApplicantEmailTemplate({
+        title: 'Seeking Administrative Assistant',
+        category: 'Other',
+      }),
     ).toBe('administrative');
     expect(resolveApplicantEmailTemplate({ title: 'Master Carpenter', category: 'General' })).toBe(
       'general',

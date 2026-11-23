@@ -1022,15 +1022,9 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            await updateTaskLoggedHours(
-              taskId,
-              totalSeconds,
-              null,
-              null,
-              userprofile,
-              session,
-              { exact: Boolean(timeEntry.splitBatchId) },
-            );
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session, {
+              exact: Boolean(timeEntry.splitBatchId),
+            });
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(
