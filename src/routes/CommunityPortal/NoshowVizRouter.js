@@ -3,7 +3,6 @@ const express = require('express');
 const routes = function () {
   const noShowRouter = express.Router();
   const controller = require('../../controllers/CommunityPortal/NoshowVizController')(); // Import the controller
-  console.log(controller);
 
   // Route for getting no shows data by period (e.g., year, month)
   noShowRouter.route('/data').get(controller.getNoShowsData);
