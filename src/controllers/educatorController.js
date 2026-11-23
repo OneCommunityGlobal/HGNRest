@@ -212,11 +212,11 @@ const educatorController = function () {
         return res.status(400).json({ error: 'evaluations must be a non-empty array' });
       }
 
-      const invalidEvaluation = evaluations.find(
+      const hasInvalidEvaluation = evaluations.some(
         (evaluation) => !evaluation.category || !Array.isArray(evaluation.tasks),
       );
 
-      if (invalidEvaluation) {
+      if (hasInvalidEvaluation) {
         return res.status(400).json({
           error: 'Each evaluation must include category and tasks array',
         });

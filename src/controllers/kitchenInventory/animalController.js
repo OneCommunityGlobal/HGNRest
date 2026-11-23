@@ -1,5 +1,4 @@
 /* eslint-disable max-lines-per-function */
-const mongoose = require('mongoose');
 const Animal = require('../../models/kitchenInventory/animal');
 
 const animalController = function () {

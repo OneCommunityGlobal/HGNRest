@@ -1,6 +1,6 @@
 const moment = require('moment');
-const config = require('../config');
 const jwt = require('jsonwebtoken');
+const config = require('../config');
 
 const jwtVerificationLogic = (authHeader, res) => {
   if (!authHeader) {
@@ -10,7 +10,7 @@ const jwtVerificationLogic = (authHeader, res) => {
   let authToken = authHeader;
   if (authHeader.startsWith('Bearer ')) {
     [, authToken] = authHeader.split(' ');
-  } 
+  }
 
   let payload;
   try {

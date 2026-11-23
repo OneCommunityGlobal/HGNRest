@@ -1,5 +1,8 @@
 /// mock the cache function before importing so we can manipulate the implementation
 jest.mock('../utilities/nodeCache');
+jest.mock('../helpers/overviewReportHelper', () =>
+  jest.fn(() => ({ getCountryCounts: jest.fn().mockResolvedValue({ allTime: 4, active: 2 }) })),
+);
 const cache = require('../utilities/nodeCache');
 const MapLocation = require('../models/mapLocation');
 const UserProfile = require('../models/userProfile');
@@ -120,7 +123,12 @@ describe('Map Locations Controller', () => {
       };
       const res = await getAllLocations(mockReq, mockRes);
 
-      assertResMock(200, { users: [modifiedUsers], mUsers: [] }, res, mockRes);
+      assertResMock(
+        200,
+        { users: [modifiedUsers], mUsers: [], countryCounts: { allTime: 4, active: 2 } },
+        res,
+        mockRes,
+      );
       expect(findSpy).toHaveBeenCalledWith(
         {},
         '_id firstName lastName isActive location jobTitle totalTangibleHrs hoursByCategory homeCountry',
