@@ -90,7 +90,7 @@ const permissionsRoles = [
   },
   {
     roleName: 'Volunteer',
-    permissions: ['getReporteesLimitRoles', 'suggestTask', 'getUserProfiles'],
+    permissions: ['getReporteesLimitRoles', 'suggestTask'],
   },
   {
     roleName: 'Core Team',
