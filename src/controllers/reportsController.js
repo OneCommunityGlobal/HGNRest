@@ -329,7 +329,9 @@ const reportsController = function () {
     const requestor = safeRequestorFromReq(req);
 
     try {
-      const allowed = await hasPermission(requestor, 'getWeeklySummaries');
+      const allowed =
+        (await hasPermission(requestor, 'getWeeklySummaries')) ||
+        (await hasPermission(requestor, 'requestBio'));
       if (!allowed) {
         return res.status(403).send('You are not authorized to view all users');
       }
