@@ -113,12 +113,7 @@ module.exports = function (app) {
       next();
       return;
     }
-
-    if (req.originalUrl.startsWith('/api/bluesky')) {
-      next();
-      return;
-    }
-
+    
     // Public analytics tracking endpoints (no auth required)
     if (
       (req.originalUrl === '/api/applicant-analytics/track-interaction' ||
