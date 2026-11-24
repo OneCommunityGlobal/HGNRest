@@ -363,9 +363,12 @@ async function persistCategory(evaluation, studentId, teacherId, session) {
     { $set: { ...fields, publishedBy: teacherId } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true, session },
   );
-  await EvaluationTask.deleteMany({ evaluationId: persisted._id }, { session });
+  let mergedTasks = [];
   if (tasks.length) {
-    const existingTasks = await EvaluationTask.find({ evaluationId: persisted._id }).lean();
+    // Read and merge before deletion so this transaction retains existing task identity and fields.
+    const existingTasks = await EvaluationTask.find({ evaluationId: persisted._id })
+      .session(session)
+      .lean();
     const existingByName = new Map(
       existingTasks.map((task) => [
         String(task.taskName || '')
@@ -374,7 +377,7 @@ async function persistCategory(evaluation, studentId, teacherId, session) {
         task,
       ]),
     );
-    const mergedTasks = tasks.map((incoming) => {
+    mergedTasks = tasks.map((incoming) => {
       const existing = existingByName.get(String(incoming.taskName).trim().toLowerCase());
       if (!existing) {
         return {
@@ -400,6 +403,9 @@ async function persistCategory(evaluation, studentId, teacherId, session) {
         evaluationId: persisted._id,
       };
     });
+  }
+  await EvaluationTask.deleteMany({ evaluationId: persisted._id }, { session });
+  if (mergedTasks.length) {
     await EvaluationTask.insertMany(mergedTasks, { session });
   }
   return persisted;

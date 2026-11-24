@@ -98,6 +98,10 @@ describe('studentEvaluationResultsService', () => {
     StudentEvaluation.findOneAndUpdate.mockResolvedValue({ _id: validStudentId, category: 'Math' });
     EvaluationTask.deleteMany.mockResolvedValue({});
     EvaluationTask.insertMany.mockResolvedValue([]);
+    EvaluationTask.find.mockReturnValue({
+      session: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
   });
 
   test('uses a sanitized ObjectId when querying student evaluations', async () => {
@@ -537,9 +541,59 @@ describe('atomic evaluation publishing', () => {
     EvaluationTask.deleteMany.mockResolvedValue({});
     EvaluationTask.insertMany.mockResolvedValue([]);
     EvaluationTask.find.mockReturnValue({
+      session: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue([]),
     });
     Notification.create.mockResolvedValue([]);
+  });
+
+  test('awaits a session-bound task read before deletion and replacement', async () => {
+    let resolveRead;
+    const reading = new Promise((resolve) => {
+      resolveRead = resolve;
+    });
+    let readStarted;
+    const started = new Promise((resolve) => {
+      readStarted = resolve;
+    });
+    const taskQuery = {
+      session: jest.fn().mockReturnThis(),
+      lean: jest.fn(() => {
+        readStarted();
+        return reading;
+      }),
+    };
+    EvaluationTask.find.mockReturnValue(taskQuery);
+    const publication = service.publishStudentEvaluationResults(payload());
+    await started;
+    expect(taskQuery.session).toHaveBeenCalledWith(session);
+    expect(EvaluationTask.deleteMany).not.toHaveBeenCalled();
+    expect(EvaluationTask.insertMany).not.toHaveBeenCalled();
+    resolveRead([]);
+    await publication;
+    expect(EvaluationTask.deleteMany).toHaveBeenCalledWith(
+      { evaluationId: 'evaluation-1' },
+      { session },
+    );
+    expect(EvaluationTask.insertMany).toHaveBeenCalledWith(expect.any(Array), { session });
+    expect(taskQuery.lean.mock.invocationCallOrder[0]).toBeLessThan(
+      EvaluationTask.deleteMany.mock.invocationCallOrder[0],
+    );
+    expect(EvaluationTask.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      EvaluationTask.insertMany.mock.invocationCallOrder[0],
+    );
+  });
+
+  test('an empty task array deletes tasks without reading or inserting replacements', async () => {
+    const input = payload();
+    input.evaluations[0].tasks = [];
+    await service.publishStudentEvaluationResults(input);
+    expect(EvaluationTask.find).not.toHaveBeenCalled();
+    expect(EvaluationTask.deleteMany).toHaveBeenCalledWith(
+      { evaluationId: 'evaluation-1' },
+      { session },
+    );
+    expect(EvaluationTask.insertMany).not.toHaveBeenCalled();
   });
 
   test('persists nullable fields, genuine zero values, feedback and sanitized notification in one session', async () => {
@@ -642,6 +696,7 @@ describe('atomic evaluation publishing', () => {
 
   test('preserves existing task values for omitted fields and explicit null/zero values', async () => {
     EvaluationTask.find.mockReturnValue({
+      session: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue([
         {
           _id: 'existing-task-id',
