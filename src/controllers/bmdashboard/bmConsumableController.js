@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 const UpdateHistory = require('../../models/bmdashboard/updateHistory');
 
+const AVAILABLE_DECIMALS = 4;
+
+// Available is always Bought - Used - Wasted (can be negative if Used exceeds Bought)
+const calculateAvailable = (stockBought, stockUsed, stockWasted) =>
+  parseFloat(
+    ((stockBought || 0) - (stockUsed || 0) - (stockWasted || 0)).toFixed(AVAILABLE_DECIMALS),
+  );
+
 const bmConsumableController = function (BuildingConsumable) {
   const fetchBMConsumables = async (req, res) => {
     try {
@@ -31,7 +39,17 @@ const bmConsumableController = function (BuildingConsumable) {
         ])
         .exec()
         .then((result) => {
-          res.status(200).send(result);
+          // Calculate Available from the totals instead of trusting the stored value,
+          // which could drift (e.g. approved purchases only increased stockBought)
+          const consumables = result.map((doc) => {
+            const consumable = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+            const { stockBought, stockUsed, stockWasted } = consumable;
+            return {
+              ...consumable,
+              stockAvailable: calculateAvailable(stockBought, stockUsed, stockWasted),
+            };
+          });
+          res.status(200).send(consumables);
         })
         .catch((error) => res.status(500).send(error));
     } catch (err) {
@@ -117,7 +135,7 @@ const bmConsumableController = function (BuildingConsumable) {
 
     const newStockUsed = parseFloat((consumable.stockUsed + unitsUsed).toFixed(4));
     const newStockWasted = parseFloat((consumable.stockWasted + unitsWasted).toFixed(4));
-    const newAvailable = parseFloat((stockAvailable - (unitsUsed + unitsWasted)).toFixed(4));
+    const newAvailable = calculateAvailable(consumable.stockBought, newStockUsed, newStockWasted);
 
     BuildingConsumable.updateOne(
       { _id: consumable._id },
@@ -231,7 +249,9 @@ const bmConsumableController = function (BuildingConsumable) {
         $set: { 'purchaseRecord.$.status': status },
       };
       if (status === 'Approved') {
-        updateObject.$inc = { stockBought: quantity };
+        // An approved purchase adds to both Bought and Available, keeping
+        // Available = Bought - Used - Wasted
+        updateObject.$inc = { stockBought: quantity, stockAvailable: quantity };
       }
 
       const updatedConsumable = await BuildingConsumable.findOneAndUpdate(
