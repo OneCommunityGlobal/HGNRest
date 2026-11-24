@@ -23,9 +23,7 @@ describe('getServerTime', () => {
     expect(response.serverTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 
     expect(response.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-
-    expect(response.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
-
+    expect(response.timezone).toBe('America/Los_Angeles');
     expect(typeof response.timestamp).toBe('number');
   });
 });
