@@ -38,11 +38,17 @@ const validWeight = (value) => {
 };
 const validPassMark = (value) => {
   if (typeof value !== 'string') return false;
-  const fraction = value.trim().match(/^(\d+(?:\.\d+)?|\.\d+)\s*\/\s*(\d+(?:\.\d+)?|\.\d+)$/);
-  if (!fraction) return false;
-  const [numerator, denominator] = fraction.slice(1).map(Number);
+  const fraction = value.trim().split('/');
+  if (fraction.length !== 2) return false;
+  const numberPattern = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+  const numerator = numberPattern.exec(fraction[0].trim());
+  const denominator = numberPattern.exec(fraction[1].trim());
+  if (!numerator || !denominator) return false;
+  const [numeratorValue, denominatorValue] = [numerator[0], denominator[0]].map(Number);
   return (
-    [numerator, denominator].every(Number.isFinite) && denominator > 0 && numerator <= denominator
+    [numeratorValue, denominatorValue].every(Number.isFinite) &&
+    denominatorValue > 0 &&
+    numeratorValue <= denominatorValue
   );
 };
 const validateSubTask = (task) => {

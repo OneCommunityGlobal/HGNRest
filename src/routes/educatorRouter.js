@@ -220,7 +220,7 @@ router.get('/logs/:lessonPlanId', async (req, res) => {
       .sort({ logDateTime: -1 }); // Show newest first
     res.status(200).json(logs);
   } catch (error) {
-    console.error('Lesson plan log retrieval failed');
+    console.error('Lesson plan log retrieval failed', error instanceof Error ? 'Error' : 'Unknown');
     res.status(500).json({ message: 'Error fetching logs' });
   }
 });

@@ -252,9 +252,25 @@ it('does not log request parameters or error details when lesson-plan logs fail'
   const response = await request(app).get('/api/educator/logs/secret-input').send({});
 
   expect(response.status).toBe(500);
-  expect(logError).toHaveBeenCalledWith('Lesson plan log retrieval failed');
+  expect(logError).toHaveBeenCalledWith('Lesson plan log retrieval failed', 'Error');
   expect(JSON.stringify(logError.mock.calls)).not.toContain(sensitiveDetails);
   expect(JSON.stringify(logError.mock.calls)).not.toContain('secret-input');
+  logError.mockRestore();
+});
+
+it('safely handles non-Error exceptions when lesson-plan logs fail', async () => {
+  const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const unexpectedFailure = 'unexpected failure';
+  LessonPlanLog.find.mockImplementation(() => {
+    throw unexpectedFailure;
+  });
+
+  const response = await request(app).get('/api/educator/logs/plan-1').send({});
+
+  expect(response.status).toBe(500);
+  expect(response.body).toEqual({ message: 'Error fetching logs' });
+  expect(logError).toHaveBeenCalledWith('Lesson plan log retrieval failed', 'Unknown');
+  expect(JSON.stringify(logError.mock.calls)).not.toContain('unexpected failure');
   logError.mockRestore();
 });
 
