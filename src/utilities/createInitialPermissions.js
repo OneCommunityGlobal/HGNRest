@@ -235,6 +235,7 @@ const permissionsRoles = [
       'postProject',
       'putProject',
       'assignProjectToUsers',
+      'deleteArchivedProject',
       'importTask',
       'postTask',
       'viewTaskExtensionCount', // to view task extension count
