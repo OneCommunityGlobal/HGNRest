@@ -45,8 +45,35 @@ function buildMatchStage(projectId, startDate, endDate) {
   return matchStage;
 }
 
+const UNASSIGNED_PROJECT = 'Unassigned project';
+const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
+
+/**
+ * Returns the cost project ids that can point at a building project. Some cost docs store
+ * the id as plain text or a non-id value, so everything is compared as a string.
+ */
+function toProjectIdStrings(ids) {
+  return [...new Set(ids.filter((id) => id !== null && id !== undefined).map(String))].filter(
+    (id) => OBJECT_ID_PATTERN.test(id),
+  );
+}
+
+/**
+ * Loads the current names of the given building projects: Map of id string → name.
+ */
+async function loadProjectNames(ids) {
+  const projectIds = toProjectIdStrings(ids);
+  if (!projectIds.length) return new Map();
+  const projects = await BuildingProject.find({ _id: { $in: projectIds } })
+    .select('_id name')
+    .lean();
+  return new Map(projects.map((p) => [String(p._id), p.name || 'Unnamed Project']));
+}
+
 /**
  * Runs detailed aggregation (with per-project breakdown per category).
+ * Project names come from buildingProjects rather than the copy stored on each cost doc.
+ * Costs whose project does not exist are merged into one "Unassigned project" row.
  */
 async function aggregateWithDetail(matchStage) {
   const pipeline = [
@@ -55,40 +82,48 @@ async function aggregateWithDetail(matchStage) {
       $group: {
         _id: { category: '$category', projectId: '$projectId' },
         amount: { $sum: '$amount' },
-        projectName: { $first: '$projectName' },
       },
     },
-    { $sort: { '_id.category': 1, amount: -1 } },
   ];
 
   const detailed = await Cost.aggregate(pipeline);
+  const projectNames = await loadProjectNames(detailed.map((row) => row._id.projectId));
 
   const categoryMap = new Map();
   COST_CATEGORIES.forEach((cat) => {
-    categoryMap.set(cat, { category: cat, amount: 0, projectBreakdown: [] });
+    categoryMap.set(cat, { category: cat, amount: 0, projects: new Map() });
   });
 
   detailed.forEach((row) => {
     const entry = categoryMap.get(row._id.category);
     if (!entry) return;
     entry.amount += row.amount;
-    const pid = row._id.projectId;
-    entry.projectBreakdown.push({
-      projectId: pid && typeof pid.toString === 'function' ? pid.toString() : pid,
-      projectName: row.projectName || 'Unknown',
-      amount: row.amount,
-      percentage: 0,
-    });
+
+    const pid = String(row._id.projectId ?? '');
+    const name = projectNames.get(pid);
+    const key = name ? pid : null;
+    const existing = entry.projects.get(key);
+    if (existing) {
+      existing.amount += row.amount;
+    } else {
+      entry.projects.set(key, {
+        projectId: key,
+        projectName: name || UNASSIGNED_PROJECT,
+        amount: row.amount,
+        percentage: 0,
+      });
+    }
   });
 
   const breakdown = [];
-  categoryMap.forEach((entry) => {
-    if (entry.amount > 0) {
-      entry.projectBreakdown.forEach((pb) => {
-        pb.percentage = Number.parseFloat(((pb.amount / entry.amount) * 100).toFixed(2));
+  categoryMap.forEach(({ category, amount, projects }) => {
+    const projectBreakdown = [...projects.values()].sort((a, b) => b.amount - a.amount);
+    if (amount > 0) {
+      projectBreakdown.forEach((pb) => {
+        pb.percentage = Number.parseFloat(((pb.amount / amount) * 100).toFixed(2));
       });
     }
-    breakdown.push(entry);
+    breakdown.push({ category, amount, projectBreakdown });
   });
 
   breakdown.sort((a, b) => b.amount - a.amount);
@@ -177,6 +212,39 @@ async function getCostBreakdown(req, res) {
   } catch (error) {
     logger.logException(error, 'costsController.getCostBreakdown');
     return res.status(500).json({ error: 'Failed to fetch cost breakdown' });
+  }
+}
+
+/**
+ * GET /api/costs/projects
+ * Lists every building project that has cost data (active or not), for the chart's
+ * project filter, so the filter matches the projects the chart actually counts.
+ */
+async function getCostProjects(req, res) {
+  try {
+    const cacheKey = `${CACHE_PREFIX}projects`;
+    if (cache.hasCache(cacheKey)) {
+      return res.status(200).json(cache.getCache(cacheKey));
+    }
+
+    const projectIds = toProjectIdStrings(await Cost.distinct('projectId'));
+    const projects = projectIds.length
+      ? await BuildingProject.find({ _id: { $in: projectIds } })
+          .select('_id name')
+          .sort({ name: 1 })
+          .lean()
+      : [];
+
+    const response = projects.map((p) => ({
+      projectId: String(p._id),
+      projectName: p.name || 'Unnamed Project',
+    }));
+    cache.setCache(cacheKey, response);
+
+    return res.status(200).json(response);
+  } catch (error) {
+    logger.logException(error, 'costsController.getCostProjects');
+    return res.status(500).json({ error: 'Failed to fetch cost projects' });
   }
 }
 
@@ -418,6 +486,7 @@ async function refreshCosts(req, res) {
 function costsController() {
   return {
     getCostBreakdown,
+    getCostProjects,
     addCostEntry,
     updateCostEntry,
     deleteCostEntry,
