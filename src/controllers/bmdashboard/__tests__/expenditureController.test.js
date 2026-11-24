@@ -3,16 +3,28 @@ jest.mock('../../../models/bmdashboard/expenditure', () => ({
   aggregate: jest.fn(),
 }));
 
+jest.mock('../../../models/bmdashboard/projectBudget', () => ({
+  distinct: jest.fn(),
+}));
+
+jest.mock('../../../utilities/projectBudgetHelper', () => ({
+  ...jest.requireActual('../../../utilities/projectBudgetHelper'),
+  getProjectBudget: jest.fn(),
+}));
+
 jest.mock('../../../startup/logger', () => ({
   logException: jest.fn(),
   logInfo: jest.fn(),
 }));
 
 const Expenditure = require('../../../models/bmdashboard/expenditure');
+const ProjectBudget = require('../../../models/bmdashboard/projectBudget');
+const { getProjectBudget } = require('../../../utilities/projectBudgetHelper');
 const logger = require('../../../startup/logger');
 const { getProjectExpensesPie, getProjectIdsWithExpenditure } = require('../expenditureController');
 
 const VALID_ID = '507f1f77bcf86cd799439011';
+const OTHER_ID = '507f1f77bcf86cd799439012';
 const INVALID_ID = 'not-a-valid-id';
 
 const makeRes = () => {
@@ -25,12 +37,14 @@ const makeRes = () => {
 describe('expenditureController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    ProjectBudget.distinct.mockResolvedValue([]);
+    getProjectBudget.mockResolvedValue(null);
   });
 
   // ---------------------------------------------------------------------------
   describe('getProjectIdsWithExpenditure', () => {
     it('returns 200 with the array of project IDs on success', async () => {
-      const ids = [VALID_ID, '507f1f77bcf86cd799439012'];
+      const ids = [VALID_ID, OTHER_ID];
       Expenditure.distinct.mockResolvedValue(ids);
 
       const res = makeRes();
@@ -39,6 +53,17 @@ describe('expenditureController', () => {
       expect(Expenditure.distinct).toHaveBeenCalledWith('projectId');
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(ids);
+    });
+
+    it('includes projects that only have a budget, without duplicates', async () => {
+      Expenditure.distinct.mockResolvedValue([VALID_ID]);
+      ProjectBudget.distinct.mockResolvedValue([VALID_ID, OTHER_ID]);
+
+      const res = makeRes();
+      await getProjectIdsWithExpenditure({}, res);
+
+      expect(ProjectBudget.distinct).toHaveBeenCalledWith('projectId');
+      expect(res.json).toHaveBeenCalledWith([VALID_ID, OTHER_ID]);
     });
 
     it('returns 200 with an empty array when no expenditure records exist', async () => {
@@ -90,31 +115,40 @@ describe('expenditureController', () => {
       expect(Expenditure.aggregate).not.toHaveBeenCalled();
     });
 
-    it('returns 200 with { actual, planned } shape on success', async () => {
+    it('returns actual amounts from records and planned amounts from the budget', async () => {
       Expenditure.aggregate.mockResolvedValue([
-        { _id: { type: 'actual', category: 'Labor' }, amount: 1000 },
-        { _id: { type: 'actual', category: 'Materials' }, amount: 500 },
-        { _id: { type: 'planned', category: 'Equipment' }, amount: 2000 },
+        { _id: 'Labor', amount: 1000 },
+        { _id: 'Materials', amount: 500 },
       ]);
+      getProjectBudget.mockResolvedValue({
+        categories: { labor: 4000, materials: 3000, equipment: 2000 },
+      });
 
       const req = { params: { projectId: VALID_ID } };
       const res = makeRes();
 
       await getProjectExpensesPie(req, res);
 
-      expect(Expenditure.aggregate).toHaveBeenCalledTimes(1);
+      // Only actual records are aggregated
+      expect(Expenditure.aggregate.mock.calls[0][0][0].$match.type).toBe('actual');
+      expect(getProjectBudget).toHaveBeenCalledWith(VALID_ID);
       expect(res.json).toHaveBeenCalledWith({
         actual: [
           { category: 'Labor', amount: 1000 },
           { category: 'Materials', amount: 500 },
         ],
-        planned: [{ category: 'Equipment', amount: 2000 }],
+        planned: [
+          { category: 'Labor', amount: 4000 },
+          { category: 'Materials', amount: 3000 },
+          { category: 'Equipment', amount: 2000 },
+        ],
+        hasBudget: true,
       });
       // status should NOT be explicitly set to 200 (res.json implies 200)
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('returns { actual: [], planned: [] } when no matching records exist', async () => {
+    it('returns no planned data and hasBudget false when no budget is set', async () => {
       Expenditure.aggregate.mockResolvedValue([]);
 
       const req = { params: { projectId: VALID_ID } };
@@ -122,7 +156,7 @@ describe('expenditureController', () => {
 
       await getProjectExpensesPie(req, res);
 
-      expect(res.json).toHaveBeenCalledWith({ actual: [], planned: [] });
+      expect(res.json).toHaveBeenCalledWith({ actual: [], planned: [], hasBudget: false });
     });
 
     it('returns 500 and calls logger with projectId on DB error', async () => {

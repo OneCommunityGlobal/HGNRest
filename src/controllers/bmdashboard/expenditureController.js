@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Expenditure = require('../../models/bmdashboard/expenditure');
+const ProjectBudget = require('../../models/bmdashboard/projectBudget');
 const logger = require('../../startup/logger');
+const { getProjectBudget, toCategoryList } = require('../../utilities/projectBudgetHelper');
 
 exports.getProjectExpensesPie = async (req, res) => {
   try {
@@ -10,24 +12,26 @@ exports.getProjectExpensesPie = async (req, res) => {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
 
-    const data = await Expenditure.aggregate([
-      { $match: { projectId: new mongoose.Types.ObjectId(projectId) } },
-      {
-        $group: {
-          _id: { type: '$type', category: '$category' },
-          amount: { $sum: '$amount' },
+    // Actual amounts come from expenditure records; planned amounts come from the project's
+    // budget (set on the Project Dashboard), so seeded planned records are no longer used.
+    const [data, budget] = await Promise.all([
+      Expenditure.aggregate([
+        { $match: { projectId: new mongoose.Types.ObjectId(projectId), type: 'actual' } },
+        {
+          $group: {
+            _id: '$category',
+            amount: { $sum: '$amount' },
+          },
         },
-      },
+      ]),
+      getProjectBudget(projectId),
     ]);
 
-    const result = { actual: [], planned: [] };
-
-    data.forEach((item) => {
-      const { type, category } = item._id;
-      result[type].push({ category, amount: item.amount });
+    return res.json({
+      actual: data.map((item) => ({ category: item._id, amount: item.amount })),
+      planned: toCategoryList(budget),
+      hasBudget: Boolean(budget),
     });
-
-    return res.json(result);
   } catch (error) {
     logger.logException(error, 'expenditureController.getProjectExpensesPie', {
       projectId: req.params.projectId,
@@ -36,10 +40,15 @@ exports.getProjectExpensesPie = async (req, res) => {
   }
 };
 
+// Projects with actual expenditure or a planned budget
 exports.getProjectIdsWithExpenditure = async (_req, res) => {
   try {
-    const projectIds = await Expenditure.distinct('projectId');
-    return res.status(200).json(projectIds);
+    const [expenditureIds, budgetIds] = await Promise.all([
+      Expenditure.distinct('projectId'),
+      ProjectBudget.distinct('projectId'),
+    ]);
+    const unique = new Map([...expenditureIds, ...budgetIds].map((id) => [String(id), id]));
+    return res.status(200).json([...unique.values()]);
   } catch (error) {
     logger.logException(error, 'expenditureController.getProjectIdsWithExpenditure');
     return res.status(500).json({ message: 'Failed to retrieve project IDs' });

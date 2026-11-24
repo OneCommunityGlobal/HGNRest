@@ -1,4 +1,5 @@
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const { getProjectBudget, budgetTotal } = require('../../utilities/projectBudgetHelper');
 
 const getExpensesByProject = async (req, res) => {
   const { projectId } = req.params;
@@ -51,40 +52,28 @@ const getExpensesByProject = async (req, res) => {
     // Calculate total actual cost
     const totalActualCost = totalMaterialsCost + totalEquipmentCost + laborCost;
 
-    // Predict the planned cost with adjusted coefficients
-    const coefMaterials = 0.8; // Reduced coefficient for materials
-    const coefEquipment = 0.7; // Reduced coefficient for equipment
-    const coefMembers = 0.4; // Reduced coefficient for members
-    const coefHours = 0.6; // Reduced coefficient for hours
-    const intercept = 1000; // Reduced baseline cost
-
-    const predictedCost =
-      intercept +
-      coefMaterials * totalMaterialsCost +
-      coefEquipment * totalEquipmentCost +
-      coefMembers * numMembers +
-      coefHours * hoursWorked;
-
-    // Ensure planned cost is not greater than actual cost
-    const totalPlannedCost = Math.min(predictedCost, totalActualCost);
+    // Planned costs come from the budget set on the Project Dashboard; 0 when none is set
+    const budget = await getProjectBudget(projectId);
+    const planned = budget?.categories || {};
 
     // Prepare the response
     const responsePayload = {
       projectId,
       projectName: project.name,
       totalActualCost,
-      totalPlannedCost,
+      totalPlannedCost: budgetTotal(budget),
+      hasBudget: Boolean(budget),
       breakdown: [
-        { category: 'Labor', actualCost: laborCost, plannedCost: totalPlannedCost * 0.4 },
+        { category: 'Labor', actualCost: laborCost, plannedCost: planned.labor || 0 },
         {
           category: 'Equipment',
           actualCost: totalEquipmentCost,
-          plannedCost: totalPlannedCost * 0.3,
+          plannedCost: planned.equipment || 0,
         },
         {
           category: 'Materials',
           actualCost: totalMaterialsCost,
-          plannedCost: totalPlannedCost * 0.3,
+          plannedCost: planned.materials || 0,
         },
       ],
     };
