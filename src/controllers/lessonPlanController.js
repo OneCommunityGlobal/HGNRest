@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const LessonPlan = require('../models/lessonPlan');
 const Activity = require('../models/activity');
 
@@ -39,13 +40,9 @@ const validPassMark = (value) => {
   if (typeof value !== 'string') return false;
   const fraction = value.trim().match(/^(\d+(?:\.\d+)?|\.\d+)\s*\/\s*(\d+(?:\.\d+)?|\.\d+)$/);
   if (!fraction) return false;
-  const numerator = Number(fraction[1]);
-  const denominator = Number(fraction[2]);
+  const [numerator, denominator] = fraction.slice(1).map(Number);
   return (
-    Number.isFinite(numerator) &&
-    Number.isFinite(denominator) &&
-    denominator > 0 &&
-    numerator <= denominator
+    [numerator, denominator].every(Number.isFinite) && denominator > 0 && numerator <= denominator
   );
 };
 const validateSubTask = (task) => {
@@ -104,14 +101,12 @@ const cleanSubTasks = (tasks) =>
     ),
   );
 const saveError = (res, error) =>
-  res
-    .status(['ValidationError', 'CastError'].includes(error.name) ? 400 : 500)
-    .json({
-      error:
-        error.name === 'ValidationError' || error.name === 'CastError'
-          ? 'Invalid lesson plan data'
-          : 'Unable to save lesson plan',
-    });
+  res.status(['ValidationError', 'CastError'].includes(error.name) ? 400 : 500).json({
+    error:
+      error.name === 'ValidationError' || error.name === 'CastError'
+        ? 'Invalid lesson plan data'
+        : 'Unable to save lesson plan',
+  });
 
 const lessonPlanController = function () {
   // Get all lesson plans
@@ -209,9 +204,9 @@ const lessonPlanController = function () {
       // Compare and increment Mongoose's version key atomically so validation
       // cannot be applied to a document changed since the read (including legacy plans).
       const filter = {
-        _id: id,
+        _id: new mongoose.Types.ObjectId(id),
         __v: lessonPlan.__v === undefined ? { $exists: false } : lessonPlan.__v,
-        ...(isEducator ? { createdBy: requestor.requestorId } : {}),
+        ...(isEducator ? { createdBy: new mongoose.Types.ObjectId(requestor.requestorId) } : {}),
       };
       const savedPlan = await LessonPlan.findOneAndUpdate(
         filter,

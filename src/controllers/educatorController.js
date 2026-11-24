@@ -181,7 +181,7 @@ const educatorController = function () {
     const session = await mongoose.startSession();
 
     try {
-      await session.startTransaction();
+      session.startTransaction();
 
       const {
         lesson_plan_id: lessonPlanId,
@@ -405,7 +405,7 @@ const educatorController = function () {
           completed: tasks.filter((t) => t.status === 'completed').length,
           graded: tasks.filter((t) => t.status === 'graded').length,
         },
-        students: [...new Set(tasks.map((t) => t.studentId._id.toString()))].length,
+        students: new Set(tasks.map((t) => t.studentId._id.toString())).size,
         recent_assignments: tasks.slice(0, 10),
       };
 
@@ -457,7 +457,7 @@ const educatorController = function () {
 
       res.status(201).json(response);
     } catch (error) {
-      console.error('Error assigning atoms:', error);
+      console.error('Atom assignment failed');
 
       if (error.code === 11000) {
         return res

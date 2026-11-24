@@ -147,11 +147,9 @@ router.post('/assign-tasks', async (req, res) => {
             // keeping this block commented for future reference
             // }
             // else {
-            //   console.warn(`Skipping subTask for student ${student._id} due to missing name in lesson plan ${lessonPlanId}`);
             // }
           });
         } else {
-          console.warn(`Lesson plan ${lessonPlanId} has no subTasks for student ${student._id}.`);
           skippedCount++;
         }
       } else {
@@ -199,12 +197,7 @@ router.post('/assign-tasks', async (req, res) => {
       skippedCount,
     });
   } catch (error) {
-    console.error('-----------------------------------------');
-    console.error('Error occurred in /api/educator/assign-tasks:');
-    console.error('Timestamp:', new Date().toISOString());
-    console.error('Request Body:', req.body);
-    console.error('Error Details:', error);
-    console.error('-----------------------------------------');
+    console.error('Task assignment failed');
 
     const errorMessage =
       process.env.NODE_ENV === 'production'
@@ -227,7 +220,7 @@ router.get('/logs/:lessonPlanId', async (req, res) => {
       .sort({ logDateTime: -1 }); // Show newest first
     res.status(200).json(logs);
   } catch (error) {
-    console.error('Error fetching lesson plan logs:', error);
+    console.error('Lesson plan log retrieval failed');
     res.status(500).json({ message: 'Error fetching logs' });
   }
 });

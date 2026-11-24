@@ -9,7 +9,7 @@ jest.mock('../controllers/educatorController', () => () => ({
 jest.mock('../models/lessonPlan', () => ({ findById: jest.fn() }));
 jest.mock('../models/educationTask', () => ({ bulkWrite: jest.fn(), exists: jest.fn() }));
 jest.mock('../models/userProfile', () => ({ find: jest.fn() }));
-jest.mock('../models/lessonPlanLog', () => ({ create: jest.fn() }));
+jest.mock('../models/lessonPlanLog', () => ({ create: jest.fn(), find: jest.fn() }));
 const LessonPlan = require('../models/lessonPlan');
 const EducationTask = require('../models/educationTask');
 const UserProfile = require('../models/userProfile');
@@ -194,6 +194,20 @@ describe('POST /api/educator/assign-tasks', () => {
     expect(LessonPlanLog.create).not.toHaveBeenCalled();
   });
 
+  it('does not log request data or error details when assignment fails', async () => {
+    const sensitiveDetails = 'untrusted assignment details';
+    const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    EducationTask.bulkWrite.mockRejectedValue(new Error(sensitiveDetails));
+
+    const response = await assign();
+
+    expect(response.status).toBe(500);
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith('Task assignment failed');
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(sensitiveDetails);
+    logError.mockRestore();
+  });
+
   it('returns 500 for an unexpected bulk result', async () => {
     EducationTask.bulkWrite.mockResolvedValue({});
     expect((await assign()).status).toBe(500);
@@ -226,6 +240,39 @@ describe('POST /api/educator/assign-tasks', () => {
     expect(EducationTask.bulkWrite).not.toHaveBeenCalled();
     expect(LessonPlanLog.create).not.toHaveBeenCalled();
   });
+});
+
+it('does not log request parameters or error details when lesson-plan logs fail', async () => {
+  const sensitiveDetails = 'untrusted log query details';
+  const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  LessonPlanLog.find.mockImplementation(() => {
+    throw new Error(sensitiveDetails);
+  });
+
+  const response = await request(app).get('/api/educator/logs/secret-input').send({});
+
+  expect(response.status).toBe(500);
+  expect(logError).toHaveBeenCalledWith('Lesson plan log retrieval failed');
+  expect(JSON.stringify(logError.mock.calls)).not.toContain(sensitiveDetails);
+  expect(JSON.stringify(logError.mock.calls)).not.toContain('secret-input');
+  logError.mockRestore();
+});
+
+it('returns populated lesson-plan assignment logs', async () => {
+  const logs = [{ lessonPlanId: 'plan-1', action: 'Manual Assignment' }];
+  const query = {
+    populate: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockResolvedValue(logs),
+  };
+  LessonPlanLog.find.mockReturnValue(query);
+
+  const response = await request(app).get('/api/educator/logs/plan-1').send({});
+
+  expect(LessonPlanLog.find).toHaveBeenCalledWith({ lessonPlanId: 'plan-1' });
+  expect(query.populate).toHaveBeenCalledWith('editorId', 'firstName lastName email');
+  expect(query.sort).toHaveBeenCalledWith({ logDateTime: -1 });
+  expect(response.status).toBe(200);
+  expect(response.body).toEqual(logs);
 });
 
 test('the unique index covers only ObjectId subtask assignments, preserving atom and legacy records', () => {

@@ -20,6 +20,7 @@ jest.mock('../models/lessonPlanLog', () => ({ create: jest.fn() }));
 const LessonPlan = require('../models/lessonPlan');
 const EducationTask = require('../models/educationTask');
 const LessonPlanLog = require('../models/lessonPlanLog');
+const { Types: MongooseTypes } = require('mongoose');
 const router = require('./educatorRouter');
 
 const creator = '507f1f77bcf86cd799439011';
@@ -116,7 +117,11 @@ describe('Lesson plan persistence routes', () => {
       lastEditedBy: creator,
     });
     expect(LessonPlan.findOneAndUpdate).toHaveBeenCalledWith(
-      { _id: planId, createdBy: creator, __v: 0 },
+      {
+        _id: new MongooseTypes.ObjectId(planId),
+        createdBy: new MongooseTypes.ObjectId(creator),
+        __v: 0,
+      },
       { $set: { title: 'Updated', subTasks, lastEditedBy: creator }, $inc: { __v: 1 } },
       { new: true, runValidators: true },
     );
@@ -128,7 +133,42 @@ describe('Lesson plan persistence routes', () => {
       .send({ title: 'Admin edit' });
     expect(response.status).toBe(200);
     expect(response.body.lastEditedBy).toBe(otherUser);
-    expect(LessonPlan.findOneAndUpdate.mock.calls[0][0]).toEqual({ _id: planId, __v: 0 });
+    expect(LessonPlan.findOneAndUpdate.mock.calls[0][0]).toEqual({
+      _id: new MongooseTypes.ObjectId(planId),
+      __v: 0,
+    });
+  });
+
+  test('ignores MongoDB operators and uses validated ObjectId update filters', async () => {
+    const response = await request(appFor())
+      .patch(`${baseUrl}/${planId}`)
+      .send({
+        title: 'Safe update',
+        $set: { createdBy: otherUser },
+        _id: { $ne: null },
+        __v: { $gt: -1 },
+        createdBy: { $ne: null },
+      });
+
+    expect(response.status).toBe(200);
+    expect(LessonPlan.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: new MongooseTypes.ObjectId(planId),
+        createdBy: new MongooseTypes.ObjectId(creator),
+        __v: 0,
+      },
+      { $set: { title: 'Safe update', lastEditedBy: creator }, $inc: { __v: 1 } },
+      { new: true, runValidators: true },
+    );
+  });
+
+  test('rejects operator-shaped values in editable fields', async () => {
+    const response = await request(appFor())
+      .patch(`${baseUrl}/${planId}`)
+      .send({ title: { $ne: null } });
+
+    expect(response.status).toBe(400);
+    expect(LessonPlan.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -184,6 +224,7 @@ describe('Lesson plan persistence routes', () => {
     ['passMark', '8/0'],
     ['passMark', '-1/10'],
     ['passMark', '11/10'],
+    ['passMark', `${'9'.repeat(400)}/10`],
     ['_id', 'bad-id'],
   ])('rejects invalid subtask %s=%s on both endpoints', async (field, value) => {
     const body = payload();
@@ -200,6 +241,15 @@ describe('Lesson plan persistence routes', () => {
       const body = payload();
       body.subTasks[0].weight = weight;
       body.subTasks[0].passMark = '.5 / 10';
+      expect((await request(appFor()).post(baseUrl).send(body)).status).toBe(201);
+    },
+  );
+
+  test.each(['8/10', '8.5/10', '.5 / 10', '10.0/10.0'])(
+    'accepts existing pass-mark format %s',
+    async (passMark) => {
+      const body = payload();
+      body.subTasks[0].passMark = passMark;
       expect((await request(appFor()).post(baseUrl).send(body)).status).toBe(201);
     },
   );
@@ -358,7 +408,10 @@ describe('atomic PATCH version checks', () => {
       const persisted = [];
       LessonPlan.findOneAndUpdate.mockImplementation(async (filter, update) => {
         // Evaluate the actual controller-generated compare-and-swap predicate.
-        expect(filter).toMatchObject({ _id: planId, createdBy: creator });
+        expect(filter).toMatchObject({
+          _id: new MongooseTypes.ObjectId(planId),
+          createdBy: new MongooseTypes.ObjectId(creator),
+        });
         expect(filter).toHaveProperty('__v', version === undefined ? { $exists: false } : version);
         expect(update.$inc).toEqual({ __v: 1 });
         const matchesVersion =
