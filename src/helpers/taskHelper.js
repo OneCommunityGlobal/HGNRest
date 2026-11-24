@@ -7,6 +7,13 @@ const Task = require('../models/task');
 const TaskNotification = require('../models/taskNotification');
 const { hasPermission } = require('../utilities/permissions');
 
+const isTaskCompletedForUser = (task, userIdStr) => {
+  const userResource = (task.resources || []).find((r) => r.userID?.toString() === userIdStr);
+  return Boolean(userResource && userResource.completedTask === true);
+};
+
+const isTaskActiveForUser = (task, userIdStr) => !isTaskCompletedForUser(task, userIdStr);
+
 const taskHelper = function () {
   const getTasksForTeams = async function (userId, requestor) {
     const userid = mongoose.Types.ObjectId(userId);
@@ -218,6 +225,7 @@ const taskHelper = function () {
       });
 
       const taskByPerson = {};
+      const completedCountByPerson = {};
       teamMemberTasks.forEach((teamMemberTask) => {
         const projId = teamMemberTask.wbsId?.projectId;
         const _teamMemberTask = { ...teamMemberTask._doc };
@@ -226,16 +234,23 @@ const taskHelper = function () {
 
         teamMemberTask.resources.forEach((resource) => {
           const resourceIdStr = resource.userID?.toString();
+          if (!resourceIdStr) return;
+
+          if (isTaskCompletedForUser(_teamMemberTask, resourceIdStr)) {
+            completedCountByPerson[resourceIdStr] = (completedCountByPerson[resourceIdStr] || 0) + 1;
+            return;
+          }
+          if (!isTaskActiveForUser(_teamMemberTask, resourceIdStr)) return;
+
           const taskNdUserID = `${taskIdStr},${resourceIdStr}`;
-          // initialize taskNotifications if not exists
-          if (!_teamMemberTask.taskNotifications) _teamMemberTask.taskNotifications = [];
-          // push all notifications into the list if taskNdUserId key exists
-          if (taskNotificationByTaskNdUser[taskNdUserID])
-            _teamMemberTask.taskNotifications.push(...taskNotificationByTaskNdUser[taskNdUserID]);
+          const taskForUser = { ..._teamMemberTask, taskNotifications: [] };
+          if (taskNotificationByTaskNdUser[taskNdUserID]) {
+            taskForUser.taskNotifications.push(...taskNotificationByTaskNdUser[taskNdUserID]);
+          }
           if (taskByPerson[resourceIdStr]) {
-            taskByPerson[resourceIdStr].push(_teamMemberTask);
+            taskByPerson[resourceIdStr].push(taskForUser);
           } else {
-            taskByPerson[resourceIdStr] = [_teamMemberTask];
+            taskByPerson[resourceIdStr] = [taskForUser];
           }
         });
       });
@@ -255,6 +270,7 @@ const taskHelper = function () {
           totaltangibletime_hrs: tangible / 3600,
           totaltime_hrs: total / 3600,
           tasks: taskByPerson[teamMember._id.toString()] || [],
+          completedTasksCount: completedCountByPerson[teamMember._id.toString()] || 0,
           timeOffFrom: teamMember.timeOffFrom || null,
           timeOffTill: teamMember.timeOffTill || null,
           teamCode: teamMember.teamCode || null,
@@ -716,16 +732,70 @@ const taskHelper = function () {
         },
       },
       {
-        $project: {
+        $addFields: {
+          completedTasksCount: {
+            $size: {
+              $filter: {
+                input: '$tasks',
+                as: 'task',
+                cond: {
+                  $anyElementTrue: {
+                    $map: {
+                      input: '$$task.resources',
+                      as: 'res',
+                      in: {
+                        $and: [
+                          { $eq: ['$$res.userID', '$personId'] },
+                          { $eq: ['$$res.completedTask', true] },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           tasks: {
             $filter: {
               input: '$tasks',
               as: 'task',
               cond: {
-                $ne: ['$$task.isActive', false],
+                $and: [
+                  { $ne: ['$$task.isActive', false] },
+                  {
+                    $not: {
+                      $anyElementTrue: {
+                        $map: {
+                          input: '$$task.resources',
+                          as: 'res',
+                          in: {
+                            $and: [
+                              { $eq: ['$$res.userID', '$personId'] },
+                              { $eq: ['$$res.completedTask', true] },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
               },
             },
           },
+        },
+      },
+      {
+        $project: {
+          completedTasksCount: 1,
+          tasks: 1,
+          personId: 1,
+          name: 1,
+          weeklycommittedHours: 1,
+          timeOffFrom: 1,
+          timeOffTill: 1,
+          role: 1,
+          totaltime_hrs: 1,
+          totaltangibletime_hrs: 1,
           'tasks.resources.profilePic': 0,
         },
       },
@@ -757,6 +827,7 @@ const taskHelper = function () {
       {
         $project: {
           projectId: 0,
+          completedTasksCount: 1,
           tasks: {
             projectId: {
               _id: 0,
@@ -825,3 +896,5 @@ const taskHelper = function () {
 };
 
 module.exports = taskHelper;
+module.exports.isTaskActiveForUser = isTaskActiveForUser;
+module.exports.isTaskCompletedForUser = isTaskCompletedForUser;
