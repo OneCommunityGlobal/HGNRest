@@ -3,6 +3,7 @@ const BuildingMaterial = require('../../models/bmdashboard/buildingMaterial');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingTool = require('../../models/bmdashboard/buildingTool');
 const Issue = require('../../models/bmdashboard/Issues');
+const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const LaborCost = require('../../models/laborCost');
 const ProjectStatus = require('../../models/projectStatus');
@@ -150,6 +151,18 @@ async function getCurrentProjectStatusMetrics(project) {
     activeProjects: counts.activeProjects,
     delayedProjects: counts.delayedProjects,
   };
+}
+
+// Same issues as Issues Breakdown and Issue Tracking (buildingIssues). An issue counts as open at the
+// end of the period if it was raised by then and is still open or was closed after the period ended.
+async function getOpenIssuesCount(project, startDate, endDate) {
+  const { end } = toDateRange(startDate, endDate);
+  const match = {
+    issueDate: { $lte: end },
+    $or: [{ status: 'open' }, { closedDate: { $gt: end } }],
+  };
+  if (project) match.projectId = project._id;
+  return BuildingIssue.countDocuments(match);
 }
 
 async function getCompletedProjectStats(project, startDate, endDate) {
@@ -364,12 +377,14 @@ function comparableOrUnavailableMetric(value, unit) {
 
 async function calculatePeriodMetrics({ project, startDate, endDate }) {
   const includesToday = dateRangeIncludesToday(startDate, endDate);
-  const [currentProjectStatus, completedStats, materialStats, totalLaborCost] = await Promise.all([
-    getCurrentProjectStatusMetrics(project),
-    getCompletedProjectStats(project, startDate, endDate),
-    getMaterialStats(project, startDate, endDate),
-    getLaborCost(project, startDate, endDate),
-  ]);
+  const [currentProjectStatus, completedStats, materialStats, totalLaborCost, openIssues] =
+    await Promise.all([
+      getCurrentProjectStatusMetrics(project),
+      getCompletedProjectStats(project, startDate, endDate),
+      getMaterialStats(project, startDate, endDate),
+      getLaborCost(project, startDate, endDate),
+      getOpenIssuesCount(project, startDate, endDate),
+    ]);
 
   return {
     totalProjects: currentSnapshotMetric(
@@ -399,6 +414,7 @@ async function calculatePeriodMetrics({ project, startDate, endDate }) {
       MATERIAL_AVAILABLE_CURRENT_ONLY_REASON,
     ),
     materialWasted: comparableOrUnavailableMetric(materialStats.materialWasted),
+    openIssues: comparableOrUnavailableMetric(openIssues),
   };
 }
 
