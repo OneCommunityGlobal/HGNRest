@@ -39,11 +39,9 @@ const verifyToken = async (req) => {
 const listingsController = (ListingHome) => {
   const getListings = async (req, res) => {
     try {
-      const page = req.headers.page || 1;
-      const size = req.headers.size || 10;
-      const { village } = req.headers;
-      const availableFrom = req.headers.availablefrom;
-      const availableTo = req.headers.availableto;
+      const page = req.query.page || 1;
+      const size = req.query.size || 10;
+      const { village, availableFrom, availableTo } = req.query;
 
       const pageNum = parseInt(page, 10);
       const sizeNum = parseInt(size, 10);
