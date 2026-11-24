@@ -477,6 +477,7 @@ const resourceRequestRouter = require('../routes/resourceRequestRouter')(
   userProfile,
   resourceRequestController,
 );
+const serverTimeRouter = require('../routes/serverTimeRouter');
 
 const gardenCalendarRouter = require('../routes/gardenManagement/gardenCalendarRouter');
 const seedInventoryRouter = require('../routes/gardenManagement/seedInventoryRouter');
@@ -766,6 +767,7 @@ module.exports = function (app) {
 
   app.use('/api/analytics', analyticsRouter);
 
+  app.use('/api', serverTimeRouter);
   // Kitchen and Inventory - Garden Management
   app.use('/api/kitchenandinventory/gardenmanagement/calendar', gardenCalendarRouter);
   app.use('/api/kitchenandinventory/gardenmanagement/seeds', seedInventoryRouter);
