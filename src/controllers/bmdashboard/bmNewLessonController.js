@@ -10,7 +10,7 @@ const buildProjectIdFilter = (projectId) => {
 
 /** Returns month-over-month change as a signed percentage string (e.g. '+50.0%', '-25.0%'). */
 const calculateChangePercentage = (thisMonth, lastMonth) => {
-  if (lastMonth === 0 && thisMonth > 0) return '+100%';
+  if (lastMonth === 0 && thisMonth > 0) return 'N/A';
   if (lastMonth > 0) {
     const change = ((thisMonth - lastMonth) / lastMonth) * 100;
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
@@ -256,7 +256,11 @@ const bmNewLessonController = function (BuildingNewLesson) {
       if (startDate || endDate) {
         filter.date = {};
         if (startDate) filter.date.$gte = new Date(startDate);
-        if (endDate) filter.date.$lte = new Date(endDate);
+        if (endDate) {
+          const nextDay = new Date(endDate);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+          filter.date.$lt = nextDay;
+        }
       }
 
       const lessonsInRange = await BuildingNewLesson.aggregate([

@@ -486,7 +486,7 @@ describe('bmNewLessonController', () => {
           },
         ],
       });
-    });
+    })
 
     it('should return empty data array when no lessons exist', async () => {
       mockBuildingNewLesson.aggregate.mockReset();
@@ -514,14 +514,14 @@ describe('bmNewLessonController', () => {
     });
 
     // --- Filter construction: date range ---
-    it('should apply $gte and $lte date filters when startDate and endDate are given', async () => {
+    it('should apply $gte and $lt date filters when startDate and endDate are given', async () => {
       mockReq.query = { startDate: '2024-01-01', endDate: '2024-12-31' };
 
       await controller.getLessonsLearnt(mockReq, mockRes);
 
       const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
       expect(firstMatchStage.date.$gte).toEqual(new Date('2024-01-01'));
-      expect(firstMatchStage.date.$lte).toEqual(new Date('2024-12-31'));
+      expect(firstMatchStage.date.$lt).toEqual(new Date('2025-01-01'));
     });
 
     it('should apply only $gte when only startDate is given', async () => {
@@ -534,13 +534,13 @@ describe('bmNewLessonController', () => {
       expect(firstMatchStage.date.$lte).toBeUndefined();
     });
 
-    it('should apply only $lte when only endDate is given', async () => {
+    it('should apply only $lt when only endDate is given', async () => {
       mockReq.query = { endDate: '2024-12-31' };
 
       await controller.getLessonsLearnt(mockReq, mockRes);
 
       const firstMatchStage = mockBuildingNewLesson.aggregate.mock.calls[0][0][0].$match;
-      expect(firstMatchStage.date.$lte).toEqual(new Date('2024-12-31'));
+      expect(firstMatchStage.date.$lt).toEqual(new Date('2025-01-01'));
       expect(firstMatchStage.date.$gte).toBeUndefined();
     });
 
@@ -554,7 +554,7 @@ describe('bmNewLessonController', () => {
     });
 
     // --- changePercentage calculation ---
-    it('should return +100% when lastMonth is 0 and thisMonth is positive', async () => {
+    it('should return N/A when lastMonth is 0 and thisMonth is positive', async () => {
       mockBuildingNewLesson.aggregate.mockReset();
       mockBuildingNewLesson.aggregate
         .mockResolvedValueOnce([
@@ -567,7 +567,7 @@ describe('bmNewLessonController', () => {
       await controller.getLessonsLearnt(mockReq, mockRes);
 
       expect(mockRes.json).toHaveBeenCalledWith({
-        data: [expect.objectContaining({ changePercentage: '+100%' })],
+        data: [expect.objectContaining({ changePercentage: 'N/A' })],
       });
     });
 
