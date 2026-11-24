@@ -44,6 +44,78 @@ const validateAndUploadImage = async (file, equipmentId) => {
   }
 };
 
+// Canonical status values match the buildingEquipment updateRecord.condition enum.
+const CANONICAL_STATUSES = ['Good', 'Needs Repair', 'Out of Order'];
+// Display labels sent by older clients map onto the canonical values.
+const LEGACY_STATUS_LABELS = {
+  'Working well': 'Good',
+  'Broken/Needs repair': 'Needs Repair',
+  'Stolen/Lost': 'Out of Order',
+  'End of life': 'Out of Order',
+  Returned: 'Good',
+};
+
+const normalizeStatus = (value) => {
+  if (typeof value !== 'string') return null;
+  if (CANONICAL_STATUSES.includes(value)) return value;
+  return Object.prototype.hasOwnProperty.call(LEGACY_STATUS_LABELS, value)
+    ? LEGACY_STATUS_LABELS[value]
+    : null;
+};
+
+const validateEquipmentStatusUpdate = ({
+  condition,
+  createdBy,
+  replacementRequired,
+  replacementReason,
+}) => {
+  if (!createdBy) {
+    return { status: 401, body: { error: 'Authentication required.' } };
+  }
+
+  if (!condition) {
+    return { status: 400, body: { error: 'Condition is a required field.' } };
+  }
+
+  const normalizedCondition = normalizeStatus(condition);
+  if (!normalizedCondition) {
+    return {
+      status: 400,
+      body: { error: `Condition must be one of: ${CANONICAL_STATUSES.join(', ')}.` },
+    };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(createdBy)) {
+    console.error('Invalid createdBy ID');
+    return {
+      status: 400,
+      body: {
+        error: 'Invalid user ID format. Please log in again.',
+        details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
+      },
+    };
+  }
+
+  if (replacementRequired && !['yes', 'no'].includes(replacementRequired)) {
+    return {
+      status: 400,
+      body: { error: 'replacementRequired must be either "yes" or "no".' },
+    };
+  }
+
+  if (
+    replacementRequired === 'yes' &&
+    (typeof replacementReason !== 'string' || !replacementReason.trim())
+  ) {
+    return {
+      status: 400,
+      body: { error: 'A replacement reason is required when replacement is requested.' },
+    };
+  }
+
+  return { normalizedCondition };
+};
+
 /**
  * Builds the updateRecord subdocument for a status update.
  * Defaults all optional string fields to '' so they are always present in the schema.
@@ -57,6 +129,10 @@ const buildUpdateRecord = (fields, imageUrl) => ({
   lastUsedBy: fields.lastUsedBy || '',
   lastUsedFor: fields.lastUsedFor || '',
   replacementRequired: fields.replacementRequired || '',
+  replacementReason:
+  fields.replacementRequired === 'yes'
+    ? fields.replacementReason.trim()
+    : '',
   description: fields.description || '',
   notes: fields.notes || '',
   ...(imageUrl && { imageUrl }),
@@ -352,71 +428,76 @@ const bmEquipmentController = (BuildingEquipment) => {
    */
   const updateEquipmentStatus = async (req, res) => {
     const { equipmentId } = req.params;
-    const { condition, createdBy } = req.body;
+
+    const { condition, replacementRequired, replacementReason } = req.body;
+    const createdBy = req.user?.requestorId;
 
     try {
+      // Validate equipment ID
       if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
         return res.status(400).send({ error: 'Invalid equipment ID.' });
       }
 
-      if (!condition || !createdBy) {
-        return res.status(400).send({
-          error: 'Condition and createdBy are required fields.',
-        });
+      // Validate authentication, status, and replacement reason
+      const validation = validateEquipmentStatusUpdate({
+        condition,
+        createdBy,
+        replacementRequired,
+        replacementReason,
+      });
+
+      if (validation.status) {
+        return res.status(validation.status).send(validation.body);
       }
 
-      if (!mongoose.Types.ObjectId.isValid(createdBy)) {
-        logException(new Error('Invalid createdBy ID'), 'updateEquipmentStatus', { createdBy });
-        return res.status(400).send({
-          error: 'Invalid user ID format. Please log in again.',
-          details: `Expected a valid MongoDB ObjectId, got: ${createdBy}`,
-        });
-      }
-
+      // Upload image to Azure if one was provided
       let imageUrl;
       let uploadedBlobName;
+
       if (req.file) {
         const result = await validateAndUploadImage(req.file, equipmentId);
+
         if (result.error) {
           return res.status(result.status).send({ error: result.error });
         }
+
         imageUrl = result.imageUrl;
         uploadedBlobName = result.blobName;
       }
 
-      const updateRecord = buildUpdateRecord(req.body, imageUrl);
+      // Build the status update record with validated values
+      const updateRecord = buildUpdateRecord(
+        {
+          ...req.body,
+          createdBy,
+          condition: validation.normalizedCondition,
+        },
+        imageUrl,
+      );
 
+      // Append update history and save image URL when provided
       const dbUpdate = { $push: { updateRecord } };
+
       if (imageUrl) {
         dbUpdate.$set = { imageUrl };
       }
 
       let updatedEquipment;
+
       try {
-        updatedEquipment = await BuildingEquipment.findByIdAndUpdate(equipmentId, dbUpdate, {
-          new: true,
-        }).populate([
-          {
-            path: 'itemType',
-            select: '_id name description unit imageUrl category',
-          },
-          {
-            path: 'project',
-            select: 'name',
-          },
-          {
-            path: 'updateRecord.createdBy',
-            select: '_id firstName lastName',
-          },
-        ]);
+        updatedEquipment = await BuildingEquipment.findByIdAndUpdate(
+          equipmentId,
+          dbUpdate,
+          { new: true },
+        ).populate(equipmentPopulateConfig);
       } catch (dbError) {
-        // Image already uploaded to Azure but the DB write failed - clean up
-        // the now-orphaned blob before surfacing the error.
+        // Remove uploaded image if database update fails
         if (uploadedBlobName) {
           await deleteBlobFromAzureBlobStorage(uploadedBlobName);
         }
         throw dbError;
       }
+
 
       if (!updatedEquipment) {
         if (uploadedBlobName) {
