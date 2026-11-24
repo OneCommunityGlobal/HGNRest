@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const Listings = require('../../models/lbdashboard/listings');
+const Village = require('../../models/lbdashboard/villages');
+const { summarizeWinningVsAverageBids } = require('./winningVsAverageBidHelpers');
 
 const bidsDeadlineController = function (BidDeadlines) {
   const parseDate = (dateStr) => {
@@ -77,6 +79,83 @@ const bidsDeadlineController = function (BidDeadlines) {
         .send({ error: error.response?.data?.error || error.message || 'Unknown error' });
     }
   };
+  const getWinningVsAverageBids = async (req, res) => {
+    try {
+      const { startDate, endDate, category = 'property', ids, limit } = req.query;
+
+      if (!['property', 'village'].includes(category)) {
+        return res.status(400).json({ error: 'category must be "property" or "village"' });
+      }
+
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      if ((start && Number.isNaN(start.getTime())) || (end && Number.isNaN(end.getTime()))) {
+        return res.status(400).json({ error: 'Invalid startDate or endDate' });
+      }
+      if (start && end && start > end) {
+        return res.status(400).json({ error: 'startDate must be before endDate' });
+      }
+
+      const parsedLimit = limit === undefined ? 10 : parseInt(limit, 10);
+      if (Number.isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+        return res.status(400).json({ error: 'limit must be between 1 and 50' });
+      }
+
+      const idList = ids
+        ? String(ids)
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean)
+        : [];
+      if (idList.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+        return res.status(400).json({ error: 'ids must be valid ObjectIds' });
+      }
+
+      const deadlines = await BidDeadlines.find({ isActive: { $ne: false } })
+        .select('listingId endDate biddingHistory isClosed')
+        .lean();
+
+      const listingIds = [
+        ...new Set(
+          deadlines
+            .map((d) => d.listingId)
+            .filter(Boolean)
+            .map(String),
+        ),
+      ];
+      const listings = await Listings.find({ _id: { $in: listingIds } })
+        .select('title village')
+        .lean();
+
+      const villageIds = [
+        ...new Set(
+          listings
+            .map((l) => l.village)
+            .filter(Boolean)
+            .map(String),
+        ),
+      ];
+      const villages = await Village.find({ _id: { $in: villageIds } })
+        .select('name')
+        .lean();
+
+      const result = summarizeWinningVsAverageBids({
+        deadlines,
+        listings,
+        villages,
+        start,
+        end,
+        category,
+        ids: idList,
+        limit: parsedLimit,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error('Failed to build winning vs average bid stats:', error);
+      return res.status(500).json({ error: error.message || 'Unknown error' });
+    }
+  };
+
   const addBidToHistory = async (modl, listingId, amount, paypalOrderId = null) => {
     if (!modl || amount == null) {
       throw new Error('model  and amount are required.');
@@ -100,6 +179,7 @@ const bidsDeadlineController = function (BidDeadlines) {
 
   return {
     getBidDeadlines,
+    getWinningVsAverageBids,
     postBidDeadlines,
     addBidToHistory,
   };
