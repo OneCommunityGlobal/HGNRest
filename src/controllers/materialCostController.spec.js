@@ -30,7 +30,10 @@ describe('materialCostController', () => {
   it('should aggregate if there is no cache', async () => {
     cache.get = jest.fn().mockReturnValue(null);
 
-    BuildingMaterial.aggregate = jest.fn().mockResolvedValue(mockData);
+    // The aggregation returns the full cost; the controller converts it to thousands
+    BuildingMaterial.aggregate = jest
+      .fn()
+      .mockResolvedValue([{ project: '12345', totalCost: 1000000 }]);
     await getMaterialCosts(req, res);
     expect(cache.get).toHaveBeenCalledWith('materialCostall');
     expect(BuildingMaterial.aggregate).toHaveBeenCalled();

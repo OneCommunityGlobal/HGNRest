@@ -31,11 +31,17 @@ jest.mock('../startup/logger', () => ({
 jest.mock('../services/bmdashboard/costAggregationService', () => ({
   runCostAggregation: jest.fn(),
 }));
+jest.mock('../services/bmdashboard/materialPurchaseCostService', () => ({
+  getMaterialPurchaseCostByProject: jest.fn().mockResolvedValue([]),
+}));
 
 const Cost = require('../models/costs');
 const BuildingProject = require('../models/bmdashboard/buildingProject');
 const logger = require('../startup/logger');
 const { runCostAggregation } = require('../services/bmdashboard/costAggregationService');
+const {
+  getMaterialPurchaseCostByProject,
+} = require('../services/bmdashboard/materialPurchaseCostService');
 const costsController = require('./costsController');
 
 const cache = mockCache;
@@ -176,6 +182,10 @@ describe('costsController', () => {
         { category: 'Total Cost of Labor', amount: 500 },
         { category: 'Total Cost of Materials', amount: 300 },
       ]);
+      // Materials now comes from approved purchases instead of cost entries
+      getMaterialPurchaseCostByProject.mockResolvedValueOnce([
+        { project: VALID_OID, totalCost: 300 },
+      ]);
       const { res } = await callController(controller.getCostBreakdown, { query: {} });
       expect(res.status).toHaveBeenCalledWith(200);
       const response = res.json.mock.calls[0][0];
@@ -267,6 +277,35 @@ describe('costsController', () => {
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json.mock.calls[0][0].totalCost).toBe(0);
+    });
+
+    test('A.extra — Materials detail lists each project from approved purchases', async () => {
+      setupBreakdownNoCache([]);
+      getMaterialPurchaseCostByProject.mockResolvedValueOnce([
+        { project: VALID_OID, totalCost: 300 },
+        { project: VALID_OID_2, totalCost: 100 },
+      ]);
+      BuildingProject.find.mockReturnValueOnce({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([
+              { _id: VALID_OID, name: 'Project Alpha' },
+              { _id: VALID_OID_2, name: 'Project Beta' },
+            ]),
+        }),
+      });
+      const { res } = await callController(controller.getCostBreakdown, {
+        query: { categoryDetail: 'true' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      const materials = res.json.mock.calls[0][0].breakdown.find(
+        (b) => b.category === 'Total Cost of Materials',
+      );
+      expect(materials.amount).toBe(400);
+      expect(materials.projectBreakdown).toEqual([
+        { projectId: VALID_OID, projectName: 'Project Alpha', amount: 300, percentage: 75 },
+        { projectId: VALID_OID_2, projectName: 'Project Beta', amount: 100, percentage: 25 },
+      ]);
     });
 
     test('A.extra — project findById returns null uses All Projects for label', async () => {

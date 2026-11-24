@@ -28,6 +28,7 @@ const materialType = invTypeBase.discriminator(
   new mongoose.Schema({
     category: { type: String, enum: ['Material'] },
     unit: { type: String, required: true }, // unit of measurement
+    unitPrice: { type: Number, min: 0 }, // price per unit entered on Add Material
   }),
 );
 
