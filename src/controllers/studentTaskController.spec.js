@@ -266,7 +266,7 @@ describe('student task retrieval and removed progress endpoint', () => {
     ).toBe(true);
   });
 
-  test('matches the authenticated owner and defaults both hours fields in the aggregation', async () => {
+  test('matches the authenticated owner, includes name, and defaults both hours fields', async () => {
     const aggregate = jest.spyOn(EducationTask, 'aggregate').mockResolvedValue([]);
     mockReq.user = { requestorId: VALID_STUDENT_ID };
     mockReq.body = { requestor: { requestorId: VALID_TASK_ID } };
@@ -276,6 +276,7 @@ describe('student task retrieval and removed progress endpoint', () => {
       $match: { studentId: mongoose.Types.ObjectId(VALID_STUDENT_ID) },
     });
     const projection = pipeline.find((stage) => stage.$project).$project;
+    expect(projection.name).toBe(1);
     expect(projection.suggestedTotalHours).toEqual({ $ifNull: ['$suggestedTotalHours', 0] });
     expect(projection.loggedHours).toEqual({ $ifNull: ['$loggedHours', 0] });
     expect(mockRes.status).toHaveBeenCalledWith(200);

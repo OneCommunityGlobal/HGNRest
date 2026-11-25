@@ -177,6 +177,7 @@ const studentTaskController = function () {
         {
           $project: {
             _id: 1,
+            name: 1,
             studentId: 1,
             lessonPlanId: 1,
             atomIds: 1,
