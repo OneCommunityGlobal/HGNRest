@@ -3,6 +3,7 @@ const moment = require('moment-timezone');
 const userhelper = require('../helpers/userHelper')();
 const Badge = require('../models/badge');
 const badgeController = require('../controllers/badgeController')(Badge);
+const logger = require('../startup/logger');
 
 const userProfileJobs = () => {
   /* eslint-disable no-unused-vars */
@@ -72,8 +73,20 @@ const userProfileJobs = () => {
     // '* * * * *', // Comment out for testing. Run Every minute.
     '1 0 * * *', // Every day, 1 minute past midnight
     async () => {
-      await userhelper.reactivateUser();
-      await userhelper.finalizeUserEndDates();
+      // The helper is named reActivateUser. Calling reactivateUser threw every
+      // night, so nobody was reactivated on their date and finalizeUserEndDates
+      // never ran either. Each step is isolated so one failure cannot stop the other.
+      try {
+        await userhelper.reActivateUser();
+      } catch (error) {
+        logger.logException(error, 'Daily cron: reActivateUser');
+      }
+
+      try {
+        await userhelper.finalizeUserEndDates();
+      } catch (error) {
+        logger.logException(error, 'Daily cron: finalizeUserEndDates');
+      }
     },
     null,
     false,
