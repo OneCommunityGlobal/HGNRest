@@ -1,5 +1,6 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
+const jobApplicationAnalyticsController = require('../controllers/jobApplicationAnalyticsController');
 const emailRecipientsController = require('../controllers/jobApplicationEmailRecipientsController');
 const { jobApplicationUploadMiddleware } = require('../middleware/jobApplicationUploadMiddleware');
 const {
@@ -18,6 +19,26 @@ router.put('/job-application-email-recipients', emailRecipientsController.update
 router.post('/jobforms', formController.createForm);
 
 router.get('/jobforms/all', formController.getAllFormsFormat);
+
+// CRM analytics — must be registered before /jobforms/:formId
+router.get(
+  '/jobforms/applications/summary',
+  jobApplicationAnalyticsController.getJobApplicationsSummary,
+);
+router.get('/jobforms/applications', jobApplicationAnalyticsController.listJobApplications);
+router.post('/jobforms/applications', jobApplicationAnalyticsController.createJobApplication);
+router.get(
+  '/jobforms/applications/:applicationId',
+  jobApplicationAnalyticsController.getJobApplicationById,
+);
+router.put(
+  '/jobforms/applications/:applicationId',
+  jobApplicationAnalyticsController.updateJobApplication,
+);
+router.delete(
+  '/jobforms/applications/:applicationId',
+  jobApplicationAnalyticsController.deleteJobApplication,
+);
 
 // Update a form's format
 router.put('/jobforms', formController.updateFormFormat);
