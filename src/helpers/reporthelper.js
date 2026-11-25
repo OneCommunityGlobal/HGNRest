@@ -103,6 +103,7 @@ const reporthelper = function () {
           isActive: 1,
           firstName: 1,
           lastName: 1,
+          pronouns: 1,
           role: 1,
           email: 1,
           mediaUrl: 1,

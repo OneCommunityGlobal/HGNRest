@@ -106,6 +106,7 @@ const {
   InactiveReason,
   UserStatusOperations,
   LifecycleStatus,
+  normalizePronouns,
 } = require('../constants/userProfile');
 const {
   isValidCalendarDate,
@@ -355,6 +356,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     up.firstName = req.body.firstName;
     up.lastName = req.body.lastName;
     up.jobTitle = req.body.jobTitle;
+    up.pronouns = normalizePronouns(req.body.pronouns) || '';
     up.phoneNumber = req.body.phoneNumber;
     up.bio = req.body.bio;
     up.weeklycommittedHours = req.body.weeklycommittedHours;
@@ -435,6 +437,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         firstName: up.firstName,
         lastName: up.lastName,
         email: up.email,
+        pronouns: up.pronouns,
       };
       const allUserCache = JSON.parse(cache.getCache('allusers'));
       allUserCache.push(userCache);
@@ -1024,6 +1027,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
             timeZone: 1,
             filterColor: 1,
             bioPosted: 1,
+            pronouns: 1,
             infringementCCList: 1,
             statusNote: 1,
             statusNoteHistory: 1,
@@ -1193,6 +1197,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
 
     if (req.body.role === 'Owner' && !(await checkPermission(req, 'addDeleteEditOwners'))) {
       forbidden(res, 'You are not authorized to create new owners');
+      return;
+    }
+
+    if (normalizePronouns(req.body.pronouns) === null) {
+      res.status(400).send({ error: 'Invalid pronouns value' });
       return;
     }
 
@@ -1684,6 +1693,62 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(200).send(user);
       })
       .catch((error) => res.status(404).send(error));
+  };
+
+  /**
+   * PATCH /userProfile/:userId/pronouns
+   * Only the user themselves, or an Administrator/Owner, can change a
+   * user's pronouns. Value must be one of PRONOUN_OPTIONS.
+   */
+  const updatePronouns = async (req, res) => {
+    const { userId } = req.params;
+    const { requestor } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({ error: 'Invalid user id' });
+    }
+
+    const pronouns = normalizePronouns(req.body.pronouns);
+    if (!pronouns) {
+      return res.status(400).send({ error: 'Invalid pronouns value' });
+    }
+
+    const isSelf = requestor?.requestorId === userId;
+    const isAdminOrOwner = ['Administrator', 'Owner'].includes(requestor?.role);
+    if (!isSelf && !isAdminOrOwner) {
+      return res.status(403).send({ error: 'You are not authorized to update these pronouns' });
+    }
+
+    try {
+      if (!isSelf && !(await canRequestorUpdateUser(requestor.requestorId, userId))) {
+        return res.status(403).send({ error: 'You are not authorized to update this account' });
+      }
+
+      const user = await UserProfile.findByIdAndUpdate(
+        userId,
+        { $set: { pronouns, lastModifiedDate: Date.now() } },
+        { new: true, runValidators: true, projection: { _id: 1, pronouns: 1 } },
+      );
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      cache.removeCache(`user-${userId}`);
+      cache.clearByPrefix('weeklySummaries');
+      if (cache.hasCache('allusers')) {
+        const allUserData = JSON.parse(cache.getCache('allusers'));
+        const idx = allUserData.findIndex((u) => String(u._id) === userId);
+        if (idx !== -1) {
+          allUserData[idx].pronouns = user.pronouns;
+          cache.setCache('allusers', JSON.stringify(allUserData));
+        }
+      }
+
+      return res.status(200).send({ _id: user._id, pronouns: user.pronouns });
+    } catch (error) {
+      logger.logException(error);
+      return res.status(500).send({ error: 'Failed to update pronouns' });
+    }
   };
 
   const getUserByName = (req, res) => {
@@ -3472,6 +3537,7 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     getUserById,
     getreportees,
     updateOneProperty,
+    updatePronouns,
     updateAllMembersTeamCode,
     updatepassword,
     getUserName,

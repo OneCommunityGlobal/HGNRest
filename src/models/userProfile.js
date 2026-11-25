@@ -5,6 +5,7 @@ const moment = require('moment-timezone');
 const { Schema } = mongoose;
 const validate = require('mongoose-validator');
 const bcrypt = require('bcryptjs');
+const { PRONOUN_OPTIONS } = require('../constants/userProfile');
 
 const SALT_ROUNDS = 10;
 // Update createdDate to be the current date from the next day
@@ -98,6 +99,11 @@ const userProfileSchema = new Schema({
   },
   phoneNumber: [{ type: String, phoneNumber: String }],
   jobTitle: [{ type: String, jobTitle: String }],
+  pronouns: {
+    type: String,
+    enum: ['', ...PRONOUN_OPTIONS],
+    default: '',
+  },
   bio: { type: String },
   email: {
     type: String,
