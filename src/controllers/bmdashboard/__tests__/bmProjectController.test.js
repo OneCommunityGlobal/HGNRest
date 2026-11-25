@@ -251,4 +251,82 @@ describe('Building Manager Project Controller', () => {
       expect(res.json).toHaveBeenCalledWith(mockError);
     });
   });
+
+  describe('fetchProjectMembers', () => {
+    const validProjectId = '507f1f77bcf86cd799439011';
+
+    // Mock findById().populate().populate().lean().exec()
+    const mockMembersQuery = (execImpl) => {
+      const execMock = jest.fn(execImpl);
+      const query = {};
+      query.populate = jest.fn(() => query);
+      query.lean = jest.fn(() => query);
+      query.exec = execMock;
+      mockFindById.mockReturnValue(query);
+      return { query, execMock };
+    };
+
+    let consoleErrorSpy;
+
+    beforeEach(() => {
+      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should return 400 for an invalid project ID without querying the database', async () => {
+      req.params.projectId = '123';
+
+      await controller.fetchProjectMembers(req, res);
+
+      expect(BuildingProject.findById).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid project ID' });
+    });
+
+    it('should return 404 when the project does not exist', async () => {
+      req.params.projectId = validProjectId;
+      mockMembersQuery(() => Promise.resolve(null));
+
+      await controller.fetchProjectMembers(req, res);
+
+      expect(BuildingProject.findById).toHaveBeenCalledWith(validProjectId);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Project not found' });
+    });
+
+    it('should return the project and drop members whose user no longer exists', async () => {
+      req.params.projectId = validProjectId;
+      const validMember = {
+        user: { _id: 'user1', firstName: 'Jane', lastName: 'Doe', role: 'Volunteer', teams: [] },
+        hours: 5,
+      };
+      mockMembersQuery(() =>
+        Promise.resolve({
+          _id: validProjectId,
+          name: 'Test Project',
+          members: [validMember, { user: null, hours: 2 }, null],
+        }),
+      );
+
+      await controller.fetchProjectMembers(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: validProjectId, members: [validMember] }),
+      );
+    });
+
+    it('should return 500 when the query fails', async () => {
+      req.params.projectId = validProjectId;
+      mockMembersQuery(() => Promise.reject(new Error('DB down')));
+
+      await controller.fetchProjectMembers(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
+    });
+  });
 });
