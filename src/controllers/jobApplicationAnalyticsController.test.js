@@ -30,7 +30,6 @@ const {
     isProtectedAnswer,
     normalizeIncomingAnswers,
     mergeAnswers,
-    mongoSwitchBranch,
     escapeRegex,
   },
 } = require('./jobApplicationAnalyticsController');
@@ -550,11 +549,7 @@ describe('jobApplicationAnalyticsController', () => {
   });
 
   describe('helper coverage', () => {
-    it('builds Mongo $switch branches and escapes regex safely', () => {
-      expect(mongoSwitchBranch({ $lt: ['$x', 1] }, 'low')).toEqual({
-        case: { $lt: ['$x', 1] },
-        then: 'low',
-      });
+    it('escapes regex metacharacters safely', () => {
       expect(escapeRegex('a+b*c?')).toBe('a\\+b\\*c\\?');
     });
 

@@ -18,16 +18,6 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
-/** Build a Mongo `$switch` branch without a literal `then` key (Sonar S7739). */
-function mongoSwitchBranch(caseExpr, resultExpr) {
-  const branch = { case: caseExpr };
-  // Mongo requires the field name "then"; assign via variable so static analysis
-  // does not treat this object as a Promise thenable.
-  const resultField = 'then';
-  branch[resultField] = resultExpr;
-  return branch;
-}
-
 function buildListMatch(query = {}) {
   const match = {};
 
@@ -543,15 +533,21 @@ exports.getJobApplicationsSummary = async (req, res) => {
         { $match: { hours: { $ne: null } } },
         {
           $group: {
+            // Nested $cond arrays avoid Mongo `$switch` `then` keys (Sonar S7739).
             _id: {
-              $switch: {
-                branches: [
-                  mongoSwitchBranch({ $lt: ['$hours', 10] }, '< 10 hrs/week'),
-                  mongoSwitchBranch({ $lt: ['$hours', 20] }, '10–19 hrs/week'),
-                  mongoSwitchBranch({ $lt: ['$hours', 30] }, '20–29 hrs/week'),
-                ],
-                default: '30+ hrs/week',
-              },
+              $cond: [
+                { $lt: ['$hours', 10] },
+                '< 10 hrs/week',
+                {
+                  $cond: [
+                    { $lt: ['$hours', 20] },
+                    '10–19 hrs/week',
+                    {
+                      $cond: [{ $lt: ['$hours', 30] }, '20–29 hrs/week', '30+ hrs/week'],
+                    },
+                  ],
+                },
+              ],
             },
             count: { $sum: 1 },
           },
@@ -578,14 +574,19 @@ exports.getJobApplicationsSummary = async (req, res) => {
         {
           $group: {
             _id: {
-              $switch: {
-                branches: [
-                  mongoSwitchBranch({ $lt: ['$months', 2] }, '< 2 months'),
-                  mongoSwitchBranch({ $lt: ['$months', 3] }, '2–3 months'),
-                  mongoSwitchBranch({ $lt: ['$months', 6] }, '3–6 months'),
-                ],
-                default: '6+ months',
-              },
+              $cond: [
+                { $lt: ['$months', 2] },
+                '< 2 months',
+                {
+                  $cond: [
+                    { $lt: ['$months', 3] },
+                    '2–3 months',
+                    {
+                      $cond: [{ $lt: ['$months', 6] }, '3–6 months', '6+ months'],
+                    },
+                  ],
+                },
+              ],
             },
             count: { $sum: 1 },
           },
@@ -699,6 +700,5 @@ exports._test = {
   isProtectedAnswer,
   normalizeIncomingAnswers,
   mergeAnswers,
-  mongoSwitchBranch,
   escapeRegex,
 };
