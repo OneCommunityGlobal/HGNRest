@@ -1049,6 +1049,58 @@ describe('Unit Tests for taskController.js', () => {
       expect(projectFindByIdSpy).toHaveBeenCalled();
     });
 
+    describe('estimated hours change count (deadlineCount)', () => {
+      const runUpdate = async (oldEstimatedHours, body) => {
+        const { updateTask } = makeSut();
+        hasPermission.mockResolvedValueOnce(true);
+        mockReq.params = { ...mockReq.params, taskId: 456 };
+        mockReq.body = { ...mockReq.body, ...body };
+        jest.spyOn(Task, 'findById').mockResolvedValue({
+          estimatedHours: oldEstimatedHours,
+          toObject: () => ({ ...mockedTask, estimatedHours: oldEstimatedHours }),
+        });
+        const updateSpy = jest
+          .spyOn(Task, 'findOneAndUpdate')
+          .mockResolvedValueOnce({ toObject: () => ({ ...mockedTask }) });
+        jest.spyOn(WBS, 'findById').mockResolvedValue(mockedWBS);
+        jest.spyOn(Project, 'findById').mockResolvedValue(mockedProject);
+        jest.spyOn(UserProfile, 'findById').mockImplementation(() => ({
+          maxTimeMS: jest.fn().mockResolvedValue(null),
+        }));
+        jest.spyOn(TaskChangeTracker, 'logChanges').mockResolvedValue([]);
+        await updateTask(mockReq, mockRes);
+        await flushPromises();
+        return updateSpy.mock.calls[0][1];
+      };
+
+      afterEach(() => {
+        delete mockReq.body.estimatedHours;
+        delete mockReq.body.deadlineCount;
+      });
+
+      test('increments deadlineCount when estimated hours change', async () => {
+        const update = await runUpdate(10, { estimatedHours: 15 });
+        expect(update.$inc).toEqual({ deadlineCount: 1 });
+        expect(update.estimatedHours).toBe(15);
+      });
+
+      test('does not increment when estimated hours are sent unchanged', async () => {
+        const update = await runUpdate(10, { estimatedHours: '10' });
+        expect(update.$inc).toBeUndefined();
+      });
+
+      test('does not increment when estimated hours are not in the update', async () => {
+        const update = await runUpdate(10, {});
+        expect(update.$inc).toBeUndefined();
+      });
+
+      test('ignores a deadlineCount sent by the client', async () => {
+        const update = await runUpdate(10, { deadlineCount: 99 });
+        expect(update.deadlineCount).toBeUndefined();
+        expect(update.$inc).toBeUndefined();
+      });
+    });
+
     test('Return 404 on encountering error', async () => {
       const { updateTask } = makeSut();
 
