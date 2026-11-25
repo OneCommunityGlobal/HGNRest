@@ -5,17 +5,21 @@ const testRoutes = require('./routes/testRoutes');
 const app = express();
 const logger = require('./startup/logger');
 const globalErrorHandler = require('./utilities/errorHandling/globalErrorHandler');
-// const experienceRoutes = require('./routes/applicantAnalyticsRoutes');
 
 logger.init();
 
 app.use(Sentry.Handlers.requestHandler());
 
-// Then load all other setup
+// 1. Load basic setups (CORS, body parser, session, etc.) first
 require('./startup/compression')(app);
 require('./startup/cors')(app);
 require('./startup/bodyParser')(app);
-require('./startup/session')(app); // Add session before middleware and routes
+require('./startup/session')(app);
+
+// 2. 💡 Mount YouTube routes after CORS and session so they have cross-origin and session support while bypassing subsequent global auth middleware
+const youtubeAutoPosterRouter = require('./routes/youtubeAutoPosterRouter');
+
+app.use('/api/youtube', youtubeAutoPosterRouter);
 
 app.use('/api/test', testRoutes);
 
