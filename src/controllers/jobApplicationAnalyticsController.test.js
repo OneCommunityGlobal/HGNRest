@@ -16,6 +16,9 @@ const {
   listJobApplications,
   getJobApplicationsSummary,
   getJobApplicationById,
+  createJobApplication,
+  updateJobApplication,
+  deleteJobApplication,
 } = require('./jobApplicationAnalyticsController');
 
 const createMockRes = () => {
@@ -334,6 +337,182 @@ describe('jobApplicationAnalyticsController', () => {
           ],
         }),
       );
+    });
+  });
+
+  describe('createJobApplication', () => {
+    const formId = '507f1f77bcf86cd799439099';
+    const questionId = '507f1f77bcf86cd799439012';
+
+    it('returns 403 without manageJobForms', async () => {
+      canManageJobForms.mockResolvedValue(false);
+      await createJobApplication(
+        { body: { requestor: { role: 'Volunteer' }, formId, email: 'a@b.com' } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('returns 400 when formId or email is missing', async () => {
+      await createJobApplication({ body: { requestor: { role: 'Owner' }, email: 'a@b.com' } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      await createJobApplication({ body: { requestor: { role: 'Owner' }, formId } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('creates an application for authorized users', async () => {
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({ _id: formId, title: 'Software', questions: [] }),
+        }),
+      });
+      const createdDoc = {
+        _id: '507f1f77bcf86cd799439011',
+        formId,
+        respondent: 'Ada',
+        email: 'ada@example.com',
+        resumeUrl: '',
+        submittedAt: new Date('2026-01-02'),
+        answers: [{ questionId, answer: 'React' }],
+        toObject() {
+          return this;
+        },
+      };
+      Response.create = jest.fn().mockResolvedValue(createdDoc);
+
+      await createJobApplication(
+        {
+          body: {
+            requestor: { role: 'Owner' },
+            formId,
+            respondent: 'Ada',
+            email: 'ada@example.com',
+            answers: [{ questionId, answer: 'React' }],
+          },
+        },
+        res,
+      );
+
+      expect(Response.create).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          respondent: 'Ada',
+          email: 'ada@example.com',
+        }),
+      );
+    });
+  });
+
+  describe('updateJobApplication', () => {
+    const validId = '507f1f77bcf86cd799439011';
+    const questionId = '507f1f77bcf86cd799439012';
+
+    it('returns 403 without manageJobForms', async () => {
+      canManageJobForms.mockResolvedValue(false);
+      await updateJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Volunteer' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('updates respondent/email/answers and preserves protected answers', async () => {
+      const application = {
+        _id: validId,
+        formId: '507f1f77bcf86cd799439099',
+        respondent: 'Old',
+        email: 'old@example.com',
+        resumeUrl: '',
+        submittedAt: new Date('2026-01-02'),
+        answers: [
+          { questionId, answer: 'Old answer' },
+          {
+            questionId: '507f1f77bcf86cd799439014',
+            answer: { type: 'applicantProfile', hours: 10 },
+          },
+        ],
+        save: jest.fn().mockResolvedValue(undefined),
+        toObject() {
+          return this;
+        },
+      };
+      Response.findById = jest.fn().mockResolvedValue(application);
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({
+            title: 'Software',
+            questions: [{ _id: questionId, questionText: 'Skills?', questionType: 'text' }],
+          }),
+        }),
+      });
+
+      await updateJobApplication(
+        {
+          params: { applicationId: validId },
+          body: {
+            requestor: { role: 'Owner' },
+            respondent: 'Ada',
+            email: 'ada@example.com',
+            answers: [{ questionId, answer: 'Updated' }],
+          },
+        },
+        res,
+      );
+
+      expect(application.respondent).toBe('Ada');
+      expect(application.email).toBe('ada@example.com');
+      expect(application.answers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ answer: 'Updated' }),
+          expect.objectContaining({
+            answer: expect.objectContaining({ type: 'applicantProfile' }),
+          }),
+        ]),
+      );
+      expect(application.save).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe('deleteJobApplication', () => {
+    const validId = '507f1f77bcf86cd799439011';
+
+    it('returns 403 without manageJobForms', async () => {
+      canManageJobForms.mockResolvedValue(false);
+      await deleteJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Volunteer' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('deletes an application for authorized users', async () => {
+      Response.findByIdAndDelete = jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ _id: validId }),
+      });
+
+      await deleteJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ _id: validId, deleted: true });
+    });
+
+    it('returns 404 when the application is missing', async () => {
+      Response.findByIdAndDelete = jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      });
+
+      await deleteJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(404);
     });
   });
 });

@@ -145,6 +145,57 @@ function buildFormattedAnswers(application, form) {
     .filter(Boolean);
 }
 
+function isProtectedAnswer(answer) {
+  return (
+    answer &&
+    typeof answer === 'object' &&
+    !Array.isArray(answer) &&
+    (answer.type === 'applicantProfile' || answer.type === 'resume')
+  );
+}
+
+function normalizeIncomingAnswers(answers) {
+  if (answers == null) return null;
+  if (!Array.isArray(answers)) {
+    const err = new Error('answers must be an array.');
+    err.status = 400;
+    throw err;
+  }
+
+  return answers
+    .filter(
+      (entry) => entry && entry.questionId && mongoose.Types.ObjectId.isValid(entry.questionId),
+    )
+    .map((entry) => ({
+      questionId: new mongoose.Types.ObjectId(entry.questionId),
+      answer: entry.answer,
+    }));
+}
+
+function mergeAnswers(existingAnswers, incomingAnswers) {
+  const protectedEntries = (Array.isArray(existingAnswers) ? existingAnswers : []).filter((entry) =>
+    isProtectedAnswer(entry?.answer),
+  );
+  return [...incomingAnswers, ...protectedEntries];
+}
+
+async function toApplicationDetail(application) {
+  const form = application.formId
+    ? await Form.findById(application.formId).select('title questions').lean()
+    : null;
+
+  return {
+    _id: application._id,
+    formId: application.formId,
+    formTitle: form?.title || 'Untitled form',
+    respondent: application.respondent || 'Anonymous',
+    email: application.email || '',
+    submittedAt: application.submittedAt,
+    resumeUrl: application.resumeUrl || '',
+    answers: buildFormattedAnswers(application, form),
+  };
+}
+
 /**
  * GET /api/jobforms/applications
  * Paginated CRM list of live JobApplications across forms.
@@ -224,23 +275,145 @@ exports.getJobApplicationById = async (req, res) => {
       return res.status(404).json({ message: 'Application not found.' });
     }
 
-    const form = application.formId
-      ? await Form.findById(application.formId).select('title questions').lean()
-      : null;
-
-    return res.status(200).json({
-      _id: application._id,
-      formId: application.formId,
-      formTitle: form?.title || 'Untitled form',
-      respondent: application.respondent || 'Anonymous',
-      email: application.email || '',
-      submittedAt: application.submittedAt,
-      resumeUrl: application.resumeUrl || '',
-      answers: buildFormattedAnswers(application, form),
-    });
+    return res.status(200).json(await toApplicationDetail(application));
   } catch (error) {
     console.error('getJobApplicationById failed:', error);
     return res.status(500).json({ message: 'Error fetching job application details.' });
+  }
+};
+
+/**
+ * POST /api/jobforms/applications
+ * Owner/Admin manual create for CRM entry (no public rate/bot guards).
+ */
+exports.createJobApplication = async (req, res) => {
+  try {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
+      return res
+        .status(403)
+        .json({ message: 'You are not authorized to create job applications.' });
+    }
+
+    const formId = req.body?.formId;
+    if (!formId || !mongoose.Types.ObjectId.isValid(formId)) {
+      return res.status(400).json({ message: 'A valid formId is required.' });
+    }
+
+    const form = await Form.findById(formId).select('_id title').lean();
+    if (!form) {
+      return res.status(404).json({ message: 'Form not found.' });
+    }
+
+    const email = String(req.body?.email || '').trim();
+    if (!email) {
+      return res.status(400).json({ message: 'email is required.' });
+    }
+
+    let answers;
+    try {
+      answers = normalizeIncomingAnswers(req.body?.answers) || [];
+    } catch (err) {
+      return res.status(err.status || 400).json({ message: err.message });
+    }
+
+    const created = await Response.create({
+      formId,
+      respondent: String(req.body?.respondent || '').trim() || 'Anonymous',
+      email,
+      resumeUrl: String(req.body?.resumeUrl || '').trim(),
+      answers,
+      submittedAt: req.body?.submittedAt ? new Date(req.body.submittedAt) : new Date(),
+    });
+
+    return res.status(201).json(await toApplicationDetail(created.toObject()));
+  } catch (error) {
+    console.error('createJobApplication failed:', error);
+    return res.status(500).json({ message: 'Error creating job application.' });
+  }
+};
+
+/**
+ * PUT /api/jobforms/applications/:applicationId
+ * Owner/Admin update of applicant fields and/or answers.
+ */
+exports.updateJobApplication = async (req, res) => {
+  try {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
+      return res
+        .status(403)
+        .json({ message: 'You are not authorized to update job applications.' });
+    }
+
+    const { applicationId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ message: 'Invalid application id.' });
+    }
+
+    const application = await Response.findById(applicationId);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found.' });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'respondent')) {
+      application.respondent = String(req.body.respondent || '').trim() || 'Anonymous';
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'email')) {
+      const email = String(req.body.email || '').trim();
+      if (!email) {
+        return res.status(400).json({ message: 'email cannot be empty.' });
+      }
+      application.email = email;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'resumeUrl')) {
+      application.resumeUrl = String(req.body.resumeUrl || '').trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'answers')) {
+      let incoming;
+      try {
+        incoming = normalizeIncomingAnswers(req.body.answers);
+      } catch (err) {
+        return res.status(err.status || 400).json({ message: err.message });
+      }
+      application.answers = mergeAnswers(application.answers, incoming);
+    }
+
+    await application.save();
+    return res.status(200).json(await toApplicationDetail(application.toObject()));
+  } catch (error) {
+    console.error('updateJobApplication failed:', error);
+    return res.status(500).json({ message: 'Error updating job application.' });
+  }
+};
+
+/**
+ * DELETE /api/jobforms/applications/:applicationId
+ * Owner/Admin hard-delete of a CRM application record.
+ */
+exports.deleteJobApplication = async (req, res) => {
+  try {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
+      return res
+        .status(403)
+        .json({ message: 'You are not authorized to delete job applications.' });
+    }
+
+    const { applicationId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ message: 'Invalid application id.' });
+    }
+
+    const deleted = await Response.findByIdAndDelete(applicationId).lean();
+    if (!deleted) {
+      return res.status(404).json({ message: 'Application not found.' });
+    }
+
+    return res.status(200).json({ _id: deleted._id, deleted: true });
+  } catch (error) {
+    console.error('deleteJobApplication failed:', error);
+    return res.status(500).json({ message: 'Error deleting job application.' });
   }
 };
 
