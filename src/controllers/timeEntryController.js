@@ -1,5 +1,6 @@
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
+const { escape } = require('lodash');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../startup/logger');
 const UserProfile = require('../models/userProfile');
@@ -7,6 +8,7 @@ const Project = require('../models/project');
 const Task = require('../models/task');
 const WBS = require('../models/wbs');
 const emailSender = require('../utilities/emailSender');
+const { cleanHtml } = require('../utilities/htmlContentSanitizer');
 const { hasPermission } = require('../utilities/permissions');
 const cacheClosure = require('../utilities/nodeCache');
 const cacheModule = require('../utilities/nodeCache');
@@ -114,16 +116,17 @@ const notifyDeleteByEmail = async (userprofile, requestorId, timeEntry) => {
     timeEntry.projectId ? Project.findById(timeEntry.projectId, 'projectName') : null,
   ]);
   const [hours, minutes] = formatSeconds(timeEntry.totalSeconds);
+  // user-entered values go into HTML: escape plain text, sanitize the rich-text notes
   const deletedBy = requestor
-    ? `${requestor.role}: ${requestor.firstName} ${requestor.lastName}`
+    ? escape(`${requestor.role}: ${requestor.firstName} ${requestor.lastName}`)
     : 'an administrator';
-  const emailBody = `<p>Hi ${userprofile.firstName},</p>
+  const emailBody = `<p>Hi ${escape(userprofile.firstName)},</p>
     <p>Your time log for <b>${moment(timeEntry.dateOfWork).format('MMM D, YYYY')}</b> was deleted on
     <b>${moment().tz(COMPANY_TZ).format('MMM D, YYYY')}</b> by <b>${deletedBy}</b>.</p>
     <ul>
       <li><b>Time:</b> ${hours}h ${minutes}m (${timeEntry.isTangible ? 'Tangible' : 'Intangible'})</li>
-      <li><b>Project:</b> ${project?.projectName || 'N/A'}</li>
-      <li><b>Notes:</b> ${timeEntry.notes || ''}</li>
+      <li><b>Project:</b> ${escape(project?.projectName || 'N/A')}</li>
+      <li><b>Notes:</b> ${cleanHtml(timeEntry.notes || '')}</li>
     </ul>
     <p>If you have questions about this change, please reply to this email.</p>
     <p>Thank you,</p>

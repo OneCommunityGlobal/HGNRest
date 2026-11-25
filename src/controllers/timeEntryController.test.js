@@ -635,6 +635,28 @@ describe('Unit Tests: timeEntryController', () => {
       expect(body).toContain('Administrator: Jane Doe');
       expect(body).toContain('1h 30m');
 
+      // user-entered values are escaped or sanitized before going into the email HTML
+      emailSender.mockClear();
+      TimeEntry.findById.mockResolvedValue({
+        ...entry(),
+        notes: '<p>kept</p><script>alert(1)</script><img src=x onerror="alert(1)">',
+      });
+      UserProfile.findById.mockImplementation(async (id) =>
+        id === 'admin1'
+          ? { firstName: '<b>Jane</b>', lastName: 'Doe', role: 'Administrator' }
+          : profile,
+      );
+      await controller.deleteTimeEntry(
+        { params: { timeEntryId: 'te1' }, body: { requestor: { requestorId: 'admin1' } } },
+        mockRes,
+      );
+      await flush();
+      const [, , unsafeBody] = emailSender.mock.calls[0];
+      expect(unsafeBody).toContain('<p>kept</p>');
+      expect(unsafeBody).not.toContain('<script>');
+      expect(unsafeBody).not.toContain('onerror');
+      expect(unsafeBody).toContain('Administrator: &lt;b&gt;Jane&lt;/b&gt; Doe');
+
       emailSender.mockClear();
       TimeEntry.findById.mockResolvedValue(entry());
       await controller.deleteTimeEntry(
