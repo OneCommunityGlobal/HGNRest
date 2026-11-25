@@ -34,9 +34,14 @@ const bmRentalChartController = function () {
 
   const getRentalCostOverTime = async (req, res) => {
     try {
-      const { projectId, startDate, endDate } = req.query;
+      const { projectId, toolName, startDate, endDate } = req.query;
 
       const match = {};
+
+      // String() keeps a crafted query object (e.g. toolName[$ne]=x) from becoming an operator
+      if (toolName) {
+        match.toolName = String(toolName);
+      }
 
       if (projectId) {
         if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -78,6 +83,9 @@ const bmRentalChartController = function () {
             value: {
               $sum: '$rentalCost',
             },
+            materialCost: {
+              $sum: '$totalMaterialCost',
+            },
           },
         },
         { $sort: { _id: 1 } },
@@ -86,6 +94,14 @@ const bmRentalChartController = function () {
             _id: 0,
             date: '$_id',
             value: 1,
+            // Rental cost as a share of that day's materials cost, so "% of Materials Cost" isn't the dollar value
+            percentage: {
+              $cond: [
+                { $gt: ['$materialCost', 0] },
+                { $multiply: [{ $divide: ['$value', '$materialCost'] }, 100] },
+                null,
+              ],
+            },
           },
         },
       ]);
