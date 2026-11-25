@@ -107,6 +107,30 @@ describe('ownerMessageController Unit Tests', () => {
       await flushPromises();
       assertResMock(403, 'You are not authorized to create messages!', response, mockRes);
     });
+
+    test('Blocks Administrator on dev even with editHeaderMessage permission', async () => {
+      const originalDbName = process.env.dbName;
+      process.env.dbName = 'hgnData_dev';
+
+      try {
+        const { updateOwnerMessage } = makeSut();
+        helper.hasPermission.mockResolvedValue(true);
+
+        const req = {
+          body: {
+            requestor: { role: 'Administrator' },
+          },
+        };
+
+        const response = await updateOwnerMessage(req, mockRes);
+        await flushPromises();
+
+        assertResMock(403, 'You are not authorized to create messages!', response, mockRes);
+      } finally {
+        process.env.dbName = originalDbName;
+      }
+    });
+
     test('Ensures updateOwnerMessage returns status 201 and updates the owner message correctly with custom message', async () => {
       const existingMessage = { message: '', standardMessage: '', save: mockSave };
       mockFind.mockReturnValue({
@@ -161,7 +185,7 @@ describe('ownerMessageController Unit Tests', () => {
       mockFind.mockReturnValue({
         session: jest.fn().mockResolvedValue([existingMessage]),
       });
-      mockReq.body.requestor.role = '';
+      mockReq.body.requestor.role = 'Owner';
       helper.hasPermission.mockResolvedValue(true);
 
       const { deleteOwnerMessage } = makeSut();
