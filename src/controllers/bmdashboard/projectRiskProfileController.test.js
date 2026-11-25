@@ -1,10 +1,12 @@
 jest.mock('../../models/bmdashboard/projectRiskProfile');
 jest.mock('../../models/bmdashboard/buildingProject');
 jest.mock('../../models/bmdashboard/buildingIssue');
+jest.mock('../../models/bmdashboard/Issues');
 
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
+const Issue = require('../../models/bmdashboard/Issues');
 const controller = require('./projectRiskProfileController');
 
 const mockRes = () => {
@@ -33,12 +35,19 @@ function mockIssueQuery(issues = []) {
   });
 }
 
+function mockLinkedIssueQuery(issues = []) {
+  Issue.find.mockReturnValue({
+    select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(issues) }),
+  });
+}
+
 describe('projectRiskProfileController.getRiskProfileSummary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockProjectQuery();
     mockProfileQuery();
     mockIssueQuery();
+    mockLinkedIssueQuery();
   });
 
   test('returns actual building project names and excludes legacy sample issue names', async () => {
@@ -77,6 +86,31 @@ describe('projectRiskProfileController.getRiskProfileSummary', () => {
     expect(result.predictedCostOverrun).not.toBeNull();
     expect(result.predictedTimeDelay).toBeCloseTo((300 / 365) * 100);
     expect(result.totalOpenIssues).toBe(2);
+  });
+
+  test('uses a profile linked through an Issue record of the building project', async () => {
+    const issueId = '607f1f77bcf86cd799439022';
+    mockLinkedIssueQuery([{ _id: issueId, projectId }]);
+    mockProfileQuery([
+      {
+        projectId: issueId,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-12-31T00:00:00Z'),
+        initialCostEstimate: 1000,
+        currentCostIncurred: 500,
+        plannedTime: 365,
+        actualTimeElapsed: 300,
+      },
+    ]);
+    const res = mockRes();
+
+    await controller.getRiskProfileSummary({ query: {} }, res);
+
+    expect(ProjectRiskProfile.find.mock.calls[0][0].projectId.$in).toEqual([projectId, issueId]);
+    const [result] = res.json.mock.calls[0][0];
+    expect(result.projectName).toBe('Earthbag Village');
+    expect(result.predictedCostOverrun).not.toBeNull();
+    expect(result.predictedTimeDelay).toBeCloseTo((300 / 365) * 100);
   });
 
   test('filters real building issues by the selected date range', async () => {

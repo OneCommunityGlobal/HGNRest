@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const ProjectRiskProfile = require('../../models/bmdashboard/projectRiskProfile');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
 const BuildingIssue = require('../../models/bmdashboard/buildingIssue');
+const Issue = require('../../models/bmdashboard/Issues');
 
 const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 const DECIMAL_PLACES = 2;
@@ -203,7 +204,17 @@ const projectRiskProfileController = {
 
       const buildingProjects = await BuildingProject.find(projectFilter).sort({ name: 1 }).lean();
       const buildingProjectIds = buildingProjects.map((project) => project._id);
-      const profileFilter = { projectId: { $in: buildingProjectIds } };
+      // Most risk profiles link to an Issue record whose projectId is the building project
+      // (see weeklyProjectSummaryService), so match those as well as direct links.
+      const linkedIssues = await Issue.find({ projectId: { $in: buildingProjectIds } })
+        .select('_id projectId')
+        .lean();
+      const buildingProjectIdByIssueId = new Map(
+        linkedIssues.map((issue) => [String(issue._id), String(issue.projectId)]),
+      );
+      const profileFilter = {
+        projectId: { $in: [...buildingProjectIds, ...linkedIssues.map((issue) => issue._id)] },
+      };
       if (dates) {
         const [start, end] = dates.split(',');
         profileFilter.startDate = { $gte: new Date(start) };
@@ -216,9 +227,13 @@ const projectRiskProfileController = {
         ProjectRiskProfile.find(profileFilter).lean(),
         BuildingIssue.find(issueFilter).select('projectId').lean(),
       ]);
-      const profileByProject = new Map(
-        riskProfiles.map((profile) => [String(profile.projectId), profile]),
-      );
+      const profileByProject = new Map();
+      riskProfiles.forEach((profile) => {
+        const profileProjectId = String(profile.projectId);
+        const key = buildingProjectIdByIssueId.get(profileProjectId) || profileProjectId;
+        // Keep the first profile found for each project.
+        if (!profileByProject.has(key)) profileByProject.set(key, profile);
+      });
       const issueCountByProject = openIssues.reduce((counts, issue) => {
         const projectId = String(issue.projectId);
         counts.set(projectId, (counts.get(projectId) || 0) + 1);
