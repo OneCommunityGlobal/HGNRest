@@ -37,7 +37,7 @@ const biddingController = (Bidding) => {
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
           { path: 'updatedBy', select: '_id firstName lastName' },
-          { path: 'villages' },
+          { path: 'village', select: 'name amenities' },
         ])
         .sort({ updatedOn: -1 })
         .skip(skip)
@@ -92,6 +92,10 @@ const biddingController = (Bidding) => {
     try {
       const { id } = req.headers;
       if (!id) return res.status(400).json({ error: 'Missing listing id in header' });
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: 'Invalid listing id' });
+      }
+
       const listing = await Bidding.findById(id)
         .populate([
           { path: 'createdBy', select: '_id firstName lastName' },
