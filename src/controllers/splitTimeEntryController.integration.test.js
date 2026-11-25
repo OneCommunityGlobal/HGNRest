@@ -82,7 +82,8 @@ beforeAll(async () => {
     ),
   );
   controller = createController(TimeEntry);
-}, 60000);
+  // Slow CI runners can need over 60s to download/start mongod; a timed-out hook leaks into later in-band suites.
+}, 180000);
 
 afterAll(async () => {
   await mongoose.disconnect();
