@@ -30,6 +30,8 @@ const {
     isProtectedAnswer,
     normalizeIncomingAnswers,
     mergeAnswers,
+    mongoSwitchBranch,
+    escapeRegex,
   },
 } = require('./jobApplicationAnalyticsController');
 
@@ -548,6 +550,14 @@ describe('jobApplicationAnalyticsController', () => {
   });
 
   describe('helper coverage', () => {
+    it('builds Mongo $switch branches and escapes regex safely', () => {
+      expect(mongoSwitchBranch({ $lt: ['$x', 1] }, 'low')).toEqual({
+        case: { $lt: ['$x', 1] },
+        then: 'low',
+      });
+      expect(escapeRegex('a+b*c?')).toBe('a\\+b\\*c\\?');
+    });
+
     it('fills weekday and hour buckets with zeros for missing rows', () => {
       expect(fillWeekdayCounts([{ _id: 1, count: 2 }])[0]).toEqual({ label: 'Sun', count: 2 });
       expect(fillWeekdayCounts()).toHaveLength(7);
