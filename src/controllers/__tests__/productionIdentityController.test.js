@@ -10,6 +10,9 @@ jest.mock('../../models/productionVerificationLog', () => ({
   create: jest.fn(),
 }));
 
+require('../../models/userProfile');
+require('../../models/productionVerificationLog');
+require('../productionIdentityController');
 
 const mockRes = () => {
   const res = {};

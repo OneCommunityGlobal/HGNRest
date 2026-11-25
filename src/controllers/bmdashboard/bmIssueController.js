@@ -11,7 +11,39 @@ const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality 
 const MIN_YEAR = 1000;
 const MAX_YEAR = 9999;
 
+const toSanitizedStringArray = (value, maxLen) => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const out = value
+    .filter((item) => item !== null && item !== undefined)
+    .map((item) => String(item).slice(0, maxLen));
+  return out.length > 0 ? out : null;
+};
+
 const buildOpenOrClosedAfter = (start) => [{ status: 'open' }, { closedDate: { $gte: start } }];
+
+const getProjectFilterIds = (projectsParam) =>
+  projectsParam ? projectsParam.split(',').map((id) => id.trim()) : [];
+
+const filterProjectIdsByDates = async (datesParam, currentProjectIds) => {
+  if (!datesParam) {
+    return currentProjectIds;
+  }
+
+  const [start, end] = datesParam.split(',').map((d) => d.trim());
+  const matchingProjects = await BuildingProject.find({
+    dateCreated: { $gte: new Date(start), $lte: new Date(end) },
+    isActive: true,
+  })
+    .select('_id')
+    .lean();
+
+  const dateIds = matchingProjects.map((p) => p._id.toString());
+  if (currentProjectIds.length === 0) {
+    return dateIds;
+  }
+
+  return currentProjectIds.filter((id) => dateIds.includes(id));
+};
 
 const omitUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
