@@ -19,6 +19,18 @@ const {
   createJobApplication,
   updateJobApplication,
   deleteJobApplication,
+  _test: {
+    fillWeekdayCounts,
+    fillHourCounts,
+    bucketHours,
+    bucketCommitment,
+    normalizeBucketRows,
+    formatAnswerValue,
+    buildFormattedAnswers,
+    isProtectedAnswer,
+    normalizeIncomingAnswers,
+    mergeAnswers,
+  },
 } = require('./jobApplicationAnalyticsController');
 
 const createMockRes = () => {
@@ -513,6 +525,264 @@ describe('jobApplicationAnalyticsController', () => {
       );
 
       expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('returns 400 for invalid ids and 500 on delete failure', async () => {
+      await deleteJobApplication(
+        { params: { applicationId: 'bad' }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      Response.findByIdAndDelete = jest.fn().mockReturnValue({
+        lean: jest.fn().mockRejectedValue(new Error('delete failed')),
+      });
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await deleteJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(500);
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('helper coverage', () => {
+    it('fills weekday and hour buckets with zeros for missing rows', () => {
+      expect(fillWeekdayCounts([{ _id: 1, count: 2 }])[0]).toEqual({ label: 'Sun', count: 2 });
+      expect(fillWeekdayCounts()).toHaveLength(7);
+      expect(fillHourCounts([{ _id: 9, count: 4 }])[9]).toEqual({ label: '09:00', count: 4 });
+      expect(fillHourCounts()).toHaveLength(24);
+    });
+
+    it('buckets hours and commitment ranges', () => {
+      expect(bucketHours(NaN)).toBeNull();
+      expect(bucketHours(0)).toBeNull();
+      expect(bucketHours(5)).toBe('< 10 hrs/week');
+      expect(bucketHours(15)).toBe('10–19 hrs/week');
+      expect(bucketHours(25)).toBe('20–29 hrs/week');
+      expect(bucketHours(40)).toBe('30+ hrs/week');
+
+      expect(bucketCommitment(NaN)).toBeNull();
+      expect(bucketCommitment(0)).toBeNull();
+      expect(bucketCommitment(1)).toBe('< 2 months');
+      expect(bucketCommitment(2.5)).toBe('2–3 months');
+      expect(bucketCommitment(4)).toBe('3–6 months');
+      expect(bucketCommitment(9)).toBe('6+ months');
+    });
+
+    it('normalizes bucket rows and formats answer values', () => {
+      expect(
+        normalizeBucketRows([{ label: 'A', count: 1 }, null, { label: '', count: 2 }]),
+      ).toEqual([{ label: 'A', count: 1 }]);
+      expect(normalizeBucketRows([{ label: 'B' }, { label: 'A', count: 3 }])[0].label).toBe('A');
+
+      expect(formatAnswerValue(null)).toBe('—');
+      expect(formatAnswerValue('')).toBe('—');
+      expect(formatAnswerValue(['a', null, 'b'])).toBe('a, b');
+      expect(formatAnswerValue([[], null])).toBe('—');
+      expect(formatAnswerValue(true)).toBe('Yes');
+      expect(formatAnswerValue(false)).toBe('No');
+      expect(formatAnswerValue(new Date('2026-03-01T12:00:00.000Z'))).toBe('2026-03-01');
+      expect(formatAnswerValue({ type: 'resume', fileName: 'cv.pdf' })).toBe('cv.pdf');
+      expect(formatAnswerValue({ type: 'resume', url: 'https://x/r' })).toBe('https://x/r');
+      expect(formatAnswerValue({ type: 'resume' })).toBe('Resume uploaded');
+      expect(formatAnswerValue({ type: 'applicantProfile' })).toBeNull();
+      expect(formatAnswerValue({ fileName: 'shot.png' })).toBe('shot.png');
+      expect(formatAnswerValue({ url: 'https://x/f' })).toBe('https://x/f');
+      expect(formatAnswerValue({ nested: true })).toBe('{"nested":true}');
+      expect(formatAnswerValue(42)).toBe('42');
+
+      const circular = {};
+      circular.self = circular;
+      expect(formatAnswerValue(circular)).toBe('—');
+    });
+
+    it('builds formatted answers and merges protected entries', () => {
+      const questionId = '507f1f77bcf86cd799439012';
+      const formatted = buildFormattedAnswers(
+        {
+          answers: [
+            { questionId, answer: 'Hello' },
+            { questionId: 'x', answer: { type: 'resume', fileName: 'a.pdf' } },
+            { questionId: 'y', answer: { type: 'applicantProfile' } },
+            { questionId: 'z', answer: ['one', 'two'] },
+          ],
+        },
+        {
+          questions: [{ _id: questionId, questionText: 'Intro', questionType: 'text' }],
+        },
+      );
+      expect(formatted).toEqual([
+        expect.objectContaining({ questionText: 'Intro', displayValue: 'Hello' }),
+        expect.objectContaining({ questionText: 'Question 4', displayValue: 'one, two' }),
+      ]);
+      expect(buildFormattedAnswers({}, null)).toEqual([]);
+
+      expect(isProtectedAnswer({ type: 'resume' })).toBe(true);
+      expect(isProtectedAnswer({ type: 'applicantProfile' })).toBe(true);
+      expect(isProtectedAnswer('nope')).toBeFalsy();
+      expect(isProtectedAnswer(['x'])).toBeFalsy();
+
+      expect(normalizeIncomingAnswers(null)).toBeNull();
+      expect(() => normalizeIncomingAnswers({ bad: true })).toThrow('answers must be an array.');
+      const normalized = normalizeIncomingAnswers([
+        { questionId, answer: 'ok' },
+        { questionId: 'bad', answer: 'skip' },
+        null,
+      ]);
+      expect(normalized).toHaveLength(1);
+      expect(String(normalized[0].questionId)).toBe(questionId);
+
+      const merged = mergeAnswers(
+        [
+          { questionId, answer: 'old' },
+          { questionId: 'p', answer: { type: 'resume', fileName: 'cv.pdf' } },
+        ],
+        [{ questionId, answer: 'new' }],
+      );
+      expect(merged).toEqual([
+        { questionId, answer: 'new' },
+        { questionId: 'p', answer: { type: 'resume', fileName: 'cv.pdf' } },
+      ]);
+      expect(mergeAnswers(null, [{ questionId, answer: 'only' }])).toEqual([
+        { questionId, answer: 'only' },
+      ]);
+    });
+  });
+
+  describe('additional CRUD edge cases', () => {
+    const validId = '507f1f77bcf86cd799439011';
+    const formId = '507f1f77bcf86cd799439099';
+
+    it('getById returns 404 and 500 when needed', async () => {
+      Response.findById = jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      });
+      await getJobApplicationById(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(404);
+
+      Response.findById = jest.fn().mockReturnValue({
+        lean: jest.fn().mockRejectedValue(new Error('boom')),
+      });
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await getJobApplicationById(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(500);
+      consoleSpy.mockRestore();
+    });
+
+    it('create returns 404 for missing form, 400 for bad answers, and 500 on failure', async () => {
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue(null),
+        }),
+      });
+      await createJobApplication(
+        { body: { requestor: { role: 'Owner' }, formId, email: 'a@b.com' } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(404);
+
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({ _id: formId, title: 'Software' }),
+        }),
+      });
+      await createJobApplication(
+        {
+          body: {
+            requestor: { role: 'Owner' },
+            formId,
+            email: 'a@b.com',
+            answers: { not: 'array' },
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      Response.create = jest.fn().mockRejectedValue(new Error('create failed'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await createJobApplication(
+        { body: { requestor: { role: 'Owner' }, formId, email: 'a@b.com', answers: [] } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(500);
+      consoleSpy.mockRestore();
+    });
+
+    it('update validates id/email/answers and handles missing docs and failures', async () => {
+      await updateJobApplication(
+        { params: { applicationId: 'bad' }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      Response.findById = jest.fn().mockResolvedValue(null);
+      await updateJobApplication(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(404);
+
+      const application = {
+        _id: validId,
+        formId,
+        respondent: 'Ada',
+        email: 'ada@example.com',
+        resumeUrl: '',
+        answers: [],
+        save: jest.fn().mockResolvedValue(undefined),
+        toObject() {
+          return this;
+        },
+      };
+      Response.findById = jest.fn().mockResolvedValue(application);
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({ title: 'Software', questions: [] }),
+        }),
+      });
+
+      await updateJobApplication(
+        {
+          params: { applicationId: validId },
+          body: { requestor: { role: 'Owner' }, email: '   ' },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      await updateJobApplication(
+        {
+          params: { applicationId: validId },
+          body: {
+            requestor: { role: 'Owner' },
+            resumeUrl: ' https://x/r ',
+            answers: { bad: true },
+          },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+
+      application.save = jest.fn().mockRejectedValue(new Error('save failed'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await updateJobApplication(
+        {
+          params: { applicationId: validId },
+          body: { requestor: { role: 'Owner' }, respondent: 'New' },
+        },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(500);
+      consoleSpy.mockRestore();
     });
   });
 });

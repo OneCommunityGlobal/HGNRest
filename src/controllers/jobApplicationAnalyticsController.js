@@ -686,4 +686,7 @@ exports._test = {
   normalizeBucketRows,
   formatAnswerValue,
   buildFormattedAnswers,
+  isProtectedAnswer,
+  normalizeIncomingAnswers,
+  mergeAnswers,
 };
