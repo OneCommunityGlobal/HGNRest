@@ -85,6 +85,66 @@ function normalizeBucketRows(rows = []) {
     .sort((a, b) => b.count - a.count);
 }
 
+function formatAnswerValue(answer) {
+  if (answer == null || answer === '') return '—';
+  if (Array.isArray(answer)) {
+    const joined = answer
+      .flat()
+      .filter((part) => part != null && String(part).trim() !== '')
+      .map((part) => String(part).trim())
+      .join(', ');
+    return joined || '—';
+  }
+  if (typeof answer === 'boolean') return answer ? 'Yes' : 'No';
+  if (answer instanceof Date) return answer.toISOString().slice(0, 10);
+  if (typeof answer === 'object') {
+    if (answer.type === 'resume') {
+      return answer.fileName || answer.url || 'Resume uploaded';
+    }
+    if (answer.type === 'applicantProfile') {
+      return null;
+    }
+    if (answer.fileName || answer.url) {
+      return answer.fileName || answer.url;
+    }
+    try {
+      return JSON.stringify(answer);
+    } catch {
+      return '—';
+    }
+  }
+  return String(answer);
+}
+
+function buildFormattedAnswers(application, form) {
+  const questions = Array.isArray(form?.questions) ? form.questions : [];
+  const questionById = new Map(questions.map((q) => [String(q._id), q]));
+  const answers = Array.isArray(application?.answers) ? application.answers : [];
+
+  return answers
+    .map((entry, index) => {
+      const raw = entry?.answer;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        if (raw.type === 'applicantProfile' || raw.type === 'resume') {
+          return null;
+        }
+      }
+
+      const question = questionById.get(String(entry?.questionId));
+      const displayValue = formatAnswerValue(raw);
+      if (displayValue == null) return null;
+
+      return {
+        questionId: entry?.questionId || null,
+        questionText: question?.questionText || `Question ${index + 1}`,
+        questionType: question?.questionType || null,
+        answer: raw,
+        displayValue,
+      };
+    })
+    .filter(Boolean);
+}
+
 /**
  * GET /api/jobforms/applications
  * Paginated CRM list of live JobApplications across forms.
@@ -140,6 +200,47 @@ exports.listJobApplications = async (req, res) => {
   } catch (error) {
     console.error('listJobApplications failed:', error);
     return res.status(500).json({ message: 'Error fetching job applications.' });
+  }
+};
+
+/**
+ * GET /api/jobforms/applications/:applicationId
+ * Single application detail with formatted question/answer pairs for CRM popover.
+ */
+exports.getJobApplicationById = async (req, res) => {
+  try {
+    const requestor = req.body?.requestor || req.user;
+    if (!(await canManageJobForms(requestor))) {
+      return res.status(403).json({ message: 'You are not authorized to view job applications.' });
+    }
+
+    const { applicationId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ message: 'Invalid application id.' });
+    }
+
+    const application = await Response.findById(applicationId).lean();
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found.' });
+    }
+
+    const form = application.formId
+      ? await Form.findById(application.formId).select('title questions').lean()
+      : null;
+
+    return res.status(200).json({
+      _id: application._id,
+      formId: application.formId,
+      formTitle: form?.title || 'Untitled form',
+      respondent: application.respondent || 'Anonymous',
+      email: application.email || '',
+      submittedAt: application.submittedAt,
+      resumeUrl: application.resumeUrl || '',
+      answers: buildFormattedAnswers(application, form),
+    });
+  } catch (error) {
+    console.error('getJobApplicationById failed:', error);
+    return res.status(500).json({ message: 'Error fetching job application details.' });
   }
 };
 
@@ -407,4 +508,6 @@ exports._test = {
   bucketHours,
   bucketCommitment,
   normalizeBucketRows,
+  formatAnswerValue,
+  buildFormattedAnswers,
 };

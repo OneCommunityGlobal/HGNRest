@@ -15,6 +15,7 @@ const { canManageJobForms } = require('../utilities/jobFormPermissions');
 const {
   listJobApplications,
   getJobApplicationsSummary,
+  getJobApplicationById,
 } = require('./jobApplicationAnalyticsController');
 
 const createMockRes = () => {
@@ -264,6 +265,75 @@ describe('jobApplicationAnalyticsController', () => {
         message: 'Error fetching job application summary.',
       });
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('getJobApplicationById', () => {
+    const validId = '507f1f77bcf86cd799439011';
+    const questionId = '507f1f77bcf86cd799439012';
+
+    it('returns 403 without manageJobForms', async () => {
+      canManageJobForms.mockResolvedValue(false);
+      await getJobApplicationById(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Volunteer' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('returns 400 for invalid ids', async () => {
+      await getJobApplicationById(
+        { params: { applicationId: 'bad' }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('returns formatted question answers for authorized users', async () => {
+      Response.findById = jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          _id: validId,
+          formId: '507f1f77bcf86cd799439099',
+          respondent: 'Ada',
+          email: 'ada@example.com',
+          submittedAt: new Date('2026-01-02'),
+          resumeUrl: 'https://example.com/resume.pdf',
+          answers: [
+            { questionId, answer: 'React and Node' },
+            {
+              questionId: '507f1f77bcf86cd799439013',
+              answer: { type: 'applicantProfile', hoursPerWeek: '12' },
+            },
+          ],
+        }),
+      });
+      Form.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({
+            title: 'Software',
+            questions: [{ _id: questionId, questionText: 'Key skills?', questionType: 'textarea' }],
+          }),
+        }),
+      });
+
+      await getJobApplicationById(
+        { params: { applicationId: validId }, body: { requestor: { role: 'Owner' } } },
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          formTitle: 'Software',
+          respondent: 'Ada',
+          answers: [
+            expect.objectContaining({
+              questionText: 'Key skills?',
+              displayValue: 'React and Node',
+            }),
+          ],
+        }),
+      );
     });
   });
 });

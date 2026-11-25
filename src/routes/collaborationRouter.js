@@ -21,6 +21,10 @@ router.get(
   jobApplicationAnalyticsController.getJobApplicationsSummary,
 );
 router.get('/jobforms/applications', jobApplicationAnalyticsController.listJobApplications);
+router.get(
+  '/jobforms/applications/:applicationId',
+  jobApplicationAnalyticsController.getJobApplicationById,
+);
 
 // Update a form's format
 router.put('/jobforms', formController.updateFormFormat);
