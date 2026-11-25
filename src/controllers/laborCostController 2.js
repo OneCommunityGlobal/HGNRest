@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Labour = require('../models/laborCost');
 
 const createLabourCost = async (req, res) => {

@@ -1,6 +1,7 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
 const jobApplicationAnalyticsController = require('../controllers/jobApplicationAnalyticsController');
+const emailRecipientsController = require('../controllers/jobApplicationEmailRecipientsController');
 const { jobApplicationUploadMiddleware } = require('../middleware/jobApplicationUploadMiddleware');
 const {
   jobApplicationIpLimiter,
@@ -9,6 +10,10 @@ const {
 const { jobApplicationBotGuard } = require('../middleware/jobApplicationBotGuard');
 
 const router = express.Router();
+
+// Protected by JWT middleware and controller-level Owner/Admin authorization.
+router.get('/job-application-email-recipients', emailRecipientsController.getRecipients);
+router.put('/job-application-email-recipients', emailRecipientsController.updateRecipients);
 
 // Create a new form
 router.post('/jobforms', formController.createForm);

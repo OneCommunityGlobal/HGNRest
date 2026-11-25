@@ -1186,7 +1186,7 @@ describe('timeOffRequestController.js module', () => {
           const { setTimeOffRequest } = makeSut();
           const req = buildReq(role);
           hasPermission.mockResolvedValue(false);
-          const findByIdSpy = mockUserStartDate(newUserStartDate());
+          mockUserStartDate(newUserStartDate());
           const saved = { reason: 'Test set time off' };
           jest.spyOn(mongoose.Types, 'ObjectId').mockImplementationOnce(() => 'testUser123');
           jest.spyOn(TimeOffRequest.prototype, 'save').mockResolvedValueOnce(saved);

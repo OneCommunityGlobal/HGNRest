@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const JobApplicationEmailRecipients = require('../models/JobApplicationEmailRecipients');
 const Form = require('../models/JobFormsModel');
 const Response = require('../models/jobApplicationsModel');
 const upload = require('../middleware/multerMiddleware');
@@ -8,6 +9,11 @@ const emailSender = require('../utilities/emailSender');
 const { getEmailDomainError } = require('../utilities/emailValidators');
 const { escapeHtml, stripControlChars } = require('../utilities/escapeHtml');
 const { safeFileExtension } = require('../utilities/jobApplicationFileTypes');
+const {
+  formatApplicationAnswers,
+  attachQuestionLabels,
+  buildApplicantConfirmationEmail,
+} = require('../utilities/jobApplicationEmailFormatter');
 const {
   canManageJobForms,
   canCreateFormQuestions,
@@ -141,7 +147,7 @@ function resolveApplicationInput(body) {
   };
 }
 
-// Exported so the rate limiter and bot guard read the applicant email exactly as this controller does.
+// Used by jobApplicationBotGuard to mask the applicant email in bot-drop logs.
 exports.resolveApplicationInput = resolveApplicationInput;
 
 async function uploadResumeIfPresent(resumeFile, safeFormTitle, safeEmail) {
@@ -222,27 +228,104 @@ function appendResumeAndProfileAnswers(
   }
 }
 
-async function sendApplicationConfirmationEmail(form, respondent, normalizedEmail) {
+const BYTES_PER_KIBIBYTE = 1024;
+const KIBIBYTES_PER_MEBIBYTE = 1024;
+const EMAIL_FILE_LIMIT_MIB = 10;
+const EMAIL_TOTAL_LIMIT_MIB = 15;
+const MAX_ATTACHMENT_FILENAME_LENGTH = 255;
+
+const MAX_EMAIL_FILE_BYTES = EMAIL_FILE_LIMIT_MIB * BYTES_PER_KIBIBYTE * KIBIBYTES_PER_MEBIBYTE;
+const MAX_EMAIL_ATTACHMENTS_BYTES =
+  EMAIL_TOTAL_LIMIT_MIB * BYTES_PER_KIBIBYTE * KIBIBYTES_PER_MEBIBYTE;
+
+// Attach only files supplied for this application; never include private Azure URLs.
+function buildApplicationEmailAttachments(fileMap, answers) {
+  const questionFields = new Set(
+    (Array.isArray(answers) ? answers : [])
+      .filter((answer) => answer && answer.questionId !== null && answer.questionId !== undefined)
+      .map((answer) => `questionFile_${String(answer.questionId)}`),
+  );
+
+  const allowedFields = new Set(['resume', ...questionFields]);
+  const attachments = [];
+  let totalBytes = 0;
+  let omittedCount = 0;
+
+  Object.entries(fileMap).forEach(([fieldName, file]) => {
+    if (!allowedFields.has(fieldName) || !file) return;
+
+    if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+      omittedCount += 1;
+      return;
+    }
+
+    const size = file.buffer.length;
+
+    if (size > MAX_EMAIL_FILE_BYTES || totalBytes + size > MAX_EMAIL_ATTACHMENTS_BYTES) {
+      omittedCount += 1;
+      return;
+    }
+
+    const filename = String(file.originalname || 'application-file')
+      .replace(/\\/g, '/')
+      .split('/')
+      .pop()
+      .replace(/[\r\n]/g, '')
+      .slice(0, MAX_ATTACHMENT_FILENAME_LENGTH);
+
+    attachments.push({
+      filename: filename || 'application-file',
+      content: file.buffer,
+      contentType: file.mimetype || 'application/octet-stream',
+    });
+
+    totalBytes += size;
+  });
+
+  const attachmentNotice = omittedCount
+    ? `<p>${omittedCount} uploaded file(s) could not be attached due to missing file content or email size limits. File details are listed above.</p>`
+    : '';
+
+  return { attachments, attachmentNotice };
+}
+
+async function sendApplicationConfirmationEmail(
+  form,
+  respondent,
+  normalizedEmail,
+  { answers, attachments, attachmentNotice },
+) {
   if (!(await shouldSendConfirmation(normalizedEmail))) return;
   try {
-    const displayName = escapeHtml(String(respondent || normalizedEmail).trim());
-    const safeTitle = escapeHtml(form.title);
+    const displayName = String(respondent || normalizedEmail).trim();
     const subjectTitle = stripControlChars(form.title).trim();
-    const emailBody = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-          <h2>Application Received — ${safeTitle}</h2>
-          <p>Hi ${displayName},</p>
-          <p>Thank you for applying for <strong>${safeTitle}</strong>. We have received your application and will be in touch shortly.</p>
-          <p>If you have any questions, feel free to reach out.</p>
-          <br/>
-          <p>Best regards,<br/>One Community</p>
-        </div>
-      `;
-    await emailSender([normalizedEmail], `Application Received — ${subjectTitle}`, emailBody);
+
+    const labeledAnswers = attachQuestionLabels(form, answers);
+    const formattedAnswers = formatApplicationAnswers(labeledAnswers);
+    const emailBody = buildApplicantConfirmationEmail({
+      form,
+      displayName,
+      formattedAnswers,
+      attachmentNotice,
+    });
+
+    const args = [[normalizedEmail], `Application Received — ${subjectTitle}`, emailBody];
+
+    if (attachments.length > 0) {
+      args.push(attachments);
+    }
+
+    await emailSender(...args);
   } catch (emailErr) {
+    // An email failure must not undo a successfully saved application.
     console.error('Confirmation email failed (non-fatal):', emailErr.message);
   }
 }
+
+/**
+ * Notify configured recipients about a saved job application.
+ * Notification failures must never undo the application submission.
+ */
 
 // Sent instead of a 409 so the public endpoint never reveals whether an email already applied.
 async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) {
@@ -262,6 +345,87 @@ async function sendDuplicateApplicationEmail(form, respondent, normalizedEmail) 
     await emailSender([normalizedEmail], `Application Already Received: ${form.title}`, emailBody);
   } catch (emailErr) {
     console.error('Duplicate application email failed (non-fatal):', emailErr.message);
+  }
+}
+
+// Same staff inbox used by blue-square / weekly-summary routing (userHelper DEFAULT_CC_EMAILS).
+// Production sends via Gmail OAuth (REACT_APP_EMAIL_*), not SMTP app passwords.
+const DEFAULT_JOB_APPLICATION_INBOX = 'onecommunityglobal@gmail.com';
+
+function getJobApplicationDefaultEmail() {
+  const configured = process.env.JOB_APPLICATION_DEFAULT_EMAIL || DEFAULT_JOB_APPLICATION_INBOX;
+
+  return String(configured || '')
+    .trim()
+    .toLowerCase();
+}
+
+async function sendAdminApplicationNotification(
+  form,
+  respondent,
+  normalizedEmail,
+  { answers, attachments, attachmentNotice },
+) {
+  try {
+    const defaultEmail = getJobApplicationDefaultEmail();
+
+    if (!defaultEmail) {
+      console.error(
+        'Admin application notification skipped: no default job-application inbox configured.',
+      );
+      return;
+    }
+
+    const settings = await JobApplicationEmailRecipients.findOne({
+      settingsKey: 'jobApplicationNotifications',
+    }).lean();
+
+    // UI-managed addresses + the applicant (sender) are CC'd; default inbox is always TO.
+    const ccRecipients = [
+      ...new Set(
+        [...(settings?.recipients || []), normalizedEmail]
+          .map((email) =>
+            String(email || '')
+              .trim()
+              .toLowerCase(),
+          )
+          .filter((email) => email && email !== defaultEmail),
+      ),
+    ];
+
+    const safeFormTitle = escapeHtml(form.title);
+    const safeApplicantName = escapeHtml(respondent || normalizedEmail);
+    const safeApplicantEmail = escapeHtml(normalizedEmail);
+
+    const labeledAnswers = attachQuestionLabels(form, answers);
+    const formattedAnswers = formatApplicationAnswers(labeledAnswers);
+
+    const emailBody = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+        <h2>New Job Application — ${safeFormTitle}</h2>
+
+        <p><strong>Applicant:</strong> ${safeApplicantName}</p>
+        <p><strong>Email:</strong> ${safeApplicantEmail}</p>
+
+        <h3>Submitted Application</h3>
+        ${formattedAnswers}
+
+        ${attachmentNotice}
+
+        <p>This notification was generated by HighestGoodNetwork.</p>
+      </div>
+    `;
+
+    await emailSender(
+      [defaultEmail],
+      `New Job Application — ${form.title}`,
+      emailBody,
+      attachments.length > 0 ? attachments : null,
+      ccRecipients.length > 0 ? ccRecipients : null,
+    );
+  } catch (error) {
+    // Staff notification failures must not undo the saved application.
+    console.error('Admin application notification failed (non-fatal):', error.message);
   }
 }
 
@@ -461,12 +625,11 @@ exports.submitJobApplicationMiddleware = upload.any();
  *
  * Optional multipart field:
  *   resume     {file}   - resume file (stored in Azure; URL saved on the response)
- *   questionFile_<questionId> {file} - per-question attachment
- *   Size, count and type limits are enforced by jobApplicationUploadMiddleware (400/413).
  *
  * Responses:
- *   201 - { message } (identical for new and duplicate applications; duplicates get an email)
+ *   201 - { message, response }
  *   400 - missing required fields
+ *   409 - duplicate application
  *   404 - form not found
  *   500 - server error
  */
@@ -532,14 +695,22 @@ exports.submitFormResponse = async (req, res) => {
       answers: builtAnswers,
       resumeUrl,
     });
-
     await response.save();
-    await sendApplicationConfirmationEmail(form, respondent, normalizedEmail);
+
+    const attachmentData = buildApplicationEmailAttachments(fileMap, answers);
+    const emailContent = {
+      answers: response.answers,
+      ...attachmentData,
+    };
+
+    await sendApplicationConfirmationEmail(form, respondent, normalizedEmail, emailContent);
+
+    await sendAdminApplicationNotification(form, respondent, normalizedEmail, emailContent);
 
     return res.status(201).json({ message: 'Application submitted successfully.' });
   } catch (error) {
     console.error('Error submitting form response:', error);
-    return res.status(500).json({ message: 'Error submitting application.', error: error.message });
+    return res.status(500).json({ message: 'Error submitting application.' });
   }
 };
 
@@ -617,7 +788,6 @@ exports.addQuestion = async (req, res) => {
       return res.status(400).json({ message: 'Question text and type are required.' });
     }
 
-    // Find the form
     const form = await Form.findById(formId);
     if (!form) {
       return res.status(404).json({ message: 'Form not found.' });
@@ -652,13 +822,11 @@ exports.updateQuestion = async (req, res) => {
 
     const { formId, questionIndex } = req.params;
 
-    // Find the form
     const form = await Form.findById(formId);
     if (!form) {
       return res.status(404).json({ message: 'Form not found.' });
     }
 
-    // Check if question index is valid
     if (questionIndex < 0 || questionIndex >= form.questions.length) {
       return res.status(400).json({ message: 'Invalid question index.' });
     }
@@ -689,18 +857,15 @@ exports.deleteQuestion = async (req, res) => {
 
     const { formId, questionIndex } = req.params;
 
-    // Find the form
     const form = await Form.findById(formId);
     if (!form) {
       return res.status(404).json({ message: 'Form not found.' });
     }
 
-    // Check if question index is valid
     if (questionIndex < 0 || questionIndex >= form.questions.length) {
       return res.status(400).json({ message: 'Invalid question index.' });
     }
 
-    // Remove the question
     form.questions.splice(questionIndex, 1);
     ensureFormMetadata(form, req.body.requestor);
     await form.save();
@@ -735,7 +900,6 @@ exports.reorderQuestions = async (req, res) => {
       return res.status(404).json({ message: 'Form not found.' });
     }
 
-    // Check if indices are valid
     if (
       fromIndex < 0 ||
       fromIndex >= form.questions.length ||
@@ -745,7 +909,6 @@ exports.reorderQuestions = async (req, res) => {
       return res.status(400).json({ message: 'Invalid indices.' });
     }
 
-    // Reorder the questions
     const [movedQuestion] = form.questions.splice(fromIndex, 1);
     form.questions.splice(toIndex, 0, movedQuestion);
 
@@ -764,7 +927,6 @@ exports.reorderQuestions = async (req, res) => {
 // Delete a form
 exports.deleteForm = async (req, res) => {
   try {
-    // Check permissions
     if (!(await canManageJobForms(req.body.requestor))) {
       return res.status(403).json({ message: 'You are not authorized to delete forms.' });
     }
@@ -776,7 +938,6 @@ exports.deleteForm = async (req, res) => {
       return res.status(404).json({ message: 'Form not found.' });
     }
 
-    // Check if there are any responses to this form
     const responseCount = await Response.countDocuments({ formId });
     if (responseCount > 0) {
       return res.status(400).json({
@@ -789,7 +950,7 @@ exports.deleteForm = async (req, res) => {
 
     res.status(200).json({ message: 'Form deleted successfully.' });
   } catch (error) {
-    console.error('Error deleting form:', error);
+    console.error(error);
     res.status(500).json({ message: 'Error deleting form.', error: error.message });
   }
 };
@@ -815,7 +976,6 @@ exports.importQuestionsFromSet = async (req, res) => {
       return res.status(404).json({ message: 'Question set not found.' });
     }
 
-    // Add the question set reference if not already present
     const existingQuestionSetIndex = form.questionSets.findIndex(
       (qs) => qs.questionSetId.toString() === questionSetId,
     );
@@ -827,12 +987,10 @@ exports.importQuestionsFromSet = async (req, res) => {
         selectedQuestions: selectedQuestions || [],
       });
     } else {
-      // Update existing reference
       form.questionSets[existingQuestionSetIndex].includeAll = resolvedIncludeAll;
       form.questionSets[existingQuestionSetIndex].selectedQuestions = selectedQuestions || [];
     }
 
-    // Import the actual questions
     const questionsToImport = selectQuestionsToImport(
       questionSet,
       resolvedIncludeAll,
@@ -847,7 +1005,6 @@ exports.importQuestionsFromSet = async (req, res) => {
       });
     });
 
-    // Update usage count
     questionSet.usageCount += 1;
     await questionSet.save();
 

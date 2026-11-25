@@ -614,7 +614,8 @@ exports.getJobApplicationsSummary = async (req, res) => {
               { 'matchedQuestion.questionType': 'date' },
               {
                 'matchedQuestion.questionText': {
-                  $regex: 'start|join|available|begin|commence',
+                  // Word boundaries avoid false hits like "started" in experience answers.
+                  $regex: '\\b(start|join|joining|available|availability|begin|commence)\\b',
                   $options: 'i',
                 },
               },
@@ -644,6 +645,8 @@ exports.getJobApplicationsSummary = async (req, res) => {
         {
           $match: {
             label: { $nin: [null, '', 'null', 'undefined'] },
+            // Keep chart labels short — long free-text answers are usually wrong matches.
+            $expr: { $lte: [{ $strLenCP: '$label' }, 40] },
           },
         },
         { $group: { _id: '$label', count: { $sum: 1 } } },

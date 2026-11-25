@@ -11,11 +11,6 @@ const VALID_ISSUE_TYPES = ['Safety', 'Labor', 'Weather', 'Other', 'METs quality 
 const MIN_YEAR = 1000;
 const MAX_YEAR = 9999;
 
-const MAX_ISSUE_TITLE_LENGTH = 50;
-const MAX_ISSUE_TEXT_LENGTH = 500;
-const MAX_IMAGE_URL_LENGTH = 2048;
-const MAX_PERSON_FIELD_LENGTH = 200;
-
 const toSanitizedStringArray = (value, maxLen) => {
   if (!Array.isArray(value) || value.length === 0) return null;
   const out = value
