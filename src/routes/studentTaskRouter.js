@@ -9,8 +9,6 @@ const routes = function () {
 
   studentTaskRouter.route('/student/tasks/:taskId/log-hours').post(controller.logHours);
 
-  studentTaskRouter.route('/student/tasks/:taskId/progress').put(controller.updateTaskProgress);
-
   studentTaskRouter
     .route('/student/tasks/:taskId/upload')
     .post(upload.single('file'), controller.uploadFile);

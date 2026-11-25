@@ -244,3 +244,62 @@ describe('studentTaskController - logHours', () => {
     });
   });
 });
+
+describe('student task retrieval and removed progress endpoint', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.clearAllMocks();
+  });
+
+  test('does not expose the progress handler or route; preserves supported routes', () => {
+    // Route inspection does not start the application or connect to MongoDB.
+    const router = require('../routes/studentTaskRouter')();
+    const routes = router.stack.filter((layer) => layer.route).map((layer) => layer.route);
+    expect(studentTaskController().updateTaskProgress).toBeUndefined();
+    expect(routes.some((route) => route.path === '/student/tasks/:taskId/progress')).toBe(false);
+    expect(routes.find((route) => route.path === '/student/tasks').methods.get).toBe(true);
+    expect(
+      routes.find((route) => route.path === '/student/tasks/:taskId/log-hours').methods.post,
+    ).toBe(true);
+    expect(
+      routes.find((route) => route.path === '/student/tasks/:taskId/upload').methods.post,
+    ).toBe(true);
+  });
+
+  test('matches the authenticated owner and defaults both hours fields in the aggregation', async () => {
+    const aggregate = jest.spyOn(EducationTask, 'aggregate').mockResolvedValue([]);
+    mockReq.user = { requestorId: VALID_STUDENT_ID };
+    mockReq.body = { requestor: { requestorId: VALID_TASK_ID } };
+    await studentTaskController().getStudentTasks(mockReq, mockRes);
+    const [pipeline] = aggregate.mock.calls[0];
+    expect(pipeline[0]).toEqual({
+      $match: { studentId: mongoose.Types.ObjectId(VALID_STUDENT_ID) },
+    });
+    const projection = pipeline.find((stage) => stage.$project).$project;
+    expect(projection.suggestedTotalHours).toEqual({ $ifNull: ['$suggestedTotalHours', 0] });
+    expect(projection.loggedHours).toEqual({ $ifNull: ['$loggedHours', 0] });
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({ tasks: {}, totalTasks: 0 }),
+    );
+  });
+
+  test('rejects body identity when authenticated identity is absent', async () => {
+    const aggregate = jest.spyOn(EducationTask, 'aggregate');
+    mockReq.user = undefined;
+    mockReq.body = { requestor: { requestorId: VALID_STUDENT_ID } };
+    await studentTaskController().getStudentTasks(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Student ID is required' });
+    expect(aggregate).not.toHaveBeenCalled();
+  });
+
+  test('does not expose aggregation exception details', async () => {
+    jest.spyOn(EducationTask, 'aggregate').mockRejectedValue(new Error('private database details'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockReq.user = { requestorId: VALID_STUDENT_ID };
+    await studentTaskController().getStudentTasks(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+  });
+});

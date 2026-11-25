@@ -53,7 +53,7 @@ test.each(['assigned', 'in_progress'])(
     });
     task.save.mockImplementation(async () => {
       expect(task.status).toBe('completed');
-      expect(task.loggedHours).toBe(5);
+      expect(task.loggedHours).toBe(2);
       expect(task.completedAt).toEqual(expect.any(Number));
       expect(task.uploadUrls).toEqual(['https://example.com/previous.pdf', url]);
     });
@@ -67,7 +67,7 @@ test.each(['assigned', 'in_progress'])(
       message: 'File uploaded successfully!',
       url,
       status: 'completed',
-      loggedHours: 5,
+      loggedHours: 2,
       suggestedTotalHours: 5,
       completedAt: task.completedAt,
       uploadUrls: task.uploadUrls,
@@ -81,6 +81,7 @@ test('rejects invalid authentication before accessing tasks', async () => {
   });
   await uploadFile(req, res);
   expect(res.status).toHaveBeenCalledWith(401);
+  expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' });
   expect(EducationTask.findOne).not.toHaveBeenCalled();
   expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
 });
@@ -94,6 +95,7 @@ test('uses token ownership and rejects tasks not owned by the authenticated user
     studentId: mongoose.Types.ObjectId(studentId),
   });
   expect(res.status).toHaveBeenCalledWith(404);
+  expect(res.json).toHaveBeenCalledWith({ error: 'Task not found' });
   expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
   expect(task.save).not.toHaveBeenCalled();
 });
@@ -169,6 +171,56 @@ test('preserves link submissions and supports a zero hours target', async () => 
   expect(uploadFileToAzureBlobStorage).not.toHaveBeenCalled();
   expect(task.save).toHaveBeenCalledTimes(1);
   expect(res.json).toHaveBeenCalledWith(
-    expect.objectContaining({ status: 'completed', loggedHours: 0, url }),
+    expect.objectContaining({ status: 'completed', loggedHours: 2, url }),
   );
+});
+
+test.each([
+  ['file', 0],
+  ['file', 2],
+  ['file', 7],
+  ['url', 0],
+  ['url', 2],
+  ['url', 7],
+])('preserves %s submission actual hours of %s', async (submission, hours) => {
+  task.loggedHours = hours;
+  if (submission === 'url') {
+    req.file = undefined;
+    req.body.url = url;
+  }
+  task.save.mockImplementation(async () => {
+    expect(task.loggedHours).toBe(hours);
+    expect(task.status).toBe('completed');
+    expect(task.completedAt).toEqual(expect.any(Number));
+    expect(task.uploadUrls).toContain(url);
+  });
+  await uploadFile(req, res);
+  expect(task.save).toHaveBeenCalledTimes(1);
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ loggedHours: hours, status: 'completed', url }),
+  );
+});
+
+test.each([
+  [{ size: 10 * 1024 * 1024 + 1, mimetype: 'application/pdf' }, 'File size exceeds 10 MB limit'],
+  [
+    { size: 100, mimetype: 'application/javascript' },
+    'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.',
+  ],
+])('returns JSON error for invalid files', async (file, error) => {
+  req.file = file;
+  await uploadFile(req, res);
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(res.json).toHaveBeenCalledWith({ error });
+});
+
+test('rejects invalid URL submissions without completing or saving', async () => {
+  req.file = undefined;
+  req.body.url = 'invalid-url';
+  await uploadFile(req, res);
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(res.json).toHaveBeenCalledWith({ error: 'Please enter a valid url' });
+  expect(task.save).not.toHaveBeenCalled();
+  expect(task.loggedHours).toBe(2);
+  expect(task.status).toBe('in_progress');
 });

@@ -474,7 +474,7 @@ const educationTaskController = () => {
         !Number.isFinite(task.loggedHours) ||
         !Number.isFinite(task.suggestedTotalHours) ||
         task.loggedHours < 0 ||
-        task.suggestedTotalHours < 0 ||
+        task.suggestedTotalHours <= 0 ||
         task.loggedHours < task.suggestedTotalHours
       ) {
         return res
@@ -508,7 +508,7 @@ const educationTaskController = () => {
 
       res.status(200).json(updatedTask);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   };
 

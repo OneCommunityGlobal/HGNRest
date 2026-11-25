@@ -574,6 +574,8 @@ describe('markTaskAsComplete', () => {
 
   test.each([
     [4, 5],
+    [0, 0],
+    [5, 0],
     [undefined, 5],
     [5, undefined],
     [null, 5],
@@ -604,7 +606,6 @@ describe('markTaskAsComplete', () => {
   test.each([
     ['assigned', 5, 5],
     ['in_progress', 6, 5],
-    ['assigned', 0, 0],
   ])(
     'atomically completes eligible %s task with %s / %s hours',
     async (status, logged, suggested) => {
@@ -640,6 +641,7 @@ describe('markTaskAsComplete', () => {
     EducationTask.findOne.mockRejectedValue(new Error('db down'));
     await controller.markTaskAsComplete(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });
