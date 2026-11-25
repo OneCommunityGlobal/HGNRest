@@ -508,6 +508,9 @@ const educationTaskController = () => {
 
       res.status(200).json(updatedTask);
     } catch (error) {
+      console.error('Error marking task as complete:', {
+        errorType: error?.name || 'UnknownError',
+      });
       res.status(500).json({ error: 'Internal server error' });
     }
   };

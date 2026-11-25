@@ -637,12 +637,18 @@ describe('markTaskAsComplete', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Task changed; reload and retry completion' });
   });
 
-  test('returns 500 on database failure', async () => {
-    EducationTask.findOne.mockRejectedValue(new Error('db down'));
+  test('logs only the error type and returns a generic 500 on database failure', async () => {
+    const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    EducationTask.findOne.mockRejectedValue(new Error('private database details'));
     await controller.markTaskAsComplete(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     expect(EducationTask.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith('Error marking task as complete:', {
+      errorType: 'Error',
+    });
+    logError.mockRestore();
   });
 });
 
