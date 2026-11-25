@@ -18,6 +18,11 @@ const buildingIssue = new Schema({
     enum: ['open', 'closed'],
     default: 'open',
   },
+  // Optional; older issues without a severity are shown as "Unspecified" in the UI
+  severity: {
+    type: String,
+    enum: ['Low', 'Medium', 'High', 'Critical'],
+  },
   // not sure if we still need related lesson here:
   // relatedLesson: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingNewLesson', required: true },
 });
