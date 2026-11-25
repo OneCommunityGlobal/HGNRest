@@ -3,65 +3,70 @@ const BuildingProject = require('../../models/bmdashboard/buildingProject');
 // const Task = require('../../models/task');
 
 const bmTimeLoggerController = function (bmTimeLog) {
+  // Starts a new time log, resumes a paused one, or returns the one already ongoing
+  const startOrResumeTimeLog = async (projectId, memberId, task) => {
+    const now = new Date();
+
+    // Convert to ObjectId for proper MongoDB query
+    const projectObjectId = mongoose.Types.ObjectId.isValid(projectId)
+      ? new mongoose.Types.ObjectId(projectId)
+      : projectId;
+    const memberObjectId = mongoose.Types.ObjectId.isValid(memberId)
+      ? new mongoose.Types.ObjectId(memberId)
+      : memberId;
+
+    // Check if there's already an ongoing time log for this project and member
+    const existingTimeLog = await bmTimeLog.findOne({
+      project: projectObjectId,
+      member: memberObjectId,
+      status: { $in: ['ongoing', 'paused'] },
+    });
+
+    if (existingTimeLog) {
+      // If already ongoing, just return it
+      if (existingTimeLog.status !== 'paused') {
+        return { timeLog: existingTimeLog, outcome: 'alreadyCheckedIn' };
+      }
+
+      // Ensure intervals is an array before updating
+      if (existingTimeLog.intervals === null) {
+        existingTimeLog.intervals = [];
+      }
+
+      // If existing time log is paused, resume it
+      const timeLog = await bmTimeLog.findByIdAndUpdate(
+        existingTimeLog._id,
+        {
+          $set: {
+            status: 'ongoing',
+            currentIntervalStarted: now,
+          },
+        },
+        { new: true, runValidators: true },
+      );
+      return { timeLog, outcome: 'resumed' };
+    }
+
+    // Create a new time log
+    const timeLog = await bmTimeLog.create({
+      project: projectObjectId,
+      member: memberObjectId,
+      task: task || 'Default Task',
+      status: 'ongoing',
+      currentIntervalStarted: now,
+      totalElapsedTime: 0,
+      intervals: [],
+    });
+    return { timeLog, outcome: 'started' };
+  };
+
   // Start Time Log
   const startTimeLog = async (req, res) => {
     try {
       const { projectId, memberId } = req.params;
       const { task } = req.body;
 
-      const now = new Date();
-
-      // Convert to ObjectId for proper MongoDB query
-      const projectObjectId = mongoose.Types.ObjectId.isValid(projectId)
-        ? new mongoose.Types.ObjectId(projectId)
-        : projectId;
-      const memberObjectId = mongoose.Types.ObjectId.isValid(memberId)
-        ? new mongoose.Types.ObjectId(memberId)
-        : memberId;
-
-      // Check if there's already an ongoing time log for this project and member
-      const existingTimeLog = await bmTimeLog.findOne({
-        project: projectObjectId,
-        member: memberObjectId,
-        status: { $in: ['ongoing', 'paused'] },
-      });
-
-      let timeLog;
-
-      if (existingTimeLog) {
-        // If existing time log is paused, resume it
-        if (existingTimeLog.status === 'paused') {
-          // Ensure intervals is an array before updating
-          if (existingTimeLog.intervals === null) {
-            existingTimeLog.intervals = [];
-          }
-
-          timeLog = await bmTimeLog.findByIdAndUpdate(
-            existingTimeLog._id,
-            {
-              $set: {
-                status: 'ongoing',
-                currentIntervalStarted: now,
-              },
-            },
-            { new: true, runValidators: true },
-          );
-        } else {
-          // If already ongoing, just return it
-          timeLog = existingTimeLog;
-        }
-      } else {
-        // Create a new time log
-        timeLog = await bmTimeLog.create({
-          project: projectObjectId,
-          member: memberObjectId,
-          task: task || 'Default Task',
-          status: 'ongoing',
-          currentIntervalStarted: now,
-          totalElapsedTime: 0,
-          intervals: [],
-        });
-      }
+      const { timeLog } = await startOrResumeTimeLog(projectId, memberId, task);
 
       res.status(200).json({
         message: 'Time log started successfully',
@@ -70,6 +75,52 @@ const bmTimeLoggerController = function (bmTimeLog) {
     } catch (error) {
       res.status(500).json({
         message: 'Error starting time log',
+        error: error.message,
+      });
+    }
+  };
+
+  // Bulk Start Time Logs - one member failing does not block the others
+  const bulkStartTimeLogs = async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const { memberIds, task } = req.body;
+
+      if (!Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ message: 'memberIds must be a non-empty array' });
+      }
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ message: 'Invalid project id' });
+      }
+
+      const project = await BuildingProject.findById(projectId).select('members.user').lean();
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found' });
+      }
+
+      const projectMemberIds = new Set(project.members.map((member) => String(member.user)));
+      const uniqueMemberIds = [...new Set(memberIds.map(String))];
+      const results = { started: [], resumed: [], alreadyCheckedIn: [], failed: [] };
+
+      await Promise.all(
+        uniqueMemberIds.map(async (memberId) => {
+          if (!projectMemberIds.has(memberId)) {
+            results.failed.push({ memberId, message: 'Not a member of this project' });
+            return;
+          }
+          try {
+            const { timeLog, outcome } = await startOrResumeTimeLog(projectId, memberId, task);
+            results[outcome].push({ memberId, timeLog });
+          } catch (error) {
+            results.failed.push({ memberId, message: error.message });
+          }
+        }),
+      );
+
+      return res.status(200).json(results);
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Error starting time logs',
         error: error.message,
       });
     }
@@ -304,6 +355,7 @@ const bmTimeLoggerController = function (bmTimeLog) {
 
   return {
     startTimeLog,
+    bulkStartTimeLogs,
     pauseTimeLog,
     stopTimeLog,
     getProjectTimeLogs,

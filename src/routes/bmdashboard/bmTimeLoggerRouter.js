@@ -7,6 +7,9 @@ const routes = function (bmTimeLog) {
   // Route to start/resume time logging
   timeloggerRouter.route('/timelogger/:projectId/:memberId/start').post(controller.startTimeLog);
 
+  // Route to start/resume time logging for several members at once
+  timeloggerRouter.route('/timelogger/:projectId/bulk-start').post(controller.bulkStartTimeLogs);
+
   // Route to pause time logging
   timeloggerRouter.route('/timelogger/:projectId/:memberId/pause').post(controller.pauseTimeLog);
 
