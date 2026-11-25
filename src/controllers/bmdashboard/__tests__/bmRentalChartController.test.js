@@ -141,6 +141,9 @@ describe('bmRentalChartController', () => {
             value: {
               $sum: '$rentalCost',
             },
+            materialCost: {
+              $sum: '$totalMaterialCost',
+            },
           },
         },
         { $sort: { _id: 1 } },
@@ -149,6 +152,13 @@ describe('bmRentalChartController', () => {
             _id: 0,
             date: '$_id',
             value: 1,
+            percentage: {
+              $cond: [
+                { $gt: ['$materialCost', 0] },
+                { $multiply: [{ $divide: ['$value', '$materialCost'] }, 100] },
+                null,
+              ],
+            },
           },
         },
       ]);
@@ -182,6 +192,24 @@ describe('bmRentalChartController', () => {
 
       expect(mongoose.Types.ObjectId).toHaveBeenCalledWith(VALID_PROJECT_ID);
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('filters rental costs by tool name', async () => {
+      mockRentalAggregate.mockResolvedValue([]);
+
+      const res = makeRes();
+      await controller.getRentalCostOverTime({ query: { toolName: 'Drill' } }, res);
+
+      expect(mockRentalAggregate.mock.calls[0][0][0]).toEqual({ $match: { toolName: 'Drill' } });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('does not pass a query object through as a toolName operator', async () => {
+      mockRentalAggregate.mockResolvedValue([]);
+
+      await controller.getRentalCostOverTime({ query: { toolName: { $ne: 'x' } } }, makeRes());
+
+      expect(typeof mockRentalAggregate.mock.calls[0][0][0].$match.toolName).toBe('string');
     });
 
     it('filters rental costs by start and end date', async () => {
