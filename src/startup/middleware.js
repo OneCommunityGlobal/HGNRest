@@ -114,10 +114,8 @@ module.exports = function (app) {
       return;
     }
 
-    if (req.originalUrl.startsWith('/api/bluesky')) {
-      next();
-      return;
-    }
+    // /api/bluesky is not listed here on purpose: connecting an account, posting (with an image
+    // upload) and deleting posts all require a logged-in user, like every other protected route.
 
     // Public analytics tracking endpoints (no auth required)
     if (
