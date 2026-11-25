@@ -7,6 +7,16 @@ const {
   logPublishingError,
 } = require('../utilities/socialMediaCredentials');
 
+const SERVICE_UNAVAILABLE = 503;
+const isLinkedInPostingEnabled = () => process.env.LINKEDIN_POSTING_ENABLED === 'true';
+
+const sendLinkedInPostingDisabled = (res) =>
+  res.status(SERVICE_UNAVAILABLE).json({
+    success: false,
+    code: 'LINKEDIN_POSTING_DISABLED',
+    message: 'LinkedIn posting is disabled in this environment.',
+  });
+
 const summarizeMediaFiles = (mediaFiles = []) =>
   mediaFiles.map(({ originalname, mimetype, size }) => ({
     name: originalname,
@@ -131,6 +141,10 @@ const createScheduledJob = (
   scheduledJobs,
 ) =>
   schedule.scheduleJob(scheduledDateTime, async () => {
+    if (!isLinkedInPostingEnabled()) {
+      return;
+    }
+
     try {
       await publishToLinkedIn(content, mediaFiles, organizationUrn);
       scheduledJobs.delete(jobId);
@@ -168,6 +182,10 @@ const linkedinPostController = () => {
     try {
       const { content, scheduleTime } = req.body;
       const mediaFiles = normalizeMediaFiles(req.files || []);
+
+      if (!isLinkedInPostingEnabled()) {
+        return sendLinkedInPostingDisabled(res);
+      }
 
       if (!content) {
         return res.status(400).json({
@@ -251,6 +269,17 @@ const linkedinPostController = () => {
   const updateScheduledPost = (req, res) => {
     const { jobId } = req.params;
     const { content, scheduleTime } = req.body;
+
+    if (!isLinkedInPostingEnabled()) {
+      return sendLinkedInPostingDisabled(res);
+    }
+
+    if (!organizationUrn || !accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required environment variables.',
+      });
+    }
 
     if (!scheduledJobs.has(jobId)) {
       return res.status(404).json({
