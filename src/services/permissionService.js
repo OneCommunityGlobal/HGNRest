@@ -126,6 +126,8 @@ class PermissionService {
         results.startDate,
         results.jobTitle?.[0],
         results.weeklycommittedHours,
+        undefined, // CC list
+        results.endDate,
       );
     } catch (error) {
       logger.logException(error, 'Error notifying infringements after permission update');

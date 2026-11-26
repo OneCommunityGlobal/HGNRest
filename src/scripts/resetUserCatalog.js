@@ -1,5 +1,4 @@
 // IMPORTANT - PLEASE DO NOT RUN THIS UNLESS EXPLICITLY ASKED TO!!
-const readline = require('node:readline');
 const mongoose = require('mongoose');
 const UserStateCatalog = require('../models/userStateCatalog');
 const { prompt } = require('./scriptUtil');

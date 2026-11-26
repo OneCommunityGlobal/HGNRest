@@ -15,6 +15,23 @@ const overviewReportHelper = require('./overviewReportHelper');
 // };
 
 describe('overviewReportHelper tests', () => {
+  describe('getRoleDistributionStats', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('returns the active-volunteer role distribution', async () => {
+      const roles = [{ _id: 'Volunteer', count: 2 }];
+      const aggregateSpy = jest.spyOn(UserProfile, 'aggregate').mockResolvedValue(roles);
+
+      const result = await overviewReportHelper().getRoleDistributionStats();
+
+      expect(aggregateSpy).toHaveBeenCalledWith([
+        { $match: { isActive: true } },
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]);
+      expect(result).toBe(roles);
+    });
+  });
+
   describe('getTasksStats date boundaries', () => {
     afterEach(() => jest.restoreAllMocks());
 
@@ -134,6 +151,46 @@ describe('overviewReportHelper tests', () => {
         active: { current: 1, percentage: 'No Comparison Data' },
         complete: { current: 2, percentage: 'No Comparison Data' },
         raw: { current, comparison: [] },
+      });
+    });
+  });
+
+  describe('getVolunteerNumberStats deactivated volunteers date filter', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test('filters deactivated volunteers by endDate within the selected reporting period', async () => {
+      const startDate = new Date('2026-04-26T07:00:00.000Z');
+      const endDate = new Date('2026-05-03T06:59:00.000Z');
+
+      let aggregationPipeline;
+
+      jest.spyOn(UserProfile, 'aggregate').mockImplementation(async (pipeline) => {
+        aggregationPipeline = pipeline;
+
+        return [
+          {
+            activeVolunteers: [],
+            mentors: [],
+            newVolunteers: [],
+            deactivatedVolunteers: [],
+          },
+        ];
+      });
+
+      const { getVolunteerNumberStats } = overviewReportHelper();
+
+      await getVolunteerNumberStats(startDate, endDate);
+
+      const deactivatedMatch = aggregationPipeline[0].$facet.deactivatedVolunteers[0].$match;
+
+      expect(deactivatedMatch).toEqual({
+        isActive: false,
+        endDate: {
+          $gte: startDate,
+          $lte: endDate,
+        },
       });
     });
   });

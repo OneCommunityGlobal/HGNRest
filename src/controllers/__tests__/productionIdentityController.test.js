@@ -10,9 +10,9 @@ jest.mock('../../models/productionVerificationLog', () => ({
   create: jest.fn(),
 }));
 
-const userProfile = require('../../models/userProfile');
-const ProductionVerificationLog = require('../../models/productionVerificationLog');
-const productionIdentityController = require('../productionIdentityController');
+require('../../models/userProfile');
+require('../../models/productionVerificationLog');
+require('../productionIdentityController');
 
 const mockRes = () => {
   const res = {};

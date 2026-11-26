@@ -37,7 +37,12 @@ describe('bmLoginController', () => {
   });
 
   it('should return a new token if email and password match', async () => {
-    const mockUser = { _id: '12345', email: 'test@example.com', password: 'hashedPassword' };
+    const mockUser = {
+      _id: '12345',
+      email: 'test@example.com',
+      password: 'hashedPassword',
+      isActive: true,
+    };
     const mockDecode = { userid: '12345' };
 
     jwt.verify.mockReturnValue(mockDecode);
@@ -63,7 +68,12 @@ describe('bmLoginController', () => {
   });
 
   it('should return 422 if email does not match', async () => {
-    const mockUser = { _id: '12345', email: 'wrong@example.com', password: 'hashedPassword' };
+    const mockUser = {
+      _id: '12345',
+      email: 'wrong@example.com',
+      password: 'hashedPassword',
+      isActive: true,
+    };
 
     jwt.verify.mockReturnValue({ userid: '12345' });
     userprofile.findOne.mockResolvedValue(mockUser);
@@ -78,7 +88,12 @@ describe('bmLoginController', () => {
   });
 
   it('should return 422 if password does not match', async () => {
-    const mockUser = { _id: '12345', email: 'test@example.com', password: 'hashedPassword' };
+    const mockUser = {
+      _id: '12345',
+      email: 'test@example.com',
+      password: 'hashedPassword',
+      isActive: true,
+    };
 
     jwt.verify.mockReturnValue({ userid: '12345' });
     userprofile.findOne.mockResolvedValue(mockUser);
@@ -101,7 +116,30 @@ describe('bmLoginController', () => {
 
     await bmLogin(req, res);
 
-    expect(res.json).toHaveBeenCalledWith(error);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ label: 'email' }));
+  });
+
+  it('rejects a currently inactive account before checking credentials or granting access', async () => {
+    jwt.verify.mockReturnValue({ userid: '12345' });
+    userprofile.findOne.mockResolvedValue({ email: 'test@example.com', isActive: false });
+    await bmLogin(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ label: 'email' }));
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('returns a generic failure instead of exposing database errors as a successful response', async () => {
+    jwt.verify.mockReturnValue({ userid: '12345' });
+    userprofile.findOne.mockRejectedValue(new Error('private database detail'));
+    await bmLogin(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      label: 'form',
+      message: 'Unable to verify your login right now. Please try again.',
+    });
+    expect(jwt.sign).not.toHaveBeenCalled();
   });
 
   it('should return an error if user is not found', async () => {
@@ -109,6 +147,7 @@ describe('bmLoginController', () => {
     userprofile.findOne.mockResolvedValue(null);
 
     await bmLogin(req, res);
-    expect(res.json).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ label: 'email' }));
   });
 });
