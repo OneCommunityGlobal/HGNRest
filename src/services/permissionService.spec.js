@@ -262,6 +262,7 @@ describe('PermissionService', () => {
         email: 'test@example.com',
         role: 'Volunteer',
         startDate: '2026-01-01',
+        endDate: '2026-12-31',
         jobTitle: ['Developer'],
         weeklycommittedHours: 10,
       };
@@ -278,6 +279,8 @@ describe('PermissionService', () => {
         '2026-01-01',
         'Developer',
         10,
+        undefined,
+        '2026-12-31',
       );
     });
 
@@ -287,6 +290,8 @@ describe('PermissionService', () => {
       expect(notifyInfringements).toHaveBeenCalledWith(
         [],
         [],
+        undefined,
+        undefined,
         undefined,
         undefined,
         undefined,
