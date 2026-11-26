@@ -38,6 +38,7 @@ describe('bmEquipmentController', () => {
       params: {},
       body: {},
       query: {},
+      user: { requestorId: '507f1f77bcf86cd799439012' },
     };
     mockRes = {
       status: jest.fn().mockReturnThis(),
@@ -52,6 +53,15 @@ describe('bmEquipmentController', () => {
     return mockPopulate;
   }
 
+  function setupDetailQuery(result, previous = {}) {
+    mockBuildingEquipment.findById.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      populate: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue(previous),
+      exec: jest.fn().mockResolvedValue(result),
+    });
+  }
+
   describe('fetchSingleEquipment', () => {
     it('should fetch a single equipment by ID successfully', async () => {
       const mockEquipment = { _id: '123', name: 'Test Equipment' };
@@ -59,6 +69,7 @@ describe('bmEquipmentController', () => {
       const mockExec = jest.fn().mockResolvedValue(mockEquipment);
 
       mockBuildingEquipment.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         populate: mockPopulate,
         exec: mockExec,
       });
@@ -77,6 +88,7 @@ describe('bmEquipmentController', () => {
       const mockExec = jest.fn().mockRejectedValue(error);
 
       mockBuildingEquipment.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         populate: mockPopulate,
         exec: mockExec,
       });
@@ -212,33 +224,65 @@ describe('bmEquipmentController', () => {
 
     it('should update equipment and return 200 on success', async () => {
       const mockEquipment = { _id: validEquipmentId, condition: 'Good' };
-      mockBuildingEquipment.updateOne = jest.fn().mockResolvedValue({});
-      mockBuildingEquipment.findById.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(mockEquipment),
-      });
+      mockBuildingEquipment.updateOne.mockResolvedValue({ n: 1 });
+      setupDetailQuery(mockEquipment, { condition: 'Used' });
 
       await controller.updateEquipmentById(mockReq, mockRes);
 
-      expect(mockBuildingEquipment.updateOne).toHaveBeenCalled();
+      expect(mockBuildingEquipment.updateOne).toHaveBeenCalledWith(
+        { _id: validEquipmentId, condition: 'Used' },
+        {
+          $set: { condition: 'Good' },
+          $push: {
+            auditHistory: {
+              $each: [
+                {
+                  timestamp: expect.any(Date),
+                  actor: mockReq.user.requestorId,
+                  field: 'condition',
+                  oldValue: 'Used',
+                  newValue: 'Good',
+                },
+              ],
+            },
+          },
+        },
+      );
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.send).toHaveBeenCalledWith(mockEquipment);
     });
 
-    it('should return 404 when equipment is not found after update', async () => {
-      mockBuildingEquipment.updateOne = jest.fn().mockResolvedValue({});
-      mockBuildingEquipment.findById.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null),
-      });
+    it('should return 404 without writing when equipment is missing', async () => {
+      setupDetailQuery(null, null);
 
       await controller.updateEquipmentById(mockReq, mockRes);
 
+      expect(mockBuildingEquipment.updateOne).not.toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.send).toHaveBeenCalledWith({ message: 'Equipment not found.' });
     });
 
+    it('skips the audit and equipment write when values are unchanged', async () => {
+      const equipment = { _id: validEquipmentId, condition: 'Good' };
+      setupDetailQuery(equipment, equipment);
+
+      await controller.updateEquipmentById(mockReq, mockRes);
+
+      expect(mockBuildingEquipment.updateOne).not.toHaveBeenCalled();
+      expect(mockRes.send).toHaveBeenCalledWith(equipment);
+    });
+
+    it('returns a conflict when the values change before the audit write', async () => {
+      setupDetailQuery(null, { condition: 'Used' });
+      mockBuildingEquipment.updateOne.mockResolvedValue({ n: 0 });
+
+      await controller.updateEquipmentById(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+    });
+
     it('should return 500 on unexpected error', async () => {
+      setupDetailQuery(null);
       mockBuildingEquipment.updateOne = jest.fn().mockRejectedValue(new Error('DB error'));
 
       await controller.updateEquipmentById(mockReq, mockRes);
@@ -680,19 +724,17 @@ describe('bmEquipmentController', () => {
       mockReq.params.equipmentId = validObjectId;
       mockReq.body = { purchaseStatus: 'Purchased', condition: 'Good' };
 
-      mockBuildingEquipment.updateOne.mockResolvedValue({});
-      const mockPopulate = jest.fn().mockReturnThis();
-      const mockExec = jest.fn().mockResolvedValue(updatedEquipment);
-      mockBuildingEquipment.findById.mockReturnValue({
-        populate: mockPopulate,
-        exec: mockExec,
-      });
+      mockBuildingEquipment.updateOne.mockResolvedValue({ n: 1 });
+      setupDetailQuery(updatedEquipment);
 
       await controller.updateEquipmentById(mockReq, mockRes);
 
       expect(mockBuildingEquipment.updateOne).toHaveBeenCalledWith(
-        { _id: validObjectId },
-        { $set: expect.objectContaining({ purchaseStatus: 'Purchased', condition: 'Good' }) },
+        { _id: validObjectId, purchaseStatus: null, condition: null },
+        expect.objectContaining({
+          $set: { purchaseStatus: 'Purchased', condition: 'Good' },
+          $push: { auditHistory: { $each: expect.any(Array) } },
+        }),
       );
       expect(mockBuildingEquipment.findById).toHaveBeenCalledWith(validObjectId);
       expect(mockRes.status).toHaveBeenCalledWith(200);
@@ -703,13 +745,8 @@ describe('bmEquipmentController', () => {
       mockReq.params.equipmentId = validObjectId;
       mockReq.body = { condition: 'Good' };
 
-      mockBuildingEquipment.updateOne.mockResolvedValue({});
-      const mockPopulate = jest.fn().mockReturnThis();
-      const mockExec = jest.fn().mockResolvedValue(null);
-      mockBuildingEquipment.findById.mockReturnValue({
-        populate: mockPopulate,
-        exec: mockExec,
-      });
+      mockBuildingEquipment.updateOne.mockResolvedValue({ n: 1 });
+      setupDetailQuery(null);
 
       await controller.updateEquipmentById(mockReq, mockRes);
 
@@ -720,6 +757,7 @@ describe('bmEquipmentController', () => {
     it('should return 500 on updateOne error', async () => {
       mockReq.params.equipmentId = validObjectId;
       mockReq.body = { condition: 'Good' };
+      setupDetailQuery(null);
 
       mockBuildingEquipment.updateOne.mockRejectedValue(new Error('DB error'));
 

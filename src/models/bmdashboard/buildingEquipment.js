@@ -2,7 +2,16 @@ const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
+const auditEntry = new Schema({
+  timestamp: { type: Date, required: true },
+  actor: { type: Schema.Types.ObjectId, ref: 'userProfile', required: true },
+  field: { type: String, required: true },
+  oldValue: { type: String, default: null },
+  newValue: String,
+});
+
 const buildingEquipment = new Schema({
+  auditHistory: { type: [auditEntry], select: false },
   itemType: { type: mongoose.SchemaTypes.ObjectId, ref: 'invTypeBase' },
   project: { type: mongoose.SchemaTypes.ObjectId, ref: 'buildingProject' },
   code: { type: Number }, // add function to create code for on-site tool tracking.Not marked as 'required' as it breaks the tool purchase form functionality.

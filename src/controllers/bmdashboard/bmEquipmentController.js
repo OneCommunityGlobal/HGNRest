@@ -12,6 +12,19 @@ const {
 
 const AZURE_NOT_CONFIGURED_ERROR = 'Image storage is not configured on this server.';
 
+function auditEquipmentChanges(previous, fields, actor) {
+  const timestamp = new Date();
+  return Object.entries(fields)
+    .map(([field, newValue]) => ({
+      timestamp,
+      actor,
+      field,
+      oldValue: previous[field] == null ? null : String(previous[field]),
+      newValue,
+    }))
+    .filter(({ oldValue, newValue }) => oldValue !== newValue);
+}
+
 /**
  * Validates the uploaded file's MIME type and uploads it to Azure Blob Storage.
  * Returns { imageUrl } on success, or { error, status } on validation/upload failure.
@@ -84,12 +97,18 @@ const bmEquipmentController = (BuildingEquipment) => {
       ],
     },
   ];
+  const withAuditHistory = (query) =>
+    query
+      .select('+auditHistory')
+      .populate([
+        ...equipmentPopulateConfig,
+        { path: 'auditHistory.actor', select: '_id firstName lastName' },
+      ]);
 
   const fetchSingleEquipment = async (req, res) => {
     const { equipmentId } = req.params;
     try {
-      BuildingEquipment.findById(equipmentId)
-        .populate(equipmentPopulateConfig)
+      withAuditHistory(BuildingEquipment.findById(equipmentId))
         .exec()
         .then((equipment) => res.status(200).send(equipment))
         .catch((error) => res.status(500).send(error));
@@ -249,12 +268,38 @@ const bmEquipmentController = (BuildingEquipment) => {
       if (Object.keys(updateFields).length === 0) {
         return res.status(400).send({ message: 'No valid fields provided to update.' });
       }
+      if (Object.values(updateFields).some((value) => typeof value !== 'string')) {
+        return res.status(400).send({ message: 'Equipment fields must be text values.' });
+      }
 
-      await BuildingEquipment.updateOne({ _id: equipmentId }, { $set: updateFields });
+      const previous = await BuildingEquipment.findById(equipmentId)
+        .select(Object.keys(updateFields).join(' '))
+        .lean();
+      if (!previous) {
+        return res.status(404).send({ message: 'Equipment not found.' });
+      }
 
-      const updatedEquipment = await BuildingEquipment.findById(equipmentId)
-        .populate(equipmentPopulateConfig)
-        .exec();
+      const audit = auditEquipmentChanges(previous, updateFields, req.user.requestorId);
+      if (audit.length) {
+        // Match the values used to build the audit rows so concurrent edits cannot make them stale.
+        const filter = { _id: equipmentId };
+        Object.keys(updateFields).forEach((field) => {
+          filter[field] = previous[field] ?? null;
+        });
+        const result = await BuildingEquipment.updateOne(filter, {
+          $set: updateFields,
+          $push: { auditHistory: { $each: audit } },
+        });
+        if (!result.n) {
+          return res
+            .status(409)
+            .send({ message: 'Equipment changed. Reload it before saving again.' });
+        }
+      }
+
+      const updatedEquipment = await withAuditHistory(
+        BuildingEquipment.findById(equipmentId),
+      ).exec();
 
       if (!updatedEquipment) {
         return res.status(404).send({ message: 'Equipment not found.' });
