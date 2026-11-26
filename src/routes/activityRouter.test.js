@@ -1,5 +1,3 @@
-const express = require('express');
-
 jest.mock('../controllers/rescheduleEventContoller', () => ({
   rescheduleNotify: jest.fn(),
   getReschedulePoll: jest.fn(),

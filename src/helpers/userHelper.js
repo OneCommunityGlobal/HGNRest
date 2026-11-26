@@ -235,6 +235,10 @@ const userHelper = function () {
     };
   };
 
+  const isClosingOut = (user) => !!(user && user.endDate);
+
+  const CLOSING_OUT_LABEL = '<span style="color: red;"><b>(Closing Out)</b></span>';
+
   const getInfringementEmailBody = function (
     firstName,
     lastName,
@@ -326,7 +330,7 @@ const userHelper = function () {
         <hr style="border-top: 1px dashed #000;"/>
         <p><b>ADMINISTRATIVE DETAILS:</b></p>
         <p><b>Start Date:</b> ${administrativeContent.startDate}</p>
-        <p><b>Name:</b> ${firstName} ${lastName}</p>
+        <p><b>Name:</b> ${administrativeContent.isClosingOut ? `${CLOSING_OUT_LABEL} ` : ''}${firstName} ${lastName}</p>
         <p><b>Role:</b> ${administrativeContent.role}</p>
         <p><b>Title:</b> ${administrativeContent.userTitle || 'Volunteer'} </p>
         <p><b>Previous Blue Square Reasons: </b></p>
@@ -814,6 +818,7 @@ const userHelper = function () {
           role: status.role,
           userTitle: status.jobTitle?.[0] ?? 'N/A',
           historyInfringements,
+          isClosingOut: isClosingOut(status),
         };
 
         const emailBody =
@@ -1460,6 +1465,8 @@ const userHelper = function () {
                 updatedUser.startDate,
                 updatedUser.jobTitle ? updatedUser.jobTitle[0] : 'Member',
                 updatedUser.weeklycommittedHours,
+                undefined, // cc list
+                updatedUser.endDate,
               );
             } catch (err) {
               console.error(`[autoReply] infringement email failed for ${user.email}:`, err);
@@ -1924,6 +1931,7 @@ const userHelper = function () {
     jobTitle,
     weeklycommittedHours,
     infringementCCList,
+    endDate,
   ) => {
     if (!current) return;
     const newOriginal = original.toObject();
@@ -1999,6 +2007,7 @@ const userHelper = function () {
       role,
       userTitle: jobTitle,
       historyInfringements,
+      isClosingOut: isClosingOut({ endDate }),
     };
     newInfringements = _.differenceWith(newCurrent, newOriginal, (arrVal, othVal) =>
       arrVal._id.equals(othVal._id),
@@ -3339,6 +3348,7 @@ const userHelper = function () {
           role: user.role,
           userTitle: user.jobTitle?.[0] || 'Volunteer',
           historyInfringements: 'Previously assigned blue square – resend only.',
+          isClosingOut: isClosingOut(user),
         };
 
         const emailBody =

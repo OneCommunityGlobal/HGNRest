@@ -1,4 +1,5 @@
 const FormResponse = require('../models/hgnFormResponse');
+const { getWeeklySummaryStatusMap } = require('../helpers/weeklySummaryStatusHelper');
 
 const communityMemberController = function () {
   const getCommunityMembers = async function (req, res) {
@@ -65,7 +66,22 @@ const communityMemberController = function () {
             })
           : structuredMembers;
 
-      res.json(filteredMembers);
+      // Summary status is supplementary: if it cannot be loaded, still return the members
+      // without it rather than showing misleading "incomplete" badges or failing the page.
+      const summaryStatusMap = await getWeeklySummaryStatusMap(
+        req.body?.requestor,
+        filteredMembers.map((member) => member.userId),
+      ).catch(() => null);
+
+      res.json(
+        summaryStatusMap
+          ? filteredMembers.map((member) => ({
+              ...member,
+              weeklySummaryStatus:
+                (member.userId && summaryStatusMap[member.userId.toString()]) || null,
+            }))
+          : filteredMembers,
+      );
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: err.message });

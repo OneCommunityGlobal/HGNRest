@@ -1,5 +1,4 @@
 /* eslint-disable max-lines-per-function */
-const mongoose = require('mongoose');
 const Seed = require('../../models/kitchenInventory/seed');
 
 const seedController = function () {

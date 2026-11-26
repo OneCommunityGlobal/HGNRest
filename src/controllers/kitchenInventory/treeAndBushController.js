@@ -1,5 +1,4 @@
 /* eslint-disable max-lines-per-function */
-const mongoose = require('mongoose');
 const TreesAndBushes = require('../../models/kitchenInventory/treeAndBush');
 
 const treesAndBushesController = function () {

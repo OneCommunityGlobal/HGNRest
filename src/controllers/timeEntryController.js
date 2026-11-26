@@ -14,6 +14,10 @@ const { COMPANY_TZ } = require('../constants/company');
 
 const cacheUtil = cacheModule();
 
+const MS_PER_DAY = 86400000;
+const DUPLICATE_WINDOW_DAYS = 7;
+const HTTP_CONFLICT = 409;
+
 const formatSeconds = function (seconds) {
   const formattedseconds = parseInt(seconds, 10);
   const values = `${Math.floor(
@@ -532,13 +536,14 @@ const timeEntrycontroller = function (TimeEntry) {
 
     switch (req.body.entryType) {
       case 'person':
-        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.personId) || isInvalid) return returnErr(res);
         break;
       case 'project':
-        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.projectId) || isInvalid)
+          return returnErr(res);
         break;
       case 'team':
-        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) returnErr(res);
+        if (!mongoose.Types.ObjectId.isValid(req.body.teamId) || isInvalid) return returnErr(res);
         break;
       default:
         if (
@@ -546,7 +551,44 @@ const timeEntrycontroller = function (TimeEntry) {
           !mongoose.Types.ObjectId.isValid(req.body.projectId) ||
           isInvalid
         )
-          returnErr(res);
+          return returnErr(res);
+    }
+
+    // Only new default entries are checked. The request body is untrusted, so the lookup values are
+    // rebuilt from validated primitives and matched with explicit $eq, which Mongo never treats as an operator.
+    const isNewDefaultEntry = req.body.entryType === undefined || req.body.entryType === 'default';
+    // Mongoose casts number and boolean notes to strings on save, so compare their persisted form.
+    const notesType = typeof req.body.notes;
+    const duplicateNotes =
+      notesType === 'string' || notesType === 'number' || notesType === 'boolean'
+        ? String(req.body.notes)
+        : null;
+    const duplicatePersonId =
+      typeof req.body.personId === 'string' && mongoose.Types.ObjectId.isValid(req.body.personId)
+        ? new mongoose.Types.ObjectId(req.body.personId)
+        : null;
+    if (
+      isNewDefaultEntry &&
+      req.body.allowDuplicate !== true &&
+      duplicateNotes !== null &&
+      duplicatePersonId !== null
+    ) {
+      try {
+        const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_DAYS * MS_PER_DAY);
+        const isDuplicate = await TimeEntry.exists({
+          personId: { $eq: duplicatePersonId },
+          notes: { $eq: duplicateNotes },
+          createdDateTime: { $gte: windowStart },
+        });
+        if (isDuplicate) {
+          return res
+            .status(HTTP_CONFLICT)
+            .send({ error: 'Duplicate time entry', code: 'DUPLICATE_TIME_ENTRY' });
+        }
+      } catch (err) {
+        logger.logException(err);
+        return res.status(500).send({ error: err.toString() });
+      }
     }
 
     const session = await mongoose.startSession();
@@ -1022,15 +1064,9 @@ const timeEntrycontroller = function (TimeEntry) {
           );
           // if the time entry is related to a task, update the task hoursLogged
           if (taskId) {
-            await updateTaskLoggedHours(
-              taskId,
-              totalSeconds,
-              null,
-              null,
-              userprofile,
-              session,
-              { exact: Boolean(timeEntry.splitBatchId) },
-            );
+            await updateTaskLoggedHours(taskId, totalSeconds, null, null, userprofile, session, {
+              exact: Boolean(timeEntry.splitBatchId),
+            });
           }
         } else {
           updateUserprofileTangibleIntangibleHrs(

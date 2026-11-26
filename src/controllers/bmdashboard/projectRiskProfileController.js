@@ -48,9 +48,7 @@ function buildRiskResult(project, profile, totalOpenIssues, now) {
   return {
     ...baseResult,
     predictedCostOverrun:
-      predictedCostOverrun === null
-        ? null
-        : Number(predictedCostOverrun.toFixed(DECIMAL_PLACES)),
+      predictedCostOverrun === null ? null : Number(predictedCostOverrun.toFixed(DECIMAL_PLACES)),
     predictedTimeDelay:
       plannedTime > 0 && actualTimeElapsed > 0 ? (actualTimeElapsed / plannedTime) * 100 : null,
     dates: [profile.startDate, profile.endDate]
