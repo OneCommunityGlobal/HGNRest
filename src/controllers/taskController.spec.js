@@ -1078,10 +1078,16 @@ describe('Unit Tests for taskController.js', () => {
         delete mockReq.body.deadlineCount;
       });
 
-      test('increments deadlineCount when estimated hours change', async () => {
+      test('increments deadlineCount when estimated hours increase', async () => {
         const update = await runUpdate(10, { estimatedHours: 15 });
         expect(update.$inc).toEqual({ deadlineCount: 1 });
         expect(update.estimatedHours).toBe(15);
+      });
+
+      test('does not increment when estimated hours decrease', async () => {
+        const update = await runUpdate(10, { estimatedHours: 5 });
+        expect(update.$inc).toBeUndefined();
+        expect(update.estimatedHours).toBe(5);
       });
 
       test('does not increment when estimated hours are sent unchanged', async () => {

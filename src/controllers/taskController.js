@@ -797,12 +797,13 @@ const taskController = function (Task) {
     });
   };
 
-  const estimatedHoursChanged = (oldTask, body) => {
+  // Only increases count: lowering the estimate is not extra time granted on the task.
+  const estimatedHoursIncreased = (oldTask, body) => {
     if (!oldTask || body.estimatedHours === undefined || body.estimatedHours === null) {
       return false;
     }
     const next = Number(body.estimatedHours);
-    return Number.isFinite(next) && next !== Number(oldTask.estimatedHours || 0);
+    return Number.isFinite(next) && next > Number(oldTask.estimatedHours || 0);
   };
 
   const updateTask = async (req, res) => {
@@ -912,7 +913,7 @@ const taskController = function (Task) {
       // (seeNumberOfTimesTimeAdded). The server owns it; clients cannot set it directly.
       delete req.body.deadlineCount;
       const taskUpdate = { ...req.body, modifiedDatetime: Date.now() };
-      if (estimatedHoursChanged(oldTask, req.body)) {
+      if (estimatedHoursIncreased(oldTask, req.body)) {
         taskUpdate.$inc = { deadlineCount: 1 };
       }
 
