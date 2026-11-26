@@ -797,6 +797,15 @@ const taskController = function (Task) {
     });
   };
 
+  // Only increases count: lowering the estimate is not extra time granted on the task.
+  const estimatedHoursIncreased = (oldTask, body) => {
+    if (!oldTask || body.estimatedHours === undefined || body.estimatedHours === null) {
+      return false;
+    }
+    const next = Number(body.estimatedHours);
+    return Number.isFinite(next) && next > Number(oldTask.estimatedHours || 0);
+  };
+
   const updateTask = async (req, res) => {
     if (
       !(await hasPermission(req.body.requestor, 'updateTask')) &&
@@ -900,11 +909,15 @@ const taskController = function (Task) {
         delete req.body.createdBy;
       }
 
-      Task.findOneAndUpdate(
-        { _id: taskId },
-        { ...req.body, modifiedDatetime: Date.now() },
-        { new: true, runValidators: true },
-      )
+      // deadlineCount is the "times estimated hours changed" number on Dashboard > Tasks
+      // (seeNumberOfTimesTimeAdded). The server owns it; clients cannot set it directly.
+      delete req.body.deadlineCount;
+      const taskUpdate = { ...req.body, modifiedDatetime: Date.now() };
+      if (estimatedHoursIncreased(oldTask, req.body)) {
+        taskUpdate.$inc = { deadlineCount: 1 };
+      }
+
+      Task.findOneAndUpdate({ _id: taskId }, taskUpdate, { new: true, runValidators: true })
         .then(async (updatedTask) => {
           // Ensure WBS and Project modifiedDatetime are updated and awaited so tests observe the calls
           try {
