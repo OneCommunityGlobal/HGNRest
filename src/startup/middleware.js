@@ -174,7 +174,7 @@ module.exports = function (app) {
       permissions: payload.permissions,
     };
 
-    req.user = requestor;
+    req.user = { ...requestor, access: payload.access };
 
     // Always attach requestor so GET handlers (e.g. viewing applications) can authorize
     if (!req.body) {
