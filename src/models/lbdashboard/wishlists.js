@@ -13,10 +13,15 @@ const WishlistSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
       required: true,
-      unique: true,
     },
   },
   { timestamps: true },
+);
+
+// Partial so that legacy documents without userId cannot make the unique index build fail
+WishlistSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $exists: true } } },
 );
 
 module.exports = mongoose.model('Wishlist', WishlistSchema);

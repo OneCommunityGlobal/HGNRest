@@ -10,6 +10,7 @@ const wishlistController = require('./wishlistsController');
 
 const validUserId = new mongoose.Types.ObjectId().toString();
 const validListingId = new mongoose.Types.ObjectId().toString();
+const otherUserId = new mongoose.Types.ObjectId().toString();
 const invalidId = 'not-an-objectid';
 
 describe('wishlistController', () => {
@@ -17,7 +18,7 @@ describe('wishlistController', () => {
   let res;
 
   beforeEach(() => {
-    req = { query: {}, body: {}, params: {} };
+    req = { query: {}, body: { requestor: { requestorId: validUserId } }, params: {} };
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
@@ -28,21 +29,24 @@ describe('wishlistController', () => {
   // ─── getWishlist ───────────────────────────────────────────────────────────
 
   describe('getWishlist', () => {
-    it('returns 400 when userId is missing', async () => {
+    it('returns 401 when the requestor is missing', async () => {
+      req.body = {};
       await wishlistController.getWishlist(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'userId is required' });
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid requestor' });
     });
 
-    it('returns 400 when userId is invalid ObjectId', async () => {
-      req.query.userId = invalidId;
+    it('ignores a different userId in the query and body', async () => {
+      req.query.userId = otherUserId;
+      req.body.userId = otherUserId;
+      Wishlist.findOne.mockReturnValue({ populate: jest.fn().mockResolvedValue(null) });
       await wishlistController.getWishlist(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid userId' });
+      expect(Wishlist.findOne).toHaveBeenCalledWith({
+        userId: new mongoose.Types.ObjectId(validUserId),
+      });
     });
 
     it('returns 200 with empty listingId when no wishlist found', async () => {
-      req.query.userId = validUserId;
       Wishlist.findOne.mockReturnValue({ populate: jest.fn().mockResolvedValue(null) });
       await wishlistController.getWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -50,7 +54,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 200 with wishlist data including villageAmenities', async () => {
-      req.query.userId = validUserId;
       const mockListing = {
         village: 'Cob Village',
         toObject: () => ({ title: 'Test', village: 'Cob Village' }),
@@ -76,7 +79,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 200 with empty villageAmenities when listing has no village', async () => {
-      req.query.userId = validUserId;
       const mockListing = {
         village: null,
         toObject: () => ({ title: 'Test', village: null }),
@@ -97,7 +99,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 200 with empty villageAmenities when village not found in DB', async () => {
-      req.query.userId = validUserId;
       const mockListing = {
         village: 'Ghost Village',
         toObject: () => ({ title: 'Test', village: 'Ghost Village' }),
@@ -118,7 +119,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 500 on unexpected error', async () => {
-      req.query.userId = validUserId;
       Wishlist.findOne.mockReturnValue({
         populate: jest.fn().mockRejectedValue(new Error('DB error')),
       });
@@ -131,51 +131,69 @@ describe('wishlistController', () => {
   // ─── addToWishlist ─────────────────────────────────────────────────────────
 
   describe('addToWishlist', () => {
-    it('returns 400 when userId or listingId is missing', async () => {
+    it('returns 401 when the requestor is missing', async () => {
+      req.body = { listingId: validListingId };
       await wishlistController.addToWishlist(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'userId and listingId required' });
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(Wishlist.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
-    it('returns 400 when userId is invalid ObjectId', async () => {
-      req.body = { userId: invalidId, listingId: validListingId };
+    it('returns 400 when listingId is missing', async () => {
       await wishlistController.addToWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid userId or listingId' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'listingId required' });
     });
 
     it('returns 400 when listingId is invalid ObjectId', async () => {
-      req.body = { userId: validUserId, listingId: invalidId };
+      req.body.listingId = invalidId;
       await wishlistController.addToWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid userId or listingId' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid listingId' });
     });
 
     it('returns 404 when listing does not exist', async () => {
-      req.body = { userId: validUserId, listingId: validListingId };
+      req.body.listingId = validListingId;
       Listing.findById.mockResolvedValue(null);
       await wishlistController.addToWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({ message: 'Listing not found' });
     });
 
-    it('creates new wishlist when user has none', async () => {
-      req.body = { userId: validUserId, listingId: validListingId };
+    it('atomically upserts the listing and returns the updated wishlist', async () => {
+      const updated = { listingId: [validListingId] };
+      req.body.listingId = validListingId;
       Listing.findById.mockResolvedValue({ _id: validListingId });
-      Wishlist.findOne.mockResolvedValue(null);
-      const mockSave = jest.fn().mockResolvedValue();
-      Wishlist.mockImplementation(() => ({ save: mockSave, listingId: [validListingId] }));
+      Wishlist.findOneAndUpdate.mockResolvedValue(null);
+      Wishlist.findOne.mockResolvedValue(updated);
 
       await wishlistController.addToWishlist(req, res);
-      expect(mockSave).toHaveBeenCalled();
+      expect(Wishlist.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: new mongoose.Types.ObjectId(validUserId) },
+        { $addToSet: { listingId: new mongoose.Types.ObjectId(validListingId) } },
+        { upsert: true, new: false },
+      );
       expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(updated);
+    });
+
+    it('ignores a different userId in the body and query', async () => {
+      req.body.userId = otherUserId;
+      req.body.listingId = validListingId;
+      req.query.userId = otherUserId;
+      Listing.findById.mockResolvedValue({ _id: validListingId });
+      Wishlist.findOneAndUpdate.mockResolvedValue(null);
+
+      await wishlistController.addToWishlist(req, res);
+      expect(Wishlist.findOneAndUpdate.mock.calls[0][0]).toEqual({
+        userId: new mongoose.Types.ObjectId(validUserId),
+      });
     });
 
     it('returns 409 when listing already in wishlist', async () => {
-      req.body = { userId: validUserId, listingId: validListingId };
+      req.body.listingId = validListingId;
       Listing.findById.mockResolvedValue({ _id: validListingId });
-      Wishlist.findOne.mockResolvedValue({
-        listingId: { some: () => true },
+      Wishlist.findOneAndUpdate.mockResolvedValue({
+        listingId: [new mongoose.Types.ObjectId(validListingId)],
       });
 
       await wishlistController.addToWishlist(req, res);
@@ -183,25 +201,8 @@ describe('wishlistController', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Listing already in wishlist' });
     });
 
-    it('pushes listingId and saves when wishlist exists without the listing', async () => {
-      req.body = { userId: validUserId, listingId: validListingId };
-      Listing.findById.mockResolvedValue({ _id: validListingId });
-      const mockPush = jest.fn();
-      const mockSave = jest.fn().mockResolvedValue();
-      const mockWishlist = {
-        listingId: { some: () => false, push: mockPush },
-        save: mockSave,
-      };
-      Wishlist.findOne.mockResolvedValue(mockWishlist);
-
-      await wishlistController.addToWishlist(req, res);
-      expect(mockPush).toHaveBeenCalledWith(new mongoose.Types.ObjectId(validListingId));
-      expect(mockSave).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
     it('returns 500 on unexpected error', async () => {
-      req.body = { userId: validUserId, listingId: validListingId };
+      req.body.listingId = validListingId;
       Listing.findById.mockRejectedValue(new Error('DB error'));
       await wishlistController.addToWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(500);
@@ -212,30 +213,39 @@ describe('wishlistController', () => {
   // ─── removeFromWishlist ────────────────────────────────────────────────────
 
   describe('removeFromWishlist', () => {
-    it('returns 400 when userId or listingId is missing', async () => {
-      await wishlistController.removeFromWishlist(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'userId and listingId required' });
-    });
-
-    it('returns 400 when userId is invalid ObjectId', async () => {
-      req.body = { userId: invalidId };
+    it('returns 401 when the requestor is missing', async () => {
+      req.body = {};
       req.params = { listingId: validListingId };
       await wishlistController.removeFromWishlist(req, res);
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(Wishlist.findOne).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when listingId is missing', async () => {
+      await wishlistController.removeFromWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid userId or listingId' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'listingId required' });
     });
 
     it('returns 400 when listingId is invalid ObjectId', async () => {
-      req.body = { userId: validUserId };
       req.params = { listingId: invalidId };
       await wishlistController.removeFromWishlist(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid userId or listingId' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid listingId' });
+    });
+
+    it('ignores a different userId in the body and query', async () => {
+      req.body.userId = otherUserId;
+      req.query.userId = otherUserId;
+      req.params = { listingId: validListingId };
+      Wishlist.findOne.mockResolvedValue(null);
+      await wishlistController.removeFromWishlist(req, res);
+      expect(Wishlist.findOne).toHaveBeenCalledWith({
+        userId: new mongoose.Types.ObjectId(validUserId),
+      });
     });
 
     it('returns 404 when wishlist not found', async () => {
-      req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
       Wishlist.findOne.mockResolvedValue(null);
       await wishlistController.removeFromWishlist(req, res);
@@ -244,7 +254,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 404 when listing not in wishlist', async () => {
-      req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
       Wishlist.findOne.mockResolvedValue({
         listingId: { some: () => false },
@@ -255,7 +264,6 @@ describe('wishlistController', () => {
     });
 
     it('removes listing and returns 200', async () => {
-      req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
       const mockSave = jest.fn().mockResolvedValue();
       const mockWishlist = {
@@ -275,7 +283,6 @@ describe('wishlistController', () => {
 
     it('removes only the matching listing from the stored array', async () => {
       const otherId = new mongoose.Types.ObjectId();
-      req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
       const mockWishlist = {
         listingId: [new mongoose.Types.ObjectId(validListingId), otherId],
@@ -288,7 +295,6 @@ describe('wishlistController', () => {
     });
 
     it('returns 500 on unexpected error', async () => {
-      req.body = { userId: validUserId };
       req.params = { listingId: validListingId };
       Wishlist.findOne.mockRejectedValue(new Error('DB error'));
       await wishlistController.removeFromWishlist(req, res);
