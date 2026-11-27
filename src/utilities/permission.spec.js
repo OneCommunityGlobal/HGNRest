@@ -1,3 +1,4 @@
+const UserProfile = require('../models/userProfile');
 const userService = require('../services/userService');
 const { PROTECTED_EMAIL_ACCOUNT } = require('./constants');
 const { canRequestorUpdateUser } = require('./permissions');
@@ -15,6 +16,7 @@ jest.mock('./nodeCache', () =>
     setCache: jest.fn(),
   })),
 );
+jest.mock('../models/userProfile');
 
 // Mock function return
 const mockGetUserIdAndEmailByEmails = (value) =>
@@ -28,6 +30,15 @@ describe('canRequestorUpdateUser', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     serverCache = require('./nodeCache')();
+    jest.spyOn(UserProfile, 'findById').mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue({
+            email: 'ordinary@example.com',
+          }),
+        }),
+      }),
+    });
   });
 
   it('should return true if requestorId is not in protectedEmailAccountIds and targetUserId is also not in protectedEmailAccountIds', async () => {

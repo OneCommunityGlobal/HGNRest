@@ -111,6 +111,10 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
     try {
       // get the user info by email accounts
       const query = await userService.getUserIdAndEmailByEmails(emailToQuery);
+      if (!Array.isArray(query) || query.length === 0) {
+        Logger.logInfo('Protected account lookup returned no accounts. Denying update.');
+        return false;
+      }
       // Check if all protected email accounts were found
       if (query.length !== emailToQuery.length) {
         // find out which email accounts were not found
@@ -136,11 +140,39 @@ const canRequestorUpdateUser = async (requestorId, targetUserId) => {
       serverCache.setKeyTimeToLive('allowedEmailAccountIds', 60 * 60);
     } catch (error) {
       Logger.logException(error, 'Error getting protected email accounts');
-      // Keep default [] so .includes() below never throws
+      return false;
     }
   } else {
-    protectedEmailAccountIds = serverCache.getCache('protectedEmailAccountIds') || [];
-    allowedEmailAccountIds = serverCache.getCache('allowedEmailAccountIds') || [];
+    protectedEmailAccountIds = serverCache.getCache('protectedEmailAccountIds');
+    allowedEmailAccountIds = serverCache.getCache('allowedEmailAccountIds');
+
+    if (
+      !Array.isArray(protectedEmailAccountIds) ||
+      !Array.isArray(allowedEmailAccountIds) ||
+      protectedEmailAccountIds.length === 0 ||
+      allowedEmailAccountIds.length === 0
+    ) {
+      Logger.logInfo('Invalid protected-account cache. Denying update.');
+      return false;
+    }
+  }
+
+  if (!protectedEmailAccountIds.includes(targetUserId)) {
+    try {
+      const targetUser = await UserProfile.findById(targetUserId).select('email').lean().exec();
+
+      if (!targetUser) {
+        return false;
+      }
+
+      if (PROTECTED_EMAIL_ACCOUNT.includes(targetUser.email)) {
+        Logger.logInfo('Protected account missing from authorization cache. Denying update.');
+        return false;
+      }
+    } catch (error) {
+      Logger.logException(error, 'Error verifying target account protection');
+      return false;
+    }
   }
   // Check requestor edit permission and check target user is protected or not.
   return !(

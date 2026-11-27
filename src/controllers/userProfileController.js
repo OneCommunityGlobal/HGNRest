@@ -158,14 +158,29 @@ async function ValidatePassword(req, res) {
     });
   }
 }
-
+const escapeHtml = (value) =>
+  String(value).replace(/[&<>"']/g, (char) => {
+    const entities = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[char];
+  });
 const sendEmailUponProtectedAccountUpdate = ({
   requestorEmail,
   requestorFullName,
   targetEmail,
   action,
   logId,
+  changedFields = [],
 }) => {
+  const changesSection = changedFields.length
+    ? `<p><strong>What was changed?</strong></p>
+      <ul>${changedFields.map((field) => `<li>${escapeHtml(field)}</li>`).join('')}</ul>`
+    : '';
   const updatedDate = moment_().format('MMM-DD-YY');
   const subject = 'One Community: Protected Account Has Been Updated';
   const emailBody = `<p> Hi Admin! </p>
@@ -177,12 +192,12 @@ const sendEmailUponProtectedAccountUpdate = ({
             <li><strong>Updated Date:</strong> ${updatedDate}</li>
             <li><strong>Action:</strong> ${action}</li>
           </ul>
-
           <p><strong>Who updated this new account?</strong></p>
           <ul>
-            <li><strong>Name:</strong> ${requestorFullName}</li>
-            <li><strong>Email:</strong> <a href="mailto:${requestorEmail}">${requestorEmail}</a></li>
+            <li><strong>Name:</strong> ${escapeHtml(requestorFullName)}</li>
+            <li><strong>Email:</strong> <a href="mailto:${escapeHtml(requestorEmail)}">${escapeHtml(requestorEmail)}</a></li>
           </ul>
+          ${changesSection}
 
           <p>If you have any questions or notice any issues,
           please investigate further by searching log <b>transaction ID ${logId} in the Sentry </b>.</p>
@@ -203,6 +218,24 @@ const auditIfProtectedAccountUpdated = async ({
   actionPerformed,
 }) => {
   if (PROTECTED_EMAIL_ACCOUNT.includes(updatedRecordEmail)) {
+    let changedFields = [];
+    if (actionPerformed === 'update') {
+      if (!originalRecord || !updatedRecord) return;
+
+      const changedPaths = (updateDiffPaths || []).filter((path) => path !== 'lastModifiedDate');
+
+      const { updatedObj } = objectUtils.returnObjectDifference(
+        originalRecord,
+        updatedRecord.toObject(),
+        changedPaths,
+      );
+
+      changedFields = Object.keys(updatedObj);
+
+      if (changedFields.length === 0) {
+        return;
+      }
+    }
     const requestorProfile = await userService.getUserFullNameAndEmailById(requestorId);
     const requestorFullName = requestorProfile
       ? requestorProfile.firstName.concat(' ', requestorProfile.lastName)
@@ -235,6 +268,7 @@ const auditIfProtectedAccountUpdated = async ({
       targetEmail: updatedRecordEmail,
       action: actionPerformed,
       logId,
+      changedFields,
     });
   }
 };
@@ -930,12 +964,12 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     return { authorized: true, canManageAdminLinks };
   };
 
-  const handleUserProfileUpdate = async (req, record, userid, canManageAdminLinks) => {
-    let originalRecord = {};
-    if (PROTECTED_EMAIL_ACCOUNT.includes(record.email)) {
-      originalRecord = objectUtils.deepCopyMongooseObjectWithLodash(record);
-    }
-
+  const handleUserProfileUpdate = async (
+    req,
+    record,
+    userid,
+    { canManageAdminLinks, originalRecord },
+  ) => {
     if (!updateTeamCode(req, record)) {
       return { error: 'You are not authorized to edit team code.', status: 403 };
     }
@@ -1427,7 +1461,6 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     console.log('UserID:', req.params.userId);
     console.log('Incoming body keys:', Object.keys(req.body));
     console.log('🟩 PUT /userProfile called with:', req.params.userId);
-    console.log('🟩 Payload received:', JSON.stringify(req.body, null, 2));
 
     const userid = req.params.userId;
 
@@ -1443,6 +1476,9 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!record) {
         return res.status(404).send('No valid records found');
       }
+      const originalRecord = PROTECTED_EMAIL_ACCOUNT.includes(record.email)
+        ? objectUtils.deepCopyMongooseObjectWithLodash(record)
+        : null;
 
       if (!Array.isArray(record.summarySubmissionDates)) {
         record.summarySubmissionDates = [];
@@ -1459,18 +1495,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         console.log('Setting filterColor:', req.body.filterColor);
       }
 
-      const updateResult = await handleUserProfileUpdate(
-        req,
-        record,
-        userid,
-        authResult.canManageAdminLinks,
-      );
+      const updateResult = await handleUserProfileUpdate(req, record, userid, {
+        canManageAdminLinks: authResult.canManageAdminLinks,
+        originalRecord,
+      });
 
       if (updateResult?.error) {
         return res.status(updateResult.status).send(updateResult.error);
       }
 
-      const { originalRecord, originalinfringements, updatedDiff } = updateResult || {};
+      const { originalinfringements, updatedDiff } = updateResult || {};
 
       const results = await record.save();
 
@@ -1714,6 +1748,13 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       const user = await UserProfile.findById(userId);
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
+      }
+      const canEditProtectedAccount = await canRequestorUpdateUser(requestor?.requestorId, userId);
+
+      if (!canEditProtectedAccount) {
+        return res.status(403).json({
+          error: 'You are not authorized to update this protected account',
+        });
       }
 
       // Keep original record for protected accounts
@@ -2562,6 +2603,16 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       if (!user) {
         res.status(404).send({ error: 'User not found' });
         return;
+      }
+      const canEditProtectedAccount = await canRequestorUpdateUser(
+        req.body.requestor.requestorId,
+        req.params.userId,
+      );
+
+      if (!canEditProtectedAccount) {
+        return res.status(403).send({
+          error: 'You are not authorized to reset this protected account password',
+        });
       }
 
       if (user.role === 'Owner' && !(await hasPermission(requestor, 'addDeleteEditOwners'))) {
