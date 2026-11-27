@@ -18,7 +18,7 @@ const smallItemBaseSchema = mongoose.Schema({
   stockAvailable: { type: Number, default: 0 }, // available = bought - (used + wasted/destroyed)
   purchaseRecord: [
     {
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       quantity: { type: Number, required: true },
       priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
@@ -75,8 +75,9 @@ const largeItemBaseSchema = mongoose.Schema({
   equipmentClass: { type: String },
   currentUsage: { type: String, enum: ['Operational', 'Under Maintenance', 'Out of Service'] },
   // TODO: rental fields should be required if purchaseStatus === "Rental"
-  rentedOnDate: { type: Date, default: Date.now() },
-  rentalDueDate: { type: Date, default: new Date(Date.now() + 3600 * 1000 * 24 * 14) },
+  rentedOnDate: { type: Date, default: Date.now },
+  // Due 14 days after each rental (a function, so it is computed per record).
+  rentalDueDate: { type: Date, default: () => new Date(Date.now() + 3600 * 1000 * 24 * 14) },
   // image of actual tool (remove default once there is a system for this)
   imageUrl: {
     type: String,
@@ -86,7 +87,7 @@ const largeItemBaseSchema = mongoose.Schema({
   // some fields (i.e. status) may be transferred to purchaseRecord when it is added
   purchaseRecord: [
     {
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       quantity: { type: Number, required: true },
       priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
@@ -99,7 +100,7 @@ const largeItemBaseSchema = mongoose.Schema({
   updateRecord: [
     {
       // track tool condition updates
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
     },
@@ -107,7 +108,7 @@ const largeItemBaseSchema = mongoose.Schema({
   logRecord: [
     {
       // track tool daily check in/out and responsible user
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] },

@@ -125,6 +125,8 @@ const bmToolController = (BuildingTool, ToolType) => {
     } = req.body;
     try {
       const newPurchaseRecord = {
+        // Record when the request was submitted (not the schema's default).
+        date: new Date(),
         quantity,
         priority,
         estUsageTime,
