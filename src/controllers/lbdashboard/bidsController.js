@@ -22,8 +22,12 @@ const {
 } = paymentControllerInstance;
 
 const parseDate = (dateStr) => {
-  const [month, day, year] = dateStr.split('/'); // Extract parts
-  return new Date(`${month}-${day}-${year}`); // Convert to YYYY-MM-DD format
+  if (typeof dateStr !== 'string' || !dateStr.trim()) {
+    return new Date(NaN);
+  }
+
+  const [month, day, year] = dateStr.split('/');
+  return new Date(`${month}-${day}-${year}`);
 };
 
 async function getRentalPeriod(startDate, endDate) {
@@ -65,20 +69,20 @@ const bidsController = function (Bids) {
       if (!termsAgreed) {
         return { status: 400, error: 'termsAgreed cannot be empty' };
       }
-      if (!inStartDate) {
-        return { status: 400, error: 'startDate cannot be empty' };
+      if (!req.body.startDate || Number.isNaN(inStartDate.getTime())) {
+        return { status: 400, error: 'Invalid startDate' };
       }
-      if (!inEndDate) {
-        return { status: 400, error: 'endDate cannot be empty' };
+      if (!req.body.endDate || Number.isNaN(inEndDate.getTime())) {
+        return { status: 400, error: 'Invalid endDate' };
       }
       if (inEndDate <= inStartDate) {
         return { status: 400, error: 'endDate should be greater than the startDate' };
       }
-      if (!bidPrice) {
+      if (!Number.isFinite(Number(bidPrice)) || Number(bidPrice) <= 0) {
         return { status: 400, error: 'Bid price should be greater than 0' };
       }
 
-      const paypalCheckoutNowLink = ordDetails?.links.find((u) => u.href.includes('checkoutnow'));
+      const paypalCheckoutNowLink = ordDetails?.links?.find((u) => u.href?.includes('checkoutnow'));
       const newBidsData = {
         listingId: req.body.listingId,
         termsAgreed: req.body.termsAgreed,
@@ -117,17 +121,25 @@ const bidsController = function (Bids) {
   const postBids = async (req, res) => {
     try {
       const savedBids = await postBidsloc(req);
-      if (savedBids !== 200)
-        return res.status(500).json({ success: false, error: savedBids.error });
-      res.status(200).json({ success: true, data: savedBids.data });
+
+      if (savedBids?.status !== 200) {
+        return res.status(savedBids?.status || 500).json({
+          success: false,
+          error: savedBids?.error || 'Failed to submit bid',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: savedBids.data,
+      });
     } catch (error) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: error.response?.data?.error || error.message || 'Unknown error',
       });
     }
   };
-
   const getBids = async (req, res) => {
     try {
       const userExists = await Users.findOne({ email: req.body.email });
