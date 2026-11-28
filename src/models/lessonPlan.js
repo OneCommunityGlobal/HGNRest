@@ -1,6 +1,21 @@
 const mongoose = require('mongoose');
 
-const lessonPlanSchema = new mongoose.Schema(
+const { Schema } = mongoose;
+
+// This schema defines the structure for a single sub-task within a lesson plan.
+const subTaskSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    type: { type: String }, // e.g., 'Write-only', 'Read-only'
+    dueDate: { type: Date },
+    passMark: { type: String },
+    weight: { type: String },
+  },
+  { _id: true },
+); // Ensure sub-tasks get their own IDs
+
+// Merged: Combines incoming properties (theme, dates, activities) with current properties (subTasks, lastEditedBy)
+const lessonPlanSchema = new Schema(
   {
     title: {
       type: String,
@@ -23,18 +38,23 @@ const lessonPlanSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    subTasks: [subTaskSchema], // The array of sub-tasks needed for assignments
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'userProfile',
       required: true,
     },
-    // needs to be removed- not as per requirements
     activities: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Activity',
       },
     ],
+    lastEditedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'userProfile',
+    },
+
     atomTasks: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -43,8 +63,8 @@ const lessonPlanSchema = new mongoose.Schema(
     ],
   },
   {
-    timestamps: true,
+    timestamps: true, // This will automatically manage createdAt and updatedAt fields
   },
 );
 
-module.exports = mongoose.model('LessonPlan', lessonPlanSchema);
+module.exports = mongoose.model('LessonPlan', lessonPlanSchema, 'lessonplans');

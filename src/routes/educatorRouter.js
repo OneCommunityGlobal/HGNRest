@@ -1,12 +1,230 @@
+/* eslint-disable import/order */
+/* eslint-disable no-console */
+/* eslint-disable no-plusplus */
 const express = require('express');
 
 const router = express.Router();
 const educatorController = require('../controllers/educatorController');
 
-// Initialize controller
 const controller = educatorController();
 
-// Routes
+const LessonPlan = require('../models/lessonPlan');
+const EducationTask = require('../models/educationTask');
+const UserProfile = require('../models/userProfile');
+const LessonPlanLog = require('../models/lessonPlanLog');
+
+const lessonPlanController = require('../controllers/lessonPlanController');
+
+const lessonPlans = lessonPlanController();
+// Global JWT middleware supplies requestor; the controller enforces roles and ownership.
+router.post('/lesson-plans', lessonPlans.createLessonPlan);
+router.patch('/lesson-plans/:id', lessonPlans.updateLessonPlan);
+
+// A concurrent upsert can lose the unique-index race. Only accept that outcome
+// after verifying the exact assignment exists; other database failures still fail.
+const DUPLICATE_KEY_CODE = 11000;
+const upsertAssignments = async (operations) => {
+  try {
+    return await EducationTask.bulkWrite(operations, { ordered: false });
+  } catch (error) {
+    const failures = error.writeErrors;
+    if (
+      !failures?.length ||
+      !error.result ||
+      error.result.getWriteConcernError?.() ||
+      failures.some((failure) => failure.code !== DUPLICATE_KEY_CODE)
+    )
+      throw error;
+    const existing = await Promise.all(
+      failures.map((failure) => {
+        const operation = operations[failure.index];
+        return operation ? EducationTask.exists(operation.updateOne.filter) : false;
+      }),
+    );
+    if (existing.some((found) => !found)) throw error;
+    return error.result;
+  }
+};
+
+/**
+ * @route   POST /api/educator/assign-tasks
+ * @desc    Assigns all tasks from a lesson plan to eligible students.
+ * @access  Private (Protected by authentication middleware)
+ */
+router.post('/assign-tasks', async (req, res) => {
+  const { lessonPlanId, assignmentDate, isAutoAssigned } = req.body;
+  // Global JWT middleware supplies this identity, matching lesson-plan save authorization.
+  const { requestor } = req.body;
+  if (
+    !requestor ||
+    typeof requestor.requestorId !== 'string' ||
+    !/^[a-f\d]{24}$/i.test(requestor.requestorId) ||
+    !requestor.role
+  ) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  if (!['Educator', 'Administrator', 'Owner'].includes(requestor.role)) {
+    return res.status(403).json({ message: 'Educator or administrator access required' });
+  }
+
+  if (!lessonPlanId) {
+    return res.status(400).json({ message: 'Request is missing lesson_plan_id.' });
+  }
+
+  try {
+    const lessonPlan = await LessonPlan.findById(lessonPlanId);
+
+    // Educators can assign only their own plans; administrators and owners retain access.
+    if (
+      lessonPlan &&
+      requestor.role === 'Educator' &&
+      String(lessonPlan.createdBy) !== requestor.requestorId
+    ) {
+      return res.status(403).json({ message: 'You may only assign your own lesson plans' });
+    }
+
+    if (!lessonPlan?.subTasks?.length) {
+      return res
+        .status(404)
+        .json({ message: 'Lesson plan not found or it has no sub-tasks to assign.' });
+    }
+
+    const eligibleStudents = await UserProfile.find({
+      isActive: true,
+      role: { $nin: ['Administrator', 'Owner', 'Manager'] },
+    });
+
+    if (!eligibleStudents || eligibleStudents.length === 0) {
+      return res.status(404).json({ message: 'No eligible students found to assign tasks to.' });
+    }
+
+    let assignedStudentCount = 0;
+    let assignedCount = 0;
+    let skippedCount = 0;
+    const tasksToCreate = [];
+
+    const assignerId = requestor.requestorId;
+
+    eligibleStudents.forEach((student) => {
+      const meetsPrerequisites = true;
+
+      // keeping this block commented for future reference
+      //   if (meetsPrerequisites) {
+      //     // FIXED: The logic now correctly iterates over lessonPlan.subTasks
+      //     if (lessonPlan.subTasks && lessonPlan.subTasks.length > 0) {
+      //         lessonPlan.subTasks.forEach(subTask => {
+      //             tasksToCreate.push({
+      //                 studentId: student._id,
+      //                 lessonPlanId,
+      //                 // FIXED: Use the 'title' property from the subTask
+      //                 title: subTask.name,
+      //                 assignedDate: assignmentDate,
+      //                 dueDate: subTask.dueDate,
+      //                 status: 'Assigned',
+      //             });
+      //         });
+      //         assignedCount++;
+      //     } else {
+      //         // If the lesson plan has no subtasks, we consider it "skipped" for this student.
+      //         skippedCount++;
+      //     }
+      //   } else {
+      //     skippedCount++;
+      //   }
+      if (meetsPrerequisites) {
+        if (lessonPlan.subTasks && lessonPlan.subTasks.length > 0) {
+          lessonPlan.subTasks.forEach((subTask) => {
+            tasksToCreate.push({
+              studentId: student._id,
+              lessonPlanId,
+              subTaskId: subTask._id,
+              title: subTask.name,
+              assignedDate: assignmentDate,
+              dueDate: subTask.dueDate,
+              status: 'Assigned',
+              assignedBy: assignerId,
+            });
+            // keeping this block commented for future reference
+            // }
+            // else {
+            // }
+          });
+        } else {
+          skippedCount++;
+        }
+      } else {
+        skippedCount++;
+      }
+    });
+
+    if (tasksToCreate.length > 0) {
+      // Reject missing identity rather than inserting unprotected legacy-style records.
+      if (tasksToCreate.some((task) => !/^[a-f\d]{24}$/i.test(String(task.subTaskId)))) {
+        throw new Error('Lesson plan contains a subtask without a valid ID.');
+      }
+      const now = new Date();
+      const operations = tasksToCreate.map((task) => ({
+        updateOne: {
+          filter: {
+            lessonPlanId: task.lessonPlanId,
+            studentId: task.studentId,
+            subTaskId: task.subTaskId,
+          },
+          // Disable automatic updatedAt writes: repeat requests must not change existing tasks.
+          update: { $setOnInsert: { ...task, createdAt: now, updatedAt: now } },
+          upsert: true,
+          timestamps: false,
+          setDefaultsOnInsert: true,
+        },
+      }));
+      const result = await upsertAssignments(operations);
+      const inserted = result.getUpsertedIds();
+      assignedCount = inserted.length;
+      assignedStudentCount = new Set(
+        inserted.map(({ index }) => String(tasksToCreate[index].studentId)),
+      ).size;
+    }
+
+    await LessonPlanLog.create({
+      lessonPlanId,
+      editorId: assignerId,
+      action: isAutoAssigned ? 'Auto-Assigned (On Save)' : 'Manual Assignment',
+      details: `Assigned to ${assignedStudentCount} students. Skipped ${skippedCount}.`,
+    });
+
+    res.status(200).json({
+      assignedCount,
+      skippedCount,
+    });
+  } catch (error) {
+    console.error('Task assignment failed');
+
+    const errorMessage =
+      process.env.NODE_ENV === 'production'
+        ? 'An internal server error occurred while assigning tasks.'
+        : `An internal server error occurred: ${error.message}`;
+
+    res.status(500).json({ message: errorMessage });
+  }
+});
+
+/**
+ * @route   GET /api/educator/logs/:lessonPlanId
+ * @desc    Get all assignment/edit logs for a specific lesson plan
+ * @access  Private
+ */
+router.get('/logs/:lessonPlanId', async (req, res) => {
+  try {
+    const logs = await LessonPlanLog.find({ lessonPlanId: req.params.lessonPlanId })
+      .populate('editorId', 'firstName lastName email')
+      .sort({ logDateTime: -1 }); // Show newest first
+    res.status(200).json(logs);
+  } catch (error) {
+    console.error('Lesson plan log retrieval failed', error instanceof Error ? 'Error' : 'Unknown');
+    res.status(500).json({ message: 'Error fetching logs' });
+  }
+});
+
 router.post('/assign-atoms', controller.assignAtoms);
 router.post('/evaluation-results/publish', controller.publishEvaluationResults);
 

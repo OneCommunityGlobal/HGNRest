@@ -1,10 +1,9 @@
-const resourceRequestController = require('./resourceRequestController');
-
 jest.mock('../utilities/permissions', () => ({
   hasPermission: jest.fn(),
 }));
 
 const { hasPermission } = require('../utilities/permissions');
+const resourceRequestController = require('./resourceRequestController');
 
 function createPopulateChain(result) {
   const chain = {

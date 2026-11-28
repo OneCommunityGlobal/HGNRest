@@ -3482,7 +3482,7 @@ const userHelper = function () {
     const emailBody = `
     <p>Management,</p>
     <p>
-      Please note that ${firstName} ${lastName}, who was previously PAUSED in the Highest Good Network on 
+      Please note that ${firstName} ${lastName}, who was previously PAUSED in the Highest Good Network on
       ${formattedPausedOn}, has now been RESUMED and is active again.
     </p>
     <p>
@@ -3508,7 +3508,7 @@ const userHelper = function () {
     const emailBody = `
     <p>Management,</p>
     <p>
-      Please note that ${firstName} ${lastName}, who was previously DEACTIVATED from the Highest Good Network on 
+      Please note that ${firstName} ${lastName}, who was previously DEACTIVATED from the Highest Good Network on
       ${formattedPreviousEndDate}, has now been REACTIVATED.
     </p>
     <p>
