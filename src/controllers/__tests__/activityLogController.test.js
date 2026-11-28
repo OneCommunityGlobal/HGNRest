@@ -11,6 +11,7 @@ jest.mock('../../models/activityLog', () => ({
 }));
 
 jest.mock('../../models/userProfile', () => ({
+  findById: jest.fn(),
   find: jest.fn(),
 }));
 
@@ -144,6 +145,163 @@ describe('activityLogController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
     });
+  });
+
+  describe('fetchAssignedSupportStudents', () => {
+    let profileSelect;
+    let teacherSelect;
+    let studentSelect;
+    const teacherId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+
+    beforeEach(() => {
+      req.body.requestor.role = 'Learning Support';
+      hasPermission.mockResolvedValue(true);
+      profileSelect = jest.fn().mockResolvedValue({
+        educationProfiles: { learningSupport: { assignedTeachers: [teacherId] } },
+      });
+      teacherSelect = jest
+        .fn()
+        .mockResolvedValue([{ educationProfiles: { teacher: { assignedStudents: [studentId] } } }]);
+      studentSelect = jest
+        .fn()
+        .mockResolvedValue([{ _id: studentId, firstName: 'Test', lastName: 'Student' }]);
+      usersProfiles.findById.mockReset().mockReturnValue({ select: profileSelect });
+      usersProfiles.find
+        .mockReset()
+        .mockReturnValueOnce({ select: teacherSelect })
+        .mockReturnValueOnce({ select: studentSelect });
+    });
+
+    it('should reject an invalid requestor before checking permissions or querying profiles', async () => {
+      req.body.requestor.requestorId = 'invalid-id';
+
+      await controller.fetchAssignedSupportStudents(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You are not authorized to view assigned students',
+      });
+      expect(hasPermission).not.toHaveBeenCalled();
+      expect(usersProfiles.findById).not.toHaveBeenCalled();
+      expect(usersProfiles.find).not.toHaveBeenCalled();
+    });
+
+    it('should reject callers without readActivityLogs permission', async () => {
+      hasPermission.mockResolvedValue(false);
+
+      await controller.fetchAssignedSupportStudents(req, res);
+
+      expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'readActivityLogs');
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You are not authorized to view assigned students',
+      });
+      expect(usersProfiles.findById).not.toHaveBeenCalled();
+      expect(usersProfiles.find).not.toHaveBeenCalled();
+    });
+
+    it('should reject a missing support profile', async () => {
+      profileSelect.mockResolvedValue(null);
+
+      await controller.fetchAssignedSupportStudents(req, res);
+
+      expect(usersProfiles.findById).toHaveBeenCalledWith(validObjectId);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'You are not authorized to view assigned students',
+      });
+      expect(usersProfiles.find).not.toHaveBeenCalled();
+    });
+
+    it.each([{}, { educationProfiles: { learningSupport: { assignedTeachers: [] } } }])(
+      'should return an empty array when no teachers are assigned (%j)',
+      async (profile) => {
+        profileSelect.mockResolvedValue(profile);
+
+        await controller.fetchAssignedSupportStudents(req, res);
+
+        expect(res.status).not.toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalledWith([]);
+        expect(usersProfiles.find).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      { teachers: [] },
+      { teachers: [{}] },
+      { teachers: [{ educationProfiles: { teacher: { assignedStudents: [] } } }] },
+    ])(
+      'should return an empty array when assigned teachers have no students (%j)',
+      async ({ teachers }) => {
+        teacherSelect.mockResolvedValue(teachers);
+
+        await controller.fetchAssignedSupportStudents(req, res);
+
+        expect(res.status).not.toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalledWith([]);
+        expect(usersProfiles.find).toHaveBeenCalledTimes(1);
+        expect(usersProfiles.find).toHaveBeenCalledWith({ _id: { $in: [teacherId] } });
+      },
+    );
+
+    it('should retrieve only assigned students and format their IDs and names', async () => {
+      req.query.supportId = validUserObjectId;
+
+      await controller.fetchAssignedSupportStudents(req, res);
+
+      expect(hasPermission).toHaveBeenCalledWith(req.body.requestor, 'readActivityLogs');
+      expect(usersProfiles.findById).toHaveBeenCalledWith(validObjectId);
+      expect(profileSelect).toHaveBeenCalledWith(
+        'educationProfiles.learningSupport.assignedTeachers',
+      );
+      expect(usersProfiles.find).toHaveBeenCalledTimes(2);
+      expect(usersProfiles.find).toHaveBeenNthCalledWith(1, { _id: { $in: [teacherId] } });
+      expect(teacherSelect).toHaveBeenCalledWith('educationProfiles.teacher.assignedStudents');
+      expect(usersProfiles.find).toHaveBeenNthCalledWith(2, { _id: { $in: [String(studentId)] } });
+      expect(studentSelect).toHaveBeenCalledWith('firstName lastName');
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith([{ id: String(studentId), name: 'Test Student' }]);
+    });
+
+    it('should deduplicate student IDs across teachers before querying students', async () => {
+      teacherSelect.mockResolvedValue([
+        { educationProfiles: { teacher: { assignedStudents: [studentId] } } },
+        {
+          educationProfiles: {
+            teacher: { assignedStudents: [new mongoose.Types.ObjectId(String(studentId))] },
+          },
+        },
+      ]);
+      studentSelect.mockResolvedValue([{ _id: studentId, firstName: 'Test' }]);
+
+      await controller.fetchAssignedSupportStudents(req, res);
+
+      expect(usersProfiles.find).toHaveBeenNthCalledWith(2, { _id: { $in: [String(studentId)] } });
+      expect(res.json).toHaveBeenCalledWith([{ id: String(studentId), name: 'Test' }]);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it.each(['profile', 'teachers', 'students'])(
+      'should handle %s database errors',
+      async (stage) => {
+        const error = new Error('Database failure');
+        const selections = {
+          profile: profileSelect,
+          teachers: teacherSelect,
+          students: studentSelect,
+        };
+        selections[stage].mockRejectedValue(error);
+
+        await controller.fetchAssignedSupportStudents(req, res);
+
+        expect(logger.logException).toHaveBeenCalledWith(error, 'fetchAssignedSupportStudents', {
+          requestor: req.body.requestor,
+        });
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ error: 'An unexpected error occurred' });
+      },
+    );
   });
 
   describe('fetchStudentDailyLogsByStaff', () => {
