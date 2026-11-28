@@ -69,37 +69,24 @@ describe('bmNewLessonController', () => {
         { _id: '2', title: 'Lesson 2' },
       ];
 
-      mockBuildingNewLesson.find.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
-          then: jest.fn().mockImplementation((callback) => {
-            callback(mockLessons);
-            return { catch: jest.fn() };
-          }),
-        }),
-      });
+      mockBuildingNewLesson.find.mockResolvedValue(mockLessons);
 
       await controller.bmGetLessonList(mockReq, mockRes);
 
       expect(mockBuildingNewLesson.find).toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.send).toHaveBeenCalledWith(mockLessons);
+      expect(mockRes.send).toHaveBeenCalledWith(mockLessons.map((doc) => ({ ...doc, isLiked: false })));
     });
 
     it('should handle database errors', async () => {
       const mockError = new Error('Database error');
 
-      mockBuildingNewLesson.find.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
-          then: jest.fn().mockReturnValue({
-            catch: jest.fn().mockImplementation((callback) => callback(mockError)),
-          }),
-        }),
-      });
+      mockBuildingNewLesson.find.mockRejectedValue(mockError);
 
       await controller.bmGetLessonList(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith(mockError);
+      expect(mockRes.send).toHaveBeenCalledWith({ error: 'Failed to fetch lessons.' });
     });
   });
 
