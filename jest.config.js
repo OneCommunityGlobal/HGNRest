@@ -17,7 +17,10 @@ module.exports = {
     '!src/test/**',
     '!src/__tests__/**',
     // Exclude WebSocket files (difficult to test)
-    '!src/websockets/**/*.js',
+    '!src/websockets/index.js',
+    '!src/websockets/webSocketRouter.js',
+    '!src/websockets/lbMessaging/**',
+    '!src/websockets/TimerService/connectionsHandler.js',
   ],
   // Coverage thresholds - Adjusted to match current coverage levels
   coverageThreshold: {

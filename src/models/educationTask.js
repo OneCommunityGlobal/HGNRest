@@ -14,7 +14,7 @@ const educationTaskSchema = new mongoose.Schema(
     },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'userProfile',
+      ref: 'User',
       required: true,
     },
     atomIds: [
@@ -95,10 +95,12 @@ const educationTaskSchema = new mongoose.Schema(
     suggestedTotalHours: {
       type: Number,
       default: 0,
+      min: 0,
     },
     loggedHours: {
       type: Number,
       default: 0,
+      min: 0,
     },
   },
   {

@@ -4,6 +4,25 @@ const EducationTask = require('../models/educationTask');
 const { uploadFileToAzureBlobStorage } = require('../utilities/AzureBlobImages');
 const config = require('../config');
 
+const validateUploadFile = (file) => {
+  const MAX_SIZE = 10 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    return 'File size exceeds 10 MB limit';
+  }
+  const allowedMimeTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'text/plain',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+  ];
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.';
+  }
+  return null;
+};
+
 const studentTaskController = function () {
   const groupTasks = (tasks) => {
     const grouped = {};
@@ -75,7 +94,7 @@ const studentTaskController = function () {
 
   const getStudentTasks = async (req, res) => {
     try {
-      const studentId = req.body.requestor.requestorId;
+      const studentId = req.user?.requestorId;
 
       if (!studentId) {
         return res.status(400).json({ error: 'Student ID is required' });
@@ -158,6 +177,7 @@ const studentTaskController = function () {
         {
           $project: {
             _id: 1,
+            name: 1,
             studentId: 1,
             lessonPlanId: 1,
             atomIds: 1,
@@ -169,8 +189,8 @@ const studentTaskController = function () {
             uploadUrls: 1,
             grade: 1,
             feedback: 1,
-            suggestedTotalHours: 1,
-            loggedHours: 1,
+            suggestedTotalHours: { $ifNull: ['$suggestedTotalHours', 0] },
+            loggedHours: { $ifNull: ['$loggedHours', 0] },
             lessonPlan: {
               _id: '$lessonPlan._id',
               title: '$lessonPlan.title',
@@ -219,57 +239,6 @@ const studentTaskController = function () {
       console.error('Error fetching student tasks:', error);
       return res.status(500).json({
         error: 'Internal server error',
-        details: error.message,
-      });
-    }
-  };
-
-  const updateTaskProgress = async (req, res) => {
-    try {
-      const { taskId } = req.params;
-      const { progressPercent, status, loggedHours } = req.body;
-      const studentId = req.body.requestor.requestorId;
-
-      if (!taskId || (!progressPercent && !status && loggedHours === undefined)) {
-        return res.status(400).json({ error: 'Task ID and progress data are required' });
-      }
-
-      const updateData = {};
-      if (progressPercent !== undefined) {
-        updateData.progressPercent = Math.min(100, Math.max(0, progressPercent));
-      }
-      if (status) {
-        updateData.status = status;
-      }
-      if (loggedHours !== undefined) {
-        updateData.loggedHours = Math.max(0, loggedHours);
-      }
-
-      const updatedTask = await EducationTask.findOneAndUpdate(
-        {
-          _id: mongoose.Types.ObjectId(taskId),
-          studentId: mongoose.Types.ObjectId(studentId),
-        },
-        updateData,
-        { new: true },
-      )
-        .populate('lessonPlanId', 'title theme')
-        .populate('studentId', 'firstName lastName email')
-        .populate('atomIds', 'name description difficulty');
-
-      if (!updatedTask) {
-        return res.status(404).json({ error: 'Student task not found' });
-      }
-
-      return res.status(200).json({
-        message: 'Task progress updated successfully',
-        task: updatedTask,
-      });
-    } catch (error) {
-      console.error('Error updating task progress:', error);
-      return res.status(500).json({
-        error: 'Internal server error',
-        details: error.message,
       });
     }
   };
@@ -296,7 +265,7 @@ const studentTaskController = function () {
         payload = jwt.verify(authToken, config.JWT_SECRET);
         studentId = payload.userid;
       } catch (error) {
-        res.status(401).send('Invalid token');
+        res.status(401).json({ error: 'Invalid token' });
         return;
       }
       if (!taskId) {
@@ -311,34 +280,19 @@ const studentTaskController = function () {
       });
 
       if (!task) {
-        return res.status(404).json({ message: 'Task not found' });
+        return res.status(404).json({ error: 'Task not found' });
+      }
+      if (task.type !== 'write' || !['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Only active write tasks support uploads' });
+      }
+      if (!Number.isFinite(task.suggestedTotalHours) || task.suggestedTotalHours < 0) {
+        return res.status(400).json({ error: 'Task suggested hours are missing or invalid' });
       }
       let uploadedUrl = null;
       if (req.file) {
         const { file } = req;
-        // if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
-        // Validate file size (max 10MB)
-        const MAX_SIZE = 10 * 1024 * 1024;
-        if (file.size > MAX_SIZE) {
-          return res.status(400).json({ message: 'File size exceeds 10 MB limit' });
-        }
-
-        // Validate file type
-        const allowedMimeTypes = [
-          'application/pdf',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-          'text/plain',
-          'image/jpeg',
-          'image/png',
-          'image/gif',
-        ];
-
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-          return res
-            .status(400)
-            .json({ message: 'Invalid file type. Only PDF, DOCX, TXT, and images are allowed.' });
-        }
+        const fileError = validateUploadFile(file);
+        if (fileError) return res.status(400).json({ error: fileError });
 
         const blobName = `tasks/${taskId}/${studentId}/${file.originalname}-${Date.now()}`;
         uploadedUrl = await uploadFileToAzureBlobStorage(file, blobName);
@@ -351,6 +305,10 @@ const studentTaskController = function () {
         return res.status(400).json({ error: 'A File or a link is required.' });
       }
 
+      if (!uploadedUrl) {
+        throw new Error('Upload did not return a file URL');
+      }
+
       task.status = 'completed';
       task.completedAt = Date.now();
       task.uploadUrls.push(uploadedUrl);
@@ -359,6 +317,11 @@ const studentTaskController = function () {
       return res.json({
         message: 'File uploaded successfully!',
         url: uploadedUrl,
+        status: task.status,
+        loggedHours: task.loggedHours,
+        suggestedTotalHours: task.suggestedTotalHours,
+        completedAt: task.completedAt,
+        uploadUrls: task.uploadUrls,
       });
     } catch (error) {
       console.error(error);
@@ -374,7 +337,11 @@ const studentTaskController = function () {
   const logHours = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const studentId = req.body.requestor?.requestorId;
+      const studentId = req.user?.requestorId;
+
+      if (!studentId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
       if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
         return res.status(400).json({ error: 'Invalid Task ID' });
@@ -383,7 +350,7 @@ const studentTaskController = function () {
         return res.status(400).json({ error: 'Invalid Student ID' });
       }
 
-      const hours = Number(req.body.hours);
+      const { hours } = req.body;
       if (!Number.isFinite(hours) || hours <= 0) {
         return res.status(400).json({ error: 'hours must be a positive number' });
       }
@@ -397,28 +364,50 @@ const studentTaskController = function () {
         return res.status(404).json({ error: 'Task not found or does not belong to you' });
       }
 
-      if (task.status === 'completed' || task.status === 'graded') {
-        return res.status(400).json({ error: 'Cannot log hours for a completed task' });
+      if (!['read', 'write'].includes(task.type)) {
+        return res.status(400).json({ error: 'Only read and write tasks support hours logging' });
+      }
+      if (!['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Cannot log hours for a task with this status' });
       }
 
-      const cap = task.suggestedTotalHours > 0 ? task.suggestedTotalHours : Infinity;
-      const newLoggedHours = Math.min(task.loggedHours + hours, cap);
-
-      const newStatus =
-        task.status === 'assigned' && newLoggedHours > 0 ? 'in_progress' : task.status;
-
+      // Calculate from the stored value atomically and recheck eligibility at write time.
+      const totalHours = { $add: [{ $ifNull: ['$loggedHours', 0] }, hours] };
+      const suggestedHours = { $ifNull: ['$suggestedTotalHours', 0] };
       const updated = await EducationTask.findOneAndUpdate(
-        { _id: mongoose.Types.ObjectId(taskId) },
-        { $set: { loggedHours: newLoggedHours, status: newStatus } },
-        { new: true, runValidators: false },
+        {
+          _id: mongoose.Types.ObjectId(taskId),
+          studentId: mongoose.Types.ObjectId(studentId),
+          type: task.type,
+          status: { $in: ['assigned', 'in_progress'] },
+        },
+        [
+          {
+            $set: {
+              loggedHours: {
+                $cond: [
+                  { $gt: [suggestedHours, 0] },
+                  { $min: [totalHours, suggestedHours] },
+                  totalHours,
+                ],
+              },
+              status: 'in_progress',
+            },
+          },
+        ],
+        { new: true },
       );
 
       if (!updated) {
-        return res.status(404).json({ error: 'Task not found during update' });
+        return res
+          .status(409)
+          .json({ error: 'Task changed and is no longer eligible for logging' });
       }
 
       const canMarkDone =
-        updated.suggestedTotalHours > 0 && updated.loggedHours >= updated.suggestedTotalHours;
+        updated.type === 'read' &&
+        updated.suggestedTotalHours > 0 &&
+        updated.loggedHours >= updated.suggestedTotalHours;
 
       return res.status(200).json({
         message: 'Hours logged successfully',
@@ -435,7 +424,6 @@ const studentTaskController = function () {
 
   return {
     getStudentTasks,
-    updateTaskProgress,
     uploadFile,
     logHours,
   };

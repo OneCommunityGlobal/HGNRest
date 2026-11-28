@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Progress = require('../models/progress');
 const UserProfile = require('../models/userProfile');
 const EducationTask = require('../models/educationTask');
-const LessonPlan = require('../models/lessonPlan');
+require('../models/lessonPlan');
 
 const studentReportController = function () {
   // --- Helper Functions (Logic remains the same, just keeping them organized) ---

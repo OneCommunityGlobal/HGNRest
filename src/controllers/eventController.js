@@ -11,13 +11,17 @@ const updateEventStatus = (event) => {
 };
 
 function getMonthRangeAround(inputDate) {
+  // inputDate is YYYY-MM-DD, parsed as UTC midnight; use UTC parts so the
+  // range doesn't shift by a day on servers outside UTC.
   const date = new Date(inputDate);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
 
-  // Get the first day of 2 months ago
-  const startDate = new Date(date.getFullYear(), date.getMonth() - 2, 1);
+  // First day of 2 months ago
+  const startDate = new Date(Date.UTC(year, month - 2, 1));
 
-  // Get the last day of 2 months from now
-  const endDate = new Date(date.getFullYear(), date.getMonth() + 3, 0);
+  // Last day of 2 months from now
+  const endDate = new Date(Date.UTC(year, month + 3, 0));
 
   return {
     startDate: startDate.toISOString().split('T')[0],
@@ -28,9 +32,10 @@ function getMonthRangeAround(inputDate) {
 const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
+const VALID_SORT_ORDERS = new Set(['asc', 'desc']);
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
-function validateQuery({ type, location, sortBy, date }) {
+function validateQuery({ type, location, sortBy, sortOrder, date }) {
   if (type && !VALID_TYPES.has(type)) {
     throw new Error('Invalid Type of Event.');
   }
@@ -41,6 +46,10 @@ function validateQuery({ type, location, sortBy, date }) {
 
   if (sortBy && !VALID_SORT_FIELDS.has(sortBy)) {
     throw new Error('Invalid Sort Field.');
+  }
+
+  if (!VALID_SORT_ORDERS.has(sortOrder)) {
+    throw new Error('Invalid Sort Order.');
   }
 
   if (date && (!DATE_FORMAT.test(date) || Number.isNaN(new Date(date).getTime()))) {
@@ -111,9 +120,17 @@ function formatEvent(event, userId) {
 
 const getEvents = async function (req, res) {
   try {
-    const { page, limit, type = '', location = '', sortBy = 'date', date } = req.query;
+    const {
+      page,
+      limit,
+      type = '',
+      location = '',
+      sortBy = 'date',
+      sortOrder = 'asc',
+      date,
+    } = req.query;
 
-    validateQuery({ type, location, sortBy, date });
+    validateQuery({ type, location, sortBy, sortOrder, date });
     const query = buildSafeQuery(location, type);
 
     if (date) {
@@ -125,17 +142,17 @@ const getEvents = async function (req, res) {
 
     const { pageNumber, limitNumber, skip } = getPagination(page, limit, totalEvents);
 
+    const sortSpec = { [sortBy || 'date']: sortOrder === 'desc' ? -1 : 1 };
+
     let events;
     if (limit) {
       events = await Event.find(query)
         .populate('resources.userID')
-        .sort(sortBy ? { [sortBy]: 1 } : {})
+        .sort(sortSpec)
         .skip(skip)
         .limit(limitNumber);
     } else {
-      events = await Event.find(query)
-        .populate('resources.userID')
-        .sort({ [sortBy]: 1 });
+      events = await Event.find(query).populate('resources.userID').sort(sortSpec);
     }
 
     const formattedEvents = events.map((event) => formatEvent(event, query.userId));

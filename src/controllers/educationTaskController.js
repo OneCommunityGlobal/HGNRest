@@ -5,7 +5,43 @@ const UserProfile = require('../models/userProfile');
 const Atom = require('../models/atom');
 const StudentGroup = require('../models/studentGroup');
 const StudentGroupMember = require('../models/studentGroupMember');
-const IntermediateTask = require('../models/intermediateTask');
+require('../models/intermediateTask');
+
+const toObjectId = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!mongoose.Types.ObjectId.isValid(trimmed)) return null;
+  return new mongoose.Types.ObjectId(trimmed);
+};
+
+const validateTaskUpdateDetails = (name, suggestedTotalHours) => {
+  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+    return 'Name must be a nonempty string';
+  }
+  if (
+    suggestedTotalHours !== undefined &&
+    (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0)
+  ) {
+    return 'Suggested total hours must be a finite, nonnegative number';
+  }
+  return null;
+};
+
+const validateTaskUpdateState = (type, status) => {
+  if (type) {
+    const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
+    if (!validTaskTypes.includes(type)) {
+      return `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}`;
+    }
+  }
+  if (status) {
+    const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
+    if (!validStatuses.includes(status)) {
+      return `Invalid status. Must be one of: ${validStatuses.join(', ')}`;
+    }
+  }
+  return null;
+};
 
 const educationTaskController = () => {
   /**
@@ -17,7 +53,8 @@ const educationTaskController = () => {
         .populate('lessonPlanId', 'title theme')
         .populate('studentId', 'firstName lastName email')
         .populate('atomIds', 'name description difficulty')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .allowDiskUse(true);
 
       res.status(200).json(tasks);
     } catch (err) {
@@ -139,7 +176,25 @@ const educationTaskController = () => {
    */
   const createTask = async (req, res) => {
     try {
-      const { lessonPlanId, studentId, groupId, atomIds, type, dueAt } = req.body;
+      const {
+        name,
+        suggestedTotalHours = 0,
+        lessonPlanId,
+        studentId,
+        groupId,
+        atomIds,
+        type,
+        dueAt,
+      } = req.body;
+
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name must be a nonempty string' });
+      }
+      if (!Number.isFinite(suggestedTotalHours) || suggestedTotalHours < 0) {
+        return res
+          .status(400)
+          .json({ error: 'suggestedTotalHours must be a finite, nonnegative number' });
+      }
 
       // Validate lesson plan
       const lessonPlan = await LessonPlan.findById(lessonPlanId);
@@ -172,6 +227,9 @@ const educationTaskController = () => {
 
       // Insert tasks
       const tasksToInsert = targetStudents.map((id) => ({
+        name: name.trim(),
+        suggestedTotalHours,
+        loggedHours: 0,
         lessonPlanId,
         studentId: id,
         atomIds: atomIds || [],
@@ -208,11 +266,46 @@ const educationTaskController = () => {
    */
   const updateTask = async (req, res) => {
     try {
+      const requestor = req.user;
+      const validRoles = [
+        'admin',
+        'educator',
+        'Educator',
+        'teacher',
+        'Teacher',
+        'owner',
+        'Owner',
+        'Administrator',
+      ];
+
+      if (!requestor?.requestorId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!validRoles.includes(requestor.role)) {
+        return res.status(403).json({
+          error: 'Insufficient permissions. Educator, admin, teacher, or owner role required.',
+        });
+      }
+
       const { id } = req.params;
-      const { atomIds, type, status, dueAt, uploadUrls, grade, feedback } = req.body;
+      const {
+        name,
+        suggestedTotalHours,
+        atomIds,
+        type,
+        status,
+        dueAt,
+        uploadUrls,
+        grade,
+        feedback,
+      } = req.body;
 
       const task = await EducationTask.findById(id);
       if (!task) return res.status(404).json({ error: 'Task not found' });
+
+      const detailsError = validateTaskUpdateDetails(name, suggestedTotalHours);
+      if (detailsError) return res.status(400).json({ error: detailsError });
 
       // Validate atoms
       if (atomIds && atomIds.length > 0) {
@@ -222,26 +315,10 @@ const educationTaskController = () => {
         }
       }
 
-      // Validate type
-      if (type) {
-        const validTaskTypes = ['read', 'write', 'practice', 'quiz', 'project'];
-        if (!validTaskTypes.includes(type)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid task type. Must be one of: ${validTaskTypes.join(', ')}` });
-        }
-      }
+      const stateError = validateTaskUpdateState(type, status);
+      if (stateError) return res.status(400).json({ error: stateError });
 
-      // Validate status
-      if (status) {
-        const validStatuses = ['assigned', 'in_progress', 'completed', 'graded'];
-        if (!validStatuses.includes(status)) {
-          return res
-            .status(400)
-            .json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
-        }
-      }
-
+      // Update completedAt if status is being changed to completed
       let { completedAt } = task;
       if (status === 'completed' && task.status !== 'completed') {
         completedAt = new Date();
@@ -249,7 +326,18 @@ const educationTaskController = () => {
 
       const updatedTask = await EducationTask.findByIdAndUpdate(
         id,
-        { atomIds, type, status, dueAt, uploadUrls, grade, feedback, completedAt },
+        {
+          name: name !== undefined ? name.trim() : undefined,
+          suggestedTotalHours,
+          atomIds,
+          type,
+          status,
+          dueAt,
+          uploadUrls,
+          grade,
+          feedback,
+          completedAt,
+        },
         { new: true, runValidators: true },
       )
         .populate('lessonPlanId', 'title theme')
@@ -345,6 +433,85 @@ const educationTaskController = () => {
       res.status(200).json(updatedTask);
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  };
+
+  // Mark a student's task as completed from the student dashboard flow.
+  const markTaskAsComplete = async (req, res) => {
+    try {
+      const { taskId } = req.body;
+      const studentId = req.user?.requestorId;
+
+      if (!studentId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (!taskId) {
+        return res.status(400).json({ error: 'taskId is required' });
+      }
+
+      const safeTaskId = toObjectId(taskId);
+      const safeStudentId = toObjectId(studentId);
+      if (!safeTaskId || !safeStudentId) {
+        return res.status(400).json({ error: 'Invalid taskId or studentId format' });
+      }
+
+      const task = await EducationTask.findOne({ _id: safeTaskId, studentId: safeStudentId });
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found for this student' });
+      }
+
+      if (task.status === 'completed' || task.status === 'graded') {
+        return res.status(200).json(task);
+      }
+
+      if (task.type !== 'read') {
+        return res.status(400).json({ error: 'Only read tasks can be completed manually' });
+      }
+      if (!['assigned', 'in_progress'].includes(task.status)) {
+        return res.status(400).json({ error: 'Task status is not eligible for completion' });
+      }
+      if (
+        !Number.isFinite(task.loggedHours) ||
+        !Number.isFinite(task.suggestedTotalHours) ||
+        task.loggedHours < 0 ||
+        task.suggestedTotalHours <= 0 ||
+        task.loggedHours < task.suggestedTotalHours
+      ) {
+        return res
+          .status(400)
+          .json({ error: 'Valid logged hours must meet suggested total hours' });
+      }
+
+      // Compare and update atomically so ownership or eligibility cannot change unnoticed.
+      const updatedTask = await EducationTask.findOneAndUpdate(
+        {
+          _id: safeTaskId,
+          studentId: safeStudentId,
+          type: 'read',
+          status: task.status,
+          loggedHours: task.loggedHours,
+          suggestedTotalHours: task.suggestedTotalHours,
+        },
+        {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        { new: true, runValidators: true },
+      )
+        .populate('lessonPlanId', 'title theme')
+        .populate('studentId', 'firstName lastName email')
+        .populate('atomIds', 'name description difficulty');
+
+      if (!updatedTask) {
+        return res.status(409).json({ error: 'Task changed; reload and retry completion' });
+      }
+
+      res.status(200).json(updatedTask);
+    } catch (error) {
+      console.error('Error marking task as complete:', {
+        errorType: error?.name || 'UnknownError',
+      });
+      res.status(500).json({ error: 'Internal server error' });
     }
   };
 
@@ -465,7 +632,7 @@ const educationTaskController = () => {
       const educatorId =
         req.body.educatorId ||
         (req.user && req.user._id) ||
-        (req.body.requestor && req.body.requestor.userId);
+        (req.body.requestor && req.body.requestor.requestorId);
 
       const task = await EducationTask.findById(submissionId);
       if (!task) {
@@ -589,196 +756,128 @@ const educationTaskController = () => {
     }
   };
 
-  // Helper function to check and update parent task progress
-  const checkAndUpdateParentTaskProgress = async (parentTaskId) => {
-    try {
-      // Get all intermediate tasks for this parent
-      const intermediateTasks = await IntermediateTask.find({ parent_task_id: parentTaskId });
-
-      // If there are no intermediate tasks, return
-      if (intermediateTasks.length === 0) {
-        return;
-      }
-
-      // Check if all intermediate tasks are completed
-      const allCompleted = intermediateTasks.every((task) => task.status === 'completed');
-
-      if (allCompleted) {
-        // Get the parent task
-        const parentTask = await EducationTask.findById(parentTaskId);
-
-        // Only update if parent task is not already completed or graded
-        if (parentTask && parentTask.status !== 'completed' && parentTask.status !== 'graded') {
-          await EducationTask.findByIdAndUpdate(
-            parentTaskId,
-            {
-              status: 'completed',
-              completedAt: new Date(),
-            },
-            { new: true },
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error updating parent task progress:', error);
-    }
-  };
-
-  // Mark task as complete
-  const markTaskAsComplete = async (req, res) => {
-    try {
-      const { taskId, studentId, taskType } = req.body;
-      const requestorId = req.body.requestor?.requestorId;
-
-      if (!taskId) {
-        return res.status(400).json({ error: 'Task ID is required' });
-      }
-
-      if (!requestorId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      // Handle intermediate tasks
-      if (taskType === 'intermediate') {
-        const intermediateTask = await IntermediateTask.findById(taskId).populate('parent_task_id');
-
-        if (!intermediateTask) {
-          return res.status(404).json({ error: 'Intermediate task not found' });
-        }
-
-        // Check if task is already completed
-        if (intermediateTask.status === 'completed') {
-          return res.status(400).json({ error: 'Task is already completed' });
-        }
-
-        // Update intermediate task status to completed (only update status field)
-        const updatedTask = await IntermediateTask.findByIdAndUpdate(
-          taskId,
-          {
-            $set: { status: 'completed' },
-          },
-          { new: true, runValidators: true },
-        ).populate('parent_task_id', 'type status dueAt studentId lessonPlanId');
-
-        // Check if all intermediate tasks for the parent are completed
-        await checkAndUpdateParentTaskProgress(intermediateTask.parent_task_id);
-
-        return res.status(200).json({
-          message: 'Intermediate task marked as complete successfully',
-          task: updatedTask,
-        });
-      }
-
-      // Handle education tasks (original logic)
-      if (!studentId) {
-        return res.status(400).json({ error: 'Student ID is required' });
-      }
-
-      // Find the task and verify it belongs to the student
-      const task = await EducationTask.findOne({
-        _id: taskId,
-        studentId,
-      });
-
-      if (!task) {
-        return res.status(404).json({ error: 'Task not found or does not belong to student' });
-      }
-
-      // Check if task is already completed
-      if (task.status === 'completed') {
-        return res.status(400).json({ error: 'Task is already completed' });
-      }
-
-      // Verify task type is read-only (only read-only tasks can be marked done manually)
-      if (task.type !== 'read') {
-        return res.status(400).json({
-          error: 'Only read-only tasks can be marked as complete manually',
-        });
-      }
-
-      // Check if logged hours meet the requirement
-      if (task.loggedHours < task.suggestedTotalHours) {
-        return res.status(400).json({
-          error: `Insufficient hours logged. Required: ${task.suggestedTotalHours}, Logged: ${task.loggedHours}`,
-        });
-      }
-
-      // Update task status to completed
-      const updatedTask = await EducationTask.findByIdAndUpdate(
-        taskId,
-        {
-          status: 'completed',
-          completedAt: new Date(),
-        },
-        { new: true },
-      )
-        .populate('lessonPlanId', 'title theme')
-        .populate('studentId', 'firstName lastName email')
-        .populate('atomIds', 'name description difficulty');
-
-      res.status(200).json({
-        message: 'Task marked as complete successfully',
-        task: updatedTask,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  };
-
   const getTaskSubmissions = async (req, res) => {
     try {
-      const { status, studentId, lessonPlanId } = req.query;
+      const {
+        status,
+        studentId,
+        student_id: studentIdAlias,
+        lessonPlanId,
+        courseId,
+        course_id: courseIdAlias,
+      } = req.query;
 
-      const allowedStatuses = ['completed', 'graded'];
+      const filter = {};
 
-      let dbQuery = EducationTask.find().setOptions({ sanitizeFilter: true });
-
-      if (status && allowedStatuses.includes(status)) {
-        dbQuery = dbQuery.where('status').equals(status);
+      // Default to only educator-relevant statuses (completed = pending review, graded).
+      if (status) {
+        const statusMap = Object.freeze({
+          submissions: 'completed',
+          'pending submissions': 'assigned',
+          pending: 'assigned',
+          completed: 'completed',
+          graded: 'graded',
+          assigned: 'assigned',
+          in_progress: 'in_progress',
+        });
+        const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+        const mappedStatus = statusMap[normalizedStatus];
+        if (!mappedStatus) {
+          return res.status(400).json({ error: 'Invalid status filter' });
+        }
+        filter.status = mappedStatus;
       } else {
-        dbQuery = dbQuery.where('status').in(allowedStatuses);
+        filter.status = { $in: ['completed', 'graded'] };
       }
 
-      if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
-        dbQuery = dbQuery.where('studentId').equals(new mongoose.Types.ObjectId(studentId));
+      const rawStudentId = studentId || studentIdAlias;
+      if (rawStudentId) {
+        const safeStudentId = toObjectId(rawStudentId);
+        if (!safeStudentId) {
+          return res.status(400).json({ error: 'Invalid studentId filter' });
+        }
+        filter.studentId = safeStudentId;
       }
 
-      if (lessonPlanId && mongoose.Types.ObjectId.isValid(lessonPlanId)) {
-        dbQuery = dbQuery.where('lessonPlanId').equals(new mongoose.Types.ObjectId(lessonPlanId));
+      // Accept `courseId` as an alias for lessonPlanId when frontend sends course filters.
+      const lpFilterId = lessonPlanId || courseId || courseIdAlias;
+      if (lpFilterId) {
+        const safeLessonPlanId = toObjectId(lpFilterId);
+        if (!safeLessonPlanId) {
+          return res.status(400).json({ error: 'Invalid courseId filter' });
+        }
+        filter.lessonPlanId = safeLessonPlanId;
       }
 
-      const submissions = await dbQuery
+      const submissions = await EducationTask.find(filter)
         .populate('studentId', 'firstName lastName email')
         .populate('lessonPlanId', 'title')
         .sort({ completedAt: -1 });
 
-      const formattedSubmissions = submissions
-        .map((task) => {
-          if (!task.studentId || !task.lessonPlanId) {
-            return null;
-          }
+      // Helper function to format a single task submission
+      const formatSubmission = (task) => {
+        if (!task.studentId || !task.lessonPlanId) {
+          return null;
+        }
 
-          return {
-            // _id: task._id,
-            studentId: task.studentId._id,
-            studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
-            studentEmail: task.studentId.email,
-            taskName: task.name || 'Unnamed Task',
-            taskType: task.type,
-            submissionLinks: task.uploadUrls,
-            status: task.status === 'completed' ? 'Pending Review' : 'Graded',
-            isLate:
-              task.completedAt && task.dueAt && new Date(task.completedAt) > new Date(task.dueAt),
-            submittedAt: task.completedAt,
-            assignedAt: task.assignedAt,
-            dueAt: task.dueAt,
-            grade: task.grade,
-            feedback: task.feedback,
-            lessonPlanId: task.lessonPlanId._id.toString(),
-            lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
-          };
-        })
-        .filter(Boolean);
+        // Detect late submission: when completedAt exists and is after dueAt
+        let isLate = false;
+        let lateByMs = 0;
+        if (task.completedAt && task.dueAt) {
+          const completed = new Date(task.completedAt).getTime();
+          const due = new Date(task.dueAt).getTime();
+          if (!Number.isNaN(completed) && !Number.isNaN(due) && completed > due) {
+            isLate = true;
+            lateByMs = completed - due;
+          }
+        }
+
+        // If no completedAt but current time is past due and status not completed,
+        // mark as overdue (not yet submitted) but not a "late submission".
+        const now = Date.now();
+        const isOverdue = !task.completedAt && task.dueAt && new Date(task.dueAt).getTime() < now;
+
+        const camelStatus = (() => {
+          if (task.status === 'completed') return 'Pending Review';
+          if (task.status === 'graded') return 'Graded';
+          return task.status;
+        })();
+
+        return {
+          _id: task._id,
+          studentId: task.studentId._id,
+
+          // CamelCase fields expected by current frontend
+          studentName: `${task.studentId.firstName} ${task.studentId.lastName}`,
+          studentEmail: task.studentId.email,
+          taskName: task.name || 'Unnamed Task',
+          taskType: task.type,
+          submissionLinks: task.uploadUrls || [],
+          status: camelStatus,
+          submittedAt: task.completedAt || null,
+          assignedAt: task.assignedAt || null,
+          dueAt: task.dueAt || null,
+          grade: task.grade,
+          feedback: task.feedback,
+          lessonPlanId: task.lessonPlanId._id,
+          lessonPlanTitle: task.lessonPlanId.title || 'Unknown Lesson Plan',
+          late: isLate,
+          lateByMs: isLate ? lateByMs : 0,
+          overdue: isOverdue,
+
+          // Backwards-compatible snake_case fields (some integrations may use these)
+          student_name: `${task.studentId.firstName} ${task.studentId.lastName}`,
+          student_email: task.studentId.email,
+          task: task.name || 'Unnamed Task',
+          task_type: task.type,
+          submission_link: task.uploadUrls || [],
+          submitted_at: task.completedAt || null,
+          assigned_at: task.assignedAt || null,
+          due_at: task.dueAt || null,
+        };
+      };
+
+      const formattedSubmissions = submissions.map(formatSubmission).filter(Boolean);
 
       res.status(200).json(formattedSubmissions);
     } catch (error) {

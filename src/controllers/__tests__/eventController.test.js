@@ -199,6 +199,71 @@ describe('eventController.getEvents', () => {
     );
   });
 
+  describe('sortOrder', () => {
+    test.each([
+      ['desc', { date: -1 }],
+      ['asc', { date: 1 }],
+      [undefined, { date: 1 }],
+    ])('sorts with sortOrder=%s when limit is provided', async (sortOrder, expected) => {
+      const chain = buildQueryChain([]);
+      Event.find.mockReturnValue(chain);
+
+      const req = { query: { page: '1', limit: '10', sortBy: 'date', sortOrder } };
+      const res = buildRes();
+
+      await getEvents(req, res);
+
+      expect(chain.sort).toHaveBeenCalledWith(expected);
+    });
+
+    test.each([
+      ['desc', { date: -1 }],
+      ['asc', { date: 1 }],
+    ])('sorts with sortOrder=%s when no limit is provided', async (sortOrder, expected) => {
+      const chain = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockResolvedValue([]),
+      };
+      Event.find.mockReturnValue(chain);
+
+      const req = { query: { sortOrder } };
+      const res = buildRes();
+
+      await getEvents(req, res);
+
+      expect(chain.sort).toHaveBeenCalledWith(expected);
+    });
+
+    test('applies descending order to the Participation page request (limit=200)', async () => {
+      const chain = buildQueryChain([]);
+      Event.find.mockReturnValue(chain);
+      Event.countDocuments.mockResolvedValue(250);
+
+      const req = { query: { page: '1', limit: '200', sortBy: 'date', sortOrder: 'desc' } };
+      const res = buildRes();
+
+      await getEvents(req, res);
+
+      expect(chain.sort).toHaveBeenCalledWith({ date: -1 });
+      expect(chain.skip).toHaveBeenCalledWith(0);
+      expect(chain.limit).toHaveBeenCalledWith(200);
+    });
+
+    test.each([['sideways'], [{ $gt: '' }]])(
+      'returns 400 for an invalid sortOrder (%p)',
+      async (sortOrder) => {
+        const req = { query: { sortOrder } };
+        const res = buildRes();
+
+        await getEvents(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.send).toHaveBeenCalledWith('Invalid Sort Order.');
+        expect(Event.find).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   test('returns 500 when the database call fails', async () => {
     Event.find.mockImplementation(() => {
       throw new Error('connection lost');

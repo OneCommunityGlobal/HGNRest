@@ -115,6 +115,7 @@ const routes = function (userProfile, project) {
   userProfileRouter
     .route('/userProfile/:userId/rehireable')
     .patch(controller.changeUserRehireableStatus);
+  userProfileRouter.route('/userProfile/:userId/statusNote').patch(controller.updateStatusNote);
   userProfileRouter
     .route('/userProfile/:userId/toggleInvisibility')
     .patch(controller.toggleInvisibility);

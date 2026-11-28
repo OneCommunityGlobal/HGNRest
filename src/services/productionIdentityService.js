@@ -32,7 +32,10 @@ const mapLoginFailureToReason = (status, body = {}) => {
 const validateCredentialsLocally = async (email, password, userProfileModel) => {
   const normalizedEmail = email.toLowerCase().trim();
   const user = await userProfileModel.findOne({
-    email: { $regex: `^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    email: {
+      $regex: `^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}$`,
+      $options: 'i',
+    },
   });
 
   if (!user) {
@@ -166,6 +169,7 @@ const verifyVerificationToken = (token) => {
     }
     return { ok: true, identity: payload };
   } catch (error) {
+    console.error('Error verifying production identity token:', error);
     return { ok: false, reason: 'token_invalid' };
   }
 };
