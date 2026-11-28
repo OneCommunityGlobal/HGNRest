@@ -247,7 +247,8 @@ const bmMaterialInsightsRouter = require('../routes/bmdashboard/bmMaterialInsigh
 const bmReusableRouter = require('../routes/bmdashboard/bmReusableRouter')(buildingReusable);
 const bmProjectRouter = require('../routes/bmdashboard/bmProjectRouter')(buildingProject);
 const bmOrgLocation = require('../routes/bmdashboard/bmOrgLocationRouter')();
-const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter');
+const bmExpenditureRouter = require('../routes/bmdashboard/bmExpenditureRouter')();
+const projectCostBreakdownRouter = require('../routes/bmdashboard/projectCostBreakdownRouter')();
 
 const bmNewLessonRouter = require('../routes/bmdashboard/bmNewLessonRouter')(buildingNewLesson);
 const injuryCategoryRoutes = require('../routes/bmdashboard/injuryCategoryRouter');
@@ -617,6 +618,7 @@ module.exports = function (app) {
   app.use('/api/bm', bmEquipmentRouter);
   app.use('/api/bm', bmConsumablesRouter);
   app.use('/api/bm', bmExpenditureRouter);
+  app.use('/api/projects', projectCostBreakdownRouter);
   app.use('/api/bm', bmUpdateHistoryRouter);
   app.use('/api/dropbox', dropboxRouter);
   app.use('/api/github', githubRouter);
