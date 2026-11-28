@@ -367,7 +367,7 @@ exports.getIssueStatistics = async (req, res) => {
           projectName: {
             $ifNull: [
               '$project.name',
-              { $concat: ['Unknown Project (', { $toString: '$_id.projectId' }, ')'] },
+              { $concat: ['Missing Project (', { $toString: '$_id.projectId' }, ')'] },
             ],
           },
           issueType: '$_id.issueType', // This is now the mapped category
