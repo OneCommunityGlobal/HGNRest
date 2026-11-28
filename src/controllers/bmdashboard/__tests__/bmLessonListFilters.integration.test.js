@@ -98,6 +98,75 @@ describe('lesson-list queries against disposable MongoDB', () => {
     expect(res.status).toBe(200);
     expect(titles(res.body).sort()).toEqual([...expected].sort());
   });
+  describe('supplied tag entry boundaries through the real Express parser', () => {
+    const filterTags = Array.from({ length: 51 }, (_, i) => `tag${i}`);
+    const serializeTags = (tags, format) => {
+      const params = new URLSearchParams();
+      tags.forEach((tag, index) => {
+        let key = 'tags';
+        if (format === 'brackets') key = 'tags[]';
+        else if (format === 'indexed') key = `tags[${index}]`;
+        params.append(key, tag);
+      });
+      return params.toString();
+    };
+    beforeEach(async () => {
+      await Lesson.deleteMany({});
+      await Lesson.insertMany([
+        { ...seed[0], title: 'All20', tags: filterTags.slice(0, 20) },
+        { ...seed[1], title: 'One', tags: filterTags.slice(0, 1) },
+        { ...seed[2], title: 'Other', tags: ['other'] },
+      ]);
+    });
+    describe.each(['repeated', 'brackets', 'indexed'])('%s serialization', (format) => {
+      test.each([19, 20, 21, 50, 51])('%i distinct supplied tags', async (length) => {
+        const query = serializeTags(filterTags.slice(0, length), format);
+        const res = await request(app).get(`/api/bm/lessons?${query}`);
+        expect(res.status).toBe(length <= 20 ? 200 : 400);
+        if (length <= 20) expect(titles(res.body)).toEqual(['All20']);
+        else expect(res.body.error).toContain('20');
+      });
+      test.each(['all', 'any'])('exactly 20 tags with %s matching', async (tagMatch) => {
+        const query = serializeTags(filterTags.slice(0, 20), format);
+        const res = await request(app).get(`/api/bm/lessons?${query}&tagMatch=${tagMatch}`);
+        expect(res.status).toBe(200);
+        expect(titles(res.body).sort()).toEqual(tagMatch === 'all' ? ['All20'] : ['All20', 'One']);
+      });
+      test('21 identical entries cannot bypass the supplied-entry limit', async () => {
+        const query = serializeTags(Array(21).fill(filterTags[0]), format);
+        const res = await request(app).get(`/api/bm/lessons?${query}`);
+        expect(res.status).toBe(400);
+        expect(res.body.error).toContain('20');
+      });
+    });
+    test.each(['tags[name]=Safety', 'tags[20]=Safety', 'tags[0][name]=Safety', 'tags[$ne]=Safety'])(
+      'malformed object-shaped parameters return a format error: %s', async (query) => {
+        const res = await request(app).get(`/api/bm/lessons?${query}`);
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe(
+          'tags must be a string or an array of strings. Use repeated unindexed parameters ' +
+            '(tags=first&tags=second), with at most 20 supplied entries.',
+        );
+      },
+    );
+    test('Safety and safety stay distinct in filters and global occurrence counts', async () => {
+      await Lesson.insertMany([
+        { ...seed[3], title: 'Upper', tags: ['Safety'] },
+        { ...seed[4], title: 'Lower', tags: ['safety'] },
+        { ...seed[5], title: 'Tag Storage', tags: ['Safety', 'Safety'] },
+      ]);
+      const upper = await request(app).get('/api/bm/lessons?tags=Safety');
+      const lower = await request(app).get('/api/bm/lessons?tags=safety');
+      const both = await request(app).get('/api/bm/lessons?tags=Safety&tags=safety&tagMatch=all');
+      const counts = await request(app).get('/api/bm/tags/counts');
+      [upper, lower, both, counts].forEach((res) => expect(res.status).toBe(200));
+      expect(titles(upper.body).sort()).toEqual(['Tag Storage', 'Upper']);
+      expect(titles(lower.body)).toEqual(['Lower']);
+      expect(both.body).toEqual([]);
+      expect(counts.body.find(({ tag }) => tag === 'Safety')).toEqual({ tag: 'Safety', count: 3 });
+      expect(counts.body.find(({ tag }) => tag === 'safety')).toEqual({ tag: 'safety', count: 1 });
+    });
+  });
   test('tag predicates and global frequencies use case-sensitive matching even with a case-insensitive collection default', async () => {
     const name = 'case_insensitive_lessons';
     await connection.db.createCollection(name, { collation: { locale: 'en', strength: 2 } });

@@ -7,12 +7,21 @@ The existing schema `Date.now()` default is deliberately unchanged.
 
 ## Query parameters
 
-- `tags`: one string or repeated parameters (`tags=safety&tags=concrete`). No CSV or JSON parsing.
+- `tags`: one string or repeated **unindexed** parameters (`tags=safety&tags=concrete`),
+  the canonical serialization format. No CSV or JSON parsing.
   Blank/whitespace-only selections are ignored. Identical values are deduplicated.
   Matching is exact and case-sensitive, with MongoDB simple collation. Other whitespace
-  is preserved so historical tag values remain selectable. Limits: 50 supplied entries
-  before deduplication, 100 characters per string. The read limit accommodates legacy
-  writes beyond the existing 10-character write-schema limit. Nested objects/arrays fail.
+  is preserved so historical tag values remain selectable. Limits: 20 supplied entries
+  before deduplication or ignoring blanks, 100 characters per string. The read limit
+  accommodates legacy writes beyond the existing 10-character write-schema limit. Nested objects/arrays fail.
+  Exactly 20 supplied entries are supported; 21 or more return HTTP 400, even if entries
+  repeat. Express 4.22.1 with qs 6.14.2 converts overflowing tag arrays into numeric-keyed
+  objects at its default array limit of 20, including repeated unindexed parameters.
+  Object-shaped inputs are rejected with a message explaining the supported format and
+  maximum; an object is not automatically classified as an oversized array. An array
+  exceeding the limit returns `Use at most 20 supplied tag entries before deduplication.`
+  Bracket/indexed forms that parse as arrays remain compatible within the limit, but
+  clients should send repeated unindexed parameters. Global parser settings are unchanged.
 - `tagMatch`: `all` (default, MongoDB `$all`) or `any` (`$in`). With no tags, no tag predicate
   is emitted; in particular the query never contains `$all: []`.
 - `dateFilter`: `all` (default), `thisWeek`, `thisMonth`, or `thisYear`.
@@ -199,7 +208,10 @@ should trigger a second full lesson download.
 ## Tests
 
 Focused unit/controller tests cover validation, literal strings, empty/duplicate tags,
-AND/OR, integer bounds, timezone boundaries, Sunday/year transitions, DST and safe errors.
+AND/OR, the 20-entry supplied-tag limit, integer bounds, timezone boundaries,
+Sunday/year transitions, DST and safe errors. HTTP integration cases exercise repeated,
+bracket and indexed forms at 19/20/21/50/51 entries, malformed objects, duplicates,
+and exact case-sensitive filtering/counts through the real Express parser.
 A committed integration suite starts its own MongoMemoryServer and uses real MongoDB
 and HTTP routing for combined filtering, ordering, counts, files/references, global
 frequency semantics and case-sensitive behavior on a case-insensitive collection.

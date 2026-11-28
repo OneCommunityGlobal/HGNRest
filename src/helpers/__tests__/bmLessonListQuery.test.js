@@ -30,6 +30,28 @@ describe('lesson list query validation', () => {
       tags: { [operator]: ['safety', 'Safety', ' safety '] },
     });
   });
+  test('accepts exactly 20 supplied entries and preserves case-sensitive deduplication', () => {
+    const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
+    expect(parse({ tags }).filter.tags.$all).toEqual(tags);
+    expect(parse({ tags: Array(20).fill('Safety') }).filter.tags.$all).toEqual(['Safety']);
+  });
+  test.each([21, 50, 51])('rejects %i supplied entries before deduplication', (length) => {
+    const tags = Array.from({ length }, (_, i) => `tag${i}`);
+    expect(() => parse({ tags })).toThrow('Use at most 20 supplied tag entries before deduplication.');
+  });
+  test.each([[Array(21).fill('Safety')], [Array(21).fill('')]])(
+    'duplicate or blank entries cannot bypass the supplied-entry limit', (tags) => {
+      expect(() => parse({ tags })).toThrow('Use at most 20 supplied tag entries before deduplication.');
+    },
+  );
+  test.each([{}, { 0: 'Safety' }, { name: 'Safety' }, null])(
+    'object-shaped input %p explains the format without assuming overflow', (tags) => {
+      expect(() => parse({ tags })).toThrow(
+        'tags must be a string or an array of strings. Use repeated unindexed parameters ' +
+          '(tags=first&tags=second), with at most 20 supplied entries.',
+      );
+    },
+  );
   test('tags remain literal strings, not operators, regular expressions or comma lists', () => {
     expect(parse({ tags: ['$ne', '.*', 'a,b'] }).filter.tags.$all).toEqual(['$ne', '.*', 'a,b']);
   });

@@ -1,6 +1,6 @@
 const moment = require('moment-timezone');
 
-const MAX_TAGS = 50;
+const MAX_TAGS = 20;
 // Query existing data without assuming every historical write enforced the 10-character schema limit.
 const MAX_TAG_LENGTH = 100;
 const DEFAULT_LIMIT = 25;
@@ -41,9 +41,19 @@ const positiveInteger = (value, name, fallback) => {
 
 const parseTags = (value) => {
   if (value === undefined) return [];
+  if (
+    (typeof value !== 'string' && !Array.isArray(value)) ||
+    (Array.isArray(value) && value.some((tag) => typeof tag !== 'string'))
+  ) {
+    throw new LessonListQueryError(
+      `tags must be a string or an array of strings. Use repeated unindexed parameters (tags=first&tags=second), with at most ${MAX_TAGS} supplied entries.`,
+    );
+  }
   const values = Array.isArray(value) ? value : [value];
-  if (values.length > MAX_TAGS) throw new LessonListQueryError(`Use at most ${MAX_TAGS} tags.`);
-  if (values.some((tag) => typeof tag !== 'string' || tag.length > MAX_TAG_LENGTH)) {
+  if (values.length > MAX_TAGS) {
+    throw new LessonListQueryError(`Use at most ${MAX_TAGS} supplied tag entries before deduplication.`);
+  }
+  if (values.some((tag) => tag.length > MAX_TAG_LENGTH)) {
     throw new LessonListQueryError(
       `tags must contain strings of at most ${MAX_TAG_LENGTH} characters.`,
     );
