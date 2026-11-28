@@ -1,26 +1,27 @@
 const mongoose = require('mongoose');
 
-const WishlistSchema = new mongoose.Schema({
-  wishlistListings: [
-    {
+const WishlistSchema = new mongoose.Schema(
+  {
+    listingId: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'listings',
+        required: true,
+      },
+    ],
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
-      // ref: 'listings',
+      ref: 'userProfile',
       required: true,
     },
-  ],
-  createdBy: {
-    type: String, // or ObjectId if this should reference a user
-    required: false,
   },
-  addedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'userProfile',
-    required: true,
-  },
-  dateAdded: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  { timestamps: true },
+);
+
+// Partial so that legacy documents without userId cannot make the unique index build fail
+WishlistSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $exists: true } } },
+);
 
 module.exports = mongoose.model('Wishlist', WishlistSchema);

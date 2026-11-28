@@ -1,12 +1,14 @@
 const mongoose = require('mongoose');
 const Listing = require('../../models/lbdashboard/listings');
 
+const HTTP_CONFLICT = 409;
+
 const listingAvailablityController = (Availability) => {
   const getListingAvailablity = async (req, res) => {
     try {
-      const listingId = req.headers.listingid;
+      const listingId = req.query.listingid || req.headers.listingid;
       if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
-        return res.status(400).json({ error: 'Valid listingId is required in header or body' });
+        return res.status(400).json({ error: 'Valid listingId is required in query or header' });
       }
       const availability = await Availability.findOne({ listingId });
       if (!availability) {
@@ -27,7 +29,7 @@ const listingAvailablityController = (Availability) => {
       }
       let availability = await Availability.findOne({ listingId });
       if (availability) {
-        return res.status(409).json({ error: 'Availability already exists for this listing' });
+        return res.status(HTTP_CONFLICT).json({ error: 'Availability already exists for this listing' });
       }
       availability = new Availability({ ...data, listingId });
       await availability.save();
