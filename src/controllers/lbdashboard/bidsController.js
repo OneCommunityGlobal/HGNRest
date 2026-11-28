@@ -23,7 +23,7 @@ const {
 
 const parseDate = (dateStr) => {
   if (typeof dateStr !== 'string' || !dateStr.trim()) {
-    return new Date(NaN);
+    return new Date(Number.NaN);
   }
 
   const [month, day, year] = dateStr.split('/');
