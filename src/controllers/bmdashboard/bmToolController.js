@@ -18,6 +18,10 @@ const bmToolController = (BuildingTool, ToolType) => {
         select: '_id name description unit imageUrl category available using',
       },
       {
+        path: 'countHistory',
+        populate: { path: 'createdBy', select: '_id firstName lastName' },
+      },
+      {
         path: 'updateRecord',
         populate: {
           path: 'createdBy',

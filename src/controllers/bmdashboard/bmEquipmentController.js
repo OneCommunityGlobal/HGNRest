@@ -73,6 +73,10 @@ const bmEquipmentController = (BuildingEquipment) => {
       populate: { path: 'requestedBy', select: '_id firstName lastName' },
     },
     {
+      path: 'countHistory',
+      populate: { path: 'createdBy', select: '_id firstName lastName' },
+    },
+    {
       path: 'updateRecord',
       populate: { path: 'createdBy', select: '_id firstName lastName' },
     },
@@ -112,6 +116,10 @@ const bmEquipmentController = (BuildingEquipment) => {
           {
             path: 'itemType',
             select: '_id name',
+          },
+          {
+            path: 'countHistory',
+            populate: { path: 'createdBy', select: '_id firstName lastName' },
           },
           {
             path: 'updateRecord',
