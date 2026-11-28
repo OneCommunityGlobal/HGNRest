@@ -1,16 +1,17 @@
-/* eslint-disable no-unused-vars */
 const express = require('express');
 
-// eslint-disable-next-line no-unused-vars
 const router = express.Router();
+
+const requireQuestionnaireResultsAccess = require('../middleware/requireQuestionnaireResultsAccess');
 
 const routes = function () {
   const controller = require('../controllers/communityController')();
 
   const communityRouter = express.Router();
 
-  // Route: /hgnhelp/community
-  communityRouter.route('/community').get(controller.getCommunityMembers);
+  communityRouter
+    .route('/community')
+    .get(requireQuestionnaireResultsAccess, controller.getCommunityMembers);
 
   return communityRouter;
 };
