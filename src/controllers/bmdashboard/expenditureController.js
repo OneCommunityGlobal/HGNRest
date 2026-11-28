@@ -6,12 +6,12 @@ exports.getProjectExpensesPie = async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (projectId !== 'all' && !mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
 
     const data = await Expenditure.aggregate([
-      { $match: { projectId: new mongoose.Types.ObjectId(projectId) } },
+      { $match: projectId === 'all' ? {} : { projectId: new mongoose.Types.ObjectId(projectId) } },
       {
         $group: {
           _id: { type: '$type', category: '$category' },

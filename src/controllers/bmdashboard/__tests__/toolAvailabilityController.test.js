@@ -31,6 +31,18 @@ describe('Tool Availability Controller', () => {
   });
 
   describe('getToolsAvailability', () => {
+    it('aggregates all projects while preserving the date filter', async () => {
+      ToolAvailability.aggregate.mockResolvedValue([]);
+      const res = makeResponse();
+      await controller.getToolsAvailability(
+        { params: { id: 'all' }, query: { startDate: '2026-01-01' } },
+        res,
+      );
+      const match = ToolAvailability.aggregate.mock.calls[0][0][0].$match;
+      expect(match).toEqual({ date: { $gte: new Date('2026-01-01') } });
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
     it('returns 400 for an invalid project ID', async () => {
       const req = { params: { id: 'invalid-id' }, query: {} };
       const res = makeResponse();
