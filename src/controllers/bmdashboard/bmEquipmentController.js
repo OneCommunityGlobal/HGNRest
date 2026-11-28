@@ -108,7 +108,11 @@ const bmEquipmentController = (BuildingEquipment) => {
   const fetchSingleEquipment = async (req, res) => {
     const { equipmentId } = req.params;
     try {
-      withAuditHistory(BuildingEquipment.findById(equipmentId))
+      const query = BuildingEquipment.findById(equipmentId);
+      const detail = req.user?.access?.canAccessBMPortal
+        ? withAuditHistory(query)
+        : query.populate(equipmentPopulateConfig);
+      detail
         .exec()
         .then((equipment) => res.status(200).send(equipment))
         .catch((error) => res.status(500).send(error));

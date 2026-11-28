@@ -10,6 +10,7 @@ const fileTypes = {
   'image/png': { extension: /\.png$/i, header: '89504e470d0a1a0a' },
 };
 const uploadError = 'Choose a PDF, JPG or PNG file up to 5 MB.';
+const active = { removedAt: null };
 const parseAttachment = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 1, fieldSize: 64 },
@@ -51,12 +52,30 @@ function equipmentAttachments(Equipment) {
   };
 
   const list = handle(async (req, res, equipmentId) => {
-    const files = await Attachment.find({ equipment: equipmentId })
-      .select('name category mimeType size uploader uploadedAt')
+    const documents = await Attachment.find({ equipment: equipmentId })
+      .select('name category mimeType size uploader uploadedAt removedAt changes')
       .sort({ uploadedAt: -1, _id: -1 })
-      .populate('uploader', 'firstName lastName')
+      .populate([
+        { path: 'uploader', select: 'firstName lastName' },
+        { path: 'changes.actor', select: 'firstName lastName' },
+      ])
       .lean();
-    return res.json(files);
+    const files = [];
+    const auditHistory = [];
+    documents.forEach(({ removedAt, changes, ...file }) => {
+      if (!removedAt) files.push(file);
+      if (file.uploadedAt) {
+        auditHistory.push({
+          _id: `attachment-upload-${file._id}`,
+          field: 'Attachment uploaded',
+          timestamp: file.uploadedAt,
+          actor: file.uploader,
+          newValue: file.name,
+        });
+      }
+      auditHistory.push(...(changes || []));
+    });
+    return res.json({ files, auditHistory });
   });
 
   const add = handle(async (req, res, equipmentId) => {
@@ -89,9 +108,11 @@ function equipmentAttachments(Equipment) {
     if (!mongoose.Types.ObjectId.isValid(attachmentId)) {
       return res.status(404).json({ message: 'Attachment not found.' });
     }
-    const file = await Attachment.findOne({ _id: attachmentId, equipment: equipmentId }).select(
-      'name mimeType +content',
-    );
+    const file = await Attachment.findOne({
+      _id: attachmentId,
+      equipment: equipmentId,
+      ...active,
+    }).select('name mimeType +content');
     if (!file) return res.status(404).json({ message: 'Attachment not found.' });
     return res
       .attachment(file.name)
@@ -100,7 +121,45 @@ function equipmentAttachments(Equipment) {
       .send(Buffer.from(file.content));
   });
 
-  return { list, add, download };
+  const change = (remove) =>
+    handle(async (req, res, equipmentId) => {
+      const { attachmentId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(attachmentId)) {
+        return res.status(404).json({ message: 'Attachment not found.' });
+      }
+      const { category, originalCategory } = req.body;
+      if (!remove && !categories.includes(category)) {
+        return res.status(400).json({ message: 'Choose an attachment category.' });
+      }
+      const filter = { _id: attachmentId, equipment: equipmentId, ...active };
+      const file = await Attachment.findOne(filter).select('name category').lean();
+      if (!file) return res.status(404).json({ message: 'Attachment not found.' });
+      const conflict = () =>
+        res.status(409).json({ message: 'The attachment changed. Reload and try again.' });
+      if (!remove && originalCategory !== file.category) return conflict();
+      if (!remove && category === file.category) return res.sendStatus(204);
+      const timestamp = new Date();
+      const audit = {
+        timestamp,
+        actor: req.user.requestorId,
+        field: remove ? 'Attachment removed' : `Attachment category (${file.name})`,
+        oldValue: remove ? file.name : file.category,
+        newValue: remove ? null : category,
+      };
+      const update = remove
+        ? { $set: { removedAt: timestamp }, $unset: { content: 1 } }
+        : { $set: { category } };
+      const result = await Attachment.updateOne(
+        { ...filter, category: file.category },
+        {
+          ...update,
+          $push: { changes: audit },
+        },
+      );
+      return result.n ? res.sendStatus(204) : conflict();
+    });
+
+  return { list, add, download, edit: change(false), remove: change(true) };
 }
 
 module.exports = { equipmentAttachments, receiveAttachment };
