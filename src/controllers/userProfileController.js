@@ -1827,17 +1827,58 @@ const createControllerMethods = function (UserProfile, Project, cache) {
     }
     const safeUserIds = userIds.map((id) => new mongoose.Types.ObjectId(id));
     try {
+      // Keep the original team codes to identify other affected users.
+      const originalUsers = await UserProfile.find({
+        _id: { $in: safeUserIds },
+      });
+
+      const originalTeamCodes = originalUsers
+        .map((user) => user.teamCode)
+        .filter((code) => typeof code === 'string' && code.trim().length >= 3);
       const result = await UserProfile.updateMany(
         { _id: { $in: safeUserIds } },
         { $set: { teamCode: replaceCode } },
       );
       const updatedUsers = await UserProfile.find({ _id: { $in: safeUserIds } });
+
+      // A correction can also change warnings for other users
+      // sharing the same three-character team-code suffix.
+      const affectedSuffixes = [
+        ...new Set(
+          [...originalTeamCodes, replaceCode]
+            .filter((code) => typeof code === 'string' && code.trim().length >= 3)
+            .map((code) => code.trim().slice(-3)),
+        ),
+      ];
+
+      let affectedUsers = [];
+
+      if (affectedSuffixes.length > 0) {
+        const suffixPatterns = affectedSuffixes.map((suffix) => {
+          const escaped = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return new RegExp(`${escaped}\\s*$`);
+        });
+
+        affectedUsers = await UserProfile.find({
+          isActive: true,
+          teamCode: { $in: suffixPatterns },
+        });
+      }
+
+      // Include edited users even if they are inactive or have no team code.
+      const usersToCheck = new Map();
+
+      [...updatedUsers, ...affectedUsers].forEach((user) => {
+        usersToCheck.set(user._id.toString(), user);
+      });
+
       const warningUpdates = await Promise.all(
-        updatedUsers.map(async (user) => ({
+        [...usersToCheck.values()].map(async (user) => ({
           userId: user._id.toString(),
           teamCodeWarning: user.isActive ? await userHelper.checkTeamCodeMismatch(user) : false,
         })),
       );
+
       if (warningUpdates.length > 0) {
         await UserProfile.bulkWrite(
           warningUpdates.map(({ userId, teamCodeWarning }) => ({
@@ -1850,9 +1891,11 @@ const createControllerMethods = function (UserProfile, Project, cache) {
       }
       cache.removeCache('teamCodes');
       cache.clearByPrefix('weeklySummaries');
+      const editedUserIds = new Set(updatedUsers.map((user) => user._id.toString()));
+
       return res.status(200).send({
         isUpdated: (result.modifiedCount ?? result.nModified ?? 0) > 0,
-        updatedUsers: warningUpdates,
+        updatedUsers: warningUpdates.filter((user) => editedUserIds.has(user.userId)),
       });
     } catch (error) {
       return res.status(500).send(error);
@@ -3380,10 +3423,15 @@ const createControllerMethods = function (UserProfile, Project, cache) {
   };
 
   const replaceTeamCodeForUsers = async (req, res) => {
-    const { oldTeamCodes, newTeamCode, warningUsers } = req.body;
+    const { oldTeamCodes, newTeamCode } = req.body;
 
     // Validate input
-    if (!Array.isArray(oldTeamCodes) || oldTeamCodes.length === 0 || !newTeamCode) {
+    if (
+      !Array.isArray(oldTeamCodes) ||
+      oldTeamCodes.length === 0 ||
+      typeof newTeamCode !== 'string' ||
+      !newTeamCode.trim()
+    ) {
       console.error('Validation Failed:', { oldTeamCodes, newTeamCode });
       return res.status(400).send({
         error: 'Invalid input. Provide oldTeamCodes as an array and a valid newTeamCode.',
@@ -3401,38 +3449,69 @@ const createControllerMethods = function (UserProfile, Project, cache) {
         return res.status(404).send({ error: 'No users found with the specified team codes.' });
       }
 
-      const updatedUsersInfo = await Promise.all(
-        usersToUpdate.map(async (user) => {
-          user.teamCode = newTeamCode;
-          let { teamCodeWarning } = user;
+      const userIds = usersToUpdate.map((user) => user._id);
 
-          if (warningUsers && warningUsers.includes(user._id.toString())) {
-            teamCodeWarning = await userHelper.checkTeamCodeMismatch(user);
-          }
-
-          return {
-            updateOne: {
-              filter: { _id: user._id },
-              update: {
-                $set: {
-                  teamCode: newTeamCode,
-                  teamCodeWarning,
-                },
-              },
-            },
-            userId: user._id.toString(),
-            teamCodeWarning,
-          };
-        }),
+      // Save the corrected team code first.
+      await UserProfile.updateMany(
+        { _id: { $in: userIds } },
+        { $set: { teamCode: newTeamCode.trim() } },
       );
 
-      // Then split into bulkOps and result set
-      const bulkOps = updatedUsersInfo.map((x) => ({ updateOne: x.updateOne }));
+      // Reload affected users so mismatch checks use updated data.
+      const updatedUsers = await UserProfile.find({
+        _id: { $in: userIds },
+      });
 
-      // 2. Execute all updates at once
-      if (bulkOps.length > 0) {
-        await UserProfile.bulkWrite(bulkOps);
+      const affectedSuffixes = [
+        ...new Set(
+          [...usersToUpdate.map((user) => user.teamCode), newTeamCode]
+            .filter((code) => typeof code === 'string' && code.trim().length >= 3)
+            .map((code) => code.trim().slice(-3)),
+        ),
+      ];
+
+      let otherAffectedUsers = [];
+
+      if (affectedSuffixes.length > 0) {
+        const suffixPatterns = affectedSuffixes.map((suffix) => {
+          const escaped = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return new RegExp(`${escaped}\\s*$`);
+        });
+
+        otherAffectedUsers = await UserProfile.find({
+          isActive: true,
+          teamCode: { $in: suffixPatterns },
+        });
       }
+
+      const usersToCheck = new Map();
+
+      [...updatedUsers, ...otherAffectedUsers].forEach((user) => {
+        usersToCheck.set(user._id.toString(), user);
+      });
+
+      const warningUpdates = await Promise.all(
+        [...usersToCheck.values()].map(async (user) => ({
+          userId: user._id.toString(),
+          teamCodeWarning: user.isActive ? await userHelper.checkTeamCodeMismatch(user) : false,
+        })),
+      );
+
+      const editedUserIds = new Set(updatedUsers.map((user) => user._id.toString()));
+
+      const updatedUsersInfo = warningUpdates.filter((user) => editedUserIds.has(user.userId));
+
+      await UserProfile.bulkWrite(
+        warningUpdates.map(({ userId, teamCodeWarning }) => ({
+          updateOne: {
+            filter: { _id: userId },
+            update: { $set: { teamCodeWarning } },
+          },
+        })),
+      );
+
+      cache.removeCache('teamCodes');
+      cache.clearByPrefix('weeklySummaries');
 
       return res.status(200).send({
         message: 'Team codes updated successfully.',
