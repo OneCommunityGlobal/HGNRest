@@ -178,6 +178,58 @@ describe('userProfileController targeted coverage tests', () => {
     });
   });
 
+  test('recalculates warnings for other users affected by a team-code correction', async () => {
+    const otherUserId = '507f191e810c19729de860eb';
+
+    const editedUser = {
+      _id: { toString: () => validUserId },
+      isActive: true,
+      teamCode: '34NI11',
+    };
+
+    const otherUser = {
+      _id: { toString: () => otherUserId },
+      isActive: true,
+      teamCode: '34NI11',
+      teamCodeWarning: true,
+    };
+
+    MockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+
+    MockUserProfile.find
+      .mockResolvedValueOnce([{ ...editedUser, teamCode: '34Ni11' }])
+      .mockResolvedValueOnce([editedUser])
+      .mockResolvedValueOnce([otherUser]);
+
+    MockUserProfile.bulkWrite.mockResolvedValue({});
+    mockUserHelper.checkTeamCodeMismatch.mockResolvedValue(false);
+
+    const req = {
+      body: {
+        requestor: { requestorId: validUserId },
+        userIds: [validUserId],
+        replaceCode: '34NI11',
+      },
+    };
+
+    const res = makeRes();
+
+    await controller.updateAllMembersTeamCode(req, res);
+
+    expect(mockUserHelper.checkTeamCodeMismatch).toHaveBeenCalledWith(otherUser);
+
+    expect(MockUserProfile.bulkWrite).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          updateOne: {
+            filter: { _id: otherUserId },
+            update: { $set: { teamCodeWarning: false } },
+          },
+        },
+      ]),
+    );
+  });
+
   test.each([undefined, [], [{ $ne: null }], ['not-an-object-id'], [123]])(
     'rejects invalid team-code user IDs: %p',
     async (userIds) => {
@@ -588,4 +640,76 @@ describe('userProfileController targeted coverage tests', () => {
     });
     expect(mockLogger.logInfo).toHaveBeenCalled();
   });
+
+  test('bulk team-code replacement recalculates warnings for other affected users', async () => {
+    const otherUserId = '507f191e810c19729de860eb';
+
+    const editedUser = {
+      _id: { toString: () => validUserId },
+      isActive: true,
+      teamCode: '34NI11',
+    };
+
+    const otherUser = {
+      _id: { toString: () => otherUserId },
+      isActive: true,
+      teamCode: '34NI11',
+      teamCodeWarning: true,
+    };
+
+    MockUserProfile.find
+      .mockResolvedValueOnce([{ ...editedUser, teamCode: '34Ni11' }])
+      .mockResolvedValueOnce([editedUser])
+      .mockResolvedValueOnce([otherUser]);
+
+    MockUserProfile.updateMany.mockResolvedValue({ modifiedCount: 1 });
+    MockUserProfile.bulkWrite.mockResolvedValue({});
+    mockUserHelper.checkTeamCodeMismatch.mockResolvedValue(false);
+
+    const req = {
+      body: {
+        oldTeamCodes: ['34Ni11'],
+        newTeamCode: '34NI11',
+      },
+    };
+    const res = makeRes();
+
+    await controller.replaceTeamCodeForUsers(req, res);
+
+    expect(mockUserHelper.checkTeamCodeMismatch).toHaveBeenCalledWith(otherUser);
+
+    expect(MockUserProfile.bulkWrite).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          updateOne: {
+            filter: { _id: otherUserId },
+            update: { $set: { teamCodeWarning: false } },
+          },
+        },
+      ]),
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      message: 'Team codes updated successfully.',
+      updatedUsers: [{ userId: validUserId, teamCodeWarning: false }],
+    });
+  });
+  test.each([null, 123, {}, '   '])(
+    'rejects invalid bulk replacement team code: %p',
+    async (newTeamCode) => {
+      const req = {
+        body: {
+          oldTeamCodes: ['34Ni11'],
+          newTeamCode,
+        },
+      };
+      const res = makeRes();
+
+      await controller.replaceTeamCodeForUsers(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(MockUserProfile.updateMany).not.toHaveBeenCalled();
+    },
+  );
 });
