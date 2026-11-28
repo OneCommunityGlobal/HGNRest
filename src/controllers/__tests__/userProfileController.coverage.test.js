@@ -56,6 +56,9 @@ jest.mock('../../services/productionWebhookEmitter', () => ({
   emitProductionUserStatusChange: (...args) => mockEmitProductionUserStatusChange(...args),
 }));
 jest.mock('../../startup/logger', () => mockLogger);
+const mockEmailSender = jest.fn();
+
+jest.mock('../../utilities/emailSender', () => mockEmailSender);
 jest.mock('../reportsController', () => () => ({
   invalidateWeeklySummariesCache: jest.fn(),
 }));
@@ -517,8 +520,133 @@ describe('userProfileController targeted coverage tests', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.send).toHaveBeenCalledWith('You are not authorized to update this user');
     expect(MockUserProfile.findById).not.toHaveBeenCalled();
+    expect(mockEmailSender).not.toHaveBeenCalled();
   });
+  test('does not send an email when a protected account has no actual changes', async () => {
+    const protectedEmail = 'devadmin@hgn.net';
 
+    const user = {
+      _id: validUserId,
+      email: protectedEmail,
+      firstName: 'Test',
+      lastName: 'User',
+      infringements: [],
+      summarySubmissionDates: [],
+      lastModifiedDate: new Date('2026-01-01'),
+      toObject() {
+        return {
+          _id: this._id,
+          email: this.email,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          lastModifiedDate: this.lastModifiedDate,
+        };
+      },
+      modifiedPaths: jest.fn().mockReturnValue(['lastModifiedDate']),
+      save: jest.fn(),
+    };
+
+    user.save.mockResolvedValue(user);
+    MockUserProfile.findById.mockResolvedValue(user);
+
+    const req = {
+      params: { userId: validUserId },
+      body: {
+        requestor: {
+          requestorId: validUserId,
+          role: 'Owner',
+          permissions: { frontPermissions: ['editTeamCode'] },
+        },
+        firstName: 'Test',
+      },
+    };
+
+    const res = makeRes();
+
+    await controller.putUserProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(user.save).toHaveBeenCalled();
+    expect(mockEmailSender).not.toHaveBeenCalled();
+  });
+  test('sends an email identifying actual protected account changes', async () => {
+    const userService = require('../../services/userService');
+    const profileSpy = jest.spyOn(userService, 'getUserFullNameAndEmailById').mockResolvedValue({
+      firstName: 'Test',
+      lastName: 'Admin',
+      email: 'test-admin@example.com',
+    });
+
+    try {
+      const user = {
+        _id: validUserId,
+        email: 'devadmin@hgn.net',
+        firstName: 'Original',
+        lastName: 'User',
+        infringements: [],
+        summarySubmissionDates: [],
+        password: 'fake-test-password',
+        privacySettings: { isPrivate: true },
+
+        lastModifiedDate: new Date('2026-01-01'),
+        toObject() {
+          return {
+            _id: this._id,
+            email: this.email,
+            firstName: this.firstName,
+            lastName: this.lastName,
+            password: this.password,
+            privacySettings: this.privacySettings,
+            lastModifiedDate: this.lastModifiedDate,
+          };
+        },
+        modifiedPaths: jest
+          .fn()
+          .mockReturnValue(['firstName', 'password', 'privacySettings', 'lastModifiedDate']),
+        save: jest.fn(),
+      };
+
+      user.save.mockResolvedValue(user);
+      MockUserProfile.findById.mockResolvedValue(user);
+
+      const req = {
+        params: { userId: validUserId },
+        body: {
+          requestor: {
+            requestorId: validUserId,
+            role: 'Owner',
+            permissions: { frontPermissions: ['editTeamCode'] },
+          },
+          firstName: 'Changed',
+        },
+      };
+
+      const res = makeRes();
+
+      await controller.putUserProfile(req, res);
+
+      // The notification audit runs asynchronously.
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockEmailSender).toHaveBeenCalledTimes(1);
+
+      const [recipient, subject, emailBody] = mockEmailSender.mock.calls[0];
+
+      expect(recipient).toBe('devadmin@hgn.net');
+      expect(subject).toBe('One Community: Protected Account Has Been Updated');
+      expect(emailBody).toContain('What was changed?');
+      expect(emailBody).toContain('<li>firstName</li>');
+      expect(emailBody).not.toContain('<li>lastModifiedDate</li>');
+      expect(emailBody).not.toContain('<li>password</li>');
+      expect(emailBody).not.toContain('<li>privacySettings</li>');
+      expect(emailBody).not.toContain('Original');
+    } finally {
+      profileSpy.mockRestore();
+    }
+  });
   test('toggleUserBioPosted returns 403 when target account is protected', async () => {
     mockCanRequestorUpdateUser.mockResolvedValue(false);
     const req = {
@@ -587,5 +715,32 @@ describe('userProfileController targeted coverage tests', () => {
       error: 'Only authorized users can delete protected accounts',
     });
     expect(mockLogger.logInfo).toHaveBeenCalled();
+  });
+  test('updateOneProperty blocks unauthorized protected account updates', async () => {
+    mockCanRequestorUpdateUser.mockResolvedValue(false);
+
+    const req = {
+      params: { userId: validUserId },
+      body: {
+        key: 'firstName',
+        value: 'Unauthorized Change',
+        requestor: { requestorId: 'unauthorized-user-id' },
+      },
+    };
+
+    const res = makeRes();
+    const save = jest.fn();
+
+    MockUserProfile.findById.mockResolvedValue({
+      _id: validUserId,
+      email: 'devadmin@hgn.net',
+      save,
+    });
+
+    await controller.updateOneProperty(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(mockCanRequestorUpdateUser).toHaveBeenCalledWith('unauthorized-user-id', validUserId);
+    expect(save).not.toHaveBeenCalled();
   });
 });
