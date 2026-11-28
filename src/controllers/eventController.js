@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+const sanitizeHtml = require('sanitize-html');
 const Event = require('../models/event');
 const User = require('../models/userProfile');
+const emailSender = require('../utilities/emailSender');
+const logger = require('../startup/logger');
 
 const updateEventStatus = (event) => {
   if (event.currentAttendees === 0) return 'New';
@@ -13,6 +17,89 @@ const updateEventStatus = (event) => {
 const VALID_TYPES = new Set(['Workshop', 'Meeting', 'Webinar', 'Social Gathering']);
 const VALID_LOCATIONS = new Set(['Virtual', 'In person', 'TBD']);
 const VALID_SORT_FIELDS = new Set(['date', 'title', 'type', 'location', 'currentAttendees']);
+const EVENT_EDITOR_ROLES = new Set(['Owner', 'Administrator']);
+const UPDATABLE_FIELDS = [
+  'title',
+  'type',
+  'location',
+  'date',
+  'startTime',
+  'endTime',
+  'description',
+  'organizer',
+  'organizerLogo',
+  'coverImage',
+  'maxAttendees',
+  'isActive',
+];
+
+const getRequestorId = (req) => req.body?.requestor?.requestorId || req.user?.requestorId;
+
+const toPlainText = (value) =>
+  sanitizeHtml(String(value ?? ''), { allowedTags: [], allowedAttributes: {} });
+
+const formatEventSchedule = (event) => {
+  const day = event.date
+    ? moment(event.date).tz('America/Los_Angeles').format('dddd, MMM D, YYYY')
+    : 'Date TBD';
+  const start = event.startTime ? moment(event.startTime).tz('America/Los_Angeles') : null;
+  const end = event.endTime ? moment(event.endTime).tz('America/Los_Angeles') : null;
+  const time =
+    start?.isValid() && end?.isValid()
+      ? ` ${start.format('h:mm A')} - ${end.format('h:mm A z')}`
+      : '';
+  return `${day}${time}`;
+};
+
+const emailUsers = async (userIds, subject, buildBody) => {
+  try {
+    const ids = [...new Set(userIds.filter(Boolean).map((id) => id.toString()))];
+    if (ids.length === 0) return;
+
+    const users = await User.find({ _id: { $in: ids } }).select('firstName email');
+    await Promise.allSettled(
+      users
+        .filter((user) => user.email)
+        .map((user) => emailSender(user.email, subject, buildBody(user), null, null)),
+    );
+  } catch (error) {
+    logger.logException(error);
+  }
+};
+
+const sendWaitlistNotification = (users, event) => {
+  const title = toPlainText(event.title);
+  return emailUsers(
+    users.map((user) => user._id),
+    `A spot opened up for ${title}`,
+    (user) => `
+      <p>Hi ${toPlainText(user.firstName)},</p>
+      <p>A spot opened up for <strong>${title}</strong> and you have been moved off the waitlist and registered for the event.</p>
+      <p>When: ${formatEventSchedule(event)}<br/>Where: ${toPlainText(event.location)}</p>
+      <p>If you can no longer attend, please unregister so the next person on the waitlist can take your spot.</p>
+    `,
+  );
+};
+
+const sendEventChangeNotification = (event, change) => {
+  const title = toPlainText(event.title);
+  const recipients = [
+    ...event.resources.map((resource) => resource.userID),
+    ...event.waitlist.map((entry) => entry.userId),
+  ];
+  const subject =
+    change === 'cancelled' ? `${title} has been cancelled` : `${title} has been rescheduled`;
+  const detail =
+    change === 'cancelled'
+      ? `<p><strong>${title}</strong> has been cancelled. Your registration or waitlist spot no longer applies.</p>`
+      : `<p><strong>${title}</strong> has a new date or time: ${formatEventSchedule(event)}.</p><p>Your registration or waitlist position is unchanged.</p>`;
+
+  return emailUsers(
+    recipients,
+    subject,
+    (user) => `<p>Hi ${toPlainText(user.firstName)},</p>${detail}`,
+  );
+};
 
 function validateQuery({ type, location, sortBy }) {
   if (type && !VALID_TYPES.has(type)) {
@@ -79,12 +166,21 @@ function formatEvent(event, userId) {
 
   eventObj.waitlistCount = waitlist.length;
   eventObj.waitlistEnabled = event.currentAttendees >= event.maxAttendees;
+  eventObj.userWaitlistPosition = null;
+  eventObj.isUserRegistered = false;
 
   if (userId) {
-    const index = waitlist.findIndex((entry) => entry.userId?.toString() === userId.toString());
+    const userKey = userId.toString();
+    const index = waitlist.findIndex((entry) => entry.userId?.toString() === userKey);
 
     eventObj.userWaitlistPosition = index !== -1 ? index + 1 : null;
+    eventObj.isUserRegistered = event.resources.some(
+      (resource) => (resource.userID?._id ?? resource.userID)?.toString() === userKey,
+    );
   }
+
+  // Other users' waitlist entries are not exposed; clients get the count and their own position.
+  delete eventObj.waitlist;
 
   return eventObj;
 }
@@ -105,7 +201,8 @@ const getEvents = async function (req, res) {
       .skip(skip)
       .limit(limitNumber);
 
-    const formattedEvents = events.map((event) => formatEvent(event, safeQuery.userId));
+    const requestorId = getRequestorId(req);
+    const formattedEvents = events.map((event) => formatEvent(event, requestorId));
 
     res.json({
       events: formattedEvents,
@@ -147,16 +244,35 @@ const getEventById = async (req, res) => {
   }
 };
 
-const autoPromoteFromWaitlist = (event) => {
+const autoPromoteFromWaitlist = async (event) => {
+  const openSpots = event.maxAttendees - event.currentAttendees;
+  if (openSpots <= 0 || event.waitlist.length === 0) return [];
+
+  const registeredIds = new Set(event.resources.map((resource) => resource.userID?.toString()));
+  const waitlistIds = event.waitlist.map((entry) => entry.userId).filter(Boolean);
+  const waitlistUsers = await User.find({ _id: { $in: waitlistIds } }).select(
+    'firstName lastName email profilePic',
+  );
+  const usersById = new Map(waitlistUsers.map((user) => [user._id.toString(), user]));
   const promotedUsers = [];
 
-  while (event.currentAttendees < event.maxAttendees && event.waitlist.length > 0) {
-    const nextEntry = event.waitlist.shift();
-    if (nextEntry?.userId) {
-      event.currentAttendees += 1;
-      promotedUsers.push(nextEntry.userId);
+  while (promotedUsers.length < openSpots && event.waitlist.length > 0) {
+    const entryId = event.waitlist.shift().userId?.toString();
+    const user = usersById.get(entryId);
+
+    if (user && !registeredIds.has(entryId)) {
+      event.resources.push({
+        name: `${user.firstName} ${user.lastName}`.trim(),
+        userID: user._id,
+        profilePic: user.profilePic,
+      });
+      registeredIds.add(entryId);
+      promotedUsers.push(user);
     }
   }
+
+  event.currentAttendees += promotedUsers.length;
+  event.status = updateEventStatus(event);
 
   return promotedUsers;
 };
@@ -192,6 +308,67 @@ const createEvent = async (req, res) => {
   }
 };
 
+const updateEvent = async (req, res) => {
+  const { id } = req.params;
+
+  if (!EVENT_EDITOR_ROLES.has(req.body?.requestor?.role)) {
+    return res.status(403).json({ error: 'You are not authorized to update events' });
+  }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid eventId' });
+  }
+
+  try {
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const previous = {
+      date: event.date?.getTime(),
+      startTime: event.startTime,
+      endTime: event.endTime,
+      isActive: event.isActive,
+    };
+
+    UPDATABLE_FIELDS.forEach((field) => {
+      if (req.body[field] !== undefined) event.set(field, req.body[field]);
+    });
+
+    if (event.maxAttendees < event.currentAttendees) {
+      return res
+        .status(400)
+        .json({ error: 'maxAttendees cannot be lower than the current number of attendees' });
+    }
+
+    const wasCancelled = previous.isActive && !event.isActive;
+    const wasRescheduled =
+      !wasCancelled &&
+      (event.date?.getTime() !== previous.date ||
+        event.startTime !== previous.startTime ||
+        event.endTime !== previous.endTime);
+
+    const promotedUsers = event.isActive ? await autoPromoteFromWaitlist(event) : [];
+    event.status = updateEventStatus(event);
+
+    const savedEvent = await event.save({ validateModifiedOnly: true });
+
+    if (wasCancelled) {
+      await sendEventChangeNotification(savedEvent, 'cancelled');
+    } else if (wasRescheduled) {
+      await sendEventChangeNotification(savedEvent, 'rescheduled');
+    }
+    await sendWaitlistNotification(promotedUsers, savedEvent);
+
+    res.status(200).json(savedEvent);
+  } catch (error) {
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid event data', details: error.message });
+    }
+    res.status(500).json({ error: 'Failed to update event', details: error.message });
+  }
+};
+
 const registerForEvent = async (req, res) => {
   const { id } = req.params;
   const { name, userId, profilePic, location } = req.body;
@@ -224,6 +401,7 @@ const registerForEvent = async (req, res) => {
       id,
       {
         $push: { resources: { name, userID: userId, profilePic, location } },
+        $pull: { waitlist: { userId } },
         $inc: { currentAttendees: 1 },
         $set: { status: newStatus },
       },
@@ -250,10 +428,13 @@ const unregisterFromEvent = async (req, res) => {
     }
 
     event.resources.splice(registrantIndex, 1);
-    event.currentAttendees -= 1;
+    event.currentAttendees = Math.max(0, event.currentAttendees - 1);
     event.status = updateEventStatus(event);
 
-    const updatedEvent = await event.save();
+    const promotedUsers = await autoPromoteFromWaitlist(event);
+    const updatedEvent = await event.save({ validateModifiedOnly: true });
+    await sendWaitlistNotification(promotedUsers, updatedEvent);
+
     res.status(200).json(updatedEvent);
   } catch (error) {
     res.status(500).json({ error: 'Failed to unregister from event', details: error.message });
@@ -265,6 +446,9 @@ const joinWaitlist = async (req, res) => {
     const { eventId } = req.params;
     const { userId } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({ error: 'Invalid eventId' });
+    }
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid userId' });
     }
@@ -272,20 +456,29 @@ const joinWaitlist = async (req, res) => {
     const event = await Event.findById(eventId);
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!event.isActive) return res.status(400).json({ error: 'Event is no longer active' });
+    if (event.currentAttendees < event.maxAttendees) {
+      return res.status(400).json({ error: 'Event still has open spots' });
+    }
 
-    const alreadyJoined = event.waitlist.some(
-      (entry) => entry.userId?.toString() === userId.toString(),
+    const userKey = String(userId);
+    if (event.resources.some((resource) => resource.userID?.toString() === userKey)) {
+      return res.status(409).json({ error: 'User is already registered for this event' });
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userKey);
+    const updatedEvent = await Event.findOneAndUpdate(
+      { _id: event._id, 'waitlist.userId': { $ne: userObjectId } },
+      { $push: { waitlist: { userId: userObjectId, joinedAt: new Date() } } },
+      { new: true },
     );
 
-    if (alreadyJoined) {
+    if (!updatedEvent) {
       return res.status(400).json({ message: 'Already in waitlist' });
     }
 
-    const position = event.waitlist.length + 1;
-
-    event.waitlist.push({ userId: new mongoose.Types.ObjectId(userId) });
-
-    await event.save({ validateBeforeSave: false });
+    const position =
+      updatedEvent.waitlist.findIndex((entry) => entry.userId?.toString() === userKey) + 1;
 
     res.json({
       message: 'Added to waitlist',
@@ -297,10 +490,6 @@ const joinWaitlist = async (req, res) => {
       details: error.message,
     });
   }
-};
-
-const sendWaitlistNotification = async (user, event) => {
-  // TODO: Integrate with real notification service (email/queue)
 };
 
 const leaveEvent = async (req, res) => {
@@ -315,19 +504,11 @@ const leaveEvent = async (req, res) => {
       return res.status(400).json({ error: 'No attendees to remove' });
     }
     event.currentAttendees -= 1;
+    event.status = updateEventStatus(event);
 
-    const promotedUsers = autoPromoteFromWaitlist(event);
-    event.markModified('waitlist');
-    await event.save({ validateBeforeSave: false });
-
-    for (const userId of promotedUsers) {
-      try {
-        const user = await User.findById(userId);
-        await sendWaitlistNotification(user, event);
-      } catch (err) {
-        console.error('Notification error:', err);
-      }
-    }
+    const promotedUsers = await autoPromoteFromWaitlist(event);
+    const updatedEvent = await event.save({ validateModifiedOnly: true });
+    await sendWaitlistNotification(promotedUsers, updatedEvent);
 
     res.json({
       message: 'Left event successfully',
@@ -346,19 +527,26 @@ const leaveWaitlist = async (req, res) => {
     const { eventId } = req.params;
     const { userId } = req.body;
 
-    const event = await Event.findById(eventId);
-
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    const isInWaitlist = event.waitlist.some((entry) => entry.userId.toString() === userId);
-
-    if (!isInWaitlist) {
-      return res.status(400).json({ error: 'User not in waitlist' });
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({ error: 'Invalid eventId' });
+    }
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid userId' });
     }
 
-    event.waitlist = event.waitlist.filter((entry) => entry.userId.toString() !== userId);
+    const userObjectId = new mongoose.Types.ObjectId(String(userId));
+    const updatedEvent = await Event.findOneAndUpdate(
+      { _id: eventId, 'waitlist.userId': userObjectId },
+      { $pull: { waitlist: { userId: userObjectId } } },
+      { new: true },
+    );
 
-    await event.save({ validateBeforeSave: false });
+    if (!updatedEvent) {
+      const eventExists = await Event.exists({ _id: eventId });
+      return eventExists
+        ? res.status(400).json({ error: 'User not in waitlist' })
+        : res.status(404).json({ error: 'Event not found' });
+    }
 
     res.json({ message: 'Removed from waitlist' });
   } catch (error) {
@@ -375,6 +563,7 @@ module.exports = {
   getEventLocations,
   getEventTypes,
   createEvent,
+  updateEvent,
   registerForEvent,
   unregisterFromEvent,
   joinWaitlist,

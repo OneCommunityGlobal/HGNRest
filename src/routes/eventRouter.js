@@ -8,6 +8,7 @@ eventRouter.get('/events/locations', eventsController.getEventLocations);
 eventRouter.get('/events', eventsController.getEvents);
 eventRouter.post('/events', eventsController.createEvent);
 eventRouter.get('/events/:id', eventsController.getEventById);
+eventRouter.patch('/events/:id', eventsController.updateEvent);
 eventRouter.post('/events/:id/register', eventsController.registerForEvent);
 eventRouter.delete('/events/:id/register/:userId', eventsController.unregisterFromEvent);
 
