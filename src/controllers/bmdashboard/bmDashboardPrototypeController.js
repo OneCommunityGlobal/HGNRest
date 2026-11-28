@@ -81,9 +81,24 @@ const bmDashboardPrototypeController = function (
         },
       ]);
 
-      const avgHourlyRate = 25; // Placeholder for hourly rate
-      const laborCostEstimate =
-        laborStats.length > 0 ? laborStats[0].totalLaborHours * avgHourlyRate : 18400;
+      const laborCostStats = await BuildingProject.aggregate([
+        { $unwind: '$members' },
+        {
+          $group: {
+            _id: null,
+            totalCost: {
+              $sum: {
+                $multiply: [
+                  { $ifNull: ['$members.hours', 0] },
+                  { $ifNull: ['$members.hourlyRate', 0] },
+                ],
+              },
+            },
+          },
+        },
+      ]);
+
+      const laborCostEstimate = laborCostStats[0]?.totalCost ?? 0;
 
       // Calculate average project duration based on labor hours
       // For a more accurate average, divide total hours by completed projects
@@ -180,14 +195,14 @@ const bmDashboardPrototypeController = function (
           },
         },
         totalLaborCost: {
-          value: parseFloat((laborCostEstimate / 1000).toFixed(1)) || 18.4, // $18.4K from UI
+          value: parseFloat((laborCostEstimate / 1000).toFixed(1)),
           trend: {
             value: previousWeekMetrics?.metrics?.totalLaborCost?.value
               ? calculateTrend(
                   laborCostEstimate / 1000,
                   previousWeekMetrics.metrics.totalLaborCost.value,
                 )
-              : 14,
+              : 0,
             period: 'week',
           },
         },
@@ -240,16 +255,14 @@ const bmDashboardPrototypeController = function (
           },
         },
         totalLaborHours: {
-          value: parseFloat(
-            (laborStats.length > 0 ? laborStats[0].totalLaborHours / 1000 : 12.8).toFixed(1),
-          ),
+          value: parseFloat(((laborStats[0]?.totalLaborHours ?? 0) / 1000).toFixed(1)),
           trend: {
             value: previousMonthMetrics?.metrics?.totalLaborHours?.value
               ? calculateTrend(
-                  laborStats.length > 0 ? laborStats[0].totalLaborHours / 1000 : 12.8,
+                  (laborStats[0]?.totalLaborHours ?? 0) / 1000,
                   previousMonthMetrics.metrics.totalLaborHours.value,
                 )
-              : 17,
+              : 0,
             period: 'month',
           },
         },
@@ -431,19 +444,7 @@ const bmDashboardPrototypeController = function (
       await storeMetricsSnapshot();
 
       // Get the latest dashboard metrics
-      const latestMetrics = await DashboardMetrics.findOne({
-        snapshotType: 'current',
-      })
-        .sort({ date: -1 })
-        .lean();
-
-      let metrics;
-      if (!latestMetrics) {
-        // If no metrics found, generate them now
-        metrics = await generateDashboardMetrics();
-      } else {
-        metrics = latestMetrics.metrics;
-      }
+      const metrics = await generateDashboardMetrics();
 
       // Format response to match UI expectations
       const formattedMetrics = {

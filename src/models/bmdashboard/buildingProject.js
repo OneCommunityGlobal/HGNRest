@@ -14,6 +14,13 @@ const buildingProject = new Schema({
     {
       user: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       hours: { type: Number, default: 0 }, // tracked via the Member Check-In Page timer
+      hourlyRate: { type: Number, min: 0, default: null },
+    },
+  ],
+  laborBudgets: [
+    {
+      task: { type: String, required: true },
+      budget: { type: Number, required: true, min: 0 },
     },
   ],
   projectType: { type: String, enum: ['commercial', 'residential', 'private'], default: 'private' },

@@ -138,26 +138,52 @@ const bmTimeLoggerController = function (bmTimeLog) {
     try {
       const { projectId, memberId } = req.params;
       const { timeLogId } = req.body;
-
+      const now = new Date();
       const updatedTimeLog = await bmTimeLog.findOneAndUpdate(
         {
           _id: timeLogId,
           project: projectId,
           member: memberId,
-          $or: [{ status: 'ongoing' }, { status: 'paused' }],
+          status: { $in: ['ongoing', 'paused'] },
         },
         [
           {
             $set: {
-              status: 'completed',
-              currentIntervalStarted: null,
+              intervals: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$status', 'ongoing'] },
+                      { $ne: ['$currentIntervalStarted', null] },
+                    ],
+                  },
+                  then: {
+                    $concatArrays: [
+                      { $ifNull: ['$intervals', []] },
+                      [
+                        {
+                          startTime: '$currentIntervalStarted',
+                          endTime: now,
+                          duration: { $subtract: [now, '$currentIntervalStarted'] },
+                        },
+                      ],
+                    ],
+                  },
+                  else: { $ifNull: ['$intervals', []] },
+                },
+              },
               totalElapsedTime: {
                 $add: [
-                  '$totalElapsedTime',
+                  { $ifNull: ['$totalElapsedTime', 0] },
                   {
                     $cond: {
-                      if: { $and: [{ $eq: ['$status', 'ongoing'] }, '$currentIntervalStarted'] },
-                      then: { $subtract: [new Date(), '$currentIntervalStarted'] },
+                      if: {
+                        $and: [
+                          { $eq: ['$status', 'ongoing'] },
+                          { $ne: ['$currentIntervalStarted', null] },
+                        ],
+                      },
+                      then: { $subtract: [now, '$currentIntervalStarted'] },
                       else: 0,
                     },
                   },
@@ -167,29 +193,13 @@ const bmTimeLoggerController = function (bmTimeLog) {
           },
           {
             $set: {
-              intervals: {
-                $cond: {
-                  if: { $and: [{ $eq: ['$status', 'ongoing'] }, '$currentIntervalStarted'] },
-                  then: {
-                    $concatArrays: [
-                      '$intervals',
-                      [
-                        {
-                          startTime: '$currentIntervalStarted',
-                          endTime: new Date(),
-                          duration: { $subtract: [new Date(), '$currentIntervalStarted'] },
-                        },
-                      ],
-                    ],
-                  },
-                  else: '$intervals',
-                },
-              },
+              status: 'completed',
+              currentIntervalStarted: null,
             },
           },
         ],
         {
-          new: true, // Return updated document
+          new: true,
           runValidators: true,
         },
       );

@@ -12,8 +12,12 @@
 
 jest.mock('../../../models/laborCost');
 jest.mock('../../../startup/logger');
+jest.mock('../../../models/bmdashboard/buildingProject');
+jest.mock('../../../models/bmdashboard/buildingTimeLogger');
 
 const LaborCost = require('../../../models/laborCost');
+const BuildingProject = require('../../../models/bmdashboard/buildingProject');
+const BMTimeLog = require('../../../models/bmdashboard/buildingTimeLogger');
 const logger = require('../../../startup/logger');
 const bmPaidLaborCostController = require('../bmPaidLaborCostController');
 
@@ -251,14 +255,60 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
   /** Calls getLaborCost with given query and optional mock DB records. Reduces duplication. */
   async function callGetLaborCost(query, records = []) {
     mockReq.query = query;
-    mockExec.mockResolvedValue(records);
+
+    const projects = [];
+    const timeLogs = [];
+
+    records.forEach((record, index) => {
+      const projectId = `project-${index}`;
+      const memberId = `member-${index}`;
+      const cost = Number(record.cost) || 0;
+
+      projects.push({
+        _id: projectId,
+        name: record.project_name,
+        members: [{ user: memberId, hourlyRate: 100 }],
+        laborBudgets: [],
+      });
+
+      timeLogs.push({
+        project: projectId,
+        member: memberId,
+        task: record.task,
+        createdAt: record.date,
+        intervals: record.date
+          ? [
+              {
+                startTime: record.date,
+                endTime: new Date(new Date(record.date).getTime() + cost * 36000),
+              },
+            ]
+          : [],
+      });
+    });
+
+    BuildingProject.find.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(projects),
+      }),
+    });
+
+    BMTimeLog.find.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(timeLogs),
+      }),
+    });
+
     await controller.getLaborCost(mockReq, mockRes);
   }
 
   /** Asserts 200 and LaborCost.find called with expectedFilter. */
   function expectSuccessWithFind(expectedFilter) {
     expect(mockRes.status).toHaveBeenCalledWith(200);
-    expect(LaborCost.find).toHaveBeenCalledWith(expectedFilter);
+
+    const projectFilter = expectedFilter.project_name ? { name: expectedFilter.project_name } : {};
+
+    expect(BuildingProject.find).toHaveBeenCalledWith(projectFilter);
   }
 
   /** Asserts 200 and empty find. */
@@ -294,6 +344,17 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
     mockLean = jest.fn().mockReturnValue({ exec: mockExec });
     mockSort = jest.fn().mockReturnValue({ lean: mockLean });
     LaborCost.find = jest.fn().mockReturnValue({ sort: mockSort });
+    BuildingProject.find = jest.fn().mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      }),
+    });
+
+    BMTimeLog.find = jest.fn().mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      }),
+    });
     logger.logException = jest.fn();
 
     mockReq = {
@@ -313,12 +374,14 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
    * Parameter Validation Tests - Projects
    */
   describe('Parameter Validation - Projects', () => {
-    it('should call sort, lean, exec and succeed when projects param is undefined', async () => {
+    it('should fetch building projects when projects param is undefined', async () => {
       await callGetLaborCost({});
+
       expectSuccessEmptyFind();
-      expect(mockSort).toHaveBeenCalledWith({ date: 1 });
-      expect(mockLean).toHaveBeenCalled();
-      expect(mockExec).toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        totalCost: 0,
+        data: [],
+      });
     });
 
     it.each([
@@ -455,12 +518,15 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
    * Query Building and Database Call
    */
   describe('Query Building and Database Call', () => {
-    it('should build empty query and call sort, lean, exec when no filters', async () => {
+    it('should fetch building projects when no filters are provided', async () => {
       await callGetLaborCost({});
-      expect(LaborCost.find).toHaveBeenCalledWith({});
-      expect(mockSort).toHaveBeenCalledWith({ date: 1 });
-      expect(mockLean).toHaveBeenCalled();
-      expect(mockExec).toHaveBeenCalled();
+
+      expect(BuildingProject.find).toHaveBeenCalledWith({});
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        totalCost: 0,
+        data: [],
+      });
     });
 
     it.each([
@@ -479,22 +545,25 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
         { date_range: '{"start_date":null,"end_date":"2025-04-30"}' },
         DATE_RANGE_END_ONLY,
       ],
-    ])('should build query filter with %s', async (_label, query, expectedFind) => {
+    ])('should accept %s and fetch building projects', async (_label, query) => {
       await callGetLaborCost(query);
-      expect(LaborCost.find).toHaveBeenCalledWith(expectedFind);
+
+      expect(BuildingProject.find).toHaveBeenCalledWith({});
+      expect(mockRes.status).toHaveBeenCalledWith(200);
     });
 
-    it('should build combined query filter with all filters', async () => {
+    it('should accept combined project, task, and date filters', async () => {
       await callGetLaborCost({
         projects: '["A"]',
         tasks: '["T1"]',
         date_range: '{"start_date":"2025-04-01","end_date":"2025-04-30"}',
       });
-      expect(LaborCost.find).toHaveBeenCalledWith({
-        project_name: { $in: ['A'] },
-        task: { $in: ['T1'] },
-        date: { $gte: expect.any(Date), $lte: expect.any(Date) },
+
+      expect(BuildingProject.find).toHaveBeenCalledWith({
+        name: { $in: ['A'] },
       });
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
     });
   });
 
@@ -510,11 +579,115 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
 
     it('should format single record correctly', async () => {
       const testDate = new Date('2025-04-01');
+
       await callGetLaborCost({}, [{ project_name: 'A', task: 'T1', date: testDate, cost: 100 }]);
+
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         totalCost: 100,
-        data: [{ project: 'A', task: 'T1', date: testDate.toISOString(), cost: 100 }],
+        data: [
+          {
+            project: 'A',
+            task: 'T1',
+            date: testDate.toISOString(),
+            cost: 100,
+            budget: null,
+          },
+        ],
+      });
+    });
+
+    it('should calculate labor cost from hours and hourly rate', async () => {
+      const startTime = new Date('2025-04-01T09:00:00.000Z');
+      const endTime = new Date('2025-04-01T11:30:00.000Z');
+
+      BuildingProject.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([
+            {
+              _id: 'project-1',
+              name: 'Project A',
+              members: [{ user: 'member-1', hourlyRate: 40 }],
+              laborBudgets: [{ task: 'Painting', budget: 500 }],
+            },
+          ]),
+        }),
+      });
+
+      BMTimeLog.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([
+            {
+              project: 'project-1',
+              member: 'member-1',
+              task: 'Painting',
+              intervals: [{ startTime, endTime }],
+            },
+          ]),
+        }),
+      });
+
+      await controller.getLaborCost(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        totalCost: 100,
+        data: [
+          {
+            project: 'Project A',
+            task: 'Painting',
+            date: startTime.toISOString(),
+            cost: 100,
+            budget: 500,
+          },
+        ],
+      });
+    });
+
+    it('should calculate labor cost using logged hours and hourly rate', async () => {
+      const startTime = new Date('2025-04-01T09:00:00.000Z');
+      const endTime = new Date('2025-04-01T11:30:00.000Z');
+
+      BuildingProject.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([
+            {
+              _id: 'project-1',
+              name: 'Project A',
+              members: [{ user: 'member-1', hourlyRate: 40 }],
+              laborBudgets: [{ task: 'Painting', budget: 500 }],
+            },
+          ]),
+        }),
+      });
+
+      BMTimeLog.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([
+            {
+              project: 'project-1',
+              member: 'member-1',
+              task: 'Painting',
+              intervals: [{ startTime, endTime }],
+            },
+          ]),
+        }),
+      });
+
+      await controller.getLaborCost(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        totalCost: 100,
+        data: [
+          {
+            project: 'Project A',
+            task: 'Painting',
+            date: startTime.toISOString(),
+            cost: 100,
+            budget: 500,
+          },
+        ],
       });
     });
 
@@ -529,26 +702,51 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         totalCost: 300,
         data: [
-          { project: 'A', task: 'T1', date: testDate1.toISOString(), cost: 100 },
-          { project: 'B', task: 'T2', date: testDate2.toISOString(), cost: 200 },
+          {
+            project: 'A',
+            task: 'T1',
+            date: testDate1.toISOString(),
+            cost: 100,
+            budget: null,
+          },
+          {
+            project: 'B',
+            task: 'T2',
+            date: testDate2.toISOString(),
+            cost: 200,
+            budget: null,
+          },
         ],
       });
     });
 
-    it('should convert string cost to number', async () => {
+    it('should calculate labor cost from a numeric string in the test fixture', async () => {
       const testDate = new Date('2025-04-01');
+
       await callGetLaborCost({}, [{ project_name: 'A', task: 'T1', date: testDate, cost: '100' }]);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         totalCost: 100,
-        data: [{ project: 'A', task: 'T1', date: testDate.toISOString(), cost: 100 }],
+        data: [
+          {
+            project: 'A',
+            task: 'T1',
+            date: testDate.toISOString(),
+            cost: 100,
+            budget: null,
+          },
+        ],
       });
     });
 
-    it('should handle null date in response', async () => {
+    it('should exclude time logs without completed intervals', async () => {
       await callGetLaborCost({}, [{ project_name: 'A', task: 'T1', date: null, cost: 100 }]);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
-        totalCost: 100,
-        data: [{ project: 'A', task: 'T1', date: null, cost: 100 }],
+        totalCost: 0,
+        data: [],
       });
     });
   });
@@ -566,7 +764,11 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
       const error = new Error('Database connection failed');
       error.name = 'MongoError';
       mockReq.query = {};
-      mockExec.mockRejectedValue(error);
+      BuildingProject.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockRejectedValue(error),
+        }),
+      });
 
       await controller.getLaborCost(mockReq, mockRes);
 
@@ -588,7 +790,11 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
       const error = new Error(errorMessage);
       if (errorName) error.name = errorName;
       mockReq.query = {};
-      mockExec.mockRejectedValue(error);
+      BuildingProject.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockRejectedValue(error),
+        }),
+      });
 
       await controller.getLaborCost(mockReq, mockRes);
 
@@ -600,7 +806,11 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
     it('should handle generic error and return 500 with INTERNAL_SERVER_ERROR', async () => {
       const error = new Error('Unknown error');
       mockReq.query = {};
-      mockExec.mockRejectedValue(error);
+      BuildingProject.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockRejectedValue(error),
+        }),
+      });
 
       await controller.getLaborCost(mockReq, mockRes);
 
@@ -643,9 +853,13 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
 
     it('should handle large array of projects', async () => {
       const projects = Array.from({ length: 100 }, (_, i) => `Project ${i + 1}`);
+
       await callGetLaborCost({ projects: JSON.stringify(projects) });
+
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(LaborCost.find).toHaveBeenCalledWith({ project_name: { $in: projects } });
+      expect(BuildingProject.find).toHaveBeenCalledWith({
+        name: { $in: projects },
+      });
     });
 
     it.each([
@@ -653,9 +867,13 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
       ['dates far in the future', '{"start_date":"2100-01-01","end_date":"2100-12-31"}'],
     ])('should handle %s', async (_label, dateRangeValue) => {
       await callGetLaborCost({ date_range: dateRangeValue });
+
+      expect(BuildingProject.find).toHaveBeenCalledWith({});
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(LaborCost.find).toHaveBeenCalledWith(DATE_RANGE_BOTH);
-      expect(mockRes.json).toHaveBeenCalledWith({ totalCost: 0, data: [] });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        totalCost: 0,
+        data: [],
+      });
     });
   });
 
@@ -671,7 +889,6 @@ describe('bmPaidLaborCostController - getLaborCost()', () => {
       ['empty query object', {}],
     ])('should handle %s', async (_label, queryValue) => {
       mockReq.query = queryValue;
-      mockExec.mockResolvedValue([]);
       await controller.getLaborCost(mockReq, mockRes);
       expectSuccessEmptyFind();
     });

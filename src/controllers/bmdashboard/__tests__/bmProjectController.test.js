@@ -35,6 +35,112 @@ describe('Building Manager Project Controller', () => {
     };
   });
 
+  describe('fetchProjectHourlyRates', () => {
+    it('should return hourly rates for an authorized project administrator', async () => {
+      const projectId = '507f1f77bcf86cd799439011';
+      const managerId = '507f191e810c19729de860ea';
+
+      req.params.projectId = projectId;
+      req.user = {
+        userid: managerId,
+        role: 'Administrator',
+      };
+
+      const mockProject = {
+        buildingManager: managerId,
+        members: [
+          {
+            user: {
+              _id: '507f1f77bcf86cd799439012',
+              firstName: 'John',
+              lastName: 'Doe',
+            },
+            hourlyRate: 25,
+          },
+        ],
+      };
+
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue(mockProject),
+      });
+
+      await controller.fetchProjectHourlyRates(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        members: [
+          {
+            userId: '507f1f77bcf86cd799439012',
+            firstName: 'John',
+            lastName: 'Doe',
+            hourlyRate: 25,
+          },
+        ],
+      });
+    });
+    it('should deny an administrator access to another manager’s project', async () => {
+      req.params.projectId = '507f1f77bcf86cd799439011';
+
+      req.user = {
+        userid: '507f191e810c19729de860ea',
+        role: 'Administrator',
+      };
+
+      const mockProject = {
+        buildingManager: '507f191e810c19729de860eb',
+        members: [],
+      };
+
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue(mockProject),
+      });
+
+      await controller.fetchProjectHourlyRates(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied for this project.',
+      });
+    });
+    it('should reject an invalid project ID', async () => {
+      req.params.projectId = 'invalid-id';
+      req.user = {
+        userid: '507f191e810c19729de860ea',
+        role: 'Administrator',
+      };
+
+      await controller.fetchProjectHourlyRates(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Invalid project ID.',
+      });
+      expect(BuildingProject.findById).not.toHaveBeenCalled();
+    });
+    it('should return 404 when the project does not exist', async () => {
+      req.params.projectId = '507f1f77bcf86cd799439011';
+
+      req.user = {
+        userid: '507f191e810c19729de860ea',
+        role: 'Administrator',
+      };
+
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue(null),
+      });
+
+      await controller.fetchProjectHourlyRates(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Project not found.',
+      });
+    });
+  });
+
   describe('fetchAllProjects', () => {
     const mockProjects = [
       {
@@ -193,6 +299,7 @@ describe('Building Manager Project Controller', () => {
       }));
 
       mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         populate: populateMock,
       });
 
@@ -224,6 +331,7 @@ describe('Building Manager Project Controller', () => {
       const populateMock = jest.fn(() => ({ exec: execMock }));
 
       mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         populate: populateMock,
       });
 

@@ -67,7 +67,16 @@ const bmMProjectController = function () {
             dateCreated: 1,
             buildingManager: 1,
             teams: 1,
-            members: 1,
+            members: {
+              $map: {
+                input: { $ifNull: ['$members', []] },
+                as: 'member',
+                in: {
+                  user: '$$member.user',
+                  hours: '$$member.hours',
+                },
+              },
+            },
             materials: 1,
             hoursWorked: { $sum: '$members.hours' },
             // cost values can be calculated once a process for purchasing inventory is created
@@ -105,6 +114,7 @@ const bmMProjectController = function () {
     const { projectId } = req.params;
     try {
       BuildingProject.findById(projectId)
+        .select('-members.hourlyRate')
         .populate([
           {
             path: 'buildingManager',
@@ -215,8 +225,143 @@ const bmMProjectController = function () {
       res.json(err);
     }
   };
+  const fetchProjectHourlyRates = async (req, res) => {
+    const { projectId } = req.params;
 
-  return { fetchAllProjects, fetchSingleProject, fetchProjectsNames, fetchProjectMembers };
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: 'Invalid project ID.' });
+    }
+
+    try {
+      const project = await BuildingProject.findById(projectId)
+        .select('buildingManager members')
+        .populate('members.user', 'firstName lastName');
+
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found.' });
+      }
+
+      if (
+        req.user.role !== 'Owner' &&
+        String(project.buildingManager) !== String(req.user.userid)
+      ) {
+        return res.status(403).json({ message: 'Access denied for this project.' });
+      }
+
+      const members = project.members.map((member) => ({
+        userId: member.user?._id,
+        firstName: member.user?.firstName,
+        lastName: member.user?.lastName,
+        hourlyRate: member.hourlyRate ?? null,
+      }));
+
+      return res.status(200).json({ members });
+    } catch (error) {
+      return res.status(500).json({ message: 'Unable to fetch hourly rates.' });
+    }
+  };
+  const updateMemberHourlyRate = async (req, res) => {
+    const { projectId, memberId } = req.params;
+    const { hourlyRate } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({ message: 'Invalid project or member ID.' });
+    }
+
+    if (
+      hourlyRate === null ||
+      typeof hourlyRate !== 'number' ||
+      !Number.isFinite(hourlyRate) ||
+      hourlyRate < 0
+    ) {
+      return res.status(400).json({ message: 'Hourly rate must be a non-negative number.' });
+    }
+
+    try {
+      const project = await BuildingProject.findById(projectId).select('buildingManager');
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found.' });
+      }
+
+      if (
+        req.user.role !== 'Owner' &&
+        String(project.buildingManager) !== String(req.user.userid)
+      ) {
+        return res.status(403).json({ message: 'Access denied for this project.' });
+      }
+      const updatedProject = await BuildingProject.findOneAndUpdate(
+        { _id: projectId, 'members.user': memberId },
+        { $set: { 'members.$.hourlyRate': hourlyRate } },
+        { new: true, runValidators: true },
+      );
+
+      if (!project) {
+        return res.status(404).json({ message: 'Project or member not found.' });
+      }
+
+      return res.status(200).json({ message: 'Hourly rate updated successfully.' });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to update hourly rate.' });
+    }
+  };
+  const updateTaskLaborBudget = async (req, res) => {
+    const { projectId } = req.params;
+    const { task, budget } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: 'Invalid project ID.' });
+    }
+
+    if (typeof task !== 'string' || !task.trim()) {
+      return res.status(400).json({ message: 'Task name is required.' });
+    }
+
+    if (typeof budget !== 'number' || !Number.isFinite(budget) || budget < 0) {
+      return res.status(400).json({ message: 'Budget must be a non-negative number.' });
+    }
+
+    try {
+      const project = await BuildingProject.findById(projectId);
+
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found.' });
+      }
+      if (
+        req.user.role !== 'Owner' &&
+        String(project.buildingManager) !== String(req.user.userid)
+      ) {
+        return res.status(403).json({ message: 'Access denied for this project.' });
+      }
+
+      const taskName = task.trim();
+
+      const existingBudget = project.laborBudgets.find((item) => item.task === taskName);
+
+      if (existingBudget) {
+        existingBudget.budget = budget;
+      } else {
+        project.laborBudgets.push({ task: taskName, budget });
+      }
+
+      await project.save();
+
+      return res.status(200).json({
+        message: 'Task labor budget updated successfully.',
+        laborBudgets: project.laborBudgets,
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to update task labor budget.' });
+    }
+  };
+  return {
+    fetchAllProjects,
+    fetchSingleProject,
+    fetchProjectsNames,
+    fetchProjectMembers,
+    fetchProjectHourlyRates,
+    updateMemberHourlyRate,
+    updateTaskLaborBudget,
+  };
 };
 
 module.exports = bmMProjectController;

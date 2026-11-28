@@ -8,17 +8,25 @@ const bmFinancialController = function (BuildingProject, BuildingMaterial, Build
   const mongoose = require('mongoose');
 
   // eslint-disable-next-line no-magic-numbers
-  const calculateLaborCost = async (projectId, hourlyRate = 25) => {
+  const calculateLaborCost = async (projectId) => {
     try {
       const project = await BuildingProject.findById(projectId);
+
       if (!project || !Array.isArray(project.members)) {
         return 0;
       }
+
       let totalLaborCost = 0;
+
       project.members.forEach((member) => {
         const hoursWorked = member.hours || 0;
-        totalLaborCost += hoursWorked * hourlyRate;
+        const { hourlyRate } = member;
+
+        if (typeof hourlyRate === 'number' && hourlyRate >= 0) {
+          totalLaborCost += hoursWorked * hourlyRate;
+        }
       });
+
       return totalLaborCost;
     } catch (err) {
       console.error('Error calculating labor cost:', err);

@@ -1,5 +1,7 @@
 const LaborCost = require('../../models/laborCost');
 const logger = require('../../startup/logger');
+const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const BMTimeLog = require('../../models/bmdashboard/buildingTimeLogger');
 
 /**
  * Helper function to check if a string looks like a JSON object or array
@@ -446,6 +448,106 @@ const buildQueryFilter = ({ projectsArray, tasksArray, dateRange, startDate, end
  * @param {string|null} validatedFilter.endDate - Validated end date string
  * @returns {Promise<Object[]>} Labor cost records
  */
+const calculateTimeLogCost = (timeLog, hourlyRate, startDate, endDate) => {
+  if (typeof hourlyRate !== 'number' || !Number.isFinite(hourlyRate) || hourlyRate < 0) {
+    return null;
+  }
+
+  const rangeStart = startDate
+    ? new Date(`${startDate.slice(0, 10)}T00:00:00.000Z`).getTime()
+    : -Infinity;
+
+  const rangeEnd = endDate ? new Date(`${endDate.slice(0, 10)}T23:59:59.999Z`).getTime() : Infinity;
+
+  let durationMs = 0;
+
+  for (const interval of timeLog.intervals || []) {
+    if (!interval.startTime || !interval.endTime) continue;
+
+    const intervalStart = new Date(interval.startTime).getTime();
+    const intervalEnd = new Date(interval.endTime).getTime();
+
+    if (!Number.isFinite(intervalStart) || !Number.isFinite(intervalEnd)) continue;
+
+    const overlappingStart = Math.max(intervalStart, rangeStart);
+    const overlappingEnd = Math.min(intervalEnd, rangeEnd);
+
+    if (overlappingEnd > overlappingStart) {
+      durationMs += overlappingEnd - overlappingStart;
+    }
+  }
+
+  const hours = durationMs / 3600000;
+
+  return {
+    hours,
+    cost: hours * hourlyRate,
+  };
+};
+const fetchActualLaborCosts = async ({ projectsArray, tasksArray, startDate, endDate }) => {
+  const projectFilter = {};
+
+  if (projectsArray.length > 0) {
+    projectFilter.name = { $in: sanitizeStringArrayForQuery(projectsArray) };
+  }
+
+  const projects = await BuildingProject.find(projectFilter).lean().exec();
+
+  const projectMap = new Map(projects.map((project) => [String(project._id), project]));
+
+  if (projects.length === 0) return [];
+
+  const timeLogFilter = {
+    project: { $in: projects.map((project) => project._id) },
+  };
+
+  if (tasksArray.length > 0) {
+    timeLogFilter.task = { $in: sanitizeStringArrayForQuery(tasksArray) };
+  }
+
+  const timeLogs = await BMTimeLog.find(timeLogFilter).lean().exec();
+  const records = [];
+  const countedBudgets = new Set();
+  const missingRateMembers = new Set();
+
+  for (const timeLog of timeLogs) {
+    const project = projectMap.get(String(timeLog.project));
+    if (!project) continue;
+
+    const member = (project.members || []).find(
+      (item) => String(item.user) === String(timeLog.member),
+    );
+
+    const result = calculateTimeLogCost(timeLog, member?.hourlyRate, startDate, endDate);
+
+    if (!result) {
+      missingRateMembers.add(String(timeLog.member));
+      continue;
+    }
+
+    if (result.hours === 0) continue;
+
+    const budget = (project.laborBudgets || []).find(
+      (item) => item.task.trim().toLowerCase() === timeLog.task.trim().toLowerCase(),
+    );
+    const budgetKey = `${project._id}:${timeLog.task}`;
+    const budgetAlreadyCounted = countedBudgets.has(budgetKey);
+
+    if (!budgetAlreadyCounted) {
+      countedBudgets.add(budgetKey);
+    }
+
+    records.push({
+      project_name: project.name,
+      task: timeLog.task,
+      date: timeLog.intervals?.[0]?.startTime || timeLog.createdAt,
+      cost: result.cost,
+      budget: !budgetAlreadyCounted ? budget?.budget ?? null : null,
+    });
+  }
+
+  return records.sort((a, b) => new Date(a.date) - new Date(b.date));
+};
 const findLaborCostByValidatedFilter = async ({
   projectsArray,
   tasksArray,
@@ -460,7 +562,12 @@ const findLaborCostByValidatedFilter = async ({
     startDate,
     endDate,
   });
-  return LaborCost.find(queryFilter).sort({ date: 1 }).lean().exec();
+  return fetchActualLaborCosts({
+    projectsArray,
+    tasksArray,
+    startDate,
+    endDate,
+  });
 };
 
 /**
@@ -472,6 +579,7 @@ const formatResponseData = (laborCostRecords) => {
     task: record.task,
     date: record.date ? new Date(record.date).toISOString() : null,
     cost: typeof record.cost === 'number' ? record.cost : Number(record.cost),
+    budget: record.budget ?? null,
   }));
 
   const totalCost =
