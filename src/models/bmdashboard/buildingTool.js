@@ -15,7 +15,7 @@ const buildingTool = new Schema({
     {
       // track purchase/rental requests
       _id: false, // do not add _id field to subdocument
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
       brand: String,
@@ -28,7 +28,7 @@ const buildingTool = new Schema({
     {
       // track tool condition updates
       _id: false,
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       condition: { type: String, enum: ['Good', 'Needs Repair', 'Out of Order'] },
     },
@@ -37,7 +37,7 @@ const buildingTool = new Schema({
     {
       // track tool daily check in/out and use
       _id: false,
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       responsibleUser: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       type: { type: String, enum: ['Check In', 'Check Out'] }, // default = opposite of current log status?

@@ -11,7 +11,7 @@ const buildingMaterial = new Schema({
   stockAvailable: { type: Number, default: 0 }, // bought - (used + wasted)
   purchaseRecord: [
     {
-      date: { type: Date, default: Date.now() },
+      date: { type: Date, default: Date.now },
       requestedBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile' },
       quantity: { type: Number, required: true },
       priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },

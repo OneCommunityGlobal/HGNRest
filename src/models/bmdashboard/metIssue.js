@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const metIssue = new Schema({
-  createdDate: { type: Date, required: true, default: Date.now() },
+  createdDate: { type: Date, required: true, default: Date.now },
   issueDate: { type: Date, required: true },
   createdBy: { type: mongoose.SchemaTypes.ObjectId, ref: 'userProfile', required: true },
   issueType: {
