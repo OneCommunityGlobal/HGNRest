@@ -18,6 +18,7 @@ require('./cronjobs/pullRequestReviewJobs')();
 require('./jobs/analyticsAggregation').scheduleDaily();
 require('./jobs/jobApplicationRetentionJob').startJobApplicationRetentionJob();
 require('./cronjobs/bidWinnerJobs')();
+require('./cronjobs/pinterestScheduleJob')();
 require('./cronjobs/mastodonScheduleJob').startMastodonScheduleJob();
 
 // Process pending and stuck emails on startup (only after DB is connected)
