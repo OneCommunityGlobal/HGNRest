@@ -9,7 +9,6 @@ const routes = function (weeklyGradingModel) {
   weeklyGradingRouter.route('/weekly-grading').get(controller.getWeeklyGrading);
   weeklyGradingRouter.route('/weekly-grading').delete(controller.deleteWeeklyGrading);
   weeklyGradingRouter.route('/weekly-grading/save').post(controller.saveWeeklyGrading);
-
   return weeklyGradingRouter;
 };
 

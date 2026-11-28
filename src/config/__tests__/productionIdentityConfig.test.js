@@ -1,6 +1,6 @@
 process.env.JWT_SECRET = 'test-secret';
 
-const { isProductionIdentityEnforcementActive } = require('../productionIdentityConfig');
+require('../productionIdentityConfig');
 
 describe('productionIdentityConfig', () => {
   const originalEnv = process.env;

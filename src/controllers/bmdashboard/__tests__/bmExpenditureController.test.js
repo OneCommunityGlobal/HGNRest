@@ -1,4 +1,5 @@
 jest.mock('../../../models/bmdashboard/buildingProject', () => ({ find: jest.fn() }));
+jest.mock('../../../models/project', () => ({ find: jest.fn() }));
 
 jest.mock('../../../models/bmdashboard/buildingExpenditure', () => ({
   find: jest.fn(),
@@ -7,6 +8,7 @@ jest.mock('../../../models/bmdashboard/buildingExpenditure', () => ({
 }));
 
 const BuildingProject = require('../../../models/bmdashboard/buildingProject');
+const Project = require('../../../models/project');
 const Expenditures = require('../../../models/bmdashboard/buildingExpenditure');
 const bmExpenditureController = require('../bmExpenditureController');
 
@@ -147,10 +149,54 @@ describe('bmExpenditureController', () => {
         res,
       );
       expect(BuildingProject.find).toHaveBeenCalledWith({ _id: { $in: [activeId, inactiveId] } });
+      // Every id resolved from BM projects, so HGN projects are not queried
+      expect(Project.find).not.toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: [activeId, inactiveId, 'legacy-project'],
         projectNames: { [activeId]: 'Active Project', [inactiveId]: 'Completed Project' },
+      });
+    });
+
+    it('falls back to HGN projects for ids that are not BM building projects', async () => {
+      const bmId = '507f1f77bcf86cd799439011';
+      const hgnId = '5a849085592ca46b43db272a';
+      const unknownId = '5a849085592ca46b43db9999';
+      Expenditures.distinct.mockResolvedValue([bmId, hgnId, unknownId]);
+      BuildingProject.find.mockReturnValue(makeQuery([{ _id: bmId, name: 'Building 1' }]));
+      Project.find.mockReturnValue(
+        makeQuery([{ _id: hgnId, projectName: 'Duplicable City Center' }]),
+      );
+      const res = makeRes();
+
+      await bmExpenditureController.getProjectIdsWithExpenditure(
+        { query: { includeNames: 'true' } },
+        res,
+      );
+
+      expect(Project.find).toHaveBeenCalledWith({ _id: { $in: [hgnId, unknownId] } });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [bmId, hgnId, unknownId],
+        projectNames: { [bmId]: 'Building 1', [hgnId]: 'Duplicable City Center' },
+      });
+    });
+
+    it('skips name lookups when no project id is a valid ObjectId', async () => {
+      Expenditures.distinct.mockResolvedValue(['legacy-1', 'legacy-2']);
+      const res = makeRes();
+
+      await bmExpenditureController.getProjectIdsWithExpenditure(
+        { query: { includeNames: 'true' } },
+        res,
+      );
+
+      expect(BuildingProject.find).not.toHaveBeenCalled();
+      expect(Project.find).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: ['legacy-1', 'legacy-2'],
+        projectNames: {},
       });
     });
 

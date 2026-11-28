@@ -1,8 +1,18 @@
 const express = require('express');
 const formController = require('../controllers/collaborationController');
+const emailRecipientsController = require('../controllers/jobApplicationEmailRecipientsController');
 const { jobApplicationUploadMiddleware } = require('../middleware/jobApplicationUploadMiddleware');
+const {
+  jobApplicationIpLimiter,
+  jobApplicationEmailLimiter,
+} = require('../middleware/jobApplicationRateLimit');
+const { jobApplicationBotGuard } = require('../middleware/jobApplicationBotGuard');
 
 const router = express.Router();
+
+// Protected by JWT middleware and controller-level Owner/Admin authorization.
+router.get('/job-application-email-recipients', emailRecipientsController.getRecipients);
+router.put('/job-application-email-recipients', emailRecipientsController.updateRecipients);
 
 // Create a new form
 router.post('/jobforms', formController.createForm);
@@ -19,9 +29,14 @@ router.get('/jobforms/:formId', formController.getFormFormat);
 router.get('/jobforms/:formId/responses', formController.getFormResponses);
 
 // Submit a job application (public — resume + per-question file uploads, size/type limited)
+// Order matters: IP limit before the upload is parsed, then bot checks and the per-email limit
+// once the body (honeypot, fillMs, email) is available.
 router.post(
   '/jobforms/:formId/responses',
+  jobApplicationIpLimiter,
   jobApplicationUploadMiddleware,
+  jobApplicationBotGuard,
+  jobApplicationEmailLimiter,
   formController.submitFormResponse,
 );
 

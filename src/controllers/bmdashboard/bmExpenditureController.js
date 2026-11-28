@@ -2,10 +2,42 @@
 const moment = require('moment');
 const { Types } = require('mongoose');
 const BuildingProject = require('../../models/bmdashboard/buildingProject');
+const Project = require('../../models/project');
 const Expenditures = require('../../models/bmdashboard/buildingExpenditure');
 
 const COST_BREAKDOWN_CATEGORIES = new Set(['plumbing', 'electrical', 'structural', 'mechanical']);
 const ALL_PROJECTS_ID = 'all';
+
+// Map project id -> name. Expenditure rows can reference BM building projects or regular
+// HGN projects, so look in BuildingProject first and fall back to Project for the rest.
+// Ids with no match in either collection are left out (the frontend shows a fallback label).
+const resolveProjectNames = async (projectIds) => {
+  const validIds = projectIds.filter((id) => Types.ObjectId.isValid(id));
+  if (validIds.length === 0) return {};
+
+  const buildingProjects = await BuildingProject.find({ _id: { $in: validIds } })
+    .select('_id name')
+    .lean()
+    .exec();
+  const projectNames = Object.fromEntries(
+    buildingProjects.filter((p) => p.name).map((p) => [String(p._id), p.name]),
+  );
+
+  const unresolvedIds = validIds.filter((id) => !projectNames[String(id)]);
+  if (unresolvedIds.length > 0) {
+    const hgnProjects = await Project.find({ _id: { $in: unresolvedIds } })
+      .select('_id projectName')
+      .lean()
+      .exec();
+    hgnProjects
+      .filter((p) => p.projectName)
+      .forEach((p) => {
+        projectNames[String(p._id)] = p.projectName;
+      });
+  }
+
+  return projectNames;
+};
 
 const bmExpenditureController = {
   // retrieve all expenditure data
@@ -46,14 +78,7 @@ const bmExpenditureController = {
       // Resolve names from all referenced projects, including inactive projects.
       // Keep the default IDs response compatible with existing clients.
       if (req.query?.includeNames === 'true') {
-        const validIds = projectIds.filter((id) => Types.ObjectId.isValid(id));
-        const projects = await BuildingProject.find({ _id: { $in: validIds } })
-          .select('_id name')
-          .lean()
-          .exec();
-        const projectNames = Object.fromEntries(
-          projects.map((project) => [String(project._id), project.name]),
-        );
+        const projectNames = await resolveProjectNames(projectIds);
         return res.status(200).json({ success: true, data: projectIds, projectNames });
       }
       return res.status(200).json({ success: true, data: projectIds });

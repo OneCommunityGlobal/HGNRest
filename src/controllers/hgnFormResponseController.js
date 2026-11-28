@@ -5,6 +5,12 @@
 /* eslint-disable camelcase */
 const FormResponse = require('../models/hgnFormResponse');
 const { hasPermission } = require('../utilities/permissions');
+const { getQuestionnaireAccess } = require('../helpers/questionnaireAccessHelper');
+const {
+  getWeeklySummaryStatus,
+  canViewWeeklySummaryStatus,
+  SUMMARY_STATUS_PROJECTION,
+} = require('../helpers/weeklySummaryStatusHelper');
 
 // How many skills a member card shows, and how deep the skills filter looks.
 const TOP_SKILLS_COUNT = 4;
@@ -19,6 +25,17 @@ const hgnFormController = () => {
     }
 
     try {
+      // Same restriction as the permanent questionnaire link: only people invited
+      // through the Dropbox setup process can submit, and only for themselves.
+      const { requestor } = req.body;
+      const access = await getQuestionnaireAccess(requestor);
+      if (!access.eligible) {
+        return res.status(403).json({ error: 'Not authorized', reason: access.reason });
+      }
+      if (requestor.role !== 'Owner' && String(user_id) !== String(requestor.requestorId)) {
+        return res.status(403).json({ error: 'You can only submit your own questionnaire' });
+      }
+
       const formResponse = new FormResponse(req.body);
       await formResponse.save();
       res.status(201).json(formResponse);
@@ -49,14 +66,17 @@ const hgnFormController = () => {
       const userIds = responses.map((r) => r.user_id).filter(Boolean);
       const users = await UserProfile.find(
         { _id: { $in: userIds } },
-        'isActive firstName lastName',
+        { isActive: 1, firstName: 1, lastName: 1, ...SUMMARY_STATUS_PROJECTION },
       );
+      const canSeeSummaryStatus = await canViewWeeklySummaryStatus(req.body?.requestor);
 
       // Create a map for quick lookup
       const userMap = {};
       const profileNameMap = {};
+      const summaryStatusMap = {};
       users.forEach((u) => {
         userMap[u._id.toString()] = u.isActive;
+        summaryStatusMap[u._id.toString()] = getWeeklySummaryStatus(u);
         profileNameMap[u._id.toString()] = [u.firstName, u.lastName].filter(Boolean).join(' ');
       });
 
@@ -135,6 +155,9 @@ const hgnFormController = () => {
           topSkills,
           preferences: user.general?.preferences || [],
           isActive,
+          ...(canSeeSummaryStatus && {
+            weeklySummaryStatus: (userId && summaryStatusMap[userId]) || null,
+          }),
           matchesSkills,
         };
       });
@@ -165,6 +188,16 @@ const hgnFormController = () => {
     }
   };
 
-  return { submitFormResponse, getAllFormResponses, getRankedResponses };
+  // Used by the permanent questionnaire link to decide whether to open the form.
+  const getAccess = async (req, res) => {
+    try {
+      const access = await getQuestionnaireAccess(req.body.requestor);
+      res.status(200).json(access);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to check questionnaire access: ${err.message}` });
+    }
+  };
+
+  return { submitFormResponse, getAllFormResponses, getRankedResponses, getAccess };
 };
 module.exports = hgnFormController;
